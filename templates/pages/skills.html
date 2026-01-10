@@ -1,0 +1,40 @@
+{{ define "content" }}
+<section class="skills-hero">
+  <div class="hero-header">
+    <h1>Technical Proficiencies</h1>
+    <p class="lead">A comprehensive toolkit for cloud infrastructure, automation, and security</p>
+  </div>
+</section>
+
+<section class="skills-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
+  <!-- Skeleton loading state -->
+  <div class="skills-container">
+    {{ range $i := (slice 1 2 3) }}
+    <div class="skill-category skeleton-category">
+      <div class="skeleton skeleton-category-title"></div>
+      <div class="skills-grid">
+        {{ range $j := (slice 1 2 3 4 5) }}
+        <div class="skill-badge skeleton-badge">
+          <div class="skeleton skeleton-icon"></div>
+          <div class="skeleton skeleton-text"></div>
+        </div>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="skills-cta">
+  <div class="cta-content">
+    <h2>Interested in my expertise?</h2>
+    <p>
+      View my projects or get in touch to discuss how I can help with your infrastructure needs.
+    </p>
+    <div class="cta-buttons">
+      <a href="/projects" class="btn btn-primary">View Projects</a>
+      <a href="/contact" class="btn btn-secondary">Contact Me</a>
+    </div>
+  </div>
+</section>
+{{ end }}

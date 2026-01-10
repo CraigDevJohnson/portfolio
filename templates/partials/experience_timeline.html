@@ -1,0 +1,48 @@
+<div class="career-grid" id="career-grid">
+  {{ range $index, $exp := .Experiences }}
+  <article
+    class="career-card {{ if eq $index 0 }}current{{ end }}"
+    style="animation-delay: {{ printf "%d" (multiply $index 80) }}ms;"
+    data-position="{{ $exp.Position }}"
+    data-technologies="{{ range $i, $tech := $exp.Technologies }}{{ if $i }},{{ end }}{{ $tech }}{{ end }}"
+    data-skills="{{ $exp.SkillAreas }}"
+    data-company="{{ $exp.Company }}"
+    data-duration="{{ $exp.Duration }}"
+  >
+    {{ if eq $index 0 }}
+    <div class="card-status current-badge">
+      <span class="status-dot"></span>
+      Current Role
+    </div>
+    {{ else }}
+    <div class="card-status">
+      <span class="card-number">#{{ subtract (len $.Experiences) $index }}</span>
+    </div>
+    {{ end }}
+
+    <header class="card-header">
+      <h3 class="position">{{ $exp.Position }}</h3>
+      <span class="company">{{ $exp.Company }}</span>
+      <span class="duration">{{ $exp.Duration }}</span>
+    </header>
+
+    <div class="card-body">
+      <p class="responsibilities">{{ $exp.Responsibilities }}</p>
+    </div>
+
+    <footer class="card-footer">
+      <div class="tech-stack">
+        {{ range $exp.Technologies }}
+        <span class="tech-pill" data-tech="{{ . }}">{{ . }}</span>
+        {{ end }}
+      </div>
+    </footer>
+  </article>
+  {{ end }}
+</div>
+
+<div class="no-results" id="no-results" style="display: none;">
+  <span class="no-results-icon">🔍</span>
+  <h3>No matching positions found</h3>
+  <p>Try adjusting your filters to see more results.</p>
+</div>

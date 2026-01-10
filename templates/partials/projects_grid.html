@@ -1,0 +1,41 @@
+<div class="projects-grid">
+{{ range $index, $project := .Projects }}
+<article class="project-card" style="animation-delay: {{ printf "%d" (multiply $index 150) }}ms;">
+  <div class="project-image">
+    {{ if $project.Image }}
+    <img src="{{ $project.Image }}" alt="{{ $project.Name }}" loading="lazy" width="400" height="225">
+    {{ else }}
+    <div class="project-placeholder">
+      <span>📁</span>
+    </div>
+    {{ end }}
+    <div class="project-category">{{ $project.Category }}</div>
+  </div>
+
+  <div class="project-content">
+    <h3 class="project-title">{{ $project.Name }}</h3>
+    <p class="project-intro">{{ $project.Intro }}</p>
+    <p class="project-description">{{ $project.Description }}</p>
+
+    <div class="project-tech">
+      {{ range $project.Technologies }}
+      <span class="tech-pill">{{ . }}</span>
+      {{ end }}
+    </div>
+
+    <div class="project-actions">
+      {{ if $project.GitHubURL }}
+      <a href="{{ $project.GitHubURL }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+        <span>🐙</span> GitHub
+      </a>
+      {{ end }}
+      {{ if $project.DemoURL }}
+      <a href="{{ $project.DemoURL }}" {{ if not (hasPrefix $project.DemoURL "/") }}target="_blank" rel="noopener noreferrer"{{ end }} class="btn btn-sm btn-primary">
+        <span>🚀</span> Live Demo
+      </a>
+      {{ end }}
+    </div>
+  </div>
+</article>
+{{ end }}
+</div>

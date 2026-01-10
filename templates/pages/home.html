@@ -1,0 +1,113 @@
+{{ define "content" }}
+<section class="hero">
+  <div class="hero-background">
+    <div class="hero-gradient"></div>
+    <div class="hero-pattern"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="hero-avatar">
+      <a
+        href="https://gravatar.com/craigdevjohnson1"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="avatar-link"
+      >
+        <img
+          src="{{ .AvatarURL }}"
+          alt="{{ .Name }}"
+          class="avatar-image"
+          width="275"
+          height="275"
+          loading="eager"
+        />
+        <div class="avatar-ring"></div>
+        <div class="avatar-glow"></div>
+      </a>
+    </div>
+
+    <div class="hero-text">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        Available for opportunities
+      </div>
+
+      <h1 class="hero-title">
+        <span class="greeting">Hi, I'm</span>
+        <span class="name">{{ .Name }}</span>
+      </h1>
+
+      <h2 class="hero-subtitle">{{ .Role }}</h2>
+
+      <p class="hero-description">{{ .Description }}</p>
+
+      <div class="hero-actions">
+        <a href="/experience" class="btn btn-primary">
+          <span>View Experience</span>
+          <span class="btn-icon">→</span>
+        </a>
+        <a href="/projects" class="btn btn-secondary">
+          <span>See Projects</span>
+        </a>
+        <a href="/contact" class="btn btn-ghost">
+          <span>Get in Touch</span>
+        </a>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat" id="years-stat">
+          <span class="stat-value" data-start-year="2012"></span>
+          <span class="stat-label">Years Experience</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">5+</span>
+          <span class="stat-label">Cloud Certifications</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">100+</span>
+          <span class="stat-label">Automation Projects</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Auto-calculate years in tech
+  document.addEventListener('DOMContentLoaded', function () {
+    const yearsStat = document.querySelector('#years-stat .stat-value')
+    if (yearsStat && yearsStat.dataset.startYear) {
+      const startYear = parseInt(yearsStat.dataset.startYear)
+      const currentYear = new Date().getFullYear()
+      const years = currentYear - startYear
+      yearsStat.textContent = years + '+'
+    }
+  })
+</script>
+
+<section class="quick-links">
+  <h2 class="section-title">Quick Links</h2>
+  <div class="links-grid">
+    <a href="/experience" class="quick-link-card">
+      <span class="card-icon">💼</span>
+      <h3>Experience</h3>
+      <p>View my professional journey</p>
+    </a>
+    <a href="/skills" class="quick-link-card">
+      <span class="card-icon">🛠️</span>
+      <h3>Skills</h3>
+      <p>Technical proficiencies</p>
+    </a>
+    <a href="/projects" class="quick-link-card">
+      <span class="card-icon">📁</span>
+      <h3>Projects</h3>
+      <p>See what I've built</p>
+    </a>
+    <a href="/soccer" class="quick-link-card">
+      <span class="card-icon">⚽</span>
+      <h3>Soccer Tool</h3>
+      <p>Schedule download utility</p>
+    </a>
+  </div>
+</section>
+{{ end }}

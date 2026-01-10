@@ -1,0 +1,47 @@
+{{ define "content" }}
+<section class="projects-hero">
+  <div class="hero-header">
+    <h1>Projects</h1>
+    <p class="lead">A showcase of automation, web development, and cloud infrastructure projects</p>
+  </div>
+</section>
+
+<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
+  <!-- Skeleton loading state -->
+  <div class="projects-grid">
+    {{ range $i := (slice 1 2 3) }}
+    <div class="project-card skeleton-project">
+      <div class="skeleton skeleton-image"></div>
+      <div class="project-content">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-text"></div>
+        <div class="skeleton skeleton-text short"></div>
+        <div class="skeleton-pills">
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+        </div>
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</section>
+
+<section class="projects-cta">
+  <div class="cta-content">
+    <h2>Looking for more?</h2>
+    <p>Check out my GitHub profile for additional projects and contributions.</p>
+    <div class="cta-buttons">
+      <a
+        href="https://github.com/CraigDevJohnson"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn btn-primary"
+      >
+        <span>🐙</span>
+        View GitHub Profile
+      </a>
+    </div>
+  </div>
+</section>
+{{ end }}

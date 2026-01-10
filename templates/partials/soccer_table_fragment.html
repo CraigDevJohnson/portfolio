@@ -1,0 +1,72 @@
+{{/* Fragment returned by /soccer/fetch (htmx) */}} {{ if not .Games }}
+<div class="no-results">
+  <span class="no-results-icon">🔍</span>
+  <p>No games found for the provided team code(s).</p>
+  <p class="hint">Check that you entered valid 6-digit team codes.</p>
+</div>
+{{ else }}
+<form
+  id="download-form"
+  action="/soccer/download"
+  method="post"
+  class="games-form"
+  data-soccer-form
+>
+  <input type="hidden" name="team_codes" value="{{ .TeamCodes }}" />
+
+  <div class="table-header">
+    <div class="table-actions">
+      <label class="select-all-label">
+        <input id="select-all" type="checkbox" checked data-select-all />
+        <span>Select all games</span>
+      </label>
+      <span class="games-count">{{ len .Games }} game(s) found</span>
+    </div>
+    <button id="download-button" type="submit" class="btn btn-success download-btn">
+      <span class="btn-icon">⬇️</span>
+      <span class="btn-text">Download Selected (.ics)</span>
+    </button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="games-table" role="table" aria-label="Soccer games schedule">
+      <thead>
+        <tr>
+          <th class="col-check" aria-label="Select"></th>
+          <th class="col-datetime">Date / Time</th>
+          <th class="col-field">Field</th>
+          <th class="col-team">Home</th>
+          <th class="col-team">Away</th>
+          <th class="col-season">Season</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Games }}
+        <tr class="game-row">
+          <td class="col-check">
+            <input
+              class="game-checkbox"
+              type="checkbox"
+              name="selected"
+              value="{{ .ID }}"
+              checked
+              aria-label="Select game {{ .ID }}"
+              data-game-checkbox
+            />
+          </td>
+          <td class="col-datetime">{{ .DateTime }}</td>
+          <td class="col-field">
+            <span class="field-badge">{{ .Field }}</span>
+          </td>
+          <td class="col-team home-team">{{ .Home }}</td>
+          <td class="col-team away-team">{{ .Away }}</td>
+          <td class="col-season">
+            <span class="season-badge">{{ .Season }}</span>
+          </td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+</form>
+{{ end }}
