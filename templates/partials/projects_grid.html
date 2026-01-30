@@ -6,7 +6,7 @@
     <img src="{{ $project.Image }}" alt="{{ $project.Name }}" loading="lazy" width="400" height="225">
     {{ else }}
     <div class="project-placeholder">
-      <span>📁</span>
+      <span>Project</span>
     </div>
     {{ end }}
     <div class="project-category">{{ $project.Category }}</div>
@@ -24,15 +24,15 @@
     </div>
 
     <div class="project-actions">
-      {{ if $project.GitHubURL }}
-      <a href="{{ $project.GitHubURL }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
-        <span>🐙</span> GitHub
-      </a>
-      {{ end }}
-      {{ if $project.DemoURL }}
-      <a href="{{ $project.DemoURL }}" {{ if not (hasPrefix $project.DemoURL "/") }}target="_blank" rel="noopener noreferrer"{{ end }} class="btn btn-sm btn-primary">
-        <span>🚀</span> Live Demo
-      </a>
+    {{ if $project.GitHubURL }}
+    <a href="{{ $project.GitHubURL }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+        GitHub
+    </a>
+    {{ end }}
+    {{ if $project.DemoURL }}
+    <a href="{{ $project.DemoURL }}" {{ if not (hasPrefix $project.DemoURL "/") }}target="_blank" rel="noopener noreferrer"{{ end }} class="btn btn-sm btn-primary">
+        Live Demo
+    </a>
       {{ end }}
     </div>
   </div>

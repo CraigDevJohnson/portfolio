@@ -59,7 +59,7 @@
 .skill-badge {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   padding: var(--space-lg);
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -81,12 +81,11 @@
 }
 
 .skill-link:hover {
-  background: rgba(16, 185, 129, 0.05);
+  background: rgba(var(--accent-primary-rgb), 0.05);
 }
 
 .skill-icon {
-  font-size: 1.5rem;
-  flex-shrink: 0;
+  display: none;
 }
 
 .skill-name {
@@ -171,7 +170,7 @@
   }
 
   .skill-icon {
-    font-size: 2rem;
+    display: none;
   }
 
   .external-icon {

@@ -55,7 +55,7 @@
 }
 
 .card-icon {
-  font-size: 1.5rem;
+  display: none;
 }
 
 .card-header h2,
@@ -92,7 +92,7 @@
 }
 
 .fact-icon {
-  font-size: 1.25rem;
+  display: none;
 }
 
 /* Values */
@@ -113,7 +113,7 @@
 }
 
 .value-icon {
-  font-size: 1rem;
+  display: none;
 }
 
 /* CTA */

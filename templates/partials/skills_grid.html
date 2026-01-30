@@ -6,13 +6,11 @@
     {{ range $skillIndex, $skill := $cat.Skills }}
     {{ if $skill.Link }}
     <a href="{{ $skill.Link }}" target="_blank" rel="noopener noreferrer" class="skill-badge skill-link" style="animation-delay: {{ printf "%d" (multiply $skillIndex 50) }}ms;">
-      <span class="skill-icon">{{ $skill.Icon }}</span>
       <span class="skill-name">{{ $skill.Name }}</span>
       <span class="external-icon">↗</span>
     </a>
     {{ else }}
     <div class="skill-badge" style="animation-delay: {{ printf "%d" (multiply $skillIndex 50) }}ms;">
-      <span class="skill-icon">{{ $skill.Icon }}</span>
       <span class="skill-name">{{ $skill.Name }}</span>
     </div>
     {{ end }}

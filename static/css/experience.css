@@ -56,8 +56,7 @@
 }
 
 .summary-icon {
-  font-size: 1.75rem;
-  margin-bottom: var(--space-sm);
+  display: none;
 }
 
 .summary-value {
@@ -148,7 +147,7 @@
 }
 
 .filter-icon {
-  font-size: 1.25rem;
+  display: none;
 }
 
 .filter-pills {
@@ -181,7 +180,7 @@
   background: var(--accent-primary);
   color: white;
   border-color: var(--accent-primary);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
 }
 
 .filter-pill.active:hover {

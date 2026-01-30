@@ -1,86 +1,40 @@
 # Portfolio Codebase Instructions
 
-## Architecture Overview
+## Big picture
 
-This is a **Go + HTMX** personal portfolio site using server-side rendering with dynamic client interactions. Single-file architecture: all application code lives in [main.go](../main.go).
+- Go 1.21+ server-rendered site with HTMX for partial updates; all app code lives in `main.go`.
+- Templates are split into layout/pages/partials; pages render through `renderPage`, fragments through `renderFragment`.
 
-### Core Patterns
+## Core structure and patterns
 
-- **Template System**: Go `html/template` with a composable structure:
+- Templates:
+  - `templates/layouts/base.html` defines `{{ block "content" }}` and loads page CSS via `.Page`.
+  - `templates/pages/*.html` implement `{{ define "content" }}` for each route.
+  - `templates/partials/*.html` for shared chrome and HTMX fragments.
+- Handlers live in `main.go` and follow:
+  - `renderPage(w, "pagename", map[string]any{"Title": "...", "Page": "pagename", ...})`
+  - Fragments use paired routes, e.g. `/experience` + `/experience/timeline` -> `experience_timeline.html`.
+- Data is hardcoded in `main.go` via typed structs and `*_Data()` helpers (e.g., `experienceData()`, `skillsData()`).
 
-  - `templates/layouts/base.html` — master layout (defines `{{ block "content" }}`)
-  - `templates/pages/*.html` — page-specific content (implements `{{ define "content" }}`)
-  - `templates/partials/*.html` — reusable fragments (header, nav, footer, HTMX fragments)
+## HTMX integration
 
-- **Handler Pattern**: Each page has a handler in `main.go` following this structure:
+- Fragment routes return only partial templates; see `experience_timeline.html`, `skills_grid.html`, `projects_grid.html`.
+- Soccer page shows full HTMX form flow: `POST /soccer/fetch` returns `soccer_table_fragment.html` and `POST /soccer/download` streams ICS.
 
-  ```go
-  func pageHandler(w http.ResponseWriter, r *http.Request) {
-      renderPage(w, "pagename", map[string]any{
-          "Title": "Page Title - Craig Johnson",
-          "Page":  "pagename",  // Used for CSS loading and nav highlighting
-          // page-specific data...
-      })
-  }
-  ```
+## Frontend conventions
 
-- **HTMX Fragment Pattern**: Pages with dynamic content use paired handlers:
-  - Full page: `/experience` → `experienceHandler` → renders full page
-  - Fragment: `/experience/timeline` → `experienceTimelineHandler` → renders only `experience_timeline.html`
+- Per-page CSS in `static/css/{pagename}.css`; globals and theme tokens in `static/css/styles.css`.
+- Theme persistence in `static/js/theme.js`; base interactions in `static/js/main.js`.
+- Active nav uses `{{ if eq .Page "pagename" }}active{{ end }}` in `templates/partials/nav.html`.
 
-## Data Flow
+## Dev workflow
 
-All data is **hardcoded in `main.go`** via functions like `experienceData()`, `skillsData()`, `projectsData()`. Each returns typed structs. When adding content, update these functions directly.
+- Build/run: `go build -o portfolio-server . && ./portfolio-server` (server at http://localhost:8080).
+- Templates are loaded once at startup; restart required unless using `air` hot-reload.
 
-## Key Conventions
+## When adding a page
 
-### Templates
-
-- **Page CSS**: Each page has matching CSS in `static/css/{pagename}.css`, auto-loaded via `{{ .Page }}` in base.html
-- **Template Functions**: Custom funcs in `templateFuncs` map: `Year`, `multiply`, `slice`, `hasPrefix`, `mod`, `subtract`
-- **Active Nav**: Nav links use `{{ if eq .Page "pagename" }}active{{ end }}` for highlighting
-
-### HTMX Integration
-
-- HTMX loaded in base.html with SRI integrity check
-- Fragment targets use `hx-target`, `hx-swap="innerHTML"`, and `hx-indicator` for loading states
-- Soccer page demonstrates full HTMX form pattern: `hx-post="/soccer/fetch"` → returns `soccer_table_fragment.html`
-
-### CSS Architecture
-
-- Design tokens in `:root` (light theme) and `.dark` class (dark theme) in `styles.css`
-- Theme toggle persists to localStorage, handled by `static/js/theme.js`
-- Mobile-first responsive design with consistent spacing/radius variables
-
-## Development Workflow
-
-```bash
-# Build and run
-go build -o portfolio-server . && ./portfolio-server
-
-# Hot reload (recommended)
-go install github.com/cosmtrek/air@latest
-air
-```
-
-Server runs at `http://localhost:8080`. Templates are loaded once at startup; restart required for template changes unless using `air`.
-
-## Adding New Pages
-
-1. Create handler in `main.go` with data function if needed
-2. Register route: `http.HandleFunc("/newpage", newpageHandler)`
-3. Add template: `templates/pages/newpage.html` with `{{ define "content" }}`
-4. Add CSS: `static/css/newpage.css`
-5. Update nav in `templates/partials/nav.html`
-6. If HTMX fragments needed, create partial and fragment handler
-
-## File Reference
-
-| Path                          | Purpose                                             |
-| ----------------------------- | --------------------------------------------------- |
-| `main.go`                     | All handlers, data, routes, template loading        |
-| `templates/layouts/base.html` | HTML shell, loads page-specific CSS                 |
-| `templates/partials/nav.html` | Navigation with active state logic                  |
-| `static/css/styles.css`       | Global styles, CSS variables, dark/light themes     |
-| `static/js/theme.js`          | Theme persistence                                   |
-| `static/js/main.js`           | Mobile menu, HTMX event handlers, scroll animations |
+1. Add handler and data in `main.go`; register route in `main()`.
+2. Create `templates/pages/{pagename}.html` and `static/css/{pagename}.css`.
+3. Add nav entry in `templates/partials/nav.html`.
+4. If HTMX fragments are needed, add partial + fragment handler.

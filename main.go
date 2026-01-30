@@ -186,7 +186,7 @@ func main() {
 		http.ServeFile(w, r, "static/images/favicon.ico")
 	})
 
-	log.Println("🚀 Craig Johnson Portfolio running at http://localhost:8080")
+	log.Println("Craig Johnson Portfolio running at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
@@ -213,7 +213,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		"Name":        "Craig Johnson",
 		"Role":        "System Engineer Advisor",
 		"AvatarURL":   gravatarURL("gravatar@craigdevjohnson.com", 275),
-		"Description": "👋 Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		"Description": "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
 	})
 }
 
@@ -359,50 +359,50 @@ func skillsData() []SkillCategory {
 		{
 			Name: "Cloud & Infrastructure",
 			Skills: []Skill{
-				{ID: 1, Name: "AWS Architecture", Icon: "☁️", Link: "https://aws.amazon.com/about-aws/"},
-				{ID: 2, Name: "Azure Architecture", Icon: "☁️", Link: "https://azure.microsoft.com/en-us/explore"},
-				{ID: 3, Name: "VMware ESXi/vSphere", Icon: "🖥️", Link: "https://www.vmware.com/"},
-				{ID: 4, Name: "Infrastructure as Code", Icon: "📝", Link: "https://www.redhat.com/en/topics/automation/what-is-infrastructure-as-code-iac"},
-				{ID: 5, Name: "Hybrid Cloud", Icon: "🔗", Link: "https://www.ibm.com/topics/hybrid-cloud"},
+				{ID: 1, Name: "AWS Architecture", Link: "https://aws.amazon.com/about-aws/"},
+				{ID: 2, Name: "Azure Architecture", Link: "https://azure.microsoft.com/en-us/explore"},
+				{ID: 3, Name: "VMware ESXi/vSphere", Link: "https://www.vmware.com/"},
+				{ID: 4, Name: "Infrastructure as Code", Link: "https://www.redhat.com/en/topics/automation/what-is-infrastructure-as-code-iac"},
+				{ID: 5, Name: "Hybrid Cloud", Link: "https://www.ibm.com/topics/hybrid-cloud"},
 			},
 		},
 		{
 			Name: "DevOps & Automation",
 			Skills: []Skill{
-				{ID: 6, Name: "Ansible", Icon: "🔧", Link: "https://www.ansible.com/overview/it-automation"},
-				{ID: 7, Name: "Terraform", Icon: "🏗️", Link: "https://www.terraform.io/intro"},
-				{ID: 8, Name: "Docker", Icon: "🐳", Link: "https://www.docker.com/why-docker"},
-				{ID: 9, Name: "Git/GitHub", Icon: "📚", Link: "https://github.com/about"},
-				{ID: 10, Name: "CI/CD Pipelines", Icon: "🔄", Link: "https://about.gitlab.com/topics/ci-cd/"},
+				{ID: 6, Name: "Ansible", Link: "https://www.ansible.com/overview/it-automation"},
+				{ID: 7, Name: "Terraform", Link: "https://www.terraform.io/intro"},
+				{ID: 8, Name: "Docker", Link: "https://www.docker.com/why-docker"},
+				{ID: 9, Name: "Git/GitHub", Link: "https://github.com/about"},
+				{ID: 10, Name: "CI/CD Pipelines", Link: "https://about.gitlab.com/topics/ci-cd/"},
 			},
 		},
 		{
 			Name: "Programming & Scripting",
 			Skills: []Skill{
-				{ID: 11, Name: "PowerShell", Icon: "💻", Link: "https://learn.microsoft.com/en-us/powershell/"},
-				{ID: 12, Name: "Python", Icon: "🐍", Link: "https://www.python.org/about/"},
-				{ID: 13, Name: "Bash", Icon: "🐚", Link: "https://www.gnu.org/software/bash/"},
-				{ID: 14, Name: "JavaScript", Icon: "⚡", Link: "https://www.w3schools.com/js/js_intro.asp"},
-				{ID: 15, Name: "Go", Icon: "🔷", Link: "https://go.dev/"},
+				{ID: 11, Name: "PowerShell", Link: "https://learn.microsoft.com/en-us/powershell/"},
+				{ID: 12, Name: "Python", Link: "https://www.python.org/about/"},
+				{ID: 13, Name: "Bash", Link: "https://www.gnu.org/software/bash/"},
+				{ID: 14, Name: "JavaScript", Link: "https://www.w3schools.com/js/js_intro.asp"},
+				{ID: 15, Name: "Go", Link: "https://go.dev/"},
 			},
 		},
 		{
 			Name: "Security & Compliance",
 			Skills: []Skill{
-				{ID: 16, Name: "Zero Trust Architecture", Icon: "🛡️", Link: "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/"},
-				{ID: 17, Name: "Identity & Access Management", Icon: "🔑", Link: "https://www.gartner.com/en/information-technology/glossary/identity-and-access-management-iam"},
-				{ID: 18, Name: "Cloud Security", Icon: "🔒", Link: "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/"},
-				{ID: 19, Name: "Security Operations", Icon: "🔐", Link: "https://www.cyberark.com/what-is-security-operations/"},
-				{ID: 20, Name: "Compliance Frameworks", Icon: "✅", Link: "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/"},
+				{ID: 16, Name: "Zero Trust Architecture", Link: "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/"},
+				{ID: 17, Name: "Identity & Access Management", Link: "https://www.gartner.com/en/information-technology/glossary/identity-and-access-management-iam"},
+				{ID: 18, Name: "Cloud Security", Link: "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/"},
+				{ID: 19, Name: "Security Operations", Link: "https://www.cyberark.com/what-is-security-operations/"},
+				{ID: 20, Name: "Compliance Frameworks", Link: "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/"},
 			},
 		},
 		{
 			Name: "Systems & Services",
 			Skills: []Skill{
-				{ID: 21, Name: "Windows Server", Icon: "🪟", Link: "https://www.microsoft.com/en-us/windows-server"},
-				{ID: 22, Name: "Linux (RHEL)", Icon: "🐧", Link: "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux"},
-				{ID: 23, Name: "Load Balancers", Icon: "⚖️", Link: "https://www.f5.com/glossary/load-balancer"},
-				{ID: 24, Name: "Configuration Management", Icon: "⚙️", Link: "https://www.atlassian.com/microservices/microservices-architecture/configuration-management"},
+				{ID: 21, Name: "Windows Server", Link: "https://www.microsoft.com/en-us/windows-server"},
+				{ID: 22, Name: "Linux (RHEL)", Link: "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux"},
+				{ID: 23, Name: "Load Balancers", Link: "https://www.f5.com/glossary/load-balancer"},
+				{ID: 24, Name: "Configuration Management", Link: "https://www.atlassian.com/microservices/microservices-architecture/configuration-management"},
 			},
 		},
 	}

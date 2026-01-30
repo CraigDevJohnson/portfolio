@@ -75,8 +75,7 @@
 }
 
 .method-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
+  display: none;
 }
 
 .method-info {
@@ -164,7 +163,7 @@
 }
 
 .time-icon {
-  font-size: 1.25rem;
+  display: none;
 }
 
 .preferred-contact h3 {

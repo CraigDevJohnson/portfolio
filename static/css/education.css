@@ -65,7 +65,11 @@
 }
 
 .education-card.featured {
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(16, 185, 129, 0.1) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    rgba(var(--accent-primary-rgb), 0.1) 100%
+  );
   border-color: var(--accent-primary);
 }
 

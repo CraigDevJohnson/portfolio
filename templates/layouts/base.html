@@ -40,7 +40,7 @@
     <script src="/static/js/main.js" defer></script>
   </head>
 
-  <body>
+  <body{{ if eq .Page "soccer" }} class="soccer-theme"{{ end }}>
     {{ template "header.html" . }}
 
     <main class="main-content">

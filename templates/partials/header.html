@@ -1,7 +1,6 @@
 <header class="site-header">
   <div class="header-content">
     <a href="/" class="logo">
-      <span class="logo-icon">👨‍💻</span>
       <span class="logo-text">Craig Johnson</span>
     </a>
 
@@ -9,8 +8,8 @@
 
     <div class="header-actions">
       <button id="theme-toggle" class="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
-        <span class="theme-icon light-icon">☀️</span>
-        <span class="theme-icon dark-icon">🌙</span>
+        <span class="theme-icon light-icon">Light</span>
+        <span class="theme-icon dark-icon">Dark</span>
       </button>
 
       <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
@@ -21,13 +20,13 @@
 
   <!-- Mobile Navigation -->
   <nav id="mobile-nav" class="mobile-nav" aria-hidden="true">
-    <a href="/" class="nav-link {{ if eq .Page "home" }}active{{ end }}">🏠 Home</a>
-    <a href="/about" class="nav-link {{ if eq .Page "about" }}active{{ end }}">👤 About</a>
-    <a href="/experience" class="nav-link {{ if eq .Page "experience" }}active{{ end }}">💼 Experience</a>
-    <a href="/skills" class="nav-link {{ if eq .Page "skills" }}active{{ end }}">🛠️ Skills</a>
-    <a href="/projects" class="nav-link {{ if eq .Page "projects" }}active{{ end }}">📁 Projects</a>
-    <a href="/education" class="nav-link {{ if eq .Page "education" }}active{{ end }}">🎓 Education</a>
-    <a href="/contact" class="nav-link {{ if eq .Page "contact" }}active{{ end }}">📧 Contact</a>
-    <a href="/soccer" class="nav-link {{ if eq .Page "soccer" }}active{{ end }}">⚽ Soccer</a>
+    <a href="/" class="nav-link {{ if eq .Page "home" }}active{{ end }}">Home</a>
+    <a href="/about" class="nav-link {{ if eq .Page "about" }}active{{ end }}">About</a>
+    <a href="/experience" class="nav-link {{ if eq .Page "experience" }}active{{ end }}">Experience</a>
+    <a href="/skills" class="nav-link {{ if eq .Page "skills" }}active{{ end }}">Skills</a>
+    <a href="/projects" class="nav-link {{ if eq .Page "projects" }}active{{ end }}">Projects</a>
+    <a href="/education" class="nav-link {{ if eq .Page "education" }}active{{ end }}">Education</a>
+    <a href="/contact" class="nav-link {{ if eq .Page "contact" }}active{{ end }}">Contact</a>
+    <a href="/soccer" class="nav-link {{ if eq .Page "soccer" }}active{{ end }}">Soccer</a>
   </nav>
 </header>
