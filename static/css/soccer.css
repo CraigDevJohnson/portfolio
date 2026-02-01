@@ -254,7 +254,6 @@
   gap: var(--space-sm);
 }
 
-.download-btn,
 .subscribe-form .btn {
   background: var(--accent-gradient);
   color: white;
@@ -263,7 +262,6 @@
     0 4px 16px rgba(var(--accent-primary-rgb), 0.25);
 }
 
-.download-btn:hover:not(:disabled),
 .subscribe-form .btn:hover:not(:disabled) {
   background: var(--accent-gradient-hover);
   transform: translateY(-2px);
