@@ -3,33 +3,37 @@
 ================================ */
 
 .contact-hero {
-  padding: var(--space-3xl) 0 var(--space-xl);
+  padding: var(--space-3xl) 0 var(--space-2xl);
   text-align: center;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/static/images/backgrounds/contact-friendly.jpg');
+  background-size: cover;
+  background-position: center;
+  margin-bottom: var(--space-xl);
 }
 
-.hero-header {
-  max-width: var(--container-narrow);
-  margin: 0 auto;
+/* Gradient overlay */
+.contact-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 25, 23, 0.75) 0%,
+    rgba(28, 25, 23, 0.80) 100%
+  );
+  z-index: 1;
 }
 
-.page-icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: var(--space-lg);
-}
-
-.hero-header h1 {
-  margin-bottom: var(--space-md);
-}
-
-.lead {
-  font-size: var(--text-xl);
-  color: var(--fg-muted);
+.contact-hero > * {
+  position: relative;
+  z-index: 2;
 }
 
 /* Contact Content */
 .contact-content {
-  padding-bottom: var(--space-3xl);
+  padding: var(--space-2xl) 0 var(--space-3xl);
 }
 
 .contact-grid {
@@ -38,13 +42,21 @@
   gap: var(--space-2xl);
 }
 
+/* Left column - Contact Info card styling */
+.contact-info {
+  padding: var(--space-2xl);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
 .contact-info h2 {
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-sm);
 }
 
 .contact-info > p {
   margin-bottom: var(--space-xl);
-  color: var(--fg-secondary);
+  color: var(--fg-muted);
   line-height: var(--leading-relaxed);
 }
 
@@ -128,8 +140,8 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md);
-  background: var(--success-bg);
-  border: 1px solid var(--success-border);
+  background: rgba(251, 146, 60, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.3);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-lg);
 }
@@ -142,12 +154,12 @@
 }
 
 .status-dot.available {
-  background: var(--success-fg);
+  background: var(--fg-accent);
 }
 
 .status-text {
   font-weight: var(--font-medium);
-  color: var(--success-fg);
+  color: var(--fg-accent);
 }
 
 .response-time {

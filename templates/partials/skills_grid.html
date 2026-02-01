@@ -1,21 +1,62 @@
 <div class="skills-container">
 {{ range $catIndex, $cat := .Categories }}
+{{ if ne $cat.Name "Concepts & Practices" }}
 <div class="skill-category" style="animation-delay: {{ printf "%d" (multiply $catIndex 100) }}ms;">
   <h2 class="category-title">{{ $cat.Name }}</h2>
   <div class="skills-grid">
     {{ range $skillIndex, $skill := $cat.Skills }}
     {{ if $skill.Link }}
-    <a href="{{ $skill.Link }}" target="_blank" rel="noopener noreferrer" class="skill-badge skill-link" style="animation-delay: {{ printf "%d" (multiply $skillIndex 50) }}ms;">
-      <span class="skill-name">{{ $skill.Name }}</span>
-      <span class="external-icon">↗</span>
+    <a href="{{ $skill.Link }}" target="_blank" rel="noopener noreferrer" 
+       class="skill-icon-btn" 
+       data-tooltip="{{ $skill.Name }}"
+       style="animation-delay: {{ printf "%d" (multiply $skillIndex 30) }}ms;">
+      {{ if $skill.IconPath }}
+      <img src="{{ $skill.IconPath }}" alt="{{ $skill.Name }}" />
+      {{ else if $skill.Icon }}
+      {{ $skill.Icon }}
+      {{ end }}
     </a>
     {{ else }}
-    <div class="skill-badge" style="animation-delay: {{ printf "%d" (multiply $skillIndex 50) }}ms;">
-      <span class="skill-name">{{ $skill.Name }}</span>
-    </div>
+    <span class="skill-icon-btn" 
+          data-tooltip="{{ $skill.Name }}"
+          tabindex="0"
+          style="animation-delay: {{ printf "%d" (multiply $skillIndex 30) }}ms;">
+      {{ if $skill.IconPath }}
+      <img src="{{ $skill.IconPath }}" alt="{{ $skill.Name }}" />
+      {{ else if $skill.Icon }}
+      {{ $skill.Icon }}
+      {{ end }}
+    </span>
     {{ end }}
     {{ end }}
   </div>
 </div>
+{{ end }}
+{{ end }}
+
+<!-- Conceptual Skills Section -->
+{{ range .Categories }}
+{{ if eq .Name "Concepts & Practices" }}
+<div class="skill-category conceptual-skills">
+  <h2 class="category-title">{{ .Name }}</h2>
+  <div class="skills-grid">
+    {{ range $skillIndex, $skill := .Skills }}
+    {{ if $skill.Link }}
+    <a href="{{ $skill.Link }}" target="_blank" rel="noopener noreferrer" 
+       class="conceptual-badge"
+       style="animation-delay: {{ printf "%d" (multiply $skillIndex 30) }}ms;">
+      {{ if $skill.Icon }}{{ $skill.Icon }}{{ end }}
+      <span>{{ $skill.Name }}</span>
+    </a>
+    {{ else }}
+    <span class="conceptual-badge" style="animation-delay: {{ printf "%d" (multiply $skillIndex 30) }}ms;">
+      {{ if $skill.Icon }}{{ $skill.Icon }}{{ end }}
+      <span>{{ $skill.Name }}</span>
+    </span>
+    {{ end }}
+    {{ end }}
+  </div>
+</div>
+{{ end }}
 {{ end }}
 </div>

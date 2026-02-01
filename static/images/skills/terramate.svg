@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <path fill="#00ADD8" d="M64 8L8 40v48l56 32 56-32V40L64 8z"/>
+  <path fill="#fff" d="M64 20L20 48v32l44 25 44-25V48L64 20zm0 8l34 19v22L64 88 30 69V47l34-19z"/>
+  <text x="64" y="72" fill="#fff" font-family="Arial" font-size="24" font-weight="bold" text-anchor="middle">TM</text>
+</svg>

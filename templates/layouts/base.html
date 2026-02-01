@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Craig Johnson - System Engineer Advisor specializing in cloud infrastructure, automation, and DevOps."
+      content="Craig Johnson - Cloud Engineer Principal specializing in cloud infrastructure, automation, and DevOps."
     />
     <meta name="author" content="Craig Johnson" />
-    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="theme-color" content="#1c1917" />
 
     <title>{{ .Title }}</title>
 
@@ -25,9 +25,9 @@
     />
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/static/css/styles.css" />
+    <link rel="stylesheet" href="/static/css/styles.css?v=6" />
     {{ if .Page }}
-    <link rel="stylesheet" href="/static/css/{{ .Page }}.css" />
+    <link rel="stylesheet" href="/static/css/{{ .Page }}.css?v=6" />
     {{ end }}
 
     <!-- HTMX with integrity check -->
@@ -36,7 +36,6 @@
       integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
       crossorigin="anonymous"
     ></script>
-    <script src="/static/js/theme.js" defer></script>
     <script src="/static/js/main.js" defer></script>
   </head>
 
@@ -48,8 +47,5 @@
     </main>
 
     {{ template "footer.html" . }}
-
-    <!-- Page transition overlay -->
-    <div id="page-transition" class="page-transition"></div>
   </body>
 </html>
