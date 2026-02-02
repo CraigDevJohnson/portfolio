@@ -101,7 +101,7 @@ go build -o portfolio-server .
 ./portfolio-server
 
 # Development with hot reload (recommended)
-go install github.com/cosmtrek/air@latest
+go install github.com/air-verse/air@latest
 air
 ```
 
