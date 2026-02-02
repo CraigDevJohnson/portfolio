@@ -108,7 +108,8 @@ func newPageFragmentHandler(w http.ResponseWriter, r *http.Request) {
         "Items": newPageData(),
     }
     if err := tmpl.ExecuteTemplate(w, "fragment_name.html", data); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        log.Printf("error rendering newpage fragment: %v", err)
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
     }
 }
 ```
