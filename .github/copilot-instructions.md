@@ -217,7 +217,7 @@ Follow conventional commits format:
 
 ### Adding a New Page
 
-See "Adding New Pages" section above for the complete checklist.
+See "Adding a new page" section above for the complete checklist.
 
 ### Updating Content
 
