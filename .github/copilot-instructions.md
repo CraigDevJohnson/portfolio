@@ -231,8 +231,8 @@ All content lives in `main.go` data functions. To update:
 ### Modifying Styles
 
 1. Edit the appropriate CSS file in `static/css/`
-2. For theme-related changes, update both light (`:root`) and dark (`.dark`) variables
-3. Test in both light and dark modes
+2. For theme-related changes, update the CSS custom properties defined in the `:root` scope
+3. Test the updated styles in the browser
 4. Verify responsive behavior on mobile and desktop
 
 ### HTMX Debugging
