@@ -86,7 +86,6 @@ Templates load at startup — restart server or use `make dev` for template chan
 | `templates/layouts/base.html` | HTML shell, loads page-specific CSS                 |
 | `templates/partials/nav.html` | Navigation with active state logic                  |
 | `static/css/styles.css`       | Global styles, CSS variables, dark/light themes     |
-| `static/js/theme.js`          | Theme persistence                                   |
 | `static/js/main.js`           | Mobile menu, HTMX event handlers, scroll animations |
 
 ## Testing and Validation
