@@ -11,42 +11,77 @@
   position: relative;
   padding: var(--space-3xl) 0;
   overflow: hidden;
+  background-image: url('/static/images/backgrounds/home-hero.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+/* Gradient overlay on hero */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(28, 25, 23, 0.75) 0%,
+    rgba(28, 25, 23, 0.68) 50%,
+    rgba(41, 37, 36, 0.72) 100%
+  );
+  z-index: 1;
 }
 
 .hero-background {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
+  display: none; /* Disabled - using direct background instead */
 }
 
+/* Photo background with gradient overlay */
+.hero-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/static/images/backgrounds/home-hero.jpg');
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.hero-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(12, 10, 29, 0.6) 0%,
+    rgba(12, 10, 29, 0.5) 50%,
+    rgba(19, 16, 43, 0.55) 100%
+  );
+  z-index: 1;
+}
+
+/* Accent gradient overlays */
 .hero-gradient {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% -20%,
-    rgba(16, 185, 129, 0.15) 0%,
-    transparent 60%
-  );
-}
-
-.dark .hero-gradient {
-  background: radial-gradient(
-    ellipse 80% 60% at 50% -20%,
-    rgba(16, 185, 129, 0.1) 0%,
-    transparent 60%
-  );
+  background: 
+    radial-gradient(ellipse 60% 50% at 10% 20%, rgba(79, 70, 229, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(249, 115, 22, 0.08) 0%, transparent 40%);
+  z-index: 2;
 }
 
 .hero-pattern {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.5;
+  background-image: 
+    radial-gradient(circle at 1px 1px, var(--border-color-strong) 1px, transparent 0);
+  background-size: 32px 32px;
+  opacity: 0.15;
+  z-index: 3;
 }
 
 .hero-content {
+  position: relative;
+  z-index: 10;
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: var(--space-3xl);
@@ -85,16 +120,16 @@
   inset: -8px;
   border-radius: 50%;
   background: var(--accent-gradient);
-  opacity: 0.5;
+  opacity: 0.6;
   z-index: 1;
   animation: pulse 3s ease-in-out infinite;
 }
 
 .avatar-glow {
   position: absolute;
-  inset: -24px;
+  inset: -32px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.25) 0%, rgba(168, 85, 247, 0.15) 40%, transparent 70%);
   z-index: 0;
 }
 
@@ -111,18 +146,18 @@
   gap: var(--space-sm);
   width: fit-content;
   padding: var(--space-sm) var(--space-md);
-  background: var(--success-bg);
-  color: var(--success-fg);
+  background: rgba(251, 146, 60, 0.15);
+  color: var(--fg-accent);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   border-radius: var(--radius-full);
-  border: 1px solid var(--success-border);
+  border: 1px solid rgba(251, 146, 60, 0.3);
 }
 
 .badge-dot {
   width: 8px;
   height: 8px;
-  background: var(--success-fg);
+  background: var(--fg-accent);
   border-radius: 50%;
   animation: pulse 2s ease-in-out infinite;
 }
@@ -166,21 +201,39 @@
   flex-wrap: wrap;
   gap: var(--space-md);
   margin-top: var(--space-md);
+  align-items: center;
+}
+
+.hero-contact-link {
+  color: var(--fg-muted);
+  font-weight: var(--font-medium);
+  text-decoration: none;
+  padding: var(--space-sm) var(--space-xs);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.hero-contact-link:hover {
+  color: var(--fg-primary);
+  background: var(--bg-tertiary);
 }
 
 /* Stats */
 .hero-stats {
-  display: flex;
-  gap: var(--space-2xl);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-lg);
   padding-top: var(--space-xl);
   border-top: 1px solid var(--border-color);
   margin-top: var(--space-md);
+  align-items: center;
 }
 
 .stat {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  text-align: center;
 }
 
 .stat-value {
@@ -196,7 +249,19 @@
 
 /* Quick Links Section */
 .quick-links {
-  padding: var(--space-3xl) 0;
+  padding: var(--space-3xl) var(--space-xl);
+  position: relative;
+  margin-top: var(--space-2xl);
+}
+
+/* Subtle gradient background for section */
+.quick-links::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, var(--bg-tertiary) 30%, var(--bg-tertiary) 70%, transparent 100%);
+  opacity: 0.5;
+  z-index: -1;
 }
 
 .section-title {
@@ -220,19 +285,34 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: all var(--duration-normal) var(--ease-out);
   text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle gradient overlay on cards */
+.quick-link-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.05) 0%, rgba(249, 115, 22, 0.05) 100%);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.quick-link-card:hover::before {
+  opacity: 1;
 }
 
 .quick-link-card:hover {
   transform: translateY(-4px);
-  border-color: var(--accent-primary);
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  border-color: rgba(234, 88, 12, 0.4);
+  box-shadow: var(--shadow-lg), 0 0 32px rgba(234, 88, 12, 0.15);
 }
 
 .card-icon {
-  font-size: 2.5rem;
-  margin-bottom: var(--space-md);
+  display: none;
 }
 
 .quick-link-card h3 {
@@ -259,7 +339,7 @@
   }
 
   .hero-stats {
-    justify-content: center;
+    justify-items: center;
   }
 
   .links-grid {
@@ -283,8 +363,6 @@
   }
 
   .hero-stats {
-    flex-wrap: wrap;
-    justify-content: center;
     gap: var(--space-xl);
   }
 }
@@ -302,6 +380,11 @@
 
   .hero-actions .btn {
     width: 100%;
+  }
+
+  .hero-contact-link {
+    width: 100%;
+    text-align: center;
   }
 
   .links-grid {

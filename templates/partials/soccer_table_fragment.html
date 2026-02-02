@@ -1,6 +1,5 @@
 {{/* Fragment returned by /soccer/fetch (htmx) */}} {{ if not .Games }}
 <div class="no-results">
-  <span class="no-results-icon">🔍</span>
   <p>No games found for the provided team code(s).</p>
   <p class="hint">Check that you entered valid 6-digit team codes.</p>
 </div>
@@ -22,8 +21,7 @@
       </label>
       <span class="games-count">{{ len .Games }} game(s) found</span>
     </div>
-    <button id="download-button" type="submit" class="btn btn-success download-btn">
-      <span class="btn-icon">⬇️</span>
+    <button id="download-button" type="submit" class="btn btn-primary download-btn">
       <span class="btn-text">Download Selected (.ics)</span>
     </button>
   </div>

@@ -3,34 +3,41 @@
 ================================ */
 
 .soccer-hero {
-  padding: var(--space-3xl) 0 var(--space-xl);
+  padding: var(--space-3xl) 0 var(--space-2xl);
   text-align: center;
-}
-
-.hero-header {
-  max-width: var(--container-narrow);
-  margin: 0 auto;
-}
-
-.page-icon {
-  font-size: 3rem;
-  display: block;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/static/images/backgrounds/soccer-field.jpg');
+  background-size: cover;
+  background-position: center 40%;
   margin-bottom: var(--space-lg);
 }
 
-.hero-header h1 {
-  margin-bottom: var(--space-md);
+/* Gradient overlay */
+.soccer-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 25, 23, 0.72) 0%,
+    rgba(28, 25, 23, 0.78) 100%
+  );
+  z-index: 1;
 }
 
-.lead {
+.soccer-hero > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Soccer-specific overrides */
+.soccer-hero .page-icon {
+  display: none;
+}
+
+.soccer-hero .lead {
   font-size: var(--text-lg);
-  color: var(--fg-muted);
-  line-height: var(--leading-relaxed);
-}
-
-.lead a {
-  color: var(--fg-accent);
-  font-weight: var(--font-medium);
 }
 
 /* Soccer Content */
@@ -44,15 +51,20 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 /* Header section - form and info side by side */
 .unified-header {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0;
-  padding: var(--space-xl);
   gap: var(--space-xl);
+  padding: var(--space-xl);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-primary-rgb), 0.12) 0%,
+    rgba(15, 23, 42, 0.04) 100%
+  );
 }
 
 .info-inline {
@@ -159,9 +171,7 @@
 }
 
 .empty-icon {
-  font-size: 2rem;
-  margin-bottom: var(--space-sm);
-  opacity: 0.5;
+  display: none;
 }
 
 .empty-state p {
@@ -181,9 +191,10 @@
 }
 
 .no-results-icon {
-  font-size: 2.5rem;
-  margin-bottom: var(--space-md);
+  display: none;
 }
+
+/* Soccer page uses site's orange theme - no override needed */
 
 .no-results p {
   color: var(--warning-fg);
@@ -205,7 +216,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-lg);
-  background: var(--bg-tertiary);
+  background: rgba(var(--accent-primary-rgb), 0.12);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
   gap: var(--space-md);
@@ -243,6 +254,24 @@
   gap: var(--space-sm);
 }
 
+.download-btn,
+.subscribe-form .btn {
+  background: var(--accent-gradient);
+  color: white;
+  box-shadow:
+    var(--shadow-sm),
+    0 4px 16px rgba(var(--accent-primary-rgb), 0.25);
+}
+
+.download-btn:hover:not(:disabled),
+.subscribe-form .btn:hover:not(:disabled) {
+  background: var(--accent-gradient-hover);
+  transform: translateY(-2px);
+  box-shadow:
+    var(--shadow-md),
+    0 8px 24px rgba(var(--accent-primary-rgb), 0.35);
+}
+
 /* Table Wrapper */
 .table-wrapper {
   overflow-x: auto;
@@ -266,7 +295,7 @@
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: var(--bg-tertiary);
+  background: rgba(var(--accent-primary-rgb), 0.1);
   position: sticky;
   top: 0;
 }
@@ -327,7 +356,7 @@
 .season-badge {
   display: inline-flex;
   padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-tertiary);
+  background: rgba(var(--accent-primary-rgb), 0.12);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
 }
@@ -380,54 +409,6 @@
   border-radius: var(--radius-md);
   color: var(--success-fg);
   font-weight: var(--font-medium);
-}
-
-/* Legacy sidebar styles - kept for backwards compatibility */
-.tip-card,
-.info-card,
-.theme-card {
-  padding: var(--space-xl);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-}
-
-.tip-card h3,
-.info-card h3,
-.theme-card h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: var(--text-lg);
-  margin-bottom: var(--space-md);
-}
-
-.card-icon {
-  font-size: 1.25rem;
-}
-
-.tip-card ul,
-.info-card ol {
-  margin: 0;
-  padding-left: var(--space-xl);
-}
-
-.tip-card li,
-.info-card li {
-  margin-bottom: var(--space-sm);
-  color: var(--fg-secondary);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
-.info-card a {
-  color: var(--fg-accent);
-  font-weight: var(--font-medium);
-}
-
-.theme-card p {
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
 }
 
 /* Responsive */

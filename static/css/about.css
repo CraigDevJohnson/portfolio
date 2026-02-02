@@ -3,28 +3,32 @@
 ================================ */
 
 .about-hero {
-  padding: var(--space-3xl) 0;
+  padding: var(--space-3xl) 0 var(--space-2xl);
   text-align: center;
-}
-
-.hero-header {
-  max-width: var(--container-narrow);
-  margin: 0 auto;
-}
-
-.page-icon {
-  font-size: 3rem;
-  display: block;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/static/images/backgrounds/about-nature.jpg');
+  background-size: cover;
+  background-position: center 30%;
   margin-bottom: var(--space-lg);
 }
 
-.hero-header h1 {
-  margin-bottom: var(--space-md);
+/* Gradient overlay */
+.about-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 25, 23, 0.72) 0%,
+    rgba(28, 25, 23, 0.78) 100%
+  );
+  z-index: 1;
 }
 
-.lead {
-  font-size: var(--text-xl);
-  color: var(--fg-muted);
+.about-hero > * {
+  position: relative;
+  z-index: 2;
 }
 
 /* About Content */
@@ -55,7 +59,7 @@
 }
 
 .card-icon {
-  font-size: 1.5rem;
+  display: none;
 }
 
 .card-header h2,
@@ -92,7 +96,7 @@
 }
 
 .fact-icon {
-  font-size: 1.25rem;
+  display: none;
 }
 
 /* Values */
@@ -113,7 +117,7 @@
 }
 
 .value-icon {
-  font-size: 1rem;
+  display: none;
 }
 
 /* CTA */
