@@ -156,6 +156,8 @@ if err != nil {
 }
 ```
 
+**Note:** The current codebase (main.go) exposes error details in some handlers. This is a known inconsistency that should be addressed. When reviewing code, flag instances where `err.Error()` is passed to `http.Error()` and recommend using the secure pattern shown above.
+
 ### HTTP Security Headers
 
 **Recommended Headers for Production:**
