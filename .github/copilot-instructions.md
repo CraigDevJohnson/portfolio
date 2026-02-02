@@ -139,7 +139,7 @@ Before submitting changes:
 2. ✅ Server starts and runs: `./portfolio-server`
 3. ✅ All pages load correctly at `http://localhost:8080`
 4. ✅ HTMX fragments load without errors
-5. ✅ Dark/light theme toggle works
+5. ✅ Design looks good in the dark theme
 6. ✅ Responsive design looks good on mobile and desktop
 7. ✅ Code is formatted: `go fmt ./...`
 8. ✅ No Go vet issues: `go vet ./...`
