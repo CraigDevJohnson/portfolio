@@ -143,7 +143,7 @@ Your work is successful when:
 1. ✅ Code builds without errors
 2. ✅ Server runs and pages load correctly
 3. ✅ HTMX interactions work smoothly
-4. ✅ Both themes (light/dark) display properly
+4. ✅ Theme displays properly across all pages
 5. ✅ Responsive design works on mobile and desktop
 6. ✅ Code follows Go conventions and is formatted with `gofmt`
 7. ✅ No new bugs introduced in existing functionality
