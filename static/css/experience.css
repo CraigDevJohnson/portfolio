@@ -3,28 +3,32 @@
 ================================ */
 
 .experience-hero {
-  padding: var(--space-3xl) 0 var(--space-xl);
+  padding: var(--space-3xl) 0 var(--space-2xl);
   text-align: center;
-}
-
-.hero-header {
-  max-width: var(--container-narrow);
-  margin: 0 auto;
-}
-
-.page-icon {
-  font-size: 3rem;
-  display: block;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/static/images/backgrounds/experience-office.jpg');
+  background-size: cover;
+  background-position: center;
   margin-bottom: var(--space-lg);
 }
 
-.hero-header h1 {
-  margin-bottom: var(--space-md);
+/* Gradient overlay */
+.experience-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 25, 23, 0.75) 0%,
+    rgba(28, 25, 23, 0.82) 100%
+  );
+  z-index: 1;
 }
 
-.lead {
-  font-size: var(--text-xl);
-  color: var(--fg-muted);
+.experience-hero > * {
+  position: relative;
+  z-index: 2;
 }
 
 /* Summary Section - Moved to top */
@@ -56,8 +60,7 @@
 }
 
 .summary-icon {
-  font-size: 1.75rem;
-  margin-bottom: var(--space-sm);
+  display: none;
 }
 
 .summary-value {
@@ -148,7 +151,7 @@
 }
 
 .filter-icon {
-  font-size: 1.25rem;
+  display: none;
 }
 
 .filter-pills {
@@ -181,7 +184,7 @@
   background: var(--accent-primary);
   color: white;
   border-color: var(--accent-primary);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
 }
 
 .filter-pill.active:hover {
@@ -321,7 +324,7 @@
 .career-card.highlighted {
   border-color: var(--accent-primary);
   border-width: 2px;
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.15);
 }
 
 .career-card.highlighted .tech-pill[data-tech] {
@@ -344,7 +347,7 @@
 .career-card.current {
   border-color: var(--accent-primary);
   border-width: 2px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(16, 185, 129, 0.05) 100%);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(79, 70, 229, 0.05) 100%);
 }
 
 /* Card Status Badge */

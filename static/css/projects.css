@@ -3,28 +3,32 @@
 ================================ */
 
 .projects-hero {
-  padding: var(--space-3xl) 0 var(--space-xl);
+  padding: var(--space-3xl) 0 var(--space-2xl);
   text-align: center;
-}
-
-.hero-header {
-  max-width: var(--container-narrow);
-  margin: 0 auto;
-}
-
-.page-icon {
-  font-size: 3rem;
-  display: block;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/static/images/backgrounds/projects-code.jpg');
+  background-size: cover;
+  background-position: center;
   margin-bottom: var(--space-lg);
 }
 
-.hero-header h1 {
-  margin-bottom: var(--space-md);
+/* Gradient overlay */
+.projects-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(28, 25, 23, 0.75) 0%,
+    rgba(28, 25, 23, 0.80) 100%
+  );
+  z-index: 1;
 }
 
-.lead {
-  font-size: var(--text-xl);
-  color: var(--fg-muted);
+.projects-hero > * {
+  position: relative;
+  z-index: 2;
 }
 
 /* Projects Section */
@@ -79,7 +83,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 4rem;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--fg-muted);
 }
 
@@ -134,6 +140,10 @@
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.project-actions .btn {
+  flex: 1 1 140px;
 }
 
 /* Skeleton */

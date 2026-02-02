@@ -60,11 +60,11 @@ The server will start at `http://localhost:8080`
 
 ### Development
 
-For development with hot reload, you can use tools like `air`:
+For development with hot reload, use `make dev` which requires [air](https://github.com/air-verse/air):
 
 ```bash
-go install github.com/cosmtrek/air@latest
-air
+go install github.com/air-verse/air@latest
+make dev
 ```
 
 ## Project Structure
