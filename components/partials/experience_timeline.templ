@@ -1,6 +1,7 @@
 package partials
 
 import "fmt"
+import "strings"
 
 type ExperienceTimelineProps struct {
 	Experiences []Experience
@@ -15,17 +16,6 @@ type Experience struct {
 	SkillAreas       string
 }
 
-func joinTechnologies(technologies []string) string {
-	result := ""
-	for i, tech := range technologies {
-		if i > 0 {
-			result += ","
-		}
-		result += tech
-	}
-	return result
-}
-
 templ ExperienceTimeline(props ExperienceTimelineProps) {
 	<div class="career-grid" id="career-grid">
 		for index, exp := range props.Experiences {
@@ -33,7 +23,7 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 				class={ fmt.Sprintf("career-card %s", templ.KV("current", index == 0)) }
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
 				data-position={ exp.Position }
-				data-technologies={ joinTechnologies(exp.Technologies) }
+				data-technologies={ strings.Join(exp.Technologies, ",") }
 				data-skills={ exp.SkillAreas }
 				data-company={ exp.Company }
 				data-duration={ exp.Duration }

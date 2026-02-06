@@ -53,7 +53,7 @@ A server-rendered Go application using Templ for type-safe component-based templ
 go mod download
 
 # Install Templ CLI
-go install github.com/a-h/templ/cmd/templ@latest
+go install github.com/a-h/templ/cmd/templ@v0.3.977
 
 # Build the project (generates Templ components and compiles)
 make build
@@ -211,7 +211,7 @@ FROM golang:1.23-alpine AS builder
 WORKDIR /app
 
 # Install Templ CLI
-RUN go install github.com/a-h/templ/cmd/templ@latest
+RUN go install github.com/a-h/templ/cmd/templ@v0.3.977
 
 # Copy source
 COPY . .
