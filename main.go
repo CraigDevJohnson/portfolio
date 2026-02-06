@@ -81,12 +81,15 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	pages.Home(pages.HomeProps{
+	err := pages.Home(pages.HomeProps{
 		Name:        "Craig Johnson",
 		Role:        "Cloud Engineer Principal",
 		AvatarURL:   gravatarURL("gravatar@craigdevjohnson.com", 275),
 		Description: "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
 	}).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -96,7 +99,10 @@ About
 */
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	pages.About().Render(context.Background(), w)
+	err := pages.About().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -192,7 +198,10 @@ func experienceData() []Experience {
 }
 
 func experienceHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Experience().Render(context.Background(), w)
+	err := pages.Experience().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +219,10 @@ func experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
 			SkillAreas:       exp.SkillAreas,
 		}
 	}
-	partials.ExperienceTimeline(props).Render(context.Background(), w)
+	err := partials.ExperienceTimeline(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -409,7 +421,10 @@ func skillsData() []SkillCategory {
 }
 
 func skillsHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Skills().Render(context.Background(), w)
+	err := pages.Skills().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
@@ -431,7 +446,10 @@ func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	partials.SkillsGrid(props).Render(context.Background(), w)
+	err := partials.SkillsGrid(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -489,7 +507,10 @@ func projectsData() []Project {
 }
 
 func projectsHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Projects().Render(context.Background(), w)
+	err := pages.Projects().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func projectsGridHandler(w http.ResponseWriter, r *http.Request) {
@@ -509,7 +530,10 @@ func projectsGridHandler(w http.ResponseWriter, r *http.Request) {
 			Category:     proj.Category,
 		}
 	}
-	partials.ProjectsGrid(props).Render(context.Background(), w)
+	err := partials.ProjectsGrid(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -541,7 +565,10 @@ func educationData() []Education {
 }
 
 func educationHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Education().Render(context.Background(), w)
+	err := pages.Education().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -551,7 +578,10 @@ Contact
 */
 
 func contactHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Contact().Render(context.Background(), w)
+	err := pages.Contact().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -574,7 +604,10 @@ type LambdaGamesResponse struct {
 }
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
-	pages.Soccer().Render(context.Background(), w)
+	err := pages.Soccer().Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
@@ -599,7 +632,10 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 			Season:   game.Season,
 		}
 	}
-	partials.SoccerTableFragment(props).Render(context.Background(), w)
+	err := partials.SoccerTableFragment(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
