@@ -5,7 +5,7 @@ GO := go
 GOFLAGS :=
 PORT ?= 8080
 
-.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ
+.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css
 
 all: build
 
@@ -15,7 +15,11 @@ templ:
 	@command -v templ >/dev/null 2>&1 || { echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; exit 1; }
 	templ generate
 
-build: generate
+build-css:
+	@command -v npm >/dev/null 2>&1 || { echo "npm not installed. Please install Node.js to build CSS."; exit 1; }
+	npm run build:css
+
+build: build-css generate
 	$(GO) build $(GOFLAGS) -o $(BINARY) .
 
 run: build
@@ -23,6 +27,8 @@ run: build
 
 dev:
 	@command -v air >/dev/null 2>&1 || { echo "air not installed. Run 'make install-air' to install it automatically."; exit 1; }
+	@echo "Starting development server with hot reload..."
+	@echo "Note: Run 'npm run watch:css' in a separate terminal for CSS hot reload"
 	air
 
 install-air:
@@ -32,6 +38,7 @@ install-air:
 
 clean:
 	rm -f $(BINARY)
+	rm -f static/css/output.css
 	$(GO) clean
 
 fmt:
@@ -60,9 +67,10 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  all                   Build the binary (default)"
-	@echo "  build                 Compile the server binary"
+	@echo "  build                 Compile CSS and server binary"
+	@echo "  build-css             Build Tailwind CSS output"
 	@echo "  run                   Build and run the server"
-	@echo "  dev                   Run with air for hot-reload"
+	@echo "  dev                   Run with air for hot-reload (run 'npm run watch:css' separately)"
 	@echo "  clean                 Remove binary and cached files"
 	@echo "  fmt                   Format Go source files"
 	@echo "  vet                   Run go vet"

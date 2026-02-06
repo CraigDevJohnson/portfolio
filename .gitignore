@@ -21,3 +21,11 @@ coverage.out
 
 # Templ generated files
 *_templ.go
+
+# Node.js
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Tailwind CSS output
+static/css/output.css
