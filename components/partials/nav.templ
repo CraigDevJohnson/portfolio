@@ -1,38 +1,39 @@
 package partials
 
+// navItem represents a single navigation link.
+type navItem struct {
+	Href  string
+	Label string
+	Page  string
+}
+
+// navItems returns the shared list of navigation links used by both
+// desktop and mobile navigation menus.
+func navItems() []navItem {
+	return []navItem{
+		{Href: "/", Label: "Home", Page: "home"},
+		{Href: "/about", Label: "About", Page: "about"},
+		{Href: "/experience", Label: "Experience", Page: "experience"},
+		{Href: "/skills", Label: "Skills", Page: "skills"},
+		{Href: "/projects", Label: "Projects", Page: "projects"},
+		{Href: "/education", Label: "Education", Page: "education"},
+		{Href: "/contact", Label: "Contact", Page: "contact"},
+		{Href: "/soccer", Label: "Soccer", Page: "soccer"},
+	}
+}
+
+// NavLinks renders the shared set of nav link elements.
+templ NavLinks(page string) {
+	for _, item := range navItems() {
+		<a
+			href={ templ.SafeURL(item.Href) }
+			class={ "nav-link", templ.KV("active", page == item.Page) }
+		>{ item.Label }</a>
+	}
+}
+
 templ Nav(page string) {
 	<nav class="main-nav" aria-label="Main navigation">
-		<a
-			href="/"
-			class={ "nav-link", templ.KV("active", page == "home") }
-		>Home</a>
-		<a
-			href="/about"
-			class={ "nav-link", templ.KV("active", page == "about") }
-		>About</a>
-		<a
-			href="/experience"
-			class={ "nav-link", templ.KV("active", page == "experience") }
-		>Experience</a>
-		<a
-			href="/skills"
-			class={ "nav-link", templ.KV("active", page == "skills") }
-		>Skills</a>
-		<a
-			href="/projects"
-			class={ "nav-link", templ.KV("active", page == "projects") }
-		>Projects</a>
-		<a
-			href="/education"
-			class={ "nav-link", templ.KV("active", page == "education") }
-		>Education</a>
-		<a
-			href="/contact"
-			class={ "nav-link", templ.KV("active", page == "contact") }
-		>Contact</a>
-		<a
-			href="/soccer"
-			class={ "nav-link", templ.KV("active", page == "soccer") }
-		>Soccer</a>
+		@NavLinks(page)
 	</nav>
 }

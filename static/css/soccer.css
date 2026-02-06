@@ -32,10 +32,6 @@
 }
 
 /* Soccer-specific overrides */
-.soccer-hero .page-icon {
-  display: none;
-}
-
 .soccer-hero .lead {
   font-size: var(--text-lg);
 }
@@ -168,10 +164,6 @@
   padding: var(--space-xl);
   text-align: center;
   /* border-top: 1px solid var(--border-color); */
-}
-
-.empty-icon {
-  display: none;
 }
 
 .empty-state p {

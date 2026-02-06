@@ -86,10 +86,6 @@
   box-shadow: var(--shadow-md);
 }
 
-.method-icon {
-  display: none;
-}
-
 .method-info {
   flex: 1;
   display: flex;
@@ -174,10 +170,6 @@
   color: var(--fg-secondary);
 }
 
-.time-icon {
-  display: none;
-}
-
 .preferred-contact h3 {
   font-size: var(--text-lg);
   margin-bottom: var(--space-md);
@@ -191,25 +183,6 @@
 /* CTA Section */
 .contact-cta {
   padding: var(--space-3xl) 0;
-}
-
-.cta-content {
-  text-align: center;
-  padding: var(--space-2xl);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-}
-
-.cta-content h2 {
-  margin-bottom: var(--space-lg);
-}
-
-.cta-buttons {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: center;
-  flex-wrap: wrap;
 }
 
 /* Responsive */

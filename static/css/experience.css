@@ -59,10 +59,6 @@
   box-shadow: var(--shadow-md);
 }
 
-.summary-icon {
-  display: none;
-}
-
 .summary-value {
   font-size: var(--text-2xl);
   font-weight: var(--font-extrabold);
@@ -148,10 +144,6 @@
   font-weight: var(--font-bold);
   color: var(--accent-primary);
   margin-left: var(--space-xs);
-}
-
-.filter-icon {
-  display: none;
 }
 
 .filter-pills {
@@ -378,16 +370,6 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
 .card-number {
   display: flex;
   align-items: center;
@@ -519,13 +501,6 @@
   margin-bottom: var(--space-lg);
 }
 
-.cta-buttons {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
 /* Skeleton Loading States */
 .career-card.skeleton-card {
   min-height: 280px;
@@ -541,15 +516,6 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: var(--radius-sm);
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
 
 .skeleton-card .card-status {

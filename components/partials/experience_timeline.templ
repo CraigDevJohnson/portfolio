@@ -12,7 +12,7 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 	<div class="career-grid" id="career-grid">
 		for index, exp := range props.Experiences {
 			<article
-				class={ fmt.Sprintf("career-card %s", templ.KV("current", index == 0)) }
+				class={ "career-card", templ.KV("current", index == 0) }
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
 				data-position={ exp.Position }
 				data-technologies={ strings.Join(exp.Technologies, ",") }

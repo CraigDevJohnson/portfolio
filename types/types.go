@@ -57,14 +57,14 @@ type LambdaGamesResponse struct {
 
 // Education represents an education entry
 type Education struct {
-	ID          int
-	School      string
-	Degree      string
+	ID           int
+	School       string
+	Degree       string
 	FieldOfStudy string
-	Duration    string
-	Description string
+	Duration     string
+	Description  string
 	Achievements []string
-	Credentials []Credential
+	Credentials  []Credential
 }
 
 // Credential represents a certification or credential

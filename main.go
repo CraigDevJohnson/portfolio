@@ -478,28 +478,6 @@ Education
 ========================================
 */
 
-type Education struct {
-	ID          int
-	Degree      string
-	Field       string
-	Institution string
-	Year        string
-	Description string
-}
-
-func educationData() []Education {
-	return []Education{
-		{
-			ID:          1,
-			Degree:      "Bachelor of Science",
-			Field:       "Computer Information & Office Systems",
-			Institution: "University of Alaska Fairbanks",
-			Year:        "2016",
-			Description: "Focused on information systems, database management, and business applications of technology.",
-		},
-	}
-}
-
 func educationHandler(w http.ResponseWriter, r *http.Request) {
 	err := pages.Education().Render(context.Background(), w)
 	if err != nil {
