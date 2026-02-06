@@ -36,10 +36,7 @@ templ Base(props BaseProps) {
 				rel="stylesheet"
 			/>
 			<!-- Styles -->
-			<link rel="stylesheet" href="/static/css/styles.css?v=6"/>
-			if props.Page != "" {
-				<link rel="stylesheet" href={ "/static/css/" + props.Page + ".css?v=6" }/>
-			}
+			<link rel="stylesheet" href="/static/css/output.css?v=7"/>
 			<!-- HTMX with integrity check -->
 			<script
 				src="https://unpkg.com/htmx.org@1.9.10"
@@ -50,12 +47,14 @@ templ Base(props BaseProps) {
 		</head>
 		<body
 			if props.Page == "soccer" {
-				class="soccer-theme"
+				class="bg-[#1c1917] text-[#fafaf9] min-h-screen flex flex-col soccer-theme"
+			} else {
+				class="bg-[#1c1917] text-[#fafaf9] min-h-screen flex flex-col"
 			}
 		>
 			@partials.Header(props.Page)
-			<main class="main-content">
-				<div class="container">
+			<main class="flex-1 pt-[72px]">
+				<div class="max-w-[1200px] mx-auto px-6 w-full">
 					{ children... }
 				</div>
 			</main>
