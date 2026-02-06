@@ -1,139 +1,18 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"html/template"
 	"io"
 	"log"
 	"mime"
 	"net/http"
+	"portfolio/components/pages"
+	"portfolio/components/partials"
 	"strconv"
 	"strings"
-	"time"
 )
-
-/*
-========================================
-Template system
-========================================
-*/
-
-var templateFuncs = template.FuncMap{
-	"Year": func() int {
-		return time.Now().Year()
-	},
-	"multiply": func(a, b int) int {
-		return a * b
-	},
-	"slice": func(args ...int) []int {
-		return args
-	},
-	"hasPrefix": func(s, prefix string) bool {
-		return strings.HasPrefix(s, prefix)
-	},
-	"mod": func(a, b int) int {
-		return a % b
-	},
-	"subtract": func(a, b int) int {
-		return a - b
-	},
-}
-
-var templatesByPage map[string]*template.Template
-
-func loadTemplates() error {
-	templatesByPage = make(map[string]*template.Template)
-
-	// shared layout + partials
-	base := "templates/layouts/base.html"
-	header := "templates/partials/header.html"
-	nav := "templates/partials/nav.html"
-	footer := "templates/partials/footer.html"
-
-	// page → page template
-	pages := map[string]string{
-		"home":       "templates/pages/home.html",
-		"about":      "templates/pages/about.html",
-		"experience": "templates/pages/experience.html",
-		"skills":     "templates/pages/skills.html",
-		"projects":   "templates/pages/projects.html",
-		"education":  "templates/pages/education.html",
-		"contact":    "templates/pages/contact.html",
-		"soccer":     "templates/pages/soccer.html",
-	}
-
-	for page, pageTemplate := range pages {
-		tmpl, err := template.New("base.html").
-			Funcs(templateFuncs).
-			ParseFiles(
-				base,
-				header,
-				nav,
-				footer,
-				pageTemplate,
-			)
-
-		if err != nil {
-			return err
-		}
-
-		// page-specific fragments
-		switch page {
-		case "soccer":
-			if _, err := tmpl.ParseFiles(
-				"templates/partials/soccer_table_fragment.html",
-			); err != nil {
-				return err
-			}
-		case "experience":
-			if _, err := tmpl.ParseFiles(
-				"templates/partials/experience_timeline.html",
-			); err != nil {
-				return err
-			}
-		case "skills":
-			if _, err := tmpl.ParseFiles(
-				"templates/partials/skills_grid.html",
-			); err != nil {
-				return err
-			}
-		case "projects":
-			if _, err := tmpl.ParseFiles(
-				"templates/partials/projects_grid.html",
-			); err != nil {
-				return err
-			}
-		}
-
-		templatesByPage[page] = tmpl
-	}
-
-	return nil
-}
-
-func renderPage(w http.ResponseWriter, page string, data any) {
-	tmpl := templatesByPage[page]
-	if tmpl == nil {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		return
-	}
-	if err := tmpl.ExecuteTemplate(w, "base.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func renderFragment(w http.ResponseWriter, page, name string, data any) {
-	tmpl := templatesByPage[page]
-	if tmpl == nil {
-		http.Error(w, "template not found", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
 
 /*
 ========================================
@@ -150,11 +29,6 @@ func main() {
 	mime.AddExtensionType(".webp", "image/webp")
 	mime.AddExtensionType(".png", "image/png")
 	mime.AddExtensionType(".jpg", "image/jpeg")
-
-	// load templates ONCE at startup
-	if err := loadTemplates(); err != nil {
-		log.Fatal("template load failed:", err)
-	}
 
 	// routes - pages
 	http.HandleFunc("/", homeHandler)
@@ -207,14 +81,12 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	renderPage(w, "home", map[string]any{
-		"Title":       "Craig Johnson - Cloud Engineer Principal",
-		"Page":        "home",
-		"Name":        "Craig Johnson",
-		"Role":        "Cloud Engineer Principal",
-		"AvatarURL":   gravatarURL("gravatar@craigdevjohnson.com", 275),
-		"Description": "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
-	})
+	pages.Home(pages.HomeProps{
+		Name:        "Craig Johnson",
+		Role:        "Cloud Engineer Principal",
+		AvatarURL:   gravatarURL("gravatar@craigdevjohnson.com", 275),
+		Description: "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+	}).Render(context.Background(), w)
 }
 
 /*
@@ -224,10 +96,7 @@ About
 */
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "about", map[string]any{
-		"Title": "About - Craig Johnson",
-		"Page":  "about",
-	})
+	pages.About().Render(context.Background(), w)
 }
 
 /*
@@ -323,17 +192,25 @@ func experienceData() []Experience {
 }
 
 func experienceHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "experience", map[string]any{
-		"Title":       "Experience - Craig Johnson",
-		"Page":        "experience",
-		"Experiences": experienceData(),
-	})
+	pages.Experience().Render(context.Background(), w)
 }
 
 func experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
-	renderFragment(w, "experience", "experience_timeline.html", map[string]any{
-		"Experiences": experienceData(),
-	})
+	experiences := experienceData()
+	props := partials.ExperienceTimelineProps{
+		Experiences: make([]partials.Experience, len(experiences)),
+	}
+	for i, exp := range experiences {
+		props.Experiences[i] = partials.Experience{
+			Position:         exp.Position,
+			Company:          exp.Company,
+			Duration:         exp.Duration,
+			Responsibilities: exp.Responsibilities,
+			Technologies:     exp.Technologies,
+			SkillAreas:       exp.SkillAreas,
+		}
+	}
+	partials.ExperienceTimeline(props).Render(context.Background(), w)
 }
 
 /*
@@ -345,7 +222,7 @@ Skills
 type Skill struct {
 	ID       int
 	Name     string
-	Icon     template.HTML
+	Icon     string
 	IconPath string
 	Link     string
 }
@@ -356,17 +233,17 @@ type SkillCategory struct {
 }
 
 const (
-	iconZeroTrust      template.HTML = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
-	iconIdentityAccess template.HTML = `<svg viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>`
-	iconCloudSecurity  template.HTML = `<svg viewBox="0 0 24 24" fill="#EF4444" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/><path fill="#fff" d="M12 8l3 3h-2v3h-2v-3H9l3-3z"/></svg>`
-	iconCompliance     template.HTML = `<svg viewBox="0 0 24 24" fill="#22C55E" aria-hidden="true"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
-	iconMonitoring     template.HTML = `<svg viewBox="0 0 24 24" fill="#06B6D4" aria-hidden="true"><path d="M3 13h2v8H3v-8zm6-6h2v14H9V7zm6-4h2v18h-2V3zm6 8h2v10h-2V11z"/></svg>`
-	iconInfraAuto      template.HTML = `<svg viewBox="0 0 24 24" fill="#A855F7" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/><path d="M18 9l3 3-3 3M6 9l-3 3 3 3" stroke="#A855F7" stroke-width="1.5" fill="none"/></svg>`
-	iconCloudArch      template.HTML = `<svg viewBox="0 0 24 24" fill="#0EA5E9" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/></svg>`
-	iconNetworkSec     template.HTML = `<svg viewBox="0 0 24 24" fill="#EC4899" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
-	iconDevSecOps      template.HTML = `<svg viewBox="0 0 24 24" fill="#10B981" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`
-	iconSRE            template.HTML = `<svg viewBox="0 0 24 24" fill="#F97316" aria-hidden="true"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4" fill="#F97316"/></svg>`
-	iconSecOps         template.HTML = `<svg viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"/></svg>`
+	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
+	iconIdentityAccess string = `<svg viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>`
+	iconCloudSecurity  string = `<svg viewBox="0 0 24 24" fill="#EF4444" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/><path fill="#fff" d="M12 8l3 3h-2v3h-2v-3H9l3-3z"/></svg>`
+	iconCompliance     string = `<svg viewBox="0 0 24 24" fill="#22C55E" aria-hidden="true"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
+	iconMonitoring     string = `<svg viewBox="0 0 24 24" fill="#06B6D4" aria-hidden="true"><path d="M3 13h2v8H3v-8zm6-6h2v14H9V7zm6-4h2v18h-2V3zm6 8h2v10h-2V11z"/></svg>`
+	iconInfraAuto      string = `<svg viewBox="0 0 24 24" fill="#A855F7" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/><path d="M18 9l3 3-3 3M6 9l-3 3 3 3" stroke="#A855F7" stroke-width="1.5" fill="none"/></svg>`
+	iconCloudArch      string = `<svg viewBox="0 0 24 24" fill="#0EA5E9" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/></svg>`
+	iconNetworkSec     string = `<svg viewBox="0 0 24 24" fill="#EC4899" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
+	iconDevSecOps      string = `<svg viewBox="0 0 24 24" fill="#10B981" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`
+	iconSRE            string = `<svg viewBox="0 0 24 24" fill="#F97316" aria-hidden="true"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4" fill="#F97316"/></svg>`
+	iconSecOps         string = `<svg viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"/></svg>`
 )
 
 func skillsData() []SkillCategory {
@@ -532,17 +409,29 @@ func skillsData() []SkillCategory {
 }
 
 func skillsHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "skills", map[string]any{
-		"Title":      "Skills - Craig Johnson",
-		"Page":       "skills",
-		"Categories": skillsData(),
-	})
+	pages.Skills().Render(context.Background(), w)
 }
 
 func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
-	renderFragment(w, "skills", "skills_grid.html", map[string]any{
-		"Categories": skillsData(),
-	})
+	categories := skillsData()
+	props := partials.SkillsGridProps{
+		Categories: make([]partials.SkillCategory, len(categories)),
+	}
+	for i, cat := range categories {
+		props.Categories[i] = partials.SkillCategory{
+			Name:   cat.Name,
+			Skills: make([]partials.Skill, len(cat.Skills)),
+		}
+		for j, skill := range cat.Skills {
+			props.Categories[i].Skills[j] = partials.Skill{
+				Name:     skill.Name,
+				Icon:     skill.Icon,
+				IconPath: skill.IconPath,
+				Link:     skill.Link,
+			}
+		}
+	}
+	partials.SkillsGrid(props).Render(context.Background(), w)
 }
 
 /*
@@ -600,17 +489,27 @@ func projectsData() []Project {
 }
 
 func projectsHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "projects", map[string]any{
-		"Title":    "Projects - Craig Johnson",
-		"Page":     "projects",
-		"Projects": projectsData(),
-	})
+	pages.Projects().Render(context.Background(), w)
 }
 
 func projectsGridHandler(w http.ResponseWriter, r *http.Request) {
-	renderFragment(w, "projects", "projects_grid.html", map[string]any{
-		"Projects": projectsData(),
-	})
+	projects := projectsData()
+	props := partials.ProjectsGridProps{
+		Projects: make([]partials.Project, len(projects)),
+	}
+	for i, proj := range projects {
+		props.Projects[i] = partials.Project{
+			Name:         proj.Name,
+			Intro:        proj.Intro,
+			Description:  proj.Description,
+			Technologies: proj.Technologies,
+			Image:        proj.Image,
+			GitHubURL:    proj.GitHubURL,
+			DemoURL:      proj.DemoURL,
+			Category:     proj.Category,
+		}
+	}
+	partials.ProjectsGrid(props).Render(context.Background(), w)
 }
 
 /*
@@ -642,11 +541,7 @@ func educationData() []Education {
 }
 
 func educationHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "education", map[string]any{
-		"Title":     "Education - Craig Johnson",
-		"Page":      "education",
-		"Education": educationData(),
-	})
+	pages.Education().Render(context.Background(), w)
 }
 
 /*
@@ -656,10 +551,7 @@ Contact
 */
 
 func contactHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "contact", map[string]any{
-		"Title": "Contact - Craig Johnson",
-		"Page":  "contact",
-	})
+	pages.Contact().Render(context.Background(), w)
 }
 
 /*
@@ -682,10 +574,7 @@ type LambdaGamesResponse struct {
 }
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
-	renderPage(w, "soccer", map[string]any{
-		"Title": "Soccer Schedule - Craig Johnson",
-		"Page":  "soccer",
-	})
+	pages.Soccer().Render(context.Background(), w)
 }
 
 func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
@@ -695,11 +584,22 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = r.ParseForm()
 	teamCodes := r.FormValue("team_codes")
-	data := map[string]any{
-		"TeamCodes": teamCodes,
-		"Games":     mockFetchGames(parseTeamCodes(teamCodes)).Games,
+	games := mockFetchGames(parseTeamCodes(teamCodes)).Games
+	props := partials.SoccerTableFragmentProps{
+		Games:     make([]partials.Game, len(games)),
+		TeamCodes: teamCodes,
 	}
-	renderFragment(w, "soccer", "soccer_table_fragment.html", data)
+	for i, game := range games {
+		props.Games[i] = partials.Game{
+			ID:       game.ID,
+			DateTime: game.DateTime,
+			Field:    game.Field,
+			Home:     game.Home,
+			Away:     game.Away,
+			Season:   game.Season,
+		}
+	}
+	partials.SoccerTableFragment(props).Render(context.Background(), w)
 }
 
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
