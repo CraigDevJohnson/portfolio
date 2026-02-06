@@ -7,35 +7,40 @@ templ Skills() {
 		Title: "Technical Proficiencies - Craig Johnson",
 		Page:  "skills",
 	}) {
-		<section class="skills-hero">
-			<div class="hero-header">
-				<h1>Technical Proficiencies</h1>
-				<p class="lead">A comprehensive toolkit for cloud infrastructure, automation, and security</p>
+		<!-- Skills Hero -->
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
+				<h1 class="text-4xl font-bold mb-4">Technical Proficiencies</h1>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">A comprehensive toolkit for cloud infrastructure, automation, and security</p>
 			</div>
 		</section>
-		<section class="skills-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
-			<div class="skills-container">
+		
+		<!-- Skills Grid with HTMX -->
+		<section class="pb-8" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
+			<div class="space-y-8">
 				for i := 1; i <= 3; i++ {
-					<div class="skill-category skeleton-category">
-						<div class="skeleton skeleton-category-title"></div>
-						<div class="skills-grid">
+					<div class="space-y-4">
+						<div class="h-8 bg-[#44403c] rounded-lg w-48 animate-pulse"></div>
+						<div class="flex flex-wrap gap-2">
 							for j := 1; j <= 8; j++ {
-								<div class="skeleton skeleton-badge"></div>
+								<div class="h-8 w-24 bg-[#44403c] rounded-full animate-pulse"></div>
 							}
 						</div>
 					</div>
 				}
 			</div>
 		</section>
-		<section class="skills-cta">
-			<div class="cta-content">
-				<h2>Interested in my expertise?</h2>
-				<p>
+		
+		<!-- Skills CTA -->
+		<section class="pb-16 pt-8">
+			<div class="text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl">
+				<h2 class="text-2xl font-bold mb-4">Interested in my expertise?</h2>
+				<p class="text-[#a8a29e] mb-6">
 					View my projects or get in touch to discuss how I can help with your infrastructure needs.
 				</p>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/contact" class="btn btn-secondary">Contact Me</a>
+				<div class="flex gap-4 justify-center flex-wrap">
+					<a href="/projects" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]">View Projects</a>
+					<a href="/contact" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-[#44403c] text-[#fafaf9] text-sm font-semibold border border-white/[0.12] transition-all duration-150 hover:bg-white/[0.12] hover:-translate-y-0.5">Contact Me</a>
 				</div>
 			</div>
 		</section>
