@@ -1,163 +1,159 @@
-{{ define "content" }}
-<section class="experience-hero">
-  <div class="hero-header">
-    <h1>Career Journey</h1>
-    <p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
-  </div>
-</section>
+package pages
 
-<!-- Career Stats Summary - Years auto-calculated -->
-<section class="experience-summary">
-  <div class="summary-grid">
-    <div class="summary-card" id="years-stat">
-      <span class="summary-value" data-start-year="2012"></span>
-      <span class="summary-label">Years in Tech</span>
-    </div>
-    <div class="summary-card">
-      <span class="summary-value">4</span>
-      <span class="summary-label">Companies</span>
-    </div>
-    <div class="summary-card">
-      <span class="summary-value">7</span>
-      <span class="summary-label">Positions Held</span>
-    </div>
-    <div class="summary-card">
-      <span class="summary-icon">☁️</span>
-      <span class="summary-value">3</span>
-      <span class="summary-label">Cloud Platforms</span>
-    </div>
-  </div>
-</section>
+import "portfolio/components/layouts"
 
-<!-- Interactive Filters Section -->
-<section class="experience-filters">
-  <div class="filter-section collapsed" id="position-section">
-    <h3 class="filter-title collapsible" data-target="position-section">
-      Filter by Position
-      <span class="filter-count" id="position-count"></span>
-      <span class="collapse-icon">▼</span>
-    </h3>
-    <div class="filter-pills" id="position-filters">
-      <button class="filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
-        Cloud Engineer Principal
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="System Administrator">
-        System Administrator
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
-        IT Systems Engineer Sr
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="IT Systems Engineer">
-        IT Systems Engineer
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="IT Desktop Engineer">
-        IT Desktop Engineer
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="IT Service Desk Associate">
-        IT Service Desk Associate
-      </button>
-      <button class="filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
-        Service Desk Student Analyst
-      </button>
-    </div>
-  </div>
-
-  <div class="filter-section collapsed" id="tech-section">
-    <h3 class="filter-title collapsible" data-target="tech-section">
-      Filter by Technology
-      <span class="filter-count" id="tech-count"></span>
-      <span class="collapse-icon">▼</span>
-    </h3>
-    <div class="filter-pills" id="tech-filters">
-      <button class="filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
-      <button class="filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
-      <button class="filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
-      <button class="filter-pill" data-filter="tech" data-value="AWS">AWS</button>
-      <button class="filter-pill" data-filter="tech" data-value="Azure">Azure</button>
-      <button class="filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
-      <button class="filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
-      <button class="filter-pill" data-filter="tech" data-value="Bash">Bash</button>
-      <button class="filter-pill" data-filter="tech" data-value="Python">Python</button>
-      <button class="filter-pill" data-filter="tech" data-value="O365/Exchange">
-        O365/Exchange
-      </button>
-      <button class="filter-pill" data-filter="tech" data-value="Docker">Docker</button>
-      <button class="filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
-      <button class="filter-pill" data-filter="tech" data-value="Intune">Intune</button>
-      <button class="filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
-    </div>
-  </div>
-
-  <div class="filter-section collapsed" id="skill-section">
-    <h3 class="filter-title collapsible" data-target="skill-section">
-      Filter by Skill Area
-      <span class="filter-count" id="skill-count"></span>
-      <span class="collapse-icon">▼</span>
-    </h3>
-    <div class="filter-pills" id="skill-filters">
-      <button class="filter-pill" data-filter="skill" data-value="cloud">
-        Cloud Infrastructure
-      </button>
-      <button class="filter-pill" data-filter="skill" data-value="automation">
-        Automation & IaC
-      </button>
-      <button class="filter-pill" data-filter="skill" data-value="systems">
-        Systems Administration
-      </button>
-      <button class="filter-pill" data-filter="skill" data-value="security">
-        Security & Compliance
-      </button>
-      <button class="filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
-      <button class="filter-pill" data-filter="skill" data-value="scripting">
-        Scripting & Programming
-      </button>
-    </div>
-  </div>
-
-  <div class="active-filters" id="active-filters">
-    <span class="active-filters-label">Active Filters:</span>
-    <span class="active-filter-tags" id="active-filter-tags"></span>
-    <button class="clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
-  </div>
-</section>
-
-<!-- Career Journey Cards -->
-<section
-  class="career-section"
-  hx-get="/experience/timeline"
-  hx-trigger="revealed"
-  hx-swap="innerHTML"
->
-  <!-- Skeleton loading state -->
-  <div class="career-grid">
-    {{ range $i := (slice 1 2 3 4 5 6 7) }}
-    <div class="career-card skeleton-card">
-      <div class="card-status skeleton"></div>
-      <div class="skeleton skeleton-title"></div>
-      <div class="skeleton skeleton-subtitle"></div>
-      <div class="skeleton skeleton-text"></div>
-      <div class="skeleton-pills">
-        <div class="skeleton skeleton-pill"></div>
-        <div class="skeleton skeleton-pill"></div>
-        <div class="skeleton skeleton-pill"></div>
-      </div>
-    </div>
-    {{ end }}
-  </div>
-</section>
-
-<section class="experience-cta">
-  <div class="cta-content">
-    <h2>Want to see what I've built?</h2>
-    <p>Check out my projects or view my technical skills in detail.</p>
-    <div class="cta-buttons">
-      <a href="/projects" class="btn btn-primary">View Projects</a>
-      <a href="/skills" class="btn btn-secondary">See Skills</a>
-    </div>
-  </div>
-</section>
-
-<script>
+templ Experience() {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Career Journey - Craig Johnson",
+		Page:  "experience",
+	}) {
+		<section class="experience-hero">
+			<div class="hero-header">
+				<h1>Career Journey</h1>
+				<p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
+			</div>
+		</section>
+		<section class="experience-summary">
+			<div class="summary-grid">
+				<div class="summary-card" id="years-stat">
+					<span class="summary-value" data-start-year="2012"></span>
+					<span class="summary-label">Years in Tech</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-value">4</span>
+					<span class="summary-label">Companies</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-value">7</span>
+					<span class="summary-label">Positions Held</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-icon">☁️</span>
+					<span class="summary-value">3</span>
+					<span class="summary-label">Cloud Platforms</span>
+				</div>
+			</div>
+		</section>
+		<section class="experience-filters">
+			<div class="filter-section collapsed" id="position-section">
+				<h3 class="filter-title collapsible" data-target="position-section">
+					Filter by Position
+					<span class="filter-count" id="position-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="position-filters">
+					<button class="filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
+						Cloud Engineer Principal
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="System Administrator">
+						System Administrator
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
+						IT Systems Engineer Sr
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer">
+						IT Systems Engineer
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Desktop Engineer">
+						IT Desktop Engineer
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Service Desk Associate">
+						IT Service Desk Associate
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
+						Service Desk Student Analyst
+					</button>
+				</div>
+			</div>
+			<div class="filter-section collapsed" id="tech-section">
+				<h3 class="filter-title collapsible" data-target="tech-section">
+					Filter by Technology
+					<span class="filter-count" id="tech-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="tech-filters">
+					<button class="filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
+					<button class="filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
+					<button class="filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
+					<button class="filter-pill" data-filter="tech" data-value="AWS">AWS</button>
+					<button class="filter-pill" data-filter="tech" data-value="Azure">Azure</button>
+					<button class="filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
+					<button class="filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
+					<button class="filter-pill" data-filter="tech" data-value="Bash">Bash</button>
+					<button class="filter-pill" data-filter="tech" data-value="Python">Python</button>
+					<button class="filter-pill" data-filter="tech" data-value="O365/Exchange">
+						O365/Exchange
+					</button>
+					<button class="filter-pill" data-filter="tech" data-value="Docker">Docker</button>
+					<button class="filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
+					<button class="filter-pill" data-filter="tech" data-value="Intune">Intune</button>
+					<button class="filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
+				</div>
+			</div>
+			<div class="filter-section collapsed" id="skill-section">
+				<h3 class="filter-title collapsible" data-target="skill-section">
+					Filter by Skill Area
+					<span class="filter-count" id="skill-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="skill-filters">
+					<button class="filter-pill" data-filter="skill" data-value="cloud">
+						Cloud Infrastructure
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="automation">
+						Automation & IaC
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="systems">
+						Systems Administration
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="security">
+						Security & Compliance
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
+					<button class="filter-pill" data-filter="skill" data-value="scripting">
+						Scripting & Programming
+					</button>
+				</div>
+			</div>
+			<div class="active-filters" id="active-filters">
+				<span class="active-filters-label">Active Filters:</span>
+				<span class="active-filter-tags" id="active-filter-tags"></span>
+				<button class="clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
+			</div>
+		</section>
+		<section
+			class="career-section"
+			hx-get="/experience/timeline"
+			hx-trigger="revealed"
+			hx-swap="innerHTML"
+		>
+			<div class="career-grid">
+				for i := 1; i <= 7; i++ {
+					<div class="career-card skeleton-card">
+						<div class="card-status skeleton"></div>
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton skeleton-subtitle"></div>
+						<div class="skeleton skeleton-text"></div>
+						<div class="skeleton-pills">
+							<div class="skeleton skeleton-pill"></div>
+							<div class="skeleton skeleton-pill"></div>
+							<div class="skeleton skeleton-pill"></div>
+						</div>
+					</div>
+				}
+			</div>
+		</section>
+		<section class="experience-cta">
+			<div class="cta-content">
+				<h2>Want to see what I've built?</h2>
+				<p>Check out my projects or view my technical skills in detail.</p>
+				<div class="cta-buttons">
+					<a href="/projects" class="btn btn-primary">View Projects</a>
+					<a href="/skills" class="btn btn-secondary">See Skills</a>
+				</div>
+			</div>
+		</section>
+		<script>
   // Auto-calculate years in tech
   document.addEventListener('DOMContentLoaded', function () {
     const yearsStat = document.querySelector('#years-stat .summary-value')
@@ -418,4 +414,5 @@
     }
   })
 </script>
-{{ end }}
+	}
+}

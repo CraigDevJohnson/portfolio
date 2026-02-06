@@ -1,40 +1,69 @@
 # Portfolio Codebase Instructions
 
+**Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.**
+
 ## Architecture overview
 
-Go 1.21+ server-rendered portfolio with HTMX for dynamic updates. All application code lives in a single `main.go` file—handlers, data structs, and template loading are collocated intentionally for simplicity.
+Go 1.23+ server-rendered portfolio with Templ for type-safe component-based templates and HTMX for dynamic updates. All application code lives in a single `main.go` file—handlers and data structs are collocated intentionally for simplicity.
 
-## Template system
+## Templ Component System
 
-Three-tier template hierarchy loaded once at startup in `loadTemplates()`:
+Type-safe component-based architecture using [Templ](https://templ.guide/):
 
-- **Layout**: `templates/layouts/base.html` — defines `{{ block "content" . }}`, loads per-page CSS via `.Page`
-- **Pages**: `templates/pages/*.html` — each implements `{{ define "content" }}`
-- **Partials**: `templates/partials/*.html` — shared components (nav, header, footer) and HTMX fragments
+- **Layouts**: `components/layouts/base.templ` — defines layout wrapper with children injection
+- **Pages**: `components/pages/*.templ` — page components that use @layouts.Base() wrapper
+- **Partials**: `components/partials/*.templ` — shared components (nav, header, footer) and HTMX fragments
 
-Custom template functions in `templateFuncs`:
+### Key Templ Concepts
 
-- `Year` — current year for footer copyright
-- `multiply`, `subtract`, `mod` — arithmetic for animation delays and grid layouts
-- `slice` — create int slices in templates
-- `hasPrefix` — string prefix checks
+- **Type-safe props**: Each component has a Props struct defining its data
+- **Component composition**: Use `@ComponentName(props)` to render child components
+- **Children**: Use `{ children... }` in layouts to inject child content
+- **Conditional classes**: Use `templ.KV("classname", condition)` for conditional CSS classes
+- **No template functions needed**: Use native Go functions and time package directly
+
+### Component Generation
+
+Templ files (`*.templ`) are compiled to Go code (`*_templ.go`):
+
+```bash
+# Generate all Templ components
+templ generate
+
+# Or use make
+make generate
+```
+
+Generated `*_templ.go` files are gitignored and should not be edited manually.
 
 ## Handler patterns
 
-Full page render:
+Full page render with Templ:
 
 ```go
-renderPage(w, "pagename", map[string]any{
-    "Title": "Page Title - Craig Johnson",
-    "Page":  "pagename",  // Required: enables per-page CSS and active nav
-    // ... page-specific data
-})
+func pageHandler(w http.ResponseWriter, r *http.Request) {
+    props := pages.PageNameProps{
+        Field1: "value",
+        Field2: 123,
+    }
+    if err := pages.PageName(props).Render(context.Background(), w); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
 ```
 
 HTMX fragment render (no layout wrapper):
 
 ```go
-renderFragment(w, "pagename", "fragment_name.html", data)
+func fragmentHandler(w http.ResponseWriter, r *http.Request) {
+    props := partials.FragmentProps{
+        Data: someData,
+    }
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    if err := partials.Fragment(props).Render(context.Background(), w); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
 ```
 
 ## Data layer
@@ -46,62 +75,106 @@ Content is hardcoded via typed structs and factory functions:
 - `projectsData()` → `[]Project`
 - `educationData()` → `[]Education`
 
-Each struct includes all fields needed for template rendering (no database queries).
+Each struct includes all fields needed for component rendering (no database queries).
 
 ## HTMX integration patterns
 
 Fragment routes return partial HTML for swap targets:
 
-- `/experience` (full page) + `/experience/timeline` (fragment) → `experience_timeline.html`
-- `/skills` + `/skills/grid` → `skills_grid.html`
-- `/projects` + `/projects/grid` → `projects_grid.html`
+- `/experience` (full page) + `/experience/timeline` (fragment) → `experience_timeline.templ`
+- `/skills` + `/skills/grid` → `skills_grid.templ`
+- `/projects` + `/projects/grid` → `projects_grid.templ`
 
 Soccer page demonstrates form-driven HTMX:
 
-- `POST /soccer/fetch` → returns `soccer_table_fragment.html`
+- `POST /soccer/fetch` → returns `soccer_table_fragment.templ`
 - `POST /soccer/download` → streams ICS file attachment
 
 ## Frontend conventions
 
-- Per-page CSS: `static/css/{pagename}.css` — linked automatically via `.Page` in base layout
+- Per-page CSS: `static/css/{pagename}.css` — linked automatically via `.Page` prop in base layout
 - Global styles: `static/css/styles.css` — CSS custom properties for theming
-- Active nav highlighting: `{{ if eq .Page "pagename" }}active{{ end }}` in `nav.html`
+- Active nav highlighting: Use `templ.KV("active", page == "pagename")` in Templ components
 
 ## Dev workflow
 
 ```bash
-make run        # Build and run (http://localhost:8080)
-make dev        # Hot-reload with air (requires: go install github.com/air-verse/air@latest)
-make lint       # Run vet + staticcheck
-make fmt        # Format source files
+# Generate Templ components (required after editing .templ files)
+make generate
+
+# Build and run
+make build
+make run
+
+# Development with hot reload (requires air)
+make dev
+
+# Format and lint
+make fmt
+make vet
 ```
 
-Templates load at startup — restart server or use `make dev` for template changes.
+Templ files must be regenerated after editing—restart server or use `make dev` for auto-reload.
+
+Templ files must be regenerated after editing—restart server or use `make dev` for auto-reload.
 
 ## Adding a new page
 
-| Path                          | Purpose                                             |
-| ----------------------------- | --------------------------------------------------- |
-| `main.go`                     | All handlers, data, routes, template loading        |
-| `templates/layouts/base.html` | HTML shell, loads page-specific CSS                 |
-| `templates/partials/nav.html` | Navigation with active state logic                  |
-| `static/css/styles.css`       | Global styles, CSS variables, dark/light themes     |
-| `static/js/main.js`           | Mobile menu, HTMX event handlers, scroll animations |
+1. **Create Templ component**: `components/pages/newpage.templ`
+   ```go
+   package pages
+   
+   import "portfolio/components/layouts"
+   
+   type NewPageProps struct {
+       // Define your props
+   }
+   
+   templ NewPage(props NewPageProps) {
+       @layouts.Base(layouts.BaseProps{
+           Title: "Page Title - Craig Johnson",
+           Page:  "newpage",
+       }) {
+           // Your page content
+       }
+   }
+   ```
+
+2. **Create handler in main.go**:
+   ```go
+   func newPageHandler(w http.ResponseWriter, r *http.Request) {
+       props := pages.NewPageProps{ /* ... */ }
+       if err := pages.NewPage(props).Render(context.Background(), w); err != nil {
+           http.Error(w, err.Error(), http.StatusInternalServerError)
+       }
+   }
+   ```
+
+3. **Add route in main()**: `http.HandleFunc("/newpage", newPageHandler)`
+
+4. **Update navigation**: Add link to `components/partials/nav.templ` and `header.templ` (mobile nav)
+
+5. **Create page styles**: `static/css/newpage.css` (optional)
+
+6. **Generate and build**: `make generate && make build`
 
 ## Testing and Validation
 
 ### Building and Running
 
 ```bash
-# Build the application
-go build -o portfolio-server .
+# Generate Templ components
+make generate
+
+# Build the application  
+make build
 
 # Run the server
 ./portfolio-server
 
 # Development with hot reload (recommended)
 go install github.com/air-verse/air@latest
-air
+make dev
 ```
 
 ### Testing
@@ -241,9 +314,9 @@ All content lives in `main.go` data functions. To update:
 - Verify fragment templates render correctly in isolation
 - Use `htmx.logger` for detailed HTMX debugging: add to `main.js`:
   ```javascript
-  htmx.logger = function(elt, event, data) {
-    if(console) {
+  htmx.logger = function (elt, event, data) {
+    if (console) {
       console.log(event, elt, data);
     }
-  }
+  };
   ```
