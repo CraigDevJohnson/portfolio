@@ -1,17 +1,19 @@
-# Craig Johnson Portfolio - Go + HTMX
+# Craig Johnson Portfolio - Go + Templ + HTMX
 
-A modern, responsive personal portfolio website built with **Go** and **HTMX** for server-side rendering with dynamic client interactions.
+A modern, responsive personal portfolio website built with **Go**, **Templ**, and **HTMX** for server-side rendering with dynamic client interactions.
 
-![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Templ](https://img.shields.io/badge/Templ-0.3-FF6B6B?style=flat-square)
 ![HTMX](https://img.shields.io/badge/HTMX-1.9-3366CC?style=flat-square)
 
 ## Overview
 
-This is a complete refactor of the Vue.js portfolio to a server-rendered Go application using HTMX for dynamic interactions. The site maintains the same professional design and functionality while leveraging server-side rendering for improved performance and SEO.
+A server-rendered Go application using Templ for type-safe component-based templates and HTMX for dynamic interactions. The site maintains a professional design and functionality while leveraging server-side rendering for improved performance and SEO.
 
 ## Features
 
-- **Server-Side Rendering**: Fast initial page loads with Go templates
+- **Type-Safe Templates**: Templ provides compile-time type checking and component-based architecture
+- **Server-Side Rendering**: Fast initial page loads with zero JavaScript dependencies
 - **HTMX Interactions**: Dynamic content loading without full page refreshes
 - **Dark/Light Theme**: Toggle between themes with persistent preference
 - **Responsive Design**: Mobile-first approach with beautiful desktop layouts
@@ -31,8 +33,8 @@ This is a complete refactor of the Vue.js portfolio to a server-rendered Go appl
 
 ## Tech Stack
 
-- **Backend**: Go 1.21+
-- **Templating**: Go html/template
+- **Backend**: Go 1.23+
+- **Templating**: [Templ](https://templ.guide/) - Type-safe Go templating engine
 - **Frontend Interactivity**: HTMX 1.9
 - **Styling**: Custom CSS with CSS Variables
 - **Fonts**: Inter (Google Fonts)
@@ -41,19 +43,30 @@ This is a complete refactor of the Vue.js portfolio to a server-rendered Go appl
 
 ### Prerequisites
 
-- Go 1.21 or higher
+- Go 1.23 or higher
+- Templ CLI (installed automatically via `go install`)
 
 ### Installation
 
 ```bash
-cd go-portfolio
-go build -o portfolio-server .
+# Install dependencies
+go mod download
+
+# Install Templ CLI
+go install github.com/a-h/templ/cmd/templ@latest
+
+# Build the project (generates Templ components and compiles)
+make build
 ```
 
 ### Running
 
 ```bash
+# Run the server
 ./portfolio-server
+
+# Or use make
+make run
 ```
 
 The server will start at `http://localhost:8080`
@@ -63,36 +76,41 @@ The server will start at `http://localhost:8080`
 For development with hot reload, use `make dev` which requires [air](https://github.com/air-verse/air):
 
 ```bash
+# Install air
 go install github.com/air-verse/air@latest
+
+# Start development server with hot reload
 make dev
 ```
+
+**Note**: When Templ files (*.templ) are modified, run `make generate` or `templ generate` to regenerate the Go code before building.
 
 ## Project Structure
 
 ```filetree
-go-portfolio/
-├── main.go                 # Main application, routes, handlers
+portfolio/
+├── main.go                 # Main application, routes, handlers, data
 ├── go.mod                  # Go module definition
-├── templates/
+├── components/             # Templ components (replaces templates/)
 │   ├── layouts/
-│   │   └── base.html       # Base layout template
+│   │   └── base.templ      # Base layout component
 │   ├── pages/
-│   │   ├── home.html       # Home page
-│   │   ├── about.html      # About page
-│   │   ├── experience.html # Experience page
-│   │   ├── skills.html     # Skills page
-│   │   ├── projects.html   # Projects page
-│   │   ├── education.html  # Education page
-│   │   ├── contact.html    # Contact page
-│   │   └── soccer.html     # Soccer tool page
+│   │   ├── home.templ      # Home page component
+│   │   ├── about.templ     # About page component
+│   │   ├── experience.templ # Experience page component
+│   │   ├── skills.templ    # Skills page component
+│   │   ├── projects.templ  # Projects page component
+│   │   ├── education.templ # Education page component
+│   │   ├── contact.templ   # Contact page component
+│   │   └── soccer.templ    # Soccer tool page component
 │   └── partials/
-│       ├── header.html     # Header partial
-│       ├── nav.html        # Navigation partial
-│       ├── footer.html     # Footer partial
-│       ├── experience_timeline.html
-│       ├── skills_grid.html
-│       ├── projects_grid.html
-│       └── soccer_table_fragment.html
+│       ├── header.templ    # Header partial component
+│       ├── nav.templ       # Navigation partial component
+│       ├── footer.templ    # Footer partial component
+│       ├── experience_timeline.templ  # HTMX fragment
+│       ├── skills_grid.templ          # HTMX fragment
+│       ├── projects_grid.templ        # HTMX fragment
+│       └── soccer_table_fragment.templ # HTMX fragment
 └── static/
     ├── css/
     │   ├── styles.css      # Global styles
@@ -105,6 +123,8 @@ go-portfolio/
     └── images/
         └── ...             # Static images
 ```
+
+**Note**: `*_templ.go` files are auto-generated by Templ and are gitignored.
 
 ## API Endpoints
 <!-- markdownlint-disable MD024  -->
@@ -130,12 +150,13 @@ go-portfolio/
 
 ## Design Principles
 
-1. **Progressive Enhancement**: Core content works without JavaScript
-2. **HTMX for Interactivity**: Dynamic updates without SPA complexity
-3. **Server-Rendered**: Fast initial loads, great SEO
-4. **Mobile-First**: Responsive design starting from mobile
-5. **Accessible**: Semantic HTML, ARIA labels, keyboard navigation
-6. **Themed**: Dark/light mode with CSS variables
+1. **Type-Safe Components**: Templ provides compile-time type checking for templates
+2. **Progressive Enhancement**: Core content works without JavaScript
+3. **HTMX for Interactivity**: Dynamic updates without SPA complexity
+4. **Server-Rendered**: Fast initial loads, great SEO
+5. **Mobile-First**: Responsive design starting from mobile
+6. **Accessible**: Semantic HTML, ARIA labels, keyboard navigation
+7. **Themed**: Dark/light mode with CSS variables
 
 ## Customization
 
@@ -147,6 +168,16 @@ Content is defined in `main.go` in the data functions:
 - `skillsData()` - Skills by category
 - `projectsData()` - Project showcase
 - `educationData()` - Education entries
+
+### Updating Templates
+
+Templates are written in Templ (`.templ` files):
+
+1. Edit the `.templ` files in `components/` directory
+2. Run `make generate` or `templ generate` to regenerate Go code
+3. Build and run: `make build && ./portfolio-server`
+
+For more information on Templ syntax, see the [Templ documentation](https://templ.guide/).
 
 ### Styling
 
@@ -163,6 +194,9 @@ CSS variables are defined in `static/css/styles.css`:
 The application is designed to be deployed as a standalone binary:
 
 ```bash
+# Generate Templ components
+templ generate
+
 # Build for production
 CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
 
@@ -173,19 +207,27 @@ CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
 For containerized deployment, create a Dockerfile:
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 WORKDIR /app
+
+# Install Templ CLI
+RUN go install github.com/a-h/templ/cmd/templ@latest
+
+# Copy source
 COPY . .
-RUN go build -o portfolio-server .
+
+# Generate Templ components and build
+RUN templ generate && go build -o portfolio-server .
 
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/portfolio-server .
-COPY --from=builder /app/templates ./templates
 COPY --from=builder /app/static ./static
 EXPOSE 8080
 CMD ["./portfolio-server"]
 ```
+
+**Note**: Templates are no longer needed in the deployment image as Templ components are compiled into the binary.
 
 ## License
 
