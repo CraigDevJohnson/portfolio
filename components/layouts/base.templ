@@ -1,0 +1,65 @@
+package layouts
+
+import "portfolio/components/partials"
+
+type BaseProps struct {
+	Title       string
+	Page        string
+	Description string
+}
+
+templ Base(props BaseProps) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta
+				name="description"
+				if props.Description != "" {
+					content={ props.Description }
+				} else {
+					content="Craig Johnson - Cloud Engineer Principal specializing in cloud infrastructure, automation, and DevOps."
+				}
+			/>
+			<meta name="author" content="Craig Johnson"/>
+			<meta name="theme-color" content="#1c1917"/>
+			<title>{ props.Title }</title>
+			<!-- Favicons -->
+			<link rel="icon" type="image/x-icon" href="/static/images/favicon.ico"/>
+			<link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png"/>
+			<!-- Fonts -->
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+			<link
+				href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+				rel="stylesheet"
+			/>
+			<!-- Styles -->
+			<link rel="stylesheet" href="/static/css/styles.css?v=6"/>
+			if props.Page != "" {
+				<link rel="stylesheet" href={ "/static/css/" + props.Page + ".css?v=6" }/>
+			}
+			<!-- HTMX with integrity check -->
+			<script
+				src="https://unpkg.com/htmx.org@1.9.10"
+				integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
+				crossorigin="anonymous"
+			></script>
+			<script src="/static/js/main.js" defer></script>
+		</head>
+		<body
+			if props.Page == "soccer" {
+				class="soccer-theme"
+			}
+		>
+			@partials.Header(props.Page)
+			<main class="main-content">
+				<div class="container">
+					{ children... }
+				</div>
+			</main>
+			@partials.Footer()
+		</body>
+	</html>
+}

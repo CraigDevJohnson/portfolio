@@ -18,3 +18,6 @@ Thumbs.db
 
 # Test coverage
 coverage.out
+
+# Templ generated files
+*_templ.go

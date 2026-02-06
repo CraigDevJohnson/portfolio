@@ -1,0 +1,88 @@
+package partials
+
+import "fmt"
+
+type SoccerTableFragmentProps struct {
+	Games     []Game
+	TeamCodes string
+}
+
+type Game struct {
+	ID       string
+	DateTime string
+	Field    string
+	Home     string
+	Away     string
+	Season   string
+}
+
+templ SoccerTableFragment(props SoccerTableFragmentProps) {
+	if len(props.Games) == 0 {
+		<div class="no-results">
+			<p>No games found for the provided team code(s).</p>
+			<p class="hint">Check that you entered valid 6-digit team codes.</p>
+		</div>
+	} else {
+		<form
+			id="download-form"
+			action="/soccer/download"
+			method="post"
+			class="games-form"
+			data-soccer-form
+		>
+			<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
+			<div class="table-header">
+				<div class="table-actions">
+					<label class="select-all-label">
+						<input id="select-all" type="checkbox" checked data-select-all/>
+						<span>Select all games</span>
+					</label>
+					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
+				</div>
+				<button id="download-button" type="submit" class="btn btn-primary download-btn">
+					<span class="btn-text">Download Selected (.ics)</span>
+				</button>
+			</div>
+			<div class="table-wrapper">
+				<table class="games-table" role="table" aria-label="Soccer games schedule">
+					<thead>
+						<tr>
+							<th class="col-check" aria-label="Select"></th>
+							<th class="col-datetime">Date / Time</th>
+							<th class="col-field">Field</th>
+							<th class="col-team">Home</th>
+							<th class="col-team">Away</th>
+							<th class="col-season">Season</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, game := range props.Games {
+							<tr class="game-row">
+								<td class="col-check">
+									<input
+										class="game-checkbox"
+										type="checkbox"
+										name="selected"
+										value={ game.ID }
+										checked
+										aria-label={ "Select game " + game.ID }
+										data-game-checkbox
+									/>
+								</td>
+								<td class="col-datetime">{ game.DateTime }</td>
+								<td class="col-field">
+									<span class="field-badge">{ game.Field }</span>
+								</td>
+								<td class="col-team home-team">{ game.Home }</td>
+								<td class="col-team away-team">{ game.Away }</td>
+								<td class="col-season">
+									<span class="season-badge">{ game.Season }</span>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</form>
+	}
+}

@@ -5,11 +5,17 @@ GO := go
 GOFLAGS :=
 PORT ?= 8080
 
-.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help
+.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ
 
 all: build
 
-build:
+generate: templ
+
+templ:
+	@command -v templ >/dev/null 2>&1 || { echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; exit 1; }
+	templ generate
+
+build: generate
 	$(GO) build $(GOFLAGS) -o $(BINARY) .
 
 run: build

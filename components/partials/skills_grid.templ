@@ -1,0 +1,96 @@
+package partials
+
+import "fmt"
+
+type SkillsGridProps struct {
+	Categories []SkillCategory
+}
+
+type SkillCategory struct {
+	Name   string
+	Skills []Skill
+}
+
+type Skill struct {
+	Name     string
+	Icon     string
+	IconPath string
+	Link     string
+}
+
+templ SkillsGrid(props SkillsGridProps) {
+	<div class="skills-container">
+		for catIndex, cat := range props.Categories {
+			if cat.Name != "Concepts & Practices" {
+				<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*100) }>
+					<h2 class="category-title">{ cat.Name }</h2>
+					<div class="skills-grid">
+						for skillIndex, skill := range cat.Skills {
+							if skill.Link != "" {
+								<a
+									href={ templ.SafeURL(skill.Link) }
+									target="_blank"
+									rel="noopener noreferrer"
+									class="skill-icon-btn"
+									data-tooltip={ skill.Name }
+									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+								>
+									if skill.IconPath != "" {
+										<img src={ skill.IconPath } alt={ skill.Name }/>
+									} else if skill.Icon != "" {
+										@templ.Raw(skill.Icon)
+									}
+								</a>
+							} else {
+								<span
+									class="skill-icon-btn"
+									data-tooltip={ skill.Name }
+									tabindex="0"
+									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+								>
+									if skill.IconPath != "" {
+										<img src={ skill.IconPath } alt={ skill.Name }/>
+									} else if skill.Icon != "" {
+										@templ.Raw(skill.Icon)
+									}
+								</span>
+							}
+						}
+					</div>
+				</div>
+			}
+		}
+		for _, cat := range props.Categories {
+			if cat.Name == "Concepts & Practices" {
+				<div class="skill-category conceptual-skills">
+					<h2 class="category-title">{ cat.Name }</h2>
+					<div class="skills-grid">
+						for skillIndex, skill := range cat.Skills {
+							if skill.Link != "" {
+								<a
+									href={ templ.SafeURL(skill.Link) }
+									target="_blank"
+									rel="noopener noreferrer"
+									class="conceptual-badge"
+									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+								>
+									if skill.Icon != "" {
+										@templ.Raw(skill.Icon)
+									}
+									<span>{ skill.Name }</span>
+								</a>
+							} else {
+								<span class="conceptual-badge" style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }>
+									if skill.Icon != "" {
+										@templ.Raw(skill.Icon)
+									}
+									<span>{ skill.Name }</span>
+								</span>
+							}
+						}
+					</div>
+				</div>
+			}
+		}
+	</div>
+}

@@ -1,0 +1,418 @@
+package pages
+
+import "portfolio/components/layouts"
+
+templ Experience() {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Career Journey - Craig Johnson",
+		Page:  "experience",
+	}) {
+		<section class="experience-hero">
+			<div class="hero-header">
+				<h1>Career Journey</h1>
+				<p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
+			</div>
+		</section>
+		<section class="experience-summary">
+			<div class="summary-grid">
+				<div class="summary-card" id="years-stat">
+					<span class="summary-value" data-start-year="2012"></span>
+					<span class="summary-label">Years in Tech</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-value">4</span>
+					<span class="summary-label">Companies</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-value">7</span>
+					<span class="summary-label">Positions Held</span>
+				</div>
+				<div class="summary-card">
+					<span class="summary-icon">☁️</span>
+					<span class="summary-value">3</span>
+					<span class="summary-label">Cloud Platforms</span>
+				</div>
+			</div>
+		</section>
+		<section class="experience-filters">
+			<div class="filter-section collapsed" id="position-section">
+				<h3 class="filter-title collapsible" data-target="position-section">
+					Filter by Position
+					<span class="filter-count" id="position-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="position-filters">
+					<button class="filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
+						Cloud Engineer Principal
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="System Administrator">
+						System Administrator
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
+						IT Systems Engineer Sr
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer">
+						IT Systems Engineer
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Desktop Engineer">
+						IT Desktop Engineer
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="IT Service Desk Associate">
+						IT Service Desk Associate
+					</button>
+					<button class="filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
+						Service Desk Student Analyst
+					</button>
+				</div>
+			</div>
+			<div class="filter-section collapsed" id="tech-section">
+				<h3 class="filter-title collapsible" data-target="tech-section">
+					Filter by Technology
+					<span class="filter-count" id="tech-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="tech-filters">
+					<button class="filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
+					<button class="filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
+					<button class="filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
+					<button class="filter-pill" data-filter="tech" data-value="AWS">AWS</button>
+					<button class="filter-pill" data-filter="tech" data-value="Azure">Azure</button>
+					<button class="filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
+					<button class="filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
+					<button class="filter-pill" data-filter="tech" data-value="Bash">Bash</button>
+					<button class="filter-pill" data-filter="tech" data-value="Python">Python</button>
+					<button class="filter-pill" data-filter="tech" data-value="O365/Exchange">
+						O365/Exchange
+					</button>
+					<button class="filter-pill" data-filter="tech" data-value="Docker">Docker</button>
+					<button class="filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
+					<button class="filter-pill" data-filter="tech" data-value="Intune">Intune</button>
+					<button class="filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
+				</div>
+			</div>
+			<div class="filter-section collapsed" id="skill-section">
+				<h3 class="filter-title collapsible" data-target="skill-section">
+					Filter by Skill Area
+					<span class="filter-count" id="skill-count"></span>
+					<span class="collapse-icon">▼</span>
+				</h3>
+				<div class="filter-pills" id="skill-filters">
+					<button class="filter-pill" data-filter="skill" data-value="cloud">
+						Cloud Infrastructure
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="automation">
+						Automation & IaC
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="systems">
+						Systems Administration
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="security">
+						Security & Compliance
+					</button>
+					<button class="filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
+					<button class="filter-pill" data-filter="skill" data-value="scripting">
+						Scripting & Programming
+					</button>
+				</div>
+			</div>
+			<div class="active-filters" id="active-filters">
+				<span class="active-filters-label">Active Filters:</span>
+				<span class="active-filter-tags" id="active-filter-tags"></span>
+				<button class="clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
+			</div>
+		</section>
+		<section
+			class="career-section"
+			hx-get="/experience/timeline"
+			hx-trigger="revealed"
+			hx-swap="innerHTML"
+		>
+			<div class="career-grid">
+				for i := 1; i <= 7; i++ {
+					<div class="career-card skeleton-card">
+						<div class="card-status skeleton"></div>
+						<div class="skeleton skeleton-title"></div>
+						<div class="skeleton skeleton-subtitle"></div>
+						<div class="skeleton skeleton-text"></div>
+						<div class="skeleton-pills">
+							<div class="skeleton skeleton-pill"></div>
+							<div class="skeleton skeleton-pill"></div>
+							<div class="skeleton skeleton-pill"></div>
+						</div>
+					</div>
+				}
+			</div>
+		</section>
+		<section class="experience-cta">
+			<div class="cta-content">
+				<h2>Want to see what I've built?</h2>
+				<p>Check out my projects or view my technical skills in detail.</p>
+				<div class="cta-buttons">
+					<a href="/projects" class="btn btn-primary">View Projects</a>
+					<a href="/skills" class="btn btn-secondary">See Skills</a>
+				</div>
+			</div>
+		</section>
+		<script>
+  // Auto-calculate years in tech
+  document.addEventListener('DOMContentLoaded', function () {
+    const yearsStat = document.querySelector('#years-stat .summary-value')
+    if (yearsStat && yearsStat.dataset.startYear) {
+      const startYear = parseInt(yearsStat.dataset.startYear)
+      const currentYear = new Date().getFullYear()
+      const years = currentYear - startYear
+      yearsStat.textContent = years + '+'
+    }
+  })
+
+  // Filter functionality with collapsible sections and multi-select
+  document.addEventListener('DOMContentLoaded', function () {
+    const filterPills = document.querySelectorAll('.filter-pill')
+    const activeFiltersContainer = document.getElementById('active-filter-tags')
+    const clearFiltersBtn = document.getElementById('clear-filters')
+    const collapsibleHeaders = document.querySelectorAll('.filter-title.collapsible')
+
+    // Track active filters - now arrays for multi-select
+    let activeFilters = {
+      position: [],
+      tech: [],
+      skill: [],
+    }
+
+    // Skill labels for display
+    const skillLabels = {
+      cloud: 'Cloud Infrastructure',
+      automation: 'Automation & IaC',
+      systems: 'Systems Admin',
+      security: 'Security',
+      devops: 'DevOps',
+      scripting: 'Scripting',
+    }
+
+    // Collapsible section handlers
+    collapsibleHeaders.forEach(header => {
+      header.addEventListener('click', function () {
+        const targetId = this.dataset.target
+        const section = document.getElementById(targetId)
+        if (section) {
+          section.classList.toggle('collapsed')
+        }
+      })
+    })
+
+    // Filter pill click handlers - toggle behavior with multi-select
+    filterPills.forEach(pill => {
+      pill.addEventListener('click', function () {
+        const filterType = this.dataset.filter
+        const filterValue = this.dataset.value
+
+        // Toggle active state for this pill
+        if (this.classList.contains('active')) {
+          // Un-select this filter
+          this.classList.remove('active')
+          const index = activeFilters[filterType].indexOf(filterValue)
+          if (index > -1) {
+            activeFilters[filterType].splice(index, 1)
+          }
+        } else {
+          // Select this filter (add to existing selections)
+          this.classList.add('active')
+          if (!activeFilters[filterType].includes(filterValue)) {
+            activeFilters[filterType].push(filterValue)
+          }
+        }
+
+        // Apply filters to cards
+        applyFilters()
+
+        // Update active filters display and counts
+        updateActiveFiltersDisplay()
+        updateFilterCounts()
+      })
+    })
+
+    // Clear all filters
+    clearFiltersBtn.addEventListener('click', function () {
+      activeFilters = {position: [], tech: [], skill: []}
+
+      // Reset all filter pills
+      document.querySelectorAll('.filter-pill').forEach(pill => {
+        pill.classList.remove('active')
+      })
+
+      applyFilters()
+      updateActiveFiltersDisplay()
+      updateFilterCounts()
+    })
+
+    function applyFilters() {
+      const cards = document.querySelectorAll('.career-card:not(.skeleton-card)')
+      const hasPositionFilters = activeFilters.position.length > 0
+      const hasTechFilters = activeFilters.tech.length > 0
+      const hasSkillFilters = activeFilters.skill.length > 0
+      const hasAnyFilters = hasPositionFilters || hasTechFilters || hasSkillFilters
+
+      cards.forEach(card => {
+        let showCard = true
+        let highlightCard = false
+
+        const cardPosition = card.dataset.position || ''
+        const cardTechs = (card.dataset.technologies || '')
+          .split(',')
+          .map(t => t.trim())
+          .filter(t => t)
+        const cardSkills = (card.dataset.skills || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(s => s)
+
+        // Check position filters (OR logic - show card if position matches any selected)
+        // Note: Position uses OR because a job has only one position, so AND wouldn't make sense
+        if (hasPositionFilters) {
+          if (!activeFilters.position.includes(cardPosition)) {
+            showCard = false
+          } else {
+            highlightCard = true
+          }
+        }
+
+        // Check technology filters (AND within category, must match ALL selected)
+        if (hasTechFilters && showCard) {
+          const hasAllTechs = activeFilters.tech.every(tech => cardTechs.includes(tech))
+          if (!hasAllTechs) {
+            showCard = false
+          } else {
+            highlightCard = true
+          }
+        }
+
+        // Check skill area filters (AND within category, must match ALL selected)
+        if (hasSkillFilters && showCard) {
+          const hasAllSkills = activeFilters.skill.every(skill => cardSkills.includes(skill))
+          if (!hasAllSkills) {
+            showCard = false
+          } else {
+            highlightCard = true
+          }
+        }
+
+        // Apply visibility and highlight
+        if (showCard) {
+          card.style.display = ''
+          card.classList.toggle('highlighted', highlightCard && hasAnyFilters)
+          card.style.opacity = '1'
+          card.style.transform = ''
+        } else {
+          card.style.display = 'none'
+        }
+      })
+
+      // Animate visible cards
+      requestAnimationFrame(() => {
+        const visibleCards = document.querySelectorAll(
+          '.career-card:not(.skeleton-card):not([style*="display: none"])'
+        )
+        visibleCards.forEach((card, index) => {
+          card.style.animationDelay = `${index * 50}ms`
+        })
+      })
+    }
+
+    function updateActiveFiltersDisplay() {
+      const tags = []
+
+      activeFilters.position.forEach(pos => {
+        tags.push({type: 'position', value: pos, label: pos})
+      })
+      activeFilters.tech.forEach(tech => {
+        tags.push({type: 'tech', value: tech, label: tech})
+      })
+      activeFilters.skill.forEach(skill => {
+        tags.push({type: 'skill', value: skill, label: skillLabels[skill] || skill})
+      })
+
+      activeFiltersContainer.innerHTML = tags
+        .map(
+          tag =>
+            `<span class="active-filter-tag" data-type="${tag.type}">
+        ${tag.label}
+        <button class="remove-filter" data-type="${tag.type}" data-value="${tag.value}">&times;</button>
+      </span>`
+        )
+        .join('')
+
+      clearFiltersBtn.style.display = tags.length > 0 ? 'inline-flex' : 'none'
+
+      // Show/hide the active filters section
+      const activeFiltersSection = document.getElementById('active-filters')
+      if (activeFiltersSection) {
+        activeFiltersSection.style.display = tags.length > 0 ? 'flex' : 'none'
+      }
+
+      // Add remove handlers
+      document.querySelectorAll('.remove-filter').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation()
+          const type = this.dataset.type
+          const value = this.dataset.value
+
+          // Remove this specific filter
+          const index = activeFilters[type].indexOf(value)
+          if (index > -1) {
+            activeFilters[type].splice(index, 1)
+          }
+
+          // Update the corresponding filter pill
+          const group = document.getElementById(type + '-filters')
+          if (group) {
+            const pill = group.querySelector(`.filter-pill[data-value="${value}"]`)
+            if (pill) {
+              pill.classList.remove('active')
+            }
+          }
+
+          applyFilters()
+          updateActiveFiltersDisplay()
+          updateFilterCounts()
+        })
+      })
+    }
+
+    function updateFilterCounts() {
+      const posCount = document.getElementById('position-count')
+      const techCount = document.getElementById('tech-count')
+      const skillCount = document.getElementById('skill-count')
+
+      if (posCount) {
+        posCount.textContent =
+          activeFilters.position.length > 0 ? `(${activeFilters.position.length})` : ''
+      }
+      if (techCount) {
+        techCount.textContent =
+          activeFilters.tech.length > 0 ? `(${activeFilters.tech.length})` : ''
+      }
+      if (skillCount) {
+        skillCount.textContent =
+          activeFilters.skill.length > 0 ? `(${activeFilters.skill.length})` : ''
+      }
+    }
+
+    // Listen for HTMX content swap to re-apply filters
+    document.body.addEventListener('htmx:afterSwap', function (event) {
+      if (event.target.classList.contains('career-section')) {
+        // Slight delay to allow DOM to update
+        setTimeout(() => {
+          applyFilters()
+        }, 100)
+      }
+    })
+
+    // Hide active filters section initially (no filters selected)
+    const activeFiltersSection = document.getElementById('active-filters')
+    if (activeFiltersSection) {
+      activeFiltersSection.style.display = 'none'
+    }
+  })
+</script>
+	}
+}

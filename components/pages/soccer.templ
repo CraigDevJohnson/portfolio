@@ -1,0 +1,126 @@
+package pages
+
+import "portfolio/components/layouts"
+
+templ Soccer() {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Soccer Schedule Download - Craig Johnson",
+		Page:  "soccer",
+	}) {
+		<section class="soccer-hero">
+			<div class="hero-header">
+				<h1>Soccer Schedule Download</h1>
+				<p class="lead">
+					Enter
+					<strong>comma-separated 6-digit team codes</strong>
+					and fetch schedules from
+					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+						Let's Play Soccer
+					</a>
+					. Download selected games as an
+					<code>.ics</code>
+					file for your calendar.
+				</p>
+			</div>
+		</section>
+		<section class="soccer-content">
+			<div class="soccer-unified-card">
+				<div class="unified-header">
+					<div class="unified-form-section">
+						<form
+							id="fetch-form"
+							class="fetch-form"
+							hx-post="/soccer/fetch"
+							hx-target="#games-container"
+							hx-swap="innerHTML"
+							hx-indicator="#loading-indicator"
+							autocomplete="off"
+						>
+							<div class="form-group">
+								<label for="team_codes" class="form-label">Team Codes</label>
+								<div class="input-row">
+									<input
+										id="team_codes"
+										name="team_codes"
+										class="text-input"
+										type="text"
+										placeholder="e.g. 123456, 234567"
+										pattern="\d{6}([\s,;]+\d{6})*"
+										required
+										aria-describedby="team-codes-hint"
+									/>
+									<button type="submit" class="btn btn-primary fetch-btn">
+										<span class="btn-text">Fetch Schedules</span>
+									</button>
+								</div>
+								<div id="team-codes-hint" class="form-hint">
+									Supports
+									<em>Let's Play Soccer</em>
+									teams only. Enter 6-digit team codes separated by commas.
+								</div>
+							</div>
+						</form>
+					</div>
+					<div class="unified-info-section">
+						<div class="info-inline">
+							<h4>How to Find Team Codes</h4>
+							<ol>
+								<li>
+									Visit
+									<a
+										href="https://www.letsplaysoccer.com/4?lang=en"
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										Let's Play Soccer
+									</a>
+								</li>
+								<li>Log in and go to "My Teams"</li>
+								<li>Find the 6-digit code displayed</li>
+								<li>Or search Team Schedules and get the code from the URL</li>
+							</ol>
+						</div>
+					</div>
+				</div>
+				<div id="loading-indicator" class="loading-indicator htmx-indicator">
+					<div class="spinner"></div>
+					<span>Fetching schedules...</span>
+				</div>
+				<div id="games-container" class="games-container" aria-live="polite" aria-atomic="true">
+					<div class="empty-state">
+						<p>Enter team codes above to fetch schedules</p>
+					</div>
+				</div>
+				<div id="subscribe-section" class="subscribe-section" style="display: none">
+					<label class="subscribe-checkbox">
+						<input id="email-updates-checkbox" type="checkbox"/>
+						<span>Subscribe to email updates for schedule changes</span>
+					</label>
+					<form
+						id="subscribe-form"
+						class="subscribe-form"
+						hx-post="/soccer/subscribe"
+						hx-target="#subscribe-result"
+						hx-swap="innerHTML"
+						style="display: none"
+					>
+						<div class="email-row">
+							<input
+								id="subscription-email"
+								name="email"
+								class="text-input email-input"
+								type="email"
+								placeholder="your@email.com"
+								required
+							/>
+							<button type="submit" class="btn btn-primary">
+								Subscribe
+							</button>
+						</div>
+						<div id="subscribe-result" class="subscribe-result"></div>
+					</form>
+				</div>
+			</div>
+		</section>
+	}
+}

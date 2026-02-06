@@ -1,0 +1,73 @@
+package partials
+
+import "fmt"
+
+type ExperienceTimelineProps struct {
+	Experiences []Experience
+}
+
+type Experience struct {
+	Position         string
+	Company          string
+	Duration         string
+	Responsibilities string
+	Technologies     []string
+	SkillAreas       string
+}
+
+func joinTechnologies(technologies []string) string {
+	result := ""
+	for i, tech := range technologies {
+		if i > 0 {
+			result += ","
+		}
+		result += tech
+	}
+	return result
+}
+
+templ ExperienceTimeline(props ExperienceTimelineProps) {
+	<div class="career-grid" id="career-grid">
+		for index, exp := range props.Experiences {
+			<article
+				class={ fmt.Sprintf("career-card %s", templ.KV("current", index == 0)) }
+				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
+				data-position={ exp.Position }
+				data-technologies={ joinTechnologies(exp.Technologies) }
+				data-skills={ exp.SkillAreas }
+				data-company={ exp.Company }
+				data-duration={ exp.Duration }
+			>
+				if index == 0 {
+					<div class="card-status current-badge">
+						<span class="status-dot"></span>
+						Current Role
+					</div>
+				} else {
+					<div class="card-status">
+						<span class="card-number">{ fmt.Sprintf("#%d", len(props.Experiences)-index) }</span>
+					</div>
+				}
+				<header class="card-header">
+					<h3 class="position">{ exp.Position }</h3>
+					<span class="company">{ exp.Company }</span>
+					<span class="duration">{ exp.Duration }</span>
+				</header>
+				<div class="card-body">
+					<p class="responsibilities">{ exp.Responsibilities }</p>
+				</div>
+				<footer class="card-footer">
+					<div class="tech-stack">
+						for _, tech := range exp.Technologies {
+							<span class="tech-pill" data-tech={ tech }>{ tech }</span>
+						}
+					</div>
+				</footer>
+			</article>
+		}
+	</div>
+	<div class="no-results" id="no-results" style="display: none;">
+		<h3>No matching positions found</h3>
+		<p>Try adjusting your filters to see more results.</p>
+	</div>
+}
