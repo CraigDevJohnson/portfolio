@@ -7,69 +7,75 @@ templ Contact() {
 		Title: "Get in Touch - Craig Johnson",
 		Page:  "contact",
 	}) {
-		<section class="contact-hero">
-			<div class="hero-header">
-				<h1>Get in Touch</h1>
-				<p class="lead">
+		<!-- Contact Hero -->
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
+				<h1 class="text-4xl font-bold mb-4">Get in Touch</h1>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">
 					I'd love to hear from you! Whether you have a question or just want to connect.
 				</p>
 			</div>
 		</section>
-		<section class="contact-content">
-			<div class="contact-grid">
-				<div class="contact-info">
-					<h2>Let's Connect</h2>
-					<p>
+		
+		<!-- Contact Content -->
+		<section class="pb-16">
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+				<!-- Contact Info -->
+				<div class="space-y-6">
+					<h2 class="text-2xl font-bold">Let's Connect</h2>
+					<p class="text-[#e7e5e4] leading-relaxed">
 						I'm always open to discussing new projects, creative ideas, or opportunities to be part of
 						your vision.
 					</p>
-					<div class="contact-methods">
-						<a href="mailto:opportunity@craigdevjohnson.com" class="contact-method">
-							<div class="method-info">
-								<span class="method-name">Email</span>
-								<span class="method-value">opportunity@craigdevjohnson.com</span>
+					<div class="space-y-4">
+						<a href="mailto:opportunity@craigdevjohnson.com" class="flex items-center justify-between p-6 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 group">
+							<div class="flex flex-col gap-1">
+								<span class="font-medium text-[#fafaf9]">Email</span>
+								<span class="text-sm text-[#a8a29e]">opportunity@craigdevjohnson.com</span>
 							</div>
-							<span class="method-arrow">→</span>
+							<span class="text-[#fb923c] transition-transform duration-150 group-hover:translate-x-1">→</span>
 						</a>
 						<a
 							href="https://linkedin.com/in/craigdevjohnson"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="contact-method"
+							class="flex items-center justify-between p-6 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 group"
 						>
-							<div class="method-info">
-								<span class="method-name">LinkedIn</span>
-								<span class="method-value">linkedin.com/in/craigdevjohnson</span>
+							<div class="flex flex-col gap-1">
+								<span class="font-medium text-[#fafaf9]">LinkedIn</span>
+								<span class="text-sm text-[#a8a29e]">linkedin.com/in/craigdevjohnson</span>
 							</div>
-							<span class="method-arrow">→</span>
+							<span class="text-[#fb923c] transition-transform duration-150 group-hover:translate-x-1">→</span>
 						</a>
 						<a
 							href="https://github.com/CraigDevJohnson"
 							target="_blank"
 							rel="noopener noreferrer"
-							class="contact-method"
+							class="flex items-center justify-between p-6 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 group"
 						>
-							<div class="method-info">
-								<span class="method-name">GitHub</span>
-								<span class="method-value">github.com/CraigDevJohnson</span>
+							<div class="flex flex-col gap-1">
+								<span class="font-medium text-[#fafaf9]">GitHub</span>
+								<span class="text-sm text-[#a8a29e]">github.com/CraigDevJohnson</span>
 							</div>
-							<span class="method-arrow">→</span>
+							<span class="text-[#fb923c] transition-transform duration-150 group-hover:translate-x-1">→</span>
 						</a>
 					</div>
 				</div>
-				<div class="contact-card">
-					<h2>Quick Message</h2>
-					<p class="card-subtitle">Use the links to connect with me on professional networks.</p>
-					<div class="availability-status">
-						<span class="status-dot available"></span>
-						<span class="status-text">Open to opportunities</span>
+				
+				<!-- Contact Card -->
+				<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-8 space-y-6">
+					<h2 class="text-2xl font-bold">Quick Message</h2>
+					<p class="text-[#a8a29e]">Use the links to connect with me on professional networks.</p>
+					<div class="flex items-center gap-3 p-4 bg-[rgba(74,222,128,0.15)] border border-[rgba(74,222,128,0.3)] rounded-xl">
+						<span class="w-3 h-3 bg-[#4ade80] rounded-full animate-pulse"></span>
+						<span class="font-medium text-[#4ade80]">Open to opportunities</span>
 					</div>
-					<div class="response-time">
-						<span>Typical response: 24-48 hours</span>
+					<div class="p-4 bg-[#44403c]/30 rounded-xl">
+						<span class="text-sm text-[#a8a29e]">Typical response: 24-48 hours</span>
 					</div>
-					<div class="preferred-contact">
-						<h3>Preferred Contact</h3>
-						<p>
+					<div class="space-y-2">
+						<h3 class="text-lg font-semibold">Preferred Contact</h3>
+						<p class="text-[#e7e5e4] text-sm leading-relaxed">
 							For professional inquiries, LinkedIn or email is the best way to reach me. For technical
 							discussions or collaborations, feel free to connect on GitHub.
 						</p>
@@ -77,12 +83,14 @@ templ Contact() {
 				</div>
 			</div>
 		</section>
-		<section class="contact-cta">
-			<div class="cta-content">
-				<h2>Want to see my work first?</h2>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/experience" class="btn btn-secondary">See Experience</a>
+		
+		<!-- Contact CTA -->
+		<section class="pb-16">
+			<div class="text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl">
+				<h2 class="text-2xl font-bold mb-6">Want to see my work first?</h2>
+				<div class="flex gap-4 justify-center flex-wrap">
+					<a href="/projects" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]">View Projects</a>
+					<a href="/experience" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-[#44403c] text-[#fafaf9] text-sm font-semibold border border-white/[0.12] transition-all duration-150 hover:bg-white/[0.12] hover:-translate-y-0.5">See Experience</a>
 				</div>
 			</div>
 		</section>
