@@ -1,19 +1,11 @@
 package partials
 
 import "fmt"
+import "portfolio/types"
 
 type SoccerTableFragmentProps struct {
-	Games     []Game
+	Games     []types.Game
 	TeamCodes string
-}
-
-type Game struct {
-	ID       string
-	DateTime string
-	Field    string
-	Home     string
-	Away     string
-	Season   string
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {

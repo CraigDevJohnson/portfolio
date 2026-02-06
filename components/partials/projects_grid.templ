@@ -2,20 +2,10 @@ package partials
 
 import "fmt"
 import "strings"
+import "portfolio/types"
 
 type ProjectsGridProps struct {
-	Projects []Project
-}
-
-type Project struct {
-	Name         string
-	Intro        string
-	Description  string
-	Technologies []string
-	Image        string
-	GitHubURL    string
-	DemoURL      string
-	Category     string
+	Projects []types.Project
 }
 
 templ ProjectsGrid(props ProjectsGridProps) {

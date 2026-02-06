@@ -1,21 +1,10 @@
 package partials
 
 import "fmt"
+import "portfolio/types"
 
 type SkillsGridProps struct {
-	Categories []SkillCategory
-}
-
-type SkillCategory struct {
-	Name   string
-	Skills []Skill
-}
-
-type Skill struct {
-	Name     string
-	Icon     string
-	IconPath string
-	Link     string
+	Categories []types.SkillCategory
 }
 
 templ SkillsGrid(props SkillsGridProps) {

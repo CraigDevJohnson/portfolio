@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"portfolio/components/pages"
 	"portfolio/components/partials"
+	"portfolio/types"
 	"strconv"
 	"strings"
 )
@@ -111,16 +112,8 @@ Experience
 ========================================
 */
 
-type Experience struct {
-	ID               int
-	Position         string
-	Company          string
-	Duration         string
-	Responsibilities string
-	Technologies     []string
-	SkillAreas       string
-	Side             string
-}
+// Use types from shared package
+type Experience = types.Experience
 
 func experienceData() []Experience {
 	return []Experience{
@@ -205,19 +198,8 @@ func experienceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
-	experiences := experienceData()
 	props := partials.ExperienceTimelineProps{
-		Experiences: make([]partials.Experience, len(experiences)),
-	}
-	for i, exp := range experiences {
-		props.Experiences[i] = partials.Experience{
-			Position:         exp.Position,
-			Company:          exp.Company,
-			Duration:         exp.Duration,
-			Responsibilities: exp.Responsibilities,
-			Technologies:     exp.Technologies,
-			SkillAreas:       exp.SkillAreas,
-		}
+		Experiences: experienceData(),
 	}
 	err := partials.ExperienceTimeline(props).Render(context.Background(), w)
 	if err != nil {
@@ -231,18 +213,9 @@ Skills
 ========================================
 */
 
-type Skill struct {
-	ID       int
-	Name     string
-	Icon     string
-	IconPath string
-	Link     string
-}
-
-type SkillCategory struct {
-	Name   string
-	Skills []Skill
-}
+// Use types from shared package
+type Skill = types.Skill
+type SkillCategory = types.SkillCategory
 
 const (
 	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
@@ -428,23 +401,8 @@ func skillsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
-	categories := skillsData()
 	props := partials.SkillsGridProps{
-		Categories: make([]partials.SkillCategory, len(categories)),
-	}
-	for i, cat := range categories {
-		props.Categories[i] = partials.SkillCategory{
-			Name:   cat.Name,
-			Skills: make([]partials.Skill, len(cat.Skills)),
-		}
-		for j, skill := range cat.Skills {
-			props.Categories[i].Skills[j] = partials.Skill{
-				Name:     skill.Name,
-				Icon:     skill.Icon,
-				IconPath: skill.IconPath,
-				Link:     skill.Link,
-			}
-		}
+		Categories: skillsData(),
 	}
 	err := partials.SkillsGrid(props).Render(context.Background(), w)
 	if err != nil {
@@ -458,17 +416,8 @@ Projects
 ========================================
 */
 
-type Project struct {
-	ID           int
-	Name         string
-	Intro        string
-	Description  string
-	Technologies []string
-	Image        string
-	GitHubURL    string
-	DemoURL      string
-	Category     string
-}
+// Use types from shared package
+type Project = types.Project
 
 func projectsData() []Project {
 	return []Project{
@@ -514,21 +463,8 @@ func projectsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectsGridHandler(w http.ResponseWriter, r *http.Request) {
-	projects := projectsData()
 	props := partials.ProjectsGridProps{
-		Projects: make([]partials.Project, len(projects)),
-	}
-	for i, proj := range projects {
-		props.Projects[i] = partials.Project{
-			Name:         proj.Name,
-			Intro:        proj.Intro,
-			Description:  proj.Description,
-			Technologies: proj.Technologies,
-			Image:        proj.Image,
-			GitHubURL:    proj.GitHubURL,
-			DemoURL:      proj.DemoURL,
-			Category:     proj.Category,
-		}
+		Projects: projectsData(),
 	}
 	err := partials.ProjectsGrid(props).Render(context.Background(), w)
 	if err != nil {
@@ -590,18 +526,9 @@ Soccer
 ========================================
 */
 
-type Game struct {
-	ID       string `json:"id"`
-	DateTime string `json:"datetime"`
-	Field    string `json:"field"`
-	Home     string `json:"home"`
-	Away     string `json:"away"`
-	Season   string `json:"season"`
-}
-
-type LambdaGamesResponse struct {
-	Games []Game `json:"games"`
-}
+// Use types from shared package
+type Game = types.Game
+type LambdaGamesResponse = types.LambdaGamesResponse
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
 	err := pages.Soccer().Render(context.Background(), w)
@@ -617,20 +544,9 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = r.ParseForm()
 	teamCodes := r.FormValue("team_codes")
-	games := mockFetchGames(parseTeamCodes(teamCodes)).Games
 	props := partials.SoccerTableFragmentProps{
-		Games:     make([]partials.Game, len(games)),
+		Games:     mockFetchGames(parseTeamCodes(teamCodes)).Games,
 		TeamCodes: teamCodes,
-	}
-	for i, game := range games {
-		props.Games[i] = partials.Game{
-			ID:       game.ID,
-			DateTime: game.DateTime,
-			Field:    game.Field,
-			Home:     game.Home,
-			Away:     game.Away,
-			Season:   game.Season,
-		}
 	}
 	err := partials.SoccerTableFragment(props).Render(context.Background(), w)
 	if err != nil {

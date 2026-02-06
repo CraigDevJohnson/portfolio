@@ -2,18 +2,10 @@ package partials
 
 import "fmt"
 import "strings"
+import "portfolio/types"
 
 type ExperienceTimelineProps struct {
-	Experiences []Experience
-}
-
-type Experience struct {
-	Position         string
-	Company          string
-	Duration         string
-	Responsibilities string
-	Technologies     []string
-	SkillAreas       string
+	Experiences []types.Experience
 }
 
 templ ExperienceTimeline(props ExperienceTimelineProps) {
