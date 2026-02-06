@@ -1,5 +1,7 @@
 # Portfolio Codebase Instructions
 
+**Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.**
+
 ## Architecture overview
 
 Go 1.21+ server-rendered portfolio with HTMX for dynamic updates. All application code lives in a single `main.go` file—handlers, data structs, and template loading are collocated intentionally for simplicity.
@@ -241,9 +243,9 @@ All content lives in `main.go` data functions. To update:
 - Verify fragment templates render correctly in isolation
 - Use `htmx.logger` for detailed HTMX debugging: add to `main.js`:
   ```javascript
-  htmx.logger = function(elt, event, data) {
-    if(console) {
+  htmx.logger = function (elt, event, data) {
+    if (console) {
       console.log(event, elt, data);
     }
-  }
+  };
   ```
