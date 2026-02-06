@@ -14,64 +14,69 @@ templ Home(props HomeProps) {
 		Title: "Craig Johnson - Cloud Engineer Principal",
 		Page:  "home",
 	}) {
-		<section class="hero">
-			<div class="hero-background">
-				<div class="hero-gradient"></div>
-				<div class="hero-pattern"></div>
-			</div>
-			<div class="hero-content">
-				<div class="hero-avatar">
+		<!-- Hero Section -->
+		<section class="min-h-[calc(100vh-72px)] flex flex-col justify-center relative -mx-6 px-6 py-16 overflow-hidden bg-[url('/static/images/backgrounds/home-hero.jpg')] bg-cover bg-center before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-[rgba(28,25,23,0.75)] before:via-[rgba(28,25,23,0.68)] before:to-[rgba(41,37,36,0.72)] before:z-[1]">
+			<div class="relative z-10 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-12 lg:gap-16 items-center animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]">
+				<!-- Avatar -->
+				<div class="flex justify-center">
 					<a
 						href="https://gravatar.com/craigdevjohnson1"
 						target="_blank"
 						rel="noopener noreferrer"
-						class="avatar-link"
+						class="relative block rounded-full group"
 					>
 						<img
 							src={ props.AvatarURL }
 							alt={ props.Name }
-							class="avatar-image"
+							class="w-[275px] h-[275px] rounded-full object-cover relative z-[2] transition-transform duration-250 group-hover:scale-105"
 							width="275"
 							height="275"
 							loading="eager"
 						/>
-						<div class="avatar-ring"></div>
-						<div class="avatar-glow"></div>
+						<!-- Avatar Ring -->
+						<div class="absolute inset-[-8px] rounded-full bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] opacity-60 z-[1] animate-pulse"></div>
+						<!-- Avatar Glow -->
+						<div class="absolute inset-[-32px] rounded-full bg-[radial-gradient(circle,rgba(234,88,12,0.25)_0%,rgba(251,146,60,0.15)_40%,transparent_70%)] z-0"></div>
 					</a>
 				</div>
-				<div class="hero-text">
-					<div class="hero-badge">
-						<span class="badge-dot"></span>
+				<!-- Hero Text -->
+				<div class="flex flex-col gap-6">
+					<!-- Badge -->
+					<div class="inline-flex items-center gap-2 w-fit px-4 py-2 bg-[rgba(251,146,60,0.15)] text-[#fb923c] text-sm font-medium rounded-full border border-[rgba(251,146,60,0.3)]">
+						<span class="w-2 h-2 bg-[#fb923c] rounded-full animate-pulse"></span>
 						Available for opportunities
 					</div>
-					<h1 class="hero-title">
-						<span class="greeting">Hi, I'm</span>
-						<span class="name">{ props.Name }</span>
+					<!-- Title -->
+					<h1 class="flex flex-col gap-1">
+						<span class="text-xl font-medium text-[#a8a29e]">Hi, I'm</span>
+						<span class="text-5xl font-extrabold bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] bg-clip-text text-transparent leading-[1.1]">{ props.Name }</span>
 					</h1>
-					<h2 class="hero-subtitle">{ props.Role }</h2>
-					<p class="hero-description">{ props.Description }</p>
-					<div class="hero-actions">
-						<a href="/experience" class="btn btn-primary">
+					<h2 class="text-2xl font-semibold text-[#e7e5e4]">{ props.Role }</h2>
+					<p class="text-lg leading-relaxed max-w-[600px]">{ props.Description }</p>
+					<!-- Actions -->
+					<div class="flex flex-wrap gap-4 mt-4 items-center">
+						<a href="/experience" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]">
 							<span>View Experience</span>
-							<span class="btn-icon">→</span>
+							<span class="transition-transform duration-150 group-hover:translate-x-1">→</span>
 						</a>
-						<a href="/projects" class="btn btn-secondary">
+						<a href="/projects" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-[#44403c] text-[#fafaf9] text-sm font-semibold border border-white/[0.12] transition-all duration-150 hover:bg-white/[0.12] hover:-translate-y-0.5">
 							<span>See Projects</span>
 						</a>
-						<a href="/contact" class="hero-contact-link">Get in Touch</a>
+						<a href="/contact" class="text-[#a8a29e] font-medium px-2 py-2 rounded-[10px] transition-all duration-150 hover:text-[#fafaf9] hover:bg-[#44403c]">Get in Touch</a>
 					</div>
-					<div class="hero-stats">
-						<div class="stat" id="years-stat">
-							<span class="stat-value" data-start-year="2012"></span>
-							<span class="stat-label">Years Experience</span>
+					<!-- Stats -->
+					<div class="grid grid-cols-3 gap-6 pt-8 border-t border-white/[0.06] mt-4 items-center">
+						<div id="years-stat" class="flex flex-col gap-1 text-center">
+							<span class="text-3xl font-extrabold text-[#fb923c]" data-start-year="2012"></span>
+							<span class="text-sm text-[#a8a29e]">Years Experience</span>
 						</div>
-						<div class="stat">
-							<span class="stat-value">5+</span>
-							<span class="stat-label">Cloud Certifications</span>
+						<div class="flex flex-col gap-1 text-center">
+							<span class="text-3xl font-extrabold text-[#fb923c]">5+</span>
+							<span class="text-sm text-[#a8a29e]">Cloud Certifications</span>
 						</div>
-						<div class="stat">
-							<span class="stat-value">100+</span>
-							<span class="stat-label">Automation Projects</span>
+						<div class="flex flex-col gap-1 text-center">
+							<span class="text-3xl font-extrabold text-[#fb923c]">100+</span>
+							<span class="text-sm text-[#a8a29e]">Automation Projects</span>
 						</div>
 					</div>
 				</div>
@@ -89,24 +94,25 @@ templ Home(props HomeProps) {
     }
   })
 </script>
-		<section class="quick-links">
-			<h2 class="section-title">Quick Links</h2>
-			<div class="links-grid">
-				<a href="/experience" class="quick-link-card">
-					<h3>Experience</h3>
-					<p>View my professional journey</p>
+		<!-- Quick Links Section -->
+		<section class="relative py-16 px-8 mt-8 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-b before:from-transparent before:via-[#44403c]/50 before:to-transparent before:opacity-50 before:-z-10">
+			<h2 class="text-center mb-8 text-2xl font-bold">Quick Links</h2>
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+				<a href="/experience" class="flex flex-col items-center text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_8px_32px_rgba(234,88,12,0.15)] hover:-translate-y-1 relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-[rgba(234,88,12,0.05)] before:to-[rgba(249,115,22,0.05)] before:opacity-0 before:transition-opacity before:duration-250 hover:before:opacity-100">
+					<h3 class="text-lg font-semibold mb-2">Experience</h3>
+					<p class="text-[#a8a29e] text-sm">View my professional journey</p>
 				</a>
-				<a href="/skills" class="quick-link-card">
-					<h3>Skills</h3>
-					<p>Technical proficiencies</p>
+				<a href="/skills" class="flex flex-col items-center text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_8px_32px_rgba(234,88,12,0.15)] hover:-translate-y-1 relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-[rgba(234,88,12,0.05)] before:to-[rgba(249,115,22,0.05)] before:opacity-0 before:transition-opacity before:duration-250 hover:before:opacity-100">
+					<h3 class="text-lg font-semibold mb-2">Skills</h3>
+					<p class="text-[#a8a29e] text-sm">Technical proficiencies</p>
 				</a>
-				<a href="/projects" class="quick-link-card">
-					<h3>Projects</h3>
-					<p>See what I've built</p>
+				<a href="/projects" class="flex flex-col items-center text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_8px_32px_rgba(234,88,12,0.15)] hover:-translate-y-1 relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-[rgba(234,88,12,0.05)] before:to-[rgba(249,115,22,0.05)] before:opacity-0 before:transition-opacity before:duration-250 hover:before:opacity-100">
+					<h3 class="text-lg font-semibold mb-2">Projects</h3>
+					<p class="text-[#a8a29e] text-sm">See what I've built</p>
 				</a>
-				<a href="/soccer" class="quick-link-card">
-					<h3>Soccer Tool</h3>
-					<p>Schedule download utility</p>
+				<a href="/soccer" class="flex flex-col items-center text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_8px_32px_rgba(234,88,12,0.15)] hover:-translate-y-1 relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-br before:from-[rgba(234,88,12,0.05)] before:to-[rgba(249,115,22,0.05)] before:opacity-0 before:transition-opacity before:duration-250 hover:before:opacity-100">
+					<h3 class="text-lg font-semibold mb-2">Soccer Tool</h3>
+					<p class="text-[#a8a29e] text-sm">Schedule download utility</p>
 				</a>
 			</div>
 		</section>
