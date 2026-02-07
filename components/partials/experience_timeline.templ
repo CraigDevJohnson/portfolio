@@ -9,10 +9,13 @@ type ExperienceTimelineProps struct {
 }
 
 templ ExperienceTimeline(props ExperienceTimelineProps) {
-	<div class="career-grid" id="career-grid">
+	<div class="grid grid-cols-1 gap-6" id="career-grid">
 		for index, exp := range props.Experiences {
 			<article
-				class={ "career-card", templ.KV("current", index == 0) }
+				class={ 
+					"bg-[#292524] border border-white/[0.06] rounded-2xl p-6 transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]",
+					templ.KV("border-[#ea580c]/40 shadow-[0_4px_16px_rgba(234,88,12,0.15)]", index == 0),
+				}
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
 				data-position={ exp.Position }
 				data-technologies={ strings.Join(exp.Technologies, ",") }
@@ -21,35 +24,35 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 				data-duration={ exp.Duration }
 			>
 				if index == 0 {
-					<div class="card-status current-badge">
-						<span class="status-dot"></span>
-						Current Role
+					<div class="inline-flex items-center gap-2 px-3 py-1 bg-[rgba(74,222,128,0.15)] border border-[rgba(74,222,128,0.3)] rounded-full mb-4">
+						<span class="w-2 h-2 bg-[#4ade80] rounded-full animate-pulse"></span>
+						<span class="text-sm font-medium text-[#4ade80]">Current Role</span>
 					</div>
 				} else {
-					<div class="card-status">
-						<span class="card-number">{ fmt.Sprintf("#%d", len(props.Experiences)-index) }</span>
+					<div class="inline-flex items-center px-3 py-1 bg-[#44403c]/50 rounded-full text-sm text-[#a8a29e] mb-4">
+						<span>{ fmt.Sprintf("#%d", len(props.Experiences)-index) }</span>
 					</div>
 				}
-				<header class="card-header">
-					<h3 class="position">{ exp.Position }</h3>
-					<span class="company">{ exp.Company }</span>
-					<span class="duration">{ exp.Duration }</span>
+				<header class="mb-4">
+					<h3 class="text-xl font-bold mb-2">{ exp.Position }</h3>
+					<span class="text-[#fb923c] font-medium">{ exp.Company }</span>
+					<span class="text-[#a8a29e] text-sm ml-2">{ exp.Duration }</span>
 				</header>
-				<div class="card-body">
-					<p class="responsibilities">{ exp.Responsibilities }</p>
+				<div class="mb-4">
+					<p class="text-[#e7e5e4] leading-relaxed">{ exp.Responsibilities }</p>
 				</div>
-				<footer class="card-footer">
-					<div class="tech-stack">
+				<footer>
+					<div class="flex flex-wrap gap-2">
 						for _, tech := range exp.Technologies {
-							<span class="tech-pill" data-tech={ tech }>{ tech }</span>
+							<span class="inline-flex items-center px-3 py-1 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-xs font-semibold rounded-full border border-[rgba(234,88,12,0.2)]" data-tech={ tech }>{ tech }</span>
 						}
 					</div>
 				</footer>
 			</article>
 		}
 	</div>
-	<div class="no-results" id="no-results" style="display: none;">
-		<h3>No matching positions found</h3>
-		<p>Try adjusting your filters to see more results.</p>
+	<div class="text-center py-12 hidden" id="no-results">
+		<h3 class="text-xl font-bold mb-2">No matching positions found</h3>
+		<p class="text-[#a8a29e]">Try adjusting your filters to see more results.</p>
 	</div>
 }

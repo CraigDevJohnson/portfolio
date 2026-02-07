@@ -10,49 +10,49 @@ type SoccerTableFragmentProps struct {
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if len(props.Games) == 0 {
-		<div class="no-results">
-			<p>No games found for the provided team code(s).</p>
-			<p class="hint">Check that you entered valid 6-digit team codes.</p>
+		<div class="text-center py-12">
+			<p class="text-[#fb923c] font-semibold mb-2">No games found for the provided team code(s).</p>
+			<p class="text-[#a8a29e] text-sm">Check that you entered valid 6-digit team codes.</p>
 		</div>
 	} else {
 		<form
 			id="download-form"
 			action="/soccer/download"
 			method="post"
-			class="games-form"
 			data-soccer-form
+			class="space-y-4"
 		>
 			<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
-			<div class="table-header">
-				<div class="table-actions">
-					<label class="select-all-label">
-						<input id="select-all" type="checkbox" checked data-select-all/>
-						<span>Select all games</span>
+			<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-[#44403c]/30 rounded-xl">
+				<div class="flex items-center gap-4">
+					<label class="flex items-center gap-2 cursor-pointer">
+						<input id="select-all" type="checkbox" checked data-select-all class="w-5 h-5 rounded border-white/[0.12] bg-[#44403c] checked:bg-[#ea580c] focus:ring-2 focus:ring-[#ea580c]/20"/>
+						<span class="text-sm font-medium">Select all games</span>
 					</label>
-					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
+					<span class="text-sm text-[#a8a29e]">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
 				</div>
-				<button id="download-button" type="submit" class="btn btn-primary download-btn">
-					<span class="btn-text">Download Selected (.ics)</span>
+				<button id="download-button" type="submit" class="px-6 py-3 bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white font-semibold rounded-xl hover:-translate-y-0.5 transition-all whitespace-nowrap">
+					Download Selected (.ics)
 				</button>
 			</div>
-			<div class="table-wrapper">
-				<table class="games-table" role="table" aria-label="Soccer games schedule">
-					<thead>
+			<div class="overflow-x-auto rounded-xl border border-white/[0.06]">
+				<table class="w-full text-sm" role="table" aria-label="Soccer games schedule">
+					<thead class="bg-[#44403c]/50">
 						<tr>
-							<th class="col-check" aria-label="Select"></th>
-							<th class="col-datetime">Date / Time</th>
-							<th class="col-field">Field</th>
-							<th class="col-team">Home</th>
-							<th class="col-team">Away</th>
-							<th class="col-season">Season</th>
+							<th class="px-4 py-3 text-left font-semibold" aria-label="Select"></th>
+							<th class="px-4 py-3 text-left font-semibold">Date / Time</th>
+							<th class="px-4 py-3 text-left font-semibold">Field</th>
+							<th class="px-4 py-3 text-left font-semibold">Home</th>
+							<th class="px-4 py-3 text-left font-semibold">Away</th>
+							<th class="px-4 py-3 text-left font-semibold">Season</th>
 						</tr>
 					</thead>
-					<tbody>
+					<tbody class="divide-y divide-white/[0.06]">
 						for _, game := range props.Games {
-							<tr class="game-row">
-								<td class="col-check">
+							<tr class="hover:bg-[#44403c]/30 transition-colors">
+								<td class="px-4 py-3">
 									<input
-										class="game-checkbox"
+										class="w-5 h-5 rounded border-white/[0.12] bg-[#44403c] checked:bg-[#ea580c] focus:ring-2 focus:ring-[#ea580c]/20"
 										type="checkbox"
 										name="selected"
 										value={ game.ID }
@@ -61,14 +61,14 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										data-game-checkbox
 									/>
 								</td>
-								<td class="col-datetime">{ game.DateTime }</td>
-								<td class="col-field">
-									<span class="field-badge">{ game.Field }</span>
+								<td class="px-4 py-3 whitespace-nowrap text-[#e7e5e4]">{ game.DateTime }</td>
+								<td class="px-4 py-3">
+									<span class="px-2 py-1 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-xs font-semibold rounded border border-[rgba(234,88,12,0.2)]">{ game.Field }</span>
 								</td>
-								<td class="col-team home-team">{ game.Home }</td>
-								<td class="col-team away-team">{ game.Away }</td>
-								<td class="col-season">
-									<span class="season-badge">{ game.Season }</span>
+								<td class="px-4 py-3 font-medium text-[#fafaf9]">{ game.Home }</td>
+								<td class="px-4 py-3 font-medium text-[#fafaf9]">{ game.Away }</td>
+								<td class="px-4 py-3">
+									<span class="px-2 py-1 bg-[#44403c] text-[#a8a29e] text-xs rounded">{ game.Season }</span>
 								</td>
 							</tr>
 						}

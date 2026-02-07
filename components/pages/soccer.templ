@@ -7,53 +7,56 @@ templ Soccer() {
 		Title: "Soccer Schedule Download - Craig Johnson",
 		Page:  "soccer",
 	}) {
-		<section class="soccer-hero">
-			<div class="hero-header">
-				<h1>Soccer Schedule Download</h1>
-				<p class="lead">
+		<!-- Soccer Hero -->
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
+				<h1 class="text-4xl font-bold mb-4">Soccer Schedule Download</h1>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">
 					Enter
-					<strong>comma-separated 6-digit team codes</strong>
+					<strong class="text-[#fb923c]">comma-separated 6-digit team codes</strong>
 					and fetch schedules from
-					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer" class="text-[#fb923c] hover:text-[#ea580c] underline">
 						Let's Play Soccer
 					</a>
 					. Download selected games as an
-					<code>.ics</code>
+					<code class="px-2 py-1 bg-[#44403c] rounded text-sm">.ics</code>
 					file for your calendar.
 				</p>
 			</div>
 		</section>
-		<section class="soccer-content">
-			<div class="soccer-unified-card">
-				<div class="unified-header">
-					<div class="unified-form-section">
+		
+		<!-- Soccer Content -->
+		<section class="pb-16">
+			<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-8">
+				<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 mb-6">
+					<!-- Form Section -->
+					<div>
 						<form
 							id="fetch-form"
-							class="fetch-form"
 							hx-post="/soccer/fetch"
 							hx-target="#games-container"
 							hx-swap="innerHTML"
 							hx-indicator="#loading-indicator"
 							autocomplete="off"
 						>
-							<div class="form-group">
-								<label for="team_codes" class="form-label">Team Codes</label>
-								<div class="input-row">
+							<div class="space-y-2">
+								<label for="team_codes" class="block font-medium text-[#fafaf9]">Team Codes</label>
+								<div class="flex gap-2">
 									<input
 										id="team_codes"
 										name="team_codes"
-										class="text-input"
+										class="flex-1 px-4 py-3 bg-[#1c1917] border border-white/[0.12] rounded-xl text-[#fafaf9] placeholder:text-[#a8a29e] focus:outline-none focus:border-[#ea580c] focus:ring-2 focus:ring-[#ea580c]/20 transition-all"
 										type="text"
 										placeholder="e.g. 123456, 234567"
 										pattern="\d{6}([\s,;]+\d{6})*"
 										required
 										aria-describedby="team-codes-hint"
 									/>
-									<button type="submit" class="btn btn-primary fetch-btn">
-										<span class="btn-text">Fetch Schedules</span>
+									<button type="submit" class="px-6 py-3 bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white font-semibold rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.4)] hover:shadow-[0_4px_16px_rgba(234,88,12,0.35)] hover:-translate-y-0.5 transition-all whitespace-nowrap">
+										Fetch Schedules
 									</button>
 								</div>
-								<div id="team-codes-hint" class="form-hint">
+								<div id="team-codes-hint" class="text-sm text-[#a8a29e]">
 									Supports
 									<em>Let's Play Soccer</em>
 									teams only. Enter 6-digit team codes separated by commas.
@@ -61,63 +64,70 @@ templ Soccer() {
 							</div>
 						</form>
 					</div>
-					<div class="unified-info-section">
-						<div class="info-inline">
-							<h4>How to Find Team Codes</h4>
-							<ol>
-								<li>
-									Visit
-									<a
-										href="https://www.letsplaysoccer.com/4?lang=en"
-										target="_blank"
-										rel="noopener noreferrer"
-									>
-										Let's Play Soccer
-									</a>
-								</li>
-								<li>Log in and go to "My Teams"</li>
-								<li>Find the 6-digit code displayed</li>
-								<li>Or search Team Schedules and get the code from the URL</li>
-							</ol>
-						</div>
+					
+					<!-- Info Section -->
+					<div class="bg-[#44403c]/30 rounded-xl p-6">
+						<h4 class="text-lg font-semibold mb-3">How to Find Team Codes</h4>
+						<ol class="space-y-2 text-sm text-[#e7e5e4] list-decimal list-inside">
+							<li>
+								Visit
+								<a
+									href="https://www.letsplaysoccer.com/4?lang=en"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-[#fb923c] hover:text-[#ea580c] underline"
+								>
+									Let's Play Soccer
+								</a>
+							</li>
+							<li>Log in and go to "My Teams"</li>
+							<li>Find the 6-digit code displayed</li>
+							<li>Or search Team Schedules and get the code from the URL</li>
+						</ol>
 					</div>
 				</div>
-				<div id="loading-indicator" class="loading-indicator htmx-indicator">
-					<div class="spinner"></div>
-					<span>Fetching schedules...</span>
+				
+				<!-- Loading Indicator -->
+				<div id="loading-indicator" class="hidden items-center justify-center gap-3 py-8 htmx-indicator">
+					<div class="w-6 h-6 border-3 border-white/[0.12] border-t-[#ea580c] rounded-full animate-spin"></div>
+					<span class="text-[#a8a29e]">Fetching schedules...</span>
 				</div>
-				<div id="games-container" class="games-container" aria-live="polite" aria-atomic="true">
-					<div class="empty-state">
+				
+				<!-- Games Container -->
+				<div id="games-container" aria-live="polite" aria-atomic="true">
+					<div class="text-center py-12 text-[#a8a29e]">
 						<p>Enter team codes above to fetch schedules</p>
 					</div>
 				</div>
-				<div id="subscribe-section" class="subscribe-section" style="display: none">
-					<label class="subscribe-checkbox">
-						<input id="email-updates-checkbox" type="checkbox"/>
-						<span>Subscribe to email updates for schedule changes</span>
+				
+				<!-- Subscribe Section -->
+				<div id="subscribe-section" class="mt-6 space-y-4" style="display: none">
+					<label class="flex items-center gap-3 cursor-pointer">
+						<input id="email-updates-checkbox" type="checkbox" class="w-5 h-5 rounded border-white/[0.12] bg-[#44403c] checked:bg-[#ea580c] focus:ring-2 focus:ring-[#ea580c]/20"/>
+						<span class="text-[#e7e5e4]">Subscribe to email updates for schedule changes</span>
 					</label>
 					<form
 						id="subscribe-form"
-						class="subscribe-form"
 						hx-post="/soccer/subscribe"
 						hx-target="#subscribe-result"
 						hx-swap="innerHTML"
 						style="display: none"
+						class="space-y-4"
 					>
-						<div class="email-row">
+						<div class="flex gap-2">
 							<input
 								id="subscription-email"
 								name="email"
-								class="text-input email-input"
+								class="flex-1 px-4 py-3 bg-[#1c1917] border border-white/[0.12] rounded-xl text-[#fafaf9] placeholder:text-[#a8a29e] focus:outline-none focus:border-[#ea580c] focus:ring-2 focus:ring-[#ea580c]/20 transition-all"
 								type="email"
 								placeholder="your@email.com"
 								required
 							/>
-							<button type="submit" class="btn btn-primary">
+							<button type="submit" class="px-6 py-3 bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white font-semibold rounded-xl hover:-translate-y-0.5 transition-all">
 								Subscribe
 							</button>
 						</div>
-						<div id="subscribe-result" class="subscribe-result"></div>
+						<div id="subscribe-result"></div>
 					</form>
 				</div>
 			</div>

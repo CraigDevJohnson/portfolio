@@ -7,149 +7,149 @@ templ Experience() {
 		Title: "Career Journey - Craig Johnson",
 		Page:  "experience",
 	}) {
-		<section class="experience-hero">
-			<div class="hero-header">
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
 				<h1>Career Journey</h1>
-				<p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">A decade of growth in system engineering, automation, and cloud technologies</p>
 			</div>
 		</section>
-		<section class="experience-summary">
-			<div class="summary-grid">
-				<div class="summary-card" id="years-stat">
-					<span class="summary-value" data-start-year="2012"></span>
-					<span class="summary-label">Years in Tech</span>
+		<section class="py-8">
+			<div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+				<div class="flex flex-col items-center text-center p-6 bg-[#292524] border border-white/[0.06] rounded-2xl" id="years-stat">
+					<span class="text-3xl font-extrabold text-[#fb923c]" data-start-year="2012"></span>
+					<span class="text-sm text-[#a8a29e] mt-2">Years in Tech</span>
 				</div>
-				<div class="summary-card">
-					<span class="summary-value">4</span>
-					<span class="summary-label">Companies</span>
+				<div class="flex flex-col items-center text-center p-6 bg-[#292524] border border-white/[0.06] rounded-2xl">
+					<span class="text-3xl font-extrabold text-[#fb923c]">4</span>
+					<span class="text-sm text-[#a8a29e] mt-2">Companies</span>
 				</div>
-				<div class="summary-card">
-					<span class="summary-value">7</span>
-					<span class="summary-label">Positions Held</span>
+				<div class="flex flex-col items-center text-center p-6 bg-[#292524] border border-white/[0.06] rounded-2xl">
+					<span class="text-3xl font-extrabold text-[#fb923c]">7</span>
+					<span class="text-sm text-[#a8a29e] mt-2">Positions Held</span>
 				</div>
-				<div class="summary-card">
+				<div class="flex flex-col items-center text-center p-6 bg-[#292524] border border-white/[0.06] rounded-2xl">
 
-					<span class="summary-value">3</span>
-					<span class="summary-label">Cloud Platforms</span>
+					<span class="text-3xl font-extrabold text-[#fb923c]">3</span>
+					<span class="text-sm text-[#a8a29e] mt-2">Cloud Platforms</span>
 				</div>
 			</div>
 		</section>
-		<section class="experience-filters">
-			<div class="filter-section collapsed" id="position-section">
-				<h3 class="filter-title collapsible" data-target="position-section">
+		<section class="mb-8 space-y-4">
+			<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-6 collapsed" id="position-section">
+				<h3 class="flex items-center justify-between cursor-pointer font-semibold text-lg hover:text-[#fb923c] transition-colors duration-150 collapsible" data-target="position-section">
 					Filter by Position
-					<span class="filter-count" id="position-count"></span>
-					<span class="collapse-icon">▼</span>
+					<span class="text-sm text-[#a8a29e] ml-2 filter-count" id="position-count"></span>
+					<span class="text-[#fb923c] transition-transform duration-150 collapse-icon">▼</span>
 				</h3>
-				<div class="filter-pills" id="position-filters">
-					<button class="filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
+				<div class="flex flex-wrap gap-2 mt-4 filter-pills hidden" id="position-filters">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
 						Cloud Engineer Principal
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="System Administrator">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="System Administrator">
 						System Administrator
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
 						IT Systems Engineer Sr
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="IT Systems Engineer">
 						IT Systems Engineer
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Desktop Engineer">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="IT Desktop Engineer">
 						IT Desktop Engineer
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Service Desk Associate">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="IT Service Desk Associate">
 						IT Service Desk Associate
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
 						Service Desk Student Analyst
 					</button>
 				</div>
 			</div>
-			<div class="filter-section collapsed" id="tech-section">
-				<h3 class="filter-title collapsible" data-target="tech-section">
+			<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-6 collapsed" id="tech-section">
+				<h3 class="flex items-center justify-between cursor-pointer font-semibold text-lg hover:text-[#fb923c] transition-colors duration-150 collapsible" data-target="tech-section">
 					Filter by Technology
-					<span class="filter-count" id="tech-count"></span>
-					<span class="collapse-icon">▼</span>
+					<span class="text-sm text-[#a8a29e] ml-2 filter-count" id="tech-count"></span>
+					<span class="text-[#fb923c] transition-transform duration-150 collapse-icon">▼</span>
 				</h3>
-				<div class="filter-pills" id="tech-filters">
-					<button class="filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
-					<button class="filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
-					<button class="filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
-					<button class="filter-pill" data-filter="tech" data-value="AWS">AWS</button>
-					<button class="filter-pill" data-filter="tech" data-value="Azure">Azure</button>
-					<button class="filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
-					<button class="filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
-					<button class="filter-pill" data-filter="tech" data-value="Bash">Bash</button>
-					<button class="filter-pill" data-filter="tech" data-value="Python">Python</button>
-					<button class="filter-pill" data-filter="tech" data-value="O365/Exchange">
+				<div class="flex flex-wrap gap-2 mt-4 filter-pills hidden" id="tech-filters">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="AWS">AWS</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Azure">Azure</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Bash">Bash</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Python">Python</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="O365/Exchange">
 						O365/Exchange
 					</button>
-					<button class="filter-pill" data-filter="tech" data-value="Docker">Docker</button>
-					<button class="filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
-					<button class="filter-pill" data-filter="tech" data-value="Intune">Intune</button>
-					<button class="filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Docker">Docker</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="Intune">Intune</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
 				</div>
 			</div>
-			<div class="filter-section collapsed" id="skill-section">
-				<h3 class="filter-title collapsible" data-target="skill-section">
+			<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-6 collapsed" id="skill-section">
+				<h3 class="flex items-center justify-between cursor-pointer font-semibold text-lg hover:text-[#fb923c] transition-colors duration-150 collapsible" data-target="skill-section">
 					Filter by Skill Area
-					<span class="filter-count" id="skill-count"></span>
-					<span class="collapse-icon">▼</span>
+					<span class="text-sm text-[#a8a29e] ml-2 filter-count" id="skill-count"></span>
+					<span class="text-[#fb923c] transition-transform duration-150 collapse-icon">▼</span>
 				</h3>
-				<div class="filter-pills" id="skill-filters">
-					<button class="filter-pill" data-filter="skill" data-value="cloud">
+				<div class="flex flex-wrap gap-2 mt-4 filter-pills hidden" id="skill-filters">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="cloud">
 						Cloud Infrastructure
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="automation">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="automation">
 						Automation & IaC
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="systems">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="systems">
 						Systems Administration
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="security">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="security">
 						Security & Compliance
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
-					<button class="filter-pill" data-filter="skill" data-value="scripting">
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
+					<button class="px-4 py-2 bg-[#44403c] text-[#e7e5e4] text-sm rounded-full border border-white/[0.06] cursor-pointer transition-all duration-150 hover:bg-[#ea580c]/20 hover:border-[#ea580c]/40 hover:text-[#fb923c] filter-pill" data-filter="skill" data-value="scripting">
 						Scripting & Programming
 					</button>
 				</div>
 			</div>
-			<div class="active-filters" id="active-filters">
-				<span class="active-filters-label">Active Filters:</span>
-				<span class="active-filter-tags" id="active-filter-tags"></span>
-				<button class="clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
+			<div class="flex flex-wrap items-center gap-2 mt-4 active-filters" id="active-filters">
+				<span class="text-sm font-medium text-[#a8a29e] active-filters-label">Active Filters:</span>
+				<span class="flex flex-wrap gap-2 active-filter-tags" id="active-filter-tags"></span>
+				<button class="px-4 py-2 bg-[#ea580c] text-white text-sm rounded-lg hover:bg-[#c2410c] transition-colors duration-150 clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
 			</div>
 		</section>
 		<section
-			class="career-section"
+			class="mb-8 career-section"
 			hx-get="/experience/timeline"
 			hx-trigger="revealed"
 			hx-swap="innerHTML"
 		>
-			<div class="career-grid">
+			<div class="grid grid-cols-1 gap-6 career-grid">
 				for i := 1; i <= 7; i++ {
-					<div class="career-card skeleton-card">
-						<div class="card-status skeleton"></div>
-						<div class="skeleton skeleton-title"></div>
-						<div class="skeleton skeleton-subtitle"></div>
-						<div class="skeleton skeleton-text"></div>
-						<div class="skeleton-pills">
-							<div class="skeleton skeleton-pill"></div>
-							<div class="skeleton skeleton-pill"></div>
-							<div class="skeleton skeleton-pill"></div>
+					<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-6 animate-pulse career-card skeleton-card">
+						<div class="h-6 bg-[#44403c] rounded w-24 mb-4 card-status skeleton"></div>
+						<div class="h-6 bg-[#44403c] rounded w-3/4 mb-2 skeleton skeleton-title"></div>
+						<div class="h-4 bg-[#44403c] rounded w-1/2 mb-2 skeleton skeleton-subtitle"></div>
+						<div class="h-4 bg-[#44403c] rounded w-full mb-2 skeleton skeleton-text"></div>
+						<div class="flex gap-2 mt-4 skeleton-pills">
+							<div class="h-6 w-20 bg-[#44403c] rounded-full skeleton skeleton-pill"></div>
+							<div class="h-6 w-20 bg-[#44403c] rounded-full skeleton skeleton-pill"></div>
+							<div class="h-6 w-20 bg-[#44403c] rounded-full skeleton skeleton-pill"></div>
 						</div>
 					</div>
 				}
 			</div>
 		</section>
-		<section class="experience-cta">
-			<div class="cta-content">
+		<section class="py-16">
+			<div class="text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl cta-content">
 				<h2>Want to see what I've built?</h2>
 				<p>Check out my projects or view my technical skills in detail.</p>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/skills" class="btn btn-secondary">See Skills</a>
+				<div class="flex gap-4 justify-center flex-wrap mt-6 cta-buttons">
+					<a href="/projects" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]">View Projects</a>
+					<a href="/skills" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-[#44403c] text-[#fafaf9] text-sm font-semibold border border-white/[0.12] transition-all duration-150 hover:bg-white/[0.12] hover:-translate-y-0.5">See Skills</a>
 				</div>
 			</div>
 		</section>
