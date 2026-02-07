@@ -7,23 +7,23 @@ templ Education() {
 		Title: "Education & Certifications - Craig Johnson",
 		Page:  "education",
 	}) {
-		<section class="education-hero">
-			<div class="hero-header">
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
 				<h1>Education & Certifications</h1>
-				<p class="lead">
+				<p class="text-xl text-[#a8a29e] leading-relaxed">
 					Academic foundation and professional certifications for a career in technology
 				</p>
 			</div>
 		</section>
-		<section class="education-content">
-			<div class="education-grid">
+		<section class="pb-16">
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 				<a
 					href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="education-card featured"
+					class="bg-[#292524] border-2 border-[#ea580c]/40 rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c] hover:shadow-[0_8px_32px_rgba(234,88,12,0.25)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/edu/wgu.png"
 							alt="Western Governor University"
@@ -32,20 +32,20 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h2 class="degree">Bachelor of Science</h2>
-						<h3 class="field">Cloud Computing</h3>
-						<p class="institution">Western Governor University</p>
-						<p class="year">2023</p>
+					<div class="p-6 flex-1">
+						<h2 class="text-2xl font-bold mb-2">Bachelor of Science</h2>
+						<h3 class="text-lg text-[#fb923c] mb-2">Cloud Computing</h3>
+						<p class="text-[#e7e5e4] mb-1">Western Governor University</p>
+						<p class="text-sm text-[#a8a29e]">2023</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/c35d4426-9abe-4965-9eb2-9599498e1b5e/"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/awscloudpract.png"
 							alt="AWS Certified Cloud Practitioner"
@@ -54,19 +54,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">AWS Certified Cloud Practitioner</h3>
-						<p class="issuer">Amazon Web Services</p>
-						<p class="year">2023</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">AWS Certified Cloud Practitioner</h3>
+						<p class="text-[#e7e5e4] mb-1">Amazon Web Services</p>
+						<p class="text-sm text-[#a8a29e]">2023</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/8bbdc1c8-71d9-4764-b47f-b9f66de1b103"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/azure.png"
 							alt="Microsoft Certified: Azure Fundamentals"
@@ -75,19 +75,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">Microsoft Certified: Azure Fundamentals</h3>
-						<p class="issuer">Microsoft</p>
-						<p class="year">2020</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">Microsoft Certified: Azure Fundamentals</h3>
+						<p class="text-[#e7e5e4] mb-1">Microsoft</p>
+						<p class="text-sm text-[#a8a29e]">2020</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/c5406a0d-c4d2-41f7-b897-e12c01182f9f"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/MCSE-Cloud-Platform-Infrastructure-2018.png"
 							alt="MCSE: Cloud Platform and Infrastructure"
@@ -96,19 +96,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">MCSE: Cloud Platform and Infrastructure</h3>
-						<p class="issuer">Microsoft</p>
-						<p class="year">2018</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">MCSE: Cloud Platform and Infrastructure</h3>
+						<p class="text-[#e7e5e4] mb-1">Microsoft</p>
+						<p class="text-sm text-[#a8a29e]">2018</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/c2187483-a746-4268-be1a-ea0e5b9281a1"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/MCSA-Windows-Server-2016-2018.png"
 							alt="MCSA: Windows Server 2016"
@@ -117,19 +117,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">MCSA: Windows Server 2016</h3>
-						<p class="issuer">Microsoft</p>
-						<p class="year">2018</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">MCSA: Windows Server 2016</h3>
+						<p class="text-[#e7e5e4] mb-1">Microsoft</p>
+						<p class="text-sm text-[#a8a29e]">2018</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/f8416144-c1cb-4388-bc53-8f622fc7e302"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/lpi.png"
 							alt="Linux Essentials Certificate"
@@ -138,19 +138,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">Linux Essentials Certificate</h3>
-						<p class="issuer">Linux Professional Institute</p>
-						<p class="year">2021</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">Linux Essentials Certificate</h3>
+						<p class="text-[#e7e5e4] mb-1">Linux Professional Institute</p>
+						<p class="text-sm text-[#a8a29e]">2021</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/72ce956a-0c40-485b-8af6-52f7d8652c71"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/CompTIA_Cloud_2Bce.png"
 							alt="CompTIA Cloud+ ce Certification"
@@ -159,19 +159,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">CompTIA Cloud+ ce</h3>
-						<p class="issuer">CompTIA</p>
-						<p class="year">2023</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">CompTIA Cloud+ ce</h3>
+						<p class="text-[#e7e5e4] mb-1">CompTIA</p>
+						<p class="text-sm text-[#a8a29e]">2023</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/276cd921-2315-4136-ae6a-342b477ab6d5"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/CompTIA_Security_2Bce.png"
 							alt="CompTIA Security+ ce Certification"
@@ -180,19 +180,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">CompTIA Security+ ce</h3>
-						<p class="issuer">CompTIA</p>
-						<p class="year">2022</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">CompTIA Security+ ce</h3>
+						<p class="text-[#e7e5e4] mb-1">CompTIA</p>
+						<p class="text-sm text-[#a8a29e]">2022</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/4eca7af7-c7e3-4ad5-ad95-b90379c33e52"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/CompTIA_Network_2Bce.png"
 							alt="CompTIA Network+ ce Certification"
@@ -201,19 +201,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">CompTIA Network+ ce</h3>
-						<p class="issuer">CompTIA</p>
-						<p class="year">2021</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">CompTIA Network+ ce</h3>
+						<p class="text-[#e7e5e4] mb-1">CompTIA</p>
+						<p class="text-sm text-[#a8a29e]">2021</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/a3c22ccb-3e16-4564-af65-c540ae38e99d"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/CompTIA_Project_2B.png"
 							alt="CompTIA Project+ Certification"
@@ -222,19 +222,19 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">CompTIA Project+</h3>
-						<p class="issuer">CompTIA</p>
-						<p class="year">2022</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">CompTIA Project+</h3>
+						<p class="text-[#e7e5e4] mb-1">CompTIA</p>
+						<p class="text-sm text-[#a8a29e]">2022</p>
 					</div>
 				</a>
 				<a
 					href="https://www.credly.com/badges/b4c88402-4ce7-4d98-a6dd-d0a468d4ac15"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col"
 				>
-					<div class="card-image">
+					<div class="flex items-center justify-center p-8 bg-[#1c1917]">
 						<img
 							src="/static/images/certs/CompTIA_A_2Bce.png"
 							alt="CompTIA A+ ce Certification"
@@ -243,10 +243,10 @@ templ Education() {
 							height="200"
 						/>
 					</div>
-					<div class="card-content">
-						<h3 class="cert-name">CompTIA A+ ce</h3>
-						<p class="issuer">CompTIA</p>
-						<p class="year">2021</p>
+					<div class="p-6 flex-1">
+						<h3 class="text-lg font-semibold mb-2">CompTIA A+ ce</h3>
+						<p class="text-[#e7e5e4] mb-1">CompTIA</p>
+						<p class="text-sm text-[#a8a29e]">2021</p>
 					</div>
 				</a>
 			</div>

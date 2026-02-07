@@ -8,39 +8,45 @@ type SkillsGridProps struct {
 }
 
 templ SkillsGrid(props SkillsGridProps) {
-	<div class="skills-container">
+	<div class="space-y-8">
 		for catIndex, cat := range props.Categories {
 			if cat.Name != "Concepts & Practices" {
-				<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*100) }>
-					<h2 class="category-title">{ cat.Name }</h2>
-					<div class="skills-grid">
+				<div class="animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*100) }>
+					<h2 class="text-2xl font-bold mb-4">{ cat.Name }</h2>
+					<div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4">
 						for skillIndex, skill := range cat.Skills {
 							if skill.Link != "" {
 								<a
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="skill-icon-btn"
+									class="flex items-center justify-center p-4 bg-[#292524] border border-white/[0.06] rounded-xl hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 transition-all duration-250 group"
 									data-tooltip={ skill.Name }
 									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+									title={ skill.Name }
 								>
 									if skill.IconPath != "" {
-										<img src={ skill.IconPath } alt={ skill.Name }/>
+										<img src={ skill.IconPath } alt={ skill.Name } class="w-12 h-12 object-contain transition-transform duration-250 group-hover:scale-110"/>
 									} else if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
+										<div class="w-12 h-12 flex items-center justify-center transition-transform duration-250 group-hover:scale-110">
+											@templ.Raw(skill.Icon)
+										</div>
 									}
 								</a>
 							} else {
 								<span
-									class="skill-icon-btn"
+									class="flex items-center justify-center p-4 bg-[#292524] border border-white/[0.06] rounded-xl hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-1 transition-all duration-250 cursor-default group"
 									data-tooltip={ skill.Name }
 									tabindex="0"
 									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+									title={ skill.Name }
 								>
 									if skill.IconPath != "" {
-										<img src={ skill.IconPath } alt={ skill.Name }/>
+										<img src={ skill.IconPath } alt={ skill.Name } class="w-12 h-12 object-contain transition-transform duration-250 group-hover:scale-110"/>
 									} else if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
+										<div class="w-12 h-12 flex items-center justify-center transition-transform duration-250 group-hover:scale-110">
+											@templ.Raw(skill.Icon)
+										</div>
 									}
 								</span>
 							}
@@ -51,27 +57,31 @@ templ SkillsGrid(props SkillsGridProps) {
 		}
 		for _, cat := range props.Categories {
 			if cat.Name == "Concepts & Practices" {
-				<div class="skill-category conceptual-skills">
-					<h2 class="category-title">{ cat.Name }</h2>
-					<div class="skills-grid">
+				<div class="bg-[#44403c]/30 rounded-2xl p-6">
+					<h2 class="text-2xl font-bold mb-4">{ cat.Name }</h2>
+					<div class="flex flex-wrap gap-2">
 						for skillIndex, skill := range cat.Skills {
 							if skill.Link != "" {
 								<a
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="conceptual-badge"
+									class="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)] hover:bg-[rgba(234,88,12,0.2)] hover:border-[#ea580c] transition-all"
 									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
 								>
 									if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
+										<span class="w-4 h-4">
+											@templ.Raw(skill.Icon)
+										</span>
 									}
 									<span>{ skill.Name }</span>
 								</a>
 							} else {
-								<span class="conceptual-badge" style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }>
+								<span class="inline-flex items-center gap-2 px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)]" style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }>
 									if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
+										<span class="w-4 h-4">
+											@templ.Raw(skill.Icon)
+										</span>
 									}
 									<span>{ skill.Name }</span>
 								</span>

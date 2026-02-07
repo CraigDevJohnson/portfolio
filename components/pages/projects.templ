@@ -7,41 +7,46 @@ templ Projects() {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
-		<section class="projects-hero">
-			<div class="hero-header">
-				<h1>Projects</h1>
-				<p class="lead">A showcase of automation, web development, and cloud infrastructure projects</p>
+		<!-- Projects Hero -->
+		<section class="py-16 pb-8 text-center">
+			<div class="max-w-[800px] mx-auto">
+				<h1 class="text-4xl font-bold mb-4">Projects</h1>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">A showcase of automation, web development, and cloud infrastructure projects</p>
 			</div>
 		</section>
-		<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
-			<div class="projects-grid">
+		
+		<!-- Projects Grid with HTMX -->
+		<section class="pb-8" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 				for i := 1; i <= 3; i++ {
-					<div class="project-card skeleton-project">
-						<div class="skeleton skeleton-image"></div>
-						<div class="project-content">
-							<div class="skeleton skeleton-title"></div>
-							<div class="skeleton skeleton-text"></div>
-							<div class="skeleton skeleton-text short"></div>
-							<div class="skeleton-pills">
-								<div class="skeleton skeleton-pill"></div>
-								<div class="skeleton skeleton-pill"></div>
-								<div class="skeleton skeleton-pill"></div>
+					<div class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden">
+						<div class="h-48 bg-gradient-to-br from-[#44403c] to-[#292524] animate-pulse"></div>
+						<div class="p-6 space-y-4">
+							<div class="h-6 bg-[#44403c] rounded animate-pulse"></div>
+							<div class="h-4 bg-[#44403c] rounded animate-pulse"></div>
+							<div class="h-4 bg-[#44403c] rounded w-2/3 animate-pulse"></div>
+							<div class="flex gap-2">
+								<div class="h-6 w-16 bg-[#44403c] rounded-full animate-pulse"></div>
+								<div class="h-6 w-16 bg-[#44403c] rounded-full animate-pulse"></div>
+								<div class="h-6 w-16 bg-[#44403c] rounded-full animate-pulse"></div>
 							</div>
 						</div>
 					</div>
 				}
 			</div>
 		</section>
-		<section class="projects-cta">
-			<div class="cta-content">
-				<h2>Looking for more?</h2>
-				<p>Check out my GitHub profile for additional projects and contributions.</p>
-				<div class="cta-buttons">
+		
+		<!-- Projects CTA -->
+		<section class="pb-16">
+			<div class="text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl">
+				<h2 class="text-2xl font-bold mb-4">Looking for more?</h2>
+				<p class="text-[#a8a29e] mb-6">Check out my GitHub profile for additional projects and contributions.</p>
+				<div class="flex gap-4 justify-center flex-wrap">
 					<a
 						href="https://github.com/CraigDevJohnson"
 						target="_blank"
 						rel="noopener noreferrer"
-						class="btn btn-primary"
+						class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]"
 					>
 						View GitHub Profile
 					</a>

@@ -7,31 +7,35 @@ templ About() {
 		Title: "About Me - Craig Johnson",
 		Page:  "about",
 	}) {
-		<section class="about-hero">
-			<div class="hero-header">
-				<h1>About Me</h1>
-				<p class="lead">A journey from Alaska to the tech industry</p>
+		<!-- About Hero -->
+		<section class="relative -mx-6 px-6 py-16 pb-8 text-center overflow-hidden bg-[url('/static/images/backgrounds/about-nature.jpg')] bg-cover bg-[center_30%] mb-6 before:content-[''] before:absolute before:inset-0 before:bg-gradient-to-b before:from-[rgba(28,25,23,0.72)] before:to-[rgba(28,25,23,0.78)] before:z-[1]">
+			<div class="relative z-[2] max-w-[800px] mx-auto">
+				<h1 class="text-4xl font-bold mb-4">About Me</h1>
+				<p class="text-xl text-[#a8a29e] leading-relaxed">A journey from Alaska to the tech industry</p>
 			</div>
 		</section>
-		<section class="about-content">
-			<div class="about-grid">
-				<div class="about-card personal-story">
-					<div class="card-header">
-						<h2>Personal Journey</h2>
+		
+		<!-- About Content -->
+		<section class="pb-16">
+			<div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 mb-12">
+				<!-- Personal Story -->
+				<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-8 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]">
+					<div class="flex items-center gap-4 mb-6">
+						<h2 class="text-2xl font-bold m-0">Personal Journey</h2>
 					</div>
-					<div class="card-body">
-						<p>
+					<div class="space-y-6">
+						<p class="text-[#e7e5e4] leading-relaxed">
 							I'm a passionate tech enthusiast who has journeyed from the frosty expanses of Alaska to
 							embrace new opportunities and challenges. I'm happily married with two wonderful kids, and
 							our family is rounded out by our two beloved dogs.
 						</p>
-						<p>
+						<p class="text-[#e7e5e4] leading-relaxed">
 							My tech career began at the local university as a Service Desk Student Analyst, where I
 							laid the foundations of my skills and knowledge. This journey led me into the health care
 							sector, providing tech support and ensuring that technology enhances patient care and
 							operational efficiency.
 						</p>
-						<p>
+						<p class="text-[#e7e5e4] leading-relaxed">
 							Soccer has been a lifelong love of mine, keeping me active and connected with the
 							community. The decision to move out of Alaska was driven by a desire for greater
 							opportunities and the chance to expand my horizons. I'm always eager to learn new tools
@@ -39,58 +43,65 @@ templ About() {
 						</p>
 					</div>
 				</div>
-				<div class="about-sidebar">
-					<div class="about-card quick-facts">
-						<div class="card-header">
-							<h3>Quick Facts</h3>
+				
+				<!-- Sidebar -->
+				<div class="flex flex-col gap-8">
+					<!-- Quick Facts -->
+					<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-8 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]">
+						<div class="flex items-center gap-4 mb-6">
+							<h3 class="text-xl font-bold m-0">Quick Facts</h3>
 						</div>
-						<ul class="facts-list">
-							<li>
+						<ul class="list-none space-y-2">
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>Originally from Alaska</span>
 							</li>
-							<li>
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>Family of 4 + 2 dogs</span>
 							</li>
-							<li>
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>Lifelong soccer enthusiast</span>
 							</li>
-							<li>
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>BS in Computer Information Systems</span>
 							</li>
-							<li>
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>Cloud & automation specialist</span>
 							</li>
-							<li>
+							<li class="flex items-center gap-4 py-2 text-[#e7e5e4]">
 								<span>Continuous learner</span>
 							</li>
 						</ul>
 					</div>
-					<div class="about-card values">
-						<div class="card-header">
-							<h3>Values</h3>
+					
+					<!-- Values -->
+					<div class="bg-[#292524] border border-white/[0.06] rounded-2xl p-8 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]">
+						<div class="flex items-center gap-4 mb-6">
+							<h3 class="text-xl font-bold m-0">Values</h3>
 						</div>
-						<div class="values-list">
-							<div class="value-item">
+						<div class="flex flex-wrap gap-2">
+							<div class="inline-flex items-center px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)]">
 								<span>Continuous Improvement</span>
 							</div>
-							<div class="value-item">
+							<div class="inline-flex items-center px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)]">
 								<span>Collaboration</span>
 							</div>
-							<div class="value-item">
+							<div class="inline-flex items-center px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)]">
 								<span>Problem Solving</span>
 							</div>
-							<div class="value-item">
+							<div class="inline-flex items-center px-4 py-2 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-sm font-semibold rounded-full border border-[rgba(234,88,12,0.2)]">
 								<span>Documentation</span>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-			<div class="about-cta">
-				<h2>Want to know more?</h2>
-				<div class="cta-buttons">
-					<a href="/experience" class="btn btn-primary">View My Experience</a>
-					<a href="/contact" class="btn btn-secondary">Get in Touch</a>
+			
+			<!-- CTA Section -->
+			<div class="text-center p-8 bg-[#292524] border border-white/[0.06] rounded-2xl">
+				<h2 class="text-2xl font-bold mb-4">Want to know more?</h2>
+				<div class="flex gap-4 justify-center flex-wrap">
+					<a href="/experience" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.4),0_4px_16px_rgba(234,88,12,0.25)] transition-all duration-150 hover:bg-gradient-to-br hover:from-[#c2410c] hover:via-[#ea580c] hover:to-[#f97316] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.5),0_8px_24px_rgba(234,88,12,0.35)]">View My Experience</a>
+					<a href="/contact" class="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[10px] bg-[#44403c] text-[#fafaf9] text-sm font-semibold border border-white/[0.12] transition-all duration-150 hover:bg-white/[0.12] hover:-translate-y-0.5">Get in Touch</a>
 				</div>
 			</div>
 		</section>

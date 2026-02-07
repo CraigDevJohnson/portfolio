@@ -9,41 +9,41 @@ type ProjectsGridProps struct {
 }
 
 templ ProjectsGrid(props ProjectsGridProps) {
-	<div class="projects-grid">
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 		for index, project := range props.Projects {
-			<article class="project-card" style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
-				<div class="project-image">
+			<article class="bg-[#292524] border border-white/[0.06] rounded-2xl overflow-hidden transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_8px_32px_rgba(234,88,12,0.15)] hover:-translate-y-1 flex flex-col animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]" style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
+				<div class="relative h-48 bg-gradient-to-br from-[#44403c] to-[#292524] overflow-hidden">
 					if project.Image != "" {
-						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225"/>
+						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225" class="w-full h-full object-cover"/>
 					} else {
-						<div class="project-placeholder">
+						<div class="flex items-center justify-center h-full text-[#a8a29e] text-lg font-semibold">
 							<span>Project</span>
 						</div>
 					}
-					<div class="project-category">{ project.Category }</div>
+					<div class="absolute top-4 right-4 px-3 py-1 bg-[#ea580c] text-white text-xs font-semibold rounded-full">{ project.Category }</div>
 				</div>
-				<div class="project-content">
-					<h3 class="project-title">{ project.Name }</h3>
-					<p class="project-intro">{ project.Intro }</p>
-					<p class="project-description">{ project.Description }</p>
-					<div class="project-tech">
+				<div class="p-6 flex-1 flex flex-col">
+					<h3 class="text-lg font-semibold mb-2">{ project.Name }</h3>
+					<p class="text-[#fb923c] text-sm mb-2">{ project.Intro }</p>
+					<p class="text-[#e7e5e4] text-sm leading-relaxed mb-4">{ project.Description }</p>
+					<div class="flex flex-wrap gap-2 mb-4 mt-auto">
 						for _, tech := range project.Technologies {
-							<span class="tech-pill">{ tech }</span>
+							<span class="inline-flex items-center px-3 py-1 bg-[rgba(234,88,12,0.1)] text-[#fb923c] text-xs font-semibold rounded-full border border-[rgba(234,88,12,0.2)]">{ tech }</span>
 						}
 					</div>
-					<div class="project-actions">
+					<div class="flex gap-2 pt-4 border-t border-white/[0.06]">
 						if project.GitHubURL != "" {
-							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-4 py-2 bg-[#44403c] text-[#fafaf9] text-sm font-semibold rounded-lg border border-white/[0.12] hover:bg-white/[0.12] transition-all">
 								GitHub
 							</a>
 						}
 						if project.DemoURL != "" {
 							if strings.HasPrefix(project.DemoURL, "/") {
-								<a href={ templ.SafeURL(project.DemoURL) } class="btn btn-sm btn-primary">
+								<a href={ templ.SafeURL(project.DemoURL) } class="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold rounded-lg hover:-translate-y-0.5 transition-all">
 									Live Demo
 								</a>
 							} else {
-								<a href={ templ.SafeURL(project.DemoURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+								<a href={ templ.SafeURL(project.DemoURL) } target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c] text-white text-sm font-semibold rounded-lg hover:-translate-y-0.5 transition-all">
 									Live Demo
 								</a>
 							}

@@ -1,20 +1,20 @@
 package partials
 
 templ Header(page string) {
-	<header class="site-header">
-		<div class="header-content">
-			<a href="/" class="logo">
+	<header class="fixed top-0 left-0 right-0 z-50 h-[72px] bg-[#1c1917] backdrop-blur-md border-b border-white/[0.06]">
+		<div class="max-w-[1200px] mx-auto px-6 h-full flex items-center justify-between gap-6">
+			<a href="/" class="flex items-center gap-2 text-[#fafaf9] font-extrabold text-lg tracking-tight transition-transform duration-150 hover:scale-105">
 				<span class="logo-text">Craig Johnson</span>
 			</a>
 			@Nav(page)
-			<div class="header-actions">
-				<button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
-					<span class="hamburger"></span>
+			<div class="flex items-center gap-2">
+				<button id="mobile-menu-btn" class="hidden max-[1120px]:flex w-11 h-11 items-center justify-center rounded-[10px] bg-[#44403c] cursor-pointer relative border-none" aria-label="Toggle menu" aria-expanded="false">
+					<span class="hamburger absolute w-5 h-0.5 bg-[#fafaf9] rounded-[2px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-150 before:content-[''] before:absolute before:left-0 before:w-5 before:h-0.5 before:bg-[#fafaf9] before:rounded-[2px] before:-top-1.5 before:transition-all before:duration-150 after:content-[''] after:absolute after:left-0 after:w-5 after:h-0.5 after:bg-[#fafaf9] after:rounded-[2px] after:top-1.5 after:transition-all after:duration-150"></span>
 				</button>
 			</div>
 		</div>
 		<!-- Mobile Navigation -->
-		<nav id="mobile-nav" class="mobile-nav" aria-hidden="true">
+		<nav id="mobile-nav" class="hidden absolute top-[72px] left-0 right-0 bg-[#292524] border-b border-white/[0.06] p-4 px-6 flex-col gap-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)]" aria-hidden="true">
 			@NavLinks(page)
 		</nav>
 	</header>
