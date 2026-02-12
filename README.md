@@ -55,8 +55,12 @@ go mod download
 # Install Templ CLI
 go install github.com/a-h/templ/cmd/templ@v0.3.977
 
+# Install just command runner (if not already installed)
+# See: https://github.com/casey/just#installation
+cargo install just
+
 # Build the project (generates Templ components and compiles)
-make build
+just build
 ```
 
 ### Running
@@ -65,25 +69,25 @@ make build
 # Run the server
 ./portfolio-server
 
-# Or use make
-make run
+# Or use just
+just run
 ```
 
 The server will start at `http://localhost:8080`
 
 ### Development
 
-For development with hot reload, use `make dev` which requires [air](https://github.com/air-verse/air):
+For development with hot reload, use `just dev` which requires [air](https://github.com/air-verse/air):
 
 ```bash
 # Install air
-go install github.com/air-verse/air@latest
+just install-air
 
 # Start development server with hot reload
-make dev
+just dev
 ```
 
-**Note**: When Templ files (*.templ) are modified, run `make generate` or `templ generate` to regenerate the Go code before building.
+**Note**: When Templ files (*.templ) are modified, run `just generate` or `templ generate` to regenerate the Go code before building.
 
 ## Project Structure
 
@@ -174,8 +178,8 @@ Content is defined in `main.go` in the data functions:
 Templates are written in Templ (`.templ` files):
 
 1. Edit the `.templ` files in `components/` directory
-2. Run `make generate` or `templ generate` to regenerate Go code
-3. Build and run: `make build && ./portfolio-server`
+2. Run `just generate` or `templ generate` to regenerate Go code
+3. Build and run: `just build && ./portfolio-server`
 
 For more information on Templ syntax, see the [Templ documentation](https://templ.guide/).
 
@@ -235,7 +239,7 @@ The app is available at `http://localhost:8080`.
 
 - Runtime image uses distroless and runs as a non-root user.
 - Static assets are copied into the image at build time.
-- Regenerate Templ output (`make generate`) before building if `.templ` files were changed.
+- Regenerate Templ output (`just generate`) before building if `.templ` files were changed.
 **Note**: Templates are not needed in the runtime image because Templ components are compiled into the binary.
 
 ## License
