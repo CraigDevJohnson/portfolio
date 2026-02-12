@@ -14,11 +14,13 @@ type Experience struct {
 
 // Skill represents a technical skill
 type Skill struct {
-	ID       int
-	Name     string
-	Icon     string
-	IconPath string
-	Link     string
+	ID          int
+	Name        string
+	Icon        string
+	IconPath    string
+	Link        string
+	Proficiency string // "expert", "advanced", "intermediate", "familiar"
+	Featured    bool   // Whether to show in featured skills section
 }
 
 // SkillCategory represents a category of skills
