@@ -4,8 +4,11 @@ BINARY := portfolio-server
 GO := go
 GOFLAGS :=
 PORT ?= 8080
+TAILWIND := ./bin/tailwindcss
+TAILWIND_VERSION := v4.1.18
+TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-linux-x64
 
-.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css
+.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css install-tailwind
 
 all: build
 
@@ -15,9 +18,22 @@ templ:
 	@command -v templ >/dev/null 2>&1 || { echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; exit 1; }
 	templ generate
 
-build-css:
-	@command -v npm >/dev/null 2>&1 || { echo "npm not installed. Please install Node.js to build CSS."; exit 1; }
-	npm run build:css
+install-tailwind:
+	@if [ ! -f $(TAILWIND) ]; then \
+		echo "Downloading Tailwind CSS $(TAILWIND_VERSION)..."; \
+		mkdir -p bin; \
+		curl -sLo $(TAILWIND) $(TAILWIND_URL); \
+		chmod +x $(TAILWIND); \
+		echo "Tailwind CSS installed successfully at $(TAILWIND)"; \
+	else \
+		echo "Tailwind CSS already installed at $(TAILWIND)"; \
+	fi
+
+build-css: install-tailwind
+	$(TAILWIND) -i ./static/css/tailwind.css -o ./static/css/output.css
+
+watch-css: install-tailwind
+	$(TAILWIND) -i ./static/css/tailwind.css -o ./static/css/output.css --watch
 
 build: build-css generate
 	$(GO) build $(GOFLAGS) -o $(BINARY) .
@@ -28,7 +44,7 @@ run: build
 dev:
 	@command -v air >/dev/null 2>&1 || { echo "air not installed. Run 'make install-air' to install it automatically."; exit 1; }
 	@echo "Starting development server with hot reload..."
-	@echo "Note: Run 'npm run watch:css' in a separate terminal for CSS hot reload"
+	@echo "Note: Run 'make watch-css' in a separate terminal for CSS hot reload"
 	air
 
 install-air:
@@ -69,8 +85,10 @@ help:
 	@echo "  all                   Build the binary (default)"
 	@echo "  build                 Compile CSS and server binary"
 	@echo "  build-css             Build Tailwind CSS output"
+	@echo "  watch-css             Watch and rebuild CSS on changes"
+	@echo "  install-tailwind      Download standalone Tailwind CSS binary"
 	@echo "  run                   Build and run the server"
-	@echo "  dev                   Run with air for hot-reload (run 'npm run watch:css' separately)"
+	@echo "  dev                   Run with air for hot-reload (run 'make watch-css' separately)"
 	@echo "  clean                 Remove binary and cached files"
 	@echo "  fmt                   Format Go source files"
 	@echo "  vet                   Run go vet"

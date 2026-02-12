@@ -45,8 +45,8 @@ A server-rendered Go application using Templ for type-safe component-based templ
 ### Prerequisites
 
 - Go 1.23 or higher
-- Node.js 18+ (for Tailwind CSS)
 - Templ CLI (installed automatically via `go install`)
+- curl (for downloading Tailwind CSS binary)
 
 ### Installation
 
@@ -54,15 +54,14 @@ A server-rendered Go application using Templ for type-safe component-based templ
 # Install Go dependencies
 go mod download
 
-# Install Node.js dependencies (Tailwind CSS)
-npm install
-
 # Install Templ CLI
 go install github.com/a-h/templ/cmd/templ@v0.3.977
 
-# Build the project (generates CSS, Templ components, and compiles)
+# Build the project (downloads Tailwind CSS, generates Templ components, and compiles)
 make build
 ```
+
+The Makefile will automatically download the standalone Tailwind CSS v4.1.18 binary to `bin/tailwindcss` on first build.
 
 ### Running
 
@@ -85,7 +84,7 @@ For development with hot reload:
 go install github.com/air-verse/air@latest
 
 # Terminal 1: Start CSS watcher (auto-rebuilds on changes)
-npm run watch:css
+make watch-css
 
 # Terminal 2: Start Go server with hot reload
 make dev
@@ -95,7 +94,7 @@ The server will start at `http://localhost:8080`
 
 **Note**: 
 - When Templ files (`*.templ`) are modified, run `make generate` or `templ generate` to regenerate the Go code
-- When modifying `static/css/tailwind.css`, the CSS watcher will automatically rebuild
+- The standalone Tailwind CSS binary (116MB) is downloaded automatically on first build
 - Tailwind scans all `.templ` files for utility classes and generates optimized CSS
 
 ## Project Structure
@@ -194,15 +193,23 @@ Edit `static/css/tailwind.css` to customize the theme:
 ### Build Commands
 
 ```bash
+# Download Tailwind CSS binary (done automatically on first build)
+make install-tailwind
+
 # Build CSS once
-npm run build:css
+make build-css
 
 # Watch for changes (development)
-npm run watch:css
+make watch-css
 
 # Build everything (CSS + Templ + Go)
 make build
+
+# Clean build artifacts
+make clean
 ```
+
+The standalone Tailwind CSS binary is automatically downloaded from the [official GitHub releases](https://github.com/tailwindlabs/tailwindcss/releases/tag/v4.1.18) and cached in `bin/tailwindcss`.
 
 ### Adding Tailwind Classes
 
@@ -268,9 +275,9 @@ Theme colors and custom values are defined in `static/css/tailwind.css`.
 The application is designed to be deployed as a standalone binary:
 
 ```bash
-# Install Node dependencies and build CSS
-npm install
-npm run build:css
+# Download Tailwind CSS and build CSS
+make install-tailwind
+make build-css
 
 # Generate Templ components
 templ generate
@@ -285,16 +292,11 @@ CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
 For containerized deployment, create a Dockerfile:
 
 ```dockerfile
-FROM node:18-alpine AS css-builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY static/css/tailwind.css ./static/css/
-COPY components ./components
-RUN npm run build:css
-
 FROM golang:1.23-alpine AS builder
 WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache curl
 
 # Install Templ CLI
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.977
@@ -302,11 +304,11 @@ RUN go install github.com/a-h/templ/cmd/templ@v0.3.977
 # Copy source
 COPY . .
 
-# Copy built CSS from previous stage
-COPY --from=css-builder /app/static/css/output.css ./static/css/
+# Download Tailwind CSS and build CSS
+RUN make install-tailwind && make build-css
 
-# Generate Templ components and build
-RUN templ generate && go build -o portfolio-server .
+# Generate Templ components and build Go binary
+RUN templ generate && CGO_ENABLED=0 go build -o portfolio-server .
 
 FROM alpine:latest
 WORKDIR /app
@@ -316,7 +318,7 @@ EXPOSE 8080
 CMD ["./portfolio-server"]
 ```
 
-**Note**: The CSS is pre-built during the Docker build process. Templ components are compiled into the Go binary, so only the `static/` directory and binary are needed in production.
+**Note**: The standalone Tailwind CSS binary is downloaded during the build process. Templ components are compiled into the Go binary, so only the `static/` directory and binary are needed in production.
 
 ## License
 
