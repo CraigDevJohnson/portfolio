@@ -13,7 +13,7 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 		for index, exp := range props.Experiences {
 			<article
 				class={ 
-					"bg-[#292524] border border-white/[0.06] rounded-2xl p-6 transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]",
+					"career-card bg-[#292524] border border-white/[0.06] rounded-2xl p-6 transition-all duration-250 hover:border-[#ea580c]/40 hover:shadow-[0_4px_16px_rgba(234,88,12,0.15)] hover:-translate-y-0.5 animate-[fadeIn_0.4s_cubic-bezier(0.2,0.9,0.2,1)]",
 					templ.KV("border-[#ea580c]/40 shadow-[0_4px_16px_rgba(234,88,12,0.15)]", index == 0),
 				}
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
