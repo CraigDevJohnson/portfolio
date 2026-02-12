@@ -1,5 +1,13 @@
 package types
 
+// Proficiency level constants
+const (
+	ProficiencyExpert       = "expert"
+	ProficiencyAdvanced     = "advanced"
+	ProficiencyIntermediate = "intermediate"
+	ProficiencyFamiliar     = "familiar"
+)
+
 // Experience represents a work experience entry
 type Experience struct {
 	ID               int
@@ -14,11 +22,13 @@ type Experience struct {
 
 // Skill represents a technical skill
 type Skill struct {
-	ID       int
-	Name     string
-	Icon     string
-	IconPath string
-	Link     string
+	ID          int
+	Name        string
+	Icon        string
+	IconPath    string
+	Link        string
+	Proficiency string // "expert", "advanced", "intermediate", "familiar"
+	Featured    bool   // Whether to show in featured skills section
 }
 
 // SkillCategory represents a category of skills
