@@ -25,10 +25,6 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 						<span class="status-dot"></span>
 						Current Role
 					</div>
-				} else {
-					<div class="card-status">
-						<span class="card-number">{ fmt.Sprintf("#%d", len(props.Experiences)-index) }</span>
-					</div>
 				}
 				<header class="card-header">
 					<h3 class="position">{ exp.Position }</h3>
