@@ -116,8 +116,6 @@ just vet
 
 Templ files must be regenerated after editing—restart server or use `just dev` for auto-reload.
 
-Templ files must be regenerated after editing—restart server or use `just dev` for auto-reload.
-
 ## Adding a new page
 
 1. **Create Templ component**: `components/pages/newpage.templ`
