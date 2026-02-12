@@ -1,0 +1,14 @@
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+README.md
+Makefile
+
+portfolio-server
+
+*.log
+*.tmp
+tmp/

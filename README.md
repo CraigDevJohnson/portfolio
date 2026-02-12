@@ -204,30 +204,39 @@ CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
 ./portfolio-server
 ```
 
-For containerized deployment, create a Dockerfile:
+For containerized deployment, use the included `Dockerfile`, `.dockerignore`, and `docker-compose.yml`.
 
-```dockerfile
-FROM golang:1.23-alpine AS builder
-WORKDIR /app
+### Docker
 
-# Install Templ CLI
-RUN go install github.com/a-h/templ/cmd/templ@v0.3.977
+```bash
+# Build image
+docker build -t portfolio-app .
 
-# Copy source
-COPY . .
-
-# Generate Templ components and build
-RUN templ generate && go build -o portfolio-server .
-
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /app/portfolio-server .
-COPY --from=builder /app/static ./static
-EXPOSE 8080
-CMD ["./portfolio-server"]
+# Run container
+docker run --rm -p 8080:8080 portfolio-app
 ```
 
-**Note**: Templates are no longer needed in the deployment image as Templ components are compiled into the binary.
+### Docker Compose
+
+```bash
+# Build and start in background
+docker compose up --build -d
+
+# Follow logs
+docker compose logs -f
+
+# Stop and remove containers/network
+docker compose down
+```
+
+The app is available at `http://localhost:8080`.
+
+### Container Notes
+
+- Runtime image uses distroless and runs as a non-root user.
+- Static assets are copied into the image at build time.
+- Regenerate Templ output (`make generate`) before building if `.templ` files were changed.
+**Note**: Templates are not needed in the runtime image because Templ components are compiled into the binary.
 
 ## License
 
