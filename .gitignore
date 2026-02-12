@@ -25,3 +25,5 @@ coverage.out
 # Tailwind CSS
 bin/tailwindcss
 static/css/output.css
+
+tmp/
