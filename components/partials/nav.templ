@@ -28,7 +28,7 @@ templ NavLinks(page string) {
 		<a
 			href={ templ.SafeURL(item.Href) }
 			class={ 
-				"flex items-center gap-1 px-4 py-1 rounded-[10px] text-[#a8a29e] font-medium text-sm transition-all duration-150 hover:text-[#fafaf9] hover:bg-[#44403c]",
+				"nav-link flex items-center gap-1 px-4 py-1 rounded-[10px] text-[#a8a29e] font-medium text-sm transition-all duration-150 hover:text-[#fafaf9] hover:bg-[#44403c]",
 				templ.KV("!text-[#fb923c] !bg-[rgba(234,88,12,0.1)]", page == item.Page),
 				templ.KV("max-[1120px]:px-6 max-[1120px]:py-2 max-[1120px]:min-h-[44px]", true),
 			}

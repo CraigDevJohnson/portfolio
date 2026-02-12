@@ -6,8 +6,39 @@ GOFLAGS :=
 PORT ?= 8080
 TAILWIND := ./bin/tailwindcss
 TAILWIND_VERSION := v4.1.18
-TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-linux-x64
-TAILWIND_SHA256 := 737becf8d4ad1115ea98df69fa94026d402ca8feb91306a035b5b004167da8dd
+
+# Detect platform and architecture for Tailwind binary
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+ifeq ($(UNAME_S),Linux)
+	ifeq ($(UNAME_M),x86_64)
+		TAILWIND_PLATFORM := linux-x64
+		TAILWIND_SHA256 := 737becf8d4ad1115ea98df69fa94026d402ca8feb91306a035b5b004167da8dd
+	else ifeq ($(UNAME_M),aarch64)
+		TAILWIND_PLATFORM := linux-arm64
+		TAILWIND_SHA256 := CHECKSUM_FOR_LINUX_ARM64_WHEN_AVAILABLE
+	else
+		$(error Unsupported Linux architecture: $(UNAME_M))
+	endif
+else ifeq ($(UNAME_S),Darwin)
+	ifeq ($(UNAME_M),x86_64)
+		TAILWIND_PLATFORM := macos-x64
+		TAILWIND_SHA256 := CHECKSUM_FOR_MACOS_X64_WHEN_AVAILABLE
+	else ifeq ($(UNAME_M),arm64)
+		TAILWIND_PLATFORM := macos-arm64
+		TAILWIND_SHA256 := CHECKSUM_FOR_MACOS_ARM64_WHEN_AVAILABLE
+	else
+		$(error Unsupported macOS architecture: $(UNAME_M))
+	endif
+else ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
+	TAILWIND_PLATFORM := windows-x64.exe
+	TAILWIND_SHA256 := CHECKSUM_FOR_WINDOWS_WHEN_AVAILABLE
+else
+	$(error Unsupported platform: $(UNAME_S))
+endif
+
+TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(TAILWIND_PLATFORM)
 
 .PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css watch-css install-tailwind
 
