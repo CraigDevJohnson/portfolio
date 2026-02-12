@@ -7,8 +7,9 @@ PORT ?= 8080
 TAILWIND := ./bin/tailwindcss
 TAILWIND_VERSION := v4.1.18
 TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-linux-x64
+TAILWIND_SHA256 := 737becf8d4ad1115ea98df69fa94026d402ca8feb91306a035b5b004167da8dd
 
-.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css install-tailwind
+.PHONY: all build run clean fmt lint vet test install-air install-golangci-lint install-tools help generate templ build-css watch-css install-tailwind
 
 all: build
 
@@ -22,7 +23,17 @@ install-tailwind:
 	@if [ ! -f $(TAILWIND) ]; then \
 		echo "Downloading Tailwind CSS $(TAILWIND_VERSION)..."; \
 		mkdir -p bin; \
-		curl -sLo $(TAILWIND) $(TAILWIND_URL); \
+		if ! curl -fSL $(TAILWIND_URL) -o $(TAILWIND); then \
+			echo "Error: Failed to download Tailwind CSS binary"; \
+			rm -f $(TAILWIND); \
+			exit 1; \
+		fi; \
+		echo "Verifying download integrity..."; \
+		echo "$(TAILWIND_SHA256)  $(TAILWIND)" | sha256sum -c - || { \
+			echo "Error: SHA256 verification failed. Downloaded file may be corrupt or tampered."; \
+			rm -f $(TAILWIND); \
+			exit 1; \
+		}; \
 		chmod +x $(TAILWIND); \
 		echo "Tailwind CSS installed successfully at $(TAILWIND)"; \
 	else \
