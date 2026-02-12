@@ -269,14 +269,14 @@ func skillsData() []SkillCategory {
 			Skills: []Skill{
 				{ID: 18, Name: "Docker", IconPath: "/static/images/skills/docker.svg", Link: "https://www.docker.com/", Proficiency: "expert", Featured: true},
 				{ID: 19, Name: "Kubernetes", IconPath: "/static/images/skills/kubernetes.svg", Link: "https://kubernetes.io/", Proficiency: "advanced", Featured: true},
-				{ID: 20, Name: "Podman", IconPath: "/static/images/skills/podman.svg", Link: "https://podman.io/", Proficiency: "intermediate"},
+				{ID: 20, Name: "Podman", IconPath: "/static/images/skills/podman.svg", Link: "https://podman.io/", Proficiency: "advanced", Featured: true},
 				{ID: 101, Name: "Rancher", IconPath: "/static/images/skills/rancher.svg", Link: "https://www.rancher.com/", Proficiency: "intermediate"},
 			},
 		},
 		{
 			Name: "CI/CD & Automation",
 			Skills: []Skill{
-				{ID: 27, Name: "Ansible", IconPath: "/static/images/skills/ansible.svg", Link: "https://www.ansible.com/", Proficiency: "advanced"},
+				{ID: 27, Name: "Ansible", IconPath: "/static/images/skills/ansible.svg", Link: "https://www.ansible.com/", Proficiency: "expert", Featured: true},
 				{ID: 125, Name: "CodeBuild", IconPath: "/static/images/skills/aws_codebuild.svg", Link: "https://aws.amazon.com/codebuild/", Proficiency: "advanced"},
 				{ID: 126, Name: "CodeDeploy", IconPath: "/static/images/skills/aws_codedeploy.svg", Link: "https://aws.amazon.com/codedeploy/", Proficiency: "advanced"},
 				{ID: 127, Name: "CodePipeline", IconPath: "/static/images/skills/aws_codepipeline.svg", Link: "https://aws.amazon.com/codepipeline/", Proficiency: "advanced"},
@@ -315,9 +315,9 @@ func skillsData() []SkillCategory {
 				{ID: 124, Name: "API Gateway", IconPath: "/static/images/skills/aws_api_gateway.svg", Link: "https://aws.amazon.com/api-gateway/", Proficiency: "advanced"},
 				{ID: 39, Name: "FastAPI", IconPath: "/static/images/skills/fastapi.svg", Link: "https://fastapi.tiangolo.com/", Proficiency: "intermediate"},
 				{ID: 40, Name: "OpenAPI", IconPath: "/static/images/skills/openapi.svg", Link: "https://www.openapis.org/", Proficiency: "advanced"},
-				{ID: 43, Name: "Playwright", IconPath: "/static/images/skills/playwright.svg", Link: "https://playwright.dev/", Proficiency: "intermediate"},
+				{ID: 43, Name: "Playwright", IconPath: "/static/images/skills/playwright.svg", Link: "https://playwright.dev/", Proficiency: "advanced"},
 				{ID: 41, Name: "Postman", IconPath: "/static/images/skills/postman.svg", Link: "https://www.postman.com/", Proficiency: "advanced"},
-				{ID: 42, Name: "pytest", IconPath: "/static/images/skills/pytest.svg", Link: "https://docs.pytest.org/", Proficiency: "intermediate"},
+				{ID: 42, Name: "pytest", IconPath: "/static/images/skills/pytest.svg", Link: "https://docs.pytest.org/", Proficiency: "advanced"},
 			},
 		},
 		{
@@ -326,9 +326,9 @@ func skillsData() []SkillCategory {
 				{ID: 44, Name: "Git", IconPath: "/static/images/skills/git.svg", Link: "https://git-scm.com/", Proficiency: "expert", Featured: true},
 				{ID: 45, Name: "GitHub", IconPath: "/static/images/skills/github.svg", Link: "https://github.com/", Proficiency: "expert"},
 				{ID: 46, Name: "GitHub Codespaces", IconPath: "/static/images/skills/github_codespaces.svg", Link: "https://github.com/features/codespaces", Proficiency: "advanced"},
-				{ID: 50, Name: "Node.js", IconPath: "/static/images/skills/node.js.svg", Link: "https://nodejs.org/", Proficiency: "intermediate"},
-				{ID: 49, Name: "npm", IconPath: "/static/images/skills/npm.svg", Link: "https://www.npmjs.com/", Proficiency: "intermediate"},
-				{ID: 51, Name: "Poetry", IconPath: "/static/images/skills/python_poetry.svg", Link: "https://python-poetry.org/", Proficiency: "intermediate"},
+				{ID: 50, Name: "Node.js", IconPath: "/static/images/skills/node.js.svg", Link: "https://nodejs.org/", Proficiency: "advanced"},
+				{ID: 49, Name: "npm", IconPath: "/static/images/skills/npm.svg", Link: "https://www.npmjs.com/", Proficiency: "advanced"},
+				{ID: 51, Name: "Poetry", IconPath: "/static/images/skills/python_poetry.svg", Link: "https://python-poetry.org/", Proficiency: "advanced"},
 				{ID: 52, Name: "Vite", IconPath: "/static/images/skills/vite.js.svg", Link: "https://vitejs.dev/", Proficiency: "intermediate"},
 				{ID: 47, Name: "VS Code", IconPath: "/static/images/skills/vscode.svg", Link: "https://code.visualstudio.com/", Proficiency: "expert"},
 			},
@@ -337,10 +337,10 @@ func skillsData() []SkillCategory {
 			Name: "Monitoring & Observability",
 			Skills: []Skill{
 				{ID: 108, Name: "CloudWatch", IconPath: "/static/images/skills/cloudwatch.svg", Link: "https://aws.amazon.com/cloudwatch/", Proficiency: "expert"},
-				{ID: 55, Name: "Datadog", IconPath: "/static/images/skills/datadog.svg", Link: "https://www.datadoghq.com/", Proficiency: "intermediate"},
+				{ID: 55, Name: "Datadog", IconPath: "/static/images/skills/datadog.svg", Link: "https://www.datadoghq.com/", Proficiency: "advanced"},
 				{ID: 54, Name: "Grafana", IconPath: "/static/images/skills/grafana.svg", Link: "https://grafana.com/", Proficiency: "intermediate"},
 				{ID: 53, Name: "Prometheus", IconPath: "/static/images/skills/prometheus.svg", Link: "https://prometheus.io/", Proficiency: "intermediate"},
-				{ID: 56, Name: "Splunk", IconPath: "/static/images/skills/splunk.svg", Link: "https://www.splunk.com/", Proficiency: "intermediate"},
+				{ID: 56, Name: "Splunk", IconPath: "/static/images/skills/splunk.svg", Link: "https://www.splunk.com/", Proficiency: "advanced"},
 			},
 		},
 		{
@@ -359,17 +359,17 @@ func skillsData() []SkillCategory {
 			Skills: []Skill{
 				{ID: 62, Name: "Apache", IconPath: "/static/images/skills/apache.svg", Link: "https://httpd.apache.org/", Proficiency: "advanced"},
 				{ID: 61, Name: "Nginx", IconPath: "/static/images/skills/nginx.svg", Link: "https://nginx.org/", Proficiency: "advanced"},
-				{ID: 123, Name: "Amplify", IconPath: "/static/images/skills/aws_amplify.svg", Link: "https://aws.amazon.com/amplify/", Proficiency: "intermediate"},
-				{ID: 64, Name: "Vue.js", IconPath: "/static/images/skills/vue.js.svg", Link: "https://vuejs.org/", Proficiency: "intermediate"},
+				{ID: 123, Name: "Amplify", IconPath: "/static/images/skills/aws_amplify.svg", Link: "https://aws.amazon.com/amplify/", Proficiency: "advanced"},
+				{ID: 64, Name: "Vue.js", IconPath: "/static/images/skills/vue.js.svg", Link: "https://vuejs.org/", Proficiency: "advanced"},
 			},
 		},
 		{
 			Name: "Collaboration Tools",
 			Skills: []Skill{
 				{ID: 67, Name: "Confluence", IconPath: "/static/images/skills/confluence.svg", Link: "https://www.atlassian.com/software/confluence", Proficiency: "advanced"},
-				{ID: 66, Name: "Jira", IconPath: "/static/images/skills/jira.svg", Link: "https://www.atlassian.com/software/jira", Proficiency: "expert"},
+				{ID: 66, Name: "Jira", IconPath: "/static/images/skills/jira.svg", Link: "https://www.atlassian.com/software/jira", Proficiency: "advanced"},
 				{ID: 119, Name: "Notion", IconPath: "/static/images/skills/notion.svg", Link: "https://www.notion.so/", Proficiency: "intermediate"},
-				{ID: 68, Name: "Slack", IconPath: "/static/images/skills/slack.svg", Link: "https://slack.com/", Proficiency: "advanced"},
+				{ID: 68, Name: "Slack", IconPath: "/static/images/skills/slack.svg", Link: "https://slack.com/", Proficiency: "expert"},
 			},
 		},
 		{

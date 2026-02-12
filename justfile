@@ -32,6 +32,11 @@ build: generate
 run: build
     ./{{BINARY}}
 
+# Run with Docker Compose
+[group('run')]
+compose:
+    docker compose -f docker-compose.yml up -d --build portfolio
+
 # Run with air for hot-reload development
 [group('run')]
 dev:
