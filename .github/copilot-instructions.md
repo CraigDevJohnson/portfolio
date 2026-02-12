@@ -100,23 +100,23 @@ Soccer page demonstrates form-driven HTMX:
 
 ```bash
 # Generate Templ components (required after editing .templ files)
-make generate
+just generate
 
 # Build and run
-make build
-make run
+just build
+just run
 
 # Development with hot reload (requires air)
-make dev
+just dev
 
 # Format and lint
-make fmt
-make vet
+just fmt
+just vet
 ```
 
-Templ files must be regenerated after editing—restart server or use `make dev` for auto-reload.
+Templ files must be regenerated after editing—restart server or use `just dev` for auto-reload.
 
-Templ files must be regenerated after editing—restart server or use `make dev` for auto-reload.
+Templ files must be regenerated after editing—restart server or use `just dev` for auto-reload.
 
 ## Adding a new page
 
@@ -156,7 +156,7 @@ Templ files must be regenerated after editing—restart server or use `make dev`
 
 5. **Create page styles**: `static/css/newpage.css` (optional)
 
-6. **Generate and build**: `make generate && make build`
+6. **Generate and build**: `just generate && just build`
 
 ## Testing and Validation
 
@@ -164,17 +164,17 @@ Templ files must be regenerated after editing—restart server or use `make dev`
 
 ```bash
 # Generate Templ components
-make generate
+just generate
 
 # Build the application  
-make build
+just build
 
 # Run the server
 ./portfolio-server
 
 # Development with hot reload (recommended)
-go install github.com/air-verse/air@latest
-make dev
+just install-air
+just dev
 ```
 
 ### Testing
