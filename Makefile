@@ -12,8 +12,12 @@ all: build
 generate: templ
 
 templ:
-	@command -v templ >/dev/null 2>&1 || { echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; exit 1; }
-	templ generate
+	@TEMPL_BIN="$$($(GO) env GOPATH)/bin/templ"; \
+	if [ ! -f "$$TEMPL_BIN" ]; then \
+		echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; \
+		exit 1; \
+	fi; \
+	"$$TEMPL_BIN" generate
 
 build: generate
 	$(GO) build $(GOFLAGS) -o $(BINARY) .
