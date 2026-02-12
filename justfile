@@ -4,7 +4,10 @@
 BINARY := "portfolio-server"
 GO := "go"
 GOFLAGS := ""
-PORT := env_var_or_default("PORT", "8080")
+
+# Set shell for Windows compatibility
+# On Windows, ensure you have Git Bash, WSL, or another POSIX shell in PATH
+set windows-shell := ["sh", "-cu"]
 
 # Default recipe (runs when you just run 'just')
 default: build

@@ -2,10 +2,12 @@
 
 This project has transitioned from using GNU Make (`make`) to `just` as its command runner.
 
+> **Note for Windows Users**: The justfile recipes use POSIX shell commands. Ensure you have Git Bash (included with Git for Windows), WSL, or MSYS2 installed and available in your PATH. The justfile is configured to use `sh` on Windows via the `windows-shell` setting.
+
 ## Why `just`?
 
 - **Simpler syntax**: No need for `.PHONY` targets or Make's idiosyncrasies
-- **Cross-platform**: Works consistently on Linux, macOS, and Windows
+- **Cross-platform**: Works consistently on Linux and macOS; on Windows, use a POSIX-like shell (e.g., WSL, Git Bash, or MSYS2)
 - **Better error messages**: Clear, informative error reporting
 - **Command arguments**: Recipes can accept parameters
 - **Modern tool**: Designed for command running, not building
@@ -51,7 +53,7 @@ All commands remain the same, just replace `make` with `just`:
 1. **Help Command**: Use `just --list` to see all available recipes (instead of `make help`)
 2. **No `.PHONY` needed**: `just` recipes are always executed
 3. **Grouped recipes**: Recipes are organized into logical groups (build, run, test, etc.)
-4. **Better defaults**: Variables like `PORT` can use `env_var_or_default()`
+4. **Windows Support**: On Windows, the justfile is configured to use a POSIX-compatible shell (e.g., Git Bash). Ensure you have Git for Windows or WSL installed.
 
 ## Features
 
