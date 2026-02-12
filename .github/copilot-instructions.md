@@ -30,8 +30,8 @@ Templ files (`*.templ`) are compiled to Go code (`*_templ.go`):
 # Generate all Templ components
 templ generate
 
-# Or use make
-make generate
+# Or use just
+just generate
 ```
 
 Generated `*_templ.go` files are gitignored and should not be edited manually.
