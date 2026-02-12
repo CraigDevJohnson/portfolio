@@ -21,7 +21,7 @@ generate: templ
 templ:
     #!/usr/bin/env sh
     TEMPL_BIN="$({{GO}} env GOPATH)/bin/templ"
-    if [ ! -f "$TEMPL_BIN" ]; then
+    if [ ! -x "$TEMPL_BIN" ]; then
         echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."
         exit 1
     fi
