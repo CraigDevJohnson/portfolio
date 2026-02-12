@@ -94,16 +94,23 @@
   color: inherit;
   transition: all var(--duration-normal) var(--ease-out);
   position: relative;
+}
+
+.skill-card-link[href] {
   cursor: pointer;
 }
 
-.skill-card-link:hover {
+.skill-card-link[href]:hover {
   transform: translateY(-4px);
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(var(--accent-primary-rgb), 0.5);
   box-shadow: 
     0 8px 24px rgba(0, 0, 0, 0.3),
     0 0 20px rgba(var(--accent-primary-rgb), 0.15);
+}
+
+.skill-card-link.skill-card-static {
+  opacity: 0.8;
 }
 
 .skill-card-icon {
@@ -193,7 +200,7 @@
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
-.skill-card-link:hover .external-link-icon {
+.skill-card-link[href]:hover .external-link-icon {
   opacity: 1;
 }
 

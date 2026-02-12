@@ -18,8 +18,8 @@ templ SkillsGrid(props SkillsGridProps) {
 					<p class="featured-subtitle">My strongest areas of expertise</p>
 				</div>
 				<div class="featured-skills-grid">
-					for _, skill := range props.FeaturedSkills {
-						<div class="featured-skill-card" style={ fmt.Sprintf("animation-delay: %dms;", skill.ID*30) }>
+					for i, skill := range props.FeaturedSkills {
+						<div class="featured-skill-card" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
 							if skill.Link != "" {
 								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-card-link">
 									<div class="skill-card-icon">
@@ -40,7 +40,7 @@ templ SkillsGrid(props SkillsGridProps) {
 									<div class="external-link-icon">↗</div>
 								</a>
 							} else {
-								<div class="skill-card-link">
+								<div class="skill-card-link skill-card-static">
 									<div class="skill-card-icon">
 										if skill.IconPath != "" {
 											<img src={ skill.IconPath } alt={ skill.Name }/>
@@ -87,7 +87,7 @@ templ SkillsGrid(props SkillsGridProps) {
 										} else if skill.Icon != "" {
 											@templ.Raw(skill.Icon)
 										}
-										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) }></span>
+										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
 									</a>
 								} else {
 									<span
@@ -102,7 +102,7 @@ templ SkillsGrid(props SkillsGridProps) {
 										} else if skill.Icon != "" {
 											@templ.Raw(skill.Icon)
 										}
-										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) }></span>
+										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
 									</span>
 								}
 							}

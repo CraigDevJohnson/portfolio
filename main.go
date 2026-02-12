@@ -391,10 +391,10 @@ func skillsData() []SkillCategory {
 	}
 }
 
-// getFeaturedSkills extracts all featured skills from categories
-func getFeaturedSkills() []Skill {
+// getFeaturedSkills extracts all featured skills from provided categories
+func getFeaturedSkills(categories []SkillCategory) []Skill {
 	var featured []Skill
-	for _, category := range skillsData() {
+	for _, category := range categories {
 		for _, skill := range category.Skills {
 			if skill.Featured {
 				featured = append(featured, skill)
@@ -412,9 +412,10 @@ func skillsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
+	categories := skillsData()
 	props := partials.SkillsGridProps{
-		Categories:     skillsData(),
-		FeaturedSkills: getFeaturedSkills(),
+		Categories:     categories,
+		FeaturedSkills: getFeaturedSkills(categories),
 	}
 	err := partials.SkillsGrid(props).Render(context.Background(), w)
 	if err != nil {
