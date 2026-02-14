@@ -492,6 +492,7 @@ code {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-gradient-hover);
+  color: white;
   transform: translateY(-2px);
   box-shadow:
     var(--shadow-md),
@@ -505,8 +506,16 @@ code {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--border-color-strong);
-  transform: translateY(-1px);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  border-color: rgba(234, 88, 12, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 
+    var(--shadow-sm),
+    0 4px 16px rgba(234, 88, 12, 0.15);
 }
 
 .btn-ghost {
@@ -526,6 +535,7 @@ code {
 
 .btn-success:hover:not(:disabled) {
   filter: brightness(1.1);
+  color: white;
   transform: translateY(-1px);
 }
 

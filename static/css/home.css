@@ -208,14 +208,22 @@
   color: var(--fg-muted);
   font-weight: var(--font-medium);
   text-decoration: none;
-  padding: var(--space-sm) var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   transition: all var(--duration-fast) var(--ease-out);
+  border: 1px solid transparent;
 }
 
 .hero-contact-link:hover {
   color: var(--fg-primary);
-  background: var(--bg-tertiary);
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.12) 0%,
+    rgba(249, 115, 22, 0.08) 100%
+  );
+  border-color: rgba(234, 88, 12, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
 }
 
 /* Stats */
@@ -282,23 +290,63 @@
   align-items: center;
   text-align: center;
   padding: var(--space-xl);
-  background: var(--bg-secondary);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   transition: all var(--duration-normal) var(--ease-out);
   text-decoration: none;
   position: relative;
   overflow: hidden;
+  animation: cardFadeIn var(--duration-slow) var(--ease-out) both;
 }
 
-/* Subtle gradient overlay on cards */
+/* Stagger animation for cards */
+.quick-link-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.quick-link-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.quick-link-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.quick-link-card:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Gradient overlay on cards */
 .quick-link-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.05) 0%, rgba(249, 115, 22, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.12) 0%,
+    rgba(249, 115, 22, 0.06) 100%
+  );
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
+  z-index: 0;
+}
+
+.quick-link-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .quick-link-card:hover::before {
@@ -306,9 +354,12 @@
 }
 
 .quick-link-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(234, 88, 12, 0.4);
-  box-shadow: var(--shadow-lg), 0 0 32px rgba(234, 88, 12, 0.15);
+  transform: translateY(-6px);
+  border-color: rgba(234, 88, 12, 0.5);
+  box-shadow: 
+    var(--shadow-xl),
+    0 0 40px rgba(234, 88, 12, 0.25),
+    inset 0 0 20px rgba(234, 88, 12, 0.1);
 }
 
 .quick-link-card h3 {

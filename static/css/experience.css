@@ -181,6 +181,7 @@
 
 .filter-pill.active:hover {
   background: var(--accent-secondary);
+  color: white;
   border-color: var(--accent-secondary);
 }
 
