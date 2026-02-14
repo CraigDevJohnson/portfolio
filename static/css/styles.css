@@ -492,6 +492,7 @@ code {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-gradient-hover);
+  color: white;
   transform: translateY(-2px);
   box-shadow:
     var(--shadow-md),
@@ -534,6 +535,7 @@ code {
 
 .btn-success:hover:not(:disabled) {
   filter: brightness(1.1);
+  color: white;
   transform: translateY(-1px);
 }
 
