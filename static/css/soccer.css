@@ -95,6 +95,14 @@
 .info-inline a {
   color: var(--fg-accent);
   font-weight: var(--font-medium);
+  text-decoration: none;
+  transition: all var(--duration-fast) var(--ease-out);
+  border-bottom: 1px solid transparent;
+}
+
+.info-inline a:hover {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
 }
 
 .form-group {
@@ -293,11 +301,16 @@
 }
 
 .games-table tbody tr {
-  transition: background-color var(--duration-fast) var(--ease-out);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .games-table tbody tr:hover {
-  background: var(--bg-tertiary);
+  background: linear-gradient(
+    90deg,
+    rgba(234, 88, 12, 0.08) 0%,
+    var(--bg-tertiary) 100%
+  );
+  box-shadow: inset 2px 0 0 var(--accent-primary);
 }
 
 .col-check {
