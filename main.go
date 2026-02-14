@@ -38,6 +38,8 @@ func main() {
 	http.HandleFunc("/experience/timeline", experienceTimelineHandler)
 	http.HandleFunc("/skills", skillsHandler)
 	http.HandleFunc("/skills/grid", skillsGridHandler)
+	http.HandleFunc("/skills/filtered", skillsFilteredHandler)
+	http.HandleFunc("/skills/detail", skillsDetailHandler)
 	http.HandleFunc("/projects", projectsHandler)
 	http.HandleFunc("/projects/grid", projectsGridHandler)
 	http.HandleFunc("/education", educationHandler)
@@ -236,13 +238,13 @@ func skillsData() []SkillCategory {
 		{
 			Name: "Languages & Scripting",
 			Skills: []Skill{
-				{ID: 5, Name: "Bash", IconPath: "/static/images/skills/bash.svg", Link: "https://www.gnu.org/software/bash/", Proficiency: "expert", Featured: true},
-				{ID: 2, Name: "Go", IconPath: "/static/images/skills/go.svg", Link: "https://go.dev/", Proficiency: "advanced", Featured: true},
+				{ID: 5, Name: "Bash", IconPath: "/static/images/skills/bash.svg", Link: "https://www.gnu.org/software/bash/", Proficiency: "expert", Featured: true, Description: "Unix shell and command language for task automation and system administration"},
+				{ID: 2, Name: "Go", IconPath: "/static/images/skills/go.svg", Link: "https://go.dev/", Proficiency: "advanced", Featured: true, Description: "Statically typed language for building scalable cloud services and CLI tools"},
 				{ID: 3, Name: "JavaScript", IconPath: "/static/images/skills/javascript.svg", Link: "https://developer.mozilla.org/en-US/docs/Web/JavaScript", Proficiency: "advanced"},
 				{ID: 10, Name: "JSON", IconPath: "/static/images/skills/json.svg", Link: "https://www.json.org/", Proficiency: "expert"},
 				{ID: 11, Name: "Markdown", IconPath: "/static/images/skills/markdown.svg", Link: "https://www.markdownguide.org/", Proficiency: "expert"},
-				{ID: 6, Name: "PowerShell", IconPath: "/static/images/skills/powershell.svg", Link: "https://learn.microsoft.com/en-us/powershell/", Proficiency: "expert", Featured: true},
-				{ID: 1, Name: "Python", IconPath: "/static/images/skills/python.svg", Link: "https://www.python.org/", Proficiency: "expert", Featured: true},
+				{ID: 6, Name: "PowerShell", IconPath: "/static/images/skills/powershell.svg", Link: "https://learn.microsoft.com/en-us/powershell/", Proficiency: "expert", Featured: true, Description: "Cross-platform framework for configuration management and task automation"},
+				{ID: 1, Name: "Python", IconPath: "/static/images/skills/python.svg", Link: "https://www.python.org/", Proficiency: "expert", Featured: true, Description: "Versatile language for automation, scripting, and cloud infrastructure tooling"},
 				{ID: 4, Name: "TypeScript", IconPath: "/static/images/skills/typescript.svg", Link: "https://www.typescriptlang.org/", Proficiency: "intermediate"},
 				{ID: 9, Name: "YAML", IconPath: "/static/images/skills/yaml.svg", Link: "https://yaml.org/", Proficiency: "expert"},
 			},
@@ -250,8 +252,8 @@ func skillsData() []SkillCategory {
 		{
 			Name: "Cloud Platforms",
 			Skills: []Skill{
-				{ID: 12, Name: "AWS", IconPath: "/static/images/skills/aws.svg", Link: "https://aws.amazon.com/", Proficiency: "expert", Featured: true},
-				{ID: 13, Name: "Azure", IconPath: "/static/images/skills/azure.svg", Link: "https://azure.microsoft.com/", Proficiency: "advanced", Featured: true},
+				{ID: 12, Name: "AWS", IconPath: "/static/images/skills/aws.svg", Link: "https://aws.amazon.com/", Proficiency: "expert", Featured: true, Description: "Primary cloud platform for compute, storage, networking, and serverless solutions"},
+				{ID: 13, Name: "Azure", IconPath: "/static/images/skills/azure.svg", Link: "https://azure.microsoft.com/", Proficiency: "advanced", Featured: true, Description: "Microsoft cloud platform for hybrid identity, VMs, and enterprise services"},
 				{ID: 15, Name: "Cloudflare", IconPath: "/static/images/skills/cloudflare.svg", Link: "https://www.cloudflare.com/", Proficiency: "intermediate"},
 				{ID: 17, Name: "vSphere", IconPath: "/static/images/skills/vsphere.svg", Link: "https://www.vmware.com/products/vsphere.html", Proficiency: "advanced"},
 			},
@@ -260,27 +262,27 @@ func skillsData() []SkillCategory {
 			Name: "Security & Identity",
 			Skills: []Skill{
 				{ID: 121, Name: "Cognito", IconPath: "/static/images/skills/aws_cognito.svg", Link: "https://aws.amazon.com/cognito/", Proficiency: "advanced"},
-				{ID: 120, Name: "IAM", IconPath: "/static/images/skills/aws_iam.svg", Link: "https://aws.amazon.com/iam/", Proficiency: "expert", Featured: true},
+				{ID: 120, Name: "IAM", IconPath: "/static/images/skills/aws_iam.svg", Link: "https://aws.amazon.com/iam/", Proficiency: "expert", Featured: true, Description: "Identity and access management for implementing least-privilege security"},
 				{ID: 30, Name: "Vault", IconPath: "/static/images/skills/hashicorp_vault.svg", Link: "https://www.vaultproject.io/", Proficiency: "advanced"},
 			},
 		},
 		{
 			Name: "Containers & Orchestration",
 			Skills: []Skill{
-				{ID: 18, Name: "Docker", IconPath: "/static/images/skills/docker.svg", Link: "https://www.docker.com/", Proficiency: "expert", Featured: true},
-				{ID: 19, Name: "Kubernetes", IconPath: "/static/images/skills/kubernetes.svg", Link: "https://kubernetes.io/", Proficiency: "advanced", Featured: true},
-				{ID: 20, Name: "Podman", IconPath: "/static/images/skills/podman.svg", Link: "https://podman.io/", Proficiency: "advanced", Featured: true},
+				{ID: 18, Name: "Docker", IconPath: "/static/images/skills/docker.svg", Link: "https://www.docker.com/", Proficiency: "expert", Featured: true, Description: "Container platform for building, shipping, and running applications consistently"},
+				{ID: 19, Name: "Kubernetes", IconPath: "/static/images/skills/kubernetes.svg", Link: "https://kubernetes.io/", Proficiency: "advanced", Featured: true, Description: "Container orchestration for deploying and scaling containerized workloads"},
+				{ID: 20, Name: "Podman", IconPath: "/static/images/skills/podman.svg", Link: "https://podman.io/", Proficiency: "advanced", Featured: true, Description: "Daemonless container engine for running OCI containers and pods"},
 				{ID: 101, Name: "Rancher", IconPath: "/static/images/skills/rancher.svg", Link: "https://www.rancher.com/", Proficiency: "intermediate"},
 			},
 		},
 		{
 			Name: "CI/CD & Automation",
 			Skills: []Skill{
-				{ID: 27, Name: "Ansible", IconPath: "/static/images/skills/ansible.svg", Link: "https://www.ansible.com/", Proficiency: "expert", Featured: true},
+				{ID: 27, Name: "Ansible", IconPath: "/static/images/skills/ansible.svg", Link: "https://www.ansible.com/", Proficiency: "expert", Featured: true, Description: "Agentless automation for configuration management and application deployment"},
 				{ID: 125, Name: "CodeBuild", IconPath: "/static/images/skills/aws_codebuild.svg", Link: "https://aws.amazon.com/codebuild/", Proficiency: "advanced"},
 				{ID: 126, Name: "CodeDeploy", IconPath: "/static/images/skills/aws_codedeploy.svg", Link: "https://aws.amazon.com/codedeploy/", Proficiency: "advanced"},
 				{ID: 127, Name: "CodePipeline", IconPath: "/static/images/skills/aws_codepipeline.svg", Link: "https://aws.amazon.com/codepipeline/", Proficiency: "advanced"},
-				{ID: 22, Name: "GitHub Actions", IconPath: "/static/images/skills/github_actions.svg", Link: "https://github.com/features/actions", Proficiency: "expert", Featured: true},
+				{ID: 22, Name: "GitHub Actions", IconPath: "/static/images/skills/github_actions.svg", Link: "https://github.com/features/actions", Proficiency: "expert", Featured: true, Description: "CI/CD platform for automating build, test, and deployment workflows"},
 				{ID: 24, Name: "Jenkins", IconPath: "/static/images/skills/jenkins.svg", Link: "https://www.jenkins.io/", Proficiency: "advanced"},
 				{ID: 28, Name: "Packer", IconPath: "/static/images/skills/packer.svg", Link: "https://www.packer.io/", Proficiency: "intermediate"},
 				{ID: 103, Name: "Puppet", IconPath: "/static/images/skills/puppet.svg", Link: "https://www.puppet.com/", Proficiency: "intermediate"},
@@ -289,9 +291,9 @@ func skillsData() []SkillCategory {
 		{
 			Name: "Infrastructure as Code",
 			Skills: []Skill{
-				{ID: 107, Name: "CloudFormation", IconPath: "/static/images/skills/cloudformation.svg", Link: "https://aws.amazon.com/cloudformation/", Proficiency: "expert", Featured: true},
+				{ID: 107, Name: "CloudFormation", IconPath: "/static/images/skills/cloudformation.svg", Link: "https://aws.amazon.com/cloudformation/", Proficiency: "expert", Featured: true, Description: "AWS-native infrastructure as code for provisioning cloud resources"},
 				{ID: 104, Name: "OpenTofu", IconPath: "/static/images/skills/opentofu.svg", Link: "https://opentofu.org/", Proficiency: "advanced"},
-				{ID: 29, Name: "Terraform", IconPath: "/static/images/skills/hashicorp_terraform.svg", Link: "https://www.terraform.io/", Proficiency: "expert", Featured: true},
+				{ID: 29, Name: "Terraform", IconPath: "/static/images/skills/hashicorp_terraform.svg", Link: "https://www.terraform.io/", Proficiency: "expert", Featured: true, Description: "Multi-cloud infrastructure as code for declarative resource provisioning"},
 				{ID: 105, Name: "Terragrunt", IconPath: "/static/images/skills/terragrunt.svg", Link: "https://terragrunt.gruntwork.io/", Proficiency: "advanced"},
 				{ID: 106, Name: "Terramate", IconPath: "/static/images/skills/terramate.svg", Link: "https://terramate.io/", Proficiency: "intermediate"},
 			},
@@ -323,7 +325,7 @@ func skillsData() []SkillCategory {
 		{
 			Name: "Development Tools",
 			Skills: []Skill{
-				{ID: 44, Name: "Git", IconPath: "/static/images/skills/git.svg", Link: "https://git-scm.com/", Proficiency: "expert", Featured: true},
+				{ID: 44, Name: "Git", IconPath: "/static/images/skills/git.svg", Link: "https://git-scm.com/", Proficiency: "expert", Featured: true, Description: "Distributed version control for collaborative development and code management"},
 				{ID: 45, Name: "GitHub", IconPath: "/static/images/skills/github.svg", Link: "https://github.com/", Proficiency: "expert"},
 				{ID: 46, Name: "GitHub Codespaces", IconPath: "/static/images/skills/github_codespaces.svg", Link: "https://github.com/features/codespaces", Proficiency: "advanced"},
 				{ID: 50, Name: "Node.js", IconPath: "/static/images/skills/node.js.svg", Link: "https://nodejs.org/", Proficiency: "advanced"},
@@ -351,7 +353,7 @@ func skillsData() []SkillCategory {
 				{ID: 109, Name: "RHEL", IconPath: "/static/images/skills/red_hat.svg", Link: "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux", Proficiency: "expert"},
 				{ID: 110, Name: "Ubuntu", IconPath: "/static/images/skills/ubuntu.svg", Link: "https://ubuntu.com/", Proficiency: "expert"},
 				{ID: 59, Name: "Windows", IconPath: "/static/images/skills/windows.svg", Link: "https://www.microsoft.com/windows/", Proficiency: "expert"},
-				{ID: 57, Name: "Linux", IconPath: "/static/images/skills/linux.svg", Link: "https://www.linux.org/", Proficiency: "expert", Featured: true},
+				{ID: 57, Name: "Linux", IconPath: "/static/images/skills/linux.svg", Link: "https://www.linux.org/", Proficiency: "expert", Featured: true, Description: "Primary operating system for servers, containers, and cloud infrastructure"},
 			},
 		},
 		{
@@ -397,6 +399,7 @@ func getFeaturedSkills(categories []SkillCategory) []Skill {
 	for _, category := range categories {
 		for _, skill := range category.Skills {
 			if skill.Featured {
+				skill.Category = category.Name
 				featured = append(featured, skill)
 			}
 		}
@@ -418,6 +421,61 @@ func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
 		FeaturedSkills: getFeaturedSkills(categories),
 	}
 	err := partials.SkillsGrid(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func skillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
+	categories := skillsData()
+	activeCategory := r.URL.Query().Get("category")
+	activeProficiency := r.URL.Query().Get("proficiency")
+
+	props := partials.SkillsFilterableProps{
+		Categories:        categories,
+		ActiveCategory:    activeCategory,
+		ActiveProficiency: activeProficiency,
+	}
+	err := partials.SkillsFilterableSection(props).Render(context.Background(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "invalid skill id", http.StatusBadRequest)
+		return
+	}
+
+	categories := skillsData()
+	var found Skill
+	var foundCategory string
+	for _, cat := range categories {
+		for _, skill := range cat.Skills {
+			if skill.ID == id {
+				found = skill
+				foundCategory = cat.Name
+				break
+			}
+		}
+		if found.Name != "" {
+			break
+		}
+	}
+
+	if found.Name == "" {
+		http.Error(w, "skill not found", http.StatusNotFound)
+		return
+	}
+
+	found.Category = foundCategory
+	props := partials.SkillDetailProps{
+		Skill: found,
+	}
+	err = partials.SkillDetail(props).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

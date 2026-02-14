@@ -29,6 +29,8 @@ type Skill struct {
 	Link        string
 	Proficiency string // "expert", "advanced", "intermediate", "familiar"
 	Featured    bool   // Whether to show in featured skills section
+	Category    string // Category this skill belongs to (populated for featured skills)
+	Description string // Short description for skill detail view
 }
 
 // SkillCategory represents a category of skills

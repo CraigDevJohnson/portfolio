@@ -1,0 +1,48 @@
+package partials
+
+import (
+	"fmt"
+	"portfolio/types"
+)
+
+type SkillDetailProps struct {
+	Skill types.Skill
+}
+
+templ SkillDetail(props SkillDetailProps) {
+	<div class="skill-detail-card">
+		<button class="skill-detail-close" onclick="this.closest('.skill-detail-slot').innerHTML=''" aria-label="Close detail" type="button">&times;</button>
+		<div class="skill-detail-content">
+			<div class="skill-detail-icon">
+				if props.Skill.IconPath != "" {
+					<img src={ props.Skill.IconPath } alt={ props.Skill.Name }/>
+				} else if props.Skill.Icon != "" {
+					@templ.Raw(props.Skill.Icon)
+				}
+			</div>
+			<div class="skill-detail-info">
+				<h4 class="skill-detail-name">{ props.Skill.Name }</h4>
+				if props.Skill.Category != "" {
+					<span class={ "skill-detail-category", fmt.Sprintf("category-tag-%s", catSlug(props.Skill.Category)) }>{ props.Skill.Category }</span>
+				}
+				<div class="skill-detail-proficiency">
+					<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", props.Skill.Proficiency) }>
+						{ props.Skill.Proficiency }
+					</div>
+					<div class="proficiency-bar">
+						<div class={ fmt.Sprintf("proficiency-fill proficiency-fill-%s", props.Skill.Proficiency) }></div>
+					</div>
+				</div>
+				if props.Skill.Description != "" {
+					<p class="skill-detail-desc">{ props.Skill.Description }</p>
+				}
+				if props.Skill.Link != "" {
+					<a href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link">
+						Learn More
+						<span class="link-arrow">↗</span>
+					</a>
+				}
+			</div>
+		</div>
+	</div>
+}

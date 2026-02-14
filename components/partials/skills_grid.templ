@@ -1,16 +1,93 @@
 package partials
 
-import "fmt"
-import "portfolio/types"
+import (
+	"fmt"
+	"net/url"
+	"portfolio/types"
+	"strings"
+)
 
 type SkillsGridProps struct {
 	Categories     []types.SkillCategory
 	FeaturedSkills []types.Skill
 }
 
+type SkillsFilterableProps struct {
+	Categories        []types.SkillCategory
+	ActiveCategory    string
+	ActiveProficiency string
+}
+
+// buildFilterURL constructs a URL for the skills filter endpoint
+func buildFilterURL(category, proficiency string) string {
+	params := url.Values{}
+	if category != "" {
+		params.Set("category", category)
+	}
+	if proficiency != "" {
+		params.Set("proficiency", proficiency)
+	}
+	q := params.Encode()
+	if q == "" {
+		return "/skills/filtered"
+	}
+	return "/skills/filtered?" + q
+}
+
+// catSlug converts a category name to a CSS-friendly slug
+func catSlug(name string) string {
+	s := strings.ToLower(name)
+	s = strings.ReplaceAll(s, " & ", "-")
+	s = strings.ReplaceAll(s, "/", "")
+	s = strings.ReplaceAll(s, " ", "-")
+	return s
+}
+
+// countCategorySkills counts visible skills (non-featured, matching proficiency filter)
+func countCategorySkills(skills []types.Skill, proficiency string) int {
+	c := 0
+	for _, s := range skills {
+		if s.Featured {
+			continue
+		}
+		if proficiency != "" && s.Proficiency != proficiency {
+			continue
+		}
+		c++
+	}
+	return c
+}
+
+// shouldShowSkill checks if a skill should be displayed in the grid
+func shouldShowSkill(skill types.Skill, proficiency string) bool {
+	if skill.Featured {
+		return false
+	}
+	if proficiency != "" && skill.Proficiency != proficiency {
+		return false
+	}
+	return true
+}
+
+// hasVisibleSkills checks if any categories have visible skills after filtering
+func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activeProficiency string) bool {
+	for _, cat := range categories {
+		if cat.Name == "Concepts & Practices" {
+			continue
+		}
+		if activeCategory != "" && cat.Name != activeCategory {
+			continue
+		}
+		if countCategorySkills(cat.Skills, activeProficiency) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 templ SkillsGrid(props SkillsGridProps) {
 	<div class="skills-container">
-		<!-- Featured Skills Section -->
+		<!-- Core Competencies -->
 		if len(props.FeaturedSkills) > 0 {
 			<div class="featured-skills-section">
 				<div class="featured-header">
@@ -31,6 +108,12 @@ templ SkillsGrid(props SkillsGridProps) {
 									</div>
 									<div class="skill-card-content">
 										<h3 class="skill-card-name">{ skill.Name }</h3>
+										if skill.Category != "" {
+											<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
+										}
+										if skill.Description != "" {
+											<p class="skill-card-desc">{ skill.Description }</p>
+										}
 										<div class="skill-proficiency">
 											<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
 												{ skill.Proficiency }
@@ -50,6 +133,12 @@ templ SkillsGrid(props SkillsGridProps) {
 									</div>
 									<div class="skill-card-content">
 										<h3 class="skill-card-name">{ skill.Name }</h3>
+										if skill.Category != "" {
+											<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
+										}
+										if skill.Description != "" {
+											<p class="skill-card-desc">{ skill.Description }</p>
+										}
 										<div class="skill-proficiency">
 											<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
 												{ skill.Proficiency }
@@ -63,86 +152,220 @@ templ SkillsGrid(props SkillsGridProps) {
 				</div>
 			</div>
 		}
-		<!-- All Skills by Category -->
-		<div class="all-skills-section">
-			<h2 class="section-divider">All Technical Skills</h2>
-			for catIndex, cat := range props.Categories {
-				if cat.Name != "Concepts & Practices" {
-					<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*100) }>
-						<h3 class="category-title">{ cat.Name }</h3>
-						<div class="skills-grid">
-							for skillIndex, skill := range cat.Skills {
-								if skill.Link != "" {
-									<a
-										href={ templ.SafeURL(skill.Link) }
-										target="_blank"
-										rel="noopener noreferrer"
-										class="skill-icon-btn"
-										data-tooltip={ skill.Name }
-										data-proficiency={ skill.Proficiency }
-										style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
-									>
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt={ skill.Name }/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
-									</a>
-								} else {
-									<span
-										class="skill-icon-btn"
-										data-tooltip={ skill.Name }
-										data-proficiency={ skill.Proficiency }
-										tabindex="0"
-										style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
-									>
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt={ skill.Name }/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-										<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
-									</span>
-								}
-							}
-						</div>
-					</div>
-				}
-			}
-		</div>
-		<!-- Concepts & Practices Section -->
+		<!-- Concepts & Practices (elevated position) -->
 		for _, cat := range props.Categories {
 			if cat.Name == "Concepts & Practices" {
-				<div class="skill-category conceptual-skills">
-					<h3 class="category-title">{ cat.Name }</h3>
-					<div class="skills-grid">
-						for skillIndex, skill := range cat.Skills {
+				<div class="concepts-section">
+					<div class="concepts-header">
+						<h2 class="concepts-title">Concepts &amp; Practices</h2>
+						<p class="concepts-subtitle">Engineering principles that guide my approach</p>
+					</div>
+					<div class="concepts-grid">
+						for i, skill := range cat.Skills {
 							if skill.Link != "" {
 								<a
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="conceptual-badge"
-									style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+									class="concept-card"
+									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
-									if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
-									}
-									<span>{ skill.Name }</span>
+									<div class="concept-icon">
+										if skill.Icon != "" {
+											@templ.Raw(skill.Icon)
+										}
+									</div>
+									<div class="concept-info">
+										<span class="concept-name">{ skill.Name }</span>
+										<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
+											{ skill.Proficiency }
+										</div>
+									</div>
+									<span class="concept-arrow">↗</span>
 								</a>
 							} else {
-								<span class="conceptual-badge" style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }>
-									if skill.Icon != "" {
-										@templ.Raw(skill.Icon)
-									}
-									<span>{ skill.Name }</span>
-								</span>
+								<div
+									class="concept-card"
+									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
+								>
+									<div class="concept-icon">
+										if skill.Icon != "" {
+											@templ.Raw(skill.Icon)
+										}
+									</div>
+									<div class="concept-info">
+										<span class="concept-name">{ skill.Name }</span>
+										<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
+											{ skill.Proficiency }
+										</div>
+									</div>
+								</div>
 							}
 						}
 					</div>
 				</div>
 			}
 		}
+		<!-- Filterable Skills Section -->
+		@SkillsFilterableSection(SkillsFilterableProps{
+			Categories:        props.Categories,
+			ActiveCategory:    "",
+			ActiveProficiency: "",
+		})
+	</div>
+}
+
+templ SkillsFilterableSection(props SkillsFilterableProps) {
+	<div id="skills-filterable" class="filterable-section">
+		<!-- Filter Bar -->
+		<div class="skills-filter-bar">
+			<div class="filter-group">
+				<span class="filter-label">Category</span>
+				<div class="filter-tabs category-filter-tabs" role="tablist">
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveCategory == "") }
+						hx-get={ buildFilterURL("", props.ActiveProficiency) }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+						aria-selected={ fmt.Sprintf("%t", props.ActiveCategory == "") }
+					>
+						All
+					</button>
+					for _, cat := range props.Categories {
+						if cat.Name != "Concepts & Practices" {
+							<button
+								type="button"
+								class={ "filter-tab", templ.KV("active", props.ActiveCategory == cat.Name) }
+								hx-get={ buildFilterURL(cat.Name, props.ActiveProficiency) }
+								hx-target="#skills-filterable"
+								hx-swap="outerHTML"
+								role="tab"
+								aria-selected={ fmt.Sprintf("%t", props.ActiveCategory == cat.Name) }
+							>
+								{ cat.Name }
+							</button>
+						}
+					}
+				</div>
+			</div>
+			<div class="filter-group">
+				<span class="filter-label">Proficiency</span>
+				<div class="filter-tabs proficiency-filter-tabs" role="tablist">
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "") }
+						hx-get={ buildFilterURL(props.ActiveCategory, "") }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+					>
+						All
+					</button>
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "expert") }
+						hx-get={ buildFilterURL(props.ActiveCategory, "expert") }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+					>
+						<span class="filter-dot level-expert"></span> Expert
+					</button>
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "advanced") }
+						hx-get={ buildFilterURL(props.ActiveCategory, "advanced") }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+					>
+						<span class="filter-dot level-advanced"></span> Advanced
+					</button>
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "intermediate") }
+						hx-get={ buildFilterURL(props.ActiveCategory, "intermediate") }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+					>
+						<span class="filter-dot level-intermediate"></span> Intermediate
+					</button>
+					<button
+						type="button"
+						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "familiar") }
+						hx-get={ buildFilterURL(props.ActiveCategory, "familiar") }
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+						role="tab"
+					>
+						<span class="filter-dot level-familiar"></span> Familiar
+					</button>
+				</div>
+			</div>
+		</div>
+		<!-- Section Heading -->
+		<h2 class="section-divider">
+			<span class="section-divider-line"></span>
+			<span class="section-divider-text">All Technical Skills</span>
+			<span class="section-divider-line"></span>
+		</h2>
+		<!-- Skills Grid -->
+		<div class="all-skills-section">
+			if hasVisibleSkills(props.Categories, props.ActiveCategory, props.ActiveProficiency) {
+				for catIndex, cat := range props.Categories {
+					if cat.Name != "Concepts & Practices" && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
+						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
+							<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
+								<h3 class="category-title">
+									{ cat.Name }
+									<span class="category-count">{ fmt.Sprintf("%d", countCategorySkills(cat.Skills, props.ActiveProficiency)) }</span>
+								</h3>
+								<div class="skills-grid">
+									for skillIndex, skill := range cat.Skills {
+										if shouldShowSkill(skill, props.ActiveProficiency) {
+											<button
+												type="button"
+												class="skill-icon-btn"
+												data-tooltip={ skill.Name }
+												data-proficiency={ skill.Proficiency }
+												data-skill-id={ fmt.Sprintf("%d", skill.ID) }
+												hx-get={ fmt.Sprintf("/skills/detail?id=%d", skill.ID) }
+												hx-target={ fmt.Sprintf("#detail-slot-%d", catIndex) }
+												hx-swap="innerHTML"
+												style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
+											>
+												if skill.IconPath != "" {
+													<img src={ skill.IconPath } alt={ skill.Name }/>
+												} else if skill.Icon != "" {
+													@templ.Raw(skill.Icon)
+												}
+												<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
+											</button>
+										}
+									}
+								</div>
+								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="skill-detail-slot"></div>
+							</div>
+						}
+					}
+				}
+			} else {
+				<div class="no-results">
+					<p>No skills match the selected filters.</p>
+					<button
+						type="button"
+						class="btn btn-secondary btn-sm"
+						hx-get="/skills/filtered"
+						hx-target="#skills-filterable"
+						hx-swap="outerHTML"
+					>
+						Clear Filters
+					</button>
+				</div>
+			}
+		</div>
 	</div>
 }

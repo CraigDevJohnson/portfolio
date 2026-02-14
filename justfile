@@ -1,13 +1,14 @@
 # Portfolio Server justfile
 
-# Default values
-BINARY := "portfolio-server"
+# Set shell for Windows
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
+# Default values - use .exe extension on Windows
+BINARY := if os() == "windows" { "portfolio-server.exe" } else { "portfolio-server" }
 GO := "go"
 GOFLAGS := ""
-
-# Set shell for Windows compatibility
-# On Windows, ensure you have Git Bash, WSL, or another POSIX shell in PATH
-set windows-shell := ["sh", "-cu"]
+# Use Go-installed templ binary (avoids PATH conflict with .cargo/bin/templ on Windows)
+TEMPL := if os() == "windows" { `go env GOPATH` + "\\bin\\templ.exe" } else { "templ" }
 
 # Default recipe (runs when you just run 'just')
 default: build
@@ -19,8 +20,7 @@ generate: templ
 # Check and generate Templ components
 [group('build')]
 templ:
-    @command -v templ >/dev/null 2>&1 || { echo "templ not installed. Run 'go install github.com/a-h/templ/cmd/templ@latest' to install it."; exit 1; }
-    templ generate
+    {{TEMPL}} generate
 
 # Build the binary
 [group('build')]
@@ -30,7 +30,7 @@ build: generate
 # Build and run the server
 [group('run')]
 run: build
-    ./{{BINARY}}
+    {{ if os() == "windows" { ".\\{{BINARY}}" } else { "./{{BINARY}}" } }}
 
 # Run with Docker Compose
 [group('run')]
@@ -40,7 +40,6 @@ compose:
 # Run with air for hot-reload development
 [group('run')]
 dev:
-    @command -v air >/dev/null 2>&1 || { echo "air not installed. Run 'just install-air' to install it automatically."; exit 1; }
     air
 
 # Install air for hot-reload development
@@ -50,12 +49,19 @@ install-air:
     {{GO}} install github.com/air-verse/air@latest
     @echo "air installed successfully!"
 
+# Install templ for code generation
+[group('tools')]
+install-templ:
+    @echo "Installing templ for code generation..."
+    {{GO}} install github.com/a-h/templ/cmd/templ@latest
+    @echo "templ installed successfully!"
+
 # Remove binary and clean cached files
 [group('clean')]
 clean:
     rm -f {{BINARY}}
     {{GO}} clean
-
+    -{{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
 # Format Go source files
 [group('quality')]
 fmt:
@@ -69,7 +75,6 @@ vet:
 # Run vet and golangci-lint
 [group('quality')]
 lint: vet
-    @command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed. Run 'just install-golangci-lint' to install it automatically."; exit 1; }
     golangci-lint run
 
 # Install golangci-lint for linting
@@ -81,7 +86,7 @@ install-golangci-lint:
 
 # Install all development tools
 [group('tools')]
-install-tools: install-air install-golangci-lint
+install-tools: install-air install-golangci-lint install-templ
     @echo "All development tools installed successfully!"
 
 # Run tests

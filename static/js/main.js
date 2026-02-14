@@ -110,6 +110,23 @@
       setupSoccerSelectAll()
       setupEmailSubscription()
     }
+
+    // Skills page: re-observe new skill categories after filter swap
+    if (evt.detail.target.id === 'skills-filterable' || evt.detail.target.closest('.skills-section')) {
+      const newCategories = evt.detail.target.querySelectorAll('.skill-category')
+      newCategories.forEach(function (el) {
+        observer.observe(el)
+      })
+    }
+  })
+
+  // Skills page: close all detail panels before opening a new one
+  document.body.addEventListener('htmx:beforeRequest', function (evt) {
+    if (evt.detail.elt && evt.detail.elt.classList.contains('skill-icon-btn')) {
+      document.querySelectorAll('.skill-detail-slot').forEach(function (slot) {
+        slot.innerHTML = ''
+      })
+    }
   })
 
   // Initialize on page load (for non-HTMX scenarios)

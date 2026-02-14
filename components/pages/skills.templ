@@ -15,6 +15,32 @@ templ Skills() {
 		</section>
 		<section class="skills-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
 			<div class="skills-container">
+				<!-- Featured skeleton -->
+				<div class="featured-skills-section skeleton-section">
+					<div class="featured-header">
+						<div class="skeleton skeleton-featured-title"></div>
+						<div class="skeleton skeleton-featured-subtitle"></div>
+					</div>
+					<div class="featured-skills-grid">
+						for j := 1; j <= 8; j++ {
+							<div class="skeleton skeleton-featured-card"></div>
+						}
+					</div>
+				</div>
+				<!-- Concepts skeleton -->
+				<div class="concepts-section skeleton-section">
+					<div class="concepts-header">
+						<div class="skeleton skeleton-concepts-title"></div>
+					</div>
+					<div class="concepts-grid">
+						for j := 1; j <= 6; j++ {
+							<div class="skeleton skeleton-concept-card"></div>
+						}
+					</div>
+				</div>
+				<!-- Filter bar skeleton -->
+				<div class="skeleton skeleton-filter-bar"></div>
+				<!-- Category skeletons -->
 				for i := 1; i <= 3; i++ {
 					<div class="skill-category skeleton-category">
 						<div class="skeleton skeleton-category-title"></div>
