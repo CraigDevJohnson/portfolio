@@ -39,15 +39,66 @@
 /* Soccer Content */
 .soccer-content {
   padding-bottom: var(--space-3xl);
+  animation: soccerFadeIn var(--duration-slow) var(--ease-out) both;
+  animation-delay: 0.1s;
+}
+
+@keyframes soccerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Unified Card - Everything in one section */
 .soccer-unified-card {
-  background: var(--bg-secondary);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-md);
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+}
+
+.soccer-unified-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(234, 88, 12, 0.08) 0%,
+    transparent 50%,
+    rgba(13, 148, 136, 0.08) 100%
+  );
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.soccer-unified-card:hover::before {
+  opacity: 1;
+}
+
+.soccer-unified-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.soccer-unified-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 24px rgba(234, 88, 12, 0.12);
 }
 
 /* Header section - form and info side by side */
@@ -65,8 +116,6 @@
 
 .info-inline {
   padding: var(--space-lg);
-  /* border: 1px solid var(--border-color);
-  border-radius: var(--radius-md); */
   height: 100%;
 }
 
@@ -145,7 +194,7 @@
 
 /* Loading Indicator - hidden by default, shown only during HTMX requests */
 .loading-indicator {
-  display: none; /* Hidden by default - no space taken */
+  display: none;
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
@@ -171,7 +220,6 @@
   justify-content: center;
   padding: var(--space-xl);
   text-align: center;
-  /* border-top: 1px solid var(--border-color); */
 }
 
 .empty-state p {
@@ -194,8 +242,6 @@
   display: none;
 }
 
-/* Soccer page uses site's orange theme - no override needed */
-
 .no-results p {
   color: var(--warning-fg);
 }
@@ -207,8 +253,7 @@
 
 /* Games Form / Table */
 .games-form {
-  /* border-top: 1px solid var(--border-color); */
-  animation: fadeIn var(--duration-normal) var(--ease-out);
+  animation: soccerFadeIn var(--duration-normal) var(--ease-out);
 }
 
 .table-header {
@@ -301,16 +346,16 @@
 }
 
 .games-table tbody tr {
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .games-table tbody tr:hover {
   background: linear-gradient(
     90deg,
-    rgba(234, 88, 12, 0.08) 0%,
-    var(--bg-tertiary) 100%
+    rgba(234, 88, 12, 0.1) 0%,
+    rgba(255, 255, 255, 0.03) 100%
   );
-  box-shadow: inset 2px 0 0 var(--accent-primary);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
 }
 
 .col-check {
@@ -344,6 +389,7 @@
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
 }
 
 .col-team {
@@ -364,6 +410,7 @@
   background: rgba(var(--accent-primary-rgb), 0.12);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
 }
 
 /* Subscribe Section */

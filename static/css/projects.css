@@ -84,12 +84,20 @@
 }
 
 .project-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-6px);
   box-shadow: 
     var(--shadow-xl),
-    0 0 40px rgba(234, 88, 12, 0.2);
+    0 0 40px rgba(234, 88, 12, 0.2),
+    inset 0 0 20px rgba(234, 88, 12, 0.05);
   border-color: rgba(234, 88, 12, 0.5);
 }
+
+.project-card:nth-child(1) { animation-delay: 0.1s; }
+.project-card:nth-child(2) { animation-delay: 0.2s; }
+.project-card:nth-child(3) { animation-delay: 0.3s; }
+.project-card:nth-child(4) { animation-delay: 0.4s; }
+.project-card:nth-child(5) { animation-delay: 0.5s; }
+.project-card:nth-child(6) { animation-delay: 0.6s; }
 
 .project-image {
   position: relative;

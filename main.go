@@ -13,6 +13,7 @@ import (
 	"portfolio/types"
 	"strconv"
 	"strings"
+	"time"
 )
 
 /*
@@ -84,11 +85,16 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	startYear := 2012
+	currentYear := time.Now().Year()
 	err := pages.Home(pages.HomeProps{
-		Name:        "Craig Johnson",
-		Role:        "Cloud Engineer Principal",
-		AvatarURL:   gravatarURL("gravatar@craigdevjohnson.com", 275),
-		Description: "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		Name:               "Craig Johnson",
+		Role:               "Cloud Engineer Principal",
+		AvatarURL:          gravatarURL("gravatar@craigdevjohnson.com", 275),
+		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		YearsInTech:        currentYear - startYear,
+		Certifications:     11,
+		AutomationProjects: "100",
 	}).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -102,7 +108,15 @@ About
 */
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.About().Render(context.Background(), w)
+	startYear := 2012
+	currentYear := time.Now().Year()
+	props := pages.AboutProps{
+		YearsInTech:    currentYear - startYear,
+		Certifications: 11,
+		TechUsed:       30,
+		CupsOfCoffee:   "∞",
+	}
+	err := pages.About(props).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -550,8 +564,12 @@ Education
 */
 
 func educationHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.Education().Render(context.Background(), w)
-	if err != nil {
+	props := pages.EducationProps{
+		TotalCerts:      10,
+		Providers:       5,
+		YearsCertifying: time.Now().Year() - 2018,
+	}
+	if err := pages.Education(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

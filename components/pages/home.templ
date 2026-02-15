@@ -1,12 +1,18 @@
 package pages
 
-import "portfolio/components/layouts"
+import (
+	"portfolio/components/layouts"
+	"fmt"
+)
 
 type HomeProps struct {
-	Name        string
-	Role        string
-	AvatarURL   string
-	Description string
+	Name          string
+	Role          string
+	AvatarURL     string
+	Description   string
+	YearsInTech   int
+	Certifications int
+	AutomationProjects string
 }
 
 templ Home(props HomeProps) {
@@ -15,9 +21,10 @@ templ Home(props HomeProps) {
 		Page:  "home",
 	}) {
 		<section class="hero">
-			<div class="hero-background">
-				<div class="hero-gradient"></div>
-				<div class="hero-pattern"></div>
+			<div class="hero-bg">
+				<div class="hero-orb hero-orb-1"></div>
+				<div class="hero-orb hero-orb-2"></div>
+				<div class="hero-orb hero-orb-3"></div>
 			</div>
 			<div class="hero-content">
 				<div class="hero-avatar">
@@ -61,54 +68,125 @@ templ Home(props HomeProps) {
 						<a href="/contact" class="hero-contact-link">Get in Touch</a>
 					</div>
 					<div class="hero-stats">
-						<div class="stat" id="years-stat">
-							<span class="stat-value" data-start-year="2012"></span>
+						<div class="stat">
+							<span class="home-stat-value" data-target={ fmt.Sprintf("%d", props.YearsInTech) }>0</span>
 							<span class="stat-label">Years Experience</span>
 						</div>
 						<div class="stat">
-							<span class="stat-value">5+</span>
-							<span class="stat-label">Cloud Certifications</span>
+							<span class="home-stat-value" data-target={ fmt.Sprintf("%d", props.Certifications) }>0</span>
+							<span class="stat-label">Certifications</span>
 						</div>
 						<div class="stat">
-							<span class="stat-value">100+</span>
+							<span class="home-stat-value" data-target={ props.AutomationProjects }>0</span>
 							<span class="stat-label">Automation Projects</span>
 						</div>
 					</div>
 				</div>
 			</div>
 		</section>
-		<script>
-  // Auto-calculate years in tech
-  document.addEventListener('DOMContentLoaded', function () {
-    const yearsStat = document.querySelector('#years-stat .stat-value')
-    if (yearsStat && yearsStat.dataset.startYear) {
-      const startYear = parseInt(yearsStat.dataset.startYear)
-      const currentYear = new Date().getFullYear()
-      const years = currentYear - startYear
-      yearsStat.textContent = years + '+'
-    }
-  })
-</script>
-		<section class="quick-links">
-			<h2 class="section-title">Quick Links</h2>
+		<!-- What I Do -->
+		<section class="home-what-i-do">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>What I Do</span>
+			</div>
+			<h2 class="section-heading">Building the Future of Infrastructure</h2>
+			<div class="what-i-do-grid">
+				<div class="what-i-do-card">
+					<div class="wid-icon-wrap">
+						<span class="wid-icon">☁️</span>
+					</div>
+					<h3>Cloud Architecture</h3>
+					<p>Designing and implementing scalable, secure cloud infrastructure on AWS and Azure</p>
+				</div>
+				<div class="what-i-do-card">
+					<div class="wid-icon-wrap">
+						<span class="wid-icon">⚙️</span>
+					</div>
+					<h3>Infrastructure as Code</h3>
+					<p>Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments</p>
+				</div>
+				<div class="what-i-do-card">
+					<div class="wid-icon-wrap">
+						<span class="wid-icon">🔄</span>
+					</div>
+					<h3>CI/CD & DevOps</h3>
+					<p>Building pipelines with GitHub Actions and implementing GitOps for continuous delivery</p>
+				</div>
+				<div class="what-i-do-card">
+					<div class="wid-icon-wrap">
+						<span class="wid-icon">🔒</span>
+					</div>
+					<h3>Security & Compliance</h3>
+					<p>Implementing zero-trust architecture, IAM policies, and security automation</p>
+				</div>
+			</div>
+		</section>
+		<!-- Explore -->
+		<section class="home-explore">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>Explore</span>
+			</div>
+			<h2 class="section-heading">Dive Deeper</h2>
 			<div class="links-grid">
 				<a href="/experience" class="quick-link-card">
+					<span class="ql-icon">💼</span>
 					<h3>Experience</h3>
-					<p>View my professional journey</p>
+					<p>View my professional journey through cloud engineering and IT</p>
+					<span class="ql-arrow">→</span>
 				</a>
 				<a href="/skills" class="quick-link-card">
+					<span class="ql-icon">🛠️</span>
 					<h3>Skills</h3>
-					<p>Technical proficiencies</p>
+					<p>60+ tools and technologies I use to build and automate</p>
+					<span class="ql-arrow">→</span>
 				</a>
 				<a href="/projects" class="quick-link-card">
+					<span class="ql-icon">🚀</span>
 					<h3>Projects</h3>
-					<p>See what I've built</p>
+					<p>Real-world applications and automation I've built</p>
+					<span class="ql-arrow">→</span>
 				</a>
 				<a href="/soccer" class="quick-link-card">
+					<span class="ql-icon">⚽</span>
 					<h3>Soccer Tool</h3>
-					<p>Schedule download utility</p>
+					<p>A schedule download utility built with Python and AWS Lambda</p>
+					<span class="ql-arrow">→</span>
 				</a>
 			</div>
 		</section>
+		<script>
+  // Animate stat counters on scroll
+  document.addEventListener('DOMContentLoaded', function () {
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            var counters = document.querySelectorAll('.home-stat-value')
+            counters.forEach(function (counter) {
+              var target = parseInt(counter.dataset.target) || 0
+              var duration = 2000
+              var start = performance.now()
+              function update(now) {
+                var elapsed = now - start
+                var progress = Math.min(elapsed / duration, 1)
+                var ease = 1 - Math.pow(1 - progress, 3)
+                counter.textContent = Math.floor(target * ease)
+                if (progress < 1) requestAnimationFrame(update)
+                else counter.textContent = counter.dataset.target + '+'
+              }
+              requestAnimationFrame(update)
+            })
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+    var statsRow = document.querySelector('.hero-stats')
+    if (statsRow) observer.observe(statsRow)
+  })
+</script>
 	}
 }
