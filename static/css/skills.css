@@ -1034,64 +1034,6 @@
   border-radius: var(--radius-lg);
 }
 
-/* CTA Section */
-.skills-cta-section {
-  background: linear-gradient(
-    135deg,
-    rgba(234, 88, 12, 0.12) 0%,
-    rgba(13, 148, 136, 0.08) 100%
-  );
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-3xl);
-  overflow: hidden;
-  padding: var(--space-3xl) var(--space-2xl);
-  position: relative;
-  text-align: center;
-}
-
-.skills-cta-section .cta-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  height: 300px;
-  background: radial-gradient(
-    ellipse,
-    rgba(var(--accent-primary-rgb), 0.15) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.skills-cta-section > * {
-  position: relative;
-  z-index: 1;
-}
-
-.skills-cta-section h2 {
-  margin-bottom: var(--space-sm);
-  font-size: var(--text-2xl);
-}
-
-.skills-cta-section .cta-subtitle {
-  color: var(--fg-muted);
-  margin-bottom: var(--space-xl);
-  font-size: var(--text-base);
-}
-
-.skills-cta-section .btn-icon {
-  display: inline-block;
-  transition: transform var(--duration-fast);
-}
-
-.skills-cta-section .btn-primary:hover .btn-icon {
-  transform: translateX(4px);
-}
-
-
 /* ================================
    Responsive Design
 ================================ */

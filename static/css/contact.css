@@ -4,14 +4,7 @@
 
 /* Hero Section */
 .contact-hero {
-  padding: var(--space-3xl) 0 var(--space-2xl);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 0;
   background-image: url('/static/images/backgrounds/contact-hero.jpg');
-  background-size: cover;
-  background-position: center 30%;
 }
 
 .contact-hero-bg {
@@ -34,7 +27,7 @@
   background: radial-gradient(circle, rgba(234, 88, 12, 0.6), transparent 70%);
   top: -100px;
   left: -80px;
-  animation: contactOrbFloat 8s ease-in-out infinite;
+  animation: orbFloat 8s ease-in-out infinite;
 }
 
 .contact-orb-2 {
@@ -43,46 +36,12 @@
   background: radial-gradient(circle, rgba(13, 148, 136, 0.5), transparent 70%);
   bottom: -60px;
   right: -60px;
-  animation: contactOrbFloat 7s ease-in-out infinite reverse;
-}
-
-@keyframes contactOrbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(25px, -18px) scale(1.05); }
-  66% { transform: translate(-15px, 12px) scale(0.95); }
+  animation: orbFloat 7s ease-in-out infinite reverse;
 }
 
 .contact-hero > * {
   position: relative;
   z-index: 2;
-}
-
-.contact-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-md);
-  background: rgba(234, 88, 12, 0.1);
-  border: 1px solid rgba(234, 88, 12, 0.3);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  color: var(--fg-accent);
-  font-weight: var(--font-semibold);
-  margin-bottom: var(--space-lg);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
-}
-
-.contact-badge-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent-primary);
-  animation: contactPulse 2s ease-in-out infinite;
-}
-
-@keyframes contactPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
 }
 
 .contact-hero h1 {
@@ -98,28 +57,6 @@
 @keyframes contactFadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-/* Section Labels */
-.contact-connect .section-label,
-.contact-bring .section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-  font-size: var(--text-sm);
-  color: var(--fg-accent);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.contact-connect .label-line,
-.contact-bring .label-line {
-  width: 32px;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: 1px;
 }
 
 .contact-section-title {
@@ -388,63 +325,6 @@
   font-weight: var(--font-semibold);
 }
 
-/* CTA Section */
-.contact-cta-section {
-  background: linear-gradient(
-    135deg,
-    rgba(234, 88, 12, 0.12) 0%,
-    rgba(13, 148, 136, 0.08) 100%
-  );
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-3xl);
-  overflow: hidden;
-  padding: var(--space-3xl) var(--space-2xl);
-  position: relative;
-  text-align: center;
-}
-
-.contact-cta-section .cta-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  height: 300px;
-  background: radial-gradient(
-    ellipse,
-    rgba(var(--accent-primary-rgb), 0.15) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.contact-cta-section > * {
-  position: relative;
-  z-index: 1;
-}
-
-.contact-cta-section h2 {
-  margin-bottom: var(--space-sm);
-  font-size: var(--text-2xl);
-}
-
-.contact-cta-section .cta-subtitle {
-  color: var(--fg-muted);
-  margin-bottom: var(--space-xl);
-  font-size: var(--text-base);
-}
-
-.contact-cta-section .btn-icon {
-  display: inline-block;
-  transition: transform var(--duration-fast);
-}
-
-.contact-cta-section .btn-primary:hover .btn-icon {
-  transform: translateX(4px);
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
   .bring-grid {
@@ -480,7 +360,7 @@
     align-items: flex-start;
   }
 
-  .contact-cta-section {
+  .page-cta-section {
     padding: var(--space-2xl) var(--space-lg);
   }
 }

@@ -4,31 +4,7 @@
 
 /* Hero Section */
 .soccer-hero {
-  padding: var(--space-3xl) 0 var(--space-2xl);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 0;
   background-image: url('/static/images/backgrounds/soccer-hero.jpg');
-  background-size: cover;
-  background-position: center 30%;
-}
-
-.soccer-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(28, 25, 23, 0.72) 0%,
-    rgba(28, 25, 23, 0.82) 100%
-  );
-  z-index: 1;
-}
-
-.soccer-hero > * {
-  position: relative;
-  z-index: 2;
 }
 
 /* Animated hero orbs */
@@ -54,7 +30,7 @@
   background: radial-gradient(circle, rgba(234, 88, 12, 0.3) 0%, transparent 70%);
   top: -100px;
   right: -40px;
-  animation: soccerOrbFloat 8s ease-in-out infinite;
+  animation: orbFloat 8s ease-in-out infinite;
 }
 
 .soccer-hero-orb-2 {
@@ -63,7 +39,7 @@
   background: radial-gradient(circle, rgba(13, 148, 136, 0.25) 0%, transparent 70%);
   bottom: -80px;
   left: -30px;
-  animation: soccerOrbFloat 8s ease-in-out infinite reverse;
+  animation: orbFloat 8s ease-in-out infinite reverse;
 }
 
 .soccer-hero-orb-3 {
@@ -72,57 +48,8 @@
   background: radial-gradient(circle, rgba(234, 88, 12, 0.2) 0%, transparent 70%);
   top: 50%;
   left: 45%;
-  animation: soccerOrbFloat 10s ease-in-out infinite;
+  animation: orbFloat 10s ease-in-out infinite;
   animation-delay: -4s;
-}
-
-@keyframes soccerOrbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(20px, -15px) scale(1.05); }
-  66% { transform: translate(-15px, 10px) scale(0.95); }
-}
-
-/* Hero badge */
-.soccer-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-lg);
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  color: var(--fg-accent);
-  background: rgba(var(--accent-primary-rgb), 0.08);
-  margin-bottom: var(--space-lg);
-}
-
-.soccer-badge-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent-primary);
-  border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-/* Section labels */
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--fg-accent);
-}
-
-.label-line {
-  width: 32px;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: var(--radius-full);
 }
 
 /* Soccer-specific overrides */
@@ -721,17 +648,6 @@
   color: var(--fg-secondary);
   line-height: var(--leading-relaxed);
   margin: 0;
-}
-
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Responsive */

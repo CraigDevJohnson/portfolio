@@ -43,7 +43,7 @@
   border-radius: 50%;
   filter: blur(60px);
   opacity: 0.35;
-  animation: heroOrbFloat 8s ease-in-out infinite;
+  animation: orbFloat 8s ease-in-out infinite;
 }
 
 .hero-orb-1 {
@@ -71,12 +71,6 @@
   top: 40%;
   right: 25%;
   animation-delay: -5s;
-}
-
-@keyframes heroOrbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.1); }
-  66% { transform: translate(-20px, 15px) scale(0.95); }
 }
 
 .hero-content {
@@ -259,30 +253,6 @@
   color: var(--fg-muted);
 }
 
-/* ================================
-   Section Labels (reused from About)
-================================ */
-.home-what-i-do .section-label,
-.home-explore .section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--fg-accent);
-  margin-bottom: var(--space-md);
-}
-
-.home-what-i-do .label-line,
-.home-explore .label-line {
-  width: 32px;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: var(--radius-full);
-}
-
 .section-heading {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
@@ -432,17 +402,6 @@
 .quick-link-card:nth-child(2) { animation-delay: 0.2s; }
 .quick-link-card:nth-child(3) { animation-delay: 0.3s; }
 .quick-link-card:nth-child(4) { animation-delay: 0.4s; }
-
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* Gradient overlay on cards */
 .quick-link-card::before {
