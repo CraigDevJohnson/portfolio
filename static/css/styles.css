@@ -421,7 +421,7 @@ code {
   gap: var(--space-xl);
 }
 
-.footer-nav-section h4 {
+.footer-nav-section .footer-heading {
   font-size: var(--text-sm);
   color: var(--fg-muted);
   text-transform: uppercase;
@@ -455,6 +455,8 @@ code {
 .tech-stack {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-sm);
 }
 
@@ -1078,5 +1080,13 @@ code {
 
   .container {
     padding: 0 var(--space-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

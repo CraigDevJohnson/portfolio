@@ -21,3 +21,4 @@ coverage.out
 
 # Templ generated files
 *_templ.go
+static/screenshots/

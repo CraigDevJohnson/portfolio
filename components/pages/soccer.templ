@@ -9,14 +9,14 @@ templ Soccer() {
 	}) {
 		<!-- Hero with animated orbs -->
 		<section class="page-hero soccer-hero">
-			<div class="soccer-hero-bg">
+			<div class="soccer-hero-bg" aria-hidden="true">
 				<div class="soccer-hero-orb soccer-hero-orb-1"></div>
 				<div class="soccer-hero-orb soccer-hero-orb-2"></div>
 				<div class="soccer-hero-orb soccer-hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
 				<div class="hero-badge">
-					<span class="hero-badge-dot"></span>
+					<span class="hero-badge-dot" aria-hidden="true"></span>
 					Schedule Tool
 				</div>
 				<h1>Soccer Schedule Download</h1>
@@ -32,7 +32,7 @@ templ Soccer() {
 		<!-- How It Works -->
 		<section class="soccer-how-it-works">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>How It Works</span>
 			</div>
 			<div class="how-it-works-grid">
@@ -65,7 +65,7 @@ templ Soccer() {
 		<!-- Features -->
 		<section class="soccer-features">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Built For Players</span>
 			</div>
 			<div class="features-grid">
@@ -95,7 +95,7 @@ templ Soccer() {
 		<!-- Schedule Tool -->
 		<section class="soccer-content">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Fetch Schedules</span>
 			</div>
 			<div class="soccer-unified-card">
@@ -160,7 +160,7 @@ templ Soccer() {
 					<div class="spinner"></div>
 					<span>Fetching schedules...</span>
 				</div>
-				<div id="games-container" class="games-container" aria-live="polite" aria-atomic="true">
+				<div id="games-container" class="games-container" aria-live="polite">
 					<div class="empty-state">
 						<p>Enter team codes above to fetch schedules</p>
 					</div>
@@ -186,6 +186,7 @@ templ Soccer() {
 								type="email"
 								placeholder="your@email.com"
 								required
+								aria-label="Email address for schedule updates"
 							/>
 							<button type="submit" class="btn btn-primary">
 								Subscribe
