@@ -1,5 +1,5 @@
 /* ================================
-   Home Page Styles
+  Home Page Styles
 ================================ */
 
 /* Hero Section */
@@ -471,7 +471,7 @@
 .quick-link-card:hover {
   transform: translateY(-6px);
   border-color: rgba(234, 88, 12, 0.5);
-  box-shadow: 
+  box-shadow:
     var(--shadow-xl),
     0 0 40px rgba(234, 88, 12, 0.25),
     inset 0 0 20px rgba(234, 88, 12, 0.1);

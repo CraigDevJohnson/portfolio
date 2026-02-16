@@ -7,34 +7,100 @@ templ Experience() {
 		Title: "Career Journey - Craig Johnson",
 		Page:  "experience",
 	}) {
+		<!-- Hero with animated orbs -->
 		<section class="experience-hero">
+			<div class="exp-hero-bg">
+				<div class="exp-hero-orb exp-hero-orb-1"></div>
+				<div class="exp-hero-orb exp-hero-orb-2"></div>
+				<div class="exp-hero-orb exp-hero-orb-3"></div>
+			</div>
 			<div class="hero-header">
+				<div class="exp-hero-badge">
+					<span class="exp-badge-dot"></span>
+					Currently Employed
+				</div>
 				<h1>Career Journey</h1>
 				<p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
+				<p class="lead-sub">From service desk to principal cloud engineer — building, automating, and scaling enterprise infrastructure</p>
 			</div>
 		</section>
+		<!-- Summary Stats -->
 		<section class="experience-summary">
 			<div class="summary-grid">
-				<div class="summary-card" id="years-stat">
-					<span class="summary-value" data-start-year="2012"></span>
+				<div class="summary-card">
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">🚀</span>
+					</div>
+					<span class="summary-value exp-stat-value" data-target-year="2012"></span>
 					<span class="summary-label">Years in Tech</span>
 				</div>
 				<div class="summary-card">
-					<span class="summary-value">4</span>
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">🏢</span>
+					</div>
+					<span class="summary-value exp-stat-value" data-target="4">0</span>
 					<span class="summary-label">Companies</span>
 				</div>
 				<div class="summary-card">
-					<span class="summary-value">7</span>
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">📋</span>
+					</div>
+					<span class="summary-value exp-stat-value" data-target="7">0</span>
 					<span class="summary-label">Positions Held</span>
 				</div>
 				<div class="summary-card">
-
-					<span class="summary-value">3</span>
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">☁️</span>
+					</div>
+					<span class="summary-value exp-stat-value" data-target="3">0</span>
 					<span class="summary-label">Cloud Platforms</span>
 				</div>
 			</div>
 		</section>
+		<!-- Career Highlights -->
+		<section class="career-highlights">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>Career Highlights</span>
+			</div>
+			<div class="highlight-grid">
+				<div class="highlight-card">
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">🔧</span>
+					</div>
+					<h3 class="highlight-title">Automation Pioneer</h3>
+					<p class="highlight-desc">Built enterprise automation reducing manual work by 80% through PowerShell, Ansible, and Terraform</p>
+				</div>
+				<div class="highlight-card">
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">☁️</span>
+					</div>
+					<h3 class="highlight-title">Cloud Migration Lead</h3>
+					<p class="highlight-desc">Led infrastructure migrations across AWS and Azure, modernizing legacy systems for the cloud</p>
+				</div>
+				<div class="highlight-card">
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">🛡️</span>
+					</div>
+					<h3 class="highlight-title">Security Champion</h3>
+					<p class="highlight-desc">Implemented compliance and security frameworks including zero-trust architecture and IAM policies</p>
+				</div>
+				<div class="highlight-card">
+					<div class="exp-icon-wrap">
+						<span class="exp-icon">📈</span>
+					</div>
+					<h3 class="highlight-title">Scale Builder</h3>
+					<p class="highlight-desc">Managed infrastructure supporting thousands of users with high availability and reliability</p>
+				</div>
+			</div>
+		</section>
+		<!-- Filters -->
 		<section class="experience-filters">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>Refine Results</span>
+			</div>
+			<p class="filter-intro">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
 			<div class="filter-section collapsed" id="position-section">
 				<h3 class="filter-title collapsible" data-target="position-section">
 					Filter by Position
@@ -121,48 +187,87 @@ templ Experience() {
 				<button class="clear-filters-btn" id="clear-filters" style="display: none">Clear All</button>
 			</div>
 		</section>
-		<section
-			class="career-section"
-			hx-get="/experience/timeline"
-			hx-trigger="revealed"
-			hx-swap="innerHTML"
-		>
-			<div class="career-grid">
-				for i := 1; i <= 7; i++ {
-					<div class="career-card skeleton-card">
-						<div class="card-status skeleton"></div>
-						<div class="skeleton skeleton-title"></div>
-						<div class="skeleton skeleton-subtitle"></div>
-						<div class="skeleton skeleton-text"></div>
-						<div class="skeleton-pills">
-							<div class="skeleton skeleton-pill"></div>
-							<div class="skeleton skeleton-pill"></div>
-							<div class="skeleton skeleton-pill"></div>
-						</div>
-					</div>
-				}
+		<!-- Career Grid Section -->
+		<section class="career-section-wrapper">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>Career Timeline</span>
 			</div>
-		</section>
-		<section class="experience-cta">
-			<div class="cta-content">
-				<h2>Want to see what I've built?</h2>
-				<p>Check out my projects or view my technical skills in detail.</p>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/skills" class="btn btn-secondary">See Skills</a>
+			<section
+				class="career-section"
+				hx-get="/experience/timeline"
+				hx-trigger="revealed"
+				hx-swap="innerHTML"
+			>
+				<div class="career-grid">
+					for i := 1; i <= 7; i++ {
+						<div class="career-card skeleton-card">
+							<div class="card-status skeleton"></div>
+							<div class="skeleton skeleton-title"></div>
+							<div class="skeleton skeleton-subtitle"></div>
+							<div class="skeleton skeleton-text"></div>
+							<div class="skeleton-pills">
+								<div class="skeleton skeleton-pill"></div>
+								<div class="skeleton skeleton-pill"></div>
+								<div class="skeleton skeleton-pill"></div>
+							</div>
+						</div>
+					}
 				</div>
+			</section>
+		</section>
+		<!-- CTA -->
+		<section class="exp-cta-section">
+			<div class="cta-glow"></div>
+			<h2>Want to see what I've built?</h2>
+			<p class="cta-subtitle">Check out my projects or view my technical skills in detail</p>
+			<div class="cta-buttons">
+				<a href="/projects" class="btn btn-primary">
+					<span>View Projects</span>
+					<span class="btn-icon">→</span>
+				</a>
+				<a href="/skills" class="btn btn-secondary">See Skills</a>
 			</div>
 		</section>
 		<script>
-  // Auto-calculate years in tech
+  // Animate stat counters on scroll
   document.addEventListener('DOMContentLoaded', function () {
-    const yearsStat = document.querySelector('#years-stat .summary-value')
-    if (yearsStat && yearsStat.dataset.startYear) {
-      const startYear = parseInt(yearsStat.dataset.startYear)
-      const currentYear = new Date().getFullYear()
-      const years = currentYear - startYear
-      yearsStat.textContent = years + '+'
-    }
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            var counters = entry.target.querySelectorAll('.exp-stat-value')
+            counters.forEach(function (counter) {
+              var targetYear = counter.dataset.targetYear
+              var target = counter.dataset.target
+              var finalValue, suffix
+              if (targetYear) {
+                finalValue = new Date().getFullYear() - parseInt(targetYear)
+                suffix = '+'
+              } else {
+                finalValue = parseInt(target) || 0
+                suffix = ''
+              }
+              var duration = 1500
+              var start = performance.now()
+              function update(now) {
+                var elapsed = now - start
+                var progress = Math.min(elapsed / duration, 1)
+                var ease = 1 - Math.pow(1 - progress, 3)
+                counter.textContent = Math.floor(finalValue * ease)
+                if (progress < 1) requestAnimationFrame(update)
+                else counter.textContent = finalValue + suffix
+              }
+              requestAnimationFrame(update)
+            })
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+    var statsSection = document.querySelector('.experience-summary')
+    if (statsSection) observer.observe(statsSection)
   })
 
   // Filter functionality with collapsible sections and multi-select
@@ -267,7 +372,6 @@ templ Experience() {
           .filter(s => s)
 
         // Check position filters (OR logic - show card if position matches any selected)
-        // Note: Position uses OR because a job has only one position, so AND wouldn't make sense
         if (hasPositionFilters) {
           if (!activeFilters.position.includes(cardPosition)) {
             showCard = false

@@ -24,13 +24,27 @@ Main
 
 func main() {
 	// MIME types
-	mime.AddExtensionType(".css", "text/css")
-	mime.AddExtensionType(".js", "application/javascript")
-	mime.AddExtensionType(".ico", "image/x-icon")
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".png", "image/png")
-	mime.AddExtensionType(".jpg", "image/jpeg")
+	if err := mime.AddExtensionType(".css", "text/css"); err != nil {
+		log.Fatalf("Failed to add MIME type for .css: %v", err)
+	}
+	if err := mime.AddExtensionType(".js", "application/javascript"); err != nil {
+		log.Fatalf("Failed to add MIME type for .js: %v", err)
+	}
+	if err := mime.AddExtensionType(".ico", "image/x-icon"); err != nil {
+		log.Fatalf("Failed to add MIME type for .ico: %v", err)
+	}
+	if err := mime.AddExtensionType(".svg", "image/svg+xml"); err != nil {
+		log.Fatalf("Failed to add MIME type for .svg: %v", err)
+	}
+	if err := mime.AddExtensionType(".webp", "image/webp"); err != nil {
+		log.Fatalf("Failed to add MIME type for .webp: %v", err)
+	}
+	if err := mime.AddExtensionType(".png", "image/png"); err != nil {
+		log.Fatalf("Failed to add MIME type for .png: %v", err)
+	}
+	if err := mime.AddExtensionType(".jpg", "image/jpeg"); err != nil {
+		log.Fatalf("Failed to add MIME type for .jpg: %v", err)
+	}
 
 	// routes - pages
 	http.HandleFunc("/", homeHandler)
@@ -627,7 +641,10 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	io.WriteString(w, `<div class="subscribe-success">✅ Subscribed! Check your email to confirm.</div>`)
+	_, err := io.WriteString(w, `<div class="subscribe-success">✅ Subscribed! Check your email to confirm.</div>`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -702,5 +719,8 @@ END:VCALENDAR`
 
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")
-	io.WriteString(w, icsContent)
+	_, err := io.WriteString(w, icsContent)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

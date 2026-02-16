@@ -7,46 +7,166 @@ templ Projects() {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
+		<!-- Hero with animated orbs -->
 		<section class="projects-hero">
+			<div class="proj-hero-bg">
+				<div class="proj-hero-orb proj-hero-orb-1"></div>
+				<div class="proj-hero-orb proj-hero-orb-2"></div>
+				<div class="proj-hero-orb proj-hero-orb-3"></div>
+			</div>
 			<div class="hero-header">
+				<div class="proj-hero-badge">
+					<span class="proj-badge-dot"></span>
+					Open Source Builder
+				</div>
 				<h1>Projects</h1>
 				<p class="lead">A showcase of automation, web development, and cloud infrastructure projects</p>
+				<p class="proj-hero-subtitle">
+					Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
+				</p>
 			</div>
 		</section>
-		<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
-			<div class="projects-grid">
-				for i := 1; i <= 3; i++ {
-					<div class="project-card skeleton-project">
-						<div class="skeleton skeleton-image"></div>
-						<div class="project-content">
-							<div class="skeleton skeleton-title"></div>
-							<div class="skeleton skeleton-text"></div>
-							<div class="skeleton skeleton-text short"></div>
-							<div class="skeleton-pills">
-								<div class="skeleton skeleton-pill"></div>
-								<div class="skeleton skeleton-pill"></div>
-								<div class="skeleton skeleton-pill"></div>
-							</div>
-						</div>
+		<!-- Stats -->
+		<section class="projects-stats">
+			<div class="proj-stats-grid">
+				<div class="proj-stat-card">
+					<div class="proj-icon-wrap">
+						<span class="proj-icon">🛠️</span>
 					</div>
-				}
-			</div>
-		</section>
-		<section class="projects-cta">
-			<div class="cta-content">
-				<h2>Looking for more?</h2>
-				<p>Check out my GitHub profile for additional projects and contributions.</p>
-				<div class="cta-buttons">
-					<a
-						href="https://github.com/CraigDevJohnson"
-						target="_blank"
-						rel="noopener noreferrer"
-						class="btn btn-primary"
-					>
-						View GitHub Profile
-					</a>
+					<span class="proj-stat-value" data-target="3">0</span>
+					<span class="proj-stat-label">Projects</span>
+				</div>
+				<div class="proj-stat-card">
+					<div class="proj-icon-wrap">
+						<span class="proj-icon">💻</span>
+					</div>
+					<span class="proj-stat-value" data-target="12">0</span>
+					<span class="proj-stat-label">Technologies</span>
+				</div>
+				<div class="proj-stat-card">
+					<div class="proj-icon-wrap">
+						<span class="proj-icon">🏷️</span>
+					</div>
+					<span class="proj-stat-value" data-target="3">0</span>
+					<span class="proj-stat-label">Categories</span>
+				</div>
+				<div class="proj-stat-card">
+					<div class="proj-icon-wrap">
+						<span class="proj-icon">⭐</span>
+					</div>
+					<span class="proj-stat-value" data-target="100" data-suffix="%">0</span>
+					<span class="proj-stat-label">Open Source</span>
 				</div>
 			</div>
 		</section>
+		<!-- What I Build -->
+		<section class="projects-intro">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>What I Build</span>
+			</div>
+			<p class="proj-intro-text">
+				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
+			</p>
+		</section>
+		<!-- Category Filters -->
+		<div class="proj-category-filters">
+			<button class="proj-category-pill active" data-category="all">All</button>
+			<button class="proj-category-pill" data-category="web">Web</button>
+			<button class="proj-category-pill" data-category="automation">Automation</button>
+		</div>
+		<!-- Project Grid -->
+		<section class="projects-grid-wrapper">
+			<div class="section-label">
+				<span class="label-line"></span>
+				<span>Project Showcase</span>
+			</div>
+			<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
+				<div class="projects-grid">
+					for i := 1; i <= 3; i++ {
+						<div class="project-card skeleton-project">
+							<div class="skeleton skeleton-image"></div>
+							<div class="project-content">
+								<div class="skeleton skeleton-title"></div>
+								<div class="skeleton skeleton-text"></div>
+								<div class="skeleton skeleton-text short"></div>
+								<div class="skeleton-pills">
+									<div class="skeleton skeleton-pill"></div>
+									<div class="skeleton skeleton-pill"></div>
+									<div class="skeleton skeleton-pill"></div>
+								</div>
+							</div>
+						</div>
+					}
+				</div>
+			</section>
+		</section>
+		<!-- CTA -->
+		<section class="proj-cta-section">
+			<div class="cta-glow"></div>
+			<h2>Looking for more?</h2>
+			<p class="cta-subtitle">Check out my GitHub profile for additional projects and contributions</p>
+			<div class="cta-buttons">
+				<a
+					href="https://github.com/CraigDevJohnson"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="btn btn-primary"
+				>
+					<span>View GitHub Profile</span>
+					<span class="btn-icon">→</span>
+				</a>
+				<a href="/experience" class="btn btn-secondary">See Experience</a>
+			</div>
+		</section>
+		<script>
+  // Animate stat counters on scroll
+  document.addEventListener('DOMContentLoaded', function() {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var counters = entry.target.querySelectorAll('.proj-stat-value');
+          counters.forEach(function(counter) {
+            var target = parseInt(counter.dataset.target) || 0;
+            var suffix = counter.dataset.suffix || '';
+            var duration = 1500;
+            var start = performance.now();
+            function update(now) {
+              var elapsed = now - start;
+              var progress = Math.min(elapsed / duration, 1);
+              var ease = 1 - Math.pow(1 - progress, 3);
+              counter.textContent = Math.floor(target * ease);
+              if (progress < 1) requestAnimationFrame(update);
+              else counter.textContent = target + suffix;
+            }
+            requestAnimationFrame(update);
+          });
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    var statsSection = document.querySelector('.projects-stats');
+    if (statsSection) observer.observe(statsSection);
+
+    // Category filter toggle
+    var pills = document.querySelectorAll('.proj-category-pill');
+    pills.forEach(function(pill) {
+      pill.addEventListener('click', function() {
+        pills.forEach(function(p) { p.classList.remove('active'); });
+        pill.classList.add('active');
+        var category = pill.dataset.category;
+        var cards = document.querySelectorAll('.project-card');
+        cards.forEach(function(card) {
+          if (category === 'all') {
+            card.style.display = '';
+          } else {
+            var cat = card.dataset.category || '';
+            card.style.display = cat.toLowerCase() === category ? '' : 'none';
+          }
+        });
+      });
+    });
+  });
+</script>
 	}
 }

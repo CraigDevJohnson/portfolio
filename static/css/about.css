@@ -1,5 +1,5 @@
 /* ================================
-   About Page Styles
+  About Page Styles
 ================================ */
 
 /* Hero Section */
@@ -8,10 +8,11 @@
   text-align: center;
   position: relative;
   overflow: hidden;
-  background-image: url('/static/images/backgrounds/about-nature.jpg');
+  margin-bottom: 0;
+  background-image: url('/static/images/backgrounds/about-hero.jpg');
   background-size: cover;
   background-position: center 30%;
-  margin-bottom: 0;
+
 }
 
 .about-hero::before {
@@ -747,73 +748,63 @@
   z-index: 1;
 }
 
-/* ================================
-   CTA Section
-================================ */
-.about-cta {
-  text-align: center;
-  padding: var(--space-3xl);
+/* CTA Section */
+.about-cta-section {
   background: linear-gradient(
     135deg,
-    rgba(234, 88, 12, 0.08) 0%,
+    rgba(234, 88, 12, 0.12) 0%,
     rgba(13, 148, 136, 0.08) 100%
   );
-  border: 1px solid rgba(234, 88, 12, 0.2);
-  border-radius: var(--radius-lg);
-  position: relative;
-  overflow: hidden;
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
+  border-radius: var(--radius-xl);
   margin-bottom: var(--space-3xl);
+  overflow: hidden;
+  padding: var(--space-3xl) var(--space-2xl);
+  position: relative;
+  text-align: center;
 }
 
-.about-cta::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    -45deg,
-    rgba(234, 88, 12, 0.05) 0%,
-    transparent 25%,
-    transparent 75%,
-    rgba(13, 148, 136, 0.05) 100%
-  );
-  z-index: 0;
-}
-
-.cta-glow {
+.about-cta-section .cta-glow {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 300px;
+  width: 500px;
   height: 300px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.15) 0%, transparent 70%);
-  filter: blur(40px);
+  background: radial-gradient(
+    ellipse,
+    rgba(var(--accent-primary-rgb), 0.15) 0%,
+    transparent 70%
+  );
   pointer-events: none;
+  z-index: 0;
 }
 
-.about-cta > * {
+.about-cta-section > * {
   position: relative;
   z-index: 1;
 }
 
-.about-cta h2 {
+.about-cta-section h2 {
   margin-bottom: var(--space-sm);
-  font-size: var(--text-3xl);
+  font-size: var(--text-2xl);
 }
 
-.cta-subtitle {
+.about-cta-section .cta-subtitle {
   color: var(--fg-muted);
   margin-bottom: var(--space-xl);
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
 }
 
-.cta-buttons {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: center;
-  align-items: center;
+.about-cta-section .btn-icon {
+  display: inline-block;
+  transition: transform var(--duration-fast);
 }
+
+.about-cta-section .btn-primary:hover .btn-icon {
+  transform: translateX(4px);
+}
+
 
 /* ================================
    Responsive

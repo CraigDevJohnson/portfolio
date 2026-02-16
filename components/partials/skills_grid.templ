@@ -47,9 +47,9 @@ func catSlug(name string) string {
 func countCategorySkills(skills []types.Skill, proficiency string) int {
 	c := 0
 	for _, s := range skills {
-		if s.Featured {
-			continue
-		}
+		// if s.Featured {
+		// 	continue
+		// }
 		if proficiency != "" && s.Proficiency != proficiency {
 			continue
 		}
@@ -60,9 +60,9 @@ func countCategorySkills(skills []types.Skill, proficiency string) int {
 
 // shouldShowSkill checks if a skill should be displayed in the grid
 func shouldShowSkill(skill types.Skill, proficiency string) bool {
-	if skill.Featured {
-		return false
-	}
+	// if skill.Featured {
+	// 	return false
+	// }
 	if proficiency != "" && skill.Proficiency != proficiency {
 		return false
 	}
@@ -216,7 +216,12 @@ templ SkillsGrid(props SkillsGridProps) {
 }
 
 templ SkillsFilterableSection(props SkillsFilterableProps) {
-	<div id="skills-filterable" class="filterable-section">
+	<div id="skills-filterable" class="all-skills-section">
+    <!-- Section Heading -->
+		<div class="all-skills-header">
+			<h2 class="all-skills-title">All Technical Skills</h2>
+      <p class="all-skills-subtitle">A filterable list of my technical toolkit</p>
+		</div>
 		<!-- Filter Bar -->
 		<div class="skills-filter-bar">
 			<div class="filter-group">
@@ -306,12 +311,6 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 				</div>
 			</div>
 		</div>
-		<!-- Section Heading -->
-		<h2 class="section-divider">
-			<span class="section-divider-line"></span>
-			<span class="section-divider-text">All Technical Skills</span>
-			<span class="section-divider-line"></span>
-		</h2>
 		<!-- Skills Grid -->
 		<div class="all-skills-section">
 			if hasVisibleSkills(props.Categories, props.ActiveCategory, props.ActiveProficiency) {
@@ -321,7 +320,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 							<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
 								<h3 class="category-title">
 									{ cat.Name }
-									<span class="category-count">{ fmt.Sprintf("%d", countCategorySkills(cat.Skills, props.ActiveProficiency)) }</span>
+
 								</h3>
 								<div class="skills-grid">
 									for skillIndex, skill := range cat.Skills {
