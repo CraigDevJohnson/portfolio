@@ -47,9 +47,6 @@ func catSlug(name string) string {
 func countCategorySkills(skills []types.Skill, proficiency string) int {
 	c := 0
 	for _, s := range skills {
-		// if s.Featured {
-		// 	continue
-		// }
 		if proficiency != "" && s.Proficiency != proficiency {
 			continue
 		}
@@ -60,9 +57,6 @@ func countCategorySkills(skills []types.Skill, proficiency string) int {
 
 // shouldShowSkill checks if a skill should be displayed in the grid
 func shouldShowSkill(skill types.Skill, proficiency string) bool {
-	// if skill.Featured {
-	// 	return false
-	// }
 	if proficiency != "" && skill.Proficiency != proficiency {
 		return false
 	}
