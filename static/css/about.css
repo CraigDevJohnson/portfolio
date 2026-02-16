@@ -732,7 +732,4 @@
     grid-template-columns: 1fr;
   }
 
-  .about-cta {
-    padding: var(--space-xl);
-  }
 }

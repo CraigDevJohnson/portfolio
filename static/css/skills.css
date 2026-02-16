@@ -454,11 +454,6 @@
 /* ================================
    Filter Bar
 ================================ */
-.filterable-section {
-  animation: fadeIn 0.3s ease-out;
-  margin-bottom: var(--space-sm);
-}
-
 .skills-filter-bar {
   display: flex;
   flex-direction: column;
@@ -1143,10 +1138,6 @@
   .concept-icon svg {
     width: 24px;
     height: 24px;
-  }
-
-  .section-divider-text {
-    font-size: var(--text-base);
   }
 
   .category-title {

@@ -260,10 +260,6 @@
   text-align: center;
 }
 
-.no-results-icon {
-  display: none;
-}
-
 .no-results p {
   color: var(--warning-fg);
 }

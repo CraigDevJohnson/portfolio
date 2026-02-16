@@ -582,19 +582,6 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
-.card-number {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: var(--bg-tertiary);
-  color: var(--fg-muted);
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: var(--font-bold);
-}
-
 /* Card Header */
 .career-card .card-header {
   padding-right: 60px; /* space for status badge */
@@ -678,12 +665,6 @@
   background: var(--bg-secondary);
   border: 2px dashed var(--border-color);
   border-radius: var(--radius-lg);
-}
-
-.no-results-icon {
-  font-size: 3rem;
-  display: block;
-  margin-bottom: var(--space-md);
 }
 
 .no-results h3 {
@@ -830,10 +811,6 @@
 
   .summary-card {
     padding: var(--space-md);
-  }
-
-  .summary-icon {
-    font-size: 1.5rem;
   }
 
   .summary-value {
