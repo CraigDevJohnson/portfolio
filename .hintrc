@@ -1,0 +1,16 @@
+{
+  "extends": ["web-recommended"],
+  "connector": {
+    "name": "local",
+    "options": {
+      "pattern": ["**", "!.git/**"]
+    }
+  },
+  "formatters": ["html"],
+  "hints": {
+    "hint-html-checker": "warning",
+    "meta-viewport": "warning"
+  },
+  "browserslist": ["> 0.5%", "last 2 versions", "Firefox ESR", "not dead"],
+  "hintsTimeout": 120000
+}

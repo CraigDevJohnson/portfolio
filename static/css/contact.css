@@ -24,19 +24,19 @@
 .contact-orb-1 {
   width: 450px;
   height: 450px;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.6), transparent 70%);
+  background: radial-gradient(circle, rgb(234 88 12 / 60%), transparent 70%);
   top: -100px;
   left: -80px;
-  animation: orbFloat 8s ease-in-out infinite;
+  animation: orb-float 8s ease-in-out infinite;
 }
 
 .contact-orb-2 {
   width: 380px;
   height: 380px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.5), transparent 70%);
+  background: radial-gradient(circle, rgb(13 148 136 / 50%), transparent 70%);
   bottom: -60px;
   right: -60px;
-  animation: orbFloat 7s ease-in-out infinite reverse;
+  animation: orb-float 7s ease-in-out infinite reverse;
 }
 
 .contact-hero > * {
@@ -45,18 +45,25 @@
 }
 
 .contact-hero h1 {
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.1s both;
+  animation: contact-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
 }
 
 .contact-hero .lead {
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: contact-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
   max-width: 600px;
   margin: 0 auto;
 }
 
-@keyframes contactFadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes contact-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .contact-section-title {
@@ -80,7 +87,7 @@
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-lg) var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-decoration: none;
@@ -88,7 +95,7 @@
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: contact-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .contact-method-card:nth-child(1) { animation-delay: 0.1s; }
@@ -99,7 +106,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.1) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 10%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -112,11 +119,11 @@
 
 .contact-method-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.5);
+  border-color: rgb(234 88 12 / 50%);
   box-shadow:
     var(--shadow-xl),
-    0 0 40px rgba(234, 88, 12, 0.2),
-    inset 0 0 20px rgba(234, 88, 12, 0.05);
+    0 0 40px rgb(234 88 12 / 20%),
+    inset 0 0 20px rgb(234 88 12 / 5%);
 }
 
 .contact-method-card:hover::before {
@@ -127,7 +134,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.15), rgba(13, 148, 136, 0.1));
+  background: linear-gradient(135deg, rgb(234 88 12 / 15%), rgb(13 148 136 / 10%));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -138,7 +145,7 @@
 
 .contact-method-card:hover .cm-icon-wrap {
   transform: scale(1.1);
-  box-shadow: 0 0 20px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 0 20px rgb(234 88 12 / 20%);
 }
 
 .cm-info {
@@ -187,14 +194,14 @@
 
 .bring-card {
   padding: var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: contact-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .bring-card:nth-child(1) { animation-delay: 0.1s; }
@@ -206,7 +213,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 8%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -219,11 +226,11 @@
 
 .bring-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.4);
+  border-color: rgb(234 88 12 / 40%);
   box-shadow:
     var(--shadow-xl),
-    0 0 32px rgba(234, 88, 12, 0.15),
-    inset 0 0 16px rgba(234, 88, 12, 0.05);
+    0 0 32px rgb(234 88 12 / 15%),
+    inset 0 0 16px rgb(234 88 12 / 5%);
 }
 
 .bring-card:hover::before {
@@ -260,10 +267,10 @@
 
 .avail-card {
   padding: var(--space-xl) var(--space-2xl);
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.06) 0%, rgba(13, 148, 136, 0.04) 100%);
-  border: 1px solid rgba(234, 88, 12, 0.2);
+  background: linear-gradient(135deg, rgb(234 88 12 / 6%) 0%, rgb(13 148 136 / 4%) 100%);
+  border: 1px solid rgb(234 88 12 / 20%);
   border-radius: var(--radius-lg);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: contact-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
 }
 
 .avail-header {
@@ -286,7 +293,7 @@
   height: 12px;
   border-radius: 50%;
   background: var(--accent-primary);
-  box-shadow: 0 0 8px rgba(234, 88, 12, 0.5);
+  box-shadow: 0 0 8px rgb(234 88 12 / 50%);
   animation: contactPulse 2s ease-in-out infinite;
 }
 
@@ -326,13 +333,13 @@
 }
 
 /* Responsive */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .bring-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .contact-method-card {
     flex-direction: column;
     text-align: center;

@@ -37,6 +37,41 @@ run: build
 compose:
   docker compose -f docker-compose.yml up -d --build portfolio
 
+# Remove binary and clean cached files
+[group('clean')]
+clean:
+  {{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
+  {{GO}} clean
+
+# Format Go source files
+[group('quality')]
+fmt:
+  golangci-lint fmt ./...
+
+# Run go vet
+[group('quality')]
+vet:
+  {{GO}} vet ./...
+
+# Lint Go source files and CSS files
+[group('quality')]
+lint:
+  #!/usr/bin/env sh
+  if ! command -v golangci-lint >/dev/null 2>&1; then
+    echo "golangci-lint not found -- please run 'just install-lint' to install it"
+    exit 1
+  fi
+  golangci-lint run
+  if ! npm list stylelint --depth=0 >/dev/null 2>&1; then
+    echo "stylelint not found -- please run 'just install-lint' to install it"
+    exit 1
+  fi
+  npx stylelint "**/*.css" --fix "strict"
+
+# Check quality, run tests and build the binary
+[group('quality')]
+check: fmt vet lint test build
+
 # Run with air for hot-reload development
 [group('run')]
 dev:
@@ -56,30 +91,6 @@ install-templ:
   {{GO}} install github.com/a-h/templ/cmd/templ@latest
   @echo "templ installed successfully!"
 
-# Remove binary and clean cached files
-[group('clean')]
-clean:
-  {{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
-  {{GO}} clean
-
-# Format Go source files
-[group('quality')]
-fmt:
-  golangci-lint fmt ./...
-
-# Run go vet
-[group('quality')]
-vet:
-  {{GO}} vet ./...
-
-# Run vet and golangci-lint
-[group('quality')]
-lint:
-  golangci-lint run
-
-[group('quality')]
-check: fmt vet lint test build
-
 # Install golangci-lint v2 for linting
 [group('tools')]
 install-lint:
@@ -91,6 +102,16 @@ install-lint:
     curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
   fi
   echo "golangci-lint is installed and up to date!"
+  echo "Checking stylelint..."
+  if ! command -v npx >/dev/null 2>&1; then
+    echo "npx not found -- please install Node.js and npm"
+    exit 1
+  fi
+  if ! npx stylelint --version >/dev/null 2>&1; then
+    echo "stylelint not found -- installing..."
+    npm install stylelint stylelint-config-standard --save-dev
+  fi
+  echo "stylelint is installed and ready to use!"
 
 # Install all development tools
 [group('tools')]
