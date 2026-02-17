@@ -318,7 +318,6 @@ templ Experience() {
     // Collapsible section handlers
     collapsibleButtons.forEach(button => {
       button.addEventListener('click', function () {
-        const controlsId = this.getAttribute('aria-controls')
         const section = this.closest('.filter-section')
         if (section) {
           const isExpanded = section.classList.contains('collapsed')
