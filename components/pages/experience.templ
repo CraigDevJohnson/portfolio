@@ -102,10 +102,17 @@ templ Experience() {
 			</div>
 			<p class="filter-intro">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
 			<div class="filter-section collapsed" id="position-section">
-				<h3 class="filter-title collapsible" data-target="position-section">
-					Filter by Position
-					<span class="filter-count" id="position-count"></span>
-					<span class="collapse-icon" aria-hidden="true">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="position-filters"
+					>
+						Filter by Position
+						<span class="filter-count" id="position-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="position-filters">
 					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="Cloud Engineer Principal">
@@ -132,10 +139,17 @@ templ Experience() {
 				</div>
 			</div>
 			<div class="filter-section collapsed" id="tech-section">
-				<h3 class="filter-title collapsible" data-target="tech-section">
-					Filter by Technology
-					<span class="filter-count" id="tech-count"></span>
-					<span class="collapse-icon" aria-hidden="true">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="tech-filters"
+					>
+						Filter by Technology
+						<span class="filter-count" id="tech-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="tech-filters">
 					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="PowerShell">PowerShell</button>
@@ -157,10 +171,17 @@ templ Experience() {
 				</div>
 			</div>
 			<div class="filter-section collapsed" id="skill-section">
-				<h3 class="filter-title collapsible" data-target="skill-section">
-					Filter by Skill Area
-					<span class="filter-count" id="skill-count"></span>
-					<span class="collapse-icon" aria-hidden="true">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="skill-filters"
+					>
+						Filter by Skill Area
+						<span class="filter-count" id="skill-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="skill-filters">
 					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="cloud">
@@ -275,7 +296,7 @@ templ Experience() {
     const filterPills = document.querySelectorAll('.filter-pill')
     const activeFiltersContainer = document.getElementById('active-filter-tags')
     const clearFiltersBtn = document.getElementById('clear-filters')
-    const collapsibleHeaders = document.querySelectorAll('.filter-title.collapsible')
+    const collapsibleButtons = document.querySelectorAll('.collapsible-button')
 
     // Track active filters - now arrays for multi-select
     let activeFilters = {
@@ -295,12 +316,14 @@ templ Experience() {
     }
 
     // Collapsible section handlers
-    collapsibleHeaders.forEach(header => {
-      header.addEventListener('click', function () {
-        const targetId = this.dataset.target
-        const section = document.getElementById(targetId)
+    collapsibleButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const controlsId = this.getAttribute('aria-controls')
+        const section = this.closest('.filter-section')
         if (section) {
+          const isExpanded = section.classList.contains('collapsed')
           section.classList.toggle('collapsed')
+          this.setAttribute('aria-expanded', isExpanded ? 'true' : 'false')
         }
       })
     })

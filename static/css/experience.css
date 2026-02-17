@@ -291,19 +291,39 @@
   margin-bottom: var(--space-sm);
 }
 
-.filter-title.collapsible {
+.collapsible-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
   user-select: none;
   padding: var(--space-sm) 0;
-  margin-bottom: 0;
   transition: color var(--duration-fast);
 }
 
-.filter-title.collapsible:hover {
+.collapsible-button:hover {
   color: var(--accent-primary);
 }
 
-.filter-section:not(.collapsed) .filter-title.collapsible {
+.collapsible-button:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.collapsible-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.filter-section:not(.collapsed) .filter-title {
   margin-bottom: var(--space-sm);
 }
 
