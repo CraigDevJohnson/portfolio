@@ -320,9 +320,10 @@ templ Experience() {
       button.addEventListener('click', function () {
         const section = this.closest('.filter-section')
         if (section) {
-          const isExpanded = section.classList.contains('collapsed')
+          const isCurrentlyCollapsed = section.classList.contains('collapsed')
           section.classList.toggle('collapsed')
-          this.setAttribute('aria-expanded', isExpanded ? 'true' : 'false')
+          // After toggle: if it was collapsed, it's now expanded (and vice versa)
+          this.setAttribute('aria-expanded', isCurrentlyCollapsed ? 'true' : 'false')
         }
       })
     })
