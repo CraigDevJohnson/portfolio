@@ -66,7 +66,7 @@ lint:
     echo "stylelint not found -- please run 'just install-lint' to install it"
     exit 1
   fi
-  npx stylelint "**/*.css" --fix "strict"
+  npx stylelint "**/*.css" --fix
 
 # Check quality, run tests and build the binary
 [group('quality')]

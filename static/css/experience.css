@@ -288,22 +288,45 @@
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
   color: var(--fg-primary);
-  margin-bottom: var(--space-sm);
+  margin-bottom: 0;
 }
 
-.filter-title.collapsible {
+.collapsible-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
   user-select: none;
   padding: var(--space-sm) 0;
-  margin-bottom: 0;
   transition: color var(--duration-fast);
 }
 
-.filter-title.collapsible:hover {
+.collapsible-button:hover {
   color: var(--accent-primary);
 }
 
-.filter-section:not(.collapsed) .filter-title.collapsible {
+.collapsible-button:focus {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Only hide outline for mouse users in browsers that support :focus-visible */
+@supports selector(:focus-visible) {
+  .collapsible-button:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+.filter-section:not(.collapsed) .filter-title {
   margin-bottom: var(--space-sm);
 }
 
@@ -360,7 +383,7 @@
   background: var(--accent-primary);
   color: white;
   border-color: var(--accent-primary);
-  box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
+  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
 }
 
 .filter-pill.active:hover {
