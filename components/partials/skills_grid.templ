@@ -268,7 +268,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "expert") }
 					>
-						<span class="filter-dot level-expert"></span> Expert
+						<span class="filter-dot level-expert" aria-hidden="true"></span> Expert
 					</button>
 					<button
 						type="button"
@@ -278,7 +278,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "advanced") }
 					>
-						<span class="filter-dot level-advanced"></span> Advanced
+						<span class="filter-dot level-advanced" aria-hidden="true"></span> Advanced
 					</button>
 					<button
 						type="button"
@@ -288,7 +288,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "intermediate") }
 					>
-						<span class="filter-dot level-intermediate"></span> Intermediate
+						<span class="filter-dot level-intermediate" aria-hidden="true"></span> Intermediate
 					</button>
 					<button
 						type="button"
@@ -298,7 +298,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "familiar") }
 					>
-						<span class="filter-dot level-familiar"></span> Familiar
+						<span class="filter-dot level-familiar" aria-hidden="true"></span> Familiar
 					</button>
 				</div>
 			</div>

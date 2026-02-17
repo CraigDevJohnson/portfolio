@@ -173,6 +173,7 @@
   font-weight: var(--font-extrabold);
   background: var(--accent-gradient);
   -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text;
   background-clip: text;
   line-height: 1.1;
 }
