@@ -45,11 +45,11 @@
 }
 
 .education-hero h1 {
-  animation: edu-card-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
 }
 
 .education-hero .lead {
-  animation: edu-card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
   max-width: 600px;
   margin: 0 auto;
 }
@@ -71,7 +71,7 @@
   background: linear-gradient(135deg, rgb(255 255 255 / 4%) 0%, rgb(255 255 255 / 1%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  animation: edu-card-fade-in var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
   transition: all var(--duration-normal) var(--ease-out);
 }
 
@@ -128,7 +128,7 @@
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: edu-card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
 }
 
 .edu-degree-card::before {
@@ -263,7 +263,7 @@
   transition: all var(--duration-normal) var(--ease-out);
   position: relative;
   overflow: hidden;
-  animation: edu-card-fade-in var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 /* Staggered entrance */
@@ -277,18 +277,6 @@
 .education-grid > :nth-child(8) { animation-delay: 0.4s; }
 .education-grid > :nth-child(9) { animation-delay: 0.45s; }
 .education-grid > :nth-child(10) { animation-delay: 0.5s; }
-
-@keyframes edu-card-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 .cert-card::before {
   content: '';

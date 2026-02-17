@@ -60,20 +60,8 @@
 /* Soccer Content */
 .soccer-content {
   padding-bottom: var(--space-3xl);
-  animation: soccer-fade-in var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
   animation-delay: 0.1s;
-}
-
-@keyframes soccer-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Unified Card - Everything in one section */
@@ -142,7 +130,7 @@
   height: 100%;
 }
 
-.info-inline h4 {
+.info-inline h3 {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -272,7 +260,7 @@
 
 /* Games Form / Table */
 .games-form {
-  animation: soccer-fade-in var(--duration-normal) var(--ease-out);
+  animation: card-fade-in var(--duration-normal) var(--ease-out);
 }
 
 .table-header {

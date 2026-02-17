@@ -21,11 +21,6 @@
   --accent-gradient: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
   --accent-gradient-hover: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%);
 
-  /* Warm accent for highlights */
-  --accent-warm: #f59e0b;
-  --accent-warm-rgb: 245, 158, 11;
-  --gradient-subtle: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
-
   /* Success / Error */
   --success-bg: rgb(34 197 94 / 15%);
   --success-fg: #4ade80;
@@ -43,7 +38,6 @@
   --shadow-md: 0 4px 16px rgb(0 0 0 / 50%);
   --shadow-lg: 0 8px 32px rgb(0 0 0 / 60%);
   --shadow-xl: 0 16px 48px rgb(0 0 0 / 70%);
-  --shadow-glow: 0 0 32px rgb(251 146 60 / 40%);
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -96,7 +90,6 @@
 
   /* Layout */
   --header-height: 72px;
-  --footer-height: auto;
   --container-max: 1200px;
   --container-narrow: 800px;
 }
@@ -706,36 +699,6 @@ code {
 /* ================================
    CTA Sections (shared across pages)
 ================================ */
-.cta-content {
-  text-align: center;
-  padding: var(--space-2xl);
-  background: linear-gradient(
-    135deg,
-    rgb(234 88 12 / 8%) 0%,
-    rgb(13 148 136 / 8%) 100%
-  );
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-}
-
-.cta-content h2 {
-  margin-bottom: var(--space-md);
-}
-
-.cta-content p {
-  margin-bottom: var(--space-xl);
-  color: var(--fg-muted);
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.cta-buttons {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: center;
-  flex-wrap: wrap;
-}
 
 /* ================================
    Animations

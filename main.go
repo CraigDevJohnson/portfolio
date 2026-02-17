@@ -99,7 +99,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		AvatarURL:          gravatarURL("gravatar@craigdevjohnson.com", 275),
 		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
 		YearsInTech:        time.Now().Year() - careerStartYear,
-		Certifications:     11,
+		Certifications:     10,
 		AutomationProjects: "100",
 	}).Render(context.Background(), w)
 	if err != nil {
@@ -116,7 +116,7 @@ About
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
 	props := pages.AboutProps{
 		YearsInTech:    time.Now().Year() - careerStartYear,
-		Certifications: 11,
+		Certifications: 10,
 		TechUsed:       30,
 		CupsOfCoffee:   "∞",
 	}
