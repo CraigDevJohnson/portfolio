@@ -21,3 +21,11 @@ coverage.out
 
 # Templ generated files
 *_templ.go
+
+# OpenTofu / Terraform
+infra/.terraform/
+infra/.tofu/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/*.tfplan
+infra/.terraform.lock.hcl
