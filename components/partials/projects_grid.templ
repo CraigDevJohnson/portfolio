@@ -11,7 +11,7 @@ type ProjectsGridProps struct {
 templ ProjectsGrid(props ProjectsGridProps) {
 	<div class="projects-grid">
 		for index, project := range props.Projects {
-			<article class="project-card" style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
+			<article class="project-card" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
 				<div class="project-image">
 					if project.Image != "" {
 						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225"/>

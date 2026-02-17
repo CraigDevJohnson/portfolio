@@ -8,21 +8,20 @@ templ Projects() {
 		Page:  "projects",
 	}) {
 		<!-- Hero with animated orbs -->
-		<section class="projects-hero">
-			<div class="proj-hero-bg">
+		<section class="page-hero projects-hero">
+			<div class="proj-hero-bg" aria-hidden="true">
 				<div class="proj-hero-orb proj-hero-orb-1"></div>
 				<div class="proj-hero-orb proj-hero-orb-2"></div>
 				<div class="proj-hero-orb proj-hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
-				<div class="proj-hero-badge">
-					<span class="proj-badge-dot"></span>
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
 					Open Source Builder
 				</div>
 				<h1>Projects</h1>
-				<p class="lead">A showcase of automation, web development, and cloud infrastructure projects</p>
-				<p class="proj-hero-subtitle">
-					Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
+        <p class="lead">
+          A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
 			</div>
 		</section>
@@ -62,7 +61,7 @@ templ Projects() {
 		<!-- What I Build -->
 		<section class="projects-intro">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>What I Build</span>
 			</div>
 			<p class="proj-intro-text">
@@ -71,14 +70,14 @@ templ Projects() {
 		</section>
 		<!-- Category Filters -->
 		<div class="proj-category-filters">
-			<button class="proj-category-pill active" data-category="all">All</button>
-			<button class="proj-category-pill" data-category="web">Web</button>
-			<button class="proj-category-pill" data-category="automation">Automation</button>
+			<button class="proj-category-pill active" aria-pressed="true" data-category="all">All</button>
+			<button class="proj-category-pill" aria-pressed="false" data-category="web">Web</button>
+			<button class="proj-category-pill" aria-pressed="false" data-category="automation">Automation</button>
 		</div>
 		<!-- Project Grid -->
 		<section class="projects-grid-wrapper">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Project Showcase</span>
 			</div>
 			<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
@@ -102,8 +101,8 @@ templ Projects() {
 			</section>
 		</section>
 		<!-- CTA -->
-		<section class="proj-cta-section">
-			<div class="cta-glow"></div>
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
 			<h2>Looking for more?</h2>
 			<p class="cta-subtitle">Check out my GitHub profile for additional projects and contributions</p>
 			<div class="cta-buttons">
@@ -152,8 +151,9 @@ templ Projects() {
     var pills = document.querySelectorAll('.proj-category-pill');
     pills.forEach(function(pill) {
       pill.addEventListener('click', function() {
-        pills.forEach(function(p) { p.classList.remove('active'); });
+        pills.forEach(function(p) { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
         pill.classList.add('active');
+        pill.setAttribute('aria-pressed', 'true');
         var category = pill.dataset.category;
         var cards = document.querySelectorAll('.project-card');
         cards.forEach(function(card) {

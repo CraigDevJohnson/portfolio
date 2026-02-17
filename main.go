@@ -22,28 +22,22 @@ Main
 ========================================
 */
 
+const careerStartYear = 2012
+
 func main() {
-	// MIME types
-	if err := mime.AddExtensionType(".css", "text/css"); err != nil {
-		log.Fatalf("Failed to add MIME type for .css: %v", err)
+	mimeTypes := map[string]string{
+		".css":  "text/css",
+		".js":   "application/javascript",
+		".ico":  "image/x-icon",
+		".svg":  "image/svg+xml",
+		".webp": "image/webp",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
 	}
-	if err := mime.AddExtensionType(".js", "application/javascript"); err != nil {
-		log.Fatalf("Failed to add MIME type for .js: %v", err)
-	}
-	if err := mime.AddExtensionType(".ico", "image/x-icon"); err != nil {
-		log.Fatalf("Failed to add MIME type for .ico: %v", err)
-	}
-	if err := mime.AddExtensionType(".svg", "image/svg+xml"); err != nil {
-		log.Fatalf("Failed to add MIME type for .svg: %v", err)
-	}
-	if err := mime.AddExtensionType(".webp", "image/webp"); err != nil {
-		log.Fatalf("Failed to add MIME type for .webp: %v", err)
-	}
-	if err := mime.AddExtensionType(".png", "image/png"); err != nil {
-		log.Fatalf("Failed to add MIME type for .png: %v", err)
-	}
-	if err := mime.AddExtensionType(".jpg", "image/jpeg"); err != nil {
-		log.Fatalf("Failed to add MIME type for .jpg: %v", err)
+	for ext, mtype := range mimeTypes {
+		if err := mime.AddExtensionType(ext, mtype); err != nil {
+			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
+		}
 	}
 
 	// routes - pages
@@ -99,15 +93,13 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	startYear := 2012
-	currentYear := time.Now().Year()
 	err := pages.Home(pages.HomeProps{
 		Name:               "Craig Johnson",
 		Role:               "Cloud Engineer Principal",
 		AvatarURL:          gravatarURL("gravatar@craigdevjohnson.com", 275),
 		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
-		YearsInTech:        currentYear - startYear,
-		Certifications:     11,
+		YearsInTech:        time.Now().Year() - careerStartYear,
+		Certifications:     10,
 		AutomationProjects: "100",
 	}).Render(context.Background(), w)
 	if err != nil {
@@ -122,11 +114,9 @@ About
 */
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	startYear := 2012
-	currentYear := time.Now().Year()
 	props := pages.AboutProps{
-		YearsInTech:    currentYear - startYear,
-		Certifications: 11,
+		YearsInTech:    time.Now().Year() - careerStartYear,
+		Certifications: 10,
 		TechUsed:       30,
 		CupsOfCoffee:   "∞",
 	}

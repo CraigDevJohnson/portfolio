@@ -4,31 +4,7 @@
 
 /* Hero Section */
 .soccer-hero {
-  padding: var(--space-3xl) 0 var(--space-2xl);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 0;
   background-image: url('/static/images/backgrounds/soccer-hero.jpg');
-  background-size: cover;
-  background-position: center 30%;
-}
-
-.soccer-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(28, 25, 23, 0.72) 0%,
-    rgba(28, 25, 23, 0.82) 100%
-  );
-  z-index: 1;
-}
-
-.soccer-hero > * {
-  position: relative;
-  z-index: 2;
 }
 
 /* Animated hero orbs */
@@ -51,78 +27,29 @@
 .soccer-hero-orb-1 {
   width: 360px;
   height: 360px;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgb(234 88 12 / 30%) 0%, transparent 70%);
   top: -100px;
   right: -40px;
-  animation: soccerOrbFloat 8s ease-in-out infinite;
+  animation: orb-float 8s ease-in-out infinite;
 }
 
 .soccer-hero-orb-2 {
   width: 280px;
   height: 280px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.25) 0%, transparent 70%);
+  background: radial-gradient(circle, rgb(13 148 136 / 25%) 0%, transparent 70%);
   bottom: -80px;
   left: -30px;
-  animation: soccerOrbFloat 8s ease-in-out infinite reverse;
+  animation: orb-float 8s ease-in-out infinite reverse;
 }
 
 .soccer-hero-orb-3 {
   width: 180px;
   height: 180px;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.2) 0%, transparent 70%);
+  background: radial-gradient(circle, rgb(234 88 12 / 20%) 0%, transparent 70%);
   top: 50%;
   left: 45%;
-  animation: soccerOrbFloat 10s ease-in-out infinite;
+  animation: orb-float 10s ease-in-out infinite;
   animation-delay: -4s;
-}
-
-@keyframes soccerOrbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(20px, -15px) scale(1.05); }
-  66% { transform: translate(-15px, 10px) scale(0.95); }
-}
-
-/* Hero badge */
-.soccer-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-lg);
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  color: var(--fg-accent);
-  background: rgba(var(--accent-primary-rgb), 0.08);
-  margin-bottom: var(--space-lg);
-}
-
-.soccer-badge-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent-primary);
-  border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-/* Section labels */
-.section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-md);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--fg-accent);
-}
-
-.label-line {
-  width: 32px;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: var(--radius-full);
 }
 
 /* Soccer-specific overrides */
@@ -133,27 +60,16 @@
 /* Soccer Content */
 .soccer-content {
   padding-bottom: var(--space-3xl);
-  animation: soccerFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
   animation-delay: 0.1s;
-}
-
-@keyframes soccerFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* Unified Card - Everything in one section */
 .soccer-unified-card {
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.02) 100%
+    rgb(255 255 255 / 5%) 0%,
+    rgb(255 255 255 / 2%) 100%
   );
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -169,9 +85,9 @@
   inset: 0;
   background: linear-gradient(
     135deg,
-    rgba(234, 88, 12, 0.08) 0%,
+    rgb(234 88 12 / 8%) 0%,
     transparent 50%,
-    rgba(13, 148, 136, 0.08) 100%
+    rgb(13 148 136 / 8%) 100%
   );
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
@@ -190,10 +106,10 @@
 
 .soccer-unified-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(234, 88, 12, 0.3);
+  border-color: rgb(234 88 12 / 30%);
   box-shadow:
     var(--shadow-lg),
-    0 0 32px rgba(234, 88, 12, 0.15);
+    0 0 32px rgb(234 88 12 / 15%);
 }
 
 /* Header section - form and info side by side */
@@ -205,7 +121,7 @@
   background: linear-gradient(
     135deg,
     rgba(var(--accent-primary-rgb), 0.12) 0%,
-    rgba(15, 23, 42, 0.04) 100%
+    rgb(15 23 42 / 4%) 100%
   );
 }
 
@@ -214,7 +130,7 @@
   height: 100%;
 }
 
-.info-inline h4 {
+.info-inline h3 {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -333,10 +249,6 @@
   text-align: center;
 }
 
-.no-results-icon {
-  display: none;
-}
-
 .no-results p {
   color: var(--warning-fg);
 }
@@ -348,7 +260,7 @@
 
 /* Games Form / Table */
 .games-form {
-  animation: soccerFadeIn var(--duration-normal) var(--ease-out);
+  animation: card-fade-in var(--duration-normal) var(--ease-out);
 }
 
 .table-header {
@@ -447,8 +359,8 @@
 .games-table tbody tr:hover {
   background: linear-gradient(
     90deg,
-    rgba(234, 88, 12, 0.1) 0%,
-    rgba(255, 255, 255, 0.03) 100%
+    rgb(234 88 12 / 10%) 0%,
+    rgb(255 255 255 / 3%) 100%
   );
   box-shadow: inset 3px 0 0 var(--accent-primary);
 }
@@ -571,14 +483,14 @@
 
 .step-card {
   padding: var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: cardFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .step-card:nth-child(1) { animation-delay: 0.1s; }
@@ -589,7 +501,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 8%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -602,11 +514,11 @@
 
 .step-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.4);
+  border-color: rgb(234 88 12 / 40%);
   box-shadow:
     var(--shadow-xl),
-    0 0 32px rgba(234, 88, 12, 0.15),
-    inset 0 0 16px rgba(234, 88, 12, 0.05);
+    0 0 32px rgb(234 88 12 / 15%),
+    inset 0 0 16px rgb(234 88 12 / 5%);
 }
 
 .step-card:hover::before {
@@ -617,7 +529,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.15), rgba(13, 148, 136, 0.1));
+  background: linear-gradient(135deg, rgb(234 88 12 / 15%), rgb(13 148 136 / 10%));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -629,7 +541,7 @@
 .step-card:hover .soccer-icon-wrap,
 .feature-card:hover .soccer-icon-wrap {
   transform: scale(1.1);
-  box-shadow: 0 0 20px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 0 20px rgb(234 88 12 / 20%);
 }
 
 .step-number {
@@ -668,14 +580,14 @@
 
 .feature-card {
   padding: var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: cardFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .feature-card:nth-child(1) { animation-delay: 0.15s; }
@@ -686,7 +598,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 8%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -699,11 +611,11 @@
 
 .feature-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.4);
+  border-color: rgb(234 88 12 / 40%);
   box-shadow:
     var(--shadow-xl),
-    0 0 32px rgba(234, 88, 12, 0.15),
-    inset 0 0 16px rgba(234, 88, 12, 0.05);
+    0 0 32px rgb(234 88 12 / 15%),
+    inset 0 0 16px rgb(234 88 12 / 5%);
 }
 
 .feature-card:hover::before {
@@ -723,19 +635,8 @@
   margin: 0;
 }
 
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* Responsive */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .unified-header {
     grid-template-columns: 1fr;
   }
@@ -746,7 +647,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .unified-header {
     padding: var(--space-lg);
     gap: var(--space-lg);
