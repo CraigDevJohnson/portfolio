@@ -8,12 +8,13 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"portfolio/components/pages"
-	"portfolio/components/partials"
-	"portfolio/types"
 	"strconv"
 	"strings"
 	"time"
+
+	"portfolio/components/pages"
+	"portfolio/components/partials"
+	"portfolio/types"
 )
 
 /*
@@ -72,8 +73,15 @@ func main() {
 		http.ServeFile(w, r, "static/images/favicon.ico")
 	})
 
+	server := &http.Server{
+		Addr:         ":8080",
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	log.Println("Craig Johnson Portfolio running at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(server.ListenAndServe())
 }
 
 /*
@@ -234,8 +242,10 @@ Skills
 */
 
 // Use types from shared package
-type Skill = types.Skill
-type SkillCategory = types.SkillCategory
+type (
+	Skill         = types.Skill
+	SkillCategory = types.SkillCategory
+)
 
 const (
 	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
@@ -415,10 +425,10 @@ func skillsData() []SkillCategory {
 func getFeaturedSkills(categories []SkillCategory) []Skill {
 	var featured []Skill
 	for _, category := range categories {
-		for _, skill := range category.Skills {
-			if skill.Featured {
-				skill.Category = category.Name
-				featured = append(featured, skill)
+		for i := range category.Skills {
+			if category.Skills[i].Featured {
+				category.Skills[i].Category = category.Name
+				featured = append(featured, category.Skills[i])
 			}
 		}
 	}
@@ -472,9 +482,9 @@ func skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	var found Skill
 	var foundCategory string
 	for _, cat := range categories {
-		for _, skill := range cat.Skills {
-			if skill.ID == id {
-				found = skill
+		for i := range cat.Skills {
+			if cat.Skills[i].ID == id {
+				found = cat.Skills[i]
 				foundCategory = cat.Name
 				break
 			}
@@ -598,8 +608,10 @@ Soccer
 */
 
 // Use types from shared package
-type Game = types.Game
-type LambdaGamesResponse = types.LambdaGamesResponse
+type (
+	Game                = types.Game
+	LambdaGamesResponse = types.LambdaGamesResponse
+)
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
 	err := pages.Soccer().Render(context.Background(), w)

@@ -6,7 +6,7 @@ resource "aws_ecr_repository" "app" {
   name                 = var.app_name
   image_tag_mutability = "MUTABLE"
   # Do not force-delete the repository when it still contains images to avoid accidental loss in production.
-  force_delete         = false
+  force_delete = false
 
   image_scanning_configuration {
     scan_on_push = true
@@ -129,6 +129,7 @@ resource "aws_apprunner_service" "app" {
   }
 
   tags = {
-    Name = var.app_name
+    Name        = var.app_name
+    Environment = "development"
   }
 }

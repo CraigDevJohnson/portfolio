@@ -1,13 +1,13 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-east-1"
+  default     = "us-west-2"
 }
 
 variable "app_name" {
   description = "Name of the application"
   type        = string
-  default     = "portfolio"
+  default     = "portfolio-dev"
 }
 
 variable "container_port" {

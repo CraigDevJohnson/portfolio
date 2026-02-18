@@ -120,7 +120,7 @@
   padding: var(--space-xl);
   background: linear-gradient(
     135deg,
-    rgba(var(--accent-primary-rgb), 0.12) 0%,
+    rgb(var(--accent-primary-rgb), 0.12) 0%,
     rgb(15 23 42 / 4%) 100%
   );
 }
@@ -268,7 +268,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-lg);
-  background: rgba(var(--accent-primary-rgb), 0.12);
+  background: rgb(var(--accent-primary-rgb), 0.12);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
   gap: var(--space-md);
@@ -312,7 +312,7 @@
   color: white;
   box-shadow:
     var(--shadow-sm),
-    0 4px 16px rgba(var(--accent-primary-rgb), 0.25);
+    0 4px 16px rgb(var(--accent-primary-rgb), 0.25);
 }
 
 .download-btn:hover:not(:disabled),
@@ -321,7 +321,7 @@
   transform: translateY(-2px);
   box-shadow:
     var(--shadow-md),
-    0 8px 24px rgba(var(--accent-primary-rgb), 0.35);
+    0 8px 24px rgb(var(--accent-primary-rgb), 0.35);
 }
 
 /* Table Wrapper */
@@ -347,7 +347,7 @@
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(var(--accent-primary-rgb), 0.1);
+  background: rgb(var(--accent-primary-rgb), 0.1);
   position: sticky;
   top: 0;
 }
@@ -396,7 +396,7 @@
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
-  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
+  box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
 }
 
 .col-team {
@@ -414,10 +414,10 @@
 .season-badge {
   display: inline-flex;
   padding: var(--space-xs) var(--space-sm);
-  background: rgba(var(--accent-primary-rgb), 0.12);
+  background: rgb(var(--accent-primary-rgb), 0.12);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
+  border: 1px solid rgb(var(--accent-primary-rgb), 0.2);
 }
 
 /* Subscribe Section */

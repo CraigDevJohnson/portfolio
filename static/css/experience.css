@@ -383,7 +383,7 @@
   background: var(--accent-primary);
   color: white;
   border-color: var(--accent-primary);
-  box-shadow: 0 2px 8px rgba(var(--accent-primary-rgb), 0.3);
+  box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
 }
 
 .filter-pill.active:hover {

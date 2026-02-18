@@ -8,14 +8,13 @@ terraform {
     }
   }
 
-  # Uncomment and configure after initial apply to migrate state to S3.
-  # backend "s3" {
-  #   bucket         = "your-tofu-state-bucket"
-  #   key            = "portfolio/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "tofu-state-lock"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket       = "portfolio-tofu-state-180294223248"
+    key          = "portfolio/terraform.tfstate"
+    region       = "us-west-2"
+    use_lockfile = true
+    encrypt      = true
+  }
 }
 
 provider "aws" {

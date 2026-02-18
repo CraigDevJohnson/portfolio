@@ -1,0 +1,107 @@
+version = "2"
+
+[run]
+timeout = "5m"
+go = "1.23"
+
+[linters]
+# Start with the standard set (errcheck, govet, ineffassign, staticcheck, unused, ...)
+default = "fast"
+
+# Add linters not in the standard set
+enable = [
+  "bodyclose",     # Ensure HTTP response bodies are closed
+  "copyloopvar",   # Detect loop variable copies (Go < 1.22 compat)
+  "durationcheck", # Catch incorrect duration multiplications
+  "errorlint",     # Proper error wrapping with Go 1.13+ patterns
+  "fatcontext",    # Prevent context values in loops/closures
+  "gocritic",      # Bug, performance, and style diagnostics
+  "gosec",         # Security vulnerability scanning
+  "misspell",      # Catch common typos in comments and strings
+  "nolintlint",    # Enforce proper //nolint directive usage
+  "prealloc",      # Suggest slice pre-allocations
+  "unparam",       # Report unused function parameters
+  "wastedassign",  # Find wasted assignment statements
+]
+
+# Disable linters that are too strict or noisy for this codebase
+disable = [
+  "depguard",    # No package import policy is configured for this project
+  "exhaustruct", # Requiring all struct fields initialized is too strict
+  "godoclint",   # Data constants and comments don't need godoc symbol naming
+  "godot",       # Enforcing periods on comments is too opinionated
+  "godox",       # TODOs/FIXMEs in comments are acceptable
+  "lll",         # SVG inline data and long strings exceed 120 chars by design
+  "mnd",         # IDs and timeouts as literals are clear enough in context
+  "varnamelen",  # Short variable names are idiomatic in Go
+  "funlen",      # Function length limits are too rigid
+  "gocognit",    # Cognitive complexity too noisy for template handlers
+  "cyclop",      # Cyclomatic complexity duplicate of gocyclo
+  "nlreturn",    # Blank lines before returns too opinionated
+  "wrapcheck",   # Not all external errors need wrapping
+  "wsl",         # Whitespace linter is too opinionated
+  "wsl_v5",      # Same as above
+]
+
+[linters.settings.errcheck]
+# Don't flag _ = err ignores or type assertion ignores
+check-type-assertions = false
+check-blank = false
+
+[linters.settings.gocritic]
+# Enable all stable checks; the experimental/opinionated ones are too noisy
+enabled-tags = ["diagnostic", "performance"]
+disabled-tags = ["style", "opinionated", "experimental"]
+
+[linters.settings.gosec]
+# Only report medium and above to reduce noise
+[linters.settings.gosec.config.global]
+audit = false
+
+[linters.settings.misspell]
+locale = "US"
+
+[linters.settings.prealloc]
+simple = true
+range-loops = true
+for-loops = false
+
+[linters.settings.unparam]
+check-exported = false
+
+[linters.exclusions]
+# Use strict generated file detection (only files with the standard header comment)
+generated = "strict"
+
+# Use common preset exclusions  reduces well-known false positives
+presets = ["common-false-positives", "std-error-handling"]
+
+# Custom exclusion rules
+[[linters.exclusions.rules]]
+# Relax error checks and security rules in test files
+path = "_test\\.go"
+linters = ["errcheck", "bodyclose", "gosec", "unparam"]
+
+[[linters.exclusions.rules]]
+# Ignore G104 (errors unhandled) for defer/Close patterns — very common in handlers
+linters = ["gosec"]
+text = "G104"
+
+[[linters.exclusions.rules]]
+# MD5 is required by the Gravatar API spec; cannot use a stronger hash here
+linters = ["gosec"]
+text = "G501|G401"
+
+[issues]
+max-issues-per-linter = 50
+max-same-issues = 3
+
+[formatters]
+enable = ["gofumpt", "goimports"]
+# Use a concise, human-friendly formatter
+[formatters.settings.gofumpt]
+module-path = "portfolio"
+extra-rules = true
+
+[formatters.settings.goimports]
+local-prefixes = ["portfolio"]
