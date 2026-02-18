@@ -497,9 +497,31 @@ Here's how to add each one:
 
 ### Lambda Functions
 
-1. Define Lambda functions in `infra/main.tf`:
+1. Create a Lambda execution IAM role and function in `infra/main.tf`:
 
    ```hcl
+   resource "aws_iam_role" "lambda_exec" {
+     name = "${var.app_name}-lambda-exec"
+
+     assume_role_policy = jsonencode({
+       Version = "2012-10-17"
+       Statement = [
+         {
+           Effect = "Allow"
+           Principal = {
+             Service = "lambda.amazonaws.com"
+           }
+           Action = "sts:AssumeRole"
+         }
+       ]
+     })
+   }
+
+   resource "aws_iam_role_policy_attachment" "lambda_basic" {
+     role       = aws_iam_role.lambda_exec.name
+     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+   }
+
    resource "aws_lambda_function" "example" {
      function_name = "${var.app_name}-example"
      runtime       = "provided.al2023"
@@ -522,6 +544,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+
+env:
+  APP_NAME: portfolio  # Must match var.app_name in infra/variables.tf
 
 jobs:
   deploy:
@@ -547,13 +572,13 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
-          docker build -t $ECR_REGISTRY/portfolio:latest .
-          docker push $ECR_REGISTRY/portfolio:latest
+          docker build -t $ECR_REGISTRY/$APP_NAME:latest .
+          docker push $ECR_REGISTRY/$APP_NAME:latest
 
       - name: Deploy to App Runner
         run: |
           SERVICE_ARN=$(aws apprunner list-services \
-            --query "ServiceSummaryList[?ServiceName=='portfolio'].ServiceArn" \
+            --query "ServiceSummaryList[?ServiceName=='$APP_NAME'].ServiceArn" \
             --output text)
           aws apprunner start-deployment --service-arn "$SERVICE_ARN"
 ```
