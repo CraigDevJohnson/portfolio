@@ -368,15 +368,16 @@ Look for `"Status": "active"` on your domain entries.
 
 ### 6d. CloudFlare SSL/TLS settings
 
-Since App Runner provides its own TLS certificate, configure CloudFlare's SSL mode:
+Since App Runner provides its own publicly trusted TLS certificate, configure CloudFlare's SSL mode:
 
 1. In CloudFlare, go to **SSL/TLS** > **Overview**.
-2. Set the encryption mode to **Full** (not "Full (strict)" since App Runner uses its own
-   AWS-issued certificate, not a CloudFlare origin certificate).
+2. Set the encryption mode to **Full (strict)** so CloudFlare fully validates the App Runner
+   ACM certificate while still terminating TLS at the edge.
 
-> **Note:** If you keep CloudFlare proxy enabled (orange cloud), use **Full** mode. If you use
-> **DNS only** (grey cloud), CloudFlare won't terminate TLS and the App Runner certificate
-> handles everything directly.
+> **Note:** If you keep the CloudFlare proxy enabled (orange cloud), you should use
+> **Full (strict)** so CloudFlare validates the origin certificate. If you use **DNS only**
+> (grey cloud), CloudFlare won't terminate TLS and the App Runner certificate handles
+> everything directly between the browser and App Runner.
 
 ---
 
