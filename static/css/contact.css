@@ -4,14 +4,7 @@
 
 /* Hero Section */
 .contact-hero {
-  padding: var(--space-3xl) 0 var(--space-2xl);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 0;
   background-image: url('/static/images/backgrounds/contact-hero.jpg');
-  background-size: cover;
-  background-position: center 30%;
 }
 
 .contact-hero-bg {
@@ -31,25 +24,19 @@
 .contact-orb-1 {
   width: 450px;
   height: 450px;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.6), transparent 70%);
+  background: radial-gradient(circle, rgb(234 88 12 / 60%), transparent 70%);
   top: -100px;
   left: -80px;
-  animation: contactOrbFloat 8s ease-in-out infinite;
+  animation: orb-float 8s ease-in-out infinite;
 }
 
 .contact-orb-2 {
   width: 380px;
   height: 380px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.5), transparent 70%);
+  background: radial-gradient(circle, rgb(13 148 136 / 50%), transparent 70%);
   bottom: -60px;
   right: -60px;
-  animation: contactOrbFloat 7s ease-in-out infinite reverse;
-}
-
-@keyframes contactOrbFloat {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(25px, -18px) scale(1.05); }
-  66% { transform: translate(-15px, 12px) scale(0.95); }
+  animation: orb-float 7s ease-in-out infinite reverse;
 }
 
 .contact-hero > * {
@@ -57,69 +44,14 @@
   z-index: 2;
 }
 
-.contact-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-md);
-  background: rgba(234, 88, 12, 0.1);
-  border: 1px solid rgba(234, 88, 12, 0.3);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  color: var(--fg-accent);
-  font-weight: var(--font-semibold);
-  margin-bottom: var(--space-lg);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
-}
-
-.contact-badge-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent-primary);
-  animation: contactPulse 2s ease-in-out infinite;
-}
-
-@keyframes contactPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
-}
-
 .contact-hero h1 {
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.1s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
 }
 
 .contact-hero .lead {
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
   max-width: 600px;
   margin: 0 auto;
-}
-
-@keyframes contactFadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Section Labels */
-.contact-connect .section-label,
-.contact-bring .section-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-  font-size: var(--text-sm);
-  color: var(--fg-accent);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.contact-connect .label-line,
-.contact-bring .label-line {
-  width: 32px;
-  height: 2px;
-  background: var(--accent-gradient);
-  border-radius: 1px;
 }
 
 .contact-section-title {
@@ -143,7 +75,7 @@
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-lg) var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-decoration: none;
@@ -151,7 +83,7 @@
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .contact-method-card:nth-child(1) { animation-delay: 0.1s; }
@@ -162,7 +94,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.1) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 10%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -175,11 +107,11 @@
 
 .contact-method-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.5);
+  border-color: rgb(234 88 12 / 50%);
   box-shadow:
     var(--shadow-xl),
-    0 0 40px rgba(234, 88, 12, 0.2),
-    inset 0 0 20px rgba(234, 88, 12, 0.05);
+    0 0 40px rgb(234 88 12 / 20%),
+    inset 0 0 20px rgb(234 88 12 / 5%);
 }
 
 .contact-method-card:hover::before {
@@ -190,7 +122,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.15), rgba(13, 148, 136, 0.1));
+  background: linear-gradient(135deg, rgb(234 88 12 / 15%), rgb(13 148 136 / 10%));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -201,7 +133,7 @@
 
 .contact-method-card:hover .cm-icon-wrap {
   transform: scale(1.1);
-  box-shadow: 0 0 20px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 0 20px rgb(234 88 12 / 20%);
 }
 
 .cm-info {
@@ -250,14 +182,14 @@
 
 .bring-card {
   padding: var(--space-xl);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
   position: relative;
   overflow: hidden;
   transition: all var(--duration-normal) var(--ease-out);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
 .bring-card:nth-child(1) { animation-delay: 0.1s; }
@@ -269,7 +201,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgb(234 88 12 / 8%) 0%, transparent 60%);
   opacity: 0;
   transition: opacity var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -282,11 +214,11 @@
 
 .bring-card:hover {
   transform: translateY(-6px);
-  border-color: rgba(234, 88, 12, 0.4);
+  border-color: rgb(234 88 12 / 40%);
   box-shadow:
     var(--shadow-xl),
-    0 0 32px rgba(234, 88, 12, 0.15),
-    inset 0 0 16px rgba(234, 88, 12, 0.05);
+    0 0 32px rgb(234 88 12 / 15%),
+    inset 0 0 16px rgb(234 88 12 / 5%);
 }
 
 .bring-card:hover::before {
@@ -323,10 +255,10 @@
 
 .avail-card {
   padding: var(--space-xl) var(--space-2xl);
-  background: linear-gradient(135deg, rgba(234, 88, 12, 0.06) 0%, rgba(13, 148, 136, 0.04) 100%);
-  border: 1px solid rgba(234, 88, 12, 0.2);
+  background: linear-gradient(135deg, rgb(234 88 12 / 6%) 0%, rgb(13 148 136 / 4%) 100%);
+  border: 1px solid rgb(234 88 12 / 20%);
   border-radius: var(--radius-lg);
-  animation: contactFadeIn var(--duration-slow) var(--ease-out) 0.2s both;
+  animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
 }
 
 .avail-header {
@@ -349,7 +281,7 @@
   height: 12px;
   border-radius: 50%;
   background: var(--accent-primary);
-  box-shadow: 0 0 8px rgba(234, 88, 12, 0.5);
+  box-shadow: 0 0 8px rgb(234 88 12 / 50%);
   animation: contactPulse 2s ease-in-out infinite;
 }
 
@@ -388,71 +320,14 @@
   font-weight: var(--font-semibold);
 }
 
-/* CTA Section */
-.contact-cta-section {
-  background: linear-gradient(
-    135deg,
-    rgba(234, 88, 12, 0.12) 0%,
-    rgba(13, 148, 136, 0.08) 100%
-  );
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-3xl);
-  overflow: hidden;
-  padding: var(--space-3xl) var(--space-2xl);
-  position: relative;
-  text-align: center;
-}
-
-.contact-cta-section .cta-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  height: 300px;
-  background: radial-gradient(
-    ellipse,
-    rgba(var(--accent-primary-rgb), 0.15) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.contact-cta-section > * {
-  position: relative;
-  z-index: 1;
-}
-
-.contact-cta-section h2 {
-  margin-bottom: var(--space-sm);
-  font-size: var(--text-2xl);
-}
-
-.contact-cta-section .cta-subtitle {
-  color: var(--fg-muted);
-  margin-bottom: var(--space-xl);
-  font-size: var(--text-base);
-}
-
-.contact-cta-section .btn-icon {
-  display: inline-block;
-  transition: transform var(--duration-fast);
-}
-
-.contact-cta-section .btn-primary:hover .btn-icon {
-  transform: translateX(4px);
-}
-
 /* Responsive */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .bring-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .contact-method-card {
     flex-direction: column;
     text-align: center;
@@ -480,7 +355,7 @@
     align-items: flex-start;
   }
 
-  .contact-cta-section {
+  .page-cta-section {
     padding: var(--space-2xl) var(--space-lg);
   }
 }

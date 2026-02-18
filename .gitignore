@@ -29,3 +29,6 @@ infra/*.tfstate
 infra/*.tfstate.backup
 infra/*.tfplan
 infra/.terraform.lock.hcl
+
+
+static/screenshots/

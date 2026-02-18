@@ -47,9 +47,6 @@ func catSlug(name string) string {
 func countCategorySkills(skills []types.Skill, proficiency string) int {
 	c := 0
 	for _, s := range skills {
-		// if s.Featured {
-		// 	continue
-		// }
 		if proficiency != "" && s.Proficiency != proficiency {
 			continue
 		}
@@ -60,9 +57,6 @@ func countCategorySkills(skills []types.Skill, proficiency string) int {
 
 // shouldShowSkill checks if a skill should be displayed in the grid
 func shouldShowSkill(skill types.Skill, proficiency string) bool {
-	// if skill.Featured {
-	// 	return false
-	// }
 	if proficiency != "" && skill.Proficiency != proficiency {
 		return false
 	}
@@ -226,15 +220,14 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 		<div class="skills-filter-bar">
 			<div class="filter-group">
 				<span class="filter-label">Category</span>
-				<div class="filter-tabs category-filter-tabs" role="tablist">
+				<div class="filter-tabs category-filter-tabs" role="group" aria-label="Filter by category">
 					<button
 						type="button"
 						class={ "filter-tab", templ.KV("active", props.ActiveCategory == "") }
 						hx-get={ buildFilterURL("", props.ActiveProficiency) }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
-						aria-selected={ fmt.Sprintf("%t", props.ActiveCategory == "") }
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveCategory == "") }
 					>
 						All
 					</button>
@@ -246,8 +239,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 								hx-get={ buildFilterURL(cat.Name, props.ActiveProficiency) }
 								hx-target="#skills-filterable"
 								hx-swap="outerHTML"
-								role="tab"
-								aria-selected={ fmt.Sprintf("%t", props.ActiveCategory == cat.Name) }
+								aria-pressed={ fmt.Sprintf("%t", props.ActiveCategory == cat.Name) }
 							>
 								{ cat.Name }
 							</button>
@@ -257,14 +249,14 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 			</div>
 			<div class="filter-group">
 				<span class="filter-label">Proficiency</span>
-				<div class="filter-tabs proficiency-filter-tabs" role="tablist">
+				<div class="filter-tabs proficiency-filter-tabs" role="group" aria-label="Filter by proficiency">
 					<button
 						type="button"
 						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "") }
 					>
 						All
 					</button>
@@ -274,9 +266,9 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-get={ buildFilterURL(props.ActiveCategory, "expert") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "expert") }
 					>
-						<span class="filter-dot level-expert"></span> Expert
+						<span class="filter-dot level-expert" aria-hidden="true"></span> Expert
 					</button>
 					<button
 						type="button"
@@ -284,9 +276,9 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-get={ buildFilterURL(props.ActiveCategory, "advanced") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "advanced") }
 					>
-						<span class="filter-dot level-advanced"></span> Advanced
+						<span class="filter-dot level-advanced" aria-hidden="true"></span> Advanced
 					</button>
 					<button
 						type="button"
@@ -294,9 +286,9 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-get={ buildFilterURL(props.ActiveCategory, "intermediate") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "intermediate") }
 					>
-						<span class="filter-dot level-intermediate"></span> Intermediate
+						<span class="filter-dot level-intermediate" aria-hidden="true"></span> Intermediate
 					</button>
 					<button
 						type="button"
@@ -304,9 +296,9 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						hx-get={ buildFilterURL(props.ActiveCategory, "familiar") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
-						role="tab"
+						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "familiar") }
 					>
-						<span class="filter-dot level-familiar"></span> Familiar
+						<span class="filter-dot level-familiar" aria-hidden="true"></span> Familiar
 					</button>
 				</div>
 			</div>
@@ -335,7 +327,8 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 												hx-target={ fmt.Sprintf("#detail-slot-%d", catIndex) }
 												hx-swap="innerHTML"
 												style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
-											>
+											aria-label={ skill.Name }
+												>
 												if skill.IconPath != "" {
 													<img src={ skill.IconPath } alt={ skill.Name }/>
 												} else if skill.Icon != "" {

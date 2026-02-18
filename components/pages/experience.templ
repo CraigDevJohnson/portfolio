@@ -8,15 +8,15 @@ templ Experience() {
 		Page:  "experience",
 	}) {
 		<!-- Hero with animated orbs -->
-		<section class="experience-hero">
-			<div class="exp-hero-bg">
+		<section class="page-hero experience-hero">
+			<div class="exp-hero-bg" aria-hidden="true">
 				<div class="exp-hero-orb exp-hero-orb-1"></div>
 				<div class="exp-hero-orb exp-hero-orb-2"></div>
 				<div class="exp-hero-orb exp-hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
-				<div class="exp-hero-badge">
-					<span class="exp-badge-dot"></span>
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
 					Currently Employed
 				</div>
 				<h1>Career Journey</h1>
@@ -60,7 +60,7 @@ templ Experience() {
 		<!-- Career Highlights -->
 		<section class="career-highlights">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Career Highlights</span>
 			</div>
 			<div class="highlight-grid">
@@ -97,86 +97,107 @@ templ Experience() {
 		<!-- Filters -->
 		<section class="experience-filters">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Refine Results</span>
 			</div>
 			<p class="filter-intro">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
 			<div class="filter-section collapsed" id="position-section">
-				<h3 class="filter-title collapsible" data-target="position-section">
-					Filter by Position
-					<span class="filter-count" id="position-count"></span>
-					<span class="collapse-icon">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="position-filters"
+					>
+						Filter by Position
+						<span class="filter-count" id="position-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="position-filters">
-					<button class="filter-pill" data-filter="position" data-value="Cloud Engineer Principal">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="Cloud Engineer Principal">
 						Cloud Engineer Principal
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="System Administrator">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="System Administrator">
 						System Administrator
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer Sr">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer Sr">
 						IT Systems Engineer Sr
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Systems Engineer">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer">
 						IT Systems Engineer
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Desktop Engineer">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="IT Desktop Engineer">
 						IT Desktop Engineer
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="IT Service Desk Associate">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="IT Service Desk Associate">
 						IT Service Desk Associate
 					</button>
-					<button class="filter-pill" data-filter="position" data-value="Service Desk Student Analyst">
+					<button class="filter-pill" aria-pressed="false" data-filter="position" data-value="Service Desk Student Analyst">
 						Service Desk Student Analyst
 					</button>
 				</div>
 			</div>
 			<div class="filter-section collapsed" id="tech-section">
-				<h3 class="filter-title collapsible" data-target="tech-section">
-					Filter by Technology
-					<span class="filter-count" id="tech-count"></span>
-					<span class="collapse-icon">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="tech-filters"
+					>
+						Filter by Technology
+						<span class="filter-count" id="tech-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="tech-filters">
-					<button class="filter-pill" data-filter="tech" data-value="PowerShell">PowerShell</button>
-					<button class="filter-pill" data-filter="tech" data-value="Ansible">Ansible</button>
-					<button class="filter-pill" data-filter="tech" data-value="Terraform">Terraform</button>
-					<button class="filter-pill" data-filter="tech" data-value="AWS">AWS</button>
-					<button class="filter-pill" data-filter="tech" data-value="Azure">Azure</button>
-					<button class="filter-pill" data-filter="tech" data-value="AD DS">AD DS</button>
-					<button class="filter-pill" data-filter="tech" data-value="RHEL">RHEL</button>
-					<button class="filter-pill" data-filter="tech" data-value="Bash">Bash</button>
-					<button class="filter-pill" data-filter="tech" data-value="Python">Python</button>
-					<button class="filter-pill" data-filter="tech" data-value="O365/Exchange">
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="PowerShell">PowerShell</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Ansible">Ansible</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Terraform">Terraform</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="AWS">AWS</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Azure">Azure</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="AD DS">AD DS</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="RHEL">RHEL</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Bash">Bash</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Python">Python</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="O365/Exchange">
 						O365/Exchange
 					</button>
-					<button class="filter-pill" data-filter="tech" data-value="Docker">Docker</button>
-					<button class="filter-pill" data-filter="tech" data-value="SCCM">SCCM</button>
-					<button class="filter-pill" data-filter="tech" data-value="Intune">Intune</button>
-					<button class="filter-pill" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Docker">Docker</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="SCCM">SCCM</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="Intune">Intune</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="tech" data-value="ServiceNow">ServiceNow</button>
 				</div>
 			</div>
 			<div class="filter-section collapsed" id="skill-section">
-				<h3 class="filter-title collapsible" data-target="skill-section">
-					Filter by Skill Area
-					<span class="filter-count" id="skill-count"></span>
-					<span class="collapse-icon">▼</span>
+				<h3 class="filter-title">
+					<button
+						type="button"
+						class="collapsible-button"
+						aria-expanded="false"
+						aria-controls="skill-filters"
+					>
+						Filter by Skill Area
+						<span class="filter-count" id="skill-count"></span>
+						<span class="collapse-icon" aria-hidden="true">▼</span>
+					</button>
 				</h3>
 				<div class="filter-pills" id="skill-filters">
-					<button class="filter-pill" data-filter="skill" data-value="cloud">
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="cloud">
 						Cloud Infrastructure
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="automation">
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="automation">
 						Automation & IaC
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="systems">
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="systems">
 						Systems Administration
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="security">
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="security">
 						Security & Compliance
 					</button>
-					<button class="filter-pill" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
-					<button class="filter-pill" data-filter="skill" data-value="scripting">
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="devops">DevOps & CI/CD</button>
+					<button class="filter-pill" aria-pressed="false" data-filter="skill" data-value="scripting">
 						Scripting & Programming
 					</button>
 				</div>
@@ -190,7 +211,7 @@ templ Experience() {
 		<!-- Career Grid Section -->
 		<section class="career-section-wrapper">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Career Timeline</span>
 			</div>
 			<section
@@ -217,8 +238,8 @@ templ Experience() {
 			</section>
 		</section>
 		<!-- CTA -->
-		<section class="exp-cta-section">
-			<div class="cta-glow"></div>
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
 			<h2>Want to see what I've built?</h2>
 			<p class="cta-subtitle">Check out my projects or view my technical skills in detail</p>
 			<div class="cta-buttons">
@@ -275,7 +296,7 @@ templ Experience() {
     const filterPills = document.querySelectorAll('.filter-pill')
     const activeFiltersContainer = document.getElementById('active-filter-tags')
     const clearFiltersBtn = document.getElementById('clear-filters')
-    const collapsibleHeaders = document.querySelectorAll('.filter-title.collapsible')
+    const collapsibleButtons = document.querySelectorAll('.collapsible-button')
 
     // Track active filters - now arrays for multi-select
     let activeFilters = {
@@ -295,12 +316,14 @@ templ Experience() {
     }
 
     // Collapsible section handlers
-    collapsibleHeaders.forEach(header => {
-      header.addEventListener('click', function () {
-        const targetId = this.dataset.target
-        const section = document.getElementById(targetId)
+    collapsibleButtons.forEach(button => {
+      button.addEventListener('click', function () {
+        const section = this.closest('.filter-section')
         if (section) {
+          const isCurrentlyCollapsed = section.classList.contains('collapsed')
           section.classList.toggle('collapsed')
+          // After toggle: if it was collapsed, it's now expanded (and vice versa)
+          this.setAttribute('aria-expanded', isCurrentlyCollapsed ? 'true' : 'false')
         }
       })
     })
@@ -315,6 +338,7 @@ templ Experience() {
         if (this.classList.contains('active')) {
           // Un-select this filter
           this.classList.remove('active')
+          this.setAttribute('aria-pressed', 'false')
           const index = activeFilters[filterType].indexOf(filterValue)
           if (index > -1) {
             activeFilters[filterType].splice(index, 1)
@@ -322,6 +346,7 @@ templ Experience() {
         } else {
           // Select this filter (add to existing selections)
           this.classList.add('active')
+          this.setAttribute('aria-pressed', 'true')
           if (!activeFilters[filterType].includes(filterValue)) {
             activeFilters[filterType].push(filterValue)
           }
@@ -343,6 +368,7 @@ templ Experience() {
       // Reset all filter pills
       document.querySelectorAll('.filter-pill').forEach(pill => {
         pill.classList.remove('active')
+        pill.setAttribute('aria-pressed', 'false')
       })
 
       applyFilters()
@@ -472,6 +498,7 @@ templ Experience() {
             const pill = group.querySelector(`.filter-pill[data-value="${value}"]`)
             if (pill) {
               pill.classList.remove('active')
+              pill.setAttribute('aria-pressed', 'false')
             }
           }
 

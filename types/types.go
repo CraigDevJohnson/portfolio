@@ -1,13 +1,5 @@
 package types
 
-// Proficiency level constants
-const (
-	ProficiencyExpert       = "expert"
-	ProficiencyAdvanced     = "advanced"
-	ProficiencyIntermediate = "intermediate"
-	ProficiencyFamiliar     = "familiar"
-)
-
 // Experience represents a work experience entry
 type Experience struct {
 	ID               int

@@ -21,7 +21,7 @@ templ Home(props HomeProps) {
 		Page:  "home",
 	}) {
 		<section class="hero">
-			<div class="hero-bg">
+			<div class="hero-bg" aria-hidden="true">
 				<div class="hero-orb hero-orb-1"></div>
 				<div class="hero-orb hero-orb-2"></div>
 				<div class="hero-orb hero-orb-3"></div>
@@ -33,6 +33,7 @@ templ Home(props HomeProps) {
 						target="_blank"
 						rel="noopener noreferrer"
 						class="avatar-link"
+						aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"
 					>
 						<img
 							src={ props.AvatarURL }
@@ -42,13 +43,13 @@ templ Home(props HomeProps) {
 							height="275"
 							loading="eager"
 						/>
-						<div class="avatar-ring"></div>
-						<div class="avatar-glow"></div>
+						<div class="avatar-ring" aria-hidden="true"></div>
+						<div class="avatar-glow" aria-hidden="true"></div>
 					</a>
 				</div>
 				<div class="hero-text">
 					<div class="hero-badge">
-						<span class="badge-dot"></span>
+						<span class="badge-dot" aria-hidden="true"></span>
 						Available for opportunities
 					</div>
 					<h1 class="hero-title">
@@ -87,35 +88,35 @@ templ Home(props HomeProps) {
 		<!-- What I Do -->
 		<section class="home-what-i-do">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>What I Do</span>
 			</div>
 			<h2 class="section-heading">Building the Future of Infrastructure</h2>
 			<div class="what-i-do-grid">
 				<div class="what-i-do-card">
 					<div class="wid-icon-wrap">
-						<span class="wid-icon">☁️</span>
+						<span class="wid-icon" aria-hidden="true">☁️</span>
 					</div>
 					<h3>Cloud Architecture</h3>
 					<p>Designing and implementing scalable, secure cloud infrastructure on AWS and Azure</p>
 				</div>
 				<div class="what-i-do-card">
 					<div class="wid-icon-wrap">
-						<span class="wid-icon">⚙️</span>
+						<span class="wid-icon" aria-hidden="true">⚙️</span>
 					</div>
 					<h3>Infrastructure as Code</h3>
 					<p>Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments</p>
 				</div>
 				<div class="what-i-do-card">
 					<div class="wid-icon-wrap">
-						<span class="wid-icon">🔄</span>
+						<span class="wid-icon" aria-hidden="true">🔄</span>
 					</div>
 					<h3>CI/CD & DevOps</h3>
 					<p>Building pipelines with GitHub Actions and implementing GitOps for continuous delivery</p>
 				</div>
 				<div class="what-i-do-card">
 					<div class="wid-icon-wrap">
-						<span class="wid-icon">🔒</span>
+						<span class="wid-icon" aria-hidden="true">🔒</span>
 					</div>
 					<h3>Security & Compliance</h3>
 					<p>Implementing zero-trust architecture, IAM policies, and security automation</p>
@@ -125,7 +126,7 @@ templ Home(props HomeProps) {
 		<!-- Explore -->
 		<section class="home-explore">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Explore</span>
 			</div>
 			<h2 class="section-heading">Dive Deeper</h2>

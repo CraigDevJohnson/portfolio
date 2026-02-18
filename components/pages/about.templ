@@ -18,15 +18,15 @@ templ About(props AboutProps) {
 		Page:  "about",
 	}) {
 		<!-- Hero with animated background -->
-		<section class="about-hero">
-			<div class="about-hero-bg">
+		<section class="page-hero about-hero">
+			<div class="about-hero-bg" aria-hidden="true">
 				<div class="about-hero-orb about-hero-orb-1"></div>
 				<div class="about-hero-orb about-hero-orb-2"></div>
 				<div class="about-hero-orb about-hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
-				<div class="about-hero-badge">
-					<span class="badge-dot"></span>
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
 					From Alaska to the Cloud
 				</div>
 				<h1>About Me</h1>
@@ -51,7 +51,7 @@ templ About(props AboutProps) {
 				<div class="about-stat-card">
 					<span class="about-stat-value" data-target={ props.CupsOfCoffee }>0</span>
 					<span class="about-stat-label">Cups of Coffee</span>
-					<span class="about-stat-icon">☕</span>
+					<span class="about-stat-icon" aria-hidden="true">☕</span>
 				</div>
 			</div>
 		</section>
@@ -60,7 +60,7 @@ templ About(props AboutProps) {
 			<div class="story-content">
 				<div class="story-main">
 					<div class="section-label">
-						<span class="label-line"></span>
+						<span class="label-line" aria-hidden="true"></span>
 						<span>My Story</span>
 					</div>
 					<h2 class="story-title">From the Last Frontier to the Cloud</h2>
@@ -91,27 +91,27 @@ templ About(props AboutProps) {
 						<h3>Quick Facts</h3>
 						<div class="facts-grid">
 							<div class="fact-item">
-								<span class="fact-icon">📍</span>
+								<span class="fact-icon" aria-hidden="true">📍</span>
 								<span class="fact-text">Originally from Alaska</span>
 							</div>
 							<div class="fact-item">
-								<span class="fact-icon">👨‍👩‍👧‍👦</span>
+								<span class="fact-icon" aria-hidden="true">👨‍👩‍👧‍👦</span>
 								<span class="fact-text">Family of 4 + 2 dogs</span>
 							</div>
 							<div class="fact-item">
-								<span class="fact-icon">⚽</span>
+								<span class="fact-icon" aria-hidden="true">⚽</span>
 								<span class="fact-text">Lifelong soccer enthusiast</span>
 							</div>
 							<div class="fact-item">
-								<span class="fact-icon">🎓</span>
+								<span class="fact-icon" aria-hidden="true">🎓</span>
 								<span class="fact-text">BS in Cloud Computing</span>
 							</div>
 							<div class="fact-item">
-								<span class="fact-icon">☁️</span>
+								<span class="fact-icon" aria-hidden="true">☁️</span>
 								<span class="fact-text">Cloud & automation specialist</span>
 							</div>
 							<div class="fact-item">
-								<span class="fact-icon">📚</span>
+								<span class="fact-icon" aria-hidden="true">📚</span>
 								<span class="fact-text">Continuous learner</span>
 							</div>
 						</div>
@@ -122,7 +122,7 @@ templ About(props AboutProps) {
 		<!-- Tech Journey Timeline -->
 		<section class="about-journey">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Career Timeline</span>
 			</div>
 			<h2 class="journey-title">The Journey So Far</h2>
@@ -181,7 +181,7 @@ templ About(props AboutProps) {
 		<!-- Interests & Hobbies -->
 		<section class="about-interests">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>Beyond the Code</span>
 			</div>
 			<h2 class="interests-title">When I'm Not in the Terminal</h2>
@@ -211,7 +211,7 @@ templ About(props AboutProps) {
 		<!-- Values - Redesigned -->
 		<section class="about-values">
 			<div class="section-label">
-				<span class="label-line"></span>
+				<span class="label-line" aria-hidden="true"></span>
 				<span>What Drives Me</span>
 			</div>
 			<h2 class="values-title">Core Values</h2>
@@ -247,8 +247,8 @@ templ About(props AboutProps) {
 			</div>
 		</section>
 		<!-- CTA -->
-		<section class="about-cta-section">
-			<div class="cta-glow"></div>
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
 			<h2>Want to know more?</h2>
 			<p class="cta-subtitle">Check out my experience or reach out directly</p>
 			<div class="cta-buttons">
