@@ -481,7 +481,10 @@ Here's how to add each one:
          {
            Effect   = "Allow"
            Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-           Resource = "*"
+           Resource = [
+             "arn:aws:ses:REGION:ACCOUNT_ID:identity/yourdomain.com",
+             "arn:aws:ses:REGION:ACCOUNT_ID:identity/verified@example.com",
+           ]
          }
        ]
      })
