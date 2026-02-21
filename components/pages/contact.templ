@@ -7,83 +7,142 @@ templ Contact() {
 		Title: "Get in Touch - Craig Johnson",
 		Page:  "contact",
 	}) {
-		<section class="contact-hero">
+		<!-- Hero with animated orbs -->
+		<section class="page-hero contact-hero">
+			<div class="contact-hero-bg" aria-hidden="true">
+				<div class="contact-orb contact-orb-1"></div>
+				<div class="contact-orb contact-orb-2"></div>
+			</div>
 			<div class="hero-header">
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
+					Open to Opportunities
+				</div>
 				<h1>Get in Touch</h1>
 				<p class="lead">
-					I'd love to hear from you! Whether you have a question or just want to connect.
+					Whether it's cloud architecture, DevOps strategy, or your next big idea — let's connect and build something amazing together.
 				</p>
 			</div>
 		</section>
-		<section class="contact-content">
-			<div class="contact-grid">
-				<div class="contact-info">
-					<h2>Let's Connect</h2>
-					<p>
-						I'm always open to discussing new projects, creative ideas, or opportunities to be part of
-						your vision.
-					</p>
-					<div class="contact-methods">
-						<a href="mailto:opportunity@craigdevjohnson.com" class="contact-method">
-							<div class="method-info">
-								<span class="method-name">Email</span>
-								<span class="method-value">opportunity@craigdevjohnson.com</span>
-							</div>
-							<span class="method-arrow">→</span>
-						</a>
-						<a
-							href="https://linkedin.com/in/craigdevjohnson"
-							target="_blank"
-							rel="noopener noreferrer"
-							class="contact-method"
-						>
-							<div class="method-info">
-								<span class="method-name">LinkedIn</span>
-								<span class="method-value">linkedin.com/in/craigdevjohnson</span>
-							</div>
-							<span class="method-arrow">→</span>
-						</a>
-						<a
-							href="https://github.com/CraigDevJohnson"
-							target="_blank"
-							rel="noopener noreferrer"
-							class="contact-method"
-						>
-							<div class="method-info">
-								<span class="method-name">GitHub</span>
-								<span class="method-value">github.com/CraigDevJohnson</span>
-							</div>
-							<span class="method-arrow">→</span>
-						</a>
+		<!-- Connect Section -->
+		<section class="contact-connect">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>Ways to Connect</span>
+			</div>
+			<div class="contact-methods-grid">
+				<a href="mailto:opportunity@craigdevjohnson.com" class="contact-method-card">
+					<div class="cm-icon-wrap">
+						<span class="cm-icon" aria-hidden="true">✉️</span>
 					</div>
+					<div class="cm-info">
+						<h3>Email</h3>
+						<p class="cm-value">opportunity@craigdevjohnson.com</p>
+						<p class="cm-desc">Best for professional inquiries & opportunities</p>
+					</div>
+					<span class="cm-arrow">↗</span>
+				</a>
+				<a
+					href="https://linkedin.com/in/craigdevjohnson"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="contact-method-card"
+				>
+					<div class="cm-icon-wrap">
+						<span class="cm-icon" aria-hidden="true">💼</span>
+					</div>
+					<div class="cm-info">
+						<h3>LinkedIn</h3>
+						<p class="cm-value">linkedin.com/in/craigdevjohnson</p>
+						<p class="cm-desc">Connect for networking & career discussions</p>
+					</div>
+					<span class="cm-arrow">↗</span>
+				</a>
+				<a
+					href="https://github.com/CraigDevJohnson"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="contact-method-card"
+				>
+					<div class="cm-icon-wrap">
+						<span class="cm-icon" aria-hidden="true">🛠️</span>
+					</div>
+					<div class="cm-info">
+						<h3>GitHub</h3>
+						<p class="cm-value">github.com/CraigDevJohnson</p>
+						<p class="cm-desc">Technical collaborations & open source</p>
+					</div>
+					<span class="cm-arrow">↗</span>
+				</a>
+			</div>
+		</section>
+		<!-- What I Bring -->
+		<section class="contact-bring">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>What I Bring</span>
+			</div>
+			<h2 class="contact-section-title">Expertise That Delivers</h2>
+			<div class="bring-grid">
+				<div class="bring-card">
+					<div class="bring-icon-wrap">☁️</div>
+					<h3>Cloud Architecture</h3>
+					<p>Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
 				</div>
-				<div class="contact-card">
-					<h2>Quick Message</h2>
-					<p class="card-subtitle">Use the links to connect with me on professional networks.</p>
-					<div class="availability-status">
-						<span class="status-dot available"></span>
-						<span class="status-text">Open to opportunities</span>
+				<div class="bring-card">
+					<div class="bring-icon-wrap">🔄</div>
+					<h3>CI/CD Pipelines</h3>
+					<p>Build automated deployment workflows that ship reliable code faster and more safely.</p>
+				</div>
+				<div class="bring-card">
+					<div class="bring-icon-wrap">🔒</div>
+					<h3>Security First</h3>
+					<p>Embed security into every layer — from IAM policies to compliance automation.</p>
+				</div>
+				<div class="bring-card">
+					<div class="bring-icon-wrap">📈</div>
+					<h3>Growth Mindset</h3>
+					<p>Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
+				</div>
+			</div>
+		</section>
+		<!-- Availability -->
+		<section class="contact-availability">
+			<div class="avail-card">
+				<div class="avail-header">
+					<div class="avail-status">
+						<span class="avail-dot"></span>
+						<span class="avail-label">Currently Available</span>
 					</div>
-					<div class="response-time">
-						<span>Typical response: 24-48 hours</span>
+					<span class="avail-time">⏱ Response within 24-48 hours</span>
+				</div>
+				<div class="avail-details">
+					<div class="avail-detail">
+						<span class="avail-detail-label">Looking For</span>
+						<span class="avail-detail-value">Full-time & Contract Roles</span>
 					</div>
-					<div class="preferred-contact">
-						<h3>Preferred Contact</h3>
-						<p>
-							For professional inquiries, LinkedIn or email is the best way to reach me. For technical
-							discussions or collaborations, feel free to connect on GitHub.
-						</p>
+					<div class="avail-detail">
+						<span class="avail-detail-label">Location</span>
+						<span class="avail-detail-value">Remote / Hybrid</span>
+					</div>
+					<div class="avail-detail">
+						<span class="avail-detail-label">Focus Areas</span>
+						<span class="avail-detail-value">Cloud, DevOps, Platform Engineering</span>
 					</div>
 				</div>
 			</div>
 		</section>
-		<section class="contact-cta">
-			<div class="cta-content">
-				<h2>Want to see my work first?</h2>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/experience" class="btn btn-secondary">See Experience</a>
-				</div>
+		<!-- CTA -->
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
+			<h2>Want to see my work first?</h2>
+			<p class="cta-subtitle">Explore my projects and experience before reaching out</p>
+			<div class="cta-buttons">
+				<a href="/projects" class="btn btn-primary">
+					<span>View Projects</span>
+					<span class="btn-icon">→</span>
+				</a>
+				<a href="/experience" class="btn btn-secondary">See Experience</a>
 			</div>
 		</section>
 	}

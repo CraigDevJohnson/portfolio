@@ -1,44 +1,101 @@
 package pages
 
-import "portfolio/components/layouts"
+import (
+	"portfolio/components/layouts"
+	"fmt"
+)
 
-templ Education() {
+type EducationProps struct {
+	TotalCerts    int
+	Providers     int
+	YearsCertifying int
+}
+
+templ Education(props EducationProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Education & Certifications - Craig Johnson",
 		Page:  "education",
 	}) {
-		<section class="education-hero">
+		<!-- Hero with animated background -->
+		<section class="page-hero education-hero">
+			<div class="edu-hero-bg" aria-hidden="true">
+				<div class="edu-hero-orb edu-hero-orb-1"></div>
+				<div class="edu-hero-orb edu-hero-orb-2"></div>
+			</div>
 			<div class="hero-header">
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
+					Always Learning
+				</div>
 				<h1>Education & Certifications</h1>
 				<p class="lead">
-					Academic foundation and professional certifications for a career in technology
+					Academic foundation and professional certifications powering a career in cloud technology
 				</p>
 			</div>
 		</section>
-		<section class="education-content">
+		<!-- Stats -->
+		<section class="edu-stats">
+			<div class="edu-stats-grid">
+				<div class="edu-stat-card">
+					<span class="edu-stat-value">1</span>
+					<span class="edu-stat-label">Degree</span>
+				</div>
+				<div class="edu-stat-card">
+					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.TotalCerts) }>0</span>
+					<span class="edu-stat-label">Certifications</span>
+				</div>
+				<div class="edu-stat-card">
+					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.Providers) }>0</span>
+					<span class="edu-stat-label">Providers</span>
+				</div>
+				<div class="edu-stat-card">
+					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.YearsCertifying) }>0</span>
+					<span class="edu-stat-label">Years Certifying</span>
+				</div>
+			</div>
+		</section>
+		<!-- Featured Degree -->
+		<section class="edu-featured">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>Academic Foundation</span>
+			</div>
+			<a
+				href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="edu-degree-card"
+			>
+				<div class="degree-image">
+					<img
+						src="/static/images/edu/wgu.png"
+						alt="Western Governor University"
+						loading="lazy"
+						width="200"
+						height="200"
+					/>
+				</div>
+				<div class="degree-info">
+					<div class="degree-badge">🎓 Bachelor's Degree</div>
+					<h2>Bachelor of Science</h2>
+					<h3 class="degree-field">Cloud Computing</h3>
+					<p class="degree-school">Western Governor University</p>
+					<p class="degree-year">Completed 2023</p>
+					<p class="degree-description">
+						Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
+					</p>
+				</div>
+				<span class="degree-arrow">↗</span>
+			</a>
+		</section>
+		<!-- Certifications Grid -->
+		<section class="edu-certs">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>Professional Certifications</span>
+			</div>
+			<h2 class="edu-section-title">Industry Recognized Credentials</h2>
 			<div class="education-grid">
-				<a
-					href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="education-card featured"
-				>
-					<div class="card-image">
-						<img
-							src="/static/images/edu/wgu.png"
-							alt="Western Governor University"
-							loading="lazy"
-							width="200"
-							height="200"
-						/>
-					</div>
-					<div class="card-content">
-						<h2 class="degree">Bachelor of Science</h2>
-						<h3 class="field">Cloud Computing</h3>
-						<p class="institution">Western Governor University</p>
-						<p class="year">2023</p>
-					</div>
-				</a>
 				<a
 					href="https://www.credly.com/badges/c35d4426-9abe-4965-9eb2-9599498e1b5e/"
 					target="_blank"
@@ -57,7 +114,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">AWS Certified Cloud Practitioner</h3>
 						<p class="issuer">Amazon Web Services</p>
-						<p class="year">2023</p>
+						<span class="cert-year-badge">2023</span>
 					</div>
 				</a>
 				<a
@@ -78,7 +135,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">Microsoft Certified: Azure Fundamentals</h3>
 						<p class="issuer">Microsoft</p>
-						<p class="year">2020</p>
+						<span class="cert-year-badge">2020</span>
 					</div>
 				</a>
 				<a
@@ -99,7 +156,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">MCSE: Cloud Platform and Infrastructure</h3>
 						<p class="issuer">Microsoft</p>
-						<p class="year">2018</p>
+						<span class="cert-year-badge">2018</span>
 					</div>
 				</a>
 				<a
@@ -120,7 +177,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">MCSA: Windows Server 2016</h3>
 						<p class="issuer">Microsoft</p>
-						<p class="year">2018</p>
+						<span class="cert-year-badge">2018</span>
 					</div>
 				</a>
 				<a
@@ -141,7 +198,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">Linux Essentials Certificate</h3>
 						<p class="issuer">Linux Professional Institute</p>
-						<p class="year">2021</p>
+						<span class="cert-year-badge">2021</span>
 					</div>
 				</a>
 				<a
@@ -162,7 +219,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">CompTIA Cloud+ ce</h3>
 						<p class="issuer">CompTIA</p>
-						<p class="year">2023</p>
+						<span class="cert-year-badge">2023</span>
 					</div>
 				</a>
 				<a
@@ -183,7 +240,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">CompTIA Security+ ce</h3>
 						<p class="issuer">CompTIA</p>
-						<p class="year">2022</p>
+						<span class="cert-year-badge">2022</span>
 					</div>
 				</a>
 				<a
@@ -204,7 +261,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">CompTIA Network+ ce</h3>
 						<p class="issuer">CompTIA</p>
-						<p class="year">2021</p>
+						<span class="cert-year-badge">2021</span>
 					</div>
 				</a>
 				<a
@@ -225,7 +282,7 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">CompTIA Project+</h3>
 						<p class="issuer">CompTIA</p>
-						<p class="year">2022</p>
+						<span class="cert-year-badge">2022</span>
 					</div>
 				</a>
 				<a
@@ -246,19 +303,55 @@ templ Education() {
 					<div class="card-content">
 						<h3 class="cert-name">CompTIA A+ ce</h3>
 						<p class="issuer">CompTIA</p>
-						<p class="year">2021</p>
+						<span class="cert-year-badge">2021</span>
 					</div>
 				</a>
 			</div>
 		</section>
-		<section class="education-cta">
-			<div class="cta-content">
-				<h2>See how education translates to experience</h2>
-				<div class="cta-buttons">
-					<a href="/experience" class="btn btn-primary">View Experience</a>
-					<a href="/skills" class="btn btn-secondary">View Skills</a>
-				</div>
+		<!-- CTA -->
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
+			<h2>See how education translates to experience</h2>
+			<p class="cta-subtitle">Explore how these credentials are applied in real-world cloud engineering</p>
+			<div class="cta-buttons">
+				<a href="/experience" class="btn btn-primary">
+					<span>View Experience</span>
+					<span class="btn-icon">→</span>
+				</a>
+				<a href="/skills" class="btn btn-secondary">View Skills</a>
 			</div>
 		</section>
+		<script>
+  // Animate stat counters on scroll
+  document.addEventListener('DOMContentLoaded', function () {
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            var counters = entry.target.querySelectorAll('.edu-stat-value[data-target]')
+            counters.forEach(function (counter) {
+              var target = parseInt(counter.dataset.target) || 0
+              var duration = 1500
+              var start = performance.now()
+              function update(now) {
+                var elapsed = now - start
+                var progress = Math.min(elapsed / duration, 1)
+                var ease = 1 - Math.pow(1 - progress, 3)
+                counter.textContent = Math.floor(target * ease)
+                if (progress < 1) requestAnimationFrame(update)
+                else counter.textContent = counter.dataset.target
+              }
+              requestAnimationFrame(update)
+            })
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+    var statsSection = document.querySelector('.edu-stats')
+    if (statsSection) observer.observe(statsSection)
+  })
+</script>
 	}
 }

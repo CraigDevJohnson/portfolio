@@ -8,11 +8,13 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"portfolio/components/pages"
 	"portfolio/components/partials"
 	"portfolio/types"
-	"strconv"
-	"strings"
 )
 
 /*
@@ -21,15 +23,23 @@ Main
 ========================================
 */
 
+const careerStartYear = 2012
+
 func main() {
-	// MIME types
-	mime.AddExtensionType(".css", "text/css")
-	mime.AddExtensionType(".js", "application/javascript")
-	mime.AddExtensionType(".ico", "image/x-icon")
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".webp", "image/webp")
-	mime.AddExtensionType(".png", "image/png")
-	mime.AddExtensionType(".jpg", "image/jpeg")
+	mimeTypes := map[string]string{
+		".css":  "text/css",
+		".js":   "application/javascript",
+		".ico":  "image/x-icon",
+		".svg":  "image/svg+xml",
+		".webp": "image/webp",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+	}
+	for ext, mtype := range mimeTypes {
+		if err := mime.AddExtensionType(ext, mtype); err != nil {
+			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
+		}
+	}
 
 	// routes - pages
 	http.HandleFunc("/", homeHandler)
@@ -63,8 +73,15 @@ func main() {
 		http.ServeFile(w, r, "static/images/favicon.ico")
 	})
 
+	server := &http.Server{
+		Addr:         ":8080",
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	log.Println("Craig Johnson Portfolio running at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(server.ListenAndServe())
 }
 
 /*
@@ -85,10 +102,13 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := pages.Home(pages.HomeProps{
-		Name:        "Craig Johnson",
-		Role:        "Cloud Engineer Principal",
-		AvatarURL:   gravatarURL("gravatar@craigdevjohnson.com", 275),
-		Description: "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		Name:               "Craig Johnson",
+		Role:               "Cloud Engineer Principal",
+		AvatarURL:          gravatarURL("gravatar@craigdevjohnson.com", 275),
+		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		YearsInTech:        time.Now().Year() - careerStartYear,
+		Certifications:     10,
+		AutomationProjects: "100",
 	}).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -102,7 +122,13 @@ About
 */
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.About().Render(context.Background(), w)
+	props := pages.AboutProps{
+		YearsInTech:    time.Now().Year() - careerStartYear,
+		Certifications: 10,
+		TechUsed:       30,
+		CupsOfCoffee:   "∞",
+	}
+	err := pages.About(props).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -216,8 +242,10 @@ Skills
 */
 
 // Use types from shared package
-type Skill = types.Skill
-type SkillCategory = types.SkillCategory
+type (
+	Skill         = types.Skill
+	SkillCategory = types.SkillCategory
+)
 
 const (
 	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
@@ -397,10 +425,10 @@ func skillsData() []SkillCategory {
 func getFeaturedSkills(categories []SkillCategory) []Skill {
 	var featured []Skill
 	for _, category := range categories {
-		for _, skill := range category.Skills {
-			if skill.Featured {
-				skill.Category = category.Name
-				featured = append(featured, skill)
+		for i := range category.Skills {
+			if category.Skills[i].Featured {
+				category.Skills[i].Category = category.Name
+				featured = append(featured, category.Skills[i])
 			}
 		}
 	}
@@ -454,9 +482,9 @@ func skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	var found Skill
 	var foundCategory string
 	for _, cat := range categories {
-		for _, skill := range cat.Skills {
-			if skill.ID == id {
-				found = skill
+		for i := range cat.Skills {
+			if cat.Skills[i].ID == id {
+				found = cat.Skills[i]
 				foundCategory = cat.Name
 				break
 			}
@@ -550,8 +578,12 @@ Education
 */
 
 func educationHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.Education().Render(context.Background(), w)
-	if err != nil {
+	props := pages.EducationProps{
+		TotalCerts:      10,
+		Providers:       5,
+		YearsCertifying: time.Now().Year() - 2018,
+	}
+	if err := pages.Education(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -576,8 +608,10 @@ Soccer
 */
 
 // Use types from shared package
-type Game = types.Game
-type LambdaGamesResponse = types.LambdaGamesResponse
+type (
+	Game                = types.Game
+	LambdaGamesResponse = types.LambdaGamesResponse
+)
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
 	err := pages.Soccer().Render(context.Background(), w)
@@ -609,7 +643,10 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	io.WriteString(w, `<div class="subscribe-success">✅ Subscribed! Check your email to confirm.</div>`)
+	_, err := io.WriteString(w, `<div class="subscribe-success">✅ Subscribed! Check your email to confirm.</div>`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 /*
@@ -684,5 +721,8 @@ END:VCALENDAR`
 
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")
-	io.WriteString(w, icsContent)
+	_, err := io.WriteString(w, icsContent)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

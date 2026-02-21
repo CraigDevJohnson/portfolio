@@ -38,8 +38,8 @@ templ Skills() {
 						}
 					</div>
 				</div>
-				<!-- Filter bar skeleton -->
-				<div class="skeleton skeleton-filter-bar"></div>
+				<!-- All skills bar skeleton -->
+				<div class="skeleton skeleton-all-skills-bar"></div>
 				<!-- Category skeletons -->
 				for i := 1; i <= 3; i++ {
 					<div class="skill-category skeleton-category">
@@ -53,17 +53,18 @@ templ Skills() {
 				}
 			</div>
 		</section>
-		<section class="skills-cta">
-			<div class="cta-content">
-				<h2>Interested in my expertise?</h2>
-				<p>
-					View my projects or get in touch to discuss how I can help with your infrastructure needs.
-				</p>
-				<div class="cta-buttons">
-					<a href="/projects" class="btn btn-primary">View Projects</a>
-					<a href="/contact" class="btn btn-secondary">Contact Me</a>
-				</div>
-			</div>
+    <!-- CTA -->
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
+      <h2>Interested in my expertise?</h2>
+      <p class="cta-subtitle">View my projects or get in touch to discuss how I can help with your infrastructure needs.</p>
+      <div class="cta-buttons">
+        <a href="/projects" class="btn btn-primary">
+          <span>View Projects</span>
+          <span class="btn-icon">→</span>
+        </a>
+        <a href="/contact" class="btn btn-secondary">Contact Me</a>
+      </div>
 		</section>
 	}
 }

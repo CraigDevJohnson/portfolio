@@ -1,13 +1,16 @@
 # Portfolio Server justfile
-
 # Set shell for Windows
+
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 # Default values - use .exe extension on Windows
+
 BINARY := if os() == "windows" { "portfolio-server.exe" } else { "portfolio-server" }
 GO := "go"
 GOFLAGS := ""
+
 # Use Go-installed templ binary (avoids PATH conflict with .cargo/bin/templ on Windows)
+
 TEMPL := if os() == "windows" { `go env GOPATH` + "\\bin\\templ.exe" } else { "templ" }
 
 # Default recipe (runs when you just run 'just')
@@ -20,12 +23,12 @@ generate: templ
 # Check and generate Templ components
 [group('build')]
 templ:
-    {{TEMPL}} generate
+    {{ TEMPL }} generate
 
 # Build the binary
 [group('build')]
 build: generate
-    {{GO}} build {{GOFLAGS}} -o {{BINARY}} .
+    {{ GO }} build {{ GOFLAGS }} -o {{ BINARY }} .
 
 # Build and run the server
 [group('run')]
@@ -37,6 +40,41 @@ run: build
 compose:
     docker compose -f docker-compose.yml up -d --build portfolio
 
+# Remove binary and clean cached files
+[group('clean')]
+clean:
+    {{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
+    {{ GO }} clean
+
+# Format Go source files
+[group('quality')]
+fmt:
+    golangci-lint fmt --config .golangci.toml
+
+# Run go vet
+[group('quality')]
+vet:
+    {{ GO }} vet ./...
+
+# Lint Go source files and CSS files
+[group('quality')]
+lint:
+    #!/usr/bin/env sh
+    if golangci-lint version --short | grep -qE '^[0-1]' >/dev/null 2>&1; then
+      echo "golangci-lint not found -- please run 'just install-lint' to install it"
+      exit 1
+    fi
+    golangci-lint run --config .golangci.toml --fix
+    if ! npm list stylelint --depth=0 >/dev/null 2>&1; then
+      echo "stylelint not found -- please run 'just install-lint' to install it"
+      exit 1
+    fi
+    npx stylelint "**/*.css" --fix
+
+# Check quality, run tests and build the binary
+[group('quality')]
+check: fmt vet lint test build
+
 # Run with air for hot-reload development
 [group('run')]
 dev:
@@ -46,53 +84,47 @@ dev:
 [group('tools')]
 install-air:
     @echo "Installing air for hot-reload development..."
-    {{GO}} install github.com/air-verse/air@latest
+    {{ GO }} install github.com/air-verse/air@latest
     @echo "air installed successfully!"
 
 # Install templ for code generation
 [group('tools')]
 install-templ:
     @echo "Installing templ for code generation..."
-    {{GO}} install github.com/a-h/templ/cmd/templ@latest
+    {{ GO }} install github.com/a-h/templ/cmd/templ@latest
     @echo "templ installed successfully!"
 
-# Remove binary and clean cached files
-[group('clean')]
-clean:
-    rm -f {{BINARY}}
-    {{GO}} clean
-    -{{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
-# Format Go source files
-[group('quality')]
-fmt:
-    {{GO}} fmt ./...
-
-# Run go vet
-[group('quality')]
-vet:
-    {{GO}} vet ./...
-
-# Run vet and golangci-lint
-[group('quality')]
-lint: vet
-    golangci-lint run
-
-# Install golangci-lint for linting
+# Install golangci-lint v2 for linting
 [group('tools')]
-install-golangci-lint:
-    @echo "Installing golangci-lint for linting..."
-    {{GO}} install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    @echo "golangci-lint installed successfully!"
+install-lint:
+    #!/usr/bin/env sh
+    set -eu
+    echo "Checking golangci-lint..."
+    if golangci-lint version --short | grep -qE '^[0-1]' >/dev/null 2>&1; then
+      echo "golangci-lint not found or version is older than v2 -- installing latest (v2+)..."
+      curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+    fi
+    echo "golangci-lint is installed and up to date!"
+    echo "Checking stylelint..."
+    if ! command -v npx >/dev/null 2>&1; then
+      echo "npx not found -- please install Node.js and npm"
+      exit 1
+    fi
+    if ! npx stylelint --version >/dev/null 2>&1; then
+      echo "stylelint not found -- installing..."
+      npm install stylelint stylelint-config-standard --save-dev
+    fi
+    echo "stylelint is installed and ready to use!"
 
 # Install all development tools
 [group('tools')]
-install-tools: install-air install-golangci-lint install-templ
+install-tools: install-air install-lint install-templ
     @echo "All development tools installed successfully!"
 
 # Run tests
 [group('test')]
 test:
-    {{GO}} test -v ./...
+    {{ GO }} test -v ./...
 
 # Show this help message
 [group('help')]

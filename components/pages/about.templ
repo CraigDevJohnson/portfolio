@@ -1,30 +1,78 @@
 package pages
 
-import "portfolio/components/layouts"
+import (
+	"portfolio/components/layouts"
+	"fmt"
+)
 
-templ About() {
+type AboutProps struct {
+	YearsInTech    int
+	Certifications int
+	TechUsed       int
+	CupsOfCoffee   string
+}
+
+templ About(props AboutProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "About Me - Craig Johnson",
 		Page:  "about",
 	}) {
-		<section class="about-hero">
+		<!-- Hero with animated background -->
+		<section class="page-hero about-hero">
+			<div class="about-hero-bg" aria-hidden="true">
+				<div class="about-hero-orb about-hero-orb-1"></div>
+				<div class="about-hero-orb about-hero-orb-2"></div>
+				<div class="about-hero-orb about-hero-orb-3"></div>
+			</div>
 			<div class="hero-header">
+				<div class="hero-badge">
+					<span class="hero-badge-dot" aria-hidden="true"></span>
+					From Alaska to the Cloud
+				</div>
 				<h1>About Me</h1>
-				<p class="lead">A journey from Alaska to the tech industry</p>
+				<p class="lead">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale</p>
 			</div>
 		</section>
-		<section class="about-content">
-			<div class="about-grid">
-				<div class="about-card personal-story">
-					<div class="card-header">
-						<h2>Personal Journey</h2>
+		<!-- Fun Stats -->
+		<section class="about-stats">
+			<div class="stats-grid">
+				<div class="about-stat-card">
+					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.YearsInTech) }>0</span>
+					<span class="about-stat-label">Years in Tech</span>
+				</div>
+				<div class="about-stat-card">
+					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.Certifications) }>0</span>
+					<span class="about-stat-label">Certifications</span>
+				</div>
+				<div class="about-stat-card">
+					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.TechUsed) }>0</span>
+					<span class="about-stat-label">Technologies</span>
+				</div>
+				<div class="about-stat-card">
+					<span class="about-stat-value" data-target={ props.CupsOfCoffee }>0</span>
+					<span class="about-stat-label">Cups of Coffee</span>
+					<span class="about-stat-icon" aria-hidden="true">☕</span>
+				</div>
+			</div>
+		</section>
+		<!-- Personal Story - Redesigned -->
+		<section class="about-story">
+			<div class="story-content">
+				<div class="story-main">
+					<div class="section-label">
+						<span class="label-line" aria-hidden="true"></span>
+						<span>My Story</span>
 					</div>
-					<div class="card-body">
+					<h2 class="story-title">From the Last Frontier to the Cloud</h2>
+					<div class="story-text">
 						<p>
 							I'm a passionate tech enthusiast who has journeyed from the frosty expanses of Alaska to
 							embrace new opportunities and challenges. I'm happily married with two wonderful kids, and
 							our family is rounded out by our two beloved dogs.
 						</p>
+						<blockquote class="story-quote">
+							"The decision to move out of Alaska was driven by a desire for greater opportunities and the chance to expand my horizons."
+						</blockquote>
 						<p>
 							My tech career began at the local university as a Service Desk Student Analyst, where I
 							laid the foundations of my skills and knowledge. This journey led me into the health care
@@ -33,66 +81,215 @@ templ About() {
 						</p>
 						<p>
 							Soccer has been a lifelong love of mine, keeping me active and connected with the
-							community. The decision to move out of Alaska was driven by a desire for greater
-							opportunities and the chance to expand my horizons. I'm always eager to learn new tools
-							and technologies and am thrilled by the endless possibilities ahead.
+							community. I'm always eager to learn new tools and technologies and am thrilled by the
+							endless possibilities ahead.
 						</p>
 					</div>
 				</div>
-				<div class="about-sidebar">
-					<div class="about-card quick-facts">
-						<div class="card-header">
-							<h3>Quick Facts</h3>
-						</div>
-						<ul class="facts-list">
-							<li>
-								<span>Originally from Alaska</span>
-							</li>
-							<li>
-								<span>Family of 4 + 2 dogs</span>
-							</li>
-							<li>
-								<span>Lifelong soccer enthusiast</span>
-							</li>
-							<li>
-								<span>BS in Computer Information Systems</span>
-							</li>
-							<li>
-								<span>Cloud & automation specialist</span>
-							</li>
-							<li>
-								<span>Continuous learner</span>
-							</li>
-						</ul>
-					</div>
-					<div class="about-card values">
-						<div class="card-header">
-							<h3>Values</h3>
-						</div>
-						<div class="values-list">
-							<div class="value-item">
-								<span>Continuous Improvement</span>
+				<div class="story-sidebar">
+					<div class="quick-facts-card">
+						<h3>Quick Facts</h3>
+						<div class="facts-grid">
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">📍</span>
+								<span class="fact-text">Originally from Alaska</span>
 							</div>
-							<div class="value-item">
-								<span>Collaboration</span>
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">👨‍👩‍👧‍👦</span>
+								<span class="fact-text">Family of 4 + 2 dogs</span>
 							</div>
-							<div class="value-item">
-								<span>Problem Solving</span>
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">⚽</span>
+								<span class="fact-text">Lifelong soccer enthusiast</span>
 							</div>
-							<div class="value-item">
-								<span>Documentation</span>
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">🎓</span>
+								<span class="fact-text">BS in Cloud Computing</span>
+							</div>
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">☁️</span>
+								<span class="fact-text">Cloud & automation specialist</span>
+							</div>
+							<div class="fact-item">
+								<span class="fact-icon" aria-hidden="true">📚</span>
+								<span class="fact-text">Continuous learner</span>
 							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-			<div class="about-cta">
-				<h2>Want to know more?</h2>
-				<div class="cta-buttons">
-					<a href="/experience" class="btn btn-primary">View My Experience</a>
-					<a href="/contact" class="btn btn-secondary">Get in Touch</a>
 				</div>
 			</div>
 		</section>
+		<!-- Tech Journey Timeline -->
+		<section class="about-journey">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>Career Timeline</span>
+			</div>
+			<h2 class="journey-title">The Journey So Far</h2>
+			<div class="journey-timeline">
+				<div class="timeline-track"></div>
+				<div class="timeline-item">
+					<div class="timeline-marker"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">2012</span>
+						<h3>Started in Tech</h3>
+						<p>Service Desk Student Analyst — first steps into IT support and troubleshooting</p>
+					</div>
+				</div>
+				<div class="timeline-item">
+					<div class="timeline-marker"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">2016</span>
+						<h3>Healthcare IT</h3>
+						<p>Moved into healthcare technology — ensuring systems enhance patient care</p>
+					</div>
+				</div>
+				<div class="timeline-item">
+					<div class="timeline-marker"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">2018</span>
+						<h3>Microsoft Certified</h3>
+						<p>Earned MCSA & MCSE certifications — deep dive into enterprise infrastructure</p>
+					</div>
+				</div>
+				<div class="timeline-item">
+					<div class="timeline-marker"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">2021</span>
+						<h3>Cloud Transition</h3>
+						<p>Pivoted to cloud engineering — AWS, Azure, and infrastructure as code</p>
+					</div>
+				</div>
+				<div class="timeline-item">
+					<div class="timeline-marker"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">2023</span>
+						<h3>BS in Cloud Computing</h3>
+						<p>Completed degree at Western Governors University with multiple cloud certifications</p>
+					</div>
+				</div>
+				<div class="timeline-item">
+					<div class="timeline-marker active"></div>
+					<div class="timeline-content">
+						<span class="timeline-year">Now</span>
+						<h3>Cloud Engineer Principal</h3>
+						<p>Leading cloud infrastructure, automation, and DevOps practices</p>
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- Interests & Hobbies -->
+		<section class="about-interests">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>Beyond the Code</span>
+			</div>
+			<h2 class="interests-title">When I'm Not in the Terminal</h2>
+			<div class="interests-grid">
+				<div class="interest-card">
+					<span class="interest-icon">⚽</span>
+					<h3>Soccer</h3>
+					<p>Playing and coaching — built a schedule tool to manage team calendars</p>
+				</div>
+				<div class="interest-card">
+					<span class="interest-icon">🏔️</span>
+					<h3>Outdoors</h3>
+					<p>Alaska roots means a love for hiking, fishing, and exploring nature</p>
+				</div>
+				<div class="interest-card">
+					<span class="interest-icon">🎮</span>
+					<h3>Gaming</h3>
+					<p>Strategy and building games — same problem-solving muscles as engineering</p>
+				</div>
+				<div class="interest-card">
+					<span class="interest-icon">🐕</span>
+					<h3>Dog Dad</h3>
+					<p>Two furry coworkers who keep the home office lively</p>
+				</div>
+			</div>
+		</section>
+		<!-- Values - Redesigned -->
+		<section class="about-values">
+			<div class="section-label">
+				<span class="label-line" aria-hidden="true"></span>
+				<span>What Drives Me</span>
+			</div>
+			<h2 class="values-title">Core Values</h2>
+			<div class="values-grid">
+				<div class="value-card">
+					<div class="value-icon-wrap">
+						<span class="value-icon">🔄</span>
+					</div>
+					<h3>Continuous Improvement</h3>
+					<p>Always iterating, always learning — there's always a better way to build</p>
+				</div>
+				<div class="value-card">
+					<div class="value-icon-wrap">
+						<span class="value-icon">🤝</span>
+					</div>
+					<h3>Collaboration</h3>
+					<p>The best solutions come from diverse perspectives working together</p>
+				</div>
+				<div class="value-card">
+					<div class="value-icon-wrap">
+						<span class="value-icon">🧩</span>
+					</div>
+					<h3>Problem Solving</h3>
+					<p>Breaking down complex challenges into elegant, maintainable solutions</p>
+				</div>
+				<div class="value-card">
+					<div class="value-icon-wrap">
+						<span class="value-icon">📝</span>
+					</div>
+					<h3>Documentation</h3>
+					<p>If it isn't documented, it doesn't exist — clear docs enable great teams</p>
+				</div>
+			</div>
+		</section>
+		<!-- CTA -->
+		<section class="page-cta-section">
+			<div class="cta-glow" aria-hidden="true"></div>
+			<h2>Want to know more?</h2>
+			<p class="cta-subtitle">Check out my experience or reach out directly</p>
+			<div class="cta-buttons">
+				<a href="/experience" class="btn btn-primary">
+					<span>View My Experience</span>
+					<span class="btn-icon">→</span>
+				</a>
+				<a href="/contact" class="btn btn-secondary">Get in Touch</a>
+			</div>
+		</section>
+		<script>
+  // Animate stat counters on scroll
+  document.addEventListener('DOMContentLoaded', function () {
+    const observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            const counters = entry.target.querySelectorAll('.about-stat-value')
+            counters.forEach(function (counter) {
+              const target = parseInt(counter.dataset.target) || 0
+              const duration = 2000
+              const start = performance.now()
+              function update(now) {
+                const elapsed = now - start
+                const progress = Math.min(elapsed / duration, 1)
+                const ease = 1 - Math.pow(1 - progress, 3)
+                counter.textContent = Math.floor(target * ease)
+                if (progress < 1) requestAnimationFrame(update)
+                else counter.textContent = counter.dataset.target
+              }
+              requestAnimationFrame(update)
+            })
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.3 }
+    )
+    const statsSection = document.querySelector('.about-stats')
+    if (statsSection) observer.observe(statsSection)
+  })
+</script>
 	}
 }
