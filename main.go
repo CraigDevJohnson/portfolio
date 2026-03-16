@@ -95,6 +95,7 @@ func loadServerConfig() serverConfig {
 	return config
 }
 
+// firstEnv returns the value of the first non-empty environment variable.
 func firstEnv(names ...string) string {
 	for _, name := range names {
 		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
