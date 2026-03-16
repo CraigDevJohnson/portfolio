@@ -792,14 +792,14 @@ func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Enter a valid email address.")
 		return
 	}
-	if request.Password == "" || len(request.Password) > 256 {
+	if strings.TrimSpace(request.Password) == "" || len(request.Password) > 256 {
 		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let's Play Soccer account.")
 		return
 	}
 
 	user, err := lpsLogin(r.Context(), request.Email, request.Password, request.CaptchaToken)
 	if err != nil {
-		log.Printf("soccer login failed for %s: %v", request.Email, err)
+		log.Printf("soccer login failed: %v", err)
 		renderSoccerLoginFeedback(w, "error", "Sign-in failed. Please check your credentials and try again.")
 		return
 	}
