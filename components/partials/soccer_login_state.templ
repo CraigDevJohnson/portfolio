@@ -1,0 +1,54 @@
+package partials
+
+import "portfolio/types"
+
+type SoccerLoginStateProps struct {
+	Authenticated  bool
+	UserName       string
+	Players        []types.LPSPlayer
+	LoginAvailable bool
+	SwapOOB        bool
+}
+
+templ SoccerLoginState(props SoccerLoginStateProps) {
+	<div
+		id="soccer-auth-panel"
+		class="soccer-auth-panel"
+		if props.SwapOOB {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		if props.Authenticated {
+			<div class="soccer-auth-summary">
+				<div>
+					<p class="soccer-auth-status">Signed in</p>
+					<p class="soccer-auth-user">Connected as { props.UserName }.</p>
+				</div>
+				<button
+					type="button"
+					class="btn soccer-secondary-btn"
+					hx-post="/soccer/logout"
+					hx-target="#soccer-auth-panel"
+					hx-swap="outerHTML"
+				>
+					Sign out
+				</button>
+			</div>
+			@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players})
+		} else if props.LoginAvailable {
+			<div class="soccer-auth-summary">
+				<div>
+					<p class="soccer-auth-status">Not signed in</p>
+					<p class="soccer-auth-user">Use your Let&apos;s Play Soccer login to fetch schedules from linked players.</p>
+				</div>
+				<button type="button" class="btn btn-primary" data-open-login-modal>
+					Sign in
+				</button>
+			</div>
+		} else {
+			<div class="soccer-auth-unavailable" role="status">
+				<p>Account sign-in is unavailable until the session encryption key is configured on the server.</p>
+			</div>
+		}
+	</div>
+}

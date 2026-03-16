@@ -1,0 +1,76 @@
+package partials
+
+type SoccerLoginModalProps struct {
+	RecaptchaSiteKey string
+}
+
+templ SoccerLoginModal(props SoccerLoginModalProps) {
+	<div id="soccer-login-modal" class="soccer-login-modal" hidden>
+		<div class="soccer-login-backdrop" data-close-login-modal></div>
+		<div
+			class="soccer-login-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="soccer-login-title"
+			aria-describedby="soccer-login-description"
+			tabindex="-1"
+		>
+			<div class="soccer-login-header">
+				<h2 id="soccer-login-title">Sign in to Let&apos;s Play Soccer</h2>
+				<button type="button" class="soccer-modal-close" aria-label="Close sign-in dialog" data-close-login-modal>
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<p id="soccer-login-description" class="soccer-login-description">
+				Enter your Let&apos;s Play Soccer account details to load schedules for linked players.
+			</p>
+			<form
+				id="soccer-login-form"
+				class="soccer-login-form"
+				hx-post="/soccer/login"
+				hx-target="#soccer-login-feedback"
+				hx-swap="innerHTML"
+				data-recaptcha-site-key={ props.RecaptchaSiteKey }
+				autocomplete="on"
+			>
+				<input type="hidden" name="captcha_token" value=""/>
+				<div class="form-group">
+					<label for="soccer-login-email" class="form-label">Email</label>
+					<input
+						id="soccer-login-email"
+						name="email"
+						class="text-input"
+						type="email"
+						autocomplete="username"
+						required
+						aria-required="true"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="soccer-login-password" class="form-label">Password</label>
+					<input
+						id="soccer-login-password"
+						name="password"
+						class="text-input"
+						type="password"
+						autocomplete="current-password"
+						required
+						aria-required="true"
+					/>
+				</div>
+				<p class="soccer-login-note">
+					This server only keeps the returned session token in an encrypted cookie so it can fetch your schedules.
+				</p>
+				<div id="soccer-login-feedback" class="soccer-login-feedback" aria-live="polite"></div>
+				<div class="soccer-login-actions">
+					<button type="button" class="btn soccer-secondary-btn" data-close-login-modal>
+						Cancel
+					</button>
+					<button type="submit" class="btn btn-primary">
+						Sign in
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}

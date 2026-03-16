@@ -97,6 +97,188 @@
     }
   }
 
+  const soccerLoginModal = document.getElementById('soccer-login-modal')
+  let soccerLoginTrigger = null
+
+  function getModalFocusableElements() {
+    if (!soccerLoginModal) {
+      return []
+    }
+
+    return Array.from(
+      soccerLoginModal.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter(element => !element.hidden)
+  }
+
+  function openSoccerLoginModal(trigger) {
+    if (!soccerLoginModal) {
+      return
+    }
+
+    soccerLoginTrigger = trigger || document.activeElement
+    soccerLoginModal.hidden = false
+    document.body.classList.add('soccer-modal-open')
+
+    const dialog = soccerLoginModal.querySelector('.soccer-login-dialog')
+    const firstField = soccerLoginModal.querySelector('#soccer-login-email')
+    window.setTimeout(() => {
+      ;(firstField || dialog)?.focus()
+    }, 0)
+  }
+
+  function closeSoccerLoginModal() {
+    if (!soccerLoginModal) {
+      return
+    }
+
+    soccerLoginModal.hidden = true
+    document.body.classList.remove('soccer-modal-open')
+
+    if (soccerLoginTrigger && typeof soccerLoginTrigger.focus === 'function') {
+      soccerLoginTrigger.focus()
+    }
+  }
+
+  function resetSoccerResults() {
+    const gamesContainer = document.getElementById('games-container')
+    const subscribeSection = document.getElementById('subscribe-section')
+    const subscribeForm = document.getElementById('subscribe-form')
+    const emailCheckbox = document.getElementById('email-updates-checkbox')
+    const subscribeResult = document.getElementById('subscribe-result')
+
+    if (gamesContainer) {
+      gamesContainer.innerHTML = '<div class="empty-state"><p>Enter team codes above to fetch schedules</p></div>'
+    }
+
+    if (subscribeSection) {
+      subscribeSection.style.display = 'none'
+    }
+
+    if (emailCheckbox) {
+      emailCheckbox.checked = false
+    }
+
+    if (subscribeForm) {
+      subscribeForm.style.display = 'none'
+    }
+
+    if (subscribeResult) {
+      subscribeResult.innerHTML = ''
+    }
+  }
+
+  function setupSoccerLoginModal() {
+    if (!soccerLoginModal || soccerLoginModal.dataset.bound === 'true') {
+      return
+    }
+
+    soccerLoginModal.dataset.bound = 'true'
+
+    document.addEventListener('click', event => {
+      const openButton = event.target.closest('[data-open-login-modal]')
+      if (openButton) {
+        event.preventDefault()
+        openSoccerLoginModal(openButton)
+        return
+      }
+
+      if (event.target.closest('[data-close-login-modal]')) {
+        event.preventDefault()
+        closeSoccerLoginModal()
+      }
+    })
+
+    document.addEventListener('keydown', event => {
+      if (!soccerLoginModal || soccerLoginModal.hidden) {
+        return
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeSoccerLoginModal()
+        return
+      }
+
+      if (event.key !== 'Tab') {
+        return
+      }
+
+      const focusableElements = getModalFocusableElements()
+      if (focusableElements.length === 0) {
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    })
+  }
+
+  function setupSoccerLoginForm() {
+    const loginForm = document.getElementById('soccer-login-form')
+    if (!loginForm || loginForm.dataset.bound === 'true') {
+      return
+    }
+
+    loginForm.dataset.bound = 'true'
+    const captchaTokenField = loginForm.querySelector('input[name="captcha_token"]')
+    const feedback = document.getElementById('soccer-login-feedback')
+
+    loginForm.addEventListener('submit', event => {
+      const siteKey = loginForm.dataset.recaptchaSiteKey
+
+      if (!siteKey || !captchaTokenField) {
+        return
+      }
+
+      if (captchaTokenField.value) {
+        return
+      }
+
+      if (!window.grecaptcha) {
+        event.preventDefault()
+        if (feedback) {
+          feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">reCAPTCHA is still loading. Try again in a moment.</div>'
+        }
+        return
+      }
+
+      event.preventDefault()
+      window.grecaptcha.ready(() => {
+        window.grecaptcha
+          .execute(siteKey, { action: 'soccer_login' })
+          .then(token => {
+            captchaTokenField.value = token
+            if (window.htmx) {
+              window.htmx.trigger(loginForm, 'submit')
+            } else {
+              loginForm.requestSubmit()
+            }
+          })
+          .catch(() => {
+            if (feedback) {
+              feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">Could not start reCAPTCHA. Try again.</div>'
+            }
+          })
+      })
+    })
+
+    document.body.addEventListener('htmx:afterRequest', event => {
+      if (event.detail.elt === loginForm && captchaTokenField) {
+        captchaTokenField.value = ''
+      }
+    })
+  }
+
   // HTMX event handlers
   document.body.addEventListener('htmx:afterSwap', function (evt) {
     // Fade in new content
@@ -109,6 +291,14 @@
       showSubscribeSection()
       setupSoccerSelectAll()
       setupEmailSubscription()
+    }
+
+    if (evt.detail.target.id === 'soccer-login-feedback' && evt.detail.target.querySelector('[data-login-success]')) {
+      const loginForm = document.getElementById('soccer-login-form')
+      if (loginForm) {
+        loginForm.reset()
+      }
+      closeSoccerLoginModal()
     }
 
     // Skills page: re-observe new skill categories after filter swap
@@ -129,9 +319,13 @@
     }
   })
 
+  document.body.addEventListener('soccer-logout', resetSoccerResults)
+
   // Initialize on page load (for non-HTMX scenarios)
   setupEmailSubscription()
   setupSoccerSelectAll()
+  setupSoccerLoginModal()
+  setupSoccerLoginForm()
 
   // Add intersection observer for scroll animations
   const observerOptions = {
