@@ -48,7 +48,7 @@ templ Base(props BaseProps) {
 				crossorigin="anonymous"
 			></script>
 			if props.RecaptchaSiteKey != "" {
-				<script src={ "https://www.google.com/recaptcha/api.js?render=" + props.RecaptchaSiteKey }></script>
+				<script src={ "https://www.google.com/recaptcha/api.js?render=" + props.RecaptchaSiteKey } async defer></script>
 			}
 			<script src="/static/js/main.js" defer></script>
 		</head>

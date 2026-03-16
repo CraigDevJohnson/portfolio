@@ -190,8 +190,14 @@ a:hover {
   transition: transform var(--duration-fast) var(--ease-out);
 }
 
-.skip-link:focus-visible {
+.skip-link:focus {
   transform: translateY(0);
+}
+
+@supports selector(:focus-visible) {
+  .skip-link:focus:not(:focus-visible) {
+    transform: translateY(-200%);
+  }
 }
 
 code {

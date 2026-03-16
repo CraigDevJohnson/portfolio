@@ -149,7 +149,7 @@
     const subscribeResult = document.getElementById('subscribe-result')
 
     if (gamesContainer) {
-      gamesContainer.innerHTML = '<div class="empty-state"><p>Enter team codes above to fetch schedules</p></div>'
+      gamesContainer.innerHTML = '<div class="empty-state"><p>Sign in to fetch by player, or enter team codes above to fetch schedules.</p></div>'
     }
 
     if (subscribeSection) {

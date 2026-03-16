@@ -72,7 +72,7 @@ var (
 
 func loadServerConfig() serverConfig {
 	config := serverConfig{
-		RecaptchaSiteKey: strings.TrimSpace(os.Getenv("RECAPTCHA_SITE_KEY")),
+		RecaptchaSiteKey: firstEnv("LPS_RECAPTCHA_SITE_KEY", "RECAPTCHA_SITE_KEY"),
 		LPSAPIBaseURL:    strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
 	}
 	if config.LPSAPIBaseURL == "" {
@@ -93,6 +93,15 @@ func loadServerConfig() serverConfig {
 
 	config.SessionKey = decoded
 	return config
+}
+
+func firstEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimiter {
@@ -784,13 +793,13 @@ func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	trimmedPassword := strings.TrimSpace(request.Password)
 	if trimmedPassword == "" || len(trimmedPassword) > 256 {
-		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let&apos;s Play Soccer account.")
+		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let's Play Soccer account.")
 		return
 	}
 
 	user, err := lpsLogin(r.Context(), request.Email, request.Password, request.CaptchaToken)
 	if err != nil {
-		renderSoccerLoginFeedback(w, "error", html.EscapeString(err.Error()))
+		renderSoccerLoginFeedback(w, "error", err.Error())
 		return
 	}
 
@@ -861,11 +870,11 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		games, fetchErr := lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
 		if errors.Is(fetchErr, errSessionExpired) {
 			clearSession(w, r)
-			props.Message = "Your Let&apos;s Play Soccer session expired."
+			props.Message = "Your Let's Play Soccer session expired."
 			props.Hint = "Sign in again, then fetch your schedules one more time."
 		} else if fetchErr != nil {
 			log.Printf("soccer LPS fetch failed: %v", fetchErr)
-			props.Message = "Could not load schedules from Let&apos;s Play Soccer right now."
+			props.Message = "Could not load schedules from Let's Play Soccer right now."
 			props.Hint = "Try again in a moment, or use team codes manually."
 		} else {
 			props.Games = games
@@ -1004,6 +1013,9 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not refresh schedule", http.StatusBadGateway)
 			return
 		}
+	} else if len(playerIDs) > 0 {
+		http.Error(w, "sign in again to download player schedules", http.StatusUnauthorized)
+		return
 	} else {
 		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
 	}
@@ -1055,7 +1067,7 @@ func renderSoccerLoginFeedback(w http.ResponseWriter, kind string, message strin
 	if kind == "error" {
 		role = "alert"
 	}
-	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, message))
+	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, html.EscapeString(message)))
 }
 
 func encryptSession(data SessionData) (string, error) {
@@ -1219,7 +1231,7 @@ func lpsLogin(ctx context.Context, email string, password string, captchaToken s
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, errors.New("Could not reach Let&apos;s Play Soccer right now. Try again.")
+		return nil, errors.New("Could not reach Let's Play Soccer right now. Try again.")
 	}
 	defer resp.Body.Close()
 
@@ -1231,7 +1243,7 @@ func lpsLogin(ctx context.Context, email string, password string, captchaToken s
 		return nil, errors.New("Sign-in failed. Check your email, password, and captcha configuration.")
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("Let&apos;s Play Soccer returned status %d while signing in", resp.StatusCode)
+		return nil, fmt.Errorf("Let's Play Soccer returned status %d while signing in", resp.StatusCode)
 	}
 
 	var user LPSUser
@@ -1292,7 +1304,7 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, errors.New("Could not reach Let&apos;s Play Soccer while loading schedules.")
+		return nil, errors.New("Could not reach Let's Play Soccer while loading schedules.")
 	}
 	defer resp.Body.Close()
 
@@ -1304,7 +1316,7 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 		return nil, errSessionExpired
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("Let&apos;s Play Soccer returned status %d while loading schedules", resp.StatusCode)
+		return nil, fmt.Errorf("Let's Play Soccer returned status %d while loading schedules", resp.StatusCode)
 	}
 
 	games, err := decodeLPSGames(responseBody)
