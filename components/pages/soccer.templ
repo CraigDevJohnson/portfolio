@@ -1,11 +1,17 @@
 package pages
 
 import "portfolio/components/layouts"
+import "portfolio/components/partials"
 
-templ Soccer() {
+type SoccerProps struct {
+	RecaptchaSiteKey string
+}
+
+templ Soccer(props SoccerProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Soccer Schedule Download - Craig Johnson",
 		Page:  "soccer",
+		RecaptchaSiteKey: props.RecaptchaSiteKey,
 	}) {
 		<!-- Hero with animated orbs -->
 		<section class="page-hero soccer-hero">
@@ -101,6 +107,23 @@ templ Soccer() {
 			<div class="soccer-unified-card">
 				<div class="unified-header">
 					<div class="unified-form-section">
+						<div class="soccer-auth-shell">
+							<div class="soccer-auth-copy">
+								<h3>Connect your player account</h3>
+								<p>Sign in to fetch schedules for linked players, or use team codes manually below.</p>
+							</div>
+							<div
+								id="soccer-auth-panel"
+								class="soccer-auth-panel soccer-auth-panel-loading"
+								hx-get="/soccer/session"
+								hx-trigger="load"
+								hx-swap="outerHTML"
+							>
+								<p>Loading sign-in options...</p>
+							</div>
+						</div>
+						<div class="soccer-manual-entry">
+							<h3>Manual team codes</h3>
 						<form
 							id="fetch-form"
 							class="fetch-form"
@@ -134,6 +157,7 @@ templ Soccer() {
 								</div>
 							</div>
 						</form>
+						</div>
 					</div>
 					<div class="unified-info-section">
 						<div class="info-inline">
@@ -197,5 +221,8 @@ templ Soccer() {
 				</div>
 			</div>
 		</section>
+		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{
+			RecaptchaSiteKey: props.RecaptchaSiteKey,
+		})
 	}
 }
