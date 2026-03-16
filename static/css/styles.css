@@ -176,6 +176,24 @@ a:hover {
   outline-offset: 2px;
 }
 
+.skip-link {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: 300;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  color: var(--fg-primary);
+  border: 1px solid var(--border-color-strong);
+  border-radius: var(--radius-md);
+  transform: translateY(-200%);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 code {
   font-family: var(--font-mono);
   font-size: 0.9em;
@@ -197,6 +215,14 @@ code {
 .main-content {
   flex: 1;
   padding-top: var(--header-height);
+}
+
+@media (forced-colors: active) {
+  .skip-link {
+    background: Canvas;
+    color: CanvasText;
+    border-color: ButtonText;
+  }
 }
 
 /* ================================

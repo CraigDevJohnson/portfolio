@@ -6,6 +6,7 @@ type BaseProps struct {
 	Title       string
 	Page        string
 	Description string
+	RecaptchaSiteKey string
 }
 
 templ Base(props BaseProps) {
@@ -46,6 +47,9 @@ templ Base(props BaseProps) {
 				integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
 				crossorigin="anonymous"
 			></script>
+			if props.RecaptchaSiteKey != "" {
+				<script src={ "https://www.google.com/recaptcha/api.js?render=" + props.RecaptchaSiteKey }></script>
+			}
 			<script src="/static/js/main.js" defer></script>
 		</head>
 		<body
@@ -53,8 +57,9 @@ templ Base(props BaseProps) {
 				class="soccer-theme"
 			}
 		>
+			<a href="#maincontent" class="skip-link">Skip to main content</a>
 			@partials.Header(props.Page)
-			<main class="main-content">
+			<main id="maincontent" class="main-content" tabindex="-1">
 				<div class="container">
 					{ children... }
 				</div>

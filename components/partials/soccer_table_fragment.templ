@@ -6,13 +6,24 @@ import "portfolio/types"
 type SoccerTableFragmentProps struct {
 	Games     []types.Game
 	TeamCodes string
+	PlayerIDs []int
+	Message   string
+	Hint      string
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if len(props.Games) == 0 {
 		<div class="no-results">
-			<p>No games found for the provided team code(s).</p>
-			<p class="hint">Check that you entered valid 6-digit team codes.</p>
+			if props.Message != "" {
+				<p>{ props.Message }</p>
+			} else {
+				<p>No games found for the provided request.</p>
+			}
+			if props.Hint != "" {
+				<p class="hint">{ props.Hint }</p>
+			} else {
+				<p class="hint">Check your team codes or choose at least one linked player.</p>
+			}
 		</div>
 	} else {
 		<form
@@ -23,6 +34,9 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			data-soccer-form
 		>
 			<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
+			for _, playerID := range props.PlayerIDs {
+				<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
+			}
 			<div class="table-header">
 				<div class="table-actions">
 					<label class="select-all-label">
@@ -39,12 +53,12 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 				<table class="games-table" role="table" aria-label="Soccer games schedule">
 					<thead>
 						<tr>
-							<th class="col-check" aria-label="Select"></th>
-							<th class="col-datetime">Date / Time</th>
-							<th class="col-field">Field</th>
-							<th class="col-team">Home</th>
-							<th class="col-team">Away</th>
-							<th class="col-season">Season</th>
+							<th scope="col" class="col-check" aria-label="Select"></th>
+							<th scope="col" class="col-datetime">Date / Time</th>
+							<th scope="col" class="col-field">Field</th>
+							<th scope="col" class="col-team">Home</th>
+							<th scope="col" class="col-team">Away</th>
+							<th scope="col" class="col-season">Season</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -57,7 +71,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										name="selected"
 										value={ game.ID }
 										checked
-										aria-label={ "Select game " + game.ID }
+										aria-label={ "Select " + game.Home + " versus " + game.Away }
 										data-game-checkbox
 									/>
 								</td>
