@@ -1,11 +1,21 @@
 package pages
 
-import "portfolio/components/layouts"
+import (
+	"portfolio/components/layouts"
+	"portfolio/components/partials"
+	"portfolio/types"
+)
 
-templ Soccer() {
+type SoccerProps struct {
+	Session          *types.SessionData
+	RecaptchaSiteKey string
+}
+
+templ Soccer(props SoccerProps) {
 	@layouts.Base(layouts.BaseProps{
-		Title: "Soccer Schedule Download - Craig Johnson",
-		Page:  "soccer",
+		Title:            "Soccer Schedule Download - Craig Johnson",
+		Page:             "soccer",
+		RecaptchaSiteKey: props.RecaptchaSiteKey,
 	}) {
 		<!-- Hero with animated orbs -->
 		<section class="page-hero soccer-hero">
@@ -101,6 +111,21 @@ templ Soccer() {
 			<div class="soccer-unified-card">
 				<div class="unified-header">
 					<div class="unified-form-section">
+						<div
+							id="soccer-session-loader"
+							hx-get="/soccer/session"
+							hx-trigger="load"
+							hx-swap="none"
+						></div>
+						@partials.SoccerLoginState(partials.SoccerLoginStateProps{
+							Session: props.Session,
+						})
+						@partials.SoccerPlayerSelect(partials.SoccerPlayerSelectProps{
+							Session: props.Session,
+						})
+						<div class="soccer-manual-divider">
+							<span>Or use team codes manually</span>
+						</div>
 						<form
 							id="fetch-form"
 							class="fetch-form"
@@ -162,7 +187,7 @@ templ Soccer() {
 				</div>
 				<div id="games-container" class="games-container" aria-live="polite">
 					<div class="empty-state">
-						<p>Enter team codes above to fetch schedules</p>
+						<p>Log in to fetch by player, or enter team codes above to fetch schedules.</p>
 					</div>
 				</div>
 				<div id="subscribe-section" class="subscribe-section" style="display: none">
@@ -197,5 +222,8 @@ templ Soccer() {
 				</div>
 			</div>
 		</section>
+		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{
+			RecaptchaSiteKey: props.RecaptchaSiteKey,
+		})
 	}
 }

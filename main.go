@@ -2,14 +2,25 @@ package main
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/md5"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"mime"
+	"net"
 	"net/http"
+	"net/mail"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"portfolio/components/pages"
@@ -24,6 +35,25 @@ Main
 */
 
 const careerStartYear = 2012
+
+const (
+	sessionCookieName       = "lps_session"
+	loginAttemptWindow      = time.Minute
+	maxLoginAttemptsPerIP   = 5
+	minSoccerPasswordLength = 8
+	defaultLPSAPIBaseURL    = "https://lps-api-prod.lps-test.com"
+)
+
+var (
+	lpsHTTPClient = &http.Client{Timeout: 15 * time.Second}
+	lpsAPIBaseURL = defaultLPSAPIBaseURL
+	loginLimiter  = &attemptLimiter{attempts: map[string][]time.Time{}}
+)
+
+type attemptLimiter struct {
+	mu       sync.Mutex
+	attempts map[string][]time.Time
+}
 
 func main() {
 	mimeTypes := map[string]string{
@@ -58,6 +88,9 @@ func main() {
 	// soccer routes
 	http.HandleFunc("/soccer", soccerHandler)
 	http.HandleFunc("/soccer/fetch", fetchSchedulesHandler)
+	http.HandleFunc("/soccer/login", soccerLoginHandler)
+	http.HandleFunc("/soccer/logout", soccerLogoutHandler)
+	http.HandleFunc("/soccer/session", soccerSessionHandler)
 	http.HandleFunc("/soccer/download", downloadICSHandler)
 	http.HandleFunc("/soccer/subscribe", subscribeHandler)
 
@@ -611,10 +644,23 @@ Soccer
 type (
 	Game                = types.Game
 	LambdaGamesResponse = types.LambdaGamesResponse
+	LPSLoginRequest     = types.LPSLoginRequest
+	LPSPlayer           = types.LPSPlayer
+	LPSUser             = types.LPSUser
+	SessionData         = types.SessionData
 )
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.Soccer().Render(context.Background(), w)
+	session, err := getSession(r)
+	if err != nil {
+		clearSession(w)
+		session = nil
+	}
+
+	err = pages.Soccer(pages.SoccerProps{
+		Session:          session,
+		RecaptchaSiteKey: os.Getenv("LPS_RECAPTCHA_SITE_KEY"),
+	}).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -625,16 +671,155 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	_ = r.ParseForm()
-	teamCodes := r.FormValue("team_codes")
-	props := partials.SoccerTableFragmentProps{
-		Games:     mockFetchGames(parseTeamCodes(teamCodes)).Games,
-		TeamCodes: teamCodes,
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form submission", http.StatusBadRequest)
+		return
 	}
-	err := partials.SoccerTableFragment(props).Render(context.Background(), w)
+
+	if playerIDs := parsePlayerIDs(r.Form["player_ids"]); len(playerIDs) > 0 {
+		session, err := getSession(r)
+		if err != nil || session == nil {
+			renderSoccerGamesFragment(w, partials.SoccerTableFragmentProps{
+				EmptyMessage: "Your Let's Play Soccer session has expired.",
+				EmptyHint:    "Please log in again, choose your players, and retry the fetch.",
+			})
+			return
+		}
+
+		validPlayerIDs := filterSessionPlayerIDs(playerIDs, session.Players)
+		if len(validPlayerIDs) == 0 {
+			renderSoccerGamesFragment(w, partials.SoccerTableFragmentProps{
+				EmptyMessage: "Select at least one linked player to fetch schedules.",
+				EmptyHint:    "Use the checkboxes in the player list above and try again.",
+			})
+			return
+		}
+
+		games, err := fetchSchedulesForPlayers(session.JWT, validPlayerIDs)
+		if err != nil {
+			renderSoccerGamesFragment(w, partials.SoccerTableFragmentProps{
+				EmptyMessage: "We couldn't reach Let's Play Soccer right now.",
+				EmptyHint:    "Please try again in a moment or use the team-code fallback below.",
+			})
+			return
+		}
+
+		renderSoccerGamesFragment(w, partials.SoccerTableFragmentProps{
+			Games:        games,
+			EmptyMessage: "No upcoming games were found for the selected players.",
+			EmptyHint:    "Try another player selection or use the manual team-code lookup.",
+		})
+		return
+	}
+
+	teamCodes := r.FormValue("team_codes")
+	renderSoccerGamesFragment(w, partials.SoccerTableFragmentProps{
+		Games:        mockFetchGames(parseTeamCodes(teamCodes)).Games,
+		TeamCodes:    teamCodes,
+		EmptyMessage: "No games found for the provided team code(s).",
+		EmptyHint:    "Check that you entered valid 6-digit team codes.",
+	})
+}
+
+func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		renderSoccerStatus(w, http.StatusBadRequest, "soccer-status-error", "Please review the form and try again.")
+		return
+	}
+
+	clientIP := requestIP(r)
+	if !loginLimiter.allow(clientIP, time.Now()) {
+		renderSoccerStatus(w, http.StatusTooManyRequests, "soccer-status-error", "Too many login attempts. Please wait a minute and try again.")
+		return
+	}
+
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := r.FormValue("password")
+	captchaToken := strings.TrimSpace(r.FormValue("captcha_token"))
+
+	if err := validateSoccerLogin(email, password); err != nil {
+		renderSoccerStatus(w, http.StatusBadRequest, "soccer-status-error", err.Error())
+		return
+	}
+
+	session, err := lpsLogin(email, password, captchaToken)
 	if err != nil {
+		renderSoccerStatus(w, http.StatusBadGateway, "soccer-status-error", err.Error())
+		return
+	}
+
+	if err := setSession(w, session); err != nil {
+		renderSoccerStatus(w, http.StatusInternalServerError, "soccer-status-error", "We couldn't create a secure session. Please try again.")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("HX-Trigger", "soccer-login-success")
+	renderSoccerSessionFragments(w, session, true)
+	_, _ = io.WriteString(w, `<div class="soccer-status soccer-status-success">Connected to Let&#39;s Play Soccer successfully.</div>`)
+}
+
+func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	clearSession(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("HX-Trigger", "soccer-logout-success")
+	renderSoccerSessionFragments(w, nil, true)
+	_, _ = io.WriteString(w, `<div id="games-container" hx-swap-oob="innerHTML"><div class="empty-state"><p>Log in to fetch by player, or enter team codes above to fetch schedules.</p></div></div>`)
+}
+
+func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	session, err := getSession(r)
+	if err != nil {
+		clearSession(w)
+		session = nil
+	}
+
+	renderSoccerSessionFragments(w, session, true)
+}
+
+func renderSoccerGamesFragment(w http.ResponseWriter, props partials.SoccerTableFragmentProps) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := partials.SoccerTableFragment(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func renderSoccerSessionFragments(w http.ResponseWriter, session *SessionData, swapOOB bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := partials.SoccerLoginState(partials.SoccerLoginStateProps{
+		Session: session,
+		SwapOOB: swapOOB,
+	}).Render(context.Background(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := partials.SoccerPlayerSelect(partials.SoccerPlayerSelectProps{
+		Session: session,
+		SwapOOB: swapOOB,
+	}).Render(context.Background(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func renderSoccerStatus(w http.ResponseWriter, status int, className, message string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = io.WriteString(w, `<div class="soccer-status `+className+`">`+message+`</div>`)
 }
 
 func subscribeHandler(w http.ResponseWriter, r *http.Request) {
@@ -697,6 +882,468 @@ func parseTeamCodes(raw string) []string {
 	return strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ';' || r == ' '
 	})
+}
+
+func lpsLogin(email, password, captchaToken string) (*SessionData, error) {
+	requestPayload, err := json.Marshal(LPSLoginRequest{
+		Email:        email,
+		Password:     password,
+		CaptchaToken: captchaToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(lpsAPIBaseURL, "/")+"/users/sign_in", strings.NewReader(string(requestPayload)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := lpsHTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, errors.New("The Let's Play Soccer credentials were rejected. Please try again.")
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, errors.New("Let's Play Soccer is unavailable right now. Please try again shortly.")
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	jwt := firstString(payload, "jwt", "token", "auth_token", "access_token")
+	if jwt == "" {
+		return nil, errors.New("Let's Play Soccer did not return a session token.")
+	}
+
+	user := extractLPSUser(payload["user"])
+	players := extractLPSPlayers(payload["players"])
+	if len(players) == 0 {
+		if userMap, ok := payload["user"].(map[string]any); ok {
+			players = extractLPSPlayers(userMap["players"])
+		}
+	}
+
+	return &SessionData{
+		JWT:     jwt,
+		User:    user,
+		Players: players,
+	}, nil
+}
+
+func lpsFetchUpcomingGames(jwt string, playerID int) ([]Game, error) {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(lpsAPIBaseURL, "/")+"/players/"+strconv.Itoa(playerID)+"/upcoming_games", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+jwt)
+
+	resp, err := lpsHTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, errors.New("Your Let's Play Soccer session has expired. Please log in again.")
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, errors.New("Let's Play Soccer returned an error while loading schedules.")
+	}
+
+	var payload any
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	return extractGames(payload), nil
+}
+
+func fetchSchedulesForPlayers(jwt string, playerIDs []int) ([]Game, error) {
+	seen := map[string]struct{}{}
+	games := make([]Game, 0)
+	var fetchErr error
+
+	for _, playerID := range playerIDs {
+		playerGames, err := lpsFetchUpcomingGames(jwt, playerID)
+		if err != nil {
+			fetchErr = err
+			continue
+		}
+		for _, game := range playerGames {
+			if game.ID == "" {
+				game.ID = strconv.Itoa(playerID) + "-" + game.DateTime + "-" + game.Home + "-" + game.Away
+			}
+			if _, ok := seen[game.ID]; ok {
+				continue
+			}
+			seen[game.ID] = struct{}{}
+			games = append(games, game)
+		}
+	}
+
+	if len(games) == 0 && fetchErr != nil {
+		return nil, fetchErr
+	}
+
+	return games, nil
+}
+
+func validateSoccerLogin(email, password string) error {
+	if _, err := mail.ParseAddress(email); err != nil {
+		return errors.New("Enter a valid email address.")
+	}
+	if len(strings.TrimSpace(password)) < minSoccerPasswordLength {
+		return errors.New("Enter your Let's Play Soccer password to continue.")
+	}
+	return nil
+}
+
+func filterSessionPlayerIDs(playerIDs []int, players []LPSPlayer) []int {
+	allowed := make(map[int]struct{}, len(players))
+	for _, player := range players {
+		allowed[player.UPlayerID] = struct{}{}
+	}
+
+	filtered := make([]int, 0, len(playerIDs))
+	for _, playerID := range playerIDs {
+		if _, ok := allowed[playerID]; ok {
+			filtered = append(filtered, playerID)
+		}
+	}
+
+	return filtered
+}
+
+func parsePlayerIDs(rawValues []string) []int {
+	playerIDs := make([]int, 0, len(rawValues))
+	for _, raw := range rawValues {
+		if value := strings.TrimSpace(raw); value != "" {
+			playerID, err := strconv.Atoi(value)
+			if err == nil && playerID > 0 {
+				playerIDs = append(playerIDs, playerID)
+			}
+		}
+	}
+	return playerIDs
+}
+
+func sessionSecretKey() ([]byte, error) {
+	secret := strings.TrimSpace(os.Getenv("LPS_SESSION_KEY"))
+	if secret == "" {
+		return nil, errors.New("LPS_SESSION_KEY is not configured")
+	}
+
+	sum := sha256.Sum256([]byte(secret))
+	return sum[:], nil
+}
+
+func encryptSession(session *SessionData) (string, error) {
+	key, err := sessionSecretKey()
+	if err != nil {
+		return "", err
+	}
+
+	plaintext, err := json.Marshal(session)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
+	return base64.RawURLEncoding.EncodeToString(ciphertext), nil
+}
+
+func decryptSession(raw string) (*SessionData, error) {
+	key, err := sessionSecretKey()
+	if err != nil {
+		return nil, err
+	}
+
+	ciphertext, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext) < gcm.NonceSize() {
+		return nil, errors.New("invalid session ciphertext")
+	}
+
+	nonce := ciphertext[:gcm.NonceSize()]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext[gcm.NonceSize():], nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var session SessionData
+	if err := json.Unmarshal(plaintext, &session); err != nil {
+		return nil, err
+	}
+	if session.JWT == "" || sessionJWTExpired(session.JWT) {
+		return nil, errors.New("session expired")
+	}
+
+	return &session, nil
+}
+
+func getSession(r *http.Request) (*SessionData, error) {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		if errors.Is(err, http.ErrNoCookie) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return decryptSession(cookie.Value)
+}
+
+func setSession(w http.ResponseWriter, session *SessionData) error {
+	encrypted, err := encryptSession(session)
+	if err != nil {
+		return err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    encrypted,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   false,
+		MaxAge:   int((7 * 24 * time.Hour).Seconds()),
+	})
+
+	return nil
+}
+
+func clearSession(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   false,
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+	})
+}
+
+func sessionJWTExpired(rawJWT string) bool {
+	parts := strings.Split(rawJWT, ".")
+	if len(parts) < 2 {
+		return false
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return false
+	}
+	if claims.Exp == 0 {
+		return false
+	}
+
+	return time.Now().Unix() >= claims.Exp
+}
+
+func requestIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+func (l *attemptLimiter) allow(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	windowStart := now.Add(-loginAttemptWindow)
+	recent := make([]time.Time, 0, len(l.attempts[key]))
+	for _, attempt := range l.attempts[key] {
+		if attempt.After(windowStart) {
+			recent = append(recent, attempt)
+		}
+	}
+	if len(recent) >= maxLoginAttemptsPerIP {
+		l.attempts[key] = recent
+		return false
+	}
+
+	l.attempts[key] = append(recent, now)
+	return true
+}
+
+func firstString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringValue(values[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func extractLPSUser(raw any) LPSUser {
+	data, ok := raw.(map[string]any)
+	if !ok {
+		return LPSUser{}
+	}
+
+	return LPSUser{
+		ID:        intValue(data["id"]),
+		FirstName: firstString(data, "first_name", "firstName", "given_name"),
+		LastName:  firstString(data, "last_name", "lastName", "family_name"),
+		Email:     firstString(data, "email"),
+	}
+}
+
+func extractLPSPlayers(raw any) []LPSPlayer {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+
+	players := make([]LPSPlayer, 0, len(items))
+	for _, item := range items {
+		data, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		player := LPSPlayer{
+			UPlayerID: firstInt(data, "uplayer_id", "player_id", "id"),
+			FirstName: firstString(data, "first_name", "firstName"),
+			LastName:  firstString(data, "last_name", "lastName"),
+			TeamName:  firstString(data, "team_name", "teamName", "team"),
+		}
+		if player.UPlayerID > 0 {
+			players = append(players, player)
+		}
+	}
+
+	return players
+}
+
+func extractGames(raw any) []Game {
+	switch value := raw.(type) {
+	case []any:
+		return extractGamesFromSlice(value)
+	case map[string]any:
+		for _, key := range []string{"games", "data", "upcoming_games"} {
+			if nested, ok := value[key].([]any); ok {
+				return extractGamesFromSlice(nested)
+			}
+		}
+	}
+
+	return nil
+}
+
+func extractGamesFromSlice(items []any) []Game {
+	games := make([]Game, 0, len(items))
+	for _, item := range items {
+		data, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		game := Game{
+			ID:       firstString(data, "id", "game_id"),
+			DateTime: firstString(data, "datetime", "date_time", "scheduled_at", "start_time"),
+			Field:    firstString(data, "field", "field_name", "fieldNumber"),
+			Home:     firstString(data, "home", "home_team", "home_team_name"),
+			Away:     firstString(data, "away", "away_team", "away_team_name"),
+			Season:   firstString(data, "season", "season_name", "season_id"),
+		}
+		if game.DateTime != "" || game.Home != "" || game.Away != "" {
+			games = append(games, game)
+		}
+	}
+
+	return games
+}
+
+func firstInt(values map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value := intValue(values[key]); value > 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func intValue(raw any) int {
+	switch value := raw.(type) {
+	case float64:
+		return int(value)
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case json.Number:
+		intValue, _ := value.Int64()
+		return int(intValue)
+	case string:
+		intValue, err := strconv.Atoi(strings.TrimSpace(value))
+		if err == nil {
+			return intValue
+		}
+	}
+	return 0
+}
+
+func stringValue(raw any) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case json.Number:
+		return value.String()
+	case float64:
+		return strconv.FormatInt(int64(value), 10)
+	case int:
+		return strconv.Itoa(value)
+	case int64:
+		return strconv.FormatInt(value, 10)
+	}
+	return ""
 }
 
 func downloadICSHandler(w http.ResponseWriter, r *http.Request) {

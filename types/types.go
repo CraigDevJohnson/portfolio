@@ -59,6 +59,36 @@ type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
 }
 
+// LPSLoginRequest represents the Let's Play Soccer login payload.
+type LPSLoginRequest struct {
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	CaptchaToken string `json:"captcha_token,omitempty"`
+}
+
+// LPSUser represents an authenticated Let's Play Soccer user.
+type LPSUser struct {
+	ID        int    `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+}
+
+// LPSPlayer represents a player associated with an LPS account.
+type LPSPlayer struct {
+	UPlayerID int    `json:"uplayer_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	TeamName  string `json:"team_name"`
+}
+
+// SessionData represents the encrypted LPS session stored in a cookie.
+type SessionData struct {
+	JWT     string      `json:"jwt"`
+	User    LPSUser     `json:"user"`
+	Players []LPSPlayer `json:"players"`
+}
+
 // Education represents an education entry
 type Education struct {
 	ID           int

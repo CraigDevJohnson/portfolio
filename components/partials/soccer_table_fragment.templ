@@ -4,15 +4,19 @@ import "fmt"
 import "portfolio/types"
 
 type SoccerTableFragmentProps struct {
-	Games     []types.Game
-	TeamCodes string
+	Games        []types.Game
+	TeamCodes    string
+	EmptyMessage string
+	EmptyHint    string
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if len(props.Games) == 0 {
 		<div class="no-results">
-			<p>No games found for the provided team code(s).</p>
-			<p class="hint">Check that you entered valid 6-digit team codes.</p>
+			<p>{ props.EmptyMessage }</p>
+			if props.EmptyHint != "" {
+				<p class="hint">{ props.EmptyHint }</p>
+			}
 		</div>
 	} else {
 		<form

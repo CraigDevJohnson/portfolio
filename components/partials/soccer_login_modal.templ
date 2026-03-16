@@ -1,0 +1,79 @@
+package partials
+
+type SoccerLoginModalProps struct {
+	RecaptchaSiteKey string
+}
+
+templ SoccerLoginModal(props SoccerLoginModalProps) {
+	<div
+		id="soccer-login-modal"
+		class="soccer-login-modal"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="soccer-login-title"
+		hidden
+	>
+		<div class="soccer-login-backdrop" data-soccer-login-close aria-hidden="true"></div>
+		<div class="soccer-login-dialog">
+			<div class="soccer-login-dialog-header">
+				<div>
+					<p class="soccer-login-eyebrow">Secure sign in</p>
+					<h2 id="soccer-login-title">Connect your Let's Play Soccer account</h2>
+				</div>
+				<button
+					type="button"
+					class="soccer-login-close"
+					data-soccer-login-close
+					aria-label="Close login dialog"
+				>
+					×
+				</button>
+			</div>
+			<p class="soccer-login-copy">
+				Your credentials are sent directly to Let's Play Soccer through the server and the session is stored in an encrypted HttpOnly cookie.
+			</p>
+			<form
+				id="soccer-login-form"
+				class="soccer-login-form"
+				hx-post="/soccer/login"
+				hx-target="#soccer-login-feedback"
+				hx-swap="innerHTML"
+				data-recaptcha-site-key={ props.RecaptchaSiteKey }
+			>
+				<div class="form-group">
+					<label for="soccer-login-email" class="form-label">Email address</label>
+					<input
+						id="soccer-login-email"
+						name="email"
+						class="text-input"
+						type="email"
+						autocomplete="email"
+						required
+					/>
+				</div>
+				<div class="form-group">
+					<label for="soccer-login-password" class="form-label">Password</label>
+					<input
+						id="soccer-login-password"
+						name="password"
+						class="text-input"
+						type="password"
+						autocomplete="current-password"
+						required
+						minlength="8"
+					/>
+				</div>
+				<input id="soccer-captcha-token" type="hidden" name="captcha_token"/>
+				<div id="soccer-login-feedback" class="soccer-login-feedback" aria-live="polite"></div>
+				<div class="soccer-login-actions">
+					<button type="button" class="btn btn-secondary" data-soccer-login-close>
+						Cancel
+					</button>
+					<button type="submit" class="btn btn-primary">
+						Sign in
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}

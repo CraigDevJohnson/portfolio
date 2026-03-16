@@ -1,0 +1,64 @@
+package partials
+
+import (
+	"fmt"
+	"portfolio/types"
+	"strings"
+)
+
+type SoccerPlayerSelectProps struct {
+	Session *types.SessionData
+	SwapOOB bool
+}
+
+func soccerPlayerLabel(player types.LPSPlayer) string {
+	name := strings.TrimSpace(player.FirstName + " " + player.LastName)
+	if name == "" {
+		name = fmt.Sprintf("Player %d", player.UPlayerID)
+	}
+	if strings.TrimSpace(player.TeamName) == "" {
+		return name
+	}
+	return name + " · " + player.TeamName
+}
+
+templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
+	<div
+		id="soccer-player-select"
+		class="soccer-player-select"
+		if props.SwapOOB {
+			hx-swap-oob="innerHTML"
+		}
+	>
+		if props.Session != nil && len(props.Session.Players) > 0 {
+			<form
+				class="soccer-player-form"
+				hx-post="/soccer/fetch"
+				hx-target="#games-container"
+				hx-swap="innerHTML"
+				hx-indicator="#loading-indicator"
+			>
+				<div class="soccer-player-select-header">
+					<h3>Fetch schedules by player</h3>
+					<p>Select one or more players linked to your account.</p>
+				</div>
+				<div class="soccer-player-grid">
+					for _, player := range props.Session.Players {
+						<label class="soccer-player-option">
+							<input
+								type="checkbox"
+								name="player_ids"
+								value={ fmt.Sprintf("%d", player.UPlayerID) }
+								checked
+							/>
+							<span>{ soccerPlayerLabel(player) }</span>
+						</label>
+					}
+				</div>
+				<button type="submit" class="btn btn-primary soccer-player-submit">
+					Fetch My Schedules
+				</button>
+			</form>
+		}
+	</div>
+}
