@@ -144,9 +144,9 @@
     form.addEventListener('submit', event => {
       const siteKey = form.dataset.recaptchaSiteKey
       const tokenField = document.getElementById('soccer-captcha-token')
+      const feedback = document.getElementById('soccer-login-feedback')
 
       if (form.dataset.recaptchaReady === 'true') {
-        form.dataset.recaptchaReady = 'false'
         return
       }
 
@@ -161,11 +161,14 @@
           .then(token => {
             tokenField.value = token
             form.dataset.recaptchaReady = 'true'
+            if (feedback) feedback.innerHTML = ''
             form.requestSubmit()
           })
           .catch(() => {
-            form.dataset.recaptchaReady = 'true'
-            form.requestSubmit()
+            if (feedback) {
+              feedback.innerHTML =
+                '<div class="soccer-status soccer-status-error">reCAPTCHA verification failed. Please try again.</div>'
+            }
           })
       })
     })

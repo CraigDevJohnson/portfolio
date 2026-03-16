@@ -92,7 +92,11 @@ func TestLPSLoginAndFetchSchedules(t *testing.T) {
 
 func TestSoccerLoginSessionLogoutFlow(t *testing.T) {
 	t.Setenv("LPS_SESSION_KEY", "test-session-secret")
+	previousLimiter := loginLimiter
 	loginLimiter = &attemptLimiter{attempts: map[string][]time.Time{}}
+	t.Cleanup(func() {
+		loginLimiter = previousLimiter
+	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/users/sign_in" {

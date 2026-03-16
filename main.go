@@ -56,6 +56,10 @@ type attemptLimiter struct {
 }
 
 func main() {
+	if configuredAPIBaseURL := strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")); configuredAPIBaseURL != "" {
+		lpsAPIBaseURL = configuredAPIBaseURL
+	}
+
 	mimeTypes := map[string]string{
 		".css":  "text/css",
 		".js":   "application/javascript",
@@ -981,7 +985,7 @@ func fetchSchedulesForPlayers(jwt string, playerIDs []int) ([]Game, error) {
 		}
 		for _, game := range playerGames {
 			if game.ID == "" {
-				game.ID = strconv.Itoa(playerID) + "-" + game.DateTime + "-" + game.Home + "-" + game.Away
+				game.ID = strconv.Itoa(playerID) + "|" + game.DateTime + "|" + game.Home + "|" + game.Away
 			}
 			if _, ok := seen[game.ID]; ok {
 				continue
@@ -1140,7 +1144,7 @@ func setSession(w http.ResponseWriter, session *SessionData) error {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   false,
+		Secure:   secureSessionCookie(),
 		MaxAge:   int((7 * 24 * time.Hour).Seconds()),
 	})
 
@@ -1154,31 +1158,35 @@ func clearSession(w http.ResponseWriter) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   false,
+		Secure:   secureSessionCookie(),
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	})
 }
 
+func secureSessionCookie() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("LPS_SESSION_SECURE")), "true")
+}
+
 func sessionJWTExpired(rawJWT string) bool {
 	parts := strings.Split(rawJWT, ".")
 	if len(parts) < 2 {
-		return false
+		return true
 	}
 
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return false
+		return true
 	}
 
 	var claims struct {
 		Exp int64 `json:"exp"`
 	}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return false
+		return true
 	}
 	if claims.Exp == 0 {
-		return false
+		return true
 	}
 
 	return time.Now().Unix() >= claims.Exp
