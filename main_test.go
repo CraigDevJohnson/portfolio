@@ -16,8 +16,9 @@ import (
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		SessionKey:       []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL:    defaultLPSAPIBaseURL,
+		RecaptchaSiteKey: "test-site-key",
 	}
 	defer func() {
 		configData = previousConfig
