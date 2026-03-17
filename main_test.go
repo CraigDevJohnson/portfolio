@@ -141,3 +141,77 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 		t.Fatalf("unexpected location: %s", games[0].Location)
 	}
 }
+
+func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) {
+	got, ok := parseFlexibleTime("2026-01-11T14:55:00")
+	if !ok {
+		t.Fatal("parseFlexibleTime returned false")
+	}
+
+	want := time.Date(2026, time.January, 11, 14, 55, 0, 0, time.Local)
+	if !got.Equal(want) {
+		t.Fatalf("unexpected parsed time: got %v want %v", got, want)
+	}
+	if got.Location() != time.Local {
+		t.Fatalf("unexpected location: got %v want %v", got.Location(), time.Local)
+	}
+}
+
+func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
+	t.Run("uses cloudflare header when present", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
+		req.RemoteAddr = "203.0.113.10:443"
+		req.Header.Set("CF-Connecting-IP", "198.51.100.24")
+
+		if got := clientIP(req); got != "198.51.100.24" {
+			t.Fatalf("unexpected client IP: got %s", got)
+		}
+	})
+
+	t.Run("uses x forwarded for from trusted proxy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
+		req.RemoteAddr = "10.0.0.5:443"
+		req.Header.Set("X-Forwarded-For", "198.51.100.25, 10.0.0.5")
+
+		if got := clientIP(req); got != "198.51.100.25" {
+			t.Fatalf("unexpected client IP: got %s", got)
+		}
+	})
+
+	t.Run("ignores spoofed x forwarded for on direct connections", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
+		req.RemoteAddr = "203.0.113.11:443"
+		req.Header.Set("X-Forwarded-For", "198.51.100.26")
+
+		if got := clientIP(req); got != "203.0.113.11" {
+			t.Fatalf("unexpected client IP: got %s", got)
+		}
+	})
+}
+
+func TestBuildICSFoldsLongLines(t *testing.T) {
+	ics := buildICS([]Game{
+		{
+			ID:       strings.Repeat("abc123", 8),
+			Home:     strings.Repeat("Home Team ", 6),
+			Away:     strings.Repeat("Away Team ", 6),
+			StartAt:  "2026-01-11T14:55:00-07:00",
+			EndAt:    "2026-01-11T16:25:00-07:00",
+			Location: strings.Repeat("Championship Field Complex ", 4),
+			Season:   strings.Repeat("Spring ", 8),
+		},
+	})
+
+	if !strings.Contains(ics, "\r\n ") {
+		t.Fatalf("expected folded ICS output, got %q", ics)
+	}
+
+	for _, line := range strings.Split(ics, "\r\n") {
+		if line == "" {
+			continue
+		}
+		if len([]byte(line)) > 75 {
+			t.Fatalf("ics line exceeds 75 octets: %d bytes in %q", len([]byte(line)), line)
+		}
+	}
+}
