@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"portfolio/components/pages"
 	"portfolio/components/partials"
@@ -1512,19 +1513,26 @@ func parseFlexibleTime(value string) (time.Time, bool) {
 	if value == "" {
 		return time.Time{}, false
 	}
-	layouts := []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-		"2006-01-02 15:04",
-		"Mon 01/02/06 03:04 PM",
+	layouts := []struct {
+		layout   string
+		location *time.Location
+	}{
+		{layout: time.RFC3339},
+		{layout: "2006-01-02T15:04:05", location: time.Local},
+		{layout: "2006-01-02 15:04:05", location: time.Local},
+		{layout: "2006-01-02 15:04", location: time.Local},
+		{layout: "Mon 01/02/06 03:04 PM", location: time.Local},
 	}
-	for _, layout := range layouts {
-		parsed, err := time.Parse(layout, value)
-		if err == nil {
-			return parsed, true
+	for _, candidate := range layouts {
+		var (
+			parsed time.Time
+			err    error
+		)
+		if candidate.location != nil {
+			parsed, err = time.ParseInLocation(candidate.layout, value, candidate.location)
+		} else {
+			parsed, err = time.Parse(candidate.layout, value)
 		}
-		parsed, err = time.ParseInLocation(layout, value, time.Local)
 		if err == nil {
 			return parsed, true
 		}
@@ -1542,31 +1550,31 @@ func formatGameDateTime(value string) string {
 
 func buildICS(games []Game) string {
 	var builder strings.Builder
-	builder.WriteString("BEGIN:VCALENDAR\r\n")
-	builder.WriteString("VERSION:2.0\r\n")
-	builder.WriteString("PRODID:-//Craig Johnson Portfolio//Soccer Schedule//EN\r\n")
+	writeICSLine(&builder, "BEGIN:VCALENDAR")
+	writeICSLine(&builder, "VERSION:2.0")
+	writeICSLine(&builder, "PRODID:-//Craig Johnson Portfolio//Soccer Schedule//EN")
 	for _, game := range games {
 		start, end := scheduleTimes(game)
-		builder.WriteString("BEGIN:VEVENT\r\n")
-		builder.WriteString("UID:" + escapeICSText(game.ID) + "@craigdevjohnson.com\r\n")
-		builder.WriteString("DTSTAMP:" + time.Now().UTC().Format("20060102T150405Z") + "\r\n")
-		builder.WriteString("DTSTART:" + start.UTC().Format("20060102T150405Z") + "\r\n")
-		builder.WriteString("DTEND:" + end.UTC().Format("20060102T150405Z") + "\r\n")
-		builder.WriteString("SUMMARY:" + escapeICSText("Soccer: "+strings.TrimSpace(game.Home)+" vs "+strings.TrimSpace(game.Away)) + "\r\n")
+		writeICSLine(&builder, "BEGIN:VEVENT")
+		writeICSLine(&builder, "UID:"+escapeICSText(game.ID)+"@craigdevjohnson.com")
+		writeICSLine(&builder, "DTSTAMP:"+time.Now().UTC().Format("20060102T150405Z"))
+		writeICSLine(&builder, "DTSTART:"+start.UTC().Format("20060102T150405Z"))
+		writeICSLine(&builder, "DTEND:"+end.UTC().Format("20060102T150405Z"))
+		writeICSLine(&builder, "SUMMARY:"+escapeICSText("Soccer: "+strings.TrimSpace(game.Home)+" vs "+strings.TrimSpace(game.Away)))
 		location := strings.TrimSpace(game.Location)
 		if location == "" && strings.TrimSpace(game.Field) != "" {
 			location = "Field " + strings.TrimSpace(game.Field)
 		}
 		if location != "" {
-			builder.WriteString("LOCATION:" + escapeICSText(location) + "\r\n")
+			writeICSLine(&builder, "LOCATION:"+escapeICSText(location))
 		}
 		description := strings.TrimSpace("Season " + game.Season)
 		if description != "Season" {
-			builder.WriteString("DESCRIPTION:" + escapeICSText(description) + "\r\n")
+			writeICSLine(&builder, "DESCRIPTION:"+escapeICSText(description))
 		}
-		builder.WriteString("END:VEVENT\r\n")
+		writeICSLine(&builder, "END:VEVENT")
 	}
-	builder.WriteString("END:VCALENDAR\r\n")
+	writeICSLine(&builder, "END:VCALENDAR")
 	return builder.String()
 }
 
@@ -1590,10 +1598,78 @@ func escapeICSText(value string) string {
 	return value
 }
 
+func writeICSLine(builder *strings.Builder, line string) {
+	const maxLineBytes = 75
+
+	firstSegment := true
+	for line != "" {
+		available := maxLineBytes
+		if !firstSegment {
+			builder.WriteByte(' ')
+			available--
+		}
+
+		written := 0
+		for index := 0; index < len(line); {
+			_, size := utf8.DecodeRuneInString(line[index:])
+			if written > 0 && written+size > available {
+				break
+			}
+			written += size
+			index += size
+		}
+
+		builder.WriteString(line[:written])
+		builder.WriteString("\r\n")
+		line = line[written:]
+		firstSegment = false
+	}
+}
+
 func clientIP(r *http.Request) string {
+	if ip, ok := forwardedClientIP(r); ok {
+		return ip
+	}
+
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err == nil {
 		return host
 	}
 	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func forwardedClientIP(r *http.Request) (string, bool) {
+	remoteIP := remoteAddrIP(r.RemoteAddr)
+	if remoteIP == nil || !isTrustedProxyIP(remoteIP) {
+		return "", false
+	}
+
+	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
+		return ip, true
+	}
+
+	for _, candidate := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+		candidate = strings.TrimSpace(candidate)
+		if isValidIP(candidate) {
+			return candidate, true
+		}
+	}
+
+	return "", false
+}
+
+func remoteAddrIP(remoteAddr string) net.IP {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr))
+	if err != nil {
+		host = strings.TrimSpace(remoteAddr)
+	}
+	return net.ParseIP(host)
+}
+
+func isTrustedProxyIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+func isValidIP(value string) bool {
+	return net.ParseIP(strings.TrimSpace(value)) != nil
 }
