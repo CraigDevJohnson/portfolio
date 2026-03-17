@@ -215,3 +215,25 @@ func TestBuildICSFoldsLongLines(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildICSFoldsUTF8Lines(t *testing.T) {
+	ics := buildICS([]Game{
+		{
+			ID:       "utf8-game",
+			Home:     strings.Repeat("⚽", 20),
+			Away:     strings.Repeat("ゴール", 10),
+			StartAt:  "2026-01-11T14:55:00-07:00",
+			EndAt:    "2026-01-11T16:25:00-07:00",
+			Location: strings.Repeat("Équipe ", 12),
+		},
+	})
+
+	for _, line := range strings.Split(ics, "\r\n") {
+		if line == "" {
+			continue
+		}
+		if len([]byte(line)) > 75 {
+			t.Fatalf("ics utf8 line exceeds 75 octets: %d bytes in %q", len([]byte(line)), line)
+		}
+	}
+}

@@ -1612,14 +1612,11 @@ func writeICSLine(builder *strings.Builder, line string) {
 		written := 0
 		for index := 0; index < len(line); {
 			_, size := utf8.DecodeRuneInString(line[index:])
-			if written+size > available {
+			if written > 0 && written+size > available {
 				break
 			}
 			written += size
 			index += size
-		}
-		if written == 0 {
-			break
 		}
 
 		builder.WriteString(line[:written])
@@ -1670,7 +1667,7 @@ func remoteAddrIP(remoteAddr string) net.IP {
 }
 
 func isTrustedProxyIP(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 func isValidIP(value string) bool {
