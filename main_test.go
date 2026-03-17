@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -265,4 +267,114 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 			t.Fatalf("ics utf8 line exceeds 75 octets: %d bytes in %q", len([]byte(line)), line)
 		}
 	}
+}
+
+func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
+	ics := buildICS([]Game{
+		{
+			ID:      "good-game",
+			Home:    "Team A",
+			Away:    "Team B",
+			StartAt: "2026-01-11T14:55:00-07:00",
+			EndAt:   "2026-01-11T16:25:00-07:00",
+		},
+		{
+			ID:   "bad-game",
+			Home: "Team C",
+			Away: "Team D",
+			// No StartAt — unparseable
+		},
+	})
+
+	if !strings.Contains(ics, "good-game") {
+		t.Fatal("expected good-game in ICS output")
+	}
+	if strings.Contains(ics, "bad-game") {
+		t.Fatal("expected bad-game to be skipped in ICS output")
+	}
+}
+
+func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
+	_, _, ok := scheduleTimes(Game{ID: "no-time"})
+	if ok {
+		t.Fatal("expected scheduleTimes to return false for game with no start time")
+	}
+}
+
+func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
+	limiter := newLoginRateLimiter(100, time.Hour)
+	defer limiter.Close()
+
+	// Fill up to the max key limit
+	for i := 0; i < rateLimiterMaxKeys; i++ {
+		key := fmt.Sprintf("ip-%d", i)
+		if !limiter.Allow(key) {
+			t.Fatalf("expected Allow to return true for key %d", i)
+		}
+	}
+
+	// The next new key should be rejected
+	if limiter.Allow("overflow-ip") {
+		t.Fatal("expected Allow to return false when max keys exceeded")
+	}
+
+	// An existing key should still work
+	if !limiter.Allow("ip-0") {
+		t.Fatal("expected Allow to return true for existing key")
+	}
+}
+
+func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
+	limiter := newLoginRateLimiter(100, 50*time.Millisecond)
+	defer limiter.Close()
+
+	// Fill to capacity
+	for i := 0; i < rateLimiterMaxKeys; i++ {
+		limiter.Allow(fmt.Sprintf("ip-%d", i))
+	}
+
+	// Wait for entries to expire
+	time.Sleep(100 * time.Millisecond)
+
+	// New key should succeed because expired entries are swept on demand
+	if !limiter.Allow("fresh-ip") {
+		t.Fatal("expected Allow to return true after expired entries are swept")
+	}
+}
+
+func TestRateLimiterCloseIsIdempotent(t *testing.T) {
+	limiter := newLoginRateLimiter(5, time.Minute)
+	limiter.Close()
+	limiter.Close() // must not panic
+}
+
+func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
+	t.Run("trusts X-Forwarded-Proto from trusted proxy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+		req.RemoteAddr = "127.0.0.1:443"
+		req.Header.Set("X-Forwarded-Proto", "https")
+
+		if !requestIsHTTPS(req) {
+			t.Fatal("expected requestIsHTTPS to return true for trusted proxy with https proto")
+		}
+	})
+
+	t.Run("ignores X-Forwarded-Proto from untrusted source", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+		req.RemoteAddr = "203.0.113.10:443"
+		req.Header.Set("X-Forwarded-Proto", "https")
+
+		if requestIsHTTPS(req) {
+			t.Fatal("expected requestIsHTTPS to return false for untrusted source with spoofed proto")
+		}
+	})
+
+	t.Run("returns true for direct TLS", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+		req.TLS = &tls.ConnectionState{}
+
+		if !requestIsHTTPS(req) {
+			t.Fatal("expected requestIsHTTPS to return true for direct TLS")
+		}
+	})
 }
