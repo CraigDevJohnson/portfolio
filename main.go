@@ -106,11 +106,30 @@ func firstEnv(names ...string) string {
 	return ""
 }
 
+const rateLimiterMaxKeys = 10000
+
 func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimiter {
-	return &loginRateLimiter{
+	limiter := &loginRateLimiter{
 		maxAttempts: maxAttempts,
 		window:      window,
 		attempts:    make(map[string]loginAttempt),
+	}
+	go limiter.periodicCleanup()
+	return limiter
+}
+
+func (limiter *loginRateLimiter) periodicCleanup() {
+	ticker := time.NewTicker(limiter.window)
+	defer ticker.Stop()
+	for range ticker.C {
+		limiter.mu.Lock()
+		now := time.Now()
+		for key, attempt := range limiter.attempts {
+			if now.Sub(attempt.WindowStart) > limiter.window {
+				delete(limiter.attempts, key)
+			}
+		}
+		limiter.mu.Unlock()
 	}
 }
 
@@ -123,12 +142,6 @@ func (limiter *loginRateLimiter) Allow(key string) bool {
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 
-	for candidate, attempt := range limiter.attempts {
-		if now.Sub(attempt.WindowStart) > limiter.window {
-			delete(limiter.attempts, candidate)
-		}
-	}
-
 	attempt := limiter.attempts[key]
 	if now.Sub(attempt.WindowStart) > limiter.window {
 		attempt = loginAttempt{WindowStart: now}
@@ -137,6 +150,11 @@ func (limiter *loginRateLimiter) Allow(key string) bool {
 		attempt.WindowStart = now
 	}
 	if attempt.Count >= limiter.maxAttempts {
+		return false
+	}
+
+	// Enforce upper bound on stored keys to prevent unbounded memory growth.
+	if _, exists := limiter.attempts[key]; !exists && len(limiter.attempts) >= rateLimiterMaxKeys {
 		return false
 	}
 
@@ -1177,7 +1195,13 @@ func clearSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func requestIsHTTPS(r *http.Request) bool {
-	return r.TLS != nil || strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+	if r.TLS != nil {
+		return true
+	}
+	if remoteIP := remoteAddrIP(r.RemoteAddr); remoteIP != nil && isTrustedProxyIP(remoteIP) {
+		return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+	}
+	return false
 }
 
 func buildUserName(user *LPSUser) string {
@@ -1233,13 +1257,13 @@ func lpsLogin(ctx context.Context, email string, password string, captchaToken s
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, errors.New("Could not reach Let's Play Soccer right now. Try again.")
+		return nil, fmt.Errorf("could not reach Let's Play Soccer right now: %w", err)
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, errors.New("Could not read the sign-in response.")
+		return nil, fmt.Errorf("could not read the sign-in response: %w", err)
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnprocessableEntity {
 		return nil, errors.New("Sign-in failed. Check your email, password, and captcha configuration.")
@@ -1306,13 +1330,13 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, errors.New("Could not reach Let's Play Soccer while loading schedules.")
+		return nil, fmt.Errorf("could not reach Let's Play Soccer while loading schedules: %w", err)
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return nil, errors.New("Could not read the schedule response.")
+		return nil, fmt.Errorf("could not read the schedule response: %w", err)
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, errSessionExpired
@@ -1554,7 +1578,11 @@ func buildICS(games []Game) string {
 	writeICSLine(&builder, "VERSION:2.0")
 	writeICSLine(&builder, "PRODID:-//Craig Johnson Portfolio//Soccer Schedule//EN")
 	for _, game := range games {
-		start, end := scheduleTimes(game)
+		start, end, ok := scheduleTimes(game)
+		if !ok {
+			log.Printf("skipping game %q: could not parse start time", game.ID)
+			continue
+		}
 		writeICSLine(&builder, "BEGIN:VEVENT")
 		writeICSLine(&builder, "UID:"+escapeICSText(game.ID)+"@craigdevjohnson.com")
 		writeICSLine(&builder, "DTSTAMP:"+time.Now().UTC().Format("20060102T150405Z"))
@@ -1578,16 +1606,16 @@ func buildICS(games []Game) string {
 	return builder.String()
 }
 
-func scheduleTimes(game Game) (time.Time, time.Time) {
+func scheduleTimes(game Game) (time.Time, time.Time, bool) {
 	start, ok := gameStartTime(game)
 	if !ok {
-		start = time.Now().Add(24 * time.Hour).Round(time.Minute)
+		return time.Time{}, time.Time{}, false
 	}
 	end, ok := parseFlexibleTime(game.EndAt)
 	if !ok || !end.After(start) {
 		end = start.Add(90 * time.Minute)
 	}
-	return start, end
+	return start, end, true
 }
 
 func escapeICSText(value string) string {
