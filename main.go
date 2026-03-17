@@ -792,15 +792,15 @@ func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Enter a valid email address.")
 		return
 	}
-	trimmedPassword := strings.TrimSpace(request.Password)
-	if trimmedPassword == "" || len(trimmedPassword) > 256 {
+	if strings.TrimSpace(request.Password) == "" || len(request.Password) > 256 {
 		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let's Play Soccer account.")
 		return
 	}
 
 	user, err := lpsLogin(r.Context(), request.Email, request.Password, request.CaptchaToken)
 	if err != nil {
-		renderSoccerLoginFeedback(w, "error", err.Error())
+		log.Printf("soccer login failed: %v", err)
+		renderSoccerLoginFeedback(w, "error", "Sign-in failed. Please check your credentials and try again.")
 		return
 	}
 
@@ -1153,7 +1153,7 @@ func setSession(w http.ResponseWriter, r *http.Request, session SessionData) err
 	http.SetCookie(w, &http.Cookie{
 		Name:     lpsSessionCookieName,
 		Value:    encrypted,
-		Path:     "/",
+		Path:     "/soccer",
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -1166,7 +1166,7 @@ func clearSession(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     lpsSessionCookieName,
 		Value:    "",
-		Path:     "/",
+		Path:     "/soccer",
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -1591,10 +1591,6 @@ func escapeICSText(value string) string {
 }
 
 func clientIP(r *http.Request) string {
-	forwardedFor := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
-	if forwardedFor != "" {
-		return strings.TrimSpace(strings.Split(forwardedFor, ",")[0])
-	}
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
 	if err == nil {
 		return host
