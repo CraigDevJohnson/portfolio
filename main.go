@@ -97,7 +97,7 @@ func loadServerConfig() serverConfig {
 	config.SessionKey = decoded
 
 	if config.RecaptchaSiteKey == "" {
-		log.Printf("soccer auth disabled: LPS_RECAPTCHA_SITE_KEY is not configured")
+		log.Printf("soccer auth disabled: reCAPTCHA site key is not configured")
 	}
 
 	return config
@@ -1327,7 +1327,7 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 			return nil, err
 		}
 		for _, game := range playerGames {
-			key := stableGameKey(game)
+			key := gameKey(game)
 			if _, exists := seen[key]; exists {
 				continue
 			}
@@ -1555,13 +1555,6 @@ func fallbackGameID(game Game) string {
 }
 
 func gameKey(game Game) string {
-	if game.ID != "" {
-		return game.ID
-	}
-	return stableGameFields(game)
-}
-
-func stableGameKey(game Game) string {
 	if game.ID != "" {
 		return game.ID
 	}

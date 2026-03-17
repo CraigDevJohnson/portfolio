@@ -146,6 +146,81 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	}
 }
 
+func TestLPSFetchGamesForPlayersDedupesOverlappingMissingIDGames(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/players/1001/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"StartDateTime": "2026-01-11T14:55:00-07:00",
+					"FieldName": "3",
+					"HomeTeam": "SHARED FC",
+					"AwayTeam": "OPPONENT A",
+					"SeasonID": 168
+				},
+				{
+					"StartDateTime": "2026-01-11T18:55:00-07:00",
+					"FieldName": "4",
+					"HomeTeam": "PLAYER ONE FC",
+					"AwayTeam": "OPPONENT B",
+					"SeasonID": 168
+				}
+			]`))
+		case "/players/1002/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"StartDateTime": "2026-01-11T14:55:00-07:00",
+					"FieldName": "3",
+					"HomeTeam": "SHARED FC",
+					"AwayTeam": "OPPONENT A",
+					"SeasonID": 168
+				},
+				{
+					"StartDateTime": "2026-01-11T16:55:00-07:00",
+					"FieldName": "5",
+					"HomeTeam": "PLAYER TWO FC",
+					"AwayTeam": "OPPONENT C",
+					"SeasonID": 168
+				}
+			]`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	games, err := lpsFetchGamesForPlayers(t.Context(), "api-token", []int{1001, 1002})
+	if err != nil {
+		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
+	}
+	if len(games) != 3 {
+		t.Fatalf("unexpected deduped games length: got %d want 3", len(games))
+	}
+
+	sharedCount := 0
+	for _, game := range games {
+		if game.Home == "SHARED FC" && game.Away == "OPPONENT A" {
+			sharedCount++
+			if game.ID == "" {
+				t.Fatal("expected shared game to receive a stable fallback ID")
+			}
+		}
+	}
+	if sharedCount != 1 {
+		t.Fatalf("expected one shared game after dedup, got %d", sharedCount)
+	}
+}
+
 func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) {
 	got, ok := parseFlexibleTime("2026-01-11T14:55:00")
 	if !ok {
