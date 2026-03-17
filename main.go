@@ -63,6 +63,7 @@ type loginRateLimiter struct {
 	window      time.Duration
 	attempts    map[string]loginAttempt
 	stop        chan struct{}
+	closeOnce   sync.Once
 }
 
 var (
@@ -141,7 +142,7 @@ func (limiter *loginRateLimiter) periodicCleanup() {
 }
 
 func (limiter *loginRateLimiter) Close() {
-	close(limiter.stop)
+	limiter.closeOnce.Do(func() { close(limiter.stop) })
 }
 
 func (limiter *loginRateLimiter) Allow(key string) bool {
@@ -165,8 +166,19 @@ func (limiter *loginRateLimiter) Allow(key string) bool {
 	}
 
 	// Enforce upper bound on stored keys to prevent unbounded memory growth.
+	// Sweep expired entries first so legitimate requests aren't blocked by stale keys.
 	if _, exists := limiter.attempts[key]; !exists && len(limiter.attempts) >= rateLimiterMaxKeys {
-		return false
+		for candidate, a := range limiter.attempts {
+			if now.Sub(a.WindowStart) > limiter.window {
+				delete(limiter.attempts, candidate)
+			}
+			if len(limiter.attempts) < rateLimiterMaxKeys {
+				break
+			}
+		}
+		if len(limiter.attempts) >= rateLimiterMaxKeys {
+			return false
+		}
 	}
 
 	attempt.Count++

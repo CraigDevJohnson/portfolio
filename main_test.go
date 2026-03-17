@@ -324,6 +324,30 @@ func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	}
 }
 
+func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
+	limiter := newLoginRateLimiter(100, 50*time.Millisecond)
+	defer limiter.Close()
+
+	// Fill to capacity
+	for i := 0; i < rateLimiterMaxKeys; i++ {
+		limiter.Allow(fmt.Sprintf("ip-%d", i))
+	}
+
+	// Wait for entries to expire
+	time.Sleep(100 * time.Millisecond)
+
+	// New key should succeed because expired entries are swept on demand
+	if !limiter.Allow("fresh-ip") {
+		t.Fatal("expected Allow to return true after expired entries are swept")
+	}
+}
+
+func TestRateLimiterCloseIsIdempotent(t *testing.T) {
+	limiter := newLoginRateLimiter(5, time.Minute)
+	limiter.Close()
+	limiter.Close() // must not panic
+}
+
 func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 	t.Run("trusts X-Forwarded-Proto from trusted proxy", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
