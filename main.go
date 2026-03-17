@@ -1333,7 +1333,9 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 			}
 			seen[key] = struct{}{}
 			if game.ID == "" {
-				game.ID = fallbackGameID(game)
+				if fid := fallbackGameID(game); fid != "" {
+					game.ID = fid
+				}
 			}
 			games = append(games, game)
 		}
@@ -1539,8 +1541,12 @@ func parsePlayerIDs(values []string) []int {
 	return playerIDs
 }
 
+func stableGameFields(game Game) string {
+	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
+}
+
 func fallbackGameID(game Game) string {
-	base := strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
+	base := stableGameFields(game)
 	if strings.ReplaceAll(base, "|", "") == "" {
 		return ""
 	}
@@ -1552,14 +1558,14 @@ func gameKey(game Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
-	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location}, "|")
+	return stableGameFields(game)
 }
 
 func stableGameKey(game Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
-	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
+	return stableGameFields(game)
 }
 
 func gameStartTime(game Game) (time.Time, bool) {
