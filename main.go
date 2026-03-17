@@ -95,6 +95,11 @@ func loadServerConfig() serverConfig {
 	}
 
 	config.SessionKey = decoded
+
+	if config.RecaptchaSiteKey == "" {
+		log.Printf("soccer auth disabled: reCAPTCHA site key is not configured")
+	}
+
 	return config
 }
 
@@ -830,10 +835,12 @@ func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
 		Password:     r.FormValue("password"),
 		CaptchaToken: strings.TrimSpace(r.FormValue("captcha_token")),
 	}
-	if _, err := mail.ParseAddress(request.Email); err != nil {
+	parsed, err := mail.ParseAddress(request.Email)
+	if err != nil {
 		renderSoccerLoginFeedback(w, "error", "Enter a valid email address.")
 		return
 	}
+	request.Email = parsed.Address
 	if strings.TrimSpace(request.Password) == "" || len(request.Password) > 256 {
 		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let's Play Soccer account.")
 		return
@@ -1085,7 +1092,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loginEnabled() bool {
-	return len(configData.SessionKey) == 32
+	return len(configData.SessionKey) == 32 && configData.RecaptchaSiteKey != ""
 }
 
 func renderSoccerLoginState(w http.ResponseWriter, session *SessionData, swapOOB bool) {
@@ -1319,15 +1326,17 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 		if err != nil {
 			return nil, err
 		}
-		for index, game := range playerGames {
-			if game.ID == "" {
-				game.ID = fallbackGameID(game, playerID, index)
-			}
+		for _, game := range playerGames {
 			key := gameKey(game)
 			if _, exists := seen[key]; exists {
 				continue
 			}
 			seen[key] = struct{}{}
+			if game.ID == "" {
+				if fid := fallbackGameID(game); fid != "" {
+					game.ID = fid
+				}
+			}
 			games = append(games, game)
 		}
 	}
@@ -1374,7 +1383,7 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 	}
 	for index := range games {
 		if games[index].ID == "" {
-			games[index].ID = fallbackGameID(games[index], playerID, index)
+			games[index].ID = fallbackGameID(games[index])
 		}
 		if games[index].DateTime == "" {
 			games[index].DateTime = formatGameDateTime(games[index].StartAt)
@@ -1532,10 +1541,14 @@ func parsePlayerIDs(values []string) []int {
 	return playerIDs
 }
 
-func fallbackGameID(game Game, playerID int, index int) string {
-	base := strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, strconv.Itoa(playerID)}, "|")
-	if strings.Trim(base, "|") == "" {
-		base = fmt.Sprintf("player-%d-%d", playerID, index)
+func stableGameFields(game Game) string {
+	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
+}
+
+func fallbackGameID(game Game) string {
+	base := stableGameFields(game)
+	if strings.ReplaceAll(base, "|", "") == "" {
+		return ""
 	}
 	hash := md5.Sum([]byte(base))
 	return hex.EncodeToString(hash[:])
@@ -1545,7 +1558,7 @@ func gameKey(game Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
-	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location}, "|")
+	return stableGameFields(game)
 }
 
 func gameStartTime(game Game) (time.Time, bool) {

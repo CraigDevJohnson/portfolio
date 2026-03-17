@@ -237,6 +237,10 @@
       const siteKey = loginForm.dataset.recaptchaSiteKey
 
       if (!siteKey || !captchaTokenField) {
+        event.preventDefault()
+        if (feedback) {
+          feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">Sign-in is not configured. Contact the site administrator.</div>'
+        }
         return
       }
 
