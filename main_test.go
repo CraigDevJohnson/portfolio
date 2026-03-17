@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -302,10 +303,11 @@ func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
 
 func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	limiter := newLoginRateLimiter(100, time.Hour)
+	defer limiter.Close()
 
 	// Fill up to the max key limit
 	for i := 0; i < rateLimiterMaxKeys; i++ {
-		key := "ip-" + strings.Repeat("0", 5) + string(rune(i/256/256)) + string(rune(i/256%256)) + string(rune(i%256))
+		key := fmt.Sprintf("ip-%d", i)
 		if !limiter.Allow(key) {
 			t.Fatalf("expected Allow to return true for key %d", i)
 		}
@@ -317,8 +319,7 @@ func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	}
 
 	// An existing key should still work
-	existingKey := "ip-" + strings.Repeat("0", 5) + string(rune(0)) + string(rune(0)) + string(rune(0))
-	if !limiter.Allow(existingKey) {
+	if !limiter.Allow("ip-0") {
 		t.Fatal("expected Allow to return true for existing key")
 	}
 }

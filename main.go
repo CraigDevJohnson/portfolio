@@ -62,6 +62,7 @@ type loginRateLimiter struct {
 	maxAttempts int
 	window      time.Duration
 	attempts    map[string]loginAttempt
+	stop        chan struct{}
 }
 
 var (
@@ -113,6 +114,7 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimite
 		maxAttempts: maxAttempts,
 		window:      window,
 		attempts:    make(map[string]loginAttempt),
+		stop:        make(chan struct{}),
 	}
 	go limiter.periodicCleanup()
 	return limiter
@@ -121,16 +123,25 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimite
 func (limiter *loginRateLimiter) periodicCleanup() {
 	ticker := time.NewTicker(limiter.window)
 	defer ticker.Stop()
-	for range ticker.C {
-		limiter.mu.Lock()
-		now := time.Now()
-		for key, attempt := range limiter.attempts {
-			if now.Sub(attempt.WindowStart) > limiter.window {
-				delete(limiter.attempts, key)
+	for {
+		select {
+		case <-ticker.C:
+			limiter.mu.Lock()
+			now := time.Now()
+			for key, attempt := range limiter.attempts {
+				if now.Sub(attempt.WindowStart) > limiter.window {
+					delete(limiter.attempts, key)
+				}
 			}
+			limiter.mu.Unlock()
+		case <-limiter.stop:
+			return
 		}
-		limiter.mu.Unlock()
 	}
+}
+
+func (limiter *loginRateLimiter) Close() {
+	close(limiter.stop)
 }
 
 func (limiter *loginRateLimiter) Allow(key string) bool {
