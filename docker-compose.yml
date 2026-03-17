@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     image: portfolio-app:latest
     container_name: portfolio-app
+    environment:
+      LPS_SESSION_KEY: ${LPS_SESSION_KEY}
     ports:
       - "8080:8080"
     restart: unless-stopped

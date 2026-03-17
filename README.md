@@ -223,6 +223,10 @@ docker run --rm -p 8080:8080 portfolio-app
 ### Docker Compose
 
 ```bash
+# Create a local env file and set a 64-character hex session key
+cp .env.example .env
+openssl rand -hex 32
+
 # Build and start in background
 docker compose up --build -d
 
@@ -234,6 +238,8 @@ docker compose down
 ```
 
 The app is available at `http://localhost:8080`.
+
+Compose reads the local `.env` file automatically. Set `LPS_SESSION_KEY` in `.env` to a 64-character hex string before starting the stack. This key is used to encrypt soccer session cookies, so rotating it invalidates existing sessions.
 
 ### Container Notes
 

@@ -33,7 +33,7 @@ build: generate
 # Build and run the server
 [group('run')]
 run: build
-    {{ if os() == "windows" { ".\\{{BINARY}}" } else { "./{{BINARY}}" } }}
+    ./{{ BINARY }}
 
 # Run with Docker Compose
 [group('run')]
@@ -43,7 +43,7 @@ compose:
 # Remove binary and clean cached files
 [group('clean')]
 clean:
-    {{ if os() == "windows" { "Remove-Item -Force {{BINARY}} -ErrorAction SilentlyContinue" } else { "rm -f {{BINARY}}" } }}
+    {{ if os() == "windows" { "Remove-Item -Force {{ BINARY }} -ErrorAction SilentlyContinue" } else { "rm -f {{ BINARY }}" } }}
     {{ GO }} clean
 
 # Format Go source files
@@ -73,7 +73,7 @@ lint:
 
 # Check quality, run tests and build the binary
 [group('quality')]
-check: fmt vet lint test build
+ci: fmt vet lint test build
 
 # Run with air for hot-reload development
 [group('run')]

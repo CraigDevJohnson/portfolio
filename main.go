@@ -1111,7 +1111,7 @@ func renderSoccerLoginState(w http.ResponseWriter, session *SessionData, swapOOB
 	}
 }
 
-func renderSoccerLoginFeedback(w http.ResponseWriter, kind string, message string) {
+func renderSoccerLoginFeedback(w http.ResponseWriter, kind, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	role := "status"
 	if kind == "error" {
@@ -1263,7 +1263,7 @@ func jwtExpiry(token string) time.Time {
 	return time.Unix(claims.Exp, 0)
 }
 
-func lpsLogin(ctx context.Context, email string, password string, captchaToken string) (*LPSUser, error) {
+func lpsLogin(ctx context.Context, email, password, captchaToken string) (*LPSUser, error) {
 	payload := map[string]any{
 		"user": map[string]any{
 			"email":        email,
@@ -1340,7 +1340,7 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 			games = append(games, game)
 		}
 	}
-	sort.Slice(games, func(i int, j int) bool {
+	sort.Slice(games, func(i, j int) bool {
 		left, leftOK := gameStartTime(games[i])
 		right, rightOK := gameStartTime(games[j])
 		if leftOK && rightOK {
