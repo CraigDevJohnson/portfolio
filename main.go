@@ -1639,13 +1639,13 @@ func clientIP(r *http.Request) string {
 }
 
 func forwardedClientIP(r *http.Request) (string, bool) {
-	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
-		return ip, true
-	}
-
 	remoteIP := remoteAddrIP(r.RemoteAddr)
 	if remoteIP == nil || !isTrustedProxyIP(remoteIP) {
 		return "", false
+	}
+
+	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
+		return ip, true
 	}
 
 	for _, candidate := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {

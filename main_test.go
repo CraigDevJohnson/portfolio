@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
@@ -157,13 +158,37 @@ func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) 
 	}
 }
 
+func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
+	got, ok := parseFlexibleTime("2026-01-11T14:55:00-07:00")
+	if !ok {
+		t.Fatal("parseFlexibleTime returned false")
+	}
+
+	if got.Format(time.RFC3339) != "2026-01-11T14:55:00-07:00" {
+		t.Fatalf("unexpected RFC3339 parse result: %s", got.Format(time.RFC3339))
+	}
+	if _, offset := got.Zone(); offset != -7*60*60 {
+		t.Fatalf("unexpected RFC3339 offset: %d", offset)
+	}
+}
+
 func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
-	t.Run("uses cloudflare header when present", func(t *testing.T) {
+	t.Run("uses cloudflare header from trusted proxy", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
+		req.RemoteAddr = "10.0.0.5:443"
+		req.Header.Set("CF-Connecting-IP", "198.51.100.24")
+
+		if got := clientIP(req); got != "198.51.100.24" {
+			t.Fatalf("unexpected client IP: got %s", got)
+		}
+	})
+
+	t.Run("ignores cloudflare header on direct connections", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
 		req.RemoteAddr = "203.0.113.10:443"
 		req.Header.Set("CF-Connecting-IP", "198.51.100.24")
 
-		if got := clientIP(req); got != "198.51.100.24" {
+		if got := clientIP(req); got != "203.0.113.10" {
 			t.Fatalf("unexpected client IP: got %s", got)
 		}
 	})
@@ -228,9 +253,16 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 		},
 	})
 
+	if !utf8.ValidString(ics) {
+		t.Fatalf("ics output is not valid UTF-8: %q", ics)
+	}
+
 	for _, line := range strings.Split(ics, "\r\n") {
 		if line == "" {
 			continue
+		}
+		if !utf8.ValidString(strings.TrimPrefix(line, " ")) {
+			t.Fatalf("ics folded line contains invalid UTF-8: %q", line)
 		}
 		if len([]byte(line)) > 75 {
 			t.Fatalf("ics utf8 line exceeds 75 octets: %d bytes in %q", len([]byte(line)), line)
