@@ -17,8 +17,8 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 		hx-indicator="#loading-indicator"
 	>
 		<fieldset class="soccer-player-fieldset">
-			<legend>Choose imported player IDs</legend>
-			<p class="soccer-player-hint">Select one or more imported player IDs to fetch upcoming games.</p>
+			<legend>Choose discovered players</legend>
+			<p class="soccer-player-hint">Select one or more discovered players to fetch upcoming games.</p>
 			<div class="soccer-player-list">
 				for _, player := range props.Players {
 					<label class="soccer-player-option">
@@ -33,7 +33,7 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 					</label>
 				}
 			</div>
-			<button type="submit" class="btn btn-primary soccer-player-submit">Fetch Imported Schedules</button>
+			<button type="submit" class="btn btn-primary soccer-player-submit">Fetch Player Schedules</button>
 		</fieldset>
 	</form>
 }

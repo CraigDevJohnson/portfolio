@@ -1140,7 +1140,7 @@ func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 	}
-	if !strings.Contains(resp.Body.String(), "selected player IDs were invalid") {
+	if !strings.Contains(resp.Body.String(), "selected players were invalid") {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }
@@ -1200,7 +1200,7 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
 	}
-	if !strings.Contains(resp.Body.String(), "selected player IDs were invalid") {
+	if !strings.Contains(resp.Body.String(), "selected players were invalid") {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }

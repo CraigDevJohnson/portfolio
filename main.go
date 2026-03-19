@@ -946,7 +946,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 
 	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs}
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
-		props.Message = "One or more selected player IDs were invalid."
+		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 	} else if session != nil && len(playerIDs) > 0 {
 		games, fetchErr := lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
@@ -964,12 +964,12 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 			props.Games = games
 		}
 	} else if len(playerIDs) > 0 {
-		props.Message = "Import a bearer JWT again to fetch schedules for imported players."
+		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
 		props.Hint = "Your previous session is no longer available."
 	} else if strings.TrimSpace(teamCodes) != "" {
 		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
 	} else {
-		props.Message = "Enter team codes or choose at least one imported player ID."
+		props.Message = "Enter team codes or choose at least one discovered player."
 		props.Hint = "Manual team code entry still works if you do not want to import a token."
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -1086,7 +1086,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
-		http.Error(w, "one or more selected player IDs were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
+		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
 	session, err := getSession(r)
@@ -1114,7 +1114,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if len(playerIDs) > 0 {
-		http.Error(w, "import a bearer JWT again before downloading player schedules", http.StatusUnauthorized)
+		http.Error(w, "import a bearer JWT again before downloading schedules for your discovered players", http.StatusUnauthorized)
 		return
 	} else {
 		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
@@ -1923,9 +1923,9 @@ func scheduleFetchFeedback(err error) (string, string, bool) {
 		case lpsErrorUnauthorized:
 			return "Your imported Let's Play Soccer token was rejected.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
 		case lpsErrorForbidden:
-			return fmt.Sprintf("Let's Play Soccer denied access to imported player %d.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
+			return fmt.Sprintf("Let's Play Soccer denied access to discovered player %d.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
 		case lpsErrorInvalidPlayer:
-			return fmt.Sprintf("Imported player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
+			return fmt.Sprintf("Discovered player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
 		case lpsErrorUpstream:
 			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team codes manually.", false
 		}
@@ -1945,9 +1945,9 @@ func scheduleDownloadError(err error) (int, string) {
 		case lpsErrorUnauthorized:
 			return http.StatusUnauthorized, "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com"
 		case lpsErrorForbidden:
-			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to imported player %d; clear the imported players and import again", fetchErr.PlayerID)
+			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to discovered player %d; clear the imported players and import again", fetchErr.PlayerID)
 		case lpsErrorInvalidPlayer:
-			return http.StatusBadRequest, fmt.Sprintf("imported player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID)
+			return http.StatusBadRequest, fmt.Sprintf("discovered player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID)
 		case lpsErrorUpstream:
 			return http.StatusBadGateway, "could not refresh the authenticated schedule because Let's Play Soccer is unavailable"
 		}
