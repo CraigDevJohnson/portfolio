@@ -25,7 +25,7 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 						<input type="checkbox" name="player_ids" value={ fmt.Sprintf("%d", player.UPlayerID) } checked/>
 						<span class="soccer-player-option-copy">
 							<span class="soccer-player-name">{ player.FirstName + " " + player.LastName }</span>
-							<span class="soccer-player-meta">ID { fmt.Sprintf("%d", player.UPlayerID) }</span>
+							<span class="soccer-player-meta">Discovered player</span>
 							if player.IsMainPlayer {
 								<span class="soccer-player-badge">Primary</span>
 							}
