@@ -947,7 +947,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs}
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		props.Message = "One or more selected player IDs were invalid."
-		props.Hint = "Import the token again and keep only numeric player IDs from letsplaysoccer.com."
+		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 	} else if session != nil && len(playerIDs) > 0 {
 		games, fetchErr := lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
 		message, hint, clearSessionState := scheduleFetchFeedback(fetchErr)
@@ -964,7 +964,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 			props.Games = games
 		}
 	} else if len(playerIDs) > 0 {
-		props.Message = "Import a bearer JWT again to fetch schedules for saved player IDs."
+		props.Message = "Import a bearer JWT again to fetch schedules for imported players."
 		props.Hint = "Your previous session is no longer available."
 	} else if strings.TrimSpace(teamCodes) != "" {
 		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
@@ -1086,7 +1086,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
-		http.Error(w, "one or more selected player IDs were invalid; re-import numeric player IDs from letsplaysoccer.com", http.StatusBadRequest)
+		http.Error(w, "one or more selected player IDs were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
 	session, err := getSession(r)
@@ -1923,9 +1923,9 @@ func scheduleFetchFeedback(err error) (string, string, bool) {
 		case lpsErrorUnauthorized:
 			return "Your imported Let's Play Soccer token was rejected.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
 		case lpsErrorForbidden:
-			return fmt.Sprintf("Let's Play Soccer denied access to player ID %d.", fetchErr.PlayerID), "Confirm the player ID belongs to the imported account, then try again.", false
+			return fmt.Sprintf("Let's Play Soccer denied access to imported player %d.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
 		case lpsErrorInvalidPlayer:
-			return fmt.Sprintf("Player ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Re-check the numeric player ID in letsplaysoccer.com and import it again if needed.", false
+			return fmt.Sprintf("Imported player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
 		case lpsErrorUpstream:
 			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team codes manually.", false
 		}
@@ -1945,9 +1945,9 @@ func scheduleDownloadError(err error) (int, string) {
 		case lpsErrorUnauthorized:
 			return http.StatusUnauthorized, "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com"
 		case lpsErrorForbidden:
-			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to player ID %d; confirm the player belongs to this account", fetchErr.PlayerID)
+			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to imported player %d; clear the imported players and import again", fetchErr.PlayerID)
 		case lpsErrorInvalidPlayer:
-			return http.StatusBadRequest, fmt.Sprintf("player ID %d was not accepted by Let's Play Soccer; re-check the numeric player ID", fetchErr.PlayerID)
+			return http.StatusBadRequest, fmt.Sprintf("imported player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID)
 		case lpsErrorUpstream:
 			return http.StatusBadGateway, "could not refresh the authenticated schedule because Let's Play Soccer is unavailable"
 		}
