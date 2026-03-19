@@ -76,6 +76,8 @@ func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 }
 
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
+	resetSoccerLoginAttempts(t)
+
 	previousConfig := configData
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -174,37 +176,215 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	}
 }
 
-func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
+func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testing.T) {
+	resetSoccerLoginAttempts(t)
+
 	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+	requestCounts := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCounts[r.URL.Path]++
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+			t.Fatalf("unexpected authorization header for %s: %s", r.URL.Path, got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/users/check":
+			_, _ = w.Write([]byte(`{
+				"first_name": "Craig",
+				"last_name": "Johnson",
+				"players": [
+					{
+						"UPlayerID": 1669080,
+						"FirstName": "Craig",
+						"LastName": "Johnson",
+						"is_main_player": true
+					},
+					{
+						"UPlayerID": 1669081,
+						"FirstName": "Taylor",
+						"LastName": "Johnson",
+						"is_main_player": false
+					}
+				],
+				"user_players": [
+					{"player_id": 1669080, "deleted": false},
+					{"player_id": 1669081, "deleted": false}
+				]
+			}`))
+		case "/players/1669080/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"UGameID": 9001,
+					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+					"field_name": "Arena 1",
+					"facilityName": "North Campus",
+					"home_team": {"TeamName": "Craig FC"},
+					"visitor_team": {"TeamName": "Rivals"},
+					"SeasonID": 77
+				}
+			]`))
+		case "/players/1669081/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"UGameID": 9002,
+					"SchedGameDateTime": "2026-05-08T20:15:00-06:00",
+					"field_name": "Arena 2",
+					"facilityName": "South Campus",
+					"home_team": {"TeamName": "Taylor FC"},
+					"visitor_team": {"TeamName": "Visitors"},
+					"SeasonID": 77
+				}
+			]`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: server.URL,
 	}
 	defer func() {
 		configData = previousConfig
 	}()
 
-	form := url.Values{
-		"jwt": {"not-a-jwt"},
-	}
-	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp := httptest.NewRecorder()
+	importReq := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+		"jwt": {"Bearer " + token},
+	}.Encode()))
+	importReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	importResp := httptest.NewRecorder()
 
-	soccerImportHandler(resp, req)
+	soccerImportHandler(importResp, importReq)
 
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	if importResp.Code != http.StatusOK {
+		t.Fatalf("unexpected import status code: got %d want %d", importResp.Code, http.StatusOK)
 	}
-	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
-		t.Fatalf("did not expect a session cookie on invalid JWT: %q", resp.Header().Get("Set-Cookie"))
+	if got := requestCounts["/users/check"]; got != 1 {
+		t.Fatalf("unexpected /users/check call count: got %d want 1", got)
 	}
-	if !strings.Contains(resp.Body.String(), "three dot-separated sections") {
-		t.Fatalf("unexpected response body: %q", resp.Body.String())
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range importResp.Result().Cookies() {
+		if cookie.Name == lpsSessionCookieName {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+
+	session, err := decryptSession(sessionCookie.Value)
+	if err != nil {
+		t.Fatalf("decryptSession returned error: %v", err)
+	}
+	if session.UserName != "Craig Johnson" {
+		t.Fatalf("unexpected stored user name: got %q want %q", session.UserName, "Craig Johnson")
+	}
+	if len(session.Players) != 2 {
+		t.Fatalf("unexpected stored players length: got %d want 2", len(session.Players))
+	}
+	if got := session.Players[0]; got.UPlayerID != 1669080 || got.FirstName != "Craig" || got.LastName != "Johnson" || !got.IsMainPlayer {
+		t.Fatalf("unexpected primary player: %#v", got)
+	}
+	if got := session.Players[1]; got.UPlayerID != 1669081 || got.FirstName != "Taylor" || got.LastName != "Johnson" || got.IsMainPlayer {
+		t.Fatalf("unexpected secondary player: %#v", got)
+	}
+
+	fetchReq := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"player_ids": {"1669080", "1669081"},
+	}.Encode()))
+	fetchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	fetchReq.AddCookie(sessionCookie)
+	fetchResp := httptest.NewRecorder()
+
+	fetchSchedulesHandler(fetchResp, fetchReq)
+
+	if fetchResp.Code != http.StatusOK {
+		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
+	}
+	if got := requestCounts["/players/1669080/upcoming_games"]; got != 1 {
+		t.Fatalf("unexpected player 1669080 call count: got %d want 1", got)
+	}
+	if got := requestCounts["/players/1669081/upcoming_games"]; got != 1 {
+		t.Fatalf("unexpected player 1669081 call count: got %d want 1", got)
+	}
+	if !strings.Contains(fetchResp.Body.String(), "Craig FC") {
+		t.Fatalf("expected first discovered player schedule in response body, got %q", fetchResp.Body.String())
+	}
+	if !strings.Contains(fetchResp.Body.String(), "Taylor FC") {
+		t.Fatalf("expected second discovered player schedule in response body, got %q", fetchResp.Body.String())
+	}
+}
+
+func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
+	tests := []struct {
+		name        string
+		jwt         string
+		wantMessage string
+	}{
+		{
+			name:        "malformed token",
+			jwt:         "not-a-jwt",
+			wantMessage: "three dot-separated sections",
+		},
+		{
+			name:        "expired token",
+			jwt:         testJWT(t, time.Now().Add(-30*time.Minute)),
+			wantMessage: "This JWT has expired.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSoccerLoginAttempts(t)
+
+			previousConfig := configData
+			apiCalls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				apiCalls++
+				t.Fatalf("did not expect upstream call for %s token validation test", tc.name)
+			}))
+			defer server.Close()
+
+			configData = serverConfig{
+				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+				LPSAPIBaseURL: server.URL,
+			}
+			defer func() {
+				configData = previousConfig
+			}()
+
+			req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+				"jwt": {tc.jwt},
+			}.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			resp := httptest.NewRecorder()
+
+			soccerImportHandler(resp, req)
+
+			if resp.Code != http.StatusOK {
+				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+			}
+			if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+				t.Fatalf("did not expect a session cookie on invalid JWT: %q", resp.Header().Get("Set-Cookie"))
+			}
+			if !strings.Contains(resp.Body.String(), tc.wantMessage) {
+				t.Fatalf("unexpected response body: %q", resp.Body.String())
+			}
+			if apiCalls != 0 {
+				t.Fatalf("unexpected upstream API calls: got %d want 0", apiCalls)
+			}
+		})
 	}
 }
 
 func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
+	resetSoccerLoginAttempts(t)
+
 	previousConfig := configData
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -240,6 +420,8 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 }
 
 func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T) {
+	resetSoccerLoginAttempts(t)
+
 	previousConfig := configData
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
@@ -271,6 +453,8 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 }
 
 func TestSoccerImportHandlerShowsEmptyPlayerListMessage(t *testing.T) {
+	resetSoccerLoginAttempts(t)
+
 	previousConfig := configData
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1323,6 +1507,17 @@ func testJWT(t *testing.T, expiresAt time.Time) string {
 	payloadToken := base64.RawURLEncoding.EncodeToString(payload)
 	signature := base64.RawURLEncoding.EncodeToString([]byte("signature"))
 	return strings.Join([]string{header, payloadToken, signature}, ".")
+}
+
+func resetSoccerLoginAttempts(t *testing.T) {
+	t.Helper()
+
+	previousLimiter := soccerLoginAttempts
+	soccerLoginAttempts = newLoginRateLimiter(5, time.Minute)
+	t.Cleanup(func() {
+		soccerLoginAttempts.Close()
+		soccerLoginAttempts = previousLimiter
+	})
 }
 
 func addSessionCookie(t *testing.T, req *http.Request, session SessionData) {
