@@ -1343,18 +1343,6 @@ func importedSessionExpiry(token string) time.Time {
 	return expiresAt
 }
 
-func importedPlayers(playerIDs []int) []LPSPlayer {
-	players := make([]LPSPlayer, 0, len(playerIDs))
-	for _, playerID := range playerIDs {
-		players = append(players, LPSPlayer{
-			UPlayerID: playerID,
-			FirstName: "Player",
-			LastName:  strconv.Itoa(playerID),
-		})
-	}
-	return players
-}
-
 type lpsUserPlayerDiscovery struct {
 	UserName string
 	Players  []LPSPlayer
@@ -1717,18 +1705,6 @@ func parsePlayerIDs(values []string) []int {
 		playerIDs = append(playerIDs, playerID)
 	}
 	return playerIDs
-}
-
-func parseDelimitedPlayerIDs(raw string) []int {
-	parts := strings.FieldsFunc(raw, func(r rune) bool {
-		switch r {
-		case ',', ';', '\n', '\r', '\t', ' ':
-			return true
-		default:
-			return false
-		}
-	})
-	return parsePlayerIDs(parts)
 }
 
 func nonEmptyStrings(values []string) []string {

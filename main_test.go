@@ -1160,9 +1160,13 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, req, SessionData{
-		JWT:       testJWT(t, time.Now().Add(30*time.Minute)),
-		UserName:  "Current browser session",
-		Players:   importedPlayers([]int{1001}),
+		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
+		UserName: "Craig Johnson",
+		Players: []LPSPlayer{{
+			UPlayerID: 1001,
+			FirstName: "Craig",
+			LastName:  "Johnson",
+		}},
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 	})
 
@@ -1239,9 +1243,13 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, req, SessionData{
-		JWT:       token,
-		UserName:  "Current browser session",
-		Players:   importedPlayers([]int{1001}),
+		JWT:      token,
+		UserName: "Craig Johnson",
+		Players: []LPSPlayer{{
+			UPlayerID: 1001,
+			FirstName: "Craig",
+			LastName:  "Johnson",
+		}},
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 	})
 	resp := httptest.NewRecorder()
