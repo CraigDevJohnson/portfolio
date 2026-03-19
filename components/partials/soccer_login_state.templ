@@ -22,7 +22,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			<div class="soccer-auth-summary">
 				<div>
 					<p class="soccer-auth-status">Imported</p>
-					<p class="soccer-auth-user">Bearer JWT saved for this browser session. Choose which imported player IDs to fetch below.</p>
+					<p class="soccer-auth-user">Bearer JWT saved for this browser session. Choose which discovered players to fetch below. If the list looks stale, clear import and import again.</p>
 				</div>
 				<button
 					type="button"
@@ -39,7 +39,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			<div class="soccer-auth-summary">
 				<div>
 					<p class="soccer-auth-status">No import active</p>
-					<p class="soccer-auth-user">Paste a bearer JWT and one or more manual player IDs from your signed-in Let&apos;s Play Soccer browser session.</p>
+					<p class="soccer-auth-user">Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically.</p>
 				</div>
 				<button type="button" class="btn btn-primary" data-open-login-modal>
 					Import access

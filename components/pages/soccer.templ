@@ -54,7 +54,7 @@ templ Soccer(props SoccerProps) {
 					</div>
 					<span class="step-number">Step 2</span>
 					<h3 class="step-title">Import Your Access</h3>
-					<p class="step-desc">Copy the bearer JWT and one or more player IDs from DevTools, then paste them here</p>
+					<p class="step-desc">Copy the bearer JWT from DevTools, then paste it here to discover your linked players automatically</p>
 				</div>
 				<div class="step-card">
 					<div class="soccer-icon-wrap">
@@ -62,7 +62,7 @@ templ Soccer(props SoccerProps) {
 					</div>
 					<span class="step-number">Step 3</span>
 					<h3 class="step-title">Fetch And Export</h3>
-					<p class="step-desc">Load schedules for your imported player IDs and export an .ics file to any calendar app</p>
+					<p class="step-desc">Load schedules for your discovered players and export an .ics file to any calendar app</p>
 				</div>
 			</div>
 		</section>
@@ -77,8 +77,8 @@ templ Soccer(props SoccerProps) {
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">🎯</span>
 					</div>
-					<h3 class="feature-title">Manual Player IDs</h3>
-					<p class="feature-desc">Import one or more player IDs directly from the authenticated LPS requests you can already access</p>
+					<h3 class="feature-title">Automatic Player Discovery</h3>
+					<p class="feature-desc">Import your bearer JWT and the app will discover the linked players available in that authenticated LPS session</p>
 				</div>
 				<div class="feature-card">
 					<div class="soccer-icon-wrap">
@@ -108,7 +108,7 @@ templ Soccer(props SoccerProps) {
 						<div class="soccer-auth-shell">
 							<div class="soccer-auth-copy">
 								<h3>Import player access</h3>
-								<p>Paste a bearer JWT and one or more player IDs from your signed-in Let&apos;s Play Soccer browser session, or use team codes manually below.</p>
+								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically, or use team codes manually below.</p>
 							</div>
 							<div
 								id="soccer-auth-panel"
@@ -173,7 +173,7 @@ templ Soccer(props SoccerProps) {
 								</li>
 								<li>Sign in there first, then open browser DevTools and inspect an authenticated network request</li>
 								<li>Copy the bearer JWT from the Authorization header or response data you can already see</li>
-								<li>Copy one or more player IDs from the same request paths or payloads, then paste both values into the import dialog</li>
+									<li>Paste the JWT into the import dialog and click Import. If the discovered player list looks stale, clear import and import again with a fresh JWT.</li>
 							</ol>
 						</div>
 					</div>
