@@ -862,16 +862,31 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playerIDs := parseDelimitedPlayerIDs(r.FormValue("player_ids"))
-	if len(playerIDs) == 0 {
-		renderSoccerLoginFeedback(w, "error", "Enter at least one numeric player ID, such as 12345.")
+	discovery, err := lpsFetchUserPlayers(r.Context(), jwt)
+	if err != nil {
+		var fetchErr *lpsFetchError
+		if errors.As(err, &fetchErr) {
+			switch fetchErr.Kind {
+			case lpsErrorUnauthorized, lpsErrorForbidden:
+				renderSoccerLoginFeedback(w, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
+				return
+			case lpsErrorUpstream:
+				renderSoccerLoginFeedback(w, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
+				return
+			}
+		}
+		renderSoccerLoginFeedback(w, "error", err.Error())
+		return
+	}
+	if len(discovery.Players) == 0 {
+		renderSoccerLoginFeedback(w, "error", "No linked players found for this account.")
 		return
 	}
 
 	session := SessionData{
 		JWT:       jwt,
-		UserName:  "Current browser session",
-		Players:   importedPlayers(playerIDs),
+		UserName:  discovery.UserName,
+		Players:   discovery.Players,
 		ExpiresAt: importedSessionExpiry(jwt),
 	}
 	if err := setSession(w, r, session); err != nil {
@@ -891,7 +906,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your player IDs below.</div>`)
+	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your players below.</div>`)
 }
 
 func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -1340,50 +1355,57 @@ func importedPlayers(playerIDs []int) []LPSPlayer {
 	return players
 }
 
-func lpsFetchUserPlayers(ctx context.Context, jwt string) ([]LPSPlayer, error) {
+type lpsUserPlayerDiscovery struct {
+	UserName string
+	Players  []LPSPlayer
+}
+
+func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscovery, error) {
+	var discovery lpsUserPlayerDiscovery
+
 	normalizedJWT, err := normalizeImportedJWT(jwt)
 	if err != nil {
-		return nil, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
+		return discovery, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
 	url := fmt.Sprintf("%s/users/check", configData.LPSAPIBaseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return discovery, err
 	}
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("Authorization", "Bearer "+normalizedJWT)
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
+		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return nil, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not read the player lookup response: %w", err)
+		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not read the player lookup response: %w", err)
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, newLPSFetchError(lpsErrorUnauthorized, 0, resp.StatusCode, "Let's Play Soccer rejected the imported token with status 401")
+		return discovery, newLPSFetchError(lpsErrorUnauthorized, 0, resp.StatusCode, "Let's Play Soccer rejected the imported token with status 401")
 	}
 	if resp.StatusCode == http.StatusForbidden {
-		return nil, newLPSFetchError(lpsErrorForbidden, 0, resp.StatusCode, "Let's Play Soccer denied access to the player lookup with status 403")
+		return discovery, newLPSFetchError(lpsErrorForbidden, 0, resp.StatusCode, "Let's Play Soccer denied access to the player lookup with status 403")
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, newLPSFetchError(lpsErrorUpstream, 0, resp.StatusCode, "Let's Play Soccer returned status %d while loading players", resp.StatusCode)
+		return discovery, newLPSFetchError(lpsErrorUpstream, 0, resp.StatusCode, "Let's Play Soccer returned status %d while loading players", resp.StatusCode)
 	}
 
-	players, err := decodeLPSUserPlayers(responseBody)
+	discovery, err = decodeLPSUserPlayers(responseBody)
 	if err != nil {
 		var fetchErr *lpsFetchError
 		if errors.As(err, &fetchErr) {
-			return nil, err
+			return discovery, err
 		}
-		return nil, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "%v", err)
+		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "%v", err)
 	}
 
-	return players, nil
+	return discovery, nil
 }
 
 func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) ([]Game, error) {
@@ -1423,6 +1445,8 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 type lpsUserCheckResponse struct {
 	AuthFailure bool        `json:"authFailure"`
 	Error       string      `json:"error"`
+	FirstName   string      `json:"first_name"`
+	LastName    string      `json:"last_name"`
 	Players     []LPSPlayer `json:"players"`
 	UserPlayers []struct {
 		PlayerID int  `json:"player_id"`
@@ -1493,20 +1517,27 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 	return games, nil
 }
 
-func decodeLPSUserPlayers(payload []byte) ([]LPSPlayer, error) {
+func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
+	var discovery lpsUserPlayerDiscovery
+
 	var envelope lpsUserCheckResponse
 	if err := json.Unmarshal(payload, &envelope); err != nil {
-		return nil, errors.New("The player lookup response format was not recognized.")
+		return discovery, errors.New("The player lookup response format was not recognized.")
 	}
 	if envelope.AuthFailure {
 		message := strings.TrimSpace(envelope.Error)
 		if message == "" {
 			message = "Let's Play Soccer rejected the imported token."
 		}
-		return nil, newLPSFetchError(lpsErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
+		return discovery, newLPSFetchError(lpsErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
+	}
+	discovery.UserName = fullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
+	if discovery.UserName == "" {
+		discovery.UserName = "Let's Play Soccer account"
 	}
 	if len(envelope.Players) == 0 {
-		return []LPSPlayer{}, nil
+		discovery.Players = []LPSPlayer{}
+		return discovery, nil
 	}
 
 	deletedPlayerIDs := make(map[int]struct{})
@@ -1516,7 +1547,8 @@ func decodeLPSUserPlayers(payload []byte) ([]LPSPlayer, error) {
 		}
 	}
 	if len(deletedPlayerIDs) == 0 {
-		return envelope.Players, nil
+		discovery.Players = envelope.Players
+		return discovery, nil
 	}
 
 	players := make([]LPSPlayer, 0, len(envelope.Players))
@@ -1527,7 +1559,19 @@ func decodeLPSUserPlayers(payload []byte) ([]LPSPlayer, error) {
 		players = append(players, player)
 	}
 
-	return players, nil
+	discovery.Players = players
+	return discovery, nil
+}
+
+func fullName(parts ...string) string {
+	nonEmpty := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, " ")
 }
 
 func decodeLPSGames(payload []byte) ([]Game, error) {

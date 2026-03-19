@@ -77,17 +77,50 @@ func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/check" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"first_name": "Craig",
+			"last_name": "Johnson",
+			"players": [
+				{
+					"UPlayerID": 1001,
+					"FirstName": "Craig",
+					"LastName": "Johnson",
+					"is_main_player": true
+				},
+				{
+					"UPlayerID": 1002,
+					"FirstName": "Taylor",
+					"LastName": "Johnson",
+					"is_main_player": false
+				}
+			],
+			"user_players": [
+				{"player_id": 1001, "deleted": false},
+				{"player_id": 1002, "deleted": false}
+			]
+		}`))
+	}))
+	defer server.Close()
+
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: server.URL,
 	}
 	defer func() {
 		configData = previousConfig
 	}()
 
 	form := url.Values{
-		"jwt":        {"Bearer " + testJWT(t, time.Now().Add(30*time.Minute))},
-		"player_ids": {"1001, 1002"},
+		"jwt": {"Bearer " + token},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -127,8 +160,14 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	if session.JWT == "" {
 		t.Fatal("expected imported JWT to be stored in the session")
 	}
+	if session.UserName != "Craig Johnson" {
+		t.Fatalf("unexpected stored user name: got %q want %q", session.UserName, "Craig Johnson")
+	}
 	if got := []int{session.Players[0].UPlayerID, session.Players[1].UPlayerID}; !reflect.DeepEqual(got, []int{1001, 1002}) {
 		t.Fatalf("unexpected stored player IDs: %#v", got)
+	}
+	if got := session.Players[0]; got.FirstName != "Craig" || got.LastName != "Johnson" || !got.IsMainPlayer {
+		t.Fatalf("unexpected primary player: %#v", got)
 	}
 	if !strings.Contains(resp.Body.String(), "data-login-success") {
 		t.Fatalf("expected success feedback in response body, got %q", resp.Body.String())
@@ -146,8 +185,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 	}()
 
 	form := url.Values{
-		"jwt":        {"not-a-jwt"},
-		"player_ids": {"1001"},
+		"jwt": {"not-a-jwt"},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -162,6 +200,107 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 		t.Fatalf("did not expect a session cookie on invalid JWT: %q", resp.Header().Get("Set-Cookie"))
 	}
 	if !strings.Contains(resp.Body.String(), "three dot-separated sections") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	soccerImportHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+		t.Fatalf("did not expect a session cookie on auth failure: %q", resp.Header().Get("Set-Cookie"))
+	}
+	if !strings.Contains(resp.Body.String(), "The JWT was rejected by Let&#39;s Play Soccer. Copy a fresh bearer token and try again.") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	soccerImportHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body.String(), "Could not reach Let&#39;s Play Soccer to look up your players. Try again in a moment.") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestSoccerImportHandlerShowsEmptyPlayerListMessage(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[],"user_players":[]}`))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	soccerImportHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+		t.Fatalf("did not expect a session cookie on empty player discovery: %q", resp.Header().Get("Set-Cookie"))
+	}
+	if !strings.Contains(resp.Body.String(), "No linked players found for this account.") {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }
@@ -594,6 +733,8 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
+			"first_name": "Craig",
+			"last_name": "Johnson",
 			"players": [
 				{
 					"UPlayerID": 1669080,
@@ -624,10 +765,14 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 		configData = previousConfig
 	}()
 
-	players, err := lpsFetchUserPlayers(t.Context(), token)
+	discovery, err := lpsFetchUserPlayers(t.Context(), token)
 	if err != nil {
 		t.Fatalf("lpsFetchUserPlayers returned error: %v", err)
 	}
+	if discovery.UserName != "Craig Johnson" {
+		t.Fatalf("unexpected user name: got %q want %q", discovery.UserName, "Craig Johnson")
+	}
+	players := discovery.Players
 	if len(players) != 1 {
 		t.Fatalf("unexpected players length: got %d want 1", len(players))
 	}
