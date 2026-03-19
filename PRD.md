@@ -1,216 +1,253 @@
-# Feature: User-Mediated LPS Authenticated Data Import
+# Feature: Auto-Discover Players From /users/check
 
 ## Overview
 
-Build a replacement for the current server-proxied LPS login flow that does not
-depend on LPS reCAPTCHA, private keys, or site-owned authentication behavior.
-Instead, the user signs in directly on letsplaysoccer.com, copies a JWT and one
-or more player IDs from publicly accessible browser/network data, then imports
-that information into the portfolio soccer page for the current session only.
+Replace the manual player ID entry in the soccer JWT import flow with automatic
+player discovery via the LPS `/users/check` endpoint. When a user pastes their
+JWT, the server calls `/users/check` with that token, extracts all linked player
+IDs (and real names) from the response, stores them in the session, and presents
+a pre-selected player list. The user optionally deselects players, then clicks
+fetch to retrieve schedules.
 
-Why now: the current branch assumes a reCAPTCHA flow that cannot be validated on
-this site without LPS cooperation. The JWT-based import path is already proven
-by manual curl testing against the public LPS API.
+Why: The current flow requires users to manually find and paste player IDs from
+DevTools alongside their JWT. The `/users/check` endpoint already returns the
+full list of linked players with names, making manual entry unnecessary and
+error-prone. This also enables showing real player names instead of placeholder
+"Player 12345" labels.
 
 ## Success Criteria
 
 - [ ] All tasks complete
-- [ ] All tests passing
-- [ ] Build succeeds
+- [ ] All tests passing (`go test ./...`)
+- [ ] Build succeeds (`just build`)
 - [ ] No blockers
-- [ ] Soccer page supports importing a JWT and player IDs without using LPS login
-- [ ] Imported auth data is kept only for the current session
-- [ ] Invalid or expired JWTs produce actionable user feedback
-- [ ] ICS export continues to work for schedules fetched with imported auth data
+- [ ] JWT import no longer asks for manual player IDs
+- [ ] Players are auto-discovered from `/users/check` with real names
+- [ ] Player select shows all discovered players pre-selected
+- [ ] Auth failures from `/users/check` produce actionable user feedback
+- [ ] Schedule fetch and ICS export continue to work with discovered player IDs
+- [ ] Existing session lifecycle (encrypted cookie, clear import) unchanged
 
 ## Tasks
 
-### Task-001: Define Import Contract And Session Boundaries
+### Task-001: Add /users/check API Client
 
-**Priority**: High  
-**Estimated Iterations**: 1
-
-**Acceptance Criteria**:
-
-- [ ] Replace the current product assumption of server-side LPS sign-in with a
-      documented user-mediated import flow
-- [ ] Define the MVP artifact contract as: pasted JWT plus one or more manual
-      player IDs
-- [ ] Define session scope as current-session-only storage using existing secure
-      session infrastructure where appropriate
-- [ ] Define the user-facing extraction workflow as guided DevTools/network
-      instructions, not automation or scraping
-- [ ] Confirm non-goals for MVP are documented to prevent scope creep
-
-**Verification**:
-
-```bash
-# Documentation exists and is consistent with the implementation plan
-test -f PRD.md && test -f PROGRESS.md
-```
-
-### Task-002: Implement Secure JWT Import Flow
-
-**Priority**: High  
+**Priority**: High
 **Estimated Iterations**: 1-2
 
 **Acceptance Criteria**:
 
-- [ ] Remove the MVP dependency on `LPS_RECAPTCHA_SITE_KEY` for authenticated LPS
-      schedule access
-- [ ] Add a server endpoint and UI flow that accepts a pasted bearer JWT and one
-      or more player IDs
-- [ ] Validate JWT input format before making outbound LPS API requests
-- [ ] Store imported auth data only for the current session using encrypted,
-      HttpOnly cookie storage or an equivalent existing secure session mechanism
-- [ ] Do not persist imported JWTs across browser restarts or long-term app state
-- [ ] Add clear logout/clear-import behavior
+- [ ] New function `lpsFetchUserPlayers(ctx, jwt) ([]LPSPlayer, error)` calls
+      `GET {LPSAPIBaseURL}/users/check` with `Authorization: Bearer {jwt}`
+- [ ] Parses the `players` array from the response, mapping each entry to the
+      existing `LPSPlayer` struct fields:
+      - `UPlayerID` from `UPlayerID`
+      - `FirstName` from `FirstName`
+      - `LastName` from `LastName`
+      - `IsMainPlayer` from `is_main_player`
+- [ ] Detects auth failure response `{"authFailure":true,"error":"..."}` and
+      returns an `lpsFetchError` with kind `lpsErrorUnauthorized`
+- [ ] Handles HTTP error codes (401, 403, 5xx) with appropriate `lpsFetchError`
+      kinds matching the existing error classification pattern
+- [ ] Respects the existing `lpsHTTPClient` (15s timeout) and response size
+      limit (2 MiB)
+- [ ] Filters out entries where `deleted` is true (from the `user_players`
+      cross-reference) if that field is present
+- [ ] Unit tests cover: successful parse, auth failure JSON, HTTP errors,
+      malformed response body
 
 **Verification**:
 
 ```bash
-# Build succeeds after import flow changes
+go test -run TestLPSFetchUserPlayers ./...
+```
+
+### Task-002: Refactor Import Handler To Auto-Discover Players
+
+**Priority**: High
+**Estimated Iterations**: 2-3
+
+**Acceptance Criteria**:
+
+- [ ] `soccerImportHandler` no longer reads `player_ids` from the form
+- [ ] After JWT validation, handler calls `lpsFetchUserPlayers` to discover
+      players
+- [ ] On success, stores discovered players (with real names and
+      `is_main_player` flag) in the session via `setSession`
+- [ ] On auth failure from `/users/check`, returns actionable error message:
+      "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and
+      try again."
+- [ ] On upstream error, returns: "Could not reach Let's Play Soccer to look up
+      your players. Try again in a moment."
+- [ ] On empty player list (valid JWT but zero players), returns: "No linked
+      players found for this account."
+- [ ] Session `UserName` is populated from the `/users/check` response
+      `first_name` + `last_name` instead of the placeholder
+      "Current browser session"
+- [ ] Existing rate limiting, JWT format validation, and session encryption
+      remain unchanged
+- [ ] Update existing import handler tests to remove player_ids dependency
+      and mock `/users/check` responses instead
+
+**Verification**:
+
+```bash
+go test -run TestSoccerImport ./...
 just build
 ```
 
-### Task-003: Fetch, Normalize, And Export Authenticated Schedules
+### Task-003: Update Import Modal UI — Remove Player ID Input
 
-**Priority**: High  
+**Priority**: High
 **Estimated Iterations**: 1-2
 
 **Acceptance Criteria**:
 
-- [ ] Use the imported JWT as a bearer token when calling
-      `GET /players/{id}/upcoming_games`
-- [ ] Support one or more manually supplied player IDs in the MVP
-- [ ] Normalize the live LPS response shape observed in manual testing
-      (`UGameID`, `field_name`, `SchedGameDateTime`, `facilityName`, nested team
-      objects, and null end time cases)
-- [ ] Continue deduping and merging games across players where appropriate
-- [ ] Keep ICS export working from authenticated schedule data fetched with the
-      imported token
-- [ ] Return actionable errors for 401/403 responses, malformed tokens, invalid
-      player IDs, and upstream outages
+- [ ] Remove the `player_ids` textarea and its label/hint from
+      `soccer_login_modal.templ`
+- [ ] Update modal title/description copy to reflect JWT-only import:
+      - Description: "Paste the bearer JWT from your signed-in Let's Play Soccer
+        browser session. Your linked players will be discovered automatically."
+- [ ] Update instruction step 3 from "Copy one or more player IDs..." to
+      something like "Click Import — your linked players will be loaded
+      automatically."
+- [ ] Run `just generate` to regenerate Templ output
+- [ ] Verify the import form submits only `jwt` (no `player_ids` field)
 
 **Verification**:
 
 ```bash
-# Automated tests pass
-go test ./...
+just generate && just build
 ```
 
-### Task-004: Update Soccer UX, Guidance, And Tests
+### Task-004: Player Select Shows Real Names With All Pre-Selected
 
-**Priority**: Medium  
+**Priority**: Medium
 **Estimated Iterations**: 1
 
 **Acceptance Criteria**:
 
-- [ ] Replace login modal copy and controls so the page explains the manual
-      import workflow instead of prompting for LPS credentials
-- [ ] Provide guided extraction instructions for JWT and player IDs using plain
-      language
-- [ ] Maintain accessibility for the new import form and feedback states
-- [ ] Add or update tests for import validation, session lifecycle, upstream
-      auth failures, and authenticated ICS export
-- [ ] Update README or inline project docs for required environment variables and
-      the new authenticated workflow
+- [ ] `SoccerPlayerSelect` component continues to work with auto-discovered
+      players that now have real `FirstName`/`LastName` values
+- [ ] All players are pre-selected (checkboxes checked) — this is already the
+      current behavior via `checked` attribute
+- [ ] Player names display as "CRAIG JOHNSON" (from API) instead of
+      "Player 1669080" (old placeholder)
+- [ ] `is_main_player` true entries still show the "Primary" badge
+- [ ] No changes needed to `soccer_player_select.templ` if the `LPSPlayer`
+      struct fields are already populated correctly — verify and confirm
 
 **Verification**:
 
-- Manual test: Sign in on letsplaysoccer.com, paste a valid JWT and player ID,
-  fetch schedules, then export ICS successfully
-- Manual test: Paste an expired or invalid JWT and verify the UI explains how to
-  refresh it
-- Automated: `go test ./...`
+```bash
+just build
+# Manual: import a JWT → verify player select shows real names
+```
+
+### Task-005: Update Tests For End-To-End Discovery Flow
+
+**Priority**: High
+**Estimated Iterations**: 2-3
+
+**Acceptance Criteria**:
+
+- [ ] `TestSoccerImportHandler` tests updated: POST to `/soccer/import` now
+      sends only `jwt` (no `player_ids`), mock server handles both
+      `/users/check` and `/players/{id}/upcoming_games`
+- [ ] New test: import with expired/invalid JWT still returns validation error
+      before any API call
+- [ ] New test: import with valid JWT but `/users/check` returns auth failure
+      JSON → user sees actionable error
+- [ ] New test: import with valid JWT, `/users/check` succeeds → session
+      contains discovered players with real names
+- [ ] Existing `TestFetchSchedulesHandler` tests remain passing (they use
+      session with pre-set players, unchanged)
+- [ ] Existing `TestLPSFetchUpcomingGames*` and `TestLPSFetchGamesForPlayers*`
+      tests remain passing (unchanged)
+- [ ] `go test ./...` passes with no failures
+- [ ] `go vet ./...` reports no issues
+
+**Verification**:
+
+```bash
+go test -v ./...
+go vet ./...
+```
+
+### Task-006A: Remove Dead Manual Import Helpers
+
+**Priority**: Low
+**Estimated Iterations**: 1
+
+**Acceptance Criteria**:
+
+- [ ] Remove `parseDelimitedPlayerIDs` function if no longer called anywhere
+- [ ] Remove the `importedPlayers` helper if no longer needed (players now come
+      from `/users/check` with real data)
+- [ ] Remove any dead Go helper code that exists only for the old manual import
+      player-ID flow
+- [ ] `go vet ./...` still clean
+- [ ] `go test ./...` still passing
+
+**Verification**:
+
+```bash
+go vet ./...
+go test ./...
+```
+
+### Task-006B: Remove Remaining Manual Player-ID User-Facing Copy
+
+**Priority**: Low
+**Estimated Iterations**: 1-2
+
+**Acceptance Criteria**:
+
+- [ ] Update remaining user-facing copy in Go handlers and Templ components so
+      the product no longer instructs users to manually import or copy player IDs
+- [ ] Player selection copy describes discovered players rather than imported
+      player IDs while preserving the current checkbox form contract
+- [ ] Stale runtime feedback strings in `main.go` align with the current flow:
+      clear import and import again, or select discovered players
+- [ ] Run `just generate` after any `.templ` changes
+- [ ] `go test ./...`, `go vet ./...`, and `just build` all pass
+
+**Verification**:
+
+```bash
+just generate
+go test ./...
+go vet ./...
+just build
+```
 
 ## Technical Constraints
 
 - Language: Go 1.23+
-- Framework: Go net/http, Templ, HTMX, minimal client-side JavaScript
-- Testing: `go test ./...`
-- Style: `gofmt`, `go vet`, existing Templ and CSS conventions
-- Security: No private LPS keys, no reCAPTCHA dependency, no browser scraping,
-  no long-term JWT persistence
-- Session model: Current-session-only authenticated import
+- Templates: Templ (run `just generate` after `.templ` changes)
+- Testing: `go test` with `httptest` for mock LPS API
+- Style: `gofmt`, `go vet`
+- Existing patterns: `lpsHTTPClient`, `lpsFetchError`, `newLPSFetchError`,
+  encrypted session cookies, rate limiting
 
 ## Architecture Notes
 
-- Product assumption change for MVP: this feature no longer attempts server-side
-      LPS sign-in from the portfolio site. The only supported authenticated path is
-      a user-mediated import of artifacts the user can already access in their own
-      browser session on letsplaysoccer.com.
-- Design pattern: User-mediated artifact import instead of third-party auth proxy
-- Key libraries: Go standard library, existing AES-GCM session cookie helpers,
-  existing Templ page/partial structure
-- Data flow:
-  1. User signs in directly on letsplaysoccer.com
-  2. User copies a JWT and one or more player IDs from public browser/network data
-  3. Portfolio app validates and stores the imported auth data for the current session
-  4. Server calls LPS `upcoming_games` endpoints with the imported bearer token
-  5. Response is normalized into existing `Game` models and used for table + ICS output
-- Integration points:
-  - Existing soccer page and HTMX fragments
-  - Existing encrypted session cookie infrastructure
-  - LPS endpoint: `https://lps-api-prod.lps-test.com/players/{id}/upcoming_games`
+- The `/users/check` call happens server-side during import (not client-side)
+  to keep the JWT off the browser's fetch path
+- The `players` array in the `/users/check` response is the authoritative
+  source for `LPSPlayer` data — it already matches the struct shape
+- The `user_players` array provides the `deleted` flag for filtering; the
+  `players` array provides the display data
+- Cross-reference: match `user_players[].player_id` to `players[].UPlayerID`
+  to apply the `deleted` filter
+- No new environment variables or config needed — reuses existing
+  `LPS_API_BASE_URL` and `LPS_SESSION_KEY`
 
-## MVP Import Contract
+## Out of Scope
 
-- Imported artifact set:
-      - One pasted LPS bearer JWT copied by the user from their own authenticated
-            letsplaysoccer.com browser session
-      - One or more manually entered player IDs supplied by the user
-- Contract rules:
-      - The portfolio app treats the JWT as an opaque bearer token and does not try
-            to mint, refresh, or derive a new token
-      - Player IDs are entered manually for MVP; the app does not attempt automatic
-            player discovery
-      - The imported JWT and player IDs are valid only for the active browser
-            session and are discarded on explicit logout or session end
-      - Any future import sources beyond pasted JWT plus manual player IDs are out of
-            scope unless added by a later PRD task
-
-## Session Boundaries
-
-- Storage model: current-session-only storage using the existing encrypted
-      session cookie infrastructure where appropriate
-- Security boundary:
-      - Keep imported auth data in secure server-managed session state backed by the
-            existing cookie/session approach
-      - Do not persist imported JWTs in localStorage, sessionStorage, URL params, or
-            any durable database record
-      - Do not preserve imported auth across browser restarts or long-lived
-            remembered sessions
-- Session end conditions:
-      - User explicitly clears the imported auth state
-      - Browser session ends and the session cookie is no longer present
-      - Imported JWT expires or becomes invalid upstream
-
-## User Extraction Workflow
-
-- MVP guidance is instructional only. The product explains how the user can
-      retrieve their own auth artifacts with browser tooling; it does not automate,
-      scrape, or proxy this process.
-- Expected user flow:
-      1. Sign in directly on letsplaysoccer.com in the browser
-      2. Open browser DevTools and inspect authenticated network requests
-      3. Copy the bearer JWT from a request or response the user can access in that
-             session
-      4. Identify one or more relevant player IDs from the same visible network data
-             or request paths
-      5. Paste the JWT and manually enter the player IDs into the portfolio soccer
-             page import flow
-- Explicit exclusions:
-      - No browser automation, extensions, injected scripts, or scraping helpers
-      - No popup-based sign-in mediated by the portfolio app
-      - No automatic token harvesting from cookies, storage, or another tab
-
-## Non-Goals For MVP
-
-- Direct username/password sign-in to LPS from this site
-- Any flow that depends on LPS reCAPTCHA or LPS-managed site keys
-- Automatic JWT extraction from another browser tab, popup, cookie jar, or local
-  storage
-- Automatic player discovery for MVP
-- Background token refresh or long-lived remembered auth
+- Refreshing the player list after initial import (user can clear and re-import)
+- Fetching additional player metadata beyond what `/users/check` provides
+- Caching `/users/check` responses across sessions
+- Any changes to the ICS export flow (already works with player IDs from session)
+- Client-side JWT extraction or automation
 - Mobile/native browser automation or extension-based import

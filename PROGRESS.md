@@ -1,57 +1,50 @@
 # Progress Log
 
-## Completed
+## Completed (Previous PRD — User-Mediated JWT Import)
 
 - Task-001: Define Import Contract And Session Boundaries
-- Clarified MVP direction: user-mediated authenticated import instead of server-
-  proxied LPS login
-- Defined initial artifact choice: pasted JWT plus manual player ID entry
-- Defined session scope: current session only
-- Task-001 documentation updated: import contract, session boundaries, guided
-  DevTools extraction workflow, and MVP non-goals are now explicit in PRD.md
-- PRD created: 2026-03-17
 - Task-002: Implement Secure JWT Import Flow
-- Replaced the reCAPTCHA-based soccer login with a manual bearer JWT import
-  flow that accepts one or more player IDs
-- Imported auth now uses encrypted HttpOnly session cookies without a
-  persistent browser expiry, plus explicit clear-import behavior
-- Added JWT import validation and focused tests for import/session handling
 - Task-003: Fetch, Normalize, And Export Authenticated Schedules
-- Live LPS authenticated schedule fetch now normalizes the observed payload,
-  dedupes and merges overlapping games across players, and preserves
-  authenticated ICS export
-- Added focused tests for live payload mapping, fetch error classification, and
-  authenticated ICS generation
 - Task-004: Update Soccer UX, Guidance, And Tests
-- Manual JWT import guidance, session lifecycle coverage, and README workflow
-  documentation are complete
 
-## Current Iteration
+## Current PRD — Auto-Discover Players From /users/check
 
-- Iteration: 4
+### Completed
+
+- [x] Task-001: Add /users/check API Client (commit: 29dcf6978eb67c4e924841d979f51ea0f6de85ac)
+- [x] Task-002: Refactor Import Handler To Auto-Discover Players (commit: 93d9ffcb55bb973f52caef2021cd16e36f2ad6f1)
+- [x] Task-003: Update Import Modal UI — Remove Player ID Input (commit: 962e7798e2592aef1eba91ce858a197743af13ae)
+- [x] Task-004: Player Select Shows Real Names With All Pre-Selected (no source changes required)
+- [x] Task-005: Update Tests For End-To-End Discovery Flow (commit: 5e1f9389c1113caf94f87f969329d6c5d329c144)
+- [x] Task-006A: Remove Dead Manual Import Helpers (commit: 101cee566f2c962a928b444d57f7bd73ddedf03e)
+- [x] Task-006B: Remove Remaining Manual Player-ID User-Facing Copy (commits: ff90b5d35aa9e0f4e8c9d548ac5af342497fb5b0, c84c9de7c5fc0d387185003fd282387ee3ae78d4)
+
+### Current Iteration
+
+- Iteration: 8
 - Status: All PRD tasks complete
-- Finished: 2026-03-17T02:15:00Z
+- Started: 2026-03-19T00:00:00Z
 
-## Blockers
+### Blockers
 
 - None
 
-## Notes
+### Notes
 
-- Ralph loop initialized
-- Existing branch login design depends on reCAPTCHA and is not the target for
-  this PRD
-- Manual curl validation shows imported JWT authentication works against the
-  public LPS `upcoming_games` endpoint when a valid player ID is supplied
-- MVP import contract is now explicit: pasted JWT plus one or more manual player
-  IDs only
-- Extraction workflow is documentation-driven and user-mediated through browser
-  DevTools/network inspection, not automation or scraping
-- Session handling for later implementation should reuse the existing secure
-  encrypted session infrastructure and remain current-session-only
-- Task-001 passed Ralph review on file state and acceptance criteria
-- Task-002 passed Ralph review on file state and acceptance criteria
-- Task-003 passed Ralph review on file state and acceptance criteria
-- Task-004 ultimately completed via a narrower executor retry and passed Ralph
-  review on file state and acceptance criteria
-- Final coordinator validation passed: `go test ./...` and `just build`
+- PRD updated: 2026-03-19
+- Replaces manual player ID entry with automatic discovery via `/users/check`
+- `/users/check` response shape confirmed: `players[]` array has full
+  `LPSPlayer`-compatible data (UPlayerID, FirstName, LastName, is_main_player)
+- `user_players[]` provides `deleted` flag for filtering out removed players
+- Flow: paste JWT → server calls `/users/check` → discover players → show
+  pre-selected player list → user clicks fetch
+- Real player names replace placeholder "Player 12345" labels
+- No new env vars or config needed
+- Task-001 passed Ralph review and is complete
+- Task-002 passed Ralph review and is complete
+- Task-003 passed Ralph review and is complete
+- Task-004 passed Ralph review and required no code changes
+- Task-005 passed Ralph review and is complete
+- Task-006 was split into Task-006A and Task-006B after three review failures
+  revealed separate dead-code cleanup and stale-copy cleanup concerns
+- Task-006B passed Ralph review and completed the PRD task list
