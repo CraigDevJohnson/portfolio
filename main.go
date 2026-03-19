@@ -1109,6 +1109,10 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			log.Printf("soccer LPS fetch failed: %v", err)
+			_, _, shouldClearSession := scheduleFetchFeedback(err)
+			if shouldClearSession {
+				clearSession(w, r)
+			}
 			status, message := scheduleDownloadError(err)
 			http.Error(w, message, status)
 			return
@@ -1443,7 +1447,8 @@ type lpsUserCheckResponse struct {
 }
 
 func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Game, error) {
-	if _, err := normalizeImportedJWT(jwt); err != nil {
+	normalizedJWT, err := normalizeImportedJWT(jwt)
+	if err != nil {
 		return nil, newLPSFetchError(lpsErrorMalformedToken, playerID, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 	if playerID <= 0 {
@@ -1456,7 +1461,7 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Authorization", "Bearer "+jwt)
+	req.Header.Set("Authorization", "Bearer "+normalizedJWT)
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
@@ -1476,9 +1481,6 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 	}
 	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, resp.StatusCode, "Let's Play Soccer could not find upcoming games for player %d", playerID)
-	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, errSessionExpired
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, resp.StatusCode, "Let's Play Soccer returned status %d while loading schedules", resp.StatusCode)
