@@ -581,6 +581,179 @@ func TestLPSFetchUpcomingGamesRejectsMalformedTokenBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
+	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/check" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"players": [
+				{
+					"UPlayerID": 1669080,
+					"FirstName": "Craig",
+					"LastName": "Johnson",
+					"is_main_player": true
+				},
+				{
+					"UPlayerID": 1669081,
+					"FirstName": "Deleted",
+					"LastName": "Player",
+					"is_main_player": false
+				}
+			],
+			"user_players": [
+				{"player_id": 1669080, "deleted": false},
+				{"player_id": 1669081, "deleted": true}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	players, err := lpsFetchUserPlayers(t.Context(), token)
+	if err != nil {
+		t.Fatalf("lpsFetchUserPlayers returned error: %v", err)
+	}
+	if len(players) != 1 {
+		t.Fatalf("unexpected players length: got %d want 1", len(players))
+	}
+	if players[0].UPlayerID != 1669080 {
+		t.Fatalf("unexpected player ID: %d", players[0].UPlayerID)
+	}
+	if players[0].FirstName != "Craig" || players[0].LastName != "Johnson" {
+		t.Fatalf("unexpected player name: %#v", players[0])
+	}
+	if !players[0].IsMainPlayer {
+		t.Fatalf("expected primary player flag to be true: %#v", players[0])
+	}
+}
+
+func TestLPSFetchUserPlayersClassifiesAuthFailureJSON(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+	if err == nil {
+		t.Fatal("expected fetch error")
+	}
+	var fetchErr *lpsFetchError
+	if !errors.As(err, &fetchErr) {
+		t.Fatalf("expected lpsFetchError, got %T", err)
+	}
+	if fetchErr.Kind != lpsErrorUnauthorized {
+		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, lpsErrorUnauthorized)
+	}
+	if fetchErr.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unexpected status code: got %d want %d", fetchErr.StatusCode, http.StatusUnauthorized)
+	}
+	if !strings.Contains(fetchErr.Error(), "sign in") {
+		t.Fatalf("unexpected error message: %v", fetchErr)
+	}
+}
+
+func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		wantKind   lpsErrorKind
+	}{
+		{name: "unauthorized", statusCode: http.StatusUnauthorized, wantKind: lpsErrorUnauthorized},
+		{name: "forbidden", statusCode: http.StatusForbidden, wantKind: lpsErrorForbidden},
+		{name: "upstream outage", statusCode: http.StatusBadGateway, wantKind: lpsErrorUpstream},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousConfig := configData
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			configData = serverConfig{
+				SessionKey:    previousConfig.SessionKey,
+				LPSAPIBaseURL: server.URL,
+			}
+			defer func() {
+				configData = previousConfig
+			}()
+
+			_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+			if err == nil {
+				t.Fatal("expected fetch error")
+			}
+			var fetchErr *lpsFetchError
+			if !errors.As(err, &fetchErr) {
+				t.Fatalf("expected lpsFetchError, got %T", err)
+			}
+			if fetchErr.Kind != tt.wantKind {
+				t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, tt.wantKind)
+			}
+			if fetchErr.StatusCode != tt.statusCode {
+				t.Fatalf("unexpected status code: got %d want %d", fetchErr.StatusCode, tt.statusCode)
+			}
+		})
+	}
+}
+
+func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"players":`))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+	if err == nil {
+		t.Fatal("expected fetch error")
+	}
+	var fetchErr *lpsFetchError
+	if !errors.As(err, &fetchErr) {
+		t.Fatalf("expected lpsFetchError, got %T", err)
+	}
+	if fetchErr.Kind != lpsErrorUpstream {
+		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, lpsErrorUpstream)
+	}
+	if !strings.Contains(fetchErr.Error(), "response format was not recognized") {
+		t.Fatalf("unexpected error message: %v", fetchErr)
+	}
+}
+
 func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
 	tests := []struct {
 		name       string
