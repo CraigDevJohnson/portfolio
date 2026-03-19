@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -18,7 +17,6 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/mail"
 	"os"
 	"sort"
 	"strconv"
@@ -47,9 +45,8 @@ const (
 )
 
 type serverConfig struct {
-	SessionKey       []byte
-	RecaptchaSiteKey string
-	LPSAPIBaseURL    string
+	SessionKey    []byte
+	LPSAPIBaseURL string
 }
 
 type loginAttempt struct {
@@ -73,10 +70,52 @@ var (
 	errSessionExpired   = errors.New("session expired")
 )
 
+type lpsErrorKind string
+
+const (
+	lpsErrorMalformedToken lpsErrorKind = "malformed_token"
+	lpsErrorUnauthorized   lpsErrorKind = "unauthorized"
+	lpsErrorForbidden      lpsErrorKind = "forbidden"
+	lpsErrorInvalidPlayer  lpsErrorKind = "invalid_player"
+	lpsErrorUpstream       lpsErrorKind = "upstream"
+)
+
+type lpsFetchError struct {
+	Kind       lpsErrorKind
+	PlayerID   int
+	StatusCode int
+	Err        error
+}
+
+func (err *lpsFetchError) Error() string {
+	if err == nil {
+		return ""
+	}
+	if err.Err != nil {
+		return err.Err.Error()
+	}
+	return "schedule fetch failed"
+}
+
+func (err *lpsFetchError) Unwrap() error {
+	if err == nil {
+		return nil
+	}
+	return err.Err
+}
+
+func newLPSFetchError(kind lpsErrorKind, playerID, statusCode int, format string, args ...any) error {
+	return &lpsFetchError{
+		Kind:       kind,
+		PlayerID:   playerID,
+		StatusCode: statusCode,
+		Err:        fmt.Errorf(format, args...),
+	}
+}
+
 func loadServerConfig() serverConfig {
 	config := serverConfig{
-		RecaptchaSiteKey: firstEnv("LPS_RECAPTCHA_SITE_KEY", "RECAPTCHA_SITE_KEY"),
-		LPSAPIBaseURL:    strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
+		LPSAPIBaseURL: strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
 	}
 	if config.LPSAPIBaseURL == "" {
 		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
@@ -96,21 +135,7 @@ func loadServerConfig() serverConfig {
 
 	config.SessionKey = decoded
 
-	if config.RecaptchaSiteKey == "" {
-		log.Printf("soccer auth disabled: reCAPTCHA site key is not configured")
-	}
-
 	return config
-}
-
-// firstEnv returns the value of the first non-empty environment variable.
-func firstEnv(names ...string) string {
-	for _, name := range names {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 const rateLimiterMaxKeys = 10000
@@ -224,7 +249,7 @@ func main() {
 	// soccer routes
 	http.HandleFunc("/soccer", soccerHandler)
 	http.HandleFunc("/soccer/session", soccerSessionHandler)
-	http.HandleFunc("/soccer/login", soccerLoginHandler)
+	http.HandleFunc("/soccer/import", soccerImportHandler)
 	http.HandleFunc("/soccer/logout", soccerLogoutHandler)
 	http.HandleFunc("/soccer/fetch", fetchSchedulesHandler)
 	http.HandleFunc("/soccer/download", downloadICSHandler)
@@ -780,14 +805,12 @@ Soccer
 type (
 	Game                = types.Game
 	LambdaGamesResponse = types.LambdaGamesResponse
-	LPSLoginRequest     = types.LPSLoginRequest
 	LPSPlayer           = types.LPSPlayer
-	LPSUser             = types.LPSUser
 	SessionData         = types.SessionData
 )
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.Soccer(pages.SoccerProps{RecaptchaSiteKey: configData.RecaptchaSiteKey}).Render(context.Background(), w)
+	err := pages.Soccer(pages.SoccerProps{}).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -800,73 +823,60 @@ func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, err := getSession(r)
+	swapAuthState := false
 	if errors.Is(err, errSessionExpired) {
 		clearSession(w, r)
 		session = nil
+		swapAuthState = true
 	} else if err != nil {
 		log.Printf("soccer session read failed: %v", err)
 		clearSession(w, r)
 		session = nil
+		swapAuthState = true
 	}
 
-	renderSoccerLoginState(w, session, false)
+	renderSoccerLoginState(w, session, swapAuthState)
 }
 
-func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
+func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if !loginEnabled() {
-		renderSoccerLoginFeedback(w, "error", "Account sign-in is not configured on this server yet.")
+		renderSoccerLoginFeedback(w, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
 	}
 	if !soccerLoginAttempts.Allow(clientIP(r)) {
-		renderSoccerLoginFeedback(w, "error", "Too many sign-in attempts. Wait a minute and try again.")
+		renderSoccerLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		renderSoccerLoginFeedback(w, "error", "Could not read the sign-in form. Try again.")
+		renderSoccerLoginFeedback(w, "error", "Could not read the import form. Try again.")
 		return
 	}
 
-	request := LPSLoginRequest{
-		Email:        strings.TrimSpace(r.FormValue("email")),
-		Password:     r.FormValue("password"),
-		CaptchaToken: strings.TrimSpace(r.FormValue("captcha_token")),
-	}
-	parsed, err := mail.ParseAddress(request.Email)
+	jwt, err := normalizeImportedJWT(r.FormValue("jwt"))
 	if err != nil {
-		renderSoccerLoginFeedback(w, "error", "Enter a valid email address.")
-		return
-	}
-	request.Email = parsed.Address
-	if strings.TrimSpace(request.Password) == "" || len(request.Password) > 256 {
-		renderSoccerLoginFeedback(w, "error", "Enter the password for your Let's Play Soccer account.")
+		renderSoccerLoginFeedback(w, "error", err.Error())
 		return
 	}
 
-	user, err := lpsLogin(r.Context(), request.Email, request.Password, request.CaptchaToken)
-	if err != nil {
-		log.Printf("soccer login failed: %v", err)
-		renderSoccerLoginFeedback(w, "error", "Sign-in failed. Please check your credentials and try again.")
+	playerIDs := parseDelimitedPlayerIDs(r.FormValue("player_ids"))
+	if len(playerIDs) == 0 {
+		renderSoccerLoginFeedback(w, "error", "Enter at least one numeric player ID, such as 12345.")
 		return
 	}
 
-	expiresAt := jwtExpiry(user.JWT)
-	if expiresAt.IsZero() {
-		expiresAt = time.Now().Add(defaultSessionTTL)
-	}
 	session := SessionData{
-		JWT:       user.JWT,
-		UserID:    user.ID,
-		UserName:  buildUserName(user),
-		Players:   user.Players,
-		ExpiresAt: expiresAt,
+		JWT:       jwt,
+		UserName:  "Current browser session",
+		Players:   importedPlayers(playerIDs),
+		ExpiresAt: importedSessionExpiry(jwt),
 	}
 	if err := setSession(w, r, session); err != nil {
-		log.Printf("soccer session write failed: %v", err)
-		renderSoccerLoginFeedback(w, "error", "Sign-in succeeded, but the session cookie could not be saved.")
+		log.Printf("soccer import session write failed: %v", err)
+		renderSoccerLoginFeedback(w, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
 
@@ -881,7 +891,7 @@ func soccerLoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Account connected. Choose your linked players below.</div>`)
+	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your player IDs below.</div>`)
 }
 
 func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -904,41 +914,60 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamCodes := r.FormValue("team_codes")
+	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
 	session, err := getSession(r)
+	swapAuthState := false
 	if errors.Is(err, errSessionExpired) {
 		clearSession(w, r)
 		session = nil
+		swapAuthState = true
 	} else if err != nil {
 		log.Printf("soccer session read failed: %v", err)
 		clearSession(w, r)
 		session = nil
+		swapAuthState = true
 	}
 
 	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs}
-	if session != nil && len(playerIDs) > 0 {
+	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+		props.Message = "One or more selected player IDs were invalid."
+		props.Hint = "Import the token again and keep only numeric player IDs from letsplaysoccer.com."
+	} else if session != nil && len(playerIDs) > 0 {
 		games, fetchErr := lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
-		if errors.Is(fetchErr, errSessionExpired) {
+		message, hint, clearSessionState := scheduleFetchFeedback(fetchErr)
+		if clearSessionState {
 			clearSession(w, r)
-			props.Message = "Your Let's Play Soccer session expired."
-			props.Hint = "Sign in again, then fetch your schedules one more time."
+			swapAuthState = true
 		} else if fetchErr != nil {
 			log.Printf("soccer LPS fetch failed: %v", fetchErr)
-			props.Message = "Could not load schedules from Let's Play Soccer right now."
-			props.Hint = "Try again in a moment, or use team codes manually."
+		}
+		if fetchErr != nil {
+			props.Message = message
+			props.Hint = hint
 		} else {
 			props.Games = games
 		}
 	} else if len(playerIDs) > 0 {
-		props.Message = "Sign in again to fetch schedules for linked players."
+		props.Message = "Import a bearer JWT again to fetch schedules for saved player IDs."
 		props.Hint = "Your previous session is no longer available."
 	} else if strings.TrimSpace(teamCodes) != "" {
 		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
 	} else {
-		props.Message = "Enter team codes or choose at least one linked player."
-		props.Hint = "Manual team code entry still works if you do not want to sign in."
+		props.Message = "Enter team codes or choose at least one imported player ID."
+		props.Hint = "Manual team code entry still works if you do not want to import a token."
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if swapAuthState {
+		if err := partials.SoccerLoginState(partials.SoccerLoginStateProps{
+			Authenticated:  false,
+			LoginAvailable: loginEnabled(),
+			SwapOOB:        true,
+		}).Render(context.Background(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	err = partials.SoccerTableFragment(props).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1039,7 +1068,12 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	teamCodes := r.FormValue("team_codes")
+	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
+	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+		http.Error(w, "one or more selected player IDs were invalid; re-import numeric player IDs from letsplaysoccer.com", http.StatusBadRequest)
+		return
+	}
 	session, err := getSession(r)
 	if errors.Is(err, errSessionExpired) {
 		clearSession(w, r)
@@ -1055,16 +1089,17 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
 		if errors.Is(err, errSessionExpired) {
 			clearSession(w, r)
-			http.Error(w, "session expired", http.StatusUnauthorized)
+			http.Error(w, "your imported Let's Play Soccer token expired; copy a fresh bearer JWT from letsplaysoccer.com and import it again", http.StatusUnauthorized)
 			return
 		}
 		if err != nil {
 			log.Printf("soccer LPS fetch failed: %v", err)
-			http.Error(w, "could not refresh schedule", http.StatusBadGateway)
+			status, message := scheduleDownloadError(err)
+			http.Error(w, message, status)
 			return
 		}
 	} else if len(playerIDs) > 0 {
-		http.Error(w, "sign in again to download player schedules", http.StatusUnauthorized)
+		http.Error(w, "import a bearer JWT again before downloading player schedules", http.StatusUnauthorized)
 		return
 	} else {
 		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
@@ -1092,7 +1127,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loginEnabled() bool {
-	return len(configData.SessionKey) == 32 && configData.RecaptchaSiteKey != ""
+	return len(configData.SessionKey) == 32
 }
 
 func renderSoccerLoginState(w http.ResponseWriter, session *SessionData, swapOOB bool) {
@@ -1206,7 +1241,6 @@ func setSession(w http.ResponseWriter, r *http.Request, session SessionData) err
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
-		Expires:  session.ExpiresAt,
 	})
 	return nil
 }
@@ -1234,17 +1268,6 @@ func requestIsHTTPS(r *http.Request) bool {
 	return false
 }
 
-func buildUserName(user *LPSUser) string {
-	fullName := strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName))
-	if fullName != "" {
-		return fullName
-	}
-	if user.Email != "" {
-		return user.Email
-	}
-	return "Your account"
-}
-
 func jwtExpiry(token string) time.Time {
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
@@ -1263,80 +1286,80 @@ func jwtExpiry(token string) time.Time {
 	return time.Unix(claims.Exp, 0)
 }
 
-func lpsLogin(ctx context.Context, email, password, captchaToken string) (*LPSUser, error) {
-	payload := map[string]any{
-		"user": map[string]any{
-			"email":        email,
-			"password":     password,
-			"captchaValue": captchaToken,
-		},
-		"captcha_response":          captchaToken,
-		"login_selected":            false,
-		"multiple_users_associated": false,
+func normalizeImportedJWT(raw string) (string, error) {
+	token := strings.TrimSpace(raw)
+	if token == "" {
+		return "", errors.New("Paste the bearer JWT from your Let's Play Soccer browser session.")
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		token = strings.TrimSpace(token[7:])
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, configData.LPSAPIBaseURL+"/users/sign_in", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := lpsHTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not reach Let's Play Soccer right now: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, fmt.Errorf("could not read the sign-in response: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnprocessableEntity {
-		return nil, errors.New("Sign-in failed. Check your email, password, and captcha configuration.")
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("Let's Play Soccer returned status %d while signing in", resp.StatusCode)
+	if strings.ContainsAny(token, " \t\r\n") {
+		return "", errors.New("Paste a single JWT value without extra spaces or line breaks.")
 	}
 
-	var user LPSUser
-	if err := json.Unmarshal(responseBody, &user); err != nil {
-		return nil, errors.New("The sign-in response format was not recognized.")
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", errors.New("The imported value must be a JWT with three dot-separated sections.")
 	}
-	if user.JWT == "" {
-		authorization := strings.TrimSpace(resp.Header.Get("Authorization"))
-		if strings.HasPrefix(authorization, "Bearer ") {
-			user.JWT = strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
+	for _, segment := range parts[:2] {
+		if segment == "" {
+			return "", errors.New("The imported value must be a JWT with three dot-separated sections.")
+		}
+		if _, err := base64.RawURLEncoding.DecodeString(segment); err != nil {
+			return "", errors.New("The imported JWT format is not valid base64url data.")
 		}
 	}
-	if user.JWT == "" {
-		return nil, errors.New("Sign-in succeeded, but no session token was returned.")
+
+	expiresAt := jwtExpiry(token)
+	if !expiresAt.IsZero() && time.Now().After(expiresAt) {
+		return "", errors.New("This JWT has expired. Copy a fresh bearer token from letsplaysoccer.com and import it again.")
 	}
-	return &user, nil
+
+	return token, nil
+}
+
+func importedSessionExpiry(token string) time.Time {
+	deadline := time.Now().Add(defaultSessionTTL)
+	expiresAt := jwtExpiry(token)
+	if expiresAt.IsZero() || expiresAt.After(deadline) {
+		return deadline
+	}
+	return expiresAt
+}
+
+func importedPlayers(playerIDs []int) []LPSPlayer {
+	players := make([]LPSPlayer, 0, len(playerIDs))
+	for _, playerID := range playerIDs {
+		players = append(players, LPSPlayer{
+			UPlayerID: playerID,
+			FirstName: "Player",
+			LastName:  strconv.Itoa(playerID),
+		})
+	}
+	return players
 }
 
 func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) ([]Game, error) {
 	games := make([]Game, 0)
-	seen := make(map[string]struct{})
+	indexByKey := make(map[string]int)
 	for _, playerID := range playerIDs {
 		playerGames, err := lpsFetchUpcomingGames(ctx, jwt, playerID)
 		if err != nil {
 			return nil, err
 		}
 		for _, game := range playerGames {
-			key := gameKey(game)
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
 			if game.ID == "" {
 				if fid := fallbackGameID(game); fid != "" {
 					game.ID = fid
 				}
 			}
+			key := gameKey(game)
+			if existingIndex, exists := indexByKey[key]; exists {
+				games[existingIndex] = mergeGames(games[existingIndex], game)
+				continue
+			}
+			indexByKey[key] = len(games)
 			games = append(games, game)
 		}
 	}
@@ -1352,6 +1375,13 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 }
 
 func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Game, error) {
+	if _, err := normalizeImportedJWT(jwt); err != nil {
+		return nil, newLPSFetchError(lpsErrorMalformedToken, playerID, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
+	}
+	if playerID <= 0 {
+		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
+	}
+
 	url := fmt.Sprintf("%s/players/%d/upcoming_games", configData.LPSAPIBaseURL, playerID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -1362,24 +1392,33 @@ func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Gam
 
 	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("could not reach Let's Play Soccer while loading schedules: %w", err)
+		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading schedules: %w", err)
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
-		return nil, fmt.Errorf("could not read the schedule response: %w", err)
+		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not read the schedule response: %w", err)
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, newLPSFetchError(lpsErrorUnauthorized, playerID, resp.StatusCode, "Let's Play Soccer rejected the imported token for player %d with status 401", playerID)
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return nil, newLPSFetchError(lpsErrorForbidden, playerID, resp.StatusCode, "Let's Play Soccer denied access to player %d with status 403", playerID)
+	}
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
+		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, resp.StatusCode, "Let's Play Soccer could not find upcoming games for player %d", playerID)
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, errSessionExpired
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("Let's Play Soccer returned status %d while loading schedules", resp.StatusCode)
+		return nil, newLPSFetchError(lpsErrorUpstream, playerID, resp.StatusCode, "Let's Play Soccer returned status %d while loading schedules", resp.StatusCode)
 	}
 
 	games, err := decodeLPSGames(responseBody)
 	if err != nil {
-		return nil, err
+		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "%v", err)
 	}
 	for index := range games {
 		if games[index].ID == "" {
@@ -1451,10 +1490,10 @@ func extractGameMaps(raw any) []map[string]any {
 
 func mapLPSGame(raw map[string]any, index int) Game {
 	startAt := firstString(raw,
-		"start_at", "starts_at", "start_datetime", "StartDateTime", "game_datetime", "datetime", "date_time",
+		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
 	)
 	endAt := firstString(raw,
-		"end_at", "ends_at", "end_datetime", "EndDateTime", "game_end_datetime", "end_time",
+		"end_at", "ends_at", "end_datetime", "EndDateTime", "schedGameEndTime", "SchedGameEndTime", "game_end_datetime", "end_time",
 	)
 	dateTime := firstString(raw, "display_datetime", "DisplayDateTime", "DateTime", "datetime", "date_time")
 	if dateTime == "" {
@@ -1462,7 +1501,7 @@ func mapLPSGame(raw map[string]any, index int) Game {
 	}
 
 	homeTeam := firstString(raw, "home", "Home", "home_team", "HomeTeam", "home_team_name", "TeamName")
-	awayTeam := firstString(raw, "away", "Away", "away_team", "AwayTeam", "away_team_name", "OpponentName", "opponent_name")
+	awayTeam := firstString(raw, "away", "Away", "away_team", "visitor_team", "AwayTeam", "away_team_name", "visitor_team_name", "OpponentName", "opponent_name")
 	if homeTeam == "" && awayTeam == "" {
 		matchup := firstString(raw, "matchup", "Matchup", "title", "Title")
 		if matchup != "" {
@@ -1479,8 +1518,8 @@ func mapLPSGame(raw map[string]any, index int) Game {
 		DateTime: dateTime,
 		StartAt:  startAt,
 		EndAt:    endAt,
-		Field:    firstString(raw, "field", "Field", "field_name", "FieldName", "location", "Location"),
-		Location: firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility"),
+		Field:    firstString(raw, "field_name", "FieldName", "field", "Field"),
+		Location: firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility", "facilityName"),
 		Home:     homeTeam,
 		Away:     awayTeam,
 		Season:   firstString(raw, "season", "Season", "season_id", "SeasonID"),
@@ -1504,6 +1543,8 @@ func anyToString(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return strings.TrimSpace(typed)
+	case nil:
+		return ""
 	case float64:
 		return strconv.FormatInt(int64(typed), 10)
 	case int:
@@ -1513,7 +1554,7 @@ func anyToString(value any) string {
 	case json.Number:
 		return typed.String()
 	case map[string]any:
-		for _, nestedKey := range []string{"name", "Name", "title", "Title", "value", "Value"} {
+		for _, nestedKey := range []string{"name", "Name", "title", "Title", "value", "Value", "team_name", "TeamName", "display_name", "DisplayName"} {
 			if nestedValue, ok := typed[nestedKey]; ok {
 				if converted := anyToString(nestedValue); converted != "" {
 					return converted
@@ -1539,6 +1580,73 @@ func parsePlayerIDs(values []string) []int {
 		playerIDs = append(playerIDs, playerID)
 	}
 	return playerIDs
+}
+
+func parseDelimitedPlayerIDs(raw string) []int {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', '\n', '\r', '\t', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+	return parsePlayerIDs(parts)
+}
+
+func nonEmptyStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			normalized = append(normalized, value)
+		}
+	}
+	return normalized
+}
+
+func mergeGames(base, incoming Game) Game {
+	merged := base
+	if merged.ID == "" {
+		merged.ID = incoming.ID
+	}
+	if merged.DateTime == "" {
+		merged.DateTime = incoming.DateTime
+	}
+	if merged.StartAt == "" {
+		merged.StartAt = incoming.StartAt
+	}
+	if merged.EndAt == "" {
+		merged.EndAt = incoming.EndAt
+	}
+	if merged.Field == "" {
+		merged.Field = incoming.Field
+	}
+	if merged.Location == "" {
+		merged.Location = incoming.Location
+	}
+	if merged.Home == "" {
+		merged.Home = incoming.Home
+	}
+	if merged.Away == "" {
+		merged.Away = incoming.Away
+	}
+	if merged.Season == "" {
+		merged.Season = incoming.Season
+	}
+	if merged.Location == "" && merged.Field != "" {
+		merged.Location = "Field " + merged.Field
+	}
+	if merged.Field == "" && merged.Location != "" {
+		merged.Field = merged.Location
+	}
+	if merged.DateTime == "" {
+		merged.DateTime = formatGameDateTime(merged.StartAt)
+	}
+	if merged.ID == "" {
+		merged.ID = fallbackGameID(merged)
+	}
+	return merged
 }
 
 func stableGameFields(game Game) string {
@@ -1688,6 +1796,50 @@ func writeICSLine(builder *strings.Builder, line string) {
 		line = line[written:]
 		firstSegment = false
 	}
+}
+
+func scheduleFetchFeedback(err error) (string, string, bool) {
+	if err == nil {
+		return "", "", false
+	}
+	var fetchErr *lpsFetchError
+	if errors.As(err, &fetchErr) {
+		switch fetchErr.Kind {
+		case lpsErrorMalformedToken:
+			return "The imported Let's Play Soccer token is not a valid JWT.", "Copy the full bearer JWT from letsplaysoccer.com and import it again.", true
+		case lpsErrorUnauthorized:
+			return "Your imported Let's Play Soccer token was rejected.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
+		case lpsErrorForbidden:
+			return fmt.Sprintf("Let's Play Soccer denied access to player ID %d.", fetchErr.PlayerID), "Confirm the player ID belongs to the imported account, then try again.", false
+		case lpsErrorInvalidPlayer:
+			return fmt.Sprintf("Player ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Re-check the numeric player ID in letsplaysoccer.com and import it again if needed.", false
+		case lpsErrorUpstream:
+			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team codes manually.", false
+		}
+	}
+	if errors.Is(err, errSessionExpired) {
+		return "Your imported Let's Play Soccer token expired.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
+	}
+	return "Could not load schedules from Let's Play Soccer right now.", "Try again in a moment, or use team codes manually.", false
+}
+
+func scheduleDownloadError(err error) (int, string) {
+	var fetchErr *lpsFetchError
+	if errors.As(err, &fetchErr) {
+		switch fetchErr.Kind {
+		case lpsErrorMalformedToken:
+			return http.StatusUnauthorized, "the imported Let's Play Soccer token is malformed; import the full bearer JWT again"
+		case lpsErrorUnauthorized:
+			return http.StatusUnauthorized, "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com"
+		case lpsErrorForbidden:
+			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to player ID %d; confirm the player belongs to this account", fetchErr.PlayerID)
+		case lpsErrorInvalidPlayer:
+			return http.StatusBadRequest, fmt.Sprintf("player ID %d was not accepted by Let's Play Soccer; re-check the numeric player ID", fetchErr.PlayerID)
+		case lpsErrorUpstream:
+			return http.StatusBadGateway, "could not refresh the authenticated schedule because Let's Play Soccer is unavailable"
+		}
+	}
+	return http.StatusBadGateway, "could not refresh the authenticated schedule"
 }
 
 func clientIP(r *http.Request) string {

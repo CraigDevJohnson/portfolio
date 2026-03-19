@@ -4,14 +4,12 @@ import "portfolio/components/layouts"
 import "portfolio/components/partials"
 
 type SoccerProps struct {
-	RecaptchaSiteKey string
 }
 
 templ Soccer(props SoccerProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Soccer Schedule Download - Craig Johnson",
 		Page:  "soccer",
-		RecaptchaSiteKey: props.RecaptchaSiteKey,
 	}) {
 		<!-- Hero with animated orbs -->
 		<section class="page-hero soccer-hero">
@@ -47,24 +45,24 @@ templ Soccer(props SoccerProps) {
 						<span class="step-icon">🔍</span>
 					</div>
 					<span class="step-number">Step 1</span>
-					<h3 class="step-title">Find Your Team</h3>
-					<p class="step-desc">Locate your 6-digit team code from the Let's Play Soccer website</p>
+					<h3 class="step-title">Sign In On LPS</h3>
+					<p class="step-desc">Open your own Let's Play Soccer account in the browser and keep that tab signed in</p>
 				</div>
 				<div class="step-card">
 					<div class="soccer-icon-wrap">
 						<span class="step-icon">⚡</span>
 					</div>
 					<span class="step-number">Step 2</span>
-					<h3 class="step-title">Fetch Schedule</h3>
-					<p class="step-desc">Enter your codes and instantly pull the latest game schedules</p>
+					<h3 class="step-title">Import Your Access</h3>
+					<p class="step-desc">Copy the bearer JWT and one or more player IDs from DevTools, then paste them here</p>
 				</div>
 				<div class="step-card">
 					<div class="soccer-icon-wrap">
 						<span class="step-icon">📅</span>
 					</div>
 					<span class="step-number">Step 3</span>
-					<h3 class="step-title">Download Calendar</h3>
-					<p class="step-desc">Select your games and export an .ics file to any calendar app</p>
+					<h3 class="step-title">Fetch And Export</h3>
+					<p class="step-desc">Load schedules for your imported player IDs and export an .ics file to any calendar app</p>
 				</div>
 			</div>
 		</section>
@@ -79,15 +77,15 @@ templ Soccer(props SoccerProps) {
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">🎯</span>
 					</div>
-					<h3 class="feature-title">Multi-Team Support</h3>
-					<p class="feature-desc">Track multiple teams at once with comma-separated codes</p>
+					<h3 class="feature-title">Manual Player IDs</h3>
+					<p class="feature-desc">Import one or more player IDs directly from the authenticated LPS requests you can already access</p>
 				</div>
 				<div class="feature-card">
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">🔄</span>
 					</div>
-					<h3 class="feature-title">Always Current</h3>
-					<p class="feature-desc">Fetches live data directly from Let's Play Soccer</p>
+					<h3 class="feature-title">Session-Only Import</h3>
+					<p class="feature-desc">Your imported JWT stays in an encrypted HttpOnly cookie for the current browser session only</p>
 				</div>
 				<div class="feature-card">
 					<div class="soccer-icon-wrap">
@@ -109,8 +107,8 @@ templ Soccer(props SoccerProps) {
 					<div class="unified-form-section">
 						<div class="soccer-auth-shell">
 							<div class="soccer-auth-copy">
-								<h3>Connect your player account</h3>
-								<p>Sign in to fetch schedules for linked players, or use team codes manually below.</p>
+								<h3>Import player access</h3>
+								<p>Paste a bearer JWT and one or more player IDs from your signed-in Let&apos;s Play Soccer browser session, or use team codes manually below.</p>
 							</div>
 							<div
 								id="soccer-auth-panel"
@@ -119,7 +117,7 @@ templ Soccer(props SoccerProps) {
 								hx-trigger="load"
 								hx-swap="outerHTML"
 							>
-								<p>Loading sign-in options...</p>
+								<p>Loading import options...</p>
 							</div>
 						</div>
 						<div class="soccer-manual-entry">
@@ -161,7 +159,7 @@ templ Soccer(props SoccerProps) {
 					</div>
 					<div class="unified-info-section">
 						<div class="info-inline">
-							<h3>How to Find Team Codes</h3>
+							<h3>How to Import Access</h3>
 							<ol>
 								<li>
 									Visit
@@ -173,9 +171,9 @@ templ Soccer(props SoccerProps) {
 										Let's Play Soccer
 									</a>
 								</li>
-								<li>Log in and go to "My Teams"</li>
-								<li>Find the 6-digit code displayed</li>
-								<li>Or search Team Schedules and get the code from the URL</li>
+								<li>Sign in there first, then open browser DevTools and inspect an authenticated network request</li>
+								<li>Copy the bearer JWT from the Authorization header or response data you can already see</li>
+								<li>Copy one or more player IDs from the same request paths or payloads, then paste both values into the import dialog</li>
 							</ol>
 						</div>
 					</div>
@@ -186,7 +184,7 @@ templ Soccer(props SoccerProps) {
 				</div>
 				<div id="games-container" class="games-container" aria-live="polite">
 					<div class="empty-state">
-						<p>Enter team codes above to fetch schedules</p>
+						<p>Import player access or enter team codes above to fetch schedules.</p>
 					</div>
 				</div>
 				<div id="subscribe-section" class="subscribe-section" style="display: none">
@@ -221,8 +219,6 @@ templ Soccer(props SoccerProps) {
 				</div>
 			</div>
 		</section>
-		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{
-			RecaptchaSiteKey: props.RecaptchaSiteKey,
-		})
+		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{})
 	}
 }

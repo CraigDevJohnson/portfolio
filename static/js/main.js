@@ -122,7 +122,7 @@
     document.body.classList.add('soccer-modal-open')
 
     const dialog = soccerLoginModal.querySelector('.soccer-login-dialog')
-    const firstField = soccerLoginModal.querySelector('#soccer-login-email')
+    const firstField = soccerLoginModal.querySelector('#soccer-import-jwt')
     window.setTimeout(() => {
       ;(firstField || dialog)?.focus()
     }, 0)
@@ -149,7 +149,7 @@
     const subscribeResult = document.getElementById('subscribe-result')
 
     if (gamesContainer) {
-      gamesContainer.innerHTML = '<div class="empty-state"><p>Sign in to fetch by player, or enter team codes above to fetch schedules.</p></div>'
+      gamesContainer.innerHTML = '<div class="empty-state"><p>Import player access or enter team codes above to fetch schedules.</p></div>'
     }
 
     if (subscribeSection) {
@@ -230,57 +230,6 @@
     }
 
     loginForm.dataset.bound = 'true'
-    const captchaTokenField = loginForm.querySelector('input[name="captcha_token"]')
-    const feedback = document.getElementById('soccer-login-feedback')
-
-    loginForm.addEventListener('submit', event => {
-      const siteKey = loginForm.dataset.recaptchaSiteKey
-
-      if (!siteKey || !captchaTokenField) {
-        event.preventDefault()
-        if (feedback) {
-          feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">Sign-in is not configured. Contact the site administrator.</div>'
-        }
-        return
-      }
-
-      if (captchaTokenField.value) {
-        return
-      }
-
-      if (!window.grecaptcha) {
-        event.preventDefault()
-        if (feedback) {
-          feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">reCAPTCHA is still loading. Try again in a moment.</div>'
-        }
-        return
-      }
-
-      event.preventDefault()
-      window.grecaptcha.ready(() => {
-        window.grecaptcha
-          .execute(siteKey, { action: 'soccer_login' })
-          .then(token => {
-            captchaTokenField.value = token
-            if (window.htmx) {
-              window.htmx.trigger(loginForm, 'submit')
-            } else {
-              loginForm.requestSubmit()
-            }
-          })
-          .catch(() => {
-            if (feedback) {
-              feedback.innerHTML = '<div class="soccer-login-message soccer-login-message-error" role="alert">Could not start reCAPTCHA. Try again.</div>'
-            }
-          })
-      })
-    })
-
-    document.body.addEventListener('htmx:afterRequest', event => {
-      if (event.detail.elt === loginForm && captchaTokenField) {
-        captchaTokenField.value = ''
-      }
-    })
   }
 
   // HTMX event handlers

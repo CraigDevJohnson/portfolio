@@ -64,26 +64,11 @@ type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
 }
 
-type LPSLoginRequest struct {
-	Email        string `json:"email"`
-	Password     string `json:"password"`
-	CaptchaToken string `json:"captcha_token"`
-}
-
 type LPSPlayer struct {
 	UPlayerID    int    `json:"UPlayerID"`
 	FirstName    string `json:"FirstName"`
 	LastName     string `json:"LastName"`
 	IsMainPlayer bool   `json:"is_main_player"`
-}
-
-type LPSUser struct {
-	ID        int         `json:"id"`
-	Email     string      `json:"email"`
-	FirstName string      `json:"first_name"`
-	LastName  string      `json:"last_name"`
-	JWT       string      `json:"jwt"`
-	Players   []LPSPlayer `json:"players"`
 }
 
 type SessionData struct {

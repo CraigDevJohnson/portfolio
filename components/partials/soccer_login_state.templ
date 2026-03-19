@@ -21,8 +21,8 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 		if props.Authenticated {
 			<div class="soccer-auth-summary">
 				<div>
-					<p class="soccer-auth-status">Signed in</p>
-					<p class="soccer-auth-user">Connected as { props.UserName }.</p>
+					<p class="soccer-auth-status">Imported</p>
+					<p class="soccer-auth-user">Bearer JWT saved for this browser session. Choose which imported player IDs to fetch below.</p>
 				</div>
 				<button
 					type="button"
@@ -31,23 +31,23 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 					hx-target="#soccer-auth-panel"
 					hx-swap="outerHTML"
 				>
-					Sign out
+					Clear import
 				</button>
 			</div>
 			@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players})
 		} else if props.LoginAvailable {
 			<div class="soccer-auth-summary">
 				<div>
-					<p class="soccer-auth-status">Not signed in</p>
-					<p class="soccer-auth-user">Use your Let&apos;s Play Soccer login to fetch schedules from linked players.</p>
+					<p class="soccer-auth-status">No import active</p>
+					<p class="soccer-auth-user">Paste a bearer JWT and one or more manual player IDs from your signed-in Let&apos;s Play Soccer browser session.</p>
 				</div>
 				<button type="button" class="btn btn-primary" data-open-login-modal>
-					Sign in
+					Import access
 				</button>
 			</div>
 		} else {
 			<div class="soccer-auth-unavailable" role="status">
-				<p>Account sign-in is unavailable until the session encryption key is configured on the server.</p>
+				<p>JWT import is unavailable until the session encryption key is configured on the server.</p>
 			</div>
 		}
 	</div>

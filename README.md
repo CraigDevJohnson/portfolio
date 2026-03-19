@@ -241,6 +241,19 @@ The app is available at `http://localhost:8080`.
 
 Compose reads the local `.env` file automatically. Set `LPS_SESSION_KEY` in `.env` to a 64-character hex string before starting the stack. This key is used to encrypt soccer session cookies, so rotating it invalidates existing sessions.
 
+### Authenticated Soccer Workflow
+
+The authenticated soccer import flow requires `LPS_SESSION_KEY` to be set before the server starts. Without it, the app cannot encrypt the current-session cookie that stores the imported bearer token and player IDs.
+
+Manual import flow:
+
+1. Sign in on letsplaysoccer.com in your browser.
+2. Open DevTools and inspect an authenticated network request.
+3. Copy the bearer JWT from the `Authorization` header value or request details.
+4. Copy one or more player IDs from the same request path or payload.
+5. Open the soccer page in this app, import the JWT and player IDs, then fetch schedules.
+6. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
+
 ### Container Notes
 
 - Runtime image uses distroless and runs as a non-root user.

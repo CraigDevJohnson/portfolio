@@ -1,7 +1,6 @@
 package partials
 
 type SoccerLoginModalProps struct {
-	RecaptchaSiteKey string
 }
 
 templ SoccerLoginModal(props SoccerLoginModalProps) {
@@ -16,50 +15,59 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 			tabindex="-1"
 		>
 			<div class="soccer-login-header">
-				<h2 id="soccer-login-title">Sign in to Let&apos;s Play Soccer</h2>
-				<button type="button" class="soccer-modal-close" aria-label="Close sign-in dialog" data-close-login-modal>
+				<h2 id="soccer-login-title">Import Let&apos;s Play Soccer access</h2>
+				<button type="button" class="soccer-modal-close" aria-label="Close import dialog" data-close-login-modal>
 					<span aria-hidden="true">&times;</span>
 				</button>
 			</div>
 			<p id="soccer-login-description" class="soccer-login-description">
-				Enter your Let&apos;s Play Soccer account details to load schedules for linked players.
+				Paste the bearer JWT and manual player IDs from your own signed-in Let&apos;s Play Soccer browser session.
 			</p>
+			<ol class="soccer-login-instructions">
+				<li>Sign in on letsplaysoccer.com in another tab.</li>
+				<li>Open browser DevTools, inspect an authenticated request, and copy the bearer JWT.</li>
+				<li>Copy one or more player IDs from the same request path or payload.</li>
+			</ol>
 			<form
 				id="soccer-login-form"
 				class="soccer-login-form"
-				hx-post="/soccer/login"
+				hx-post="/soccer/import"
 				hx-target="#soccer-login-feedback"
 				hx-swap="innerHTML"
-				data-recaptcha-site-key={ props.RecaptchaSiteKey }
-				autocomplete="on"
+				autocomplete="off"
 			>
-				<input type="hidden" name="captcha_token" value=""/>
 				<div class="form-group">
-					<label for="soccer-login-email" class="form-label">Email</label>
-					<input
-						id="soccer-login-email"
-						name="email"
+					<label for="soccer-import-jwt" class="form-label">Bearer JWT</label>
+					<textarea
+						id="soccer-import-jwt"
+						name="jwt"
 						class="text-input"
-						type="email"
-						autocomplete="username"
+						rows="5"
+						spellcheck="false"
 						required
 						aria-required="true"
-					/>
+						aria-describedby="soccer-import-jwt-hint"
+						placeholder="Bearer eyJhbGciOi..."
+					></textarea>
+					<p id="soccer-import-jwt-hint" class="soccer-login-note">You can paste the full Authorization header value or only the JWT.</p>
 				</div>
 				<div class="form-group">
-					<label for="soccer-login-password" class="form-label">Password</label>
-					<input
-						id="soccer-login-password"
-						name="password"
+					<label for="soccer-import-player-ids" class="form-label">Player IDs</label>
+					<textarea
+						id="soccer-import-player-ids"
+						name="player_ids"
 						class="text-input"
-						type="password"
-						autocomplete="current-password"
+						rows="3"
+						spellcheck="false"
 						required
 						aria-required="true"
-					/>
+						aria-describedby="soccer-import-player-ids-hint"
+						placeholder="12345, 67890"
+					></textarea>
+					<p id="soccer-import-player-ids-hint" class="soccer-login-note">Separate IDs with commas, spaces, or new lines.</p>
 				</div>
 				<p class="soccer-login-note">
-					This server only keeps the returned session token in an encrypted cookie so it can fetch your schedules.
+					This server stores the imported JWT only in an encrypted HttpOnly cookie for the current browser session and clears it when you choose Clear import.
 				</p>
 				<div id="soccer-login-feedback" class="soccer-login-feedback" aria-live="polite"></div>
 				<div class="soccer-login-actions">
@@ -67,7 +75,7 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 						Cancel
 					</button>
 					<button type="submit" class="btn btn-primary">
-						Sign in
+						Import access
 					</button>
 				</div>
 			</form>

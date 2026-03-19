@@ -295,6 +295,11 @@
   overflow-wrap: anywhere;
 }
 
+.soccer-player-meta {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
 .soccer-player-badge {
   display: inline-flex;
   align-items: center;
@@ -368,6 +373,17 @@
   margin-bottom: var(--space-lg);
 }
 
+.soccer-login-instructions {
+  margin: 0 0 var(--space-lg);
+  padding-left: var(--space-xl);
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.soccer-login-instructions li + li {
+  margin-top: var(--space-xs);
+}
+
 .soccer-modal-close {
   border: 0;
   background: transparent;
@@ -381,6 +397,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+.soccer-login-form textarea.text-input {
+  min-height: 7rem;
+  resize: vertical;
 }
 
 .soccer-login-feedback {

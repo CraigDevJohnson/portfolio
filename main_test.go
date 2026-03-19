@@ -2,10 +2,13 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -16,9 +19,8 @@ import (
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
-		SessionKey:       []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL:    defaultLPSAPIBaseURL,
-		RecaptchaSiteKey: "test-site-key",
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -49,59 +51,273 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLPSLoginUsesAuthorizationHeaderFallback(t *testing.T) {
+func TestNormalizeImportedJWTAcceptsBearerPrefix(t *testing.T) {
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+
+	got, err := normalizeImportedJWT("Bearer " + token)
+	if err != nil {
+		t.Fatalf("normalizeImportedJWT returned error: %v", err)
+	}
+	if got != token {
+		t.Fatalf("normalizeImportedJWT mismatch: got %q want %q", got, token)
+	}
+}
+
+func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
+	token := testJWT(t, time.Now().Add(-30*time.Minute))
+
+	_, err := normalizeImportedJWT(token)
+	if err == nil {
+		t.Fatal("expected normalizeImportedJWT to reject expired tokens")
+	}
+	if !strings.Contains(err.Error(), "expired") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	previousConfig := configData
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/users/sign_in" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		if r.Method != http.MethodPost {
-			t.Fatalf("unexpected method: %s", r.Method)
-		}
-
-		var payload map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			t.Fatalf("failed to decode login payload: %v", err)
-		}
-		userPayload, ok := payload["user"].(map[string]any)
-		if !ok || userPayload["email"] != "player@example.com" {
-			t.Fatalf("unexpected login payload: %#v", payload)
-		}
-
-		w.Header().Set("Authorization", "Bearer server-issued-token")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id": 55, "first_name": "Craig", "last_name": "Johnson", "players": [{"UPlayerID": 1001, "FirstName": "Craig", "LastName": "Johnson", "is_main_player": true}]}`))
-	}))
-	defer server.Close()
-
 	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
 	}()
 
-	user, err := lpsLogin(t.Context(), "player@example.com", "secret", "captcha-token")
+	form := url.Values{
+		"jwt":        {"Bearer " + testJWT(t, time.Now().Add(30*time.Minute))},
+		"player_ids": {"1001, 1002"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	soccerImportHandler(resp, req)
+
+	result := resp.Result()
+	if result.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
+	}
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range result.Cookies() {
+		if cookie.Name == lpsSessionCookieName {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+	if !sessionCookie.HttpOnly {
+		t.Fatal("expected session cookie to be HttpOnly")
+	}
+	if sessionCookie.Expires != (time.Time{}) {
+		t.Fatalf("expected current-session cookie without expiry, got %v", sessionCookie.Expires)
+	}
+	if sessionCookie.SameSite != http.SameSiteStrictMode {
+		t.Fatalf("unexpected same-site mode: %v", sessionCookie.SameSite)
+	}
+
+	session, err := decryptSession(sessionCookie.Value)
 	if err != nil {
-		t.Fatalf("lpsLogin returned error: %v", err)
+		t.Fatalf("decryptSession returned error: %v", err)
 	}
-	if user.JWT != "server-issued-token" {
-		t.Fatalf("unexpected JWT: %s", user.JWT)
+	if session.JWT == "" {
+		t.Fatal("expected imported JWT to be stored in the session")
 	}
-	if len(user.Players) != 1 || user.Players[0].UPlayerID != 1001 {
-		t.Fatalf("unexpected player list: %#v", user.Players)
+	if got := []int{session.Players[0].UPlayerID, session.Players[1].UPlayerID}; !reflect.DeepEqual(got, []int{1001, 1002}) {
+		t.Fatalf("unexpected stored player IDs: %#v", got)
+	}
+	if !strings.Contains(resp.Body.String(), "data-login-success") {
+		t.Fatalf("expected success feedback in response body, got %q", resp.Body.String())
+	}
+}
+
+func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
+	previousConfig := configData
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	form := url.Values{
+		"jwt":        {"not-a-jwt"},
+		"player_ids": {"1001"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	soccerImportHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+		t.Fatalf("did not expect a session cookie on invalid JWT: %q", resp.Header().Get("Set-Cookie"))
+	}
+	if !strings.Contains(resp.Body.String(), "three dot-separated sections") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
+	previousConfig := configData
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
+	addSessionCookie(t, req, SessionData{
+		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
+		UserName: "Current browser session",
+		Players: []LPSPlayer{
+			{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
+		},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+	resp := httptest.NewRecorder()
+
+	soccerLogoutHandler(resp, req)
+
+	result := resp.Result()
+	if result.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
+	}
+	if got := result.Header.Get("HX-Trigger"); got != "soccer-logout" {
+		t.Fatalf("unexpected HX-Trigger header: got %q want %q", got, "soccer-logout")
+	}
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range result.Cookies() {
+		if cookie.Name == lpsSessionCookieName {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected cleared session cookie to be set")
+	}
+	if sessionCookie.Value != "" {
+		t.Fatalf("expected cleared session cookie value to be empty, got %q", sessionCookie.Value)
+	}
+	if sessionCookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared session cookie max-age to be negative, got %d", sessionCookie.MaxAge)
+	}
+	if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
+		t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
+	}
+	if !strings.Contains(resp.Body.String(), "No import active") {
+		t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "Import access") {
+		t.Fatalf("expected unauthenticated import control, got %q", resp.Body.String())
+	}
+	if strings.Contains(resp.Body.String(), "Clear import") {
+		t.Fatalf("did not expect authenticated controls after logout, got %q", resp.Body.String())
+	}
+}
+
+func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthenticatedState(t *testing.T) {
+	previousConfig := configData
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	tests := []struct {
+		name      string
+		addCookie func(t *testing.T, req *http.Request)
+	}{
+		{
+			name: "expired session",
+			addCookie: func(t *testing.T, req *http.Request) {
+				addSessionCookie(t, req, SessionData{
+					JWT:      testJWT(t, time.Now().Add(-30*time.Minute)),
+					UserName: "Current browser session",
+					Players: []LPSPlayer{
+						{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
+					},
+					ExpiresAt: time.Now().Add(-5 * time.Minute),
+				})
+			},
+		},
+		{
+			name: "invalid session payload",
+			addCookie: func(t *testing.T, req *http.Request) {
+				req.AddCookie(&http.Cookie{Name: lpsSessionCookieName, Value: "not-valid-session-data"})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/soccer/session", nil)
+			tc.addCookie(t, req)
+			resp := httptest.NewRecorder()
+
+			soccerSessionHandler(resp, req)
+
+			result := resp.Result()
+			if result.StatusCode != http.StatusOK {
+				t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
+			}
+
+			var sessionCookie *http.Cookie
+			for _, cookie := range result.Cookies() {
+				if cookie.Name == lpsSessionCookieName {
+					sessionCookie = cookie
+					break
+				}
+			}
+			if sessionCookie == nil {
+				t.Fatal("expected cleared session cookie to be set")
+			}
+			if sessionCookie.Value != "" {
+				t.Fatalf("expected cleared session cookie value to be empty, got %q", sessionCookie.Value)
+			}
+			if sessionCookie.MaxAge >= 0 {
+				t.Fatalf("expected cleared session cookie max-age to be negative, got %d", sessionCookie.MaxAge)
+			}
+			if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
+				t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
+			}
+			if !strings.Contains(resp.Body.String(), "hx-swap-oob=\"outerHTML\"") {
+				t.Fatalf("expected session refresh to swap auth panel out-of-band, got %q", resp.Body.String())
+			}
+			if !strings.Contains(resp.Body.String(), "No import active") {
+				t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
+			}
+			if !strings.Contains(resp.Body.String(), "Import access") {
+				t.Fatalf("expected unauthenticated import control, got %q", resp.Body.String())
+			}
+			if strings.Contains(resp.Body.String(), "Clear import") {
+				t.Fatalf("did not expect authenticated controls after invalid session, got %q", resp.Body.String())
+			}
+		})
 	}
 }
 
 func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		if got := r.Header.Get("Authorization"); got != "Bearer api-token" {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
 			t.Fatalf("unexpected authorization header: %s", got)
 		}
 
@@ -128,7 +344,7 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 		configData = previousConfig
 	}()
 
-	games, err := lpsFetchUpcomingGames(t.Context(), "api-token", 1001)
+	games, err := lpsFetchUpcomingGames(t.Context(), token, 1001)
 	if err != nil {
 		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
 	}
@@ -146,8 +362,82 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	}
 }
 
+func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/players/1001/upcoming_games" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer "+testJWT(t, time.Now().Add(30*time.Minute)) {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{
+				"UGameID": 734433,
+				"field_name": "Arena 7",
+				"Field": "7",
+				"SchedGameDateTime": "2026-04-12T19:10:00-06:00",
+				"schedGameEndTime": null,
+				"facilityName": "LetsPlay North Campus",
+				"SeasonID": 244,
+				"home_team": {
+					"TeamName": "Craig FC"
+				},
+				"visitor_team": {
+					"TeamName": "Visitors United"
+				}
+			}
+		]`))
+	}))
+	defer server.Close()
+
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	games, err := lpsFetchUpcomingGames(t.Context(), token, 1001)
+	if err != nil {
+		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("unexpected games length: %d", len(games))
+	}
+	if games[0].ID != "734433" {
+		t.Fatalf("unexpected game ID: %s", games[0].ID)
+	}
+	if games[0].Home != "Craig FC" || games[0].Away != "Visitors United" {
+		t.Fatalf("unexpected game teams: %#v", games[0])
+	}
+	if games[0].StartAt != "2026-04-12T19:10:00-06:00" {
+		t.Fatalf("unexpected start time: %s", games[0].StartAt)
+	}
+	if games[0].EndAt != "" {
+		t.Fatalf("expected empty end time for null payload value, got %q", games[0].EndAt)
+	}
+	if games[0].Field != "Arena 7" {
+		t.Fatalf("unexpected field: %s", games[0].Field)
+	}
+	if games[0].Location != "LetsPlay North Campus" {
+		t.Fatalf("unexpected location: %s", games[0].Location)
+	}
+	if games[0].Season != "244" {
+		t.Fatalf("unexpected season: %s", games[0].Season)
+	}
+	if !strings.Contains(games[0].DateTime, "04/12/26") {
+		t.Fatalf("unexpected display datetime: %s", games[0].DateTime)
+	}
+}
+
 func TestLPSFetchGamesForPlayersDedupesOverlappingMissingIDGames(t *testing.T) {
 	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -199,7 +489,7 @@ func TestLPSFetchGamesForPlayersDedupesOverlappingMissingIDGames(t *testing.T) {
 		configData = previousConfig
 	}()
 
-	games, err := lpsFetchGamesForPlayers(t.Context(), "api-token", []int{1001, 1002})
+	games, err := lpsFetchGamesForPlayers(t.Context(), token, []int{1001, 1002})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
 	}
@@ -218,6 +508,255 @@ func TestLPSFetchGamesForPlayersDedupesOverlappingMissingIDGames(t *testing.T) {
 	}
 	if sharedCount != 1 {
 		t.Fatalf("expected one shared game after dedup, got %d", sharedCount)
+	}
+}
+
+func TestLPSFetchGamesForPlayersMergesDuplicateGamesAcrossPlayers(t *testing.T) {
+	previousConfig := configData
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/players/1001/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"UGameID": 555,
+					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+					"home_team": {"TeamName": "Shared FC"},
+					"visitor_team": {"TeamName": "Opponents"},
+					"SeasonID": 77
+				}
+			]`))
+		case "/players/1002/upcoming_games":
+			_, _ = w.Write([]byte(`[
+				{
+					"UGameID": 555,
+					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+					"field_name": "Field 9",
+					"facilityName": "Main Complex",
+					"home_team": {"TeamName": "Shared FC"},
+					"visitor_team": {"TeamName": "Opponents"},
+					"SeasonID": 77
+				}
+			]`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	games, err := lpsFetchGamesForPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)), []int{1001, 1002})
+	if err != nil {
+		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("unexpected deduped games length: got %d want 1", len(games))
+	}
+	if games[0].Field != "Field 9" {
+		t.Fatalf("expected merged field, got %q", games[0].Field)
+	}
+	if games[0].Location != "Main Complex" {
+		t.Fatalf("expected merged location, got %q", games[0].Location)
+	}
+}
+
+func TestLPSFetchUpcomingGamesRejectsMalformedTokenBeforeRequest(t *testing.T) {
+	_, err := lpsFetchUpcomingGames(t.Context(), "not-a-jwt", 1001)
+	if err == nil {
+		t.Fatal("expected malformed token error")
+	}
+	var fetchErr *lpsFetchError
+	if !errors.As(err, &fetchErr) {
+		t.Fatalf("expected lpsFetchError, got %T", err)
+	}
+	if fetchErr.Kind != lpsErrorMalformedToken {
+		t.Fatalf("unexpected error kind: %s", fetchErr.Kind)
+	}
+}
+
+func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		playerID   int
+		wantKind   lpsErrorKind
+	}{
+		{name: "unauthorized", statusCode: http.StatusUnauthorized, playerID: 1001, wantKind: lpsErrorUnauthorized},
+		{name: "forbidden", statusCode: http.StatusForbidden, playerID: 1001, wantKind: lpsErrorForbidden},
+		{name: "invalid player bad request", statusCode: http.StatusBadRequest, playerID: 999999, wantKind: lpsErrorInvalidPlayer},
+		{name: "invalid player not found", statusCode: http.StatusNotFound, playerID: 999999, wantKind: lpsErrorInvalidPlayer},
+		{name: "upstream outage", statusCode: http.StatusBadGateway, playerID: 1001, wantKind: lpsErrorUpstream},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousConfig := configData
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			configData = serverConfig{
+				SessionKey:    previousConfig.SessionKey,
+				LPSAPIBaseURL: server.URL,
+			}
+			defer func() {
+				configData = previousConfig
+			}()
+
+			_, err := lpsFetchUpcomingGames(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
+			if err == nil {
+				t.Fatal("expected fetch error")
+			}
+			var fetchErr *lpsFetchError
+			if !errors.As(err, &fetchErr) {
+				t.Fatalf("expected lpsFetchError, got %T", err)
+			}
+			if fetchErr.Kind != tt.wantKind {
+				t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, tt.wantKind)
+			}
+		})
+	}
+}
+
+func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"player_ids": {"abc"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	fetchSchedulesHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body.String(), "selected player IDs were invalid") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
+	previousConfig := configData
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"player_ids": {"1001"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addSessionCookie(t, req, SessionData{
+		JWT:       testJWT(t, time.Now().Add(30*time.Minute)),
+		UserName:  "Current browser session",
+		Players:   importedPlayers([]int{1001}),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	configData.LPSAPIBaseURL = server.URL
+	resp := httptest.NewRecorder()
+
+	fetchSchedulesHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body.String(), "token was rejected") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+		"selected":   {"game-1"},
+		"player_ids": {"bad-id"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	downloadICSHandler(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(resp.Body.String(), "selected player IDs were invalid") {
+		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
+	previousConfig := configData
+	configData = serverConfig{
+		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); !strings.HasPrefix(got, "Bearer ") {
+			t.Fatalf("missing bearer auth header: %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{
+				"UGameID": 888,
+				"SchedGameDateTime": "2026-05-15T20:00:00-06:00",
+				"schedGameEndTime": "2026-05-15T21:30:00-06:00",
+				"facilityName": "North Fieldhouse",
+				"field_name": "Pitch 2",
+				"home_team": {"TeamName": "Craig FC"},
+				"visitor_team": {"TeamName": "Rivals"},
+				"SeasonID": 300
+			}
+		]`))
+	}))
+	defer server.Close()
+	configData.LPSAPIBaseURL = server.URL
+
+	token := testJWT(t, time.Now().Add(30*time.Minute))
+	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+		"selected":   {"888"},
+		"player_ids": {"1001"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addSessionCookie(t, req, SessionData{
+		JWT:       token,
+		UserName:  "Current browser session",
+		Players:   importedPlayers([]int{1001}),
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+	resp := httptest.NewRecorder()
+
+	downloadICSHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	if !strings.Contains(resp.Body.String(), "UID:888@craigdevjohnson.com") {
+		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "LOCATION:North Fieldhouse") {
+		t.Fatalf("expected facility location in ICS body: %q", resp.Body.String())
 	}
 }
 
@@ -453,4 +992,26 @@ func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 			t.Fatal("expected requestIsHTTPS to return true for direct TLS")
 		}
 	})
+}
+
+func testJWT(t *testing.T, expiresAt time.Time) string {
+	t.Helper()
+
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	payload, err := json.Marshal(map[string]any{"exp": expiresAt.Unix()})
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+	payloadToken := base64.RawURLEncoding.EncodeToString(payload)
+	signature := base64.RawURLEncoding.EncodeToString([]byte("signature"))
+	return strings.Join([]string{header, payloadToken, signature}, ".")
+}
+
+func addSessionCookie(t *testing.T, req *http.Request, session SessionData) {
+	t.Helper()
+	encrypted, err := encryptSession(session)
+	if err != nil {
+		t.Fatalf("encryptSession returned error: %v", err)
+	}
+	req.AddCookie(&http.Cookie{Name: lpsSessionCookieName, Value: encrypted})
 }

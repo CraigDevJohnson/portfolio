@@ -6,7 +6,6 @@ type BaseProps struct {
 	Title       string
 	Page        string
 	Description string
-	RecaptchaSiteKey string
 }
 
 templ Base(props BaseProps) {
@@ -47,9 +46,6 @@ templ Base(props BaseProps) {
 				integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
 				crossorigin="anonymous"
 			></script>
-			if props.RecaptchaSiteKey != "" {
-				<script src={ "https://www.google.com/recaptcha/api.js?render=" + props.RecaptchaSiteKey } async defer></script>
-			}
 			<script src="/static/js/main.js" defer></script>
 		</head>
 		<body
