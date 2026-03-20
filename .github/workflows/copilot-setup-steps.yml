@@ -37,9 +37,7 @@ jobs:
         uses: extractions/setup-just@v3
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          install-only: true
+        run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
