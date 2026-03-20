@@ -43,7 +43,7 @@ compose:
 # Remove binary and clean cached files
 [group('clean')]
 clean:
-    {{ if os() == "windows" { "Remove-Item -Force {{ BINARY }} -ErrorAction SilentlyContinue" } else { "rm -f {{ BINARY }}" } }}
+    {{ if os() == "windows" { "Remove-Item -Force " + BINARY + " -ErrorAction SilentlyContinue" } else { "rm -f " + BINARY } }}
     {{ GO }} clean
 
 # Format Go source files
