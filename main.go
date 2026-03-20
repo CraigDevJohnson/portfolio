@@ -823,19 +823,16 @@ func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, err := getSession(r)
-	swapAuthState := false
 	if errors.Is(err, errSessionExpired) {
 		clearSession(w, r)
 		session = nil
-		swapAuthState = true
 	} else if err != nil {
 		log.Printf("soccer session read failed: %v", err)
 		clearSession(w, r)
 		session = nil
-		swapAuthState = true
 	}
 
-	renderSoccerLoginState(w, session, swapAuthState)
+	renderSoccerLoginState(w, session, false)
 }
 
 func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
