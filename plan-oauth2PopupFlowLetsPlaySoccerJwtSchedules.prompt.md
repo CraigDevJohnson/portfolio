@@ -1,8 +1,8 @@
 ## Plan: LPS JWT Import Flow for Soccer Page
 
-Add a JWT import flow so users can paste a bearer JWT from their signed-in Let's Play Soccer browser session, auto-discover their linked players, and fetch real schedules — replacing mock data. The Go backend stores the JWT in an encrypted HttpOnly cookie and uses it for schedule API calls. The UX is a modal overlay with a JWT paste field (not a credentials form), since the LPS REST login API requires reCAPTCHA tied to letsplaysoccer.com.
+Add a JWT import flow so users can paste a bearer JWT from their signed-in Let's Play Soccer browser session, auto-discover their linked players, and fetch real schedules — replacing mock data. The Go backend stores the JWT in an encrypted HttpOnly cookie and uses it for schedule API calls. The UX is a modal overlay with a JWT paste field (not a credentials form).
 
-Key constraint: LPS uses a REST API with reCAPTCHA bound to their own domain. Rather than proxying credentials (which requires a valid reCAPTCHA token from their domain), users copy a bearer JWT from their authenticated LPS browser session and paste it. The backend stores and forwards this token for all subsequent API calls.
+Users copy a bearer JWT from their authenticated LPS browser session and paste it into the import modal. The backend stores and forwards this token for all subsequent API calls, using AES-GCM encryption for the session cookie.
 
 ### Implemented Flow
 
@@ -20,7 +20,7 @@ Key constraint: LPS uses a REST API with reCAPTCHA bound to their own domain. Ra
 - main.go — soccerImportHandler, soccerLogoutHandler, soccerSessionHandler, fetchSchedulesHandler, downloadICSHandler, LPS API client helpers, session encryption, route registration
 - types/types.go — LPSPlayer, SessionData structs
 - components/pages/soccer.templ — import modal include, login state container, player-select integration
-- components/layouts/base.templ — no reCAPTCHA needed (JWT paste flow)
+- components/layouts/base.templ — base layout (JWT paste flow requires no third-party auth scripts)
 - static/css/soccer.css — modal and authenticated panel styles
 - static/js/main.js — modal open/close, focus trap, Escape key, HTMX event handlers
 - New: components/partials/soccer_login_modal.templ (JWT paste form), soccer_player_select.templ, soccer_login_state.templ
@@ -37,12 +37,12 @@ Key constraint: LPS uses a REST API with reCAPTCHA bound to their own domain. Ra
 
 ### Decisions
 
-- JWT paste import (not credentials proxy) — avoids reCAPTCHA domain restriction
+- JWT paste import — server stores the token in an encrypted HttpOnly cookie and forwards it to the LPS API
 - HttpOnly cookie for JWT — most secure; server manages token lifecycle
 - AES-GCM encrypted cookies using Go stdlib (crypto/aes, crypto/cipher) — no external session library
 - Keep team-code fallback — manual team code flow remains for non-logged-in users
 - No persistent user accounts or database — session lives entirely in the encrypted cookie
-- loginEnabled() requires LPS_SESSION_KEY (32-byte hex) to be configured; no reCAPTCHA dependency
+- loginEnabled() requires LPS_SESSION_KEY (64-character hex, decodes to 32 bytes) to be configured
 
 ### Further Considerations
 
