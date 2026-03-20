@@ -223,10 +223,10 @@ just build
 
 ## Technical Constraints
 
-- Language: Go 1.23+
+- Language: Go 1.26+
 - Templates: Templ (run `just generate` after `.templ` changes)
 - Testing: `go test` with `httptest` for mock LPS API
-- Style: `gofmt`, `go vet`
+- Style: `just fmt`, `golangci-lint fmt`, `go vet`
 - Existing patterns: `lpsHTTPClient`, `lpsFetchError`, `newLPSFetchError`,
   encrypted session cookies, rate limiting
 
