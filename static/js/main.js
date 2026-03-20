@@ -223,15 +223,6 @@
     })
   }
 
-  function setupSoccerLoginForm() {
-    const loginForm = document.getElementById('soccer-login-form')
-    if (!loginForm || loginForm.dataset.bound === 'true') {
-      return
-    }
-
-    loginForm.dataset.bound = 'true'
-  }
-
   // HTMX event handlers
   document.body.addEventListener('htmx:afterSwap', function (evt) {
     // Fade in new content
@@ -278,7 +269,6 @@
   setupEmailSubscription()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
-  setupSoccerLoginForm()
 
   // Add intersection observer for scroll animations
   const observerOptions = {

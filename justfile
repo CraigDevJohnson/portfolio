@@ -33,7 +33,7 @@ build: generate
 # Build and run the server
 [group('run')]
 run: build
-    ./{{ BINARY }}
+    {{ if os() == "windows" { ".\\" + BINARY } else { "./" + BINARY } }}
 
 # Run with Docker Compose
 [group('run')]
