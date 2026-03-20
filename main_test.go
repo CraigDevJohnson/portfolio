@@ -687,11 +687,12 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 
 func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	previousConfig := configData
+	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		if got := r.Header.Get("Authorization"); got != "Bearer "+testJWT(t, time.Now().Add(30*time.Minute)) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
 			t.Fatalf("unexpected authorization header: %s", got)
 		}
 
@@ -716,7 +717,6 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	}))
 	defer server.Close()
 
-	token := testJWT(t, time.Now().Add(30*time.Minute))
 	configData = serverConfig{
 		SessionKey:    previousConfig.SessionKey,
 		LPSAPIBaseURL: server.URL,
