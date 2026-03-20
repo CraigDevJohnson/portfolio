@@ -617,8 +617,8 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 			if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
 				t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
 			}
-			if !strings.Contains(resp.Body.String(), "hx-swap-oob=\"outerHTML\"") {
-				t.Fatalf("expected session refresh to swap auth panel out-of-band, got %q", resp.Body.String())
+			if strings.Contains(resp.Body.String(), "hx-swap-oob") {
+				t.Fatalf("expected /soccer/session to render auth panel as primary content (no OOB swap), got %q", resp.Body.String())
 			}
 			if !strings.Contains(resp.Body.String(), "No import active") {
 				t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
