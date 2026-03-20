@@ -4,15 +4,27 @@ import "fmt"
 import "portfolio/types"
 
 type SoccerTableFragmentProps struct {
-	Games     []types.Game
-	TeamCodes string
+	Games           []types.Game
+	TeamCodes       string
+	PlayerIDs       []int
+	Message         string
+	Hint            string
+	GoogleConnected bool
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if len(props.Games) == 0 {
 		<div class="no-results">
-			<p>No games found for the provided team code(s).</p>
-			<p class="hint">Check that you entered valid 6-digit team codes.</p>
+			if props.Message != "" {
+				<p>{ props.Message }</p>
+			} else {
+				<p>No games found for the provided request.</p>
+			}
+			if props.Hint != "" {
+				<p class="hint">{ props.Hint }</p>
+			} else {
+				<p class="hint">Check your team codes or choose at least one linked player.</p>
+			}
 		</div>
 	} else {
 		<form
@@ -23,6 +35,9 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			data-soccer-form
 		>
 			<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
+			for _, playerID := range props.PlayerIDs {
+				<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
+			}
 			<div class="table-header">
 				<div class="table-actions">
 					<label class="select-all-label">
@@ -31,20 +46,42 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 					</label>
 					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
 				</div>
-				<button id="download-button" type="submit" class="btn btn-primary download-btn">
-					<span class="btn-text">Download Selected (.ics)</span>
-				</button>
+				<div class="input-row">
+					<button
+						type="button"
+						class="btn soccer-secondary-btn"
+						if !props.GoogleConnected {
+							disabled
+						}
+						if props.GoogleConnected {
+							hx-post="/soccer/google/add"
+							hx-include="#download-form"
+							hx-target="#google-calendar-feedback"
+							hx-swap="innerHTML"
+						}
+					>
+						<span class="btn-text">Add Selected to Google Calendar</span>
+					</button>
+					<button id="download-button" type="submit" class="btn btn-primary download-btn">
+						<span class="btn-text">Download Selected (.ics)</span>
+					</button>
+				</div>
+			</div>
+			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
+				if !props.GoogleConnected {
+					<div class="soccer-login-message" role="status">Connect Google Calendar above to add selected games directly.</div>
+				}
 			</div>
 			<div class="table-wrapper">
 				<table class="games-table" role="table" aria-label="Soccer games schedule">
 					<thead>
 						<tr>
-							<th class="col-check" aria-label="Select"></th>
-							<th class="col-datetime">Date / Time</th>
-							<th class="col-field">Field</th>
-							<th class="col-team">Home</th>
-							<th class="col-team">Away</th>
-							<th class="col-season">Season</th>
+							<th scope="col" class="col-check" aria-label="Select"></th>
+							<th scope="col" class="col-datetime">Date / Time</th>
+							<th scope="col" class="col-field">Field</th>
+							<th scope="col" class="col-team">Home</th>
+							<th scope="col" class="col-team">Away</th>
+							<th scope="col" class="col-season">Season</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -57,7 +94,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										name="selected"
 										value={ game.ID }
 										checked
-										aria-label={ "Select game " + game.ID }
+										aria-label={ "Select " + game.Home + " versus " + game.Away }
 										data-game-checkbox
 									/>
 								</td>

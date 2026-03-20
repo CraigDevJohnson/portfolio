@@ -18,6 +18,16 @@ output "app_runner_service_id" {
   value       = aws_apprunner_service.app.service_id
 }
 
+output "google_connection_table_arn" {
+  description = "ARN of the DynamoDB table used for persistent Google Calendar connections"
+  value       = aws_dynamodb_table.google_connections.arn
+}
+
+output "google_connection_table_name" {
+  description = "Name of the DynamoDB table used for persistent Google Calendar connections"
+  value       = aws_dynamodb_table.google_connections.name
+}
+
 output "instance_role_arn" {
   description = "ARN of the App Runner instance role (attach future policies here)"
   value       = aws_iam_role.apprunner_instance.arn

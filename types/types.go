@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 // Experience represents a work experience entry
 type Experience struct {
 	ID               int
@@ -48,7 +50,10 @@ type Project struct {
 type Game struct {
 	ID       string `json:"id"`
 	DateTime string `json:"datetime"`
+	StartAt  string `json:"start_at,omitempty"`
+	EndAt    string `json:"end_at,omitempty"`
 	Field    string `json:"field"`
+	Location string `json:"location,omitempty"`
 	Home     string `json:"home"`
 	Away     string `json:"away"`
 	Season   string `json:"season"`
@@ -57,6 +62,27 @@ type Game struct {
 // LambdaGamesResponse represents the response from the games API
 type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
+}
+
+type LPSPlayer struct {
+	UPlayerID    int    `json:"UPlayerID"`
+	FirstName    string `json:"FirstName"`
+	LastName     string `json:"LastName"`
+	IsMainPlayer bool   `json:"is_main_player"`
+}
+
+type SessionData struct {
+	JWT       string      `json:"jwt"`
+	UserID    int         `json:"user_id"`
+	UserName  string      `json:"user_name"`
+	Players   []LPSPlayer `json:"players"`
+	ExpiresAt time.Time   `json:"expires_at"`
+}
+
+type GoogleCalendarOption struct {
+	ID      string
+	Summary string
+	Primary bool
 }
 
 // Education represents an education entry

@@ -237,6 +237,7 @@ Outputs:
 
 app_runner_service_url = "https://xxxxxxxxxx.us-east-1.awsapprunner.com"
 ecr_repository_url     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/portfolio"
+google_connection_table_name = "portfolio-dev-google-connections"
 instance_role_arn      = "arn:aws:iam::123456789012:role/portfolio-apprunner-instance"
 ```
 
@@ -307,6 +308,26 @@ tofu apply
    - Go to **App Runner** > **Services** > **portfolio**
    - Check the status is **Running**
    - Click the default domain link to view the site
+
+### Configure runtime environment variables
+
+The Google Calendar integration needs these App Runner runtime environment
+variables in addition to `LPS_SESSION_KEY`:
+
+- `CLIENT_ID_KEY`
+- `CLIENT_SECRET_KEY`
+- `GOOGLE_CONNECTION_TABLE_NAME`
+
+`GOOGLE_CONNECTION_TABLE_NAME` is now supplied automatically from Terraform via
+the App Runner service configuration. The Google client ID and client secret
+still need to be set in the App Runner service runtime configuration.
+
+### Configure Google OAuth redirect URIs
+
+The Google OAuth client must allow these redirect URIs:
+
+- `https://craigdevjohnson.com/soccer`
+- `http://localhost:8080/soccer`
 
 ---
 

@@ -2,7 +2,7 @@
 
 A modern, responsive personal portfolio website built with **Go**, **Templ**, and **HTMX** for server-side rendering with dynamic client interactions.
 
-![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.26.1-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Templ](https://img.shields.io/badge/Templ-0.3-FF6B6B?style=flat-square)
 ![HTMX](https://img.shields.io/badge/HTMX-1.9-3366CC?style=flat-square)
 
@@ -13,12 +13,11 @@ A server-rendered Go application using Templ for type-safe component-based templ
 ## Features
 
 - **Type-Safe Templates**: Templ provides compile-time type checking and component-based architecture
-- **Server-Side Rendering**: Fast initial page loads with zero JavaScript dependencies
+- **Server-Side Rendering**: Fast initial page loads with targeted client-side behavior
 - **HTMX Interactions**: Dynamic content loading without full page refreshes
-- **Dark/Light Theme**: Toggle between themes with persistent preference
 - **Responsive Design**: Mobile-first approach with beautiful desktop layouts
 - **Professional UI**: Modern design with smooth animations and polish
-- **Soccer Tool**: HTMX-powered schedule fetcher with ICS download
+- **Soccer Tool**: JWT import, automatic player discovery, schedule fetch, direct Google Calendar add, and ICS download
 
 ## Pages
 
@@ -33,7 +32,7 @@ A server-rendered Go application using Templ for type-safe component-based templ
 
 ## Tech Stack
 
-- **Backend**: Go 1.23+
+- **Backend**: Go 1.26.1
 - **Templating**: [Templ](https://templ.guide/) - Type-safe Go templating engine
 - **Frontend Interactivity**: HTMX 1.9
 - **Styling**: Custom CSS with CSS Variables
@@ -43,8 +42,8 @@ A server-rendered Go application using Templ for type-safe component-based templ
 
 ### Prerequisites
 
-- Go 1.23 or higher
-- Templ CLI (installed automatically via `go install`)
+- Go 1.26.1
+- Just command runner
 
 ### Installation
 
@@ -52,12 +51,8 @@ A server-rendered Go application using Templ for type-safe component-based templ
 # Install dependencies
 go mod download
 
-# Install Templ CLI
-go install github.com/a-h/templ/cmd/templ@v0.3.977
-
-# Install just command runner (if not already installed)
-# See: https://github.com/casey/just#installation
-cargo install just
+# Install Templ CLI used by this repo
+just install-templ
 
 # Build the project (generates Templ components and compiles)
 just build
@@ -87,7 +82,23 @@ just install-air
 just dev
 ```
 
-**Note**: When Templ files (*.templ) are modified, run `just generate` or `templ generate` to regenerate the Go code before building.
+**Note**: When Templ files (`*.templ`) are modified, run `just generate` before building unless another command already does it.
+
+### Google Calendar Configuration
+
+Direct Google Calendar add requires these runtime environment variables:
+
+- `CLIENT_ID_KEY`
+- `CLIENT_SECRET_KEY`
+- `GOOGLE_CONNECTION_TABLE_NAME`
+
+For local OAuth testing, add `http://localhost:8080/soccer` as an authorized
+redirect URI in the Google Cloud OAuth client alongside the production
+`https://craigdevjohnson.com/soccer` redirect.
+
+Because the Google connection is stored server-side, local runs also need AWS
+credentials or another valid AWS auth source that can reach the configured
+DynamoDB table.
 
 ## Project Structure
 
@@ -122,7 +133,6 @@ portfolio/
     │   ├── about.css       # About page styles
     │   └── ...             # Other page styles
     ├── js/
-    │   ├── theme.js        # Theme toggle
     │   └── main.js         # Main JavaScript
     └── images/
         └── ...             # Static images
@@ -147,7 +157,16 @@ portfolio/
 
 - `GET /experience/timeline` - Experience timeline fragment
 - `GET /skills/grid` - Skills grid fragment
+- `GET /skills/filtered` - Filtered skills grid fragment
+- `GET /skills/detail` - Skill detail fragment
 - `GET /projects/grid` - Projects grid fragment
+- `GET /soccer/session` - Current soccer auth state fragment
+- `GET /soccer/google/connect` - Start Google OAuth for calendar access
+- `POST /soccer/google/calendar` - Save the selected Google Calendar
+- `POST /soccer/google/disconnect` - Remove the persisted Google Calendar connection
+- `POST /soccer/google/add` - Add selected games directly to Google Calendar
+- `POST /soccer/import` - Import JWT and auto-discover linked players
+- `POST /soccer/logout` - Clear imported soccer session
 - `POST /soccer/fetch` - Fetch soccer schedules
 - `POST /soccer/download` - Download ICS file
 - `POST /soccer/subscribe` - Subscribe to updates
@@ -160,7 +179,7 @@ portfolio/
 4. **Server-Rendered**: Fast initial loads, great SEO
 5. **Mobile-First**: Responsive design starting from mobile
 6. **Accessible**: Semantic HTML, ARIA labels, keyboard navigation
-7. **Themed**: Dark/light mode with CSS variables
+7. **Component-Oriented**: Templ pages and partials keep server-rendered UI explicit
 
 ## Customization
 
@@ -178,7 +197,7 @@ Content is defined in `main.go` in the data functions:
 Templates are written in Templ (`.templ` files):
 
 1. Edit the `.templ` files in `components/` directory
-2. Run `just generate` or `templ generate` to regenerate Go code
+2. Run `just generate` to regenerate Go code
 3. Build and run: `just build && ./portfolio-server`
 
 For more information on Templ syntax, see the [Templ documentation](https://templ.guide/).
@@ -199,7 +218,7 @@ The application is designed to be deployed as a standalone binary:
 
 ```bash
 # Generate Templ components
-templ generate
+just generate
 
 # Build for production
 CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
@@ -223,6 +242,10 @@ docker run --rm -p 8080:8080 portfolio-app
 ### Docker Compose
 
 ```bash
+# Create a local env file and set a 64-character hex session key
+cp .env.example .env
+openssl rand -hex 32
+
 # Build and start in background
 docker compose up --build -d
 
@@ -234,6 +257,22 @@ docker compose down
 ```
 
 The app is available at `http://localhost:8080`.
+
+Compose reads the local `.env` file automatically. Set `LPS_SESSION_KEY` in `.env` to a 64-character hex string before starting the stack. This key is used to encrypt soccer session cookies, so rotating it invalidates existing sessions. `LPS_API_BASE_URL` is optional if you need to point the app at a non-default upstream API.
+
+### Authenticated Soccer Workflow
+
+The authenticated soccer import flow requires `LPS_SESSION_KEY` to be set before the server starts. Without it, the app cannot encrypt the current-session cookie that stores the imported bearer token and discovered players.
+
+Current import flow:
+
+1. Sign in on letsplaysoccer.com in your browser.
+2. Open DevTools and inspect an authenticated network request.
+3. Copy the bearer JWT from the `Authorization` header value or request details.
+4. Open the soccer page in this app and import the JWT.
+5. The server calls `/users/check`, discovers linked players, filters deleted players, and shows the player selector with all discovered players pre-selected.
+6. Fetch schedules or export ICS for the selected players.
+7. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
 
 ### Container Notes
 

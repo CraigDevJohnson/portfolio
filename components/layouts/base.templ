@@ -53,8 +53,9 @@ templ Base(props BaseProps) {
 				class="soccer-theme"
 			}
 		>
+			<a href="#maincontent" class="skip-link">Skip to main content</a>
 			@partials.Header(props.Page)
-			<main class="main-content">
+			<main id="maincontent" class="main-content" tabindex="-1">
 				<div class="container">
 					{ children... }
 				</div>

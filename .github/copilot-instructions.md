@@ -1,320 +1,91 @@
 # Portfolio Codebase Instructions
 
-**Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.**
+Always use Context7 MCP when you need library or API documentation, code generation, setup steps, or configuration details.
 
-## Architecture overview
+## Source of Truth Order
 
-Go 1.23+ server-rendered portfolio with Templ for type-safe component-based templates and HTMX for dynamic updates. All application code lives in a single `main.go` file—handlers and data structs are collocated intentionally for simplicity.
+Use these files in this order when instructions conflict:
 
-## Templ Component System
+1. `PRD.md` and `PROGRESS.md` for the current soccer product behavior and recent task completion.
+2. `justfile` for build, test, formatting, lint, and dev commands.
+3. `main.go` and `main_test.go` for the actual application flow.
+4. `README.md` for high-level architecture and local usage.
+5. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
 
-Type-safe component-based architecture using [Templ](https://templ.guide/):
+Link to those docs instead of copying long procedures into new instructions or PR notes.
 
-- **Layouts**: `components/layouts/base.templ` — defines layout wrapper with children injection
-- **Pages**: `components/pages/*.templ` — page components that use @layouts.Base() wrapper
-- **Partials**: `components/partials/*.templ` — shared components (nav, header, footer) and HTMX fragments
+## Architecture
 
-### Key Templ Concepts
+- Go 1.26.1 server-rendered app with Templ and HTMX.
+- `main.go` is intentionally the application center: routes, handlers, LPS client code, session helpers, and hardcoded portfolio data live there by design.
+- `components/layouts` contains layout wrappers, `components/pages` contains full pages, and `components/partials` contains reusable fragments and HTMX swap targets.
+- `types/types.go` holds shared typed models used across handlers and templates.
+- `static/js/main.js` owns client-side behavior such as the mobile nav, skills interactions, and soccer modal handling.
 
-- **Type-safe props**: Each component has a Props struct defining its data
-- **Component composition**: Use `@ComponentName(props)` to render child components
-- **Children**: Use `{ children... }` in layouts to inject child content
-- **Conditional classes**: Use `templ.KV("classname", condition)` for conditional CSS classes
-- **No template functions needed**: Use native Go functions and time package directly
+Do not refactor this repo into extra packages unless the user explicitly asks for that. The monolithic layout is intentional.
 
-### Component Generation
+## Daily Commands
 
-Templ files (`*.templ`) are compiled to Go code (`*_templ.go`):
+- `just generate` regenerates Templ output.
+- `just build` regenerates Templ and builds `portfolio-server`.
+- `just run` builds and runs locally.
+- `just dev` runs `air` for hot reload.
+- `just test` runs `go test -v ./...`.
+- `just vet` runs `go vet ./...`.
+- `just fmt` runs `golangci-lint fmt --config .golangci.toml`.
+- `just lint` runs Go lint autofixes and CSS stylelint autofixes.
 
-```bash
-# Generate all Templ components
-templ generate
+Prefer the `just` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 
-# Or use just
-just generate
-```
+## Templ Workflow
 
-Generated `*_templ.go` files are gitignored and should not be edited manually.
+- Edit `.templ` source files, not generated `*_templ.go` files.
+- Run `just generate` after any `.templ` change unless another command already does it.
+- Per-page CSS follows `static/css/{page}.css` and is wired through the base layout's `Page` prop.
+- Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
-## Handler patterns
+Useful exemplars:
 
-Full page render with Templ:
+- `components/layouts/base.templ` for layout structure and asset loading.
+- `components/pages/soccer.templ` for a full page that mixes static content with HTMX fragments.
+- `components/partials/soccer_login_state.templ` and `components/partials/soccer_table_fragment.templ` for fragment patterns.
+- `main_test.go` for handler tests using `httptest` and stub upstream servers.
 
-```go
-func pageHandler(w http.ResponseWriter, r *http.Request) {
-    props := pages.PageNameProps{
-        Field1: "value",
-        Field2: 123,
-    }
-    if err := pages.PageName(props).Render(context.Background(), w); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
-}
-```
+## Soccer Auth Flow
 
-HTMX fragment render (no layout wrapper):
+The current soccer flow is JWT import with server-side player discovery, not manual player-ID import and not a true OAuth popup flow.
 
-```go
-func fragmentHandler(w http.ResponseWriter, r *http.Request) {
-    props := partials.FragmentProps{
-        Data: someData,
-    }
-    w.Header().Set("Content-Type", "text/html; charset=utf-8")
-    if err := partials.Fragment(props).Render(context.Background(), w); err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
-}
-```
+- `LPS_SESSION_KEY` is required to enable soccer login. It must be a 64-character hex string.
+- Users paste a bearer JWT from their signed-in Let's Play Soccer browser session.
+- The server calls `/users/check`, discovers linked players, filters deleted players, stores the session in an encrypted cookie, and renders the player selector.
+- Do not instruct users to manually copy or paste player IDs. That guidance is stale.
+- If you need current product intent or acceptance criteria for soccer, read `PRD.md` and `PROGRESS.md` first.
 
-## Data layer
+Relevant handlers and components:
 
-Content is hardcoded via typed structs and factory functions:
+- `soccerSessionHandler`, `soccerImportHandler`, `soccerLogoutHandler`, `fetchSchedulesHandler`, and `downloadICSHandler` in `main.go`.
+- `components/pages/soccer.templ`.
+- `components/partials/soccer_login_modal.templ`.
+- `components/partials/soccer_login_state.templ`.
+- `components/partials/soccer_player_select.templ`.
 
-- `experienceData()` → `[]Experience`
-- `skillsData()` → `[]SkillCategory`
-- `projectsData()` → `[]Project`
-- `educationData()` → `[]Education`
+## Environment And Deployment Notes
 
-Each struct includes all fields needed for component rendering (no database queries).
+- `LPS_SESSION_KEY` is the critical runtime secret for soccer auth.
+- `LPS_API_BASE_URL` is optional and overrides the upstream API base URL.
+- `docker-compose.yml` expects local env configuration and passes through `LPS_SESSION_KEY`.
+- The runtime server listens on port `8080`.
+- Use `infra/*.tf` as the source of truth for actual Terraform or OpenTofu defaults; deployment prose may lag behind.
 
-## HTMX integration patterns
+## Known Drift To Avoid
 
-Fragment routes return partial HTML for swap targets:
+- Older docs still mention manual player-ID import. Ignore that and follow the current code and PRD.
+- Some docs still describe Go 1.23+ and older formatter guidance. The repo is on Go 1.26.1 and uses `just fmt`.
+- Historical workspace tasks may reference generated Templ files or old commit flows. Follow `justfile`, not old one-off tasks, unless the user explicitly asks otherwise.
 
-- `/experience` (full page) + `/experience/timeline` (fragment) → `experience_timeline.templ`
-- `/skills` + `/skills/grid` → `skills_grid.templ`
-- `/projects` + `/projects/grid` → `projects_grid.templ`
+## When Updating This Repo
 
-Soccer page demonstrates form-driven HTMX:
-
-- `POST /soccer/fetch` → returns `soccer_table_fragment.templ`
-- `POST /soccer/download` → streams ICS file attachment
-
-## Frontend conventions
-
-- Per-page CSS: `static/css/{pagename}.css` — linked automatically via `.Page` prop in base layout
-- Global styles: `static/css/styles.css` — CSS custom properties for theming
-- Active nav highlighting: Use `templ.KV("active", page == "pagename")` in Templ components
-
-## Dev workflow
-
-```bash
-# Generate Templ components (required after editing .templ files)
-just generate
-
-# Build and run
-just build
-just run
-
-# Development with hot reload (requires air)
-just dev
-
-# Format and lint
-just fmt
-just vet
-```
-
-Templ files must be regenerated after editing—restart server or use `just dev` for auto-reload.
-
-## Adding a new page
-
-1. **Create Templ component**: `components/pages/newpage.templ`
-   ```go
-   package pages
-   
-   import "portfolio/components/layouts"
-   
-   type NewPageProps struct {
-       // Define your props
-   }
-   
-   templ NewPage(props NewPageProps) {
-       @layouts.Base(layouts.BaseProps{
-           Title: "Page Title - Craig Johnson",
-           Page:  "newpage",
-       }) {
-           // Your page content
-       }
-   }
-   ```
-
-2. **Create handler in main.go**:
-   ```go
-   func newPageHandler(w http.ResponseWriter, r *http.Request) {
-       props := pages.NewPageProps{ /* ... */ }
-       if err := pages.NewPage(props).Render(context.Background(), w); err != nil {
-           http.Error(w, err.Error(), http.StatusInternalServerError)
-       }
-   }
-   ```
-
-3. **Add route in main()**: `http.HandleFunc("/newpage", newPageHandler)`
-
-4. **Update navigation**: Add link to `components/partials/nav.templ` and `header.templ` (mobile nav)
-
-5. **Create page styles**: `static/css/newpage.css` (optional)
-
-6. **Generate and build**: `just generate && just build`
-
-## Testing and Validation
-
-### Building and Running
-
-```bash
-# Generate Templ components
-just generate
-
-# Build the application  
-just build
-
-# Run the server
-./portfolio-server
-
-# Development with hot reload (recommended)
-just install-air
-just dev
-```
-
-### Testing
-
-```bash
-# Run all tests (when tests are added)
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run tests with verbose output
-go test -v ./...
-```
-
-### Code Quality
-
-```bash
-# Format Go code (required before committing)
-go fmt ./...
-
-# Run Go linter (if golangci-lint is installed)
-golangci-lint run
-
-# Check for common issues
-go vet ./...
-```
-
-### Validation Checklist
-
-Before submitting changes:
-
-1. ✅ Code builds successfully: `go build -o portfolio-server .`
-2. ✅ Server starts and runs: `./portfolio-server`
-3. ✅ All pages load correctly at `http://localhost:8080`
-4. ✅ HTMX fragments load without errors
-5. ✅ Design looks good in the dark theme
-6. ✅ Responsive design looks good on mobile and desktop
-7. ✅ Code is formatted: `go fmt ./...`
-8. ✅ No Go vet issues: `go vet ./...`
-
-## Security Guidelines
-
-### Critical Security Rules
-
-- **Never commit secrets**: API keys, tokens, passwords must never be in source code
-- **Validate user input**: All external input (query params, form data) must be validated
-- **Escape HTML output**: Use Go's `html/template` package (already enforced) to prevent XSS
-- **HTMX security**: Be cautious with `hx-get`/`hx-post` on user-generated content
-- **Dependencies**: Keep Go and dependencies updated for security patches
-
-### Safe Patterns to Follow
-
-- Use `html/template` for all HTML rendering (already in use)
-- Validate and sanitize all user input
-- Use HTTPS in production (handled by deployment/proxy)
-- Set appropriate HTTP security headers
-- Keep sensitive data in environment variables
-
-## Code Style and Conventions
-
-### Go Style
-
-- Follow standard Go conventions and `gofmt` formatting
-- Use tabs for indentation (enforced by `.editorconfig`)
-- Keep functions focused and under 50 lines when possible
-- Use descriptive variable names (avoid single letters except in short loops)
-- Add comments for exported functions and complex logic
-
-### Template Style
-
-- Use semantic HTML5 elements
-- Maintain consistent indentation (2 spaces)
-- Keep templates DRY - extract repeated patterns to partials
-- Use descriptive CSS class names (kebab-case)
-
-### JavaScript Style
-
-- Use modern ES6+ syntax
-- Keep inline scripts minimal
-- Prefer HTMX attributes over custom JavaScript when possible
-- Comment complex DOM manipulations
-
-## Contribution Workflow
-
-### Making Changes
-
-1. Create a feature branch from `main`
-2. Make focused, atomic commits
-3. Test changes locally following the validation checklist
-4. Format code with `go fmt ./...` and check with `go vet ./...`
-5. Create a pull request with clear description
-
-### Commit Messages
-
-Follow conventional commits format:
-
-- `feat: add new contact form page`
-- `fix: resolve dark theme color contrast issue`
-- `docs: update README with deployment instructions`
-- `style: format Go code with gofmt`
-- `refactor: simplify template rendering logic`
-
-### Pull Request Guidelines
-
-- Keep PRs focused on a single feature/fix
-- Include before/after screenshots for UI changes
-- Reference related issues with `#issue-number`
-- Ensure all validation checks pass before requesting review
-
-## Common Tasks
-
-### Adding a New Page
-
-See "Adding a new page" section above for the complete checklist.
-
-### Updating Content
-
-All content lives in `main.go` data functions. To update:
-
-1. Find the relevant data function (`experienceData()`, `skillsData()`, etc.)
-2. Update the struct data
-3. Rebuild and test: `go build -o portfolio-server . && ./portfolio-server`
-4. Verify the page displays correctly
-
-### Modifying Styles
-
-1. Edit the appropriate CSS file in `static/css/`
-2. For theme-related changes, update the CSS custom properties defined in the `:root` scope
-3. Test the updated styles in the browser
-4. Verify responsive behavior on mobile and desktop
-
-### HTMX Debugging
-
-- Open browser DevTools Network tab to see HTMX requests
-- Check server logs for handler errors
-- Verify fragment templates render correctly in isolation
-- Use `htmx.logger` for detailed HTMX debugging: add to `main.js`:
-  ```javascript
-  htmx.logger = function (elt, event, data) {
-    if (console) {
-      console.log(event, elt, data);
-    }
-  };
-  ```
+- Keep changes focused and minimal.
+- Reuse the existing structs in `types/types.go` before adding new ones.
+- Preserve server-rendered and HTMX-first patterns instead of introducing SPA-style client state.
+- Validate the smallest relevant surface after changes: `just generate` for Templ edits, `just test` for behavior changes, `just build` before finishing when practical.
