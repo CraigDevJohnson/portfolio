@@ -1102,11 +1102,6 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	var games []Game
 	if session != nil && len(playerIDs) > 0 {
 		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
-		if errors.Is(err, errSessionExpired) {
-			clearSession(w, r)
-			http.Error(w, "your imported Let's Play Soccer token expired; copy a fresh bearer JWT from letsplaysoccer.com and import it again", http.StatusUnauthorized)
-			return
-		}
 		if err != nil {
 			log.Printf("soccer LPS fetch failed: %v", err)
 			_, _, shouldClearSession := scheduleFetchFeedback(err)
