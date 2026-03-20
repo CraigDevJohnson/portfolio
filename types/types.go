@@ -79,6 +79,12 @@ type SessionData struct {
 	ExpiresAt time.Time   `json:"expires_at"`
 }
 
+type GoogleCalendarOption struct {
+	ID      string
+	Summary string
+	Primary bool
+}
+
 // Education represents an education entry
 type Education struct {
 	ID           int

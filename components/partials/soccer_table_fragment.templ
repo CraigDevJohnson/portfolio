@@ -4,11 +4,12 @@ import "fmt"
 import "portfolio/types"
 
 type SoccerTableFragmentProps struct {
-	Games     []types.Game
-	TeamCodes string
-	PlayerIDs []int
-	Message   string
-	Hint      string
+	Games           []types.Game
+	TeamCodes       string
+	PlayerIDs       []int
+	Message         string
+	Hint            string
+	GoogleConnected bool
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
@@ -45,9 +46,31 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 					</label>
 					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
 				</div>
-				<button id="download-button" type="submit" class="btn btn-primary download-btn">
-					<span class="btn-text">Download Selected (.ics)</span>
-				</button>
+				<div class="input-row">
+					<button
+						type="button"
+						class="btn soccer-secondary-btn"
+						if !props.GoogleConnected {
+							disabled
+						}
+						if props.GoogleConnected {
+							hx-post="/soccer/google/add"
+							hx-include="#download-form"
+							hx-target="#google-calendar-feedback"
+							hx-swap="innerHTML"
+						}
+					>
+						<span class="btn-text">Add Selected to Google Calendar</span>
+					</button>
+					<button id="download-button" type="submit" class="btn btn-primary download-btn">
+						<span class="btn-text">Download Selected (.ics)</span>
+					</button>
+				</div>
+			</div>
+			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
+				if !props.GoogleConnected {
+					<div class="soccer-login-message" role="status">Connect Google Calendar above to add selected games directly.</div>
+				}
 			</div>
 			<div class="table-wrapper">
 				<table class="games-table" role="table" aria-label="Soccer games schedule">

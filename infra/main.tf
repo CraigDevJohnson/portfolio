@@ -1,4 +1,12 @@
 # ──────────────────────────────────────────────
+# Locals
+# ──────────────────────────────────────────────
+
+locals {
+  google_connection_table_name = "${var.app_name}-google-connections"
+}
+
+# ──────────────────────────────────────────────
 # ECR Repository — stores container images
 # ──────────────────────────────────────────────
 
@@ -33,6 +41,26 @@ resource "aws_ecr_lifecycle_policy" "app" {
       }
     ]
   })
+}
+
+# ──────────────────────────────────────────────
+# DynamoDB — persistent Google connection store
+# ──────────────────────────────────────────────
+
+resource "aws_dynamodb_table" "google_connections" {
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "connection_id"
+  name         = local.google_connection_table_name
+
+  attribute {
+    name = "connection_id"
+    type = "S"
+  }
+
+  tags = {
+    Name        = local.google_connection_table_name
+    Environment = "development"
+  }
 }
 
 # ──────────────────────────────────────────────
@@ -83,11 +111,31 @@ resource "aws_iam_role" "apprunner_instance" {
   })
 }
 
-# Future: attach policies here for DynamoDB, SES, etc.
-# resource "aws_iam_role_policy_attachment" "dynamodb_access" {
-#   role       = aws_iam_role.apprunner_instance.name
-#   policy_arn = aws_iam_policy.dynamodb_access.arn
-# }
+resource "aws_iam_policy" "google_connections_dynamodb" {
+  name = "${var.app_name}-google-connections-dynamodb"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+        ]
+        Resource = aws_dynamodb_table.google_connections.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "google_connections_dynamodb" {
+  policy_arn = aws_iam_policy.google_connections_dynamodb.arn
+  role       = aws_iam_role.apprunner_instance.name
+}
 
 # ──────────────────────────────────────────────
 # App Runner Service
@@ -107,6 +155,10 @@ resource "aws_apprunner_service" "app" {
 
       image_configuration {
         port = tostring(var.container_port)
+
+        runtime_environment_variables = {
+          GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
+        }
       }
     }
 

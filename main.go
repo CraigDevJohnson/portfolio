@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -17,6 +18,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -24,6 +26,12 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	dynamodbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"golang.org/x/oauth2"
 
 	"portfolio/components/pages"
 	"portfolio/components/partials"
@@ -39,14 +47,21 @@ Main
 const careerStartYear = 2012
 
 const (
-	defaultLPSAPIBaseURL = "https://lps-api-prod.lps-test.com"
-	lpsSessionCookieName = "lps_session"
-	defaultSessionTTL    = 12 * time.Hour
+	defaultLPSAPIBaseURL       = "https://lps-api-prod.lps-test.com"
+	lpsSessionCookieName       = "lps_session"
+	googleConnectionCookieName = "google_connection"
+	googleOAuthStateCookieName = "google_oauth_state"
+	defaultSessionTTL          = 12 * time.Hour
+	googleConnectionCookieTTL  = 180 * 24 * time.Hour
+	googleOAuthStateTTL        = 10 * time.Minute
 )
 
 type serverConfig struct {
-	SessionKey    []byte
-	LPSAPIBaseURL string
+	SessionKey                []byte
+	LPSAPIBaseURL             string
+	GoogleClientID            string
+	GoogleClientSecret        string
+	GoogleConnectionTableName string
 }
 
 type loginAttempt struct {
@@ -63,11 +78,90 @@ type loginRateLimiter struct {
 	closeOnce   sync.Once
 }
 
+type googleConnectionRecord struct {
+	ConnectionID    string    `dynamodbav:"connection_id"`
+	TokenCiphertext string    `dynamodbav:"token_ciphertext"`
+	CalendarID      string    `dynamodbav:"calendar_id"`
+	CalendarSummary string    `dynamodbav:"calendar_summary"`
+	CreatedAt       time.Time `dynamodbav:"created_at"`
+	UpdatedAt       time.Time `dynamodbav:"updated_at"`
+}
+
+type googleConnectionStore interface {
+	Delete(context.Context, string) error
+	Get(context.Context, string) (*googleConnectionRecord, error)
+	Put(context.Context, googleConnectionRecord) error
+}
+
+type dynamoGoogleConnectionStore struct {
+	client    *dynamodb.Client
+	tableName string
+}
+
+type noopGoogleConnectionStore struct{}
+
+type googleOAuthState struct {
+	ConnectionID string    `json:"connection_id"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	State        string    `json:"state"`
+}
+
+type googleCalendarListResponse struct {
+	Items []googleCalendar `json:"items"`
+}
+
+type googleCalendar struct {
+	ID      string `json:"id"`
+	Primary bool   `json:"primary"`
+	Summary string `json:"summary"`
+}
+
+type googleEventDateTime struct {
+	DateTime string `json:"dateTime"`
+}
+
+type googleEvent struct {
+	Description        string              `json:"description,omitempty"`
+	End                googleEventDateTime `json:"end"`
+	ExtendedProperties struct {
+		Private map[string]string `json:"private,omitempty"`
+	} `json:"extendedProperties,omitempty"`
+	ID       string              `json:"id,omitempty"`
+	Location string              `json:"location,omitempty"`
+	Source   *googleEventSource  `json:"source,omitempty"`
+	Start    googleEventDateTime `json:"start"`
+	Summary  string              `json:"summary"`
+}
+
+type googleEventSource struct {
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type googleAPIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (err *googleAPIError) Error() string {
+	if err == nil {
+		return ""
+	}
+	if err.Message != "" {
+		return err.Message
+	}
+	return "google api request failed"
+}
+
 var (
-	configData          = loadServerConfig()
-	lpsHTTPClient       = &http.Client{Timeout: 15 * time.Second}
-	soccerLoginAttempts = newLoginRateLimiter(5, time.Minute)
-	errSessionExpired   = errors.New("session expired")
+	configData                                     = loadServerConfig()
+	lpsHTTPClient                                  = &http.Client{Timeout: 15 * time.Second}
+	soccerLoginAttempts                            = newLoginRateLimiter(5, time.Minute)
+	errSessionExpired                              = errors.New("session expired")
+	googleConnections        googleConnectionStore = noopGoogleConnectionStore{}
+	googleOAuthAuthURL                             = "https://accounts.google.com/o/oauth2/auth"
+	googleOAuthTokenURL                            = "https://oauth2.googleapis.com/token"
+	googleCalendarAPIBaseURL                       = "https://www.googleapis.com/calendar/v3"
 )
 
 type lpsErrorKind string
@@ -115,10 +209,17 @@ func newLPSFetchError(kind lpsErrorKind, playerID, statusCode int, format string
 
 func loadServerConfig() serverConfig {
 	config := serverConfig{
-		LPSAPIBaseURL: strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
+		LPSAPIBaseURL:             strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
+		GoogleClientID:            strings.TrimSpace(os.Getenv("CLIENT_ID_KEY")),
+		GoogleClientSecret:        strings.TrimSpace(os.Getenv("CLIENT_SECRET_KEY")),
+		GoogleConnectionTableName: strings.TrimSpace(os.Getenv("GOOGLE_CONNECTION_TABLE_NAME")),
 	}
 	if config.LPSAPIBaseURL == "" {
 		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
+	}
+	if (config.GoogleClientID != "" || config.GoogleClientSecret != "" || config.GoogleConnectionTableName != "") &&
+		(config.GoogleClientID == "" || config.GoogleClientSecret == "" || config.GoogleConnectionTableName == "") {
+		log.Printf("google calendar add disabled: CLIENT_ID_KEY, CLIENT_SECRET_KEY, and GOOGLE_CONNECTION_TABLE_NAME must all be configured")
 	}
 
 	keyHex := strings.TrimSpace(os.Getenv("LPS_SESSION_KEY"))
@@ -136,6 +237,77 @@ func loadServerConfig() serverConfig {
 	config.SessionKey = decoded
 
 	return config
+}
+
+func newGoogleConnectionStore(ctx context.Context, config serverConfig) (googleConnectionStore, error) {
+	if strings.TrimSpace(config.GoogleConnectionTableName) == "" {
+		return noopGoogleConnectionStore{}, nil
+	}
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &dynamoGoogleConnectionStore{
+		client:    dynamodb.NewFromConfig(awsCfg),
+		tableName: config.GoogleConnectionTableName,
+	}, nil
+}
+
+func (noopGoogleConnectionStore) Delete(context.Context, string) error {
+	return nil
+}
+
+func (noopGoogleConnectionStore) Get(context.Context, string) (*googleConnectionRecord, error) {
+	return nil, nil
+}
+
+func (noopGoogleConnectionStore) Put(context.Context, googleConnectionRecord) error {
+	return nil
+}
+
+func (store *dynamoGoogleConnectionStore) Delete(ctx context.Context, connectionID string) error {
+	if strings.TrimSpace(connectionID) == "" {
+		return nil
+	}
+	_, err := store.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		Key: map[string]dynamodbTypes.AttributeValue{
+			"connection_id": &dynamodbTypes.AttributeValueMemberS{Value: connectionID},
+		},
+		TableName: &store.tableName,
+	})
+	return err
+}
+
+func (store *dynamoGoogleConnectionStore) Get(ctx context.Context, connectionID string) (*googleConnectionRecord, error) {
+	if strings.TrimSpace(connectionID) == "" {
+		return nil, nil
+	}
+	output, err := store.client.GetItem(ctx, &dynamodb.GetItemInput{
+		Key: map[string]dynamodbTypes.AttributeValue{
+			"connection_id": &dynamodbTypes.AttributeValueMemberS{Value: connectionID},
+		},
+		TableName: &store.tableName,
+	})
+	if err != nil || len(output.Item) == 0 {
+		return nil, err
+	}
+	var record googleConnectionRecord
+	if err := attributevalue.UnmarshalMap(output.Item, &record); err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (store *dynamoGoogleConnectionStore) Put(ctx context.Context, record googleConnectionRecord) error {
+	item, err := attributevalue.MarshalMap(record)
+	if err != nil {
+		return err
+	}
+	_, err = store.client.PutItem(ctx, &dynamodb.PutItemInput{
+		Item:      item,
+		TableName: &store.tableName,
+	})
+	return err
 }
 
 const rateLimiterMaxKeys = 10000
@@ -231,6 +403,15 @@ func main() {
 			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
 		}
 	}
+	if googleEnabled() {
+		store, err := newGoogleConnectionStore(context.Background(), configData)
+		if err != nil {
+			log.Printf("google calendar add disabled: could not initialize connection store: %v", err)
+			configData.GoogleConnectionTableName = ""
+		} else {
+			googleConnections = store
+		}
+	}
 
 	// routes - pages
 	http.HandleFunc("/", homeHandler)
@@ -251,6 +432,10 @@ func main() {
 	http.HandleFunc("/soccer/session", soccerSessionHandler)
 	http.HandleFunc("/soccer/import", soccerImportHandler)
 	http.HandleFunc("/soccer/logout", soccerLogoutHandler)
+	http.HandleFunc("/soccer/google/add", soccerGoogleAddHandler)
+	http.HandleFunc("/soccer/google/calendar", soccerGoogleCalendarHandler)
+	http.HandleFunc("/soccer/google/connect", soccerGoogleConnectHandler)
+	http.HandleFunc("/soccer/google/disconnect", soccerGoogleDisconnectHandler)
 	http.HandleFunc("/soccer/fetch", fetchSchedulesHandler)
 	http.HandleFunc("/soccer/download", downloadICSHandler)
 	http.HandleFunc("/soccer/subscribe", subscribeHandler)
@@ -803,14 +988,27 @@ Soccer
 
 // Use types from shared package
 type (
-	Game                = types.Game
-	LambdaGamesResponse = types.LambdaGamesResponse
-	LPSPlayer           = types.LPSPlayer
-	SessionData         = types.SessionData
+	Game                 = types.Game
+	GoogleCalendarOption = types.GoogleCalendarOption
+	LambdaGamesResponse  = types.LambdaGamesResponse
+	LPSPlayer            = types.LPSPlayer
+	SessionData          = types.SessionData
 )
 
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
-	err := pages.Soccer(pages.SoccerProps{}).Render(context.Background(), w)
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.Query().Get("code") != "" || r.URL.Query().Get("error") != "" || r.URL.Query().Get("state") != "" {
+		soccerGoogleCallbackHandler(w, r)
+		return
+	}
+	props := pages.SoccerProps{
+		GoogleMessage:     soccerGoogleFlashMessage(r.URL.Query().Get("google")),
+		GoogleMessageKind: soccerGoogleFlashKind(r.URL.Query().Get("google")),
+	}
+	err := pages.Soccer(props).Render(context.Background(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -832,7 +1030,7 @@ func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 		session = nil
 	}
 
-	renderSoccerLoginState(w, session, false)
+	renderSoccerLoginState(w, r, session, false)
 }
 
 func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
@@ -893,13 +1091,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := partials.SoccerLoginState(partials.SoccerLoginStateProps{
-		Authenticated:  true,
-		UserName:       session.UserName,
-		Players:        session.Players,
-		LoginAvailable: true,
-		SwapOOB:        true,
-	}).Render(context.Background(), w); err != nil {
+	if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, &session, true)).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -913,7 +1105,306 @@ func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
-	renderSoccerLoginState(w, nil, false)
+	renderSoccerLoginState(w, r, nil, false)
+}
+
+func redirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, status string) {
+	target := "/soccer"
+	if strings.TrimSpace(status) != "" {
+		target += "?google=" + url.QueryEscape(status)
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !googleEnabled() {
+		redirectSoccerWithGoogleStatus(w, r, "unavailable")
+		return
+	}
+	connectionID := getGoogleConnectionID(r)
+	if connectionID == "" {
+		var err error
+		connectionID, err = newRandomHex(16)
+		if err != nil {
+			log.Printf("google connection id generation failed: %v", err)
+			redirectSoccerWithGoogleStatus(w, r, "failed")
+			return
+		}
+	}
+	state, err := newGoogleOAuthState(connectionID)
+	if err != nil {
+		log.Printf("google oauth state generation failed: %v", err)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	if err := setGoogleOAuthStateCookie(w, r, state); err != nil {
+		log.Printf("google oauth state cookie write failed: %v", err)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	authURL := googleOAuthConfigForRequest(r).AuthCodeURL(
+		state.State,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
+		oauth2.SetAuthURLParam("prompt", "consent"),
+	)
+	http.Redirect(w, r, authURL, http.StatusSeeOther)
+}
+
+func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	if !googleEnabled() {
+		redirectSoccerWithGoogleStatus(w, r, "unavailable")
+		return
+	}
+	if strings.TrimSpace(r.URL.Query().Get("error")) != "" {
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "denied")
+		return
+	}
+	state, err := getGoogleOAuthStateCookie(r)
+	if errors.Is(err, errSessionExpired) {
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	if err != nil || state == nil || state.State == "" || state.State != strings.TrimSpace(r.URL.Query().Get("state")) {
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	ctx := googleHTTPContext(r.Context())
+	token, err := googleOAuthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
+	if err != nil {
+		log.Printf("google token exchange failed: %v", err)
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	calendars, err := googleListCalendarsWithToken(ctx, token)
+	if err != nil || len(calendars) == 0 {
+		log.Printf("google calendar list after connect failed: %v", err)
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	selectedCalendarID, selectedCalendarSummary := preferredGoogleCalendar(calendars)
+	encryptedToken, err := encryptGoogleToken(token)
+	if err != nil {
+		log.Printf("google token encryption failed: %v", err)
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	createdAt := time.Now().UTC()
+	if existing, err := googleConnections.Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
+		createdAt = existing.CreatedAt
+	}
+	record := googleConnectionRecord{
+		ConnectionID:    state.ConnectionID,
+		TokenCiphertext: encryptedToken,
+		CalendarID:      selectedCalendarID,
+		CalendarSummary: selectedCalendarSummary,
+		CreatedAt:       createdAt,
+		UpdatedAt:       time.Now().UTC(),
+	}
+	if err := googleConnections.Put(r.Context(), record); err != nil {
+		log.Printf("google connection save failed: %v", err)
+		clearGoogleOAuthStateCookie(w, r)
+		redirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
+	setGoogleConnectionCookie(w, r, state.ConnectionID)
+	clearGoogleOAuthStateCookie(w, r)
+	redirectSoccerWithGoogleStatus(w, r, "connected")
+}
+
+func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	session, _ := getSession(r)
+	if !googleEnabled() {
+		renderSoccerLoginState(w, r, session, false)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		renderSoccerLoginState(w, r, session, false)
+		return
+	}
+	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	if err != nil || record == nil {
+		if err != nil {
+			log.Printf("google connection read failed: %v", err)
+		}
+		renderSoccerLoginState(w, r, session, false)
+		return
+	}
+	calendars, err := googleListCalendars(r.Context(), r, record)
+	if err != nil {
+		log.Printf("google calendar list failed: %v", err)
+		renderSoccerLoginState(w, r, session, false)
+		return
+	}
+	selectedCalendarID := strings.TrimSpace(r.FormValue("calendar_id"))
+	selectedCalendarSummary := googleCalendarSummary(calendars, selectedCalendarID)
+	if selectedCalendarSummary == "" {
+		selectedCalendarID, selectedCalendarSummary = preferredGoogleCalendar(calendars)
+	}
+	record.CalendarID = selectedCalendarID
+	record.CalendarSummary = selectedCalendarSummary
+	record.UpdatedAt = time.Now().UTC()
+	if err := googleConnections.Put(r.Context(), *record); err != nil {
+		log.Printf("google calendar selection save failed: %v", err)
+	}
+	renderSoccerLoginState(w, r, session, false)
+}
+
+func soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	session, _ := getSession(r)
+	deleteGoogleConnection(r.Context(), w, r)
+	renderSoccerLoginState(w, r, session, false)
+}
+
+func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !googleEnabled() {
+		renderSoccerLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		renderSoccerLoginFeedback(w, "error", "Could not read the selected games. Try again.")
+		return
+	}
+	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	if err != nil || record == nil {
+		if err != nil {
+			log.Printf("google connection read failed: %v", err)
+		}
+		renderSoccerLoginFeedback(w, "error", "Connect Google Calendar before adding selected games.")
+		return
+	}
+	selectedIDs := make(map[string]struct{})
+	for _, selectedID := range r.Form["selected"] {
+		selectedID = strings.TrimSpace(selectedID)
+		if selectedID != "" {
+			selectedIDs[selectedID] = struct{}{}
+		}
+	}
+	if len(selectedIDs) == 0 {
+		renderSoccerLoginFeedback(w, "error", "Select at least one game to add to Google Calendar.")
+		return
+	}
+	teamCodes := r.FormValue("team_codes")
+	rawPlayerIDs := r.Form["player_ids"]
+	playerIDs := parsePlayerIDs(rawPlayerIDs)
+	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+		renderSoccerLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
+		return
+	}
+	session, sessionErr := getSession(r)
+	if errors.Is(sessionErr, errSessionExpired) {
+		clearSession(w, r)
+		session = nil
+	} else if sessionErr != nil {
+		log.Printf("soccer session read failed: %v", sessionErr)
+		clearSession(w, r)
+		session = nil
+	}
+	var games []Game
+	switch {
+	case session != nil && len(playerIDs) > 0:
+		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
+	case len(playerIDs) > 0:
+		err = errors.New("Import a bearer JWT again before adding schedules for discovered players to Google Calendar.")
+	case strings.TrimSpace(teamCodes) != "":
+		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
+	default:
+		err = errors.New("Enter team codes or choose at least one discovered player.")
+	}
+	if err != nil {
+		renderSoccerLoginFeedback(w, "error", err.Error())
+		return
+	}
+	filteredGames := make([]Game, 0, len(games))
+	for _, game := range games {
+		if _, ok := selectedIDs[game.ID]; ok {
+			filteredGames = append(filteredGames, game)
+		}
+	}
+	if len(filteredGames) == 0 {
+		renderSoccerLoginFeedback(w, "error", "No selected games were found to add.")
+		return
+	}
+	token, err := currentGoogleToken(r.Context(), r, record)
+	if err != nil {
+		log.Printf("google token refresh failed: %v", err)
+		deleteGoogleConnection(r.Context(), w, r)
+		if session != nil {
+			if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		renderSoccerLoginFeedback(w, "error", "Your Google Calendar connection has expired. Connect again and retry.")
+		return
+	}
+	added := 0
+	existing := 0
+	for _, game := range filteredGames {
+		event, ok := googleEventPayload(r, game)
+		if !ok {
+			continue
+		}
+		endpoint := googleCalendarAPIBaseURL + "/calendars/" + url.PathEscape(record.CalendarID) + "/events?sendUpdates=none"
+		resp, err := googleAPIRequest(googleHTTPContext(r.Context()), http.MethodPost, endpoint, token, event)
+		if err != nil {
+			log.Printf("google event insert failed: %v", err)
+			renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
+			return
+		}
+		if resp.StatusCode == http.StatusConflict {
+			resp.Body.Close()
+			existing++
+			continue
+		}
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			apiErr := readGoogleAPIError(resp)
+			log.Printf("google event insert rejected: %v", apiErr)
+			var googleErr *googleAPIError
+			if errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden) {
+				deleteGoogleConnection(r.Context(), w, r)
+				if session != nil {
+					if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+				}
+				renderSoccerLoginFeedback(w, "error", "Your Google Calendar connection is no longer valid. Connect again and retry.")
+				return
+			}
+			renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
+			return
+		}
+		resp.Body.Close()
+		added++
+	}
+	message := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
+	if existing > 0 {
+		message += fmt.Sprintf(" Skipped %d game(s) that were already present.", existing)
+	}
+	renderSoccerLoginFeedback(w, "success", message)
 }
 
 func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
@@ -941,7 +1432,17 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		swapAuthState = true
 	}
 
-	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs}
+	googleConnected := false
+	if googleEnabled() {
+		record, googleErr := loadGoogleConnectionRecord(r.Context(), r)
+		if googleErr != nil {
+			log.Printf("google connection read failed: %v", googleErr)
+			clearGoogleConnectionCookie(w, r)
+		} else {
+			googleConnected = record != nil
+		}
+	}
+	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs, GoogleConnected: googleConnected}
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
@@ -971,11 +1472,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if swapAuthState {
-		if err := partials.SoccerLoginState(partials.SoccerLoginStateProps{
-			Authenticated:  false,
-			LoginAvailable: loginEnabled(),
-			SwapOOB:        true,
-		}).Render(context.Background(), w); err != nil {
+		if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, nil, true)).Render(context.Background(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1144,17 +1641,76 @@ func loginEnabled() bool {
 	return len(configData.SessionKey) == 32
 }
 
-func renderSoccerLoginState(w http.ResponseWriter, session *SessionData, swapOOB bool) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+func googleEnabled() bool {
+	return loginEnabled() &&
+		strings.TrimSpace(configData.GoogleClientID) != "" &&
+		strings.TrimSpace(configData.GoogleClientSecret) != "" &&
+		strings.TrimSpace(configData.GoogleConnectionTableName) != ""
+}
+
+func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) partials.SoccerLoginStateProps {
 	props := partials.SoccerLoginStateProps{
-		Authenticated:  session != nil,
-		LoginAvailable: loginEnabled(),
-		SwapOOB:        swapOOB,
+		Authenticated:   session != nil,
+		GoogleAvailable: googleEnabled(),
+		LoginAvailable:  loginEnabled(),
+		SwapOOB:         swapOOB,
 	}
 	if session != nil {
 		props.UserName = session.UserName
 		props.Players = session.Players
 	}
+	if !props.GoogleAvailable {
+		return props
+	}
+	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	if err != nil {
+		log.Printf("google connection read failed: %v", err)
+		clearGoogleConnectionCookie(w, r)
+		return props
+	}
+	if record == nil {
+		return props
+	}
+	calendars, err := googleListCalendars(r.Context(), r, record)
+	if err != nil {
+		log.Printf("google calendar list failed: %v", err)
+		var apiErr *googleAPIError
+		if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
+			deleteGoogleConnection(r.Context(), w, r)
+		}
+		return props
+	}
+	props.GoogleConnected = true
+	props.GoogleCalendars = calendars
+	props.SelectedGoogleCalendarID = strings.TrimSpace(record.CalendarID)
+	if props.SelectedGoogleCalendarID == "" {
+		props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = preferredGoogleCalendar(calendars)
+		record.CalendarID = props.SelectedGoogleCalendarID
+		record.CalendarSummary = props.GoogleCalendarSummary
+		record.UpdatedAt = time.Now().UTC()
+		if err := googleConnections.Put(r.Context(), *record); err != nil {
+			log.Printf("google connection default calendar save failed: %v", err)
+		}
+	} else {
+		props.GoogleCalendarSummary = googleCalendarSummary(calendars, props.SelectedGoogleCalendarID)
+		if props.GoogleCalendarSummary == "" {
+			props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = preferredGoogleCalendar(calendars)
+		}
+		if props.GoogleCalendarSummary != "" && (record.CalendarID != props.SelectedGoogleCalendarID || record.CalendarSummary != props.GoogleCalendarSummary) {
+			record.CalendarID = props.SelectedGoogleCalendarID
+			record.CalendarSummary = props.GoogleCalendarSummary
+			record.UpdatedAt = time.Now().UTC()
+			if err := googleConnections.Put(r.Context(), *record); err != nil {
+				log.Printf("google connection calendar sync failed: %v", err)
+			}
+		}
+	}
+	return props
+}
+
+func renderSoccerLoginState(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	props := soccerLoginStateProps(w, r, session, swapOOB)
 	if err := partials.SoccerLoginState(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -1169,7 +1725,7 @@ func renderSoccerLoginFeedback(w http.ResponseWriter, kind, message string) {
 	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, html.EscapeString(message)))
 }
 
-func encryptSession(data SessionData) (string, error) {
+func encryptJSONValue(data any) (string, error) {
 	if !loginEnabled() {
 		return "", errors.New("session encryption key is not configured")
 	}
@@ -1193,33 +1749,44 @@ func encryptSession(data SessionData) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
-func decryptSession(value string) (SessionData, error) {
-	var session SessionData
+func decryptJSONValue(value string, out any) error {
 	if !loginEnabled() {
-		return session, errors.New("session encryption key is not configured")
+		return errors.New("session encryption key is not configured")
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return session, err
+		return err
 	}
 	block, err := aes.NewCipher(configData.SessionKey)
 	if err != nil {
-		return session, err
+		return err
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return session, err
+		return err
 	}
 	if len(decoded) < gcm.NonceSize() {
-		return session, errors.New("invalid session payload")
+		return errors.New("invalid session payload")
 	}
 	nonce := decoded[:gcm.NonceSize()]
 	ciphertext := decoded[gcm.NonceSize():]
 	payload, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return session, err
+		return err
 	}
-	if err := json.Unmarshal(payload, &session); err != nil {
+	if err := json.Unmarshal(payload, out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func encryptSession(data SessionData) (string, error) {
+	return encryptJSONValue(data)
+}
+
+func decryptSession(value string) (SessionData, error) {
+	var session SessionData
+	if err := decryptJSONValue(value, &session); err != nil {
 		return session, err
 	}
 	return session, nil
@@ -1272,6 +1839,87 @@ func clearSession(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func getGoogleConnectionID(r *http.Request) string {
+	cookie, err := r.Cookie(googleConnectionCookieName)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(cookie.Value)
+}
+
+func setGoogleConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     googleConnectionCookieName,
+		Value:    connectionID,
+		Path:     "/soccer",
+		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Now().Add(googleConnectionCookieTTL),
+	})
+}
+
+func clearGoogleConnectionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     googleConnectionCookieName,
+		Value:    "",
+		Path:     "/soccer",
+		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+}
+
+func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state googleOAuthState) error {
+	encrypted, err := encryptJSONValue(state)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     googleOAuthStateCookieName,
+		Value:    encrypted,
+		Path:     "/soccer",
+		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
+		SameSite: http.SameSiteLaxMode,
+		Expires:  state.ExpiresAt,
+	})
+	return nil
+}
+
+func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
+	cookie, err := r.Cookie(googleOAuthStateCookieName)
+	if errors.Is(err, http.ErrNoCookie) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var state googleOAuthState
+	if err := decryptJSONValue(cookie.Value, &state); err != nil {
+		return nil, err
+	}
+	if time.Now().After(state.ExpiresAt) {
+		return nil, errSessionExpired
+	}
+	return &state, nil
+}
+
+func clearGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     googleOAuthStateCookieName,
+		Value:    "",
+		Path:     "/soccer",
+		HttpOnly: true,
+		Secure:   requestIsHTTPS(r),
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+}
+
 func requestIsHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
@@ -1280,6 +1928,273 @@ func requestIsHTTPS(r *http.Request) bool {
 		return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
 	}
 	return false
+}
+
+func requestBaseURL(r *http.Request) string {
+	scheme := "http"
+	if requestIsHTTPS(r) {
+		scheme = "https"
+	}
+	return scheme + "://" + strings.TrimSpace(r.Host)
+}
+
+func soccerGoogleFlashKind(code string) string {
+	switch strings.TrimSpace(code) {
+	case "failed", "denied", "unavailable":
+		return "error"
+	default:
+		return "success"
+	}
+}
+
+func soccerGoogleFlashMessage(code string) string {
+	switch strings.TrimSpace(code) {
+	case "connected":
+		return "Google Calendar connected. Choose a calendar below and add selected games directly from the schedule table."
+	case "denied":
+		return "Google Calendar connection was canceled before access was granted."
+	case "disconnected":
+		return "Google Calendar connection removed."
+	case "failed":
+		return "Google Calendar connection could not be completed. Try again."
+	case "unavailable":
+		return "Google Calendar add is unavailable until Google OAuth and server-side storage are configured."
+	default:
+		return ""
+	}
+}
+
+func newRandomHex(byteLength int) (string, error) {
+	random := make([]byte, byteLength)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(random), nil
+}
+
+func newGoogleOAuthState(connectionID string) (googleOAuthState, error) {
+	stateValue, err := newRandomHex(16)
+	if err != nil {
+		return googleOAuthState{}, err
+	}
+	return googleOAuthState{
+		ConnectionID: connectionID,
+		ExpiresAt:    time.Now().Add(googleOAuthStateTTL),
+		State:        stateValue,
+	}, nil
+}
+
+func googleOAuthConfigForRequest(r *http.Request) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     configData.GoogleClientID,
+		ClientSecret: configData.GoogleClientSecret,
+		RedirectURL:  requestBaseURL(r) + "/soccer",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/calendar.events",
+			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+		},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  googleOAuthAuthURL,
+			TokenURL: googleOAuthTokenURL,
+		},
+	}
+}
+
+func googleHTTPContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, lpsHTTPClient)
+}
+
+func encryptGoogleToken(token *oauth2.Token) (string, error) {
+	return encryptJSONValue(token)
+}
+
+func decryptGoogleToken(ciphertext string) (*oauth2.Token, error) {
+	var token oauth2.Token
+	if err := decryptJSONValue(ciphertext, &token); err != nil {
+		return nil, err
+	}
+	return &token, nil
+}
+
+func loadGoogleConnectionRecord(ctx context.Context, r *http.Request) (*googleConnectionRecord, error) {
+	connectionID := getGoogleConnectionID(r)
+	if connectionID == "" {
+		return nil, nil
+	}
+	return googleConnections.Get(ctx, connectionID)
+}
+
+func deleteGoogleConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	connectionID := getGoogleConnectionID(r)
+	if connectionID != "" {
+		if err := googleConnections.Delete(ctx, connectionID); err != nil {
+			log.Printf("google connection delete failed: %v", err)
+		}
+	}
+	clearGoogleConnectionCookie(w, r)
+}
+
+func currentGoogleToken(ctx context.Context, r *http.Request, record *googleConnectionRecord) (*oauth2.Token, error) {
+	storedToken, err := decryptGoogleToken(record.TokenCiphertext)
+	if err != nil {
+		return nil, err
+	}
+	tokenSource := googleOAuthConfigForRequest(r).TokenSource(googleHTTPContext(ctx), storedToken)
+	token, err := tokenSource.Token()
+	if err != nil {
+		return nil, err
+	}
+	if token.RefreshToken == "" {
+		token.RefreshToken = storedToken.RefreshToken
+	}
+	if token.AccessToken != storedToken.AccessToken || token.RefreshToken != storedToken.RefreshToken || !token.Expiry.Equal(storedToken.Expiry) {
+		encryptedToken, encryptErr := encryptGoogleToken(token)
+		if encryptErr != nil {
+			return nil, encryptErr
+		}
+		record.TokenCiphertext = encryptedToken
+		record.UpdatedAt = time.Now().UTC()
+		if err := googleConnections.Put(ctx, *record); err != nil {
+			return nil, err
+		}
+	}
+	return token, nil
+}
+
+func googleAPIRequest(ctx context.Context, method, endpoint string, token *oauth2.Token, body any) (*http.Response, error) {
+	var requestBody io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		requestBody = bytes.NewReader(payload)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return lpsHTTPClient.Do(req)
+}
+
+func readGoogleAPIError(resp *http.Response) error {
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		message = resp.Status
+	}
+	return &googleAPIError{
+		StatusCode: resp.StatusCode,
+		Message:    message,
+	}
+}
+
+func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]GoogleCalendarOption, error) {
+	endpoint := googleCalendarAPIBaseURL + "/users/me/calendarList?minAccessRole=writer"
+	resp, err := googleAPIRequest(ctx, http.MethodGet, endpoint, token, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, readGoogleAPIError(resp)
+	}
+	defer resp.Body.Close()
+	var response googleCalendarListResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil {
+		return nil, err
+	}
+	options := make([]GoogleCalendarOption, 0, len(response.Items))
+	for _, item := range response.Items {
+		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Summary) == "" {
+			continue
+		}
+		options = append(options, GoogleCalendarOption{
+			ID:      item.ID,
+			Primary: item.Primary,
+			Summary: item.Summary,
+		})
+	}
+	sort.SliceStable(options, func(i, j int) bool {
+		if options[i].Primary != options[j].Primary {
+			return options[i].Primary
+		}
+		return strings.ToLower(options[i].Summary) < strings.ToLower(options[j].Summary)
+	})
+	return options, nil
+}
+
+func googleListCalendars(ctx context.Context, r *http.Request, record *googleConnectionRecord) ([]GoogleCalendarOption, error) {
+	token, err := currentGoogleToken(ctx, r, record)
+	if err != nil {
+		return nil, err
+	}
+	return googleListCalendarsWithToken(googleHTTPContext(ctx), token)
+}
+
+func preferredGoogleCalendar(calendars []GoogleCalendarOption) (string, string) {
+	for _, calendar := range calendars {
+		if calendar.Primary {
+			return calendar.ID, calendar.Summary
+		}
+	}
+	if len(calendars) == 0 {
+		return "", ""
+	}
+	return calendars[0].ID, calendars[0].Summary
+}
+
+func googleCalendarSummary(calendars []GoogleCalendarOption, calendarID string) string {
+	for _, calendar := range calendars {
+		if calendar.ID == calendarID {
+			return calendar.Summary
+		}
+	}
+	return ""
+}
+
+func googleEventID(game Game) string {
+	stableID := fallbackGameID(game)
+	if stableID == "" {
+		hash := md5.Sum([]byte(gameKey(game)))
+		stableID = hex.EncodeToString(hash[:])
+	}
+	return "soccer-" + stableID
+}
+
+func googleEventPayload(r *http.Request, game Game) (googleEvent, bool) {
+	start, end, ok := scheduleTimes(game)
+	if !ok {
+		return googleEvent{}, false
+	}
+	event := googleEvent{
+		Description: strings.TrimSpace("Season " + game.Season),
+		End: googleEventDateTime{
+			DateTime: end.Format(time.RFC3339),
+		},
+		ID:       googleEventID(game),
+		Location: strings.TrimSpace(game.Location),
+		Start: googleEventDateTime{
+			DateTime: start.Format(time.RFC3339),
+		},
+		Summary: strings.TrimSpace("Soccer: " + strings.TrimSpace(game.Home) + " vs " + strings.TrimSpace(game.Away)),
+	}
+	if event.Location == "" && strings.TrimSpace(game.Field) != "" {
+		event.Location = "Field " + strings.TrimSpace(game.Field)
+	}
+	event.ExtendedProperties.Private = map[string]string{
+		"portfolio_game_id": fallbackGameID(game),
+		"portfolio_source":  "soccer",
+	}
+	event.Source = &googleEventSource{
+		Title: "Craig Johnson Soccer Schedule",
+		URL:   requestBaseURL(r) + "/soccer",
+	}
+	return event, true
 }
 
 func jwtExpiry(token string) time.Time {

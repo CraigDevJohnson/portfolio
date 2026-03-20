@@ -17,7 +17,7 @@ A server-rendered Go application using Templ for type-safe component-based templ
 - **HTMX Interactions**: Dynamic content loading without full page refreshes
 - **Responsive Design**: Mobile-first approach with beautiful desktop layouts
 - **Professional UI**: Modern design with smooth animations and polish
-- **Soccer Tool**: JWT import, automatic player discovery, schedule fetch, and ICS download
+- **Soccer Tool**: JWT import, automatic player discovery, schedule fetch, direct Google Calendar add, and ICS download
 
 ## Pages
 
@@ -84,6 +84,22 @@ just dev
 
 **Note**: When Templ files (`*.templ`) are modified, run `just generate` before building unless another command already does it.
 
+### Google Calendar Configuration
+
+Direct Google Calendar add requires these runtime environment variables:
+
+- `CLIENT_ID_KEY`
+- `CLIENT_SECRET_KEY`
+- `GOOGLE_CONNECTION_TABLE_NAME`
+
+For local OAuth testing, add `http://localhost:8080/soccer` as an authorized
+redirect URI in the Google Cloud OAuth client alongside the production
+`https://craigdevjohnson.com/soccer` redirect.
+
+Because the Google connection is stored server-side, local runs also need AWS
+credentials or another valid AWS auth source that can reach the configured
+DynamoDB table.
+
 ## Project Structure
 
 ```filetree
@@ -145,6 +161,10 @@ portfolio/
 - `GET /skills/detail` - Skill detail fragment
 - `GET /projects/grid` - Projects grid fragment
 - `GET /soccer/session` - Current soccer auth state fragment
+- `GET /soccer/google/connect` - Start Google OAuth for calendar access
+- `POST /soccer/google/calendar` - Save the selected Google Calendar
+- `POST /soccer/google/disconnect` - Remove the persisted Google Calendar connection
+- `POST /soccer/google/add` - Add selected games directly to Google Calendar
 - `POST /soccer/import` - Import JWT and auto-discover linked players
 - `POST /soccer/logout` - Clear imported soccer session
 - `POST /soccer/fetch` - Fetch soccer schedules

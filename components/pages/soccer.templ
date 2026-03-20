@@ -4,6 +4,8 @@ import "portfolio/components/layouts"
 import "portfolio/components/partials"
 
 type SoccerProps struct {
+	GoogleMessage     string
+	GoogleMessageKind string
 }
 
 templ Soccer(props SoccerProps) {
@@ -29,7 +31,7 @@ templ Soccer(props SoccerProps) {
 					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 						Let's Play Soccer
 					</a>
-					and export them directly to your favorite calendar app in seconds.
+					and export them to your favorite calendar app or add them directly to Google Calendar in seconds.
 				</p>
 			</div>
 		</section>
@@ -62,7 +64,7 @@ templ Soccer(props SoccerProps) {
 					</div>
 					<span class="step-number">Step 3</span>
 					<h3 class="step-title">Fetch And Export</h3>
-					<p class="step-desc">Load schedules for your discovered players and export an .ics file to any calendar app</p>
+					<p class="step-desc">Load schedules for your discovered players, then export an .ics file or add selected games directly to Google Calendar</p>
 				</div>
 			</div>
 		</section>
@@ -91,8 +93,8 @@ templ Soccer(props SoccerProps) {
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">📱</span>
 					</div>
-					<h3 class="feature-title">Universal Calendar</h3>
-					<p class="feature-desc">ICS format works with Google Calendar, Apple Calendar, Outlook, and more</p>
+					<h3 class="feature-title">Google Or Universal Calendar</h3>
+					<p class="feature-desc">Add selected games directly to Google Calendar or keep using ICS with Apple Calendar, Outlook, and more</p>
 				</div>
 			</div>
 		</section>
@@ -103,12 +105,17 @@ templ Soccer(props SoccerProps) {
 				<span>Fetch Schedules</span>
 			</div>
 			<div class="soccer-unified-card">
+				if props.GoogleMessage != "" {
+					<div class={ "soccer-login-message soccer-login-message-" + props.GoogleMessageKind } role="status">
+						{ props.GoogleMessage }
+					</div>
+				}
 				<div class="unified-header">
 					<div class="unified-form-section">
 						<div class="soccer-auth-shell">
 							<div class="soccer-auth-copy">
 								<h3>Import player access</h3>
-								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically, or use team codes manually below.</p>
+								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically, or use team codes manually below. Connect Google Calendar once if you want direct event adds.</p>
 							</div>
 							<div
 								id="soccer-auth-panel"
@@ -184,7 +191,7 @@ templ Soccer(props SoccerProps) {
 				</div>
 				<div id="games-container" class="games-container" aria-live="polite">
 					<div class="empty-state">
-						<p>Import player access or enter team codes above to fetch schedules.</p>
+						<p>Import player access or enter team codes above to fetch schedules. Then download an .ics file or add selected games directly to Google Calendar.</p>
 					</div>
 				</div>
 				<div id="subscribe-section" class="subscribe-section" style="display: none">

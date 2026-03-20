@@ -6,6 +6,13 @@ services:
     image: portfolio-app:latest
     container_name: portfolio-app
     environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_REGION: ${AWS_REGION}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+      CLIENT_ID_KEY: ${CLIENT_ID_KEY}
+      CLIENT_SECRET_KEY: ${CLIENT_SECRET_KEY}
+      GOOGLE_CONNECTION_TABLE_NAME: ${GOOGLE_CONNECTION_TABLE_NAME}
       LPS_SESSION_KEY: ${LPS_SESSION_KEY}
     ports:
       - "8080:8080"
