@@ -1401,10 +1401,14 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 }
 
 func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) ([]Game, error) {
+	normalizedJWT, err := normalizeImportedJWT(jwt)
+	if err != nil {
+		return nil, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
+	}
 	games := make([]Game, 0)
 	indexByKey := make(map[string]int)
 	for _, playerID := range playerIDs {
-		playerGames, err := lpsFetchUpcomingGames(ctx, jwt, playerID)
+		playerGames, err := lpsFetchUpcomingGames(ctx, normalizedJWT, playerID)
 		if err != nil {
 			return nil, err
 		}
@@ -1446,11 +1450,7 @@ type lpsUserCheckResponse struct {
 	} `json:"user_players"`
 }
 
-func lpsFetchUpcomingGames(ctx context.Context, jwt string, playerID int) ([]Game, error) {
-	normalizedJWT, err := normalizeImportedJWT(jwt)
-	if err != nil {
-		return nil, newLPSFetchError(lpsErrorMalformedToken, playerID, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
-	}
+func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID int) ([]Game, error) {
 	if playerID <= 0 {
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}

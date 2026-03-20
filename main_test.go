@@ -890,8 +890,8 @@ func TestLPSFetchGamesForPlayersMergesDuplicateGamesAcrossPlayers(t *testing.T) 
 	}
 }
 
-func TestLPSFetchUpcomingGamesRejectsMalformedTokenBeforeRequest(t *testing.T) {
-	_, err := lpsFetchUpcomingGames(t.Context(), "not-a-jwt", 1001)
+func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T) {
+	_, err := lpsFetchGamesForPlayers(t.Context(), "not-a-jwt", []int{1001})
 	if err == nil {
 		t.Fatal("expected malformed token error")
 	}
@@ -1267,6 +1267,72 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	}
 	if !strings.Contains(resp.Body.String(), "LOCATION:North Fieldhouse") {
 		t.Fatalf("expected facility location in ICS body: %q", resp.Body.String())
+	}
+}
+
+func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
+	tests := []struct {
+		name              string
+		statusCode        int
+		wantStatus        int
+		wantSessionCleared bool
+	}{
+		{name: "unauthorized clears session", statusCode: http.StatusUnauthorized, wantStatus: http.StatusUnauthorized, wantSessionCleared: true},
+		{name: "forbidden preserves session", statusCode: http.StatusForbidden, wantStatus: http.StatusForbidden, wantSessionCleared: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			previousConfig := configData
+			configData = serverConfig{
+				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+				LPSAPIBaseURL: defaultLPSAPIBaseURL,
+			}
+			defer func() {
+				configData = previousConfig
+			}()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+			configData.LPSAPIBaseURL = server.URL
+
+			token := testJWT(t, time.Now().Add(30*time.Minute))
+			req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+				"selected":   {"game-1"},
+				"player_ids": {"1001"},
+			}.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			addSessionCookie(t, req, SessionData{
+				JWT:      token,
+				UserName: "Craig Johnson",
+				Players: []LPSPlayer{{
+					UPlayerID: 1001,
+					FirstName: "Craig",
+					LastName:  "Johnson",
+				}},
+				ExpiresAt: time.Now().Add(30 * time.Minute),
+			})
+			resp := httptest.NewRecorder()
+
+			downloadICSHandler(resp, req)
+
+			if resp.Code != tt.wantStatus {
+				t.Fatalf("unexpected status code: got %d want %d", resp.Code, tt.wantStatus)
+			}
+
+			var cookieCleared bool
+			for _, setCookie := range resp.Result().Cookies() {
+				if setCookie.Name == lpsSessionCookieName && setCookie.MaxAge < 0 {
+					cookieCleared = true
+					break
+				}
+			}
+			if cookieCleared != tt.wantSessionCleared {
+				t.Fatalf("session cookie cleared = %v, want %v", cookieCleared, tt.wantSessionCleared)
+			}
+		})
 	}
 }
 
