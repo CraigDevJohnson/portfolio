@@ -42,7 +42,7 @@ Users copy a bearer JWT from their authenticated LPS browser session and paste i
 - AES-GCM encrypted cookies using Go stdlib (crypto/aes, crypto/cipher) — no external session library
 - Keep team-code fallback — manual team code flow remains for non-logged-in users
 - No persistent user accounts or database — session lives entirely in the encrypted cookie
-- loginEnabled() requires LPS_SESSION_KEY (32-byte hex) to be configured
+- loginEnabled() requires LPS_SESSION_KEY (64-character hex, decodes to 32 bytes) to be configured
 
 ### Further Considerations
 
