@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "app_name" {
   description = "Name of the application"
   type        = string
-  default     = "portfolio-dev"
+  default     = "portfolio"
 }
 
 variable "container_port" {

@@ -2163,7 +2163,8 @@ func googleEventID(game Game) string {
 		hash := md5.Sum([]byte(gameKey(game)))
 		stableID = hex.EncodeToString(hash[:])
 	}
-	return "soccer-" + stableID
+	// Google Calendar event IDs only allow lowercase a-v and digits 0-9
+	return "soccer" + stableID
 }
 
 func googleEventPayload(r *http.Request, game Game) (googleEvent, bool) {

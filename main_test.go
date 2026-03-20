@@ -1924,7 +1924,7 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	if len(insertedIDs) != 2 {
 		t.Fatalf("unexpected insert attempt count: got %d want 2", len(insertedIDs))
 	}
-	if !strings.HasPrefix(insertedIDs[0], "soccer-") {
+	if !strings.HasPrefix(insertedIDs[0], "soccer") {
 		t.Fatalf("expected deterministic google event id, got %q", insertedIDs[0])
 	}
 }
