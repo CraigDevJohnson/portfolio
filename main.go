@@ -1114,6 +1114,9 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 				clearSession(w, r)
 			}
 			status, message := scheduleDownloadError(err)
+			if status == http.StatusUnauthorized || status == http.StatusBadRequest {
+				clearSession(w, r)
+			}
 			http.Error(w, message, status)
 			return
 		}
