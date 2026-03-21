@@ -404,7 +404,9 @@ func main() {
 		}
 	}
 	if googleEnabled() {
-		store, err := newGoogleConnectionStore(context.Background(), &configData)
+		initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		store, err := newGoogleConnectionStore(initCtx, &configData)
+		initCancel()
 		if err != nil {
 			log.Printf("google calendar add disabled: could not initialize connection store: %v", err)
 			configData.GoogleConnectionTableName = ""
