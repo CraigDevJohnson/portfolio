@@ -78,6 +78,11 @@ presets = ["common-false-positives", "std-error-handling"]
 
 # Custom exclusion rules
 [[linters.exclusions.rules]]
+# Ignore vendored/third-party code in node_modules
+path = "node_modules/"
+linters = ["gocyclo", "nestif", "gocritic", "gosec"]
+
+[[linters.exclusions.rules]]
 # Relax error checks and security rules in test files
 path = "_test\\.go"
 linters = ["errcheck", "bodyclose", "gosec", "unparam"]

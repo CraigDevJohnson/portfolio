@@ -88,9 +88,9 @@ type googleConnectionRecord struct {
 }
 
 type googleConnectionStore interface {
-	Delete(context.Context, string) error
-	Get(context.Context, string) (*googleConnectionRecord, error)
-	Put(context.Context, googleConnectionRecord) error
+	Delete(ctx context.Context, connectionID string) error
+	Get(ctx context.Context, connectionID string) (*googleConnectionRecord, error)
+	Put(ctx context.Context, record *googleConnectionRecord) error
 }
 
 type dynamoGoogleConnectionStore struct {
@@ -160,7 +160,7 @@ var (
 	errSessionExpired                              = errors.New("session expired")
 	googleConnections        googleConnectionStore = noopGoogleConnectionStore{}
 	googleOAuthAuthURL                             = "https://accounts.google.com/o/oauth2/auth"
-	googleOAuthTokenURL                            = "https://oauth2.googleapis.com/token"
+	googleOAuthTokenURL                            = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
 	googleCalendarAPIBaseURL                       = "https://www.googleapis.com/calendar/v3"
 )
 
@@ -239,7 +239,7 @@ func loadServerConfig() serverConfig {
 	return config
 }
 
-func newGoogleConnectionStore(ctx context.Context, config serverConfig) (googleConnectionStore, error) {
+func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (googleConnectionStore, error) {
 	if strings.TrimSpace(config.GoogleConnectionTableName) == "" {
 		return noopGoogleConnectionStore{}, nil
 	}
@@ -253,15 +253,15 @@ func newGoogleConnectionStore(ctx context.Context, config serverConfig) (googleC
 	}, nil
 }
 
-func (noopGoogleConnectionStore) Delete(context.Context, string) error {
+func (noopGoogleConnectionStore) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
-func (noopGoogleConnectionStore) Get(context.Context, string) (*googleConnectionRecord, error) {
+func (noopGoogleConnectionStore) Get(_ context.Context, _ string) (*googleConnectionRecord, error) {
 	return nil, nil
 }
 
-func (noopGoogleConnectionStore) Put(context.Context, googleConnectionRecord) error {
+func (noopGoogleConnectionStore) Put(_ context.Context, _ *googleConnectionRecord) error {
 	return nil
 }
 
@@ -298,7 +298,7 @@ func (store *dynamoGoogleConnectionStore) Get(ctx context.Context, connectionID 
 	return &record, nil
 }
 
-func (store *dynamoGoogleConnectionStore) Put(ctx context.Context, record googleConnectionRecord) error {
+func (store *dynamoGoogleConnectionStore) Put(ctx context.Context, record *googleConnectionRecord) error {
 	item, err := attributevalue.MarshalMap(record)
 	if err != nil {
 		return err
@@ -321,26 +321,6 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimite
 	}
 	go limiter.periodicCleanup()
 	return limiter
-}
-
-func (limiter *loginRateLimiter) periodicCleanup() {
-	ticker := time.NewTicker(limiter.window)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			limiter.mu.Lock()
-			now := time.Now()
-			for key, attempt := range limiter.attempts {
-				if now.Sub(attempt.WindowStart) > limiter.window {
-					delete(limiter.attempts, key)
-				}
-			}
-			limiter.mu.Unlock()
-		case <-limiter.stop:
-			return
-		}
-	}
 }
 
 func (limiter *loginRateLimiter) Close() {
@@ -388,6 +368,26 @@ func (limiter *loginRateLimiter) Allow(key string) bool {
 	return true
 }
 
+func (limiter *loginRateLimiter) periodicCleanup() {
+	ticker := time.NewTicker(limiter.window)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			limiter.mu.Lock()
+			now := time.Now()
+			for key, attempt := range limiter.attempts {
+				if now.Sub(attempt.WindowStart) > limiter.window {
+					delete(limiter.attempts, key)
+				}
+			}
+			limiter.mu.Unlock()
+		case <-limiter.stop:
+			return
+		}
+	}
+}
+
 func main() {
 	mimeTypes := map[string]string{
 		".css":  "text/css",
@@ -404,7 +404,7 @@ func main() {
 		}
 	}
 	if googleEnabled() {
-		store, err := newGoogleConnectionStore(context.Background(), configData)
+		store, err := newGoogleConnectionStore(context.Background(), &configData)
 		if err != nil {
 			log.Printf("google calendar add disabled: could not initialize connection store: %v", err)
 			configData.GoogleConnectionTableName = ""
@@ -1030,7 +1030,7 @@ func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 		session = nil
 	}
 
-	renderSoccerLoginState(w, r, session, false)
+	renderSoccerLoginState(w, r, session)
 }
 
 func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
@@ -1046,6 +1046,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginFeedback(w, "error", "Could not read the import form. Try again.")
 		return
@@ -1084,7 +1085,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		Players:   discovery.Players,
 		ExpiresAt: importedSessionExpiry(jwt),
 	}
-	if err := setSession(w, r, session); err != nil {
+	if err := setSession(w, r, &session); err != nil {
 		log.Printf("soccer import session write failed: %v", err)
 		renderSoccerLoginFeedback(w, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
@@ -1105,7 +1106,7 @@ func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
-	renderSoccerLoginState(w, r, nil, false)
+	renderSoccerLoginState(w, r, nil)
 }
 
 func redirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, status string) {
@@ -1211,7 +1212,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:       createdAt,
 		UpdatedAt:       time.Now().UTC(),
 	}
-	if err := googleConnections.Put(r.Context(), record); err != nil {
+	if err := googleConnections.Put(r.Context(), &record); err != nil {
 		log.Printf("google connection save failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
@@ -1229,11 +1230,12 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	session, _ := getSession(r)
 	if !googleEnabled() {
-		renderSoccerLoginState(w, r, session, false)
+		renderSoccerLoginState(w, r, session)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
-		renderSoccerLoginState(w, r, session, false)
+		renderSoccerLoginState(w, r, session)
 		return
 	}
 	record, err := loadGoogleConnectionRecord(r.Context(), r)
@@ -1241,13 +1243,13 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("google connection read failed: %v", err)
 		}
-		renderSoccerLoginState(w, r, session, false)
+		renderSoccerLoginState(w, r, session)
 		return
 	}
 	calendars, err := googleListCalendars(r.Context(), r, record)
 	if err != nil {
 		log.Printf("google calendar list failed: %v", err)
-		renderSoccerLoginState(w, r, session, false)
+		renderSoccerLoginState(w, r, session)
 		return
 	}
 	selectedCalendarID := strings.TrimSpace(r.FormValue("calendar_id"))
@@ -1258,10 +1260,10 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 	record.CalendarID = selectedCalendarID
 	record.CalendarSummary = selectedCalendarSummary
 	record.UpdatedAt = time.Now().UTC()
-	if err := googleConnections.Put(r.Context(), *record); err != nil {
+	if err := googleConnections.Put(r.Context(), record); err != nil {
 		log.Printf("google calendar selection save failed: %v", err)
 	}
-	renderSoccerLoginState(w, r, session, false)
+	renderSoccerLoginState(w, r, session)
 }
 
 func soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
@@ -1271,7 +1273,25 @@ func soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	session, _ := getSession(r)
 	deleteGoogleConnection(r.Context(), w, r)
-	renderSoccerLoginState(w, r, session, false)
+	renderSoccerLoginState(w, r, session)
+}
+
+func renderGoogleDisconnectFeedback(w http.ResponseWriter, r *http.Request, session *SessionData, message string) {
+	deleteGoogleConnection(r.Context(), w, r)
+	if session != nil {
+		if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	renderSoccerLoginFeedback(w, "error", message)
+}
+
+func isGoogleAuthRejection(resp *http.Response) bool {
+	apiErr := readGoogleAPIError(resp)
+	log.Printf("google event insert rejected: %v", apiErr)
+	var googleErr *googleAPIError
+	return errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden)
 }
 
 func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
@@ -1283,6 +1303,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginFeedback(w, "error", "Could not read the selected games. Try again.")
 		return
@@ -1295,13 +1316,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Connect Google Calendar before adding selected games.")
 		return
 	}
-	selectedIDs := make(map[string]struct{})
-	for _, selectedID := range r.Form["selected"] {
-		selectedID = strings.TrimSpace(selectedID)
-		if selectedID != "" {
-			selectedIDs[selectedID] = struct{}{}
-		}
-	}
+	selectedIDs := parseSelectedIDs(r.Form)
 	if len(selectedIDs) == 0 {
 		renderSoccerLoginFeedback(w, "error", "Select at least one game to add to Google Calendar.")
 		return
@@ -1338,9 +1353,9 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filteredGames := make([]Game, 0, len(games))
-	for _, game := range games {
-		if _, ok := selectedIDs[game.ID]; ok {
-			filteredGames = append(filteredGames, game)
+	for i := range games {
+		if _, ok := selectedIDs[games[i].ID]; ok {
+			filteredGames = append(filteredGames, games[i])
 		}
 	}
 	if len(filteredGames) == 0 {
@@ -1350,20 +1365,13 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := currentGoogleToken(r.Context(), r, record)
 	if err != nil {
 		log.Printf("google token refresh failed: %v", err)
-		deleteGoogleConnection(r.Context(), w, r)
-		if session != nil {
-			if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		renderSoccerLoginFeedback(w, "error", "Your Google Calendar connection has expired. Connect again and retry.")
+		renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
 		return
 	}
 	added := 0
 	existing := 0
-	for _, game := range filteredGames {
-		event, ok := googleEventPayload(r, game)
+	for i := range filteredGames {
+		event, ok := googleEventPayload(r, &filteredGames[i])
 		if !ok {
 			continue
 		}
@@ -1380,18 +1388,8 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-			apiErr := readGoogleAPIError(resp)
-			log.Printf("google event insert rejected: %v", apiErr)
-			var googleErr *googleAPIError
-			if errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden) {
-				deleteGoogleConnection(r.Context(), w, r)
-				if session != nil {
-					if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
-						http.Error(w, err.Error(), http.StatusInternalServerError)
-						return
-					}
-				}
-				renderSoccerLoginFeedback(w, "error", "Your Google Calendar connection is no longer valid. Connect again and retry.")
+			if isGoogleAuthRejection(resp) {
+				renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
 				return
 			}
 			renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
@@ -1407,11 +1405,62 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	renderSoccerLoginFeedback(w, "success", message)
 }
 
+func populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
+	games, fetchErr := lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
+	message, hint, clearSession := scheduleFetchFeedback(fetchErr)
+	if fetchErr != nil && !clearSession {
+		log.Printf("soccer LPS fetch failed: %v", fetchErr)
+	}
+	if fetchErr != nil {
+		props.Message = message
+		props.Hint = hint
+	} else {
+		props.Games = games
+	}
+	return clearSession
+}
+
+func resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
+	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+		props.Message = "One or more selected players were invalid."
+		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
+		return false
+	}
+	if session != nil && len(playerIDs) > 0 {
+		return populateScheduleProps(ctx, session, playerIDs, props)
+	}
+	if len(playerIDs) > 0 {
+		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
+		props.Hint = "Your previous session is no longer available."
+		return false
+	}
+	if strings.TrimSpace(teamCodes) != "" {
+		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
+		return false
+	}
+	props.Message = "Enter team codes or choose at least one discovered player."
+	props.Hint = "Manual team code entry still works if you do not want to import a token."
+	return false
+}
+
+func handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
+	_, _, shouldClearSession := scheduleFetchFeedback(err)
+	if shouldClearSession {
+		clearSession(w, r)
+	}
+	status, message := scheduleDownloadError(err)
+	if status == http.StatusUnauthorized || status == http.StatusBadRequest {
+		clearSession(w, r)
+	}
+	http.Error(w, message, status)
+}
+
 func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -1443,32 +1492,9 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs, GoogleConnected: googleConnected}
-	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
-		props.Message = "One or more selected players were invalid."
-		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
-	} else if session != nil && len(playerIDs) > 0 {
-		games, fetchErr := lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
-		message, hint, clearSessionState := scheduleFetchFeedback(fetchErr)
-		if clearSessionState {
-			clearSession(w, r)
-			swapAuthState = true
-		} else if fetchErr != nil {
-			log.Printf("soccer LPS fetch failed: %v", fetchErr)
-		}
-		if fetchErr != nil {
-			props.Message = message
-			props.Hint = hint
-		} else {
-			props.Games = games
-		}
-	} else if len(playerIDs) > 0 {
-		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
-		props.Hint = "Your previous session is no longer available."
-	} else if strings.TrimSpace(teamCodes) != "" {
-		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
-	} else {
-		props.Message = "Enter team codes or choose at least one discovered player."
-		props.Hint = "Manual team code entry still works if you do not want to import a token."
+	if resolveScheduleData(r.Context(), session, playerIDs, teamCodes, rawPlayerIDs, &props) {
+		clearSession(w, r)
+		swapAuthState = true
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if swapAuthState {
@@ -1559,6 +1585,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -1598,15 +1625,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
 		if err != nil {
 			log.Printf("soccer LPS fetch failed: %v", err)
-			_, _, shouldClearSession := scheduleFetchFeedback(err)
-			if shouldClearSession {
-				clearSession(w, r)
-			}
-			status, message := scheduleDownloadError(err)
-			if status == http.StatusUnauthorized || status == http.StatusBadRequest {
-				clearSession(w, r)
-			}
-			http.Error(w, message, status)
+			handleScheduleDownloadError(w, r, err)
 			return
 		}
 	} else if len(playerIDs) > 0 {
@@ -1617,9 +1636,9 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filteredGames := make([]Game, 0, len(games))
-	for _, game := range games {
-		if _, ok := selectedIDs[game.ID]; ok {
-			filteredGames = append(filteredGames, game)
+	for i := range games {
+		if _, ok := selectedIDs[games[i].ID]; ok {
+			filteredGames = append(filteredGames, games[i])
 		}
 	}
 	if len(filteredGames) == 0 {
@@ -1639,6 +1658,33 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 
 func loginEnabled() bool {
 	return len(configData.SessionKey) == 32
+}
+
+func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRecord, calendars []GoogleCalendarOption) (calendarID, summary string) {
+	calendarID = strings.TrimSpace(record.CalendarID)
+	if calendarID == "" {
+		calendarID, summary = preferredGoogleCalendar(calendars)
+		record.CalendarID = calendarID
+		record.CalendarSummary = summary
+		record.UpdatedAt = time.Now().UTC()
+		if err := googleConnections.Put(ctx, record); err != nil {
+			log.Printf("google connection default calendar save failed: %v", err)
+		}
+		return calendarID, summary
+	}
+	summary = googleCalendarSummary(calendars, calendarID)
+	if summary == "" {
+		calendarID, summary = preferredGoogleCalendar(calendars)
+	}
+	if summary != "" && (record.CalendarID != calendarID || record.CalendarSummary != summary) {
+		record.CalendarID = calendarID
+		record.CalendarSummary = summary
+		record.UpdatedAt = time.Now().UTC()
+		if err := googleConnections.Put(ctx, record); err != nil {
+			log.Printf("google connection calendar sync failed: %v", err)
+		}
+	}
+	return calendarID, summary
 }
 
 func googleEnabled() bool {
@@ -1682,35 +1728,13 @@ func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *Sess
 	}
 	props.GoogleConnected = true
 	props.GoogleCalendars = calendars
-	props.SelectedGoogleCalendarID = strings.TrimSpace(record.CalendarID)
-	if props.SelectedGoogleCalendarID == "" {
-		props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = preferredGoogleCalendar(calendars)
-		record.CalendarID = props.SelectedGoogleCalendarID
-		record.CalendarSummary = props.GoogleCalendarSummary
-		record.UpdatedAt = time.Now().UTC()
-		if err := googleConnections.Put(r.Context(), *record); err != nil {
-			log.Printf("google connection default calendar save failed: %v", err)
-		}
-	} else {
-		props.GoogleCalendarSummary = googleCalendarSummary(calendars, props.SelectedGoogleCalendarID)
-		if props.GoogleCalendarSummary == "" {
-			props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = preferredGoogleCalendar(calendars)
-		}
-		if props.GoogleCalendarSummary != "" && (record.CalendarID != props.SelectedGoogleCalendarID || record.CalendarSummary != props.GoogleCalendarSummary) {
-			record.CalendarID = props.SelectedGoogleCalendarID
-			record.CalendarSummary = props.GoogleCalendarSummary
-			record.UpdatedAt = time.Now().UTC()
-			if err := googleConnections.Put(r.Context(), *record); err != nil {
-				log.Printf("google connection calendar sync failed: %v", err)
-			}
-		}
-	}
+	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = syncGoogleCalendarSelection(r.Context(), record, calendars)
 	return props
 }
 
-func renderSoccerLoginState(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) {
+func renderSoccerLoginState(w http.ResponseWriter, r *http.Request, session *SessionData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	props := soccerLoginStateProps(w, r, session, swapOOB)
+	props := soccerLoginStateProps(w, r, session, false)
 	if err := partials.SoccerLoginState(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -1780,7 +1804,7 @@ func decryptJSONValue(value string, out any) error {
 	return nil
 }
 
-func encryptSession(data SessionData) (string, error) {
+func encryptSession(data *SessionData) (string, error) {
 	return encryptJSONValue(data)
 }
 
@@ -1810,7 +1834,7 @@ func getSession(r *http.Request) (*SessionData, error) {
 	return &session, nil
 }
 
-func setSession(w http.ResponseWriter, r *http.Request, session SessionData) error {
+func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) error {
 	encrypted, err := encryptSession(session)
 	if err != nil {
 		return err
@@ -2054,7 +2078,7 @@ func currentGoogleToken(ctx context.Context, r *http.Request, record *googleConn
 		}
 		record.TokenCiphertext = encryptedToken
 		record.UpdatedAt = time.Now().UTC()
-		if err := googleConnections.Put(ctx, *record); err != nil {
+		if err := googleConnections.Put(ctx, record); err != nil {
 			return nil, err
 		}
 	}
@@ -2078,7 +2102,7 @@ func googleAPIRequest(ctx context.Context, method, endpoint string, token *oauth
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return lpsHTTPClient.Do(req)
+	return lpsHTTPClient.Do(req) //nolint:gosec // G704: endpoint is server-controlled (googleCalendarAPIBaseURL + path), not user input
 }
 
 func readGoogleAPIError(resp *http.Response) error {
@@ -2157,7 +2181,7 @@ func googleCalendarSummary(calendars []GoogleCalendarOption, calendarID string) 
 	return ""
 }
 
-func googleEventID(game Game) string {
+func googleEventID(game *Game) string {
 	stableID := fallbackGameID(game)
 	if stableID == "" {
 		hash := md5.Sum([]byte(gameKey(game)))
@@ -2167,7 +2191,7 @@ func googleEventID(game Game) string {
 	return "soccer" + stableID
 }
 
-func googleEventPayload(r *http.Request, game Game) (googleEvent, bool) {
+func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
 	start, end, ok := scheduleTimes(game)
 	if !ok {
 		return googleEvent{}, false
@@ -2323,7 +2347,8 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 		if err != nil {
 			return nil, err
 		}
-		for _, game := range playerGames {
+		for i := range playerGames {
+			game := &playerGames[i]
 			if game.ID == "" {
 				if fid := fallbackGameID(game); fid != "" {
 					game.ID = fid
@@ -2331,16 +2356,16 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 			}
 			key := gameKey(game)
 			if existingIndex, exists := indexByKey[key]; exists {
-				games[existingIndex] = mergeGames(games[existingIndex], game)
+				games[existingIndex] = mergeGames(&games[existingIndex], game)
 				continue
 			}
 			indexByKey[key] = len(games)
-			games = append(games, game)
+			games = append(games, *game)
 		}
 	}
 	sort.Slice(games, func(i, j int) bool {
-		left, leftOK := gameStartTime(games[i])
-		right, rightOK := gameStartTime(games[j])
+		left, leftOK := gameStartTime(&games[i])
+		right, rightOK := gameStartTime(&games[j])
 		if leftOK && rightOK {
 			return left.Before(right)
 		}
@@ -2403,7 +2428,7 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 	}
 	for index := range games {
 		if games[index].ID == "" {
-			games[index].ID = fallbackGameID(games[index])
+			games[index].ID = fallbackGameID(&games[index])
 		}
 		if games[index].DateTime == "" {
 			games[index].DateTime = formatGameDateTime(games[index].StartAt)
@@ -2491,8 +2516,8 @@ func decodeLPSGames(payload []byte) ([]Game, error) {
 		return []Game{}, nil
 	}
 	games := make([]Game, 0, len(items))
-	for index, item := range items {
-		game := mapLPSGame(item, index)
+	for _, item := range items {
+		game := mapLPSGame(item)
 		if game.ID == "" && game.DateTime == "" && game.Home == "" && game.Away == "" {
 			continue
 		}
@@ -2526,7 +2551,7 @@ func extractGameMaps(raw any) []map[string]any {
 	}
 }
 
-func mapLPSGame(raw map[string]any, index int) Game {
+func mapLPSGame(raw map[string]any) Game {
 	startAt := firstString(raw,
 		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
 	)
@@ -2603,6 +2628,17 @@ func anyToString(value any) string {
 	return ""
 }
 
+func parseSelectedIDs(form url.Values) map[string]struct{} {
+	selectedIDs := make(map[string]struct{})
+	for _, id := range form["selected"] {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			selectedIDs[id] = struct{}{}
+		}
+	}
+	return selectedIDs
+}
+
 func parsePlayerIDs(values []string) []int {
 	seen := make(map[int]struct{})
 	playerIDs := make([]int, 0, len(values))
@@ -2631,8 +2667,8 @@ func nonEmptyStrings(values []string) []string {
 	return normalized
 }
 
-func mergeGames(base, incoming Game) Game {
-	merged := base
+func mergeGames(base, incoming *Game) Game {
+	merged := *base
 	if merged.ID == "" {
 		merged.ID = incoming.ID
 	}
@@ -2670,16 +2706,16 @@ func mergeGames(base, incoming Game) Game {
 		merged.DateTime = formatGameDateTime(merged.StartAt)
 	}
 	if merged.ID == "" {
-		merged.ID = fallbackGameID(merged)
+		merged.ID = fallbackGameID(&merged)
 	}
 	return merged
 }
 
-func stableGameFields(game Game) string {
+func stableGameFields(game *Game) string {
 	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
 }
 
-func fallbackGameID(game Game) string {
+func fallbackGameID(game *Game) string {
 	base := stableGameFields(game)
 	if strings.ReplaceAll(base, "|", "") == "" {
 		return ""
@@ -2688,14 +2724,14 @@ func fallbackGameID(game Game) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func gameKey(game Game) string {
+func gameKey(game *Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
 	return stableGameFields(game)
 }
 
-func gameStartTime(game Game) (time.Time, bool) {
+func gameStartTime(game *Game) (time.Time, bool) {
 	if parsed, ok := parseFlexibleTime(game.StartAt); ok {
 		return parsed, true
 	}
@@ -2747,7 +2783,8 @@ func buildICS(games []Game) string {
 	writeICSLine(&builder, "BEGIN:VCALENDAR")
 	writeICSLine(&builder, "VERSION:2.0")
 	writeICSLine(&builder, "PRODID:-//Craig Johnson Portfolio//Soccer Schedule//EN")
-	for _, game := range games {
+	for i := range games {
+		game := &games[i]
 		start, end, ok := scheduleTimes(game)
 		if !ok {
 			log.Printf("skipping game %q: could not parse start time", game.ID)
@@ -2776,7 +2813,7 @@ func buildICS(games []Game) string {
 	return builder.String()
 }
 
-func scheduleTimes(game Game) (time.Time, time.Time, bool) {
+func scheduleTimes(game *Game) (time.Time, time.Time, bool) {
 	start, ok := gameStartTime(game)
 	if !ok {
 		return time.Time{}, time.Time{}, false

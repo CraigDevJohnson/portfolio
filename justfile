@@ -60,8 +60,9 @@ vet:
 [group('quality')]
 lint:
     #!/usr/bin/env sh
-    if golangci-lint version --short | grep -qE '^[0-1]' >/dev/null 2>&1; then
-      echo "golangci-lint not found -- please run 'just install-lint' to install it"
+    set -eu
+    if ! command -v golangci-lint >/dev/null 2>&1 || golangci-lint version --short 2>/dev/null | grep -qE '^[0-1]'; then
+      echo "golangci-lint v2+ not found -- please run 'just install-lint' to install it"
       exit 1
     fi
     golangci-lint run --config .golangci.toml --fix
@@ -100,9 +101,9 @@ install-lint:
     #!/usr/bin/env sh
     set -eu
     echo "Checking golangci-lint..."
-    if golangci-lint version --short | grep -qE '^[0-1]' >/dev/null 2>&1; then
+    if ! command -v golangci-lint >/dev/null 2>&1 || golangci-lint version --short 2>/dev/null | grep -qE '^[0-1]'; then
       echo "golangci-lint not found or version is older than v2 -- installing latest (v2+)..."
-      curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+      curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
     fi
     echo "golangci-lint is installed and up to date!"
     echo "Checking stylelint..."
@@ -130,3 +131,65 @@ test:
 [group('help')]
 help:
     @just --list
+
+[group('deploy')]
+deploy:
+    #!/usr/bin/env sh
+    set -eu
+    # Verify prerequisites
+    for cmd in tofu aws docker; do
+      if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "$cmd not found -- see DEPLOY-INSTRUCTIONS.md for installation steps"
+        exit 1
+      fi
+    done
+    if ! aws sts get-caller-identity >/dev/null 2>&1; then
+      echo "AWS credentials not configured -- run 'aws configure' or export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+      exit 1
+    fi
+    cd infra
+    # Initialize if needed
+    if [ ! -d .terraform ]; then
+      tofu init
+    fi
+    # Create ECR repo first (App Runner needs an image to exist)
+    tofu apply -target=aws_ecr_repository.app -target=aws_ecr_lifecycle_policy.app --auto-approve
+    ECR_URL=$(tofu output -raw ecr_repository_url)
+    AWS_REGION=$(echo "$ECR_URL" | sed 's/.*\.ecr\.\(.*\)\.amazonaws\.com.*/\1/')
+    AWS_ACCOUNT_ID=$(echo "$ECR_URL" | sed 's/\..*//')
+    # Authenticate Docker with ECR
+    aws ecr get-login-password --region "$AWS_REGION" | \
+      docker login --username AWS --password-stdin \
+        "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+    cd ..
+    # Build, tag, and push the Docker image
+    docker build -t portfolio .
+    docker tag portfolio:latest "$ECR_URL:latest"
+    docker push "$ECR_URL:latest"
+    # Apply full infrastructure (App Runner can now reference the image)
+    cd infra
+    tofu apply --auto-approve
+    echo "Deployment complete!"
+    tofu output app_runner_service_url
+
+[group('deploy')]
+redeploy:
+    #!/usr/bin/env sh
+    set -eu
+    # Derive ECR URL and region from Terraform state
+    ECR_URL=$(cd infra && tofu output -raw ecr_repository_url)
+    AWS_REGION=$(echo "$ECR_URL" | sed 's/.*\.ecr\.\(.*\)\.amazonaws\.com.*/\1/')
+    AWS_ACCOUNT_ID=$(echo "$ECR_URL" | sed 's/\..*//')
+    # Authenticate Docker with ECR
+    aws ecr get-login-password --region "$AWS_REGION" | \
+      docker login --username AWS --password-stdin \
+        "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+    # Build, tag, and push
+    docker build -t portfolio .
+    docker tag portfolio:latest "$ECR_URL:latest"
+    docker push "$ECR_URL:latest"
+    # Trigger App Runner redeployment
+    SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
+    aws apprunner start-deployment --service-arn "$SERVICE_ARN"
+    echo "Redeployment triggered. Check status with:"
+    echo "  aws apprunner describe-service --service-arn $SERVICE_ARN --query Service.Status"

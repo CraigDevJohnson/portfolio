@@ -40,7 +40,7 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 		ExpiresAt: time.Unix(1_773_634_161, 0).UTC(),
 	}
 
-	encrypted, err := encryptSession(expected)
+	encrypted, err := encryptSession(&expected)
 	if err != nil {
 		t.Fatalf("encryptSession returned error: %v", err)
 	}
@@ -387,39 +387,68 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 }
 
 func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
-	resetSoccerLoginAttempts(t)
-
-	previousConfig := configData
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
-	}))
-	defer server.Close()
-
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: server.URL,
+	tests := []struct {
+		name           string
+		serverResponse func(w http.ResponseWriter)
+		noCookie       bool
+		wantBody       string
+	}{
+		{
+			name: "auth failure",
+			serverResponse: func(w http.ResponseWriter) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
+			},
+			noCookie: true,
+			wantBody: "The JWT was rejected by Let&#39;s Play Soccer. Copy a fresh bearer token and try again.",
+		},
+		{
+			name: "empty player list",
+			serverResponse: func(w http.ResponseWriter) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[],"user_players":[]}`))
+			},
+			noCookie: true,
+			wantBody: "No linked players found for this account.",
+		},
 	}
-	defer func() {
-		configData = previousConfig
-	}()
 
-	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
-		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
-	}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetSoccerLoginAttempts(t)
 
-	soccerImportHandler(resp, req)
+			previousConfig := configData
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				tt.serverResponse(w)
+			}))
+			defer server.Close()
 
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
-	}
-	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
-		t.Fatalf("did not expect a session cookie on auth failure: %q", resp.Header().Get("Set-Cookie"))
-	}
-	if !strings.Contains(resp.Body.String(), "The JWT was rejected by Let&#39;s Play Soccer. Copy a fresh bearer token and try again.") {
-		t.Fatalf("unexpected response body: %q", resp.Body.String())
+			configData = serverConfig{
+				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+				LPSAPIBaseURL: server.URL,
+			}
+			defer func() {
+				configData = previousConfig
+			}()
+
+			req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
+				"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+			}.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			resp := httptest.NewRecorder()
+
+			soccerImportHandler(resp, req)
+
+			if resp.Code != http.StatusOK {
+				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+			}
+			if tt.noCookie && strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+				t.Fatalf("did not expect a session cookie: %q", resp.Header().Get("Set-Cookie"))
+			}
+			if !strings.Contains(resp.Body.String(), tt.wantBody) {
+				t.Fatalf("unexpected response body: %q", resp.Body.String())
+			}
+		})
 	}
 }
 
@@ -456,43 +485,6 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 	}
 }
 
-func TestSoccerImportHandlerShowsEmptyPlayerListMessage(t *testing.T) {
-	resetSoccerLoginAttempts(t)
-
-	previousConfig := configData
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[],"user_players":[]}`))
-	}))
-	defer server.Close()
-
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
-
-	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
-		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
-	}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp := httptest.NewRecorder()
-
-	soccerImportHandler(resp, req)
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
-	}
-	if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
-		t.Fatalf("did not expect a session cookie on empty player discovery: %q", resp.Header().Get("Set-Cookie"))
-	}
-	if !strings.Contains(resp.Body.String(), "No linked players found for this account.") {
-		t.Fatalf("unexpected response body: %q", resp.Body.String())
-	}
-}
-
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
@@ -504,7 +496,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 	}()
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
-	addSessionCookie(t, req, SessionData{
+	addSessionCookie(t, req, &SessionData{
 		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Current browser session",
 		Players: []LPSPlayer{
@@ -571,7 +563,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 		{
 			name: "expired session",
 			addCookie: func(t *testing.T, req *http.Request) {
-				addSessionCookie(t, req, SessionData{
+				addSessionCookie(t, req, &SessionData{
 					JWT:      testJWT(t, time.Now().Add(-30*time.Minute)),
 					UserName: "Current browser session",
 					Players: []LPSPlayer{
@@ -1163,7 +1155,7 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, req, SessionData{
+	addSessionCookie(t, req, &SessionData{
 		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Craig Johnson",
 		Players: []LPSPlayer{{
@@ -1246,7 +1238,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, req, SessionData{
+	addSessionCookie(t, req, &SessionData{
 		JWT:      token,
 		UserName: "Craig Johnson",
 		Players: []LPSPlayer{{
@@ -1308,7 +1300,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 				"player_ids": {"1001"},
 			}.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			addSessionCookie(t, req, SessionData{
+			addSessionCookie(t, req, &SessionData{
 				JWT:      token,
 				UserName: "Craig Johnson",
 				Players: []LPSPlayer{{
@@ -1490,7 +1482,7 @@ func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
 }
 
 func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
-	_, _, ok := scheduleTimes(Game{ID: "no-time"})
+	_, _, ok := scheduleTimes(&Game{ID: "no-time"})
 	if ok {
 		t.Fatal("expected scheduleTimes to return false for game with no start time")
 	}
@@ -1598,7 +1590,7 @@ func resetSoccerLoginAttempts(t *testing.T) {
 	})
 }
 
-func addSessionCookie(t *testing.T, req *http.Request, session SessionData) {
+func addSessionCookie(t *testing.T, req *http.Request, session *SessionData) {
 	t.Helper()
 	encrypted, err := encryptSession(session)
 	if err != nil {
@@ -1621,12 +1613,12 @@ func (store *fakeGoogleConnectionStore) Get(_ context.Context, connectionID stri
 	if !ok {
 		return nil, nil
 	}
-	copy := record
-	return &copy, nil
+	clone := record
+	return &clone, nil
 }
 
-func (store *fakeGoogleConnectionStore) Put(_ context.Context, record googleConnectionRecord) error {
-	store.records[record.ConnectionID] = record
+func (store *fakeGoogleConnectionStore) Put(_ context.Context, record *googleConnectionRecord) error {
+	store.records[record.ConnectionID] = *record
 	return nil
 }
 

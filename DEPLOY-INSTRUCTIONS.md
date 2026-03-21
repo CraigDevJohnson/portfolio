@@ -26,7 +26,7 @@ This guide walks you through deploying the portfolio site to **AWS App Runner** 
 ## Why App Runner?
 
 | Factor | App Runner | ECS Fargate | Lightsail Containers | EC2 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **Monthly cost (< 100 visits)** | **~$5–7** | ~$10–15 | $7 (fixed) | $3–8 |
 | **Setup complexity** | Very low | Medium | Low | High |
 | **Auto-scaling** | ✅ Built-in | Manual config | ❌ | ❌ |
@@ -65,7 +65,7 @@ Before you begin, make sure you have:
 For a site with fewer than 100 visits per month:
 
 | Resource | Monthly Cost |
-|---|---|
+| --- | --- |
 | App Runner (0.25 vCPU / 512 MB, minimal traffic) | ~$5.00 |
 | ECR storage (< 500 MB image) | ~$0.05 |
 | Data transfer (< 1 GB) | Free tier |
@@ -139,7 +139,7 @@ aws configure
 You will be prompted for:
 
 | Prompt | What to enter |
-|---|---|
+| --- | --- |
 | AWS Access Key ID | Your IAM access key |
 | AWS Secret Access Key | Your IAM secret key |
 | Default region name | `us-east-1` (or your preferred region) |
@@ -163,7 +163,7 @@ You should see your account ID, user ARN, and user ID.
 The `infra/` directory contains all the OpenTofu configuration files:
 
 | File | Purpose |
-|---|---|
+| --- | --- |
 | `versions.tf` | Provider and backend configuration |
 | `variables.tf` | Input variables (region, app name, CPU/memory) |
 | `main.tf` | ECR repository, IAM roles, App Runner service |
@@ -178,7 +178,7 @@ tofu init
 
 This downloads the AWS provider plugin. You should see:
 
-```
+```bash
 OpenTofu has been successfully initialized!
 ```
 
@@ -232,7 +232,7 @@ tofu apply
 
 After a few minutes, you'll see the outputs:
 
-```
+```bash
 Outputs:
 
 app_runner_service_url = "https://xxxxxxxxxx.us-east-1.awsapprunner.com"
@@ -327,6 +327,7 @@ still need to be set in the App Runner service runtime configuration.
 The Google OAuth client must allow these redirect URIs:
 
 - `https://craigdevjohnson.com/soccer`
+- `https://dev.craigdevjohnson.com/soccer`
 - `http://localhost:8080/soccer`
 
 ---
@@ -360,7 +361,7 @@ from the output.
 **Add the validation CNAME records** (from the AWS CLI output above):
 
 | Type | Name | Content | Proxy status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | CNAME | `_xxxxxxxxxx.craigdevjohnson.com` | `_yyyyyyyyyy.acm-validations.aws` | DNS only (grey cloud) |
 
 > **Important:** Set proxy status to **DNS only** (grey cloud icon) for validation records.
@@ -369,7 +370,7 @@ from the output.
 **Add the domain CNAME record:**
 
 | Type | Name | Content | Proxy status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | CNAME | `@` (or `craigdevjohnson.com`) | `xxxxxxxxxx.us-east-1.awsapprunner.com` | DNS only (grey cloud) |
 | CNAME | `www` | `xxxxxxxxxx.us-east-1.awsapprunner.com` | DNS only (grey cloud) |
 
