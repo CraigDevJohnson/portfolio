@@ -192,6 +192,7 @@
   }
 
   const soccerLoginModal = document.getElementById('soccer-login-modal')
+  const initialSoccerResultsMarkup = document.getElementById('games-container')?.innerHTML.trim() || ''
   let soccerLoginTrigger = null
 
   function getModalFocusableElements() {
@@ -243,7 +244,7 @@
     const subscribeResult = document.getElementById('subscribe-result')
 
     if (gamesContainer) {
-      gamesContainer.innerHTML = '<div class="empty-state"><p>Import player access or enter team codes above to fetch schedules.</p></div>'
+      gamesContainer.innerHTML = initialSoccerResultsMarkup
     }
 
     if (subscribeSection) {

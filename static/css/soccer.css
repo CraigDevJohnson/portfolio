@@ -831,8 +831,9 @@ a.btn-loading[aria-disabled='true'] {
 
 .download-btn,
 .subscribe-form .btn {
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
   color: white;
+  border: 1px solid rgb(255 255 255 / 10%);
   box-shadow:
     var(--shadow-sm),
     0 4px 16px rgb(var(--accent-primary-rgb), 0.25);
@@ -840,7 +841,7 @@ a.btn-loading[aria-disabled='true'] {
 
 .download-btn:hover:not(:disabled),
 .subscribe-form .btn:hover:not(:disabled) {
-  background: var(--accent-gradient-hover);
+  background: linear-gradient(135deg, #6c2e12 0%, #7c2d12 35%, #9a3412 100%);
   transform: translateY(-2px);
   box-shadow:
     var(--shadow-md),
@@ -920,11 +921,12 @@ a.btn-loading[aria-disabled='true'] {
   justify-content: center;
   min-width: 36px;
   padding: var(--space-xs) var(--space-sm);
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
   color: white;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
+  border: 1px solid rgb(255 255 255 / 10%);
   box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
 }
 
