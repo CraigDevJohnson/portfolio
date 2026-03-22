@@ -120,7 +120,8 @@ templ Soccer(props SoccerProps) {
 								hx-post="/soccer/fetch"
 								hx-target="#games-container"
 								hx-swap="innerHTML"
-								hx-indicator="#loading-indicator"
+								hx-indicator="#loading-indicator, .soccer-manual-submit-indicator"
+								hx-disabled-elt="find button[type='submit']"
 								autocomplete="off"
 							>
 								<div class="form-group">
@@ -136,8 +137,9 @@ templ Soccer(props SoccerProps) {
 											required
 											aria-describedby="team-codes-hint"
 										/>
-										<button type="submit" class="btn btn-primary fetch-btn">
+										<button type="submit" class="btn btn-primary fetch-btn btn-loading" data-loading-button>
 											<span class="btn-text">Fetch Schedules</span>
+											<span class="btn-loading-indicator soccer-manual-submit-indicator htmx-indicator" aria-hidden="true"></span>
 										</button>
 									</div>
 									<div id="team-codes-hint" class="form-hint">
@@ -212,6 +214,8 @@ templ Soccer(props SoccerProps) {
 						hx-post="/soccer/subscribe"
 						hx-target="#subscribe-result"
 						hx-swap="innerHTML"
+						hx-indicator=".soccer-subscribe-submit-indicator"
+						hx-disabled-elt="find button[type='submit']"
 						style="display: none"
 					>
 						<div class="email-row">
@@ -224,8 +228,9 @@ templ Soccer(props SoccerProps) {
 								required
 								aria-label="Email address for schedule updates"
 							/>
-							<button type="submit" class="btn btn-primary">
-								Subscribe
+							<button type="submit" class="btn btn-primary btn-loading" data-loading-button>
+								<span class="btn-text">Subscribe</span>
+								<span class="btn-loading-indicator soccer-subscribe-submit-indicator htmx-indicator" aria-hidden="true"></span>
 							</button>
 						</div>
 						<div id="subscribe-result" class="subscribe-result"></div>
