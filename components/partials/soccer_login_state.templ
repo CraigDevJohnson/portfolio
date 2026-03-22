@@ -23,10 +23,16 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			hx-swap-oob="outerHTML"
 		}
 	>
-		<div class="soccer-google-shell soccer-input-section">
+		<div class="soccer-google-shell soccer-input-section soccer-input-google">
 			<div class="soccer-google-copy">
-				<h3>Google Calendar connection</h3>
-				<p>Connect Google Calendar, choose a destination calendar, and load schedules for discovered players from the JWT import tools below.</p>
+				<div class="soccer-section-header">
+					<span class="soccer-section-step" aria-hidden="true">2</span>
+					<div>
+						<p class="soccer-section-eyebrow">Optional direct add</p>
+						<h3>Google Calendar connection</h3>
+					</div>
+				</div>
+				<p class="soccer-section-intro">Connect once to save a destination calendar and add selected matches without downloading an .ics file.</p>
 			</div>
 			if props.GoogleAvailable {
 				<div class="soccer-auth-summary">
@@ -105,10 +111,16 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 				</div>
 			}
 		</div>
-		<div class="soccer-auth-shell soccer-input-section">
+		<div class="soccer-auth-shell soccer-input-section soccer-input-import">
 			<div class="soccer-auth-copy">
-				<h3>JWT import access</h3>
-				<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
+				<div class="soccer-section-header">
+					<span class="soccer-section-step" aria-hidden="true">3</span>
+					<div>
+						<p class="soccer-section-eyebrow">Player discovery</p>
+						<h3>JWT import access</h3>
+					</div>
+				</div>
+				<p class="soccer-section-intro">Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
 			</div>
 			<div class="soccer-auth-summary">
 				if props.Authenticated {

@@ -15,6 +15,8 @@ type SoccerTableFragmentProps struct {
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if len(props.Games) == 0 {
 		<div class="no-results">
+			<div class="no-results-icon" aria-hidden="true">🗓️</div>
+			<h3>No games found yet</h3>
 			if props.Message != "" {
 				<p>{ props.Message }</p>
 			} else {
@@ -40,13 +42,18 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			}
 			<div class="table-header">
 				<div class="table-actions">
-					<label class="select-all-label">
-						<input id="select-all" type="checkbox" checked aria-label="Select all games" data-select-all/>
-						<span>Select all games</span>
-					</label>
-					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
+					<div class="table-summary">
+						<span class="table-eyebrow">Schedule ready</span>
+						<div class="table-selection-row">
+							<label class="select-all-label">
+								<input id="select-all" type="checkbox" checked aria-label="Select all games" data-select-all/>
+								<span>Select all games</span>
+							</label>
+							<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
+						</div>
+					</div>
 				</div>
-				<div class="input-row">
+				<div class="input-row table-cta-group">
 					<button
 						type="button"
 						class="btn soccer-secondary-btn btn-loading"
