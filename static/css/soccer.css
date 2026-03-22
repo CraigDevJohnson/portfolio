@@ -177,23 +177,36 @@
   min-width: 0;
 }
 
-.soccer-auth-shell {
+.soccer-input-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+}
+
+.soccer-manual-entry {
+  background: rgb(255 255 255 / 3%);
+}
+
+.soccer-google-shell {
   background: rgb(var(--accent-secondary-rgb), 0.08);
 }
 
+.soccer-auth-shell {
+  background: rgb(var(--accent-primary-rgb), 0.08);
+}
+
 .soccer-auth-copy h3,
+.soccer-google-copy h3,
 .soccer-manual-entry h3 {
   font-size: var(--text-base);
   margin-bottom: var(--space-xs);
 }
 
-.soccer-auth-copy p {
+.soccer-auth-copy p,
+.soccer-google-copy p {
   color: var(--fg-secondary);
   font-size: var(--text-sm);
 }
@@ -234,11 +247,6 @@
   border: 1px solid var(--warning-border);
   border-radius: var(--radius-md);
   background: var(--warning-bg);
-}
-
-.soccer-manual-entry {
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border-color);
 }
 
 .soccer-player-fieldset {

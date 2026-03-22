@@ -112,10 +112,46 @@ templ Soccer(props SoccerProps) {
 				}
 				<div class="unified-header">
 					<div class="unified-form-section">
-						<div class="soccer-auth-shell">
-							<div class="soccer-auth-copy">
-								<h3>Import player access</h3>
-								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically, or use team codes manually below. Connect Google Calendar once if you want direct event adds.</p>
+						<div class="soccer-manual-entry soccer-input-section">
+							<h3>Manual team IDs</h3>
+							<form
+								id="fetch-form"
+								class="fetch-form"
+								hx-post="/soccer/fetch"
+								hx-target="#games-container"
+								hx-swap="innerHTML"
+								hx-indicator="#loading-indicator"
+								autocomplete="off"
+							>
+								<div class="form-group">
+									<label for="team_codes" class="form-label">Team IDs</label>
+									<div class="input-row">
+										<input
+											id="team_codes"
+											name="team_codes"
+											class="text-input"
+											type="text"
+											placeholder="e.g. 479691, 479147"
+											pattern="\d+([\s,;]+\d+)*"
+											required
+											aria-describedby="team-codes-hint"
+										/>
+										<button type="submit" class="btn btn-primary fetch-btn">
+											<span class="btn-text">Fetch Schedules</span>
+										</button>
+									</div>
+									<div id="team-codes-hint" class="form-hint">
+										Supports
+										<em>Let&apos;s Play Soccer</em>
+										teams only. Enter numeric team IDs separated by commas.
+									</div>
+								</div>
+							</form>
+						</div>
+						<div class="soccer-google-shell soccer-input-section">
+							<div class="soccer-google-copy">
+								<h3>Google Calendar connection</h3>
+								<p>Connect Google Calendar, choose a destination calendar, and load schedules for discovered players from the session tools below.</p>
 							</div>
 							<div
 								id="soccer-auth-panel"
@@ -127,41 +163,11 @@ templ Soccer(props SoccerProps) {
 								<p>Loading import options...</p>
 							</div>
 						</div>
-						<div class="soccer-manual-entry">
-							<h3>Manual team IDs</h3>
-						<form
-							id="fetch-form"
-							class="fetch-form"
-							hx-post="/soccer/fetch"
-							hx-target="#games-container"
-							hx-swap="innerHTML"
-							hx-indicator="#loading-indicator"
-							autocomplete="off"
-						>
-							<div class="form-group">
-								<label for="team_codes" class="form-label">Team IDs</label>
-								<div class="input-row">
-									<input
-										id="team_codes"
-										name="team_codes"
-										class="text-input"
-										type="text"
-										placeholder="e.g. 479691, 479147"
-										pattern="\d+([\s,;]+\d+)*"
-										required
-										aria-describedby="team-codes-hint"
-									/>
-									<button type="submit" class="btn btn-primary fetch-btn">
-										<span class="btn-text">Fetch Schedules</span>
-									</button>
-								</div>
-								<div id="team-codes-hint" class="form-hint">
-									Supports
-									<em>Let's Play Soccer</em>
-									teams only. Enter numeric team IDs separated by commas.
-								</div>
+						<div class="soccer-auth-shell soccer-input-section">
+							<div class="soccer-auth-copy">
+								<h3>JWT import access</h3>
+								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
 							</div>
-						</form>
 						</div>
 					</div>
 					<div class="unified-info-section">
