@@ -475,6 +475,40 @@ body.soccer-modal-open {
   display: inline;
 }
 
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.btn-loading-indicator {
+  display: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.htmx-request .btn-loading-indicator,
+.htmx-request.btn-loading-indicator,
+.btn-loading.is-loading .btn-loading-indicator {
+  display: inline-flex;
+}
+
+.btn-loading[aria-busy='true'] {
+  cursor: progress;
+}
+
+a.btn-loading[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: progress;
+}
+
 .form-hint {
   margin-top: var(--space-md);
   font-size: var(--text-sm);

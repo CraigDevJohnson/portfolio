@@ -263,6 +263,66 @@
     }
   }
 
+  function setSoccerLoadingState(control, isLoading) {
+    if (!control) {
+      return
+    }
+
+    control.classList.toggle('is-loading', isLoading)
+
+    if (control.tagName === 'A') {
+      if (isLoading) {
+        control.dataset.loading = 'true'
+        control.setAttribute('aria-disabled', 'true')
+        control.setAttribute('aria-busy', 'true')
+      } else {
+        delete control.dataset.loading
+        control.removeAttribute('aria-disabled')
+        control.removeAttribute('aria-busy')
+      }
+      return
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(control.dataset, 'loadingWasDisabled')) {
+      control.dataset.loadingWasDisabled = control.disabled ? 'true' : 'false'
+    }
+
+    if (isLoading) {
+      control.disabled = true
+      control.setAttribute('aria-busy', 'true')
+      return
+    }
+
+    if (control.dataset.loadingWasDisabled !== 'true') {
+      control.disabled = false
+    }
+
+    control.removeAttribute('aria-busy')
+    delete control.dataset.loadingWasDisabled
+  }
+
+  function getSoccerLoadingControl(trigger) {
+    if (!trigger || !(trigger instanceof Element)) {
+      return null
+    }
+
+    if (trigger.matches('[data-loading-button]')) {
+      return trigger
+    }
+
+    if (trigger.matches('form')) {
+      return trigger.querySelector('[data-loading-button]')
+    }
+
+    return trigger.closest('form')?.querySelector('[data-loading-button]') || null
+  }
+
+  function resetSoccerLoadingLinks() {
+    document.querySelectorAll('[data-loading-link][data-loading="true"]').forEach(link => {
+      setSoccerLoadingState(link, false)
+    })
+  }
+
   function setupSoccerLoginModal() {
     if (!soccerLoginModal || soccerLoginModal.dataset.bound === 'true') {
       return
@@ -352,6 +412,11 @@
 
   // Skills page: close all detail panels before opening a new one
   document.body.addEventListener('htmx:beforeRequest', function (evt) {
+    const loadingControl = getSoccerLoadingControl(evt.detail.elt)
+    if (loadingControl) {
+      setSoccerLoadingState(loadingControl, true)
+    }
+
     if (evt.detail.elt && evt.detail.elt.classList.contains('skill-icon-btn')) {
       document.querySelectorAll('.skill-detail-slot').forEach(function (slot) {
         slot.innerHTML = ''
@@ -359,12 +424,50 @@
     }
   })
 
+  ;['htmx:afterRequest', 'htmx:responseError', 'htmx:sendError'].forEach(eventName => {
+    document.body.addEventListener(eventName, function (evt) {
+      const loadingControl = getSoccerLoadingControl(evt.detail.elt)
+      if (loadingControl) {
+        setSoccerLoadingState(loadingControl, false)
+      }
+    })
+  })
+
+  document.addEventListener('click', event => {
+    const loadingLink = event.target.closest('[data-loading-link]')
+    if (!loadingLink) {
+      return
+    }
+
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      loadingLink.target === '_blank'
+    ) {
+      return
+    }
+
+    if (loadingLink.dataset.loading === 'true' || loadingLink.getAttribute('aria-disabled') === 'true') {
+      event.preventDefault()
+      return
+    }
+
+    setSoccerLoadingState(loadingLink, true)
+  })
+
   document.body.addEventListener('soccer-logout', resetSoccerResults)
+
+  window.addEventListener('pageshow', resetSoccerLoadingLinks)
 
   // Initialize on page load (for non-HTMX scenarios)
   setupEmailSubscription()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
+  resetSoccerLoadingLinks()
   observeCounterSection('.hero-stats', '.home-stat-value', 2000)
   observeCounterSection('.about-stats', '.about-stat-value', 2000)
   observeCounterSection('.edu-stats', '.edu-stat-value[data-target]', 1500)

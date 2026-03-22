@@ -40,15 +40,21 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							}
 						</div>
 						<div class="input-row">
-							<a href="/soccer/google/connect" class="btn soccer-secondary-btn">Reconnect Google</a>
+							<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link>
+								<span class="btn-text">Reconnect Google</span>
+								<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+							</a>
 							<button
 								type="button"
-								class="btn soccer-secondary-btn"
+								class="btn soccer-secondary-btn btn-loading"
 								hx-post="/soccer/google/disconnect"
 								hx-target="#soccer-auth-panel"
 								hx-swap="outerHTML"
+								hx-disabled-elt="this"
+								data-loading-button
 							>
-								Disconnect
+								<span class="btn-text">Disconnect</span>
+								<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 							</button>
 						</div>
 					} else {
@@ -56,7 +62,10 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							<p class="soccer-auth-status">Google Calendar not connected</p>
 							<p class="soccer-auth-user">Connect Google Calendar once to add selected games directly without downloading an .ics file.</p>
 						</div>
-						<a href="/soccer/google/connect" class="btn btn-primary">Connect Google Calendar</a>
+						<a href="/soccer/google/connect" class="btn btn-primary btn-loading" data-loading-link>
+							<span class="btn-text">Connect Google Calendar</span>
+							<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+						</a>
 					}
 				</div>
 				if props.GoogleConnected && len(props.GoogleCalendars) > 0 {
@@ -65,6 +74,8 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 						hx-post="/soccer/google/calendar"
 						hx-target="#soccer-auth-panel"
 						hx-swap="outerHTML"
+						hx-indicator=".soccer-google-save-indicator"
+						hx-disabled-elt="find select, find button[type='submit']"
 					>
 						<div class="form-group">
 							<label for="soccer-google-calendar" class="form-label">Google Calendar</label>
@@ -80,7 +91,10 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 										</option>
 									}
 								</select>
-								<button type="submit" class="btn soccer-secondary-btn">Save calendar</button>
+									<button type="submit" class="btn soccer-secondary-btn btn-loading" data-loading-button>
+										<span class="btn-text">Save calendar</span>
+										<span class="btn-loading-indicator soccer-google-save-indicator htmx-indicator" aria-hidden="true"></span>
+									</button>
 							</div>
 						</div>
 					</form>
@@ -104,12 +118,15 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 					</div>
 					<button
 						type="button"
-						class="btn soccer-secondary-btn"
+						class="btn soccer-secondary-btn btn-loading"
 						hx-post="/soccer/logout"
 						hx-target="#soccer-auth-panel"
 						hx-swap="outerHTML"
+						hx-disabled-elt="this"
+						data-loading-button
 					>
-						Clear import
+						<span class="btn-text">Clear import</span>
+						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 					</button>
 				} else if props.LoginAvailable {
 					<div>

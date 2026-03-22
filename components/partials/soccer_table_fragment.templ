@@ -49,7 +49,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 				<div class="input-row">
 					<button
 						type="button"
-						class="btn soccer-secondary-btn"
+						class="btn soccer-secondary-btn btn-loading"
 						if !props.GoogleConnected {
 							disabled
 						}
@@ -58,9 +58,13 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 							hx-include="#download-form"
 							hx-target="#google-calendar-feedback"
 							hx-swap="innerHTML"
+							hx-indicator=".soccer-google-add-indicator"
+							hx-disabled-elt="this"
 						}
+						data-loading-button
 					>
 						<span class="btn-text">Add Selected to Google Calendar</span>
+						<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
 					</button>
 					<button id="download-button" type="submit" class="btn btn-primary download-btn">
 						<span class="btn-text">Download Selected (.ics)</span>

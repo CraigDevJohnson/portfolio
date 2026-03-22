@@ -3,21 +3,22 @@
 ## Completed
 
 - [x] Task-001: Reorder input sections — manual team IDs first
+- [x] Task-002: Add loading/progress indicators to async soccer actions
 
 ## Current Iteration
 
-- Iteration: 2
+- Iteration: 3
 - Working on: Awaiting next assigned task
 - Started: 2026-03-22T00:00:00Z
 
 ## Last Completed
 
-- Task-001: Fix review findings for unified input section ordering
+- Task-002: Add loading and disabled states for in-scope async soccer actions
 - Validation: `just generate`, `just test`, and `just build` ✅
 - Key decisions:
-  - Kept one HTMX `#soccer-auth-panel` wrapper, but split its live output into separate Google Calendar and JWT import sections so the middle and last slots both stay functional
-  - Preserved `#soccer-auth-panel`, `#games-container`, and `#loading-indicator` so the existing HTMX flows continue to work without handler changes
-  - Limited the fix to `.templ` structure plus minimal soccer page CSS support for loading placeholders
+  - Used `hx-disabled-elt` and inline `.htmx-indicator` spinners on the affected HTMX forms and buttons so duplicate requests are blocked without backend changes
+  - Added small `main.js` helpers to toggle `aria-busy` and loading classes for the JWT modal submit button and the full-page Google connect/reconnect links
+  - Preserved the existing `#soccer-auth-panel`, `#games-container`, `#loading-indicator`, and feedback targets so current handler behavior and swaps stay intact
 
 ## Blockers
 

@@ -14,7 +14,8 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 		hx-post="/soccer/fetch"
 		hx-target="#games-container"
 		hx-swap="innerHTML"
-		hx-indicator="#loading-indicator"
+		hx-indicator="#loading-indicator, .soccer-player-submit-indicator"
+		hx-disabled-elt="find button[type='submit']"
 	>
 		<fieldset class="soccer-player-fieldset">
 			<legend>Choose discovered players</legend>
@@ -32,7 +33,10 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 					</label>
 				}
 			</div>
-			<button type="submit" class="btn btn-primary soccer-player-submit">Fetch Player Schedules</button>
+			<button type="submit" class="btn btn-primary soccer-player-submit btn-loading" data-loading-button>
+				<span class="btn-text">Fetch Player Schedules</span>
+				<span class="btn-loading-indicator soccer-player-submit-indicator htmx-indicator" aria-hidden="true"></span>
+			</button>
 		</fieldset>
 	</form>
 }
