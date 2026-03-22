@@ -1163,15 +1163,7 @@ func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := getSession(r)
-	if errors.Is(err, errSessionExpired) {
-		clearSession(w, r)
-		session = nil
-	} else if err != nil {
-		log.Printf("soccer session read failed: %v", err)
-		clearSession(w, r)
-		session = nil
-	}
+	session, _ := loadSoccerSession(w, r)
 
 	renderSoccerLoginState(w, r, session)
 }
@@ -1371,7 +1363,7 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	session, _ := getSession(r)
+	session, _ := loadSoccerSession(w, r)
 	if !googleEnabled() {
 		renderSoccerLoginState(w, r, session)
 		return
@@ -1414,7 +1406,7 @@ func soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	session, _ := getSession(r)
+	session, _ := loadSoccerSession(w, r)
 	deleteGoogleConnection(r.Context(), w, r)
 	renderSoccerLoginState(w, r, session)
 }
@@ -1471,15 +1463,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
 		return
 	}
-	session, sessionErr := getSession(r)
-	if errors.Is(sessionErr, errSessionExpired) {
-		clearSession(w, r)
-		session = nil
-	} else if sessionErr != nil {
-		log.Printf("soccer session read failed: %v", sessionErr)
-		clearSession(w, r)
-		session = nil
-	}
+	session, _ := loadSoccerSession(w, r)
 	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
 	if err != nil {
 		renderSoccerLoginFeedback(w, "error", googleAddScheduleErrorMessage(err))
@@ -1670,18 +1654,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
-	session, err := getSession(r)
-	swapAuthState := false
-	if errors.Is(err, errSessionExpired) {
-		clearSession(w, r)
-		session = nil
-		swapAuthState = true
-	} else if err != nil {
-		log.Printf("soccer session read failed: %v", err)
-		clearSession(w, r)
-		session = nil
-		swapAuthState = true
-	}
+	session, swapAuthState := loadSoccerSession(w, r)
 
 	googleConnected := false
 	if googleEnabled() {
@@ -1705,8 +1678,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err = partials.SoccerTableFragment(props).Render(context.Background(), w)
-	if err != nil {
+	if err := partials.SoccerTableFragment(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -1767,15 +1739,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
-	session, err := getSession(r)
-	if errors.Is(err, errSessionExpired) {
-		clearSession(w, r)
-		session = nil
-	} else if err != nil {
-		log.Printf("soccer session read failed: %v", err)
-		clearSession(w, r)
-		session = nil
-	}
+	session, _ := loadSoccerSession(w, r)
 
 	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
 	if errors.Is(err, errPlayerSessionRequired) {
@@ -1989,6 +1953,20 @@ func getSession(r *http.Request) (*SessionData, error) {
 		return nil, errSessionExpired
 	}
 	return &session, nil
+}
+
+func loadSoccerSession(w http.ResponseWriter, r *http.Request) (*SessionData, bool) {
+	session, err := getSession(r)
+	if errors.Is(err, errSessionExpired) {
+		clearSession(w, r)
+		return nil, true
+	}
+	if err != nil {
+		log.Printf("soccer session read failed: %v", err)
+		clearSession(w, r)
+		return nil, true
+	}
+	return session, false
 }
 
 func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) error {
@@ -3004,16 +2982,16 @@ func sortScheduleGames(games []Game) {
 			if !left.Equal(right) {
 				return left.Before(right)
 			}
-			return compareScheduleGames(games[i], games[j]) < 0
+			return compareScheduleGames(&games[i], &games[j]) < 0
 		}
 		if games[i].DateTime != games[j].DateTime {
 			return games[i].DateTime < games[j].DateTime
 		}
-		return compareScheduleGames(games[i], games[j]) < 0
+		return compareScheduleGames(&games[i], &games[j]) < 0
 	})
 }
 
-func compareScheduleGames(left, right Game) int {
+func compareScheduleGames(left, right *Game) int {
 	for _, pair := range [][2]string{
 		{left.DateTime, right.DateTime},
 		{left.StartAt, right.StartAt},
@@ -3137,19 +3115,8 @@ func scheduleFetchFeedback(err error) (string, string, bool) {
 	}
 	var fetchErr *lpsFetchError
 	if errors.As(err, &fetchErr) {
-		switch fetchErr.Kind {
-		case lpsErrorMalformedToken:
-			return "The imported Let's Play Soccer token is not a valid JWT.", "Copy the full bearer JWT from letsplaysoccer.com and import it again.", true
-		case lpsErrorUnauthorized:
-			return "Your imported Let's Play Soccer token was rejected.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
-		case lpsErrorForbidden:
-			return fmt.Sprintf("Let's Play Soccer denied access to discovered player %d.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
-		case lpsErrorInvalidPlayer:
-			return fmt.Sprintf("Discovered player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
-		case lpsErrorInvalidTeam:
-			return fmt.Sprintf("Team ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Enter valid numeric team IDs from the Let's Play Soccer Team Schedules page and try again.", false
-		case lpsErrorUpstream:
-			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team IDs manually.", false
+		if detail, ok := scheduleErrorDetail(fetchErr); ok {
+			return detail.feedbackMessage, detail.feedbackHint, detail.clearSession
 		}
 	}
 	if errors.Is(err, errSessionExpired) {
@@ -3161,22 +3128,78 @@ func scheduleFetchFeedback(err error) (string, string, bool) {
 func scheduleDownloadError(err error) (int, string) {
 	var fetchErr *lpsFetchError
 	if errors.As(err, &fetchErr) {
-		switch fetchErr.Kind {
-		case lpsErrorMalformedToken:
-			return http.StatusUnauthorized, "the imported Let's Play Soccer token is malformed; import the full bearer JWT again"
-		case lpsErrorUnauthorized:
-			return http.StatusUnauthorized, "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com"
-		case lpsErrorForbidden:
-			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to discovered player %d; clear the imported players and import again", fetchErr.PlayerID)
-		case lpsErrorInvalidPlayer:
-			return http.StatusBadRequest, fmt.Sprintf("discovered player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID)
-		case lpsErrorInvalidTeam:
-			return http.StatusBadRequest, fmt.Sprintf("team ID %d was not accepted by Let's Play Soccer; enter a valid numeric team ID and try again", fetchErr.PlayerID)
-		case lpsErrorUpstream:
-			return http.StatusBadGateway, "could not refresh the authenticated schedule because Let's Play Soccer is unavailable"
+		if detail, ok := scheduleErrorDetail(fetchErr); ok {
+			return detail.downloadStatus, detail.downloadMessage
 		}
 	}
 	return http.StatusBadGateway, "could not refresh the authenticated schedule"
+}
+
+type scheduleErrorDetails struct {
+	clearSession    bool
+	downloadMessage string
+	downloadStatus  int
+	feedbackHint    string
+	feedbackMessage string
+}
+
+func scheduleErrorDetail(fetchErr *lpsFetchError) (scheduleErrorDetails, bool) {
+	if fetchErr == nil {
+		return scheduleErrorDetails{}, false
+	}
+
+	switch fetchErr.Kind {
+	case lpsErrorMalformedToken:
+		return scheduleErrorDetails{
+			clearSession:    true,
+			downloadMessage: "the imported Let's Play Soccer token is malformed; import the full bearer JWT again",
+			downloadStatus:  http.StatusUnauthorized,
+			feedbackHint:    "Copy the full bearer JWT from letsplaysoccer.com and import it again.",
+			feedbackMessage: "The imported Let's Play Soccer token is not a valid JWT.",
+		}, true
+	case lpsErrorUnauthorized:
+		return scheduleErrorDetails{
+			clearSession:    true,
+			downloadMessage: "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com",
+			downloadStatus:  http.StatusUnauthorized,
+			feedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
+			feedbackMessage: "Your imported Let's Play Soccer token was rejected.",
+		}, true
+	case lpsErrorForbidden:
+		return scheduleErrorDetails{
+			clearSession:    false,
+			downloadMessage: fmt.Sprintf("Let's Play Soccer denied access to discovered player %d; clear the imported players and import again", fetchErr.PlayerID),
+			downloadStatus:  http.StatusForbidden,
+			feedbackHint:    "Clear the imported players and import again to refresh the discovered player list.",
+			feedbackMessage: fmt.Sprintf("Let's Play Soccer denied access to discovered player %d.", fetchErr.PlayerID),
+		}, true
+	case lpsErrorInvalidPlayer:
+		return scheduleErrorDetails{
+			clearSession:    false,
+			downloadMessage: fmt.Sprintf("discovered player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID),
+			downloadStatus:  http.StatusBadRequest,
+			feedbackHint:    "Clear the imported players and import again to refresh the discovered player list.",
+			feedbackMessage: fmt.Sprintf("Discovered player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID),
+		}, true
+	case lpsErrorInvalidTeam:
+		return scheduleErrorDetails{
+			clearSession:    false,
+			downloadMessage: fmt.Sprintf("team ID %d was not accepted by Let's Play Soccer; enter a valid numeric team ID and try again", fetchErr.PlayerID),
+			downloadStatus:  http.StatusBadRequest,
+			feedbackHint:    "Enter valid numeric team IDs from the Let's Play Soccer Team Schedules page and try again.",
+			feedbackMessage: fmt.Sprintf("Team ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID),
+		}, true
+	case lpsErrorUpstream:
+		return scheduleErrorDetails{
+			clearSession:    false,
+			downloadMessage: "could not refresh the authenticated schedule because Let's Play Soccer is unavailable",
+			downloadStatus:  http.StatusBadGateway,
+			feedbackHint:    "Their API may be unavailable. Try again in a moment, or use team IDs manually.",
+			feedbackMessage: "Could not load schedules from Let's Play Soccer right now.",
+		}, true
+	default:
+		return scheduleErrorDetails{}, false
+	}
 }
 
 func clientIP(r *http.Request) string {

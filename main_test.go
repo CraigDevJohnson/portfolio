@@ -2035,7 +2035,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 
 func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "", "", "http://unused.example.com/calendar/v3")
+	configureGoogleTestRuntime(t, store, "", "", "")
 	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
 		t.Fatalf("encryptGoogleToken returned error: %v", err)
@@ -2081,7 +2081,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 
 func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "", "", "http://unused.example.com/calendar/v3")
+	configureGoogleTestRuntime(t, store, "", "", "")
 	previousConfig := configData
 	previousLocal := time.Local
 	time.Local = time.UTC

@@ -41,7 +41,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			<div class="table-header">
 				<div class="table-actions">
 					<label class="select-all-label">
-						<input id="select-all" type="checkbox" checked data-select-all/>
+						<input id="select-all" type="checkbox" checked aria-label="Select all games" data-select-all/>
 						<span>Select all games</span>
 					</label>
 					<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>

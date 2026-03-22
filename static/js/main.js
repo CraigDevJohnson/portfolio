@@ -2,11 +2,19 @@
 ;(function () {
   'use strict'
 
+  const HEADER_SCROLL_SHADOW_THRESHOLD = 100
+
   // Mobile menu toggle
   const mobileMenuBtn = document.getElementById('mobile-menu-btn')
   const mobileNav = document.getElementById('mobile-nav')
 
   if (mobileMenuBtn && mobileNav) {
+    const closeMobileNav = () => {
+      mobileMenuBtn.setAttribute('aria-expanded', 'false')
+      mobileNav.classList.remove('open')
+      mobileNav.setAttribute('aria-hidden', 'true')
+    }
+
     mobileMenuBtn.addEventListener('click', () => {
       const isExpanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true'
       mobileMenuBtn.setAttribute('aria-expanded', !isExpanded)
@@ -17,18 +25,14 @@
     // Close menu when clicking on a link
     mobileNav.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', () => {
-        mobileMenuBtn.setAttribute('aria-expanded', 'false')
-        mobileNav.classList.remove('open')
-        mobileNav.setAttribute('aria-hidden', 'true')
+        closeMobileNav()
       })
     })
 
     // Close menu when clicking outside
     document.addEventListener('click', e => {
       if (!mobileMenuBtn.contains(e.target) && !mobileNav.contains(e.target)) {
-        mobileMenuBtn.setAttribute('aria-expanded', 'false')
-        mobileNav.classList.remove('open')
-        mobileNav.setAttribute('aria-hidden', 'true')
+        closeMobileNav()
       }
     })
   }
@@ -95,6 +99,96 @@
       subscribeSection.style.display = 'block'
       subscribeSection.classList.add('fade-in')
     }
+  }
+
+  function animateCounter(counter, duration) {
+    const targetYear = counter.dataset.targetYear
+    const targetValue = counter.dataset.target
+    const suffix = counter.dataset.suffix || ''
+    const finalValue = targetYear
+      ? new Date().getFullYear() - Number.parseInt(targetYear, 10)
+      : Number.parseInt(targetValue, 10) || 0
+
+    const start = performance.now()
+
+    function update(now) {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const ease = 1 - Math.pow(1 - progress, 3)
+      counter.textContent = Math.floor(finalValue * ease)
+
+      if (progress < 1) {
+        requestAnimationFrame(update)
+        return
+      }
+
+      counter.textContent = `${finalValue}${suffix}`
+    }
+
+    requestAnimationFrame(update)
+  }
+
+  function observeCounterSection(sectionSelector, counterSelector, duration) {
+    const section = document.querySelector(sectionSelector)
+    if (!section || section.dataset.countersBound === 'true') {
+      return
+    }
+
+    section.dataset.countersBound = 'true'
+
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) {
+            return
+          }
+
+          entry.target.querySelectorAll(counterSelector).forEach(counter => {
+            animateCounter(counter, duration)
+          })
+          observer.unobserve(entry.target)
+        })
+      },
+      { threshold: 0.3 }
+    )
+
+    observer.observe(section)
+  }
+
+  function setupProjectsCategoryFilter() {
+    const pills = document.querySelectorAll('.proj-category-pill')
+
+    if (pills.length === 0) {
+      return
+    }
+
+    pills.forEach(pill => {
+      if (pill.dataset.bound === 'true') {
+        return
+      }
+
+      pill.dataset.bound = 'true'
+      pill.addEventListener('click', () => {
+        pills.forEach(candidate => {
+          candidate.classList.remove('active')
+          candidate.setAttribute('aria-pressed', 'false')
+        })
+
+        pill.classList.add('active')
+        pill.setAttribute('aria-pressed', 'true')
+
+        const category = pill.dataset.category
+        document.querySelectorAll('.project-card').forEach(card => {
+          if (category === 'all') {
+            card.style.display = ''
+            return
+          }
+
+          const cardCategory = (card.dataset.category || '').toLowerCase()
+          card.style.display = cardCategory === category ? '' : 'none'
+        })
+      })
+    })
   }
 
   const soccerLoginModal = document.getElementById('soccer-login-modal')
@@ -245,6 +339,8 @@
       closeSoccerLoginModal()
     }
 
+    setupProjectsCategoryFilter()
+
     // Skills page: re-observe new skill categories after filter swap
     if (evt.detail.target.id === 'skills-filterable' || evt.detail.target.closest('.skills-section')) {
       const newCategories = evt.detail.target.querySelectorAll('.skill-category')
@@ -269,6 +365,11 @@
   setupEmailSubscription()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
+  observeCounterSection('.hero-stats', '.home-stat-value', 2000)
+  observeCounterSection('.about-stats', '.about-stat-value', 2000)
+  observeCounterSection('.edu-stats', '.edu-stat-value[data-target]', 1500)
+  observeCounterSection('.projects-stats', '.proj-stat-value', 1500)
+  setupProjectsCategoryFilter()
 
   // Add intersection observer for scroll animations
   const observerOptions = {
@@ -298,7 +399,7 @@
     window.addEventListener('scroll', () => {
       const currentScroll = window.pageYOffset
 
-      if (currentScroll > 100) {
+      if (currentScroll > HEADER_SCROLL_SHADOW_THRESHOLD) {
         header.style.boxShadow = 'var(--shadow-md)'
       } else {
         header.style.boxShadow = 'none'

@@ -8,7 +8,7 @@ You are a specialized **Go + HTMX development agent** for this portfolio website
 
 - **Go Backend Development**: Handler functions, template rendering, HTTP routing
 - **HTMX Integration**: Dynamic fragment loading, form handling, progressive enhancement
-- **Go Templates**: html/template syntax, partial composition, template functions
+- **Templ Components**: page layouts, partial composition, and generated server-rendered fragments
 - **CSS Styling**: Modern CSS with variables, responsive design, theme support
 - **Single-File Architecture**: All application logic in `main.go`
 
@@ -38,12 +38,12 @@ You are a specialized **Go + HTMX development agent** for this portfolio website
 
 1. Review the architecture in `.github/copilot-instructions.md`
 2. Understand the existing patterns for similar functionality
-3. Check that the server builds: `go build -o portfolio-server .`
-4. Run the server locally to see current behavior: `./portfolio-server`
+3. Check that the server builds: `just build`
+4. Run the server locally to see current behavior: `just run`
 
 ### When Implementing Features
 
-- **Follow the Handler Pattern**: Use `renderPage()` for full pages, return fragments for HTMX endpoints
+- **Follow the Handler Pattern**: Use Templ page components for full pages and partial components for HTMX endpoints
 - **Data in main.go**: Add/update data in typed functions like `experienceData()`, never hardcode in templates
 - **CSS Scoping**: Create page-specific CSS files in `static/css/{pagename}.css`
 - **Template Structure**: Reuse partials, keep pages focused on content
@@ -67,7 +67,7 @@ go build -o portfolio-server . && ./portfolio-server
 
 ### Code Quality Standards
 
-- **Format code**: Run `go fmt ./...` before committing
+- **Format code**: Run `just fmt` before committing
 - **Check for issues**: Run `go vet ./...` to catch common mistakes
 - **Descriptive names**: Use clear function and variable names
 - **Comment complex logic**: Add comments for non-obvious code
@@ -78,23 +78,14 @@ go build -o portfolio-server . && ./portfolio-server
 ### Adding a New Page
 
 ```go
-// 1. Create data function (if needed)
-func newPageData() []NewPageItem {
-    return []NewPageItem{
-        {Field: "value"},
+// 1. Create handler
+func newPageHandler(w http.ResponseWriter, r *http.Request) {
+    if err := pages.NewPage().Render(r.Context(), w); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
     }
 }
 
-// 2. Create handler
-func newPageHandler(w http.ResponseWriter, r *http.Request) {
-    renderPage(w, "newpage", map[string]any{
-        "Title": "New Page - Craig Johnson",
-        "Page":  "newpage",
-        "Items": newPageData(),
-    })
-}
-
-// 3. Register route in main()
+// 2. Register route in main()
 http.HandleFunc("/newpage", newPageHandler)
 ```
 
@@ -103,11 +94,8 @@ http.HandleFunc("/newpage", newPageHandler)
 ```go
 // Fragment handler returns only the partial
 func newPageFragmentHandler(w http.ResponseWriter, r *http.Request) {
-    tmpl := templatesByPage["newpage"]
-    data := map[string]any{
-        "Items": newPageData(),
-    }
-    if err := tmpl.ExecuteTemplate(w, "fragment_name.html", data); err != nil {
+    props := partials.NewPageFragmentProps{}
+    if err := partials.NewPageFragment(props).Render(r.Context(), w); err != nil {
         log.Printf("error rendering newpage fragment: %v", err)
         http.Error(w, "Internal server error", http.StatusInternalServerError)
     }
@@ -118,12 +106,13 @@ func newPageFragmentHandler(w http.ResponseWriter, r *http.Request) {
 
 - **Never commit secrets**: API keys, tokens belong in environment variables
 - **Validate input**: Check query params and form data before use
-- **Use html/template**: This automatically escapes HTML (already enforced)
+- **Use Templ safely**: Templ escapes HTML by default; only use raw HTML helpers when content is trusted
 - **Be cautious with HTMX**: Validate data before rendering fragments
 
 ## Boundaries and Limitations
 
 ### You SHOULD:
+
 - Implement features following established patterns
 - Fix bugs in Go code, templates, or CSS
 - Add new pages using the standard structure
@@ -131,6 +120,7 @@ func newPageFragmentHandler(w http.ResponseWriter, r *http.Request) {
 - Test changes locally before submitting
 
 ### You SHOULD NOT:
+
 - Change the core architecture (single-file Go + HTMX)
 - Add unnecessary dependencies
 - Break existing pages or functionality
@@ -153,9 +143,10 @@ Your work is successful when:
 ## Getting Help
 
 If you're unsure about:
+
 - **Architecture**: Review `.github/copilot-instructions.md`
 - **Patterns**: Look at similar existing implementations in `main.go`
-- **Templates**: Check `templates/` for examples
+- **Templates**: Check `components/` for examples
 - **Styling**: Reference `static/css/styles.css` for design tokens
 
 Remember: Consistency with existing patterns is more important than innovation. Follow what works!

@@ -51,12 +51,11 @@ A server-rendered Go application using Templ for type-safe component-based templ
 # Install dependencies
 go mod download
 
-# Install Templ CLI used by this repo
-just install-templ
-
 # Build the project (generates Templ components and compiles)
 just build
 ```
+
+`just build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
 
 ### Running
 

@@ -30,9 +30,6 @@ jobs:
       - name: Add Go bin to PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Install Templ CLI
-        run: go install github.com/a-h/templ/cmd/templ@v0.3.977
-
       - name: Install just
         uses: extractions/setup-just@v3
 

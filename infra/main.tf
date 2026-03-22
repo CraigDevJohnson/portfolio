@@ -100,8 +100,8 @@ resource "aws_iam_role_policy_attachment" "apprunner_ecr_access" {
 }
 
 # ──────────────────────────────────────────────
-# IAM — App Runner instance role (for future
-# DynamoDB, SES, Lambda, etc.)
+# IAM — App Runner instance role (for DynamoDB,
+# and future SES, Lambda, etc.)
 # ──────────────────────────────────────────────
 
 resource "aws_iam_role" "apprunner_instance" {
