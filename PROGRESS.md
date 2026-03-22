@@ -6,17 +6,18 @@
 
 ## Current Iteration
 
-- Iteration: 1
+- Iteration: 2
 - Working on: Awaiting next assigned task
 - Started: 2026-03-22T00:00:00Z
 
 ## Last Completed
 
-- Task-001: Reorder input sections — manual team IDs first
+- Task-001: Fix review findings for unified input section ordering
 - Validation: `just generate`, `just test`, and `just build` ✅
 - Key decisions:
-  - Reordered the left-column unified card so manual entry renders first, the HTMX auth panel renders in the middle, and JWT import copy renders last
-  - Kept `#soccer-auth-panel`, `#games-container`, and `#loading-indicator` unchanged
+  - Kept one HTMX `#soccer-auth-panel` wrapper, but split its live output into separate Google Calendar and JWT import sections so the middle and last slots both stay functional
+  - Preserved `#soccer-auth-panel`, `#games-container`, and `#loading-indicator` so the existing HTMX flows continue to work without handler changes
+  - Limited the fix to `.templ` structure plus minimal soccer page CSS support for loading placeholders
 
 ## Blockers
 

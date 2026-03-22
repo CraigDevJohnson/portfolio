@@ -215,9 +215,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  min-width: 0;
 }
 
 .soccer-auth-panel-loading {
+  color: inherit;
+}
+
+.soccer-panel-loading-state {
   color: var(--fg-muted);
 }
 

@@ -148,25 +148,26 @@ templ Soccer(props SoccerProps) {
 								</div>
 							</form>
 						</div>
-						<div class="soccer-google-shell soccer-input-section">
-							<div class="soccer-google-copy">
-								<h3>Google Calendar connection</h3>
-								<p>Connect Google Calendar, choose a destination calendar, and load schedules for discovered players from the session tools below.</p>
+						<div
+							id="soccer-auth-panel"
+							class="soccer-auth-panel soccer-auth-panel-loading"
+							hx-get="/soccer/session"
+							hx-trigger="load"
+							hx-swap="outerHTML"
+						>
+							<div class="soccer-google-shell soccer-input-section">
+								<div class="soccer-google-copy">
+									<h3>Google Calendar connection</h3>
+									<p>Connect Google Calendar, choose a destination calendar, and load schedules for discovered players from the JWT import tools below.</p>
+								</div>
+								<p class="soccer-panel-loading-state">Loading Google Calendar connection...</p>
 							</div>
-							<div
-								id="soccer-auth-panel"
-								class="soccer-auth-panel soccer-auth-panel-loading"
-								hx-get="/soccer/session"
-								hx-trigger="load"
-								hx-swap="outerHTML"
-							>
-								<p>Loading import options...</p>
-							</div>
-						</div>
-						<div class="soccer-auth-shell soccer-input-section">
-							<div class="soccer-auth-copy">
-								<h3>JWT import access</h3>
-								<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
+							<div class="soccer-auth-shell soccer-input-section">
+								<div class="soccer-auth-copy">
+									<h3>JWT import access</h3>
+									<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
+								</div>
+								<p class="soccer-panel-loading-state">Loading import options...</p>
 							</div>
 						</div>
 					</div>

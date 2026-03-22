@@ -23,99 +23,111 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			hx-swap-oob="outerHTML"
 		}
 	>
-		if props.GoogleAvailable {
-			<div class="soccer-auth-summary">
-				if props.GoogleConnected {
-					<div>
-						<p class="soccer-auth-status">Google Calendar connected</p>
-						if props.GoogleCalendarSummary != "" {
-							<p class="soccer-auth-user">Selected calendar: { props.GoogleCalendarSummary }</p>
-						} else {
-							<p class="soccer-auth-user">Your Google Calendar connection is ready. Choose a destination calendar below.</p>
-						}
-					</div>
-					<div class="input-row">
-						<a href="/soccer/google/connect" class="btn soccer-secondary-btn">Reconnect Google</a>
-						<button
-							type="button"
-							class="btn soccer-secondary-btn"
-							hx-post="/soccer/google/disconnect"
-							hx-target="#soccer-auth-panel"
-							hx-swap="outerHTML"
-						>
-							Disconnect
-						</button>
-					</div>
-				} else {
-					<div>
-						<p class="soccer-auth-status">Google Calendar not connected</p>
-						<p class="soccer-auth-user">Connect Google Calendar once to add selected games directly without downloading an .ics file.</p>
-					</div>
-					<a href="/soccer/google/connect" class="btn btn-primary">Connect Google Calendar</a>
-				}
+		<div class="soccer-google-shell soccer-input-section">
+			<div class="soccer-google-copy">
+				<h3>Google Calendar connection</h3>
+				<p>Connect Google Calendar, choose a destination calendar, and load schedules for discovered players from the JWT import tools below.</p>
 			</div>
-			if props.GoogleConnected && len(props.GoogleCalendars) > 0 {
-				<form
-					class="fetch-form"
-					hx-post="/soccer/google/calendar"
-					hx-target="#soccer-auth-panel"
-					hx-swap="outerHTML"
-				>
-					<div class="form-group">
-						<label for="soccer-google-calendar" class="form-label">Google Calendar</label>
-						<div class="input-row">
-							<select id="soccer-google-calendar" name="calendar_id" class="text-input">
-								for _, calendar := range props.GoogleCalendars {
-									<option value={ calendar.ID } if calendar.ID == props.SelectedGoogleCalendarID { selected }>
-										if calendar.Primary {
-											{ calendar.Summary + " (Primary)" }
-										} else {
-											{ calendar.Summary }
-										}
-									</option>
-								}
-							</select>
-							<button type="submit" class="btn soccer-secondary-btn">Save calendar</button>
+			if props.GoogleAvailable {
+				<div class="soccer-auth-summary">
+					if props.GoogleConnected {
+						<div>
+							<p class="soccer-auth-status">Google Calendar connected</p>
+							if props.GoogleCalendarSummary != "" {
+								<p class="soccer-auth-user">Selected calendar: { props.GoogleCalendarSummary }</p>
+							} else {
+								<p class="soccer-auth-user">Your Google Calendar connection is ready. Choose a destination calendar below.</p>
+							}
 						</div>
-					</div>
-				</form>
-			}
-		} else {
-			<div class="soccer-auth-unavailable" role="status">
-				<p>Google Calendar add is unavailable until Google OAuth and server-side connection storage are configured.</p>
-			</div>
-		}
-		<div class="soccer-auth-summary">
-			if props.Authenticated {
-				<div>
-					<p class="soccer-auth-status">Imported</p>
-					<p class="soccer-auth-user">Bearer JWT saved for this browser session. Choose which discovered players to fetch below. To refresh the player list, clear import and import again.</p>
+						<div class="input-row">
+							<a href="/soccer/google/connect" class="btn soccer-secondary-btn">Reconnect Google</a>
+							<button
+								type="button"
+								class="btn soccer-secondary-btn"
+								hx-post="/soccer/google/disconnect"
+								hx-target="#soccer-auth-panel"
+								hx-swap="outerHTML"
+							>
+								Disconnect
+							</button>
+						</div>
+					} else {
+						<div>
+							<p class="soccer-auth-status">Google Calendar not connected</p>
+							<p class="soccer-auth-user">Connect Google Calendar once to add selected games directly without downloading an .ics file.</p>
+						</div>
+						<a href="/soccer/google/connect" class="btn btn-primary">Connect Google Calendar</a>
+					}
 				</div>
-				<button
-					type="button"
-					class="btn soccer-secondary-btn"
-					hx-post="/soccer/logout"
-					hx-target="#soccer-auth-panel"
-					hx-swap="outerHTML"
-				>
-					Clear import
-				</button>
-			} else if props.LoginAvailable {
-				<div>
-					<p class="soccer-auth-status">No import active</p>
-					<p class="soccer-auth-user">Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically.</p>
-				</div>
-				<button type="button" class="btn btn-primary" data-open-login-modal>
-					Import access
-				</button>
+				if props.GoogleConnected && len(props.GoogleCalendars) > 0 {
+					<form
+						class="fetch-form"
+						hx-post="/soccer/google/calendar"
+						hx-target="#soccer-auth-panel"
+						hx-swap="outerHTML"
+					>
+						<div class="form-group">
+							<label for="soccer-google-calendar" class="form-label">Google Calendar</label>
+							<div class="input-row">
+								<select id="soccer-google-calendar" name="calendar_id" class="text-input">
+									for _, calendar := range props.GoogleCalendars {
+										<option value={ calendar.ID } if calendar.ID == props.SelectedGoogleCalendarID { selected }>
+											if calendar.Primary {
+												{ calendar.Summary + " (Primary)" }
+											} else {
+												{ calendar.Summary }
+											}
+										</option>
+									}
+								</select>
+								<button type="submit" class="btn soccer-secondary-btn">Save calendar</button>
+							</div>
+						</div>
+					</form>
+				}
 			} else {
 				<div class="soccer-auth-unavailable" role="status">
-					<p>JWT import is unavailable until the session encryption key is configured on the server.</p>
+					<p>Google Calendar add is unavailable until Google OAuth and server-side connection storage are configured.</p>
 				</div>
 			}
 		</div>
-		if props.Authenticated {
-			@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players})
-		}
+		<div class="soccer-auth-shell soccer-input-section">
+			<div class="soccer-auth-copy">
+				<h3>JWT import access</h3>
+				<p>Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
+			</div>
+			<div class="soccer-auth-summary">
+				if props.Authenticated {
+					<div>
+						<p class="soccer-auth-status">Imported</p>
+						<p class="soccer-auth-user">Bearer JWT saved for this browser session. Choose which discovered players to fetch below. To refresh the player list, clear import and import again.</p>
+					</div>
+					<button
+						type="button"
+						class="btn soccer-secondary-btn"
+						hx-post="/soccer/logout"
+						hx-target="#soccer-auth-panel"
+						hx-swap="outerHTML"
+					>
+						Clear import
+					</button>
+				} else if props.LoginAvailable {
+					<div>
+						<p class="soccer-auth-status">No import active</p>
+						<p class="soccer-auth-user">Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically.</p>
+					</div>
+					<button type="button" class="btn btn-primary" data-open-login-modal>
+						Import access
+					</button>
+				} else {
+					<div class="soccer-auth-unavailable" role="status">
+						<p>JWT import is unavailable until the session encryption key is configured on the server.</p>
+					</div>
+				}
+			</div>
+			if props.Authenticated {
+				@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players})
+			}
+		</div>
 	</div>
 }
