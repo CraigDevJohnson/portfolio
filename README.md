@@ -274,6 +274,46 @@ Current import flow:
 6. Fetch schedules or export ICS for the selected players.
 7. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
 
+#### Chrome Extension snippet for easy JWT copying
+
+**Manafest**:
+
+```json
+{
+  "manifest_version": 3,
+  "name": "JWT Extractor",
+  "version": "1.0",
+  "permissions": ["webRequest", "webRequestBlocking"],
+  "host_permissions": ["https://example.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+```
+
+**Script**:
+
+```javascript
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  function (details) {
+    const headers = details.requestHeaders;
+
+    for (let h of headers) {
+      if (h.name.toLowerCase() === "authorization") {
+        console.log("JWT:", h.value);
+
+        // Optionally store it
+        chrome.storage.local.set({ jwt: h.value });
+      }
+    }
+
+    return { requestHeaders: headers };
+  },
+  { urls: ["https://example.com/*"] },
+  ["requestHeaders"]
+);
+```
+
 ### Container Notes
 
 - Runtime image uses distroless and runs as a non-root user.

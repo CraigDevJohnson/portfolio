@@ -268,7 +268,7 @@ From the **repository root** (not the `infra/` directory):
 
 ```bash
 cd ..  # Back to repository root, if you were in infra/
-docker build -t portfolio .
+docker build --platform linux/amd64 -t portfolio .
 ```
 
 ### 4c. Tag and push to ECR
@@ -409,7 +409,7 @@ When you make changes to the site, redeploy with these steps:
 
 ```bash
 # 1. Build the new Docker image
-docker build -t portfolio .
+docker build --platform linux/amd64 -t portfolio .
 
 # 2. Tag and push to ECR
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -651,14 +651,15 @@ aws apprunner list-operations --service-arn "$SERVICE_ARN"
 **Common issues:**
 
 - **Image not found in ECR** — make sure you pushed the image before running `tofu apply`.
-- **Health check failing** — verify the app responds on port 8080 at `/`. Test locally with
-  `docker run -p 8080:8080 portfolio` first.
+- **Health check failing** — App Runner expects an `amd64` image. Build with
+  `docker build --platform linux/amd64 -t portfolio .` and then test locally with
+  `docker run -p 8080:8080 portfolio` before redeploying.
 
 ### Docker build fails
 
 ```bash
 # Make sure you're in the repository root (where the Dockerfile is)
-docker build -t portfolio .
+docker build --platform linux/amd64 -t portfolio .
 
 # Test the image locally
 docker run -p 8080:8080 portfolio

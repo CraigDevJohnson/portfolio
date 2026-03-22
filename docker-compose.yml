@@ -6,6 +6,7 @@ services:
     image: portfolio-app:latest
     container_name: portfolio-app
     environment:
+      APP_BIND_ALL: ${APP_BIND_ALL:-true}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_REGION: ${AWS_REGION}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}

@@ -154,10 +154,14 @@ func (err *googleAPIError) Error() string {
 }
 
 var (
-	configData                                     = loadServerConfig()
-	lpsHTTPClient                                  = &http.Client{Timeout: 15 * time.Second}
-	soccerLoginAttempts                            = newLoginRateLimiter(5, time.Minute)
-	errSessionExpired                              = errors.New("session expired")
+	configData               = loadServerConfig()
+	lpsHTTPClient            = &http.Client{Timeout: 15 * time.Second}
+	soccerLoginAttempts      = newLoginRateLimiter(5, time.Minute)
+	errSessionExpired        = errors.New("session expired")
+	errPlayerSessionRequired = errors.New("an imported session is required for discovered players")
+	errInvalidTeamSelection  = errors.New("one or more team IDs were invalid")
+	errScheduleSelection     = errors.New("at least one team ID or discovered player is required")
+	googleConnectionsMu      sync.RWMutex
 	googleConnections        googleConnectionStore = noopGoogleConnectionStore{}
 	googleOAuthAuthURL                             = "https://accounts.google.com/o/oauth2/auth"
 	googleOAuthTokenURL                            = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
@@ -171,6 +175,7 @@ const (
 	lpsErrorUnauthorized   lpsErrorKind = "unauthorized"
 	lpsErrorForbidden      lpsErrorKind = "forbidden"
 	lpsErrorInvalidPlayer  lpsErrorKind = "invalid_player"
+	lpsErrorInvalidTeam    lpsErrorKind = "invalid_team"
 	lpsErrorUpstream       lpsErrorKind = "upstream"
 )
 
@@ -217,6 +222,13 @@ func loadServerConfig() serverConfig {
 	if config.LPSAPIBaseURL == "" {
 		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
 	}
+	validatedLPSAPIBaseURL, err := normalizeLPSAPIBaseURL(config.LPSAPIBaseURL)
+	if err != nil {
+		log.Printf("invalid LPS_API_BASE_URL; using default %q", defaultLPSAPIBaseURL)
+		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
+	} else {
+		config.LPSAPIBaseURL = validatedLPSAPIBaseURL
+	}
 	if (config.GoogleClientID != "" || config.GoogleClientSecret != "" || config.GoogleConnectionTableName != "") &&
 		(config.GoogleClientID == "" || config.GoogleClientSecret == "" || config.GoogleConnectionTableName == "") {
 		log.Printf("google calendar add disabled: CLIENT_ID_KEY, CLIENT_SECRET_KEY, and GOOGLE_CONNECTION_TABLE_NAME must all be configured")
@@ -239,6 +251,109 @@ func loadServerConfig() serverConfig {
 	return config
 }
 
+func normalizeLPSAPIBaseURL(raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		raw = defaultLPSAPIBaseURL
+	}
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", err
+	}
+	if !parsed.IsAbs() || parsed.Hostname() == "" {
+		return "", errors.New("LPS API base URL must be absolute")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("LPS API base URL cannot include credentials, query, or fragment")
+	}
+	if parsed.Scheme != "https" && (parsed.Scheme != "http" || !isLoopbackHost(parsed.Hostname())) {
+		return "", errors.New("LPS API base URL must use https, or http on loopback only")
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	return parsed.String(), nil
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(strings.TrimSpace(host), "localhost") {
+		return true
+	}
+	parsedIP := net.ParseIP(strings.TrimSpace(host))
+	return parsedIP != nil && parsedIP.IsLoopback()
+}
+
+func lpsAPIEndpoint(pathParts ...string) (string, error) {
+	baseURL, err := normalizeLPSAPIBaseURL(configData.LPSAPIBaseURL)
+	if err != nil {
+		return "", err
+	}
+	return url.JoinPath(baseURL, pathParts...)
+}
+
+func newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts ...string) (*http.Request, error) {
+	endpoint, err := lpsAPIEndpoint(pathParts...)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil) //nolint:gosec // endpoint is rebuilt from normalizeLPSAPIBaseURL and validated before use.
+	if err != nil {
+		return nil, err
+	}
+	if err := validateLPSAPIRequest(req); err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	if bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+	return req, nil
+}
+
+func validateLPSAPIRequest(req *http.Request) error {
+	if req == nil || req.URL == nil {
+		return errors.New("LPS API request URL is required")
+	}
+
+	if req.URL.RawQuery != "" || req.URL.Fragment != "" {
+		return errors.New("LPS API requests cannot include query or fragment")
+	}
+	return nil
+}
+
+func doLPSAPIRequest(req *http.Request) (*http.Response, error) {
+	if err := validateLPSAPIRequest(req); err != nil {
+		return nil, err
+	}
+	return lpsHTTPClient.Do(req) //nolint:gosec // Request URLs are rebuilt from normalizeLPSAPIBaseURL and revalidated here.
+}
+
+func publicBindEnabled() bool {
+	value := strings.TrimSpace(os.Getenv("APP_BIND_ALL"))
+	return strings.EqualFold(value, "1") || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
+}
+
+func serverListenAddress() string {
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "8080"
+	}
+	host := strings.TrimSpace(os.Getenv("HOST"))
+	if host == "" {
+		if publicBindEnabled() {
+			host = "0.0.0.0"
+		} else {
+			host = "127.0.0.1"
+		}
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func localServerURL(listenAddress string) string {
+	_, port, err := net.SplitHostPort(listenAddress)
+	if err != nil || port == "" {
+		return "http://localhost:8080"
+	}
+	return "http://localhost:" + port
+}
+
 func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (googleConnectionStore, error) {
 	if strings.TrimSpace(config.GoogleConnectionTableName) == "" {
 		return noopGoogleConnectionStore{}, nil
@@ -251,6 +366,18 @@ func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (google
 		client:    dynamodb.NewFromConfig(awsCfg),
 		tableName: config.GoogleConnectionTableName,
 	}, nil
+}
+
+func currentGoogleConnectionStore() googleConnectionStore {
+	googleConnectionsMu.RLock()
+	defer googleConnectionsMu.RUnlock()
+	return googleConnections
+}
+
+func setGoogleConnectionStore(store googleConnectionStore) {
+	googleConnectionsMu.Lock()
+	googleConnections = store
+	googleConnectionsMu.Unlock()
 }
 
 func (noopGoogleConnectionStore) Delete(_ context.Context, _ string) error {
@@ -403,17 +530,6 @@ func main() {
 			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
 		}
 	}
-	if googleEnabled() {
-		initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		store, err := newGoogleConnectionStore(initCtx, &configData)
-		initCancel()
-		if err != nil {
-			log.Printf("google calendar add disabled: could not initialize connection store: %v", err)
-			configData.GoogleConnectionTableName = ""
-		} else {
-			googleConnections = store
-		}
-	}
 
 	// routes - pages
 	http.HandleFunc("/", homeHandler)
@@ -454,15 +570,40 @@ func main() {
 		http.ServeFile(w, r, "static/images/favicon.ico")
 	})
 
+	// Bind the listener before any slow init so health checks pass immediately.
+	listenAddress := serverListenAddress()
+	ln, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		log.Fatalf("failed to listen on %s: %v", listenAddress, err)
+	}
+
 	server := &http.Server{
-		Addr:         ":8080",
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Println("Craig Johnson Portfolio running at http://localhost:8080")
-	log.Fatal(server.ListenAndServe())
+	go func() {
+		log.Printf("Craig Johnson Portfolio running at %s", localServerURL(listenAddress))
+		log.Fatal(server.Serve(ln))
+	}()
+
+	// Initialize the Google connection store in the background so App Runner
+	// health checks never wait on AWS SDK startup or credential resolution.
+	if googleEnabled() {
+		go func() {
+			initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer initCancel()
+			store, initErr := newGoogleConnectionStore(initCtx, &configData)
+			if initErr != nil {
+				log.Printf("google calendar add disabled: could not initialize connection store: %v", initErr)
+				return
+			}
+			setGoogleConnectionStore(store)
+		}()
+	}
+
+	select {}
 }
 
 /*
@@ -1203,7 +1344,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, err := googleConnections.Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
+	if existing, err := currentGoogleConnectionStore().Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
 		createdAt = existing.CreatedAt
 	}
 	record := googleConnectionRecord{
@@ -1214,7 +1355,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:       createdAt,
 		UpdatedAt:       time.Now().UTC(),
 	}
-	if err := googleConnections.Put(r.Context(), &record); err != nil {
+	if err := currentGoogleConnectionStore().Put(r.Context(), &record); err != nil {
 		log.Printf("google connection save failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
@@ -1262,7 +1403,7 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 	record.CalendarID = selectedCalendarID
 	record.CalendarSummary = selectedCalendarSummary
 	record.UpdatedAt = time.Now().UTC()
-	if err := googleConnections.Put(r.Context(), record); err != nil {
+	if err := currentGoogleConnectionStore().Put(r.Context(), record); err != nil {
 		log.Printf("google calendar selection save failed: %v", err)
 	}
 	renderSoccerLoginState(w, r, session)
@@ -1339,27 +1480,12 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		clearSession(w, r)
 		session = nil
 	}
-	var games []Game
-	switch {
-	case session != nil && len(playerIDs) > 0:
-		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
-	case len(playerIDs) > 0:
-		err = errors.New("Import a bearer JWT again before adding schedules for discovered players to Google Calendar.")
-	case strings.TrimSpace(teamCodes) != "":
-		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
-	default:
-		err = errors.New("Enter team codes or choose at least one discovered player.")
-	}
+	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
 	if err != nil {
-		renderSoccerLoginFeedback(w, "error", err.Error())
+		renderSoccerLoginFeedback(w, "error", googleAddScheduleErrorMessage(err))
 		return
 	}
-	filteredGames := make([]Game, 0, len(games))
-	for i := range games {
-		if _, ok := selectedIDs[games[i].ID]; ok {
-			filteredGames = append(filteredGames, games[i])
-		}
-	}
+	filteredGames := selectedScheduleGames(games, selectedIDs)
 	if len(filteredGames) == 0 {
 		renderSoccerLoginFeedback(w, "error", "No selected games were found to add.")
 		return
@@ -1370,35 +1496,15 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
 		return
 	}
-	added := 0
-	existing := 0
-	for i := range filteredGames {
-		event, ok := googleEventPayload(r, &filteredGames[i])
-		if !ok {
-			continue
-		}
-		endpoint := googleCalendarAPIBaseURL + "/calendars/" + url.PathEscape(record.CalendarID) + "/events?sendUpdates=none"
-		resp, err := googleAPIRequest(googleHTTPContext(r.Context()), http.MethodPost, endpoint, token, event)
-		if err != nil {
-			log.Printf("google event insert failed: %v", err)
-			renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
-			return
-		}
-		if resp.StatusCode == http.StatusConflict {
-			resp.Body.Close()
-			existing++
-			continue
-		}
-		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-			if isGoogleAuthRejection(resp) {
-				renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
-				return
-			}
-			renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
-			return
-		}
-		resp.Body.Close()
-		added++
+	added, existing, authRejected, err := insertGoogleCalendarEvents(r, record, token, filteredGames)
+	if err != nil {
+		log.Printf("google event insert failed: %v", err)
+		renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
+		return
+	}
+	if authRejected {
+		renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
+		return
 	}
 	message := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
 	if existing > 0 {
@@ -1407,8 +1513,75 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	renderSoccerLoginFeedback(w, "success", message)
 }
 
+func requestedScheduleGames(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string) ([]Game, error) {
+	teamIDs := parseTeamIDs(teamCodes)
+	switch {
+	case session != nil && len(playerIDs) > 0:
+		return resolveScheduleGames(ctx, session, playerIDs, nil)
+	case len(playerIDs) > 0:
+		return nil, errPlayerSessionRequired
+	case strings.TrimSpace(teamCodes) != "" && len(teamIDs) == 0:
+		return nil, errInvalidTeamSelection
+	case len(teamIDs) > 0:
+		return resolveScheduleGames(ctx, session, nil, teamIDs)
+	default:
+		return nil, errScheduleSelection
+	}
+}
+
+func googleAddScheduleErrorMessage(err error) string {
+	switch {
+	case errors.Is(err, errPlayerSessionRequired):
+		return "Import a bearer JWT again before adding schedules for discovered players to Google Calendar."
+	case errors.Is(err, errInvalidTeamSelection):
+		return "Enter one or more numeric Let's Play Soccer team IDs separated by commas."
+	case errors.Is(err, errScheduleSelection):
+		return "Enter team IDs or choose at least one discovered player."
+	default:
+		return err.Error()
+	}
+}
+
+func selectedScheduleGames(games []Game, selectedIDs map[string]struct{}) []Game {
+	filteredGames := make([]Game, 0, len(games))
+	for i := range games {
+		if _, ok := selectedIDs[games[i].ID]; ok {
+			filteredGames = append(filteredGames, games[i])
+		}
+	}
+	return filteredGames
+}
+
+func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord, token *oauth2.Token, games []Game) (int, int, bool, error) {
+	added := 0
+	existing := 0
+	for i := range games {
+		event, ok := googleEventPayload(r, &games[i])
+		if !ok {
+			continue
+		}
+		resp, err := googleInsertCalendarEvent(googleHTTPContext(r.Context()), record.CalendarID, token, &event)
+		if err != nil {
+			return 0, 0, false, err
+		}
+		if resp.StatusCode == http.StatusConflict {
+			resp.Body.Close()
+			existing++
+			continue
+		}
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			authRejected := isGoogleAuthRejection(resp)
+			resp.Body.Close()
+			return 0, 0, authRejected, nil
+		}
+		resp.Body.Close()
+		added++
+	}
+	return added, existing, false, nil
+}
+
 func populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
-	games, fetchErr := lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
+	games, fetchErr := resolveScheduleGames(ctx, session, playerIDs, nil)
 	message, hint, clearSession := scheduleFetchFeedback(fetchErr)
 	if fetchErr != nil && !clearSession {
 		log.Printf("soccer LPS fetch failed: %v", fetchErr)
@@ -1437,12 +1610,39 @@ func resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []
 		return false
 	}
 	if strings.TrimSpace(teamCodes) != "" {
-		props.Games = mockFetchGames(parseTeamCodes(teamCodes)).Games
+		teamIDs := parseTeamIDs(teamCodes)
+		if len(teamIDs) == 0 {
+			props.Message = "One or more team IDs were invalid."
+			props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
+			return false
+		}
+		games, fetchErr := resolveScheduleGames(ctx, session, playerIDs, teamIDs)
+		message, hint, clearSession := scheduleFetchFeedback(fetchErr)
+		if fetchErr != nil && !clearSession {
+			log.Printf("soccer LPS fetch failed: %v", fetchErr)
+		}
+		if fetchErr != nil {
+			props.Message = message
+			props.Hint = hint
+			return clearSession
+		}
+		props.Games = games
 		return false
 	}
-	props.Message = "Enter team codes or choose at least one discovered player."
-	props.Hint = "Manual team code entry still works if you do not want to import a token."
+	props.Message = "Enter team IDs or choose at least one discovered player."
+	props.Hint = "Manual team ID entry still works if you do not want to import a token."
 	return false
+}
+
+func resolveScheduleGames(ctx context.Context, session *SessionData, playerIDs, teamIDs []int) ([]Game, error) {
+	switch {
+	case session != nil && len(playerIDs) > 0:
+		return lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
+	case len(teamIDs) > 0:
+		return lpsFetchGamesForTeams(ctx, teamIDs)
+	default:
+		return nil, nil
+	}
 }
 
 func handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
@@ -1523,56 +1723,7 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-========================================
-Mocks / helpers
-========================================
-*/
-
-func mockFetchGames(teamCodes []string) LambdaGamesResponse {
-	if len(teamCodes) == 0 {
-		return LambdaGamesResponse{Games: []Game{}}
-	}
-	return LambdaGamesResponse{
-		Games: []Game{
-			{
-				ID:       "sample1",
-				DateTime: "Sun 01/11/26 02:55 PM",
-				StartAt:  "2026-01-11T14:55:00-07:00",
-				EndAt:    "2026-01-11T16:25:00-07:00",
-				Field:    "3",
-				Location: "Field 3",
-				Home:     "YOUR TEAM",
-				Away:     "OPPONENT A",
-				Season:   "168",
-			},
-			{
-				ID:       "sample2",
-				DateTime: "Sun 01/18/26 04:30 PM",
-				StartAt:  "2026-01-18T16:30:00-07:00",
-				EndAt:    "2026-01-18T18:00:00-07:00",
-				Field:    "5",
-				Location: "Field 5",
-				Home:     "OPPONENT B",
-				Away:     "YOUR TEAM",
-				Season:   "168",
-			},
-			{
-				ID:       "sample3",
-				DateTime: "Sun 01/25/26 01:00 PM",
-				StartAt:  "2026-01-25T13:00:00-07:00",
-				EndAt:    "2026-01-25T14:30:00-07:00",
-				Field:    "2",
-				Location: "Field 2",
-				Home:     "YOUR TEAM",
-				Away:     "OPPONENT C",
-				Season:   "168",
-			},
-		},
-	}
-}
-
-func parseTeamCodes(raw string) []string {
+func splitDelimitedValues(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
@@ -1580,6 +1731,10 @@ func parseTeamCodes(raw string) []string {
 	return strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ';' || r == ' '
 	})
+}
+
+func parseTeamIDs(raw string) []int {
+	return parsePlayerIDs(splitDelimitedValues(raw))
 }
 
 func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
@@ -1622,19 +1777,19 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		session = nil
 	}
 
-	var games []Game
-	if session != nil && len(playerIDs) > 0 {
-		games, err = lpsFetchGamesForPlayers(r.Context(), session.JWT, playerIDs)
-		if err != nil {
-			log.Printf("soccer LPS fetch failed: %v", err)
-			handleScheduleDownloadError(w, r, err)
-			return
-		}
-	} else if len(playerIDs) > 0 {
+	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
+	if errors.Is(err, errPlayerSessionRequired) {
 		http.Error(w, "import a bearer JWT again before downloading schedules for your discovered players", http.StatusUnauthorized)
 		return
-	} else {
-		games = mockFetchGames(parseTeamCodes(teamCodes)).Games
+	}
+	if errors.Is(err, errInvalidTeamSelection) {
+		http.Error(w, "one or more team IDs were invalid; enter numeric Let's Play Soccer team IDs separated by commas", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		log.Printf("soccer LPS fetch failed: %v", err)
+		handleScheduleDownloadError(w, r, err)
+		return
 	}
 
 	filteredGames := make([]Game, 0, len(games))
@@ -1669,7 +1824,7 @@ func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRe
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
-		if err := googleConnections.Put(ctx, record); err != nil {
+		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			log.Printf("google connection default calendar save failed: %v", err)
 		}
 		return calendarID, summary
@@ -1682,7 +1837,7 @@ func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRe
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
-		if err := googleConnections.Put(ctx, record); err != nil {
+		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			log.Printf("google connection calendar sync failed: %v", err)
 		}
 	}
@@ -2047,13 +2202,13 @@ func loadGoogleConnectionRecord(ctx context.Context, r *http.Request) (*googleCo
 	if connectionID == "" {
 		return nil, nil
 	}
-	return googleConnections.Get(ctx, connectionID)
+	return currentGoogleConnectionStore().Get(ctx, connectionID)
 }
 
 func deleteGoogleConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	connectionID := getGoogleConnectionID(r)
 	if connectionID != "" {
-		if err := googleConnections.Delete(ctx, connectionID); err != nil {
+		if err := currentGoogleConnectionStore().Delete(ctx, connectionID); err != nil {
 			log.Printf("google connection delete failed: %v", err)
 		}
 	}
@@ -2080,14 +2235,14 @@ func currentGoogleToken(ctx context.Context, r *http.Request, record *googleConn
 		}
 		record.TokenCiphertext = encryptedToken
 		record.UpdatedAt = time.Now().UTC()
-		if err := googleConnections.Put(ctx, record); err != nil {
+		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			return nil, err
 		}
 	}
 	return token, nil
 }
 
-func googleAPIRequest(ctx context.Context, method, endpoint string, token *oauth2.Token, body any) (*http.Response, error) {
+func newGoogleAPIRequest(ctx context.Context, method, requestPath string, query url.Values, token *oauth2.Token, body any) (*http.Request, error) {
 	var requestBody io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -2096,7 +2251,14 @@ func googleAPIRequest(ctx context.Context, method, endpoint string, token *oauth
 		}
 		requestBody = bytes.NewReader(payload)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
+	endpoint, err := url.JoinPath(googleCalendarAPIBaseURL, requestPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody) //nolint:gosec // endpoint is derived from the constant Google Calendar API base URL and fixed paths.
 	if err != nil {
 		return nil, err
 	}
@@ -2104,7 +2266,15 @@ func googleAPIRequest(ctx context.Context, method, endpoint string, token *oauth
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	return lpsHTTPClient.Do(req) //nolint:gosec // G704: endpoint is server-controlled (googleCalendarAPIBaseURL + path), not user input
+	return req, nil
+}
+
+func googleInsertCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
+	req, err := newGoogleAPIRequest(ctx, http.MethodPost, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
+	if err != nil {
+		return nil, err
+	}
+	return lpsHTTPClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
 }
 
 func readGoogleAPIError(resp *http.Response) error {
@@ -2121,8 +2291,11 @@ func readGoogleAPIError(resp *http.Response) error {
 }
 
 func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]GoogleCalendarOption, error) {
-	endpoint := googleCalendarAPIBaseURL + "/users/me/calendarList?minAccessRole=writer"
-	resp, err := googleAPIRequest(ctx, http.MethodGet, endpoint, token, nil)
+	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "users/me/calendarList", url.Values{"minAccessRole": {"writer"}}, token, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := lpsHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -2297,15 +2470,12 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 		return discovery, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
-	url := fmt.Sprintf("%s/users/check", configData.LPSAPIBaseURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "users", "check")
 	if err != nil {
 		return discovery, err
 	}
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Authorization", "Bearer "+normalizedJWT)
 
-	resp, err := lpsHTTPClient.Do(req)
+	resp, err := doLPSAPIRequest(req)
 	if err != nil {
 		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
 	}
@@ -2349,30 +2519,23 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 		if err != nil {
 			return nil, err
 		}
-		for i := range playerGames {
-			game := &playerGames[i]
-			if game.ID == "" {
-				if fid := fallbackGameID(game); fid != "" {
-					game.ID = fid
-				}
-			}
-			key := gameKey(game)
-			if existingIndex, exists := indexByKey[key]; exists {
-				games[existingIndex] = mergeGames(&games[existingIndex], game)
-				continue
-			}
-			indexByKey[key] = len(games)
-			games = append(games, *game)
-		}
+		games = mergeScheduleGames(games, playerGames, indexByKey)
 	}
-	sort.Slice(games, func(i, j int) bool {
-		left, leftOK := gameStartTime(&games[i])
-		right, rightOK := gameStartTime(&games[j])
-		if leftOK && rightOK {
-			return left.Before(right)
+	sortScheduleGames(games)
+	return games, nil
+}
+
+func lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Game, error) {
+	games := make([]Game, 0)
+	indexByKey := make(map[string]int)
+	for _, teamID := range teamIDs {
+		teamGames, err := lpsFetchTeamGames(ctx, teamID)
+		if err != nil {
+			return nil, err
 		}
-		return games[i].DateTime < games[j].DateTime
-	})
+		games = mergeScheduleGames(games, teamGames, indexByKey)
+	}
+	sortScheduleGames(games)
 	return games, nil
 }
 
@@ -2393,15 +2556,12 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	url := fmt.Sprintf("%s/players/%d/upcoming_games", configData.LPSAPIBaseURL, playerID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Authorization", "Bearer "+normalizedJWT)
 
-	resp, err := lpsHTTPClient.Do(req)
+	resp, err := doLPSAPIRequest(req)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading schedules: %w", err)
 	}
@@ -2428,21 +2588,43 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "%v", err)
 	}
-	for index := range games {
-		if games[index].ID == "" {
-			games[index].ID = fallbackGameID(&games[index])
-		}
-		if games[index].DateTime == "" {
-			games[index].DateTime = formatGameDateTime(games[index].StartAt)
-		}
-		if games[index].Location == "" && games[index].Field != "" {
-			games[index].Location = "Field " + games[index].Field
-		}
-		if games[index].Field == "" && games[index].Location != "" {
-			games[index].Field = games[index].Location
-		}
-	}
+	normalizeScheduleGames(games)
 	return games, nil
+}
+
+func lpsFetchTeamGames(ctx context.Context, teamID int) ([]Game, error) {
+	if teamID <= 0 {
+		return nil, newLPSFetchError(lpsErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
+	}
+
+	req, err := newLPSAPIRequest(ctx, http.MethodGet, "", "teams", strconv.Itoa(teamID))
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := doLPSAPIRequest(req)
+	if err != nil {
+		return nil, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading team schedules: %w", err)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not read the team schedule response: %w", err)
+	}
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
+		return nil, newLPSFetchError(lpsErrorInvalidTeam, teamID, resp.StatusCode, "Let's Play Soccer could not find team %d", teamID)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, newLPSFetchError(lpsErrorUpstream, teamID, resp.StatusCode, "Let's Play Soccer returned status %d while loading team schedules", resp.StatusCode)
+	}
+
+	games, err := decodeLPSGames(responseBody)
+	if err != nil {
+		return nil, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "%v", err)
+	}
+	normalizeScheduleGames(games)
+	return upcomingScheduleGames(games), nil
 }
 
 func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
@@ -2749,7 +2931,10 @@ func parseFlexibleTime(value string) (time.Time, bool) {
 		layout   string
 		location *time.Location
 	}{
+		{layout: time.RFC3339Nano},
 		{layout: time.RFC3339},
+		{layout: "2006-01-02T15:04:05.000Z", location: time.UTC},
+		{layout: "2006-01-02T15:04:05Z", location: time.UTC},
 		{layout: "2006-01-02T15:04:05", location: time.Local},
 		{layout: "2006-01-02 15:04:05", location: time.Local},
 		{layout: "2006-01-02 15:04", location: time.Local},
@@ -2780,6 +2965,89 @@ func formatGameDateTime(value string) string {
 	return parsed.Format("Mon 01/02/06 03:04 PM")
 }
 
+func normalizeScheduleGames(games []Game) {
+	for index := range games {
+		if games[index].ID == "" {
+			games[index].ID = fallbackGameID(&games[index])
+		}
+		if games[index].DateTime == "" {
+			games[index].DateTime = formatGameDateTime(games[index].StartAt)
+		}
+		if games[index].Location == "" && games[index].Field != "" {
+			games[index].Location = "Field " + games[index].Field
+		}
+		if games[index].Field == "" && games[index].Location != "" {
+			games[index].Field = games[index].Location
+		}
+	}
+}
+
+func mergeScheduleGames(games, incoming []Game, indexByKey map[string]int) []Game {
+	for i := range incoming {
+		game := &incoming[i]
+		key := gameKey(game)
+		if existingIndex, exists := indexByKey[key]; exists {
+			games[existingIndex] = mergeGames(&games[existingIndex], game)
+			continue
+		}
+		indexByKey[key] = len(games)
+		games = append(games, *game)
+	}
+	return games
+}
+
+func sortScheduleGames(games []Game) {
+	sort.Slice(games, func(i, j int) bool {
+		left, leftOK := gameStartTime(&games[i])
+		right, rightOK := gameStartTime(&games[j])
+		if leftOK && rightOK {
+			if !left.Equal(right) {
+				return left.Before(right)
+			}
+			return compareScheduleGames(games[i], games[j]) < 0
+		}
+		if games[i].DateTime != games[j].DateTime {
+			return games[i].DateTime < games[j].DateTime
+		}
+		return compareScheduleGames(games[i], games[j]) < 0
+	})
+}
+
+func compareScheduleGames(left, right Game) int {
+	for _, pair := range [][2]string{
+		{left.DateTime, right.DateTime},
+		{left.StartAt, right.StartAt},
+		{left.Home, right.Home},
+		{left.Away, right.Away},
+		{left.Location, right.Location},
+		{left.Field, right.Field},
+		{left.Season, right.Season},
+		{left.ID, right.ID},
+	} {
+		if pair[0] == pair[1] {
+			continue
+		}
+		if pair[0] < pair[1] {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+func upcomingScheduleGames(games []Game) []Game {
+	filtered := make([]Game, 0, len(games))
+	now := time.Now()
+	for i := range games {
+		start, ok := gameStartTime(&games[i])
+		if ok && start.Before(now) {
+			continue
+		}
+		filtered = append(filtered, games[i])
+	}
+	return filtered
+}
+
 func buildICS(games []Game) string {
 	var builder strings.Builder
 	writeICSLine(&builder, "BEGIN:VCALENDAR")
@@ -2789,7 +3057,7 @@ func buildICS(games []Game) string {
 		game := &games[i]
 		start, end, ok := scheduleTimes(game)
 		if !ok {
-			log.Printf("skipping game %q: could not parse start time", game.ID)
+			log.Printf("skipping game: could not parse start time")
 			continue
 		}
 		writeICSLine(&builder, "BEGIN:VEVENT")
@@ -2878,14 +3146,16 @@ func scheduleFetchFeedback(err error) (string, string, bool) {
 			return fmt.Sprintf("Let's Play Soccer denied access to discovered player %d.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
 		case lpsErrorInvalidPlayer:
 			return fmt.Sprintf("Discovered player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Clear the imported players and import again to refresh the discovered player list.", false
+		case lpsErrorInvalidTeam:
+			return fmt.Sprintf("Team ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID), "Enter valid numeric team IDs from the Let's Play Soccer Team Schedules page and try again.", false
 		case lpsErrorUpstream:
-			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team codes manually.", false
+			return "Could not load schedules from Let's Play Soccer right now.", "Their API may be unavailable. Try again in a moment, or use team IDs manually.", false
 		}
 	}
 	if errors.Is(err, errSessionExpired) {
 		return "Your imported Let's Play Soccer token expired.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
 	}
-	return "Could not load schedules from Let's Play Soccer right now.", "Try again in a moment, or use team codes manually.", false
+	return "Could not load schedules from Let's Play Soccer right now.", "Try again in a moment, or use team IDs manually.", false
 }
 
 func scheduleDownloadError(err error) (int, string) {
@@ -2900,6 +3170,8 @@ func scheduleDownloadError(err error) (int, string) {
 			return http.StatusForbidden, fmt.Sprintf("Let's Play Soccer denied access to discovered player %d; clear the imported players and import again", fetchErr.PlayerID)
 		case lpsErrorInvalidPlayer:
 			return http.StatusBadRequest, fmt.Sprintf("discovered player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID)
+		case lpsErrorInvalidTeam:
+			return http.StatusBadRequest, fmt.Sprintf("team ID %d was not accepted by Let's Play Soccer; enter a valid numeric team ID and try again", fetchErr.PlayerID)
 		case lpsErrorUpstream:
 			return http.StatusBadGateway, "could not refresh the authenticated schedule because Let's Play Soccer is unavailable"
 		}

@@ -900,6 +900,113 @@ func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T)
 	}
 }
 
+func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
+	previousConfig := configData
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		configData = previousConfig
+		time.Local = previousLocal
+	}()
+
+	past := time.Now().Add(-2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	sharedFuture := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	uniqueFuture := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/teams/479691":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 5001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 9",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "Past FC"},
+						"visitor_team": {"team_name": "Finished"},
+						"Season": 169
+					},
+					{
+						"UGameID": 6000,
+						"SchedGameDateTime": %q,
+						"home_team": {"team_name": "Shared FC"},
+						"visitor_team": {"team_name": "Opponents"},
+						"Season": 169
+					},
+					{
+						"UGameID": 6001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 2",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "Team One"},
+						"visitor_team": {"team_name": "Visitors"},
+						"Season": 169
+					}
+				]
+			}`, past, sharedFuture, uniqueFuture)))
+		case "/teams/479147":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 6000,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Main Complex",
+						"home_team": {"team_name": "Shared FC"},
+						"visitor_team": {"team_name": "Opponents"},
+						"Season": 169
+					},
+					{
+						"UGameID": 6002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 4",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "Team Two"},
+						"visitor_team": {"team_name": "Rivals"},
+						"Season": 169
+					}
+				]
+			}`, sharedFuture, uniqueFuture)))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+
+	games, err := lpsFetchGamesForTeams(t.Context(), []int{479691, 479147})
+	if err != nil {
+		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
+	}
+	if len(games) != 3 {
+		t.Fatalf("unexpected deduped games length: got %d want 3", len(games))
+	}
+	for _, game := range games {
+		if game.Home == "Past FC" {
+			t.Fatalf("expected past games to be filtered out, got %#v", game)
+		}
+	}
+	if games[0].Home != "Shared FC" || games[0].Field != "Field 3" || games[0].Location != "Main Complex" {
+		t.Fatalf("expected shared game to merge richer data, got %#v", games[0])
+	}
+
+	// Verify that merge behavior is deterministic with respect to team order.
+	// Reversing the team IDs should yield the same merged, deduplicated schedule.
+	gamesReversed, err := lpsFetchGamesForTeams(t.Context(), []int{479147, 479691})
+	if err != nil {
+		t.Fatalf("lpsFetchGamesForTeams (reversed teams) returned error: %v", err)
+	}
+	if !reflect.DeepEqual(games, gamesReversed) {
+		t.Fatalf("expected deterministic merge regardless of team order:\noriginal: %#v\nreversed: %#v", games, gamesReversed)
+	}
+}
+
 func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 	previousConfig := configData
 	token := testJWT(t, time.Now().Add(30*time.Minute))
@@ -1266,6 +1373,65 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	}
 }
 
+func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
+	previousConfig := configData
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		configData = previousConfig
+		time.Local = previousLocal
+	}()
+
+	future := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/teams/479691" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fmt.Sprintf(`{
+			"games": [
+				{
+					"UGameID": 7001,
+					"SchedGameDateTime": %q,
+					"field_name": "Field 3",
+					"facilityName": "Boise",
+					"home_team": {"team_name": "UNITED NATIONS"},
+					"visitor_team": {"team_name": "GALACTICOS FC"},
+					"Season": 169
+				}
+			]
+		}`, future)))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+		"selected":   {"7001"},
+		"team_codes": {"479691"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	downloadICSHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	if !strings.Contains(resp.Body.String(), "UID:7001@craigdevjohnson.com") {
+		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "LOCATION:Boise") {
+		t.Fatalf("expected facility location in ICS body: %q", resp.Body.String())
+	}
+}
+
 func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -1358,6 +1524,63 @@ func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
 	}
 	if _, offset := got.Zone(); offset != -7*60*60 {
 		t.Fatalf("unexpected RFC3339 offset: %d", offset)
+	}
+}
+
+func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
+	previousLocal := time.Local
+	localZone, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("time.LoadLocation returned error: %v", err)
+	}
+	time.Local = localZone
+	defer func() {
+		time.Local = previousLocal
+	}()
+
+	got, ok := parseFlexibleTime("2026-01-12T01:00:00.000Z")
+	if !ok {
+		t.Fatal("parseFlexibleTime returned false")
+	}
+
+	want := time.Date(2026, time.January, 12, 1, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("unexpected parsed time: got %v want %v", got, want)
+	}
+	if got.Location() != time.UTC {
+		t.Fatalf("unexpected location: got %v want %v", got.Location(), time.UTC)
+	}
+}
+
+func TestGoogleEventPayloadPreservesUTCZuluTimestamps(t *testing.T) {
+	previousLocal := time.Local
+	localZone, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatalf("time.LoadLocation returned error: %v", err)
+	}
+	time.Local = localZone
+	defer func() {
+		time.Local = previousLocal
+	}()
+
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	event, ok := googleEventPayload(req, &Game{
+		ID:      "zulu-game",
+		Home:    "Team A",
+		Away:    "Team B",
+		StartAt: "2026-01-12T01:00:00.000Z",
+		EndAt:   "2026-01-12T02:30:00.000Z",
+		Season:  "169",
+	})
+	if !ok {
+		t.Fatal("googleEventPayload returned false")
+	}
+
+	if event.Start.DateTime != "2026-01-12T01:00:00Z" {
+		t.Fatalf("unexpected google start datetime: %q", event.Start.DateTime)
+	}
+	if event.End.DateTime != "2026-01-12T02:30:00Z" {
+		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
 	}
 }
 
@@ -1859,6 +2082,13 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
 	configureGoogleTestRuntime(t, store, "", "", "http://unused.example.com/calendar/v3")
+	previousConfig := configData
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		configData = previousConfig
+		time.Local = previousLocal
+	}()
 	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
 		t.Fatalf("encryptGoogleToken returned error: %v", err)
@@ -1873,32 +2103,61 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	}
 
 	insertedIDs := make([]string, 0, 2)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/calendar/v3/calendars/primary/events" {
+	futureOne := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	futureTwo := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/479691":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 7001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "GALACTICOS FC"},
+						"Season": 169
+					},
+					{
+						"UGameID": 7002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 1",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "CLASSIC XI"},
+						"Season": 169
+					}
+				]
+			}`, futureOne, futureTwo)))
+		case "/calendar/v3/calendars/primary/events":
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll returned error: %v", err)
+			}
+			var event googleEvent
+			if err := json.Unmarshal(body, &event); err != nil {
+				t.Fatalf("json.Unmarshal returned error: %v", err)
+			}
+			insertedIDs = append(insertedIDs, event.ID)
+			if len(insertedIDs) == 1 {
+				w.WriteHeader(http.StatusCreated)
+				return
+			}
+			w.WriteHeader(http.StatusConflict)
+		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("io.ReadAll returned error: %v", err)
-		}
-		var event googleEvent
-		if err := json.Unmarshal(body, &event); err != nil {
-			t.Fatalf("json.Unmarshal returned error: %v", err)
-		}
-		insertedIDs = append(insertedIDs, event.ID)
-		if len(insertedIDs) == 1 {
-			w.WriteHeader(http.StatusCreated)
-			return
-		}
-		w.WriteHeader(http.StatusConflict)
 	}))
-	defer server.Close()
+	defer apiServer.Close()
 
-	googleCalendarAPIBaseURL = server.URL + "/calendar/v3"
+	configData.LPSAPIBaseURL = apiServer.URL
+	googleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
-		"team_codes": {"123456"},
-		"selected":   {"sample1", "sample2"},
+		"team_codes": {"479691"},
+		"selected":   {"7001", "7002"},
 	}.Encode()))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1918,5 +2177,71 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	}
 	if !strings.HasPrefix(insertedIDs[0], "soccer") {
 		t.Fatalf("expected deterministic google event id, got %q", insertedIDs[0])
+	}
+}
+
+func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
+	previousConfig := configData
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		configData = previousConfig
+		time.Local = previousLocal
+	}()
+
+	past := time.Now().Add(-2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	future := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/teams/479691" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fmt.Sprintf(`{
+			"games": [
+				{
+					"UGameID": 8000,
+					"SchedGameDateTime": %q,
+					"field_name": "Field 9",
+					"facilityName": "Boise",
+					"home_team": {"team_name": "Past FC"},
+					"visitor_team": {"team_name": "Finished"},
+					"Season": 169
+				},
+				{
+					"UGameID": 8001,
+					"SchedGameDateTime": %q,
+					"field_name": "Field 3",
+					"facilityName": "Boise",
+					"home_team": {"team_name": "UNITED NATIONS"},
+					"visitor_team": {"team_name": "GALACTICOS FC"},
+					"Season": 169
+				}
+			]
+		}`, past, future)))
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"team_codes": {"479691"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	fetchSchedulesHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, "UNITED NATIONS") || !strings.Contains(body, "GALACTICOS FC") {
+		t.Fatalf("expected rendered schedule in response body, got %q", body)
+	}
+	if strings.Contains(body, "Past FC") {
+		t.Fatalf("expected past games to be filtered from rendered schedule, got %q", body)
 	}
 }

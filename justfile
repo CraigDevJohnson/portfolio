@@ -163,7 +163,7 @@ deploy:
         "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
     cd ..
     # Build, tag, and push the Docker image
-    docker build -t portfolio .
+    docker build --platform linux/amd64 -t portfolio .
     docker tag portfolio:latest "$ECR_URL:latest"
     docker push "$ECR_URL:latest"
     # Apply full infrastructure (App Runner can now reference the image)
@@ -185,7 +185,7 @@ redeploy:
       docker login --username AWS --password-stdin \
         "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
     # Build, tag, and push
-    docker build -t portfolio .
+    docker build --platform linux/amd64 -t portfolio .
     docker tag portfolio:latest "$ECR_URL:latest"
     docker push "$ECR_URL:latest"
     # Trigger App Runner redeployment

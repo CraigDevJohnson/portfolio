@@ -1,0 +1,120 @@
+:root {
+  color-scheme: light;
+
+  --bg: #f4f7f2;
+  --panel: #fff;
+  --text: #173326;
+  --muted: #456658;
+  --border: #a8c1b4;
+  --accent: #146356;
+  --accent-strong: #0f4d43;
+  --focus: #0a7f6f;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  background: radial-gradient(circle at top, #e7f2eb, var(--bg) 55%);
+  color: var(--text);
+  font: 14px/1.5 "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+.popup-shell {
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.status,
+.hint,
+.source-url,
+.meta dd {
+  color: var(--muted);
+}
+
+.field-label,
+.meta dt {
+  font-weight: 600;
+}
+
+.token-field {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+
+.meta {
+  margin: 12px 0 0;
+}
+
+.meta div {
+  display: flex;
+  gap: 8px;
+}
+
+.meta dt {
+  min-width: 88px;
+}
+
+.meta dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-url {
+  margin: 8px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #dce8e1;
+  color: var(--text);
+}
+
+button:hover {
+  background: var(--accent-strong);
+}
+
+button.secondary:hover {
+  background: #c8dbd0;
+}
+
+button:focus-visible,
+.token-field:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+}

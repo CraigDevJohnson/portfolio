@@ -128,7 +128,7 @@ templ Soccer(props SoccerProps) {
 							</div>
 						</div>
 						<div class="soccer-manual-entry">
-							<h3>Manual team codes</h3>
+							<h3>Manual team IDs</h3>
 						<form
 							id="fetch-form"
 							class="fetch-form"
@@ -139,15 +139,15 @@ templ Soccer(props SoccerProps) {
 							autocomplete="off"
 						>
 							<div class="form-group">
-								<label for="team_codes" class="form-label">Team Codes</label>
+								<label for="team_codes" class="form-label">Team IDs</label>
 								<div class="input-row">
 									<input
 										id="team_codes"
 										name="team_codes"
 										class="text-input"
 										type="text"
-										placeholder="e.g. 123456, 234567"
-										pattern="\d{6}([\s,;]+\d{6})*"
+										placeholder="e.g. 479691, 479147"
+										pattern="\d+([\s,;]+\d+)*"
 										required
 										aria-describedby="team-codes-hint"
 									/>
@@ -158,7 +158,7 @@ templ Soccer(props SoccerProps) {
 								<div id="team-codes-hint" class="form-hint">
 									Supports
 									<em>Let's Play Soccer</em>
-									teams only. Enter 6-digit team codes separated by commas.
+									teams only. Enter numeric team IDs separated by commas.
 								</div>
 							</div>
 						</form>

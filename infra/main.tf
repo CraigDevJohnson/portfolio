@@ -7,6 +7,16 @@ locals {
 }
 
 # ──────────────────────────────────────────────
+# Data sources
+# ──────────────────────────────────────────────
+
+data "aws_caller_identity" "current" {}
+
+data "aws_kms_alias" "ssm" {
+  name = "alias/aws/ssm"
+}
+
+# ──────────────────────────────────────────────
 # ECR Repository — stores container images
 # ──────────────────────────────────────────────
 
@@ -137,6 +147,38 @@ resource "aws_iam_role_policy_attachment" "google_connections_dynamodb" {
   role       = aws_iam_role.apprunner_instance.name
 }
 
+resource "aws_iam_policy" "apprunner_runtime_secrets" {
+  name = "${var.app_name}-apprunner-runtime-secrets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY",
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = data.aws_kms_alias.ssm.target_key_arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "apprunner_runtime_secrets" {
+  policy_arn = aws_iam_policy.apprunner_runtime_secrets.arn
+  role       = aws_iam_role.apprunner_instance.name
+}
+
 # ──────────────────────────────────────────────
 # App Runner Service
 # ──────────────────────────────────────────────
@@ -157,6 +199,7 @@ resource "aws_apprunner_service" "app" {
         port = tostring(var.container_port)
 
         runtime_environment_variables = {
+          APP_BIND_ALL                 = "true"
           GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
         }
       }

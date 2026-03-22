@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "LPS JWT Extractor",
+  "version": "1.1.0",
+  "description": "Capture an LPS JWT from your browser session and prefill the soccer import flow.",
+  "permissions": ["storage", "webRequest"],
+  "host_permissions": [
+    "https://letsplaysoccer.com/*",
+    "https://www.letsplaysoccer.com/*",
+    "https://*.lps-test.com/*",
+    "https://craigdevjohnson.com/*",
+    "https://dev.craigdevjohnson.com/*",
+    "https://www.craigdevjohnson.com/*",
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*"
+  ],
+  "background": {
+    "service_worker": "lps-jwt-extractor.js"
+  },
+  "action": {
+    "default_title": "LPS JWT Extractor",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://craigdevjohnson.com/soccer*",
+        "https://dev.craigdevjohnson.com/*",
+        "https://www.craigdevjohnson.com/soccer*",
+        "http://localhost:8080/soccer*",
+        "http://127.0.0.1:8080/soccer*"
+      ],
+      "js": ["soccer-autofill.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

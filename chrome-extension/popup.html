@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LPS JWT Extractor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <h1>LPS JWT Extractor</h1>
+      <p id="status" class="status" aria-live="polite">Checking stored token…</p>
+      <label class="field-label" for="jwt-value">Import value</label>
+      <textarea id="jwt-value" class="token-field" rows="6" readonly></textarea>
+      <dl class="meta">
+        <div>
+          <dt>Captured from</dt>
+          <dd id="source-type">-</dd>
+        </div>
+        <div>
+          <dt>When</dt>
+          <dd id="captured-at">-</dd>
+        </div>
+      </dl>
+      <p id="source-url" class="source-url"></p>
+      <div class="actions">
+        <button id="copy-btn" type="button">Copy import value</button>
+        <button id="open-btn" type="button">Open soccer import</button>
+        <button id="clear-btn" type="button" class="secondary">Clear stored JWT</button>
+      </div>
+      <p class="hint">Open letsplaysoccer.com while signed in, then load a player or team request. The extension will capture the JWT and keep it ready for your soccer import page.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
