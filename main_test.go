@@ -2103,11 +2103,12 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	}
 
 	insertedIDs := make([]string, 0, 2)
+	lookupIDs := make([]string, 0, 1)
 	futureOne := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
 	futureTwo := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/teams/479691":
+		switch {
+		case r.URL.Path == "/teams/479691":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
@@ -2131,7 +2132,7 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 					}
 				]
 			}`, futureOne, futureTwo)))
-		case "/calendar/v3/calendars/primary/events":
+		case r.URL.Path == "/calendar/v3/calendars/primary/events":
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatalf("io.ReadAll returned error: %v", err)
@@ -2146,8 +2147,13 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusConflict)
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
+			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
+			lookupIDs = append(lookupIDs, eventID)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"confirmed"}`, eventID)))
 		default:
-			t.Fatalf("unexpected path: %s", r.URL.Path)
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 	}))
 	defer apiServer.Close()
@@ -2175,8 +2181,139 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	if len(insertedIDs) != 2 {
 		t.Fatalf("unexpected insert attempt count: got %d want 2", len(insertedIDs))
 	}
+	if len(lookupIDs) != 1 {
+		t.Fatalf("unexpected lookup count: got %d want 1", len(lookupIDs))
+	}
 	if !strings.HasPrefix(insertedIDs[0], "soccer") {
 		t.Fatalf("expected deterministic google event id, got %q", insertedIDs[0])
+	}
+}
+
+func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
+	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
+	configureGoogleTestRuntime(t, store, "", "", "")
+	previousConfig := configData
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		configData = previousConfig
+		time.Local = previousLocal
+	}()
+	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
+	if err != nil {
+		t.Fatalf("encryptGoogleToken returned error: %v", err)
+	}
+	store.records["connection-1"] = googleConnectionRecord{
+		ConnectionID:    "connection-1",
+		TokenCiphertext: tokenCiphertext,
+		CalendarID:      "primary",
+		CalendarSummary: "Primary Calendar",
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+
+	insertedIDs := make([]string, 0, 2)
+	lookupIDs := make([]string, 0, 2)
+	restoredIDs := make([]string, 0, 1)
+	futureOne := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	futureTwo := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/teams/479691":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 7001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "GALACTICOS FC"},
+						"Season": 169
+					},
+					{
+						"UGameID": 7002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 1",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "CLASSIC XI"},
+						"Season": 169
+					}
+				]
+			}`, futureOne, futureTwo)))
+		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodPost:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll returned error: %v", err)
+			}
+			var event googleEvent
+			if err := json.Unmarshal(body, &event); err != nil {
+				t.Fatalf("json.Unmarshal returned error: %v", err)
+			}
+			insertedIDs = append(insertedIDs, event.ID)
+			w.WriteHeader(http.StatusConflict)
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
+			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
+			lookupIDs = append(lookupIDs, eventID)
+			w.Header().Set("Content-Type", "application/json")
+			if len(lookupIDs) == 1 {
+				_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"cancelled"}`, eventID)))
+				return
+			}
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"confirmed"}`, eventID)))
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodPut:
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("io.ReadAll returned error: %v", err)
+			}
+			var event googleEvent
+			if err := json.Unmarshal(body, &event); err != nil {
+				t.Fatalf("json.Unmarshal returned error: %v", err)
+			}
+			restoredIDs = append(restoredIDs, event.ID)
+			if event.Status != "confirmed" {
+				t.Fatalf("expected restored event status to be confirmed, got %q", event.Status)
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer apiServer.Close()
+
+	configData.LPSAPIBaseURL = apiServer.URL
+	googleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
+		"team_codes": {"479691"},
+		"selected":   {"7001", "7002"},
+	}.Encode()))
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: googleConnectionCookieName, Value: "connection-1"})
+	resp := httptest.NewRecorder()
+
+	soccerGoogleAddHandler(resp, req)
+
+	if !strings.Contains(resp.Body.String(), "Added 1 selected game(s) to Google Calendar.") {
+		t.Fatalf("expected restored add success message, got %q", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "Skipped 1 game(s) that were already present.") {
+		t.Fatalf("expected duplicate skip message, got %q", resp.Body.String())
+	}
+	if len(insertedIDs) != 2 {
+		t.Fatalf("unexpected insert attempt count: got %d want 2", len(insertedIDs))
+	}
+	if len(lookupIDs) != 2 {
+		t.Fatalf("unexpected lookup count: got %d want 2", len(lookupIDs))
+	}
+	if len(restoredIDs) != 1 {
+		t.Fatalf("unexpected restore count: got %d want 1", len(restoredIDs))
+	}
+	if restoredIDs[0] != insertedIDs[0] {
+		t.Fatalf("expected first conflicting event to be restored, got restored=%q inserted=%q", restoredIDs[0], insertedIDs[0])
 	}
 }
 

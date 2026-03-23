@@ -130,6 +130,7 @@ type googleEvent struct {
 	Location string              `json:"location,omitempty"`
 	Source   *googleEventSource  `json:"source,omitempty"`
 	Start    googleEventDateTime `json:"start"`
+	Status   string              `json:"status,omitempty"`
 	Summary  string              `json:"summary"`
 }
 
@@ -1550,6 +1551,17 @@ func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord,
 		}
 		if resp.StatusCode == http.StatusConflict {
 			resp.Body.Close()
+			restored, authRejected, restoreErr := restoreCancelledGoogleCalendarEvent(googleHTTPContext(r.Context()), record.CalendarID, token, &event)
+			if restoreErr != nil {
+				return 0, 0, false, restoreErr
+			}
+			if authRejected {
+				return 0, 0, true, nil
+			}
+			if restored {
+				added++
+				continue
+			}
 			existing++
 			continue
 		}
@@ -1562,6 +1574,57 @@ func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord,
 		added++
 	}
 	return added, existing, false, nil
+}
+
+func restoreCancelledGoogleCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (bool, bool, error) {
+	resp, err := googleGetCalendarEvent(ctx, calendarID, event.ID, token)
+	if err != nil {
+		return false, false, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		authRejected := isGoogleAuthRejection(resp)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return false, false, nil
+		}
+		return false, authRejected, nil
+	}
+
+	existingEvent, err := decodeGoogleEvent(resp)
+	if err != nil {
+		return false, false, err
+	}
+	if !isGoogleCancelledEventStatus(existingEvent.Status) {
+		return false, false, nil
+	}
+
+	restoredEvent := *event
+	restoredEvent.Status = "confirmed"
+	resp, err = googleUpdateCalendarEvent(ctx, calendarID, restoredEvent.ID, token, &restoredEvent)
+	if err != nil {
+		return false, false, err
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		authRejected := isGoogleAuthRejection(resp)
+		resp.Body.Close()
+		return false, authRejected, nil
+	}
+	resp.Body.Close()
+	return true, false, nil
+}
+
+func isGoogleCancelledEventStatus(status string) bool {
+	status = strings.TrimSpace(status)
+	return strings.EqualFold(status, "cancelled") || strings.EqualFold(status, "canceled")
+}
+
+func decodeGoogleEvent(resp *http.Response) (*googleEvent, error) {
+	defer resp.Body.Close()
+	var event googleEvent
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&event); err != nil {
+		return nil, err
+	}
+	return &event, nil
 }
 
 func populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
@@ -2249,6 +2312,22 @@ func newGoogleAPIRequest(ctx context.Context, method, requestPath string, query 
 
 func googleInsertCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
 	req, err := newGoogleAPIRequest(ctx, http.MethodPost, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
+	if err != nil {
+		return nil, err
+	}
+	return lpsHTTPClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
+}
+
+func googleGetCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token) (*http.Response, error) {
+	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), nil, token, nil)
+	if err != nil {
+		return nil, err
+	}
+	return lpsHTTPClient.Do(req)
+}
+
+func googleUpdateCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
+	req, err := newGoogleAPIRequest(ctx, http.MethodPut, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), url.Values{"sendUpdates": {"none"}}, token, event)
 	if err != nil {
 		return nil, err
 	}
