@@ -1576,6 +1576,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	}()
 
 	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureUnselected := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/teams/479691":
@@ -1591,9 +1592,19 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 						"home_team": {"team_name": "UNITED NATIONS", "division_name": "Coed F Fri"},
 						"visitor_team": {"team_name": "GALACTICOS FC", "division_name": "Coed F Fri"},
 						"Season": 169
+					},
+					{
+						"UGameID": 7002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 4",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"home_team": {"team_name": "UNITED NATIONS", "division_name": "Coed F Fri"},
+						"visitor_team": {"team_name": "BENCH MOB", "division_name": "Coed F Fri"},
+						"Season": 169
 					}
 				]
-			}`, future)))
+			}`, future, futureUnselected)))
 		case "/facilities/4":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "Boise", "Address": "11448 W. President Drive", "City": "Boise", "State": "ID", "ZIP": "83713"}`))
@@ -1632,6 +1643,27 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	}
 	if !strings.Contains(unfoldedICS, "SUMMARY:UNITED NATIONS vs GALACTICOS FC - Field 3") {
 		t.Fatalf("expected canonical summary in ICS body: %q", resp.Body.String())
+	}
+	if strings.Contains(unfoldedICS, "UID:7002") || strings.Contains(unfoldedICS, "BENCH MOB") {
+		t.Fatalf("expected unselected games to be excluded from ICS body: %q", resp.Body.String())
+	}
+}
+
+func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+		"selected":   {"7001"},
+		"team_codes": {"abc,def"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	downloadICSHandler(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(resp.Body.String(), "one or more team IDs were invalid") {
+		t.Fatalf("expected invalid team selection message, got %q", resp.Body.String())
 	}
 }
 
@@ -1812,6 +1844,48 @@ func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *test
 	}
 	if event.End.TimeZone != mountainTimeZoneID {
 		t.Fatalf("unexpected google end timezone: %q", event.End.TimeZone)
+	}
+}
+
+func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
+	formatted, ok := canonicalGameEvent(&Game{
+		ID:               "3037322",
+		PlayerTeamName:   "STRUGGLE BUS",
+		OpponentTeamName: "FC CHAIN MAIL",
+		DivisionName:     "Coed Over 30 B Sun",
+		FacilityName:     "Boise",
+		FacilityAddress:  "11448 W. President Drive",
+		FacilityCity:     "Boise",
+		FacilityState:    "ID",
+		FacilityZIP:      "83713",
+		Field:            "Field 2",
+		Result:           "7 - 3",
+		StartAt:          "2026-03-08T12:30:00-06:00",
+	})
+	if !ok {
+		t.Fatal("canonicalGameEvent returned false")
+	}
+
+	if formatted.ID != "3037322" {
+		t.Fatalf("unexpected canonical game id: %q", formatted.ID)
+	}
+	if formatted.Summary != "STRUGGLE BUS vs FC CHAIN MAIL - Field 2" {
+		t.Fatalf("unexpected canonical summary: %q", formatted.Summary)
+	}
+	if formatted.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: 7 - 3" {
+		t.Fatalf("unexpected canonical description: %q", formatted.Description)
+	}
+	if formatted.Location != "11448 W. President Drive, Boise, ID, 83713" {
+		t.Fatalf("unexpected canonical location: %q", formatted.Location)
+	}
+	if formatted.Start.Format(time.RFC3339) != "2026-03-08T12:30:00-06:00" {
+		t.Fatalf("unexpected canonical start: %s", formatted.Start.Format(time.RFC3339))
+	}
+	if formatted.End.Format(time.RFC3339) != "2026-03-08T13:15:00-06:00" {
+		t.Fatalf("unexpected canonical end: %s", formatted.End.Format(time.RFC3339))
+	}
+	if formatted.Status != "confirmed" {
+		t.Fatalf("unexpected canonical status: %q", formatted.Status)
 	}
 }
 
@@ -2538,6 +2612,7 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	futureThree := testMislabelledLPSZuluTime(time.Now().Add(72 * time.Hour))
 	futureFour := testMislabelledLPSZuluTime(time.Now().Add(96 * time.Hour))
 	futureFive := testMislabelledLPSZuluTime(time.Now().Add(120 * time.Hour))
+	futureSix := testMislabelledLPSZuluTime(time.Now().Add(144 * time.Hour))
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/teams/479691":
@@ -2628,9 +2703,26 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 						"DivisionName": "Coed F Fri",
 						"result": "",
 						"Season": 169
+					},
+					{
+						"UGameID": 7006,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 6",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "RESERVES"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "",
+						"Season": 169
 					}
 				]
-			}`, futureOne, futureTwo, futureThree, futureFour, futureFive)))
+			}`, futureOne, futureTwo, futureThree, futureFour, futureFive, futureSix)))
 		case r.URL.Path == "/facilities/4":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"facilityName":"Boise","Address":"123 Main St","City":"Boise","State":"ID","ZIP":"83702"}`))
@@ -2769,6 +2861,14 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	}
 	if insertedIDs[0] != "7001" || insertedIDs[1] != "7005" {
 		t.Fatalf("unexpected insert ids: %#v", insertedIDs)
+	}
+	for _, lookedUpGameID := range privateLookupIDs {
+		if lookedUpGameID == "7006" {
+			t.Fatalf("unselected game should not trigger private game_id lookup: %#v", privateLookupIDs)
+		}
+	}
+	if _, exists := updatedEvents["7006"]; exists {
+		t.Fatalf("unselected game should not be updated: %#v", updatedEvents["7006"])
 	}
 }
 
