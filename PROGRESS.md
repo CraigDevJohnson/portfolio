@@ -4,22 +4,22 @@
 
 - [x] Task-001: Enrich Schedule Data for Exact Event Fields
 - [x] Task-002: Build One Canonical Event Formatter for Google and ICS
+- [x] Task-002 follow-up: Add cancelled Google payload regression coverage
 
 ## Current Iteration
 
-- Iteration: 3
-- Working on: Task-003: Update Existing Google Events Only When Game IDs Match
-- Started: 2026-03-23T04:46:00Z
+- Iteration: 4
+- Working on: Task-002 follow-up: Cancelled Google payload regression coverage
+- Started: 2026-03-23T04:48:22Z
 
 ## Last Completed
 
-- Task-002: Build One Canonical Event Formatter for Google and ICS
+- Task-002 follow-up: Add cancelled Google payload regression coverage
 - Tests: ✅ `just test`
 - Build: ✅ `just build`
 - Key decisions:
-  - Added one shared canonical formatter for Google payloads and ICS VEVENT output
-  - Google event IDs now use raw `UGameID` with private `game_id` parity and confirmed/cancelled status mapping
-  - ICS now mirrors canonical summary, description, location, UID, status, and 45-minute default duration
+  - Added one Google cancelled-case regression test alongside the existing canonical formatter tests
+  - Reused the same representative cancelled game values as the ICS parity coverage for explicit cross-output parity
 
 ## Blockers
 
@@ -29,4 +29,4 @@
 
 - Task-003 should match/update Google events using the raw event `ID` and `extendedProperties.private.game_id`
 - Canonical event formatting now lives in `canonicalGameEvent` and is shared by `googleEventPayload` and `buildICS`
-- Existing timezone normalization and ICS line folding behavior remain covered by tests
+- Existing timezone normalization, cancelled parity, and ICS line folding behavior remain covered by tests

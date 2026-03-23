@@ -1865,6 +1865,52 @@ func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	}
 }
 
+func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	event, ok := googleEventPayload(req, &Game{
+		ID:               "3042954",
+		PlayerTeamName:   "STRUGGLE BUS",
+		OpponentTeamName: "MANEFESTO",
+		DivisionName:     "Coed Over 30 B Sun",
+		FacilityName:     "Boise",
+		FacilityAddress:  "11448 W. President Drive",
+		FacilityCity:     "Boise",
+		FacilityState:    "ID",
+		FacilityZIP:      "83713",
+		Field:            "Field 1",
+		Result:           "cancelled",
+		StartAt:          "2026-03-29T17:20:00-06:00",
+	})
+	if !ok {
+		t.Fatal("googleEventPayload returned false")
+	}
+
+	if event.ID != "3042954" {
+		t.Fatalf("unexpected google event id: %q", event.ID)
+	}
+	if event.Summary != "STRUGGLE BUS vs MANEFESTO - Field 1" {
+		t.Fatalf("unexpected google event summary: %q", event.Summary)
+	}
+	if event.Description != "STRUGGLE BUS is playing MANEFESTO\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 1\nResult: cancelled" {
+		t.Fatalf("unexpected google event description: %q", event.Description)
+	}
+	if event.Location != "11448 W. President Drive, Boise, ID, 83713" {
+		t.Fatalf("unexpected google event location: %q", event.Location)
+	}
+	if event.Start.DateTime != "2026-03-29T17:20:00" {
+		t.Fatalf("unexpected google start datetime: %q", event.Start.DateTime)
+	}
+	if event.End.DateTime != "2026-03-29T18:05:00" {
+		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
+	}
+	if event.Status != "cancelled" {
+		t.Fatalf("unexpected google event status: %q", event.Status)
+	}
+	if got := event.ExtendedProperties.Private["game_id"]; got != "3042954" {
+		t.Fatalf("unexpected google private game id: %q", got)
+	}
+}
+
 func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 	t.Run("uses cloudflare header from trusted proxy", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/soccer/login", nil)
