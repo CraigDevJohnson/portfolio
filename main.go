@@ -301,7 +301,7 @@ func newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil) //nolint:gosec // endpoint is rebuilt from normalizeLPSAPIBaseURL and validated before use.
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3793,8 +3793,8 @@ func canonicalGameLocation(game *Game) string {
 }
 
 func canonicalGameStatus(game *Game) string {
-	if strings.EqualFold(strings.TrimSpace(game.Result), "cancelled") {
-		return "cancelled"
+	if strings.EqualFold(strings.TrimSpace(game.Result), "canceled") {
+		return "canceled"
 	}
 	return "confirmed"
 }

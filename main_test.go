@@ -1952,7 +1952,7 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 		FacilityState:    "ID",
 		FacilityZIP:      "83713",
 		Field:            "Field 1",
-		Result:           "cancelled",
+		Result:           "canceled",
 		StartAt:          "2026-03-29T17:20:00-06:00",
 	})
 	if !ok {
@@ -1965,7 +1965,7 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 	if event.Summary != "STRUGGLE BUS vs MANEFESTO - Field 1" {
 		t.Fatalf("unexpected google event summary: %q", event.Summary)
 	}
-	if event.Description != "STRUGGLE BUS is playing MANEFESTO\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 1\nResult: cancelled" {
+	if event.Description != "STRUGGLE BUS is playing MANEFESTO\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 1\nResult: canceled" {
 		t.Fatalf("unexpected google event description: %q", event.Description)
 	}
 	if event.Location != "11448 W. President Drive, Boise, ID, 83713" {
@@ -1977,7 +1977,7 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 	if event.End.DateTime != "2026-03-29T18:05:00" {
 		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
 	}
-	if event.Status != "cancelled" {
+	if event.Status != "canceled" {
 		t.Fatalf("unexpected google event status: %q", event.Status)
 	}
 	if got := event.ExtendedProperties.Private["game_id"]; got != "3042954" {
@@ -2112,7 +2112,7 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 		FacilityState:    "ID",
 		FacilityZIP:      "83713",
 		Field:            "Field 1",
-		Result:           "cancelled",
+		Result:           "canceled",
 		StartAt:          "2026-03-29T17:20:00-06:00",
 	}}))
 
@@ -2121,9 +2121,9 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 		"DTSTART;TZID=America/Denver:20260329T172000",
 		"DTEND;TZID=America/Denver:20260329T180500",
 		"SUMMARY:STRUGGLE BUS vs MANEFESTO - Field 1",
-		"DESCRIPTION:STRUGGLE BUS is playing MANEFESTO\\nDivision: Coed Over 30 B Sun\\nFacility: Boise\\nField: Field 1\\nResult: cancelled",
+		"DESCRIPTION:STRUGGLE BUS is playing MANEFESTO\\nDivision: Coed Over 30 B Sun\\nFacility: Boise\\nField: Field 1\\nResult: canceled",
 		"LOCATION:11448 W. President Drive\\, Boise\\, ID\\, 83713",
-		"STATUS:CANCELLED",
+		"STATUS:CANCELED",
 	}
 
 	for _, expectedLine := range expectedLines {
@@ -2684,7 +2684,7 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 						"visitor_team": {"team_name": "NIGHT OWLS"},
 						"division_name": "Coed F Fri",
 						"DivisionName": "Coed F Fri",
-						"result": "cancelled",
+						"result": "canceled",
 						"Season": 169
 					},
 					{
@@ -2844,14 +2844,14 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 		}
 	}
 	if updated, ok := updatedEvents["7003"]; !ok {
-		t.Fatalf("expected cancelled matching event to be restored: %#v", updatedEvents)
+		t.Fatalf("expected canceled matching event to be restored: %#v", updatedEvents)
 	} else if updated.Status != "confirmed" {
 		t.Fatalf("expected restored status to be confirmed, got %q", updated.Status)
 	}
 	if updated, ok := updatedEvents["7004"]; !ok {
-		t.Fatalf("expected confirmed matching event to be cancelled: %#v", updatedEvents)
-	} else if updated.Status != "cancelled" {
-		t.Fatalf("expected cancelled status to be propagated, got %q", updated.Status)
+		t.Fatalf("expected confirmed matching event to be canceled: %#v", updatedEvents)
+	} else if updated.Status != "canceled" {
+		t.Fatalf("expected canceled status to be propagated, got %q", updated.Status)
 	}
 	if _, exists := updatedEvents["legacy-7005"]; exists {
 		t.Fatalf("non-matching legacy event should not be mutated: %#v", updatedEvents["legacy-7005"])
