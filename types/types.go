@@ -48,15 +48,25 @@ type Project struct {
 
 // Game represents a soccer game
 type Game struct {
-	ID       string `json:"id"`
-	DateTime string `json:"datetime"`
-	StartAt  string `json:"start_at,omitempty"`
-	EndAt    string `json:"end_at,omitempty"`
-	Field    string `json:"field"`
-	Location string `json:"location,omitempty"`
-	Home     string `json:"home"`
-	Away     string `json:"away"`
-	Season   string `json:"season"`
+	ID               string `json:"id"`
+	DateTime         string `json:"datetime"`
+	StartAt          string `json:"start_at,omitempty"`
+	EndAt            string `json:"end_at,omitempty"`
+	Field            string `json:"field"`
+	Location         string `json:"location,omitempty"`
+	Home             string `json:"home"`
+	Away             string `json:"away"`
+	Season           string `json:"season"`
+	PlayerTeamName   string `json:"player_team_name,omitempty"`
+	OpponentTeamName string `json:"opponent_team_name,omitempty"`
+	DivisionName     string `json:"division_name,omitempty"`
+	FacilityID       int    `json:"facility_id,omitempty"`
+	FacilityName     string `json:"facility_name,omitempty"`
+	FacilityAddress  string `json:"facility_address,omitempty"`
+	FacilityCity     string `json:"facility_city,omitempty"`
+	FacilityState    string `json:"facility_state,omitempty"`
+	FacilityZIP      string `json:"facility_zip,omitempty"`
+	Result           string `json:"result,omitempty"`
 }
 
 // LambdaGamesResponse represents the response from the games API

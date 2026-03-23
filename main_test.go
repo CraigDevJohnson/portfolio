@@ -188,7 +188,8 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	requestCounts := map[string]int{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCounts[r.URL.Path]++
-		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+		if (r.URL.Path == "/users/check" || strings.HasPrefix(r.URL.Path, "/players/")) && r.Header.Get("Authorization") != "Bearer "+token {
+			got := r.Header.Get("Authorization")
 			t.Fatalf("unexpected authorization header for %s: %s", r.URL.Path, got)
 		}
 
@@ -217,30 +218,66 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 					{"player_id": 1669081, "deleted": false}
 				]
 			}`))
-		case "/players/1669080/upcoming_games":
+		case "/players/1669080/my_teams":
 			_, _ = w.Write([]byte(`[
 				{
-					"UGameID": 9001,
-					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
-					"field_name": "Arena 1",
-					"facilityName": "North Campus",
-					"home_team": {"TeamName": "Craig FC"},
-					"visitor_team": {"TeamName": "Rivals"},
-					"SeasonID": 77
+					"UTeamID": 479393,
+					"team_name": "Craig FC",
+					"division_name": "Coed One",
+					"FacilityID": 4,
+					"facility_name": "North Campus",
+					"Season": 77
 				}
 			]`))
-		case "/players/1669081/upcoming_games":
+		case "/players/1669081/my_teams":
 			_, _ = w.Write([]byte(`[
 				{
-					"UGameID": 9002,
-					"SchedGameDateTime": "2026-05-08T20:15:00-06:00",
-					"field_name": "Arena 2",
-					"facilityName": "South Campus",
-					"home_team": {"TeamName": "Taylor FC"},
-					"visitor_team": {"TeamName": "Visitors"},
-					"SeasonID": 77
+					"UTeamID": 479400,
+					"team_name": "Taylor FC",
+					"division_name": "Coed Two",
+					"FacilityID": 8,
+					"facility_name": "South Campus",
+					"Season": 77
 				}
 			]`))
+		case "/teams/479393":
+			_, _ = w.Write([]byte(`{
+				"games": [
+					{
+						"UGameID": 9001,
+						"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+						"field_name": "Arena 1",
+						"facilityName": "North Campus",
+						"FacilityID": 4,
+						"UTeam1": 479393,
+						"UTeam2": 479500,
+						"home_team": {"UTeamID": 479393, "team_name": "Craig FC", "division_name": "Coed One", "FacilityID": 4, "facility_name": "North Campus", "Season": 77},
+						"visitor_team": {"UTeamID": 479500, "team_name": "Rivals", "division_name": "Coed One", "FacilityID": 4, "facility_name": "North Campus", "Season": 77}
+					}
+				],
+				"team": {"UTeamID": 479393, "team_name": "Craig FC", "division_name": "Coed One", "FacilityID": 4, "facility_name": "North Campus", "Season": 77}
+			}`))
+		case "/teams/479400":
+			_, _ = w.Write([]byte(`{
+				"games": [
+					{
+						"UGameID": 9002,
+						"SchedGameDateTime": "2026-05-08T20:15:00-06:00",
+						"field_name": "Arena 2",
+						"facilityName": "South Campus",
+						"FacilityID": 8,
+						"UTeam1": 479501,
+						"UTeam2": 479400,
+						"home_team": {"UTeamID": 479501, "team_name": "Visitors", "division_name": "Coed Two", "FacilityID": 8, "facility_name": "South Campus", "Season": 77},
+						"visitor_team": {"UTeamID": 479400, "team_name": "Taylor FC", "division_name": "Coed Two", "FacilityID": 8, "facility_name": "South Campus", "Season": 77}
+					}
+				],
+				"team": {"UTeamID": 479400, "team_name": "Taylor FC", "division_name": "Coed Two", "FacilityID": 8, "facility_name": "South Campus", "Season": 77}
+			}`))
+		case "/facilities/4":
+			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "North Campus", "Address": "1 North Rd", "City": "Boise", "State": "ID", "ZIP": "83701"}`))
+		case "/facilities/8":
+			_, _ = w.Write([]byte(`{"FacilityID": 8, "FacilityName": "South Campus", "Address": "2 South Rd", "City": "Boise", "State": "ID", "ZIP": "83702"}`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -310,11 +347,17 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	if fetchResp.Code != http.StatusOK {
 		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
 	}
-	if got := requestCounts["/players/1669080/upcoming_games"]; got != 1 {
-		t.Fatalf("unexpected player 1669080 call count: got %d want 1", got)
+	if got := requestCounts["/players/1669080/my_teams"]; got != 1 {
+		t.Fatalf("unexpected player 1669080 my_teams call count: got %d want 1", got)
 	}
-	if got := requestCounts["/players/1669081/upcoming_games"]; got != 1 {
-		t.Fatalf("unexpected player 1669081 call count: got %d want 1", got)
+	if got := requestCounts["/players/1669081/my_teams"]; got != 1 {
+		t.Fatalf("unexpected player 1669081 my_teams call count: got %d want 1", got)
+	}
+	if got := requestCounts["/teams/479393"]; got != 1 {
+		t.Fatalf("unexpected team 479393 call count: got %d want 1", got)
+	}
+	if got := requestCounts["/teams/479400"]; got != 1 {
+		t.Fatalf("unexpected team 479400 call count: got %d want 1", got)
 	}
 	if !strings.Contains(fetchResp.Body.String(), "Craig FC") {
 		t.Fatalf("expected first discovered player schedule in response body, got %q", fetchResp.Body.String())
@@ -754,109 +797,83 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	}
 }
 
-func TestLPSFetchGamesForPlayersDedupesOverlappingMissingIDGames(t *testing.T) {
+func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing.T) {
 	previousConfig := configData
 	token := testJWT(t, time.Now().Add(30*time.Minute))
+	requestCounts := map[string]int{}
+	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	expectedStart, ok := parseScheduleTime(future)
+	if !ok {
+		t.Fatalf("parseScheduleTime returned false for %q", future)
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCounts[r.URL.Path]++
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/players/1001/upcoming_games":
-			_, _ = w.Write([]byte(`[
-				{
-					"StartDateTime": "2026-01-11T14:55:00-07:00",
-					"FieldName": "3",
-					"HomeTeam": "SHARED FC",
-					"AwayTeam": "OPPONENT A",
-					"SeasonID": 168
-				},
-				{
-					"StartDateTime": "2026-01-11T18:55:00-07:00",
-					"FieldName": "4",
-					"HomeTeam": "PLAYER ONE FC",
-					"AwayTeam": "OPPONENT B",
-					"SeasonID": 168
-				}
-			]`))
-		case "/players/1002/upcoming_games":
-			_, _ = w.Write([]byte(`[
-				{
-					"StartDateTime": "2026-01-11T14:55:00-07:00",
-					"FieldName": "3",
-					"HomeTeam": "SHARED FC",
-					"AwayTeam": "OPPONENT A",
-					"SeasonID": 168
-				},
-				{
-					"StartDateTime": "2026-01-11T16:55:00-07:00",
-					"FieldName": "5",
-					"HomeTeam": "PLAYER TWO FC",
-					"AwayTeam": "OPPONENT C",
-					"SeasonID": 168
-				}
-			]`))
-		default:
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-	}))
-	defer server.Close()
-
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
-
-	games, err := lpsFetchGamesForPlayers(t.Context(), token, []int{1001, 1002})
-	if err != nil {
-		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
-	}
-	if len(games) != 3 {
-		t.Fatalf("unexpected deduped games length: got %d want 3", len(games))
-	}
-
-	sharedCount := 0
-	for _, game := range games {
-		if game.Home == "SHARED FC" && game.Away == "OPPONENT A" {
-			sharedCount++
-			if game.ID == "" {
-				t.Fatal("expected shared game to receive a stable fallback ID")
+		case "/players/1001/my_teams":
+			if got := r.Header.Get("Authorization"); got != "Bearer "+token {
+				t.Fatalf("unexpected authorization header: %s", got)
 			}
-		}
-	}
-	if sharedCount != 1 {
-		t.Fatalf("expected one shared game after dedup, got %d", sharedCount)
-	}
-}
-
-func TestLPSFetchGamesForPlayersMergesDuplicateGamesAcrossPlayers(t *testing.T) {
-	previousConfig := configData
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/players/1001/upcoming_games":
 			_, _ = w.Write([]byte(`[
 				{
-					"UGameID": 555,
-					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
-					"home_team": {"TeamName": "Shared FC"},
-					"visitor_team": {"TeamName": "Opponents"},
-					"SeasonID": 77
+					"UTeamID": 479393,
+					"team_name": "STRUGGLE BUS",
+					"division_name": "Coed Over 30 B Sun",
+					"FacilityID": 4,
+					"facility_name": "Boise",
+					"Season": 169
 				}
 			]`))
-		case "/players/1002/upcoming_games":
-			_, _ = w.Write([]byte(`[
-				{
-					"UGameID": 555,
-					"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
-					"field_name": "Field 9",
-					"facilityName": "Main Complex",
-					"home_team": {"TeamName": "Shared FC"},
-					"visitor_team": {"TeamName": "Opponents"},
-					"SeasonID": 77
+		case "/teams/479393":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 3037322,
+						"field_name": "Field 2",
+						"SchedGameDateTime": %q,
+						"schedGameEndTime": null,
+						"facilityName": "Boise",
+						"result": "7 - 3",
+						"Field": 2,
+						"FacilityID": 4,
+						"UTeam1": 479830,
+						"UTeam2": 479393,
+						"home_team": {
+							"UTeamID": 479830,
+							"team_name": "FC CHAIN MAIL",
+							"division_name": "Coed Over 30 B Sun",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						},
+						"visitor_team": {
+							"UTeamID": 479393,
+							"team_name": "STRUGGLE BUS",
+							"division_name": "Coed Over 30 B Sun",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						}
+					}
+				],
+				"team": {
+					"UTeamID": 479393,
+					"team_name": "STRUGGLE BUS",
+					"division_name": "Coed Over 30 B Sun",
+					"FacilityID": 4,
+					"facility_name": "Boise",
+					"Season": 169
 				}
-			]`))
+			}`, future)))
+		case "/facilities/4":
+			_, _ = w.Write([]byte(`{
+				"FacilityID": 4,
+				"FacilityName": "Boise Indoor Soccer",
+				"Address": "11448 W. President Drive",
+				"City": "Boise",
+				"State": "ID",
+				"ZIP": "83713"
+			}`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -871,18 +888,160 @@ func TestLPSFetchGamesForPlayersMergesDuplicateGamesAcrossPlayers(t *testing.T) 
 		configData = previousConfig
 	}()
 
-	games, err := lpsFetchGamesForPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)), []int{1001, 1002})
+	games, err := lpsFetchGamesForPlayers(t.Context(), token, []int{1001})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
 	}
 	if len(games) != 1 {
-		t.Fatalf("unexpected deduped games length: got %d want 1", len(games))
+		t.Fatalf("unexpected games length: got %d want 1", len(games))
 	}
-	if games[0].Field != "Field 9" {
-		t.Fatalf("expected merged field, got %q", games[0].Field)
+	if got := requestCounts["/players/1001/my_teams"]; got != 1 {
+		t.Fatalf("unexpected my_teams call count: got %d want 1", got)
 	}
-	if games[0].Location != "Main Complex" {
-		t.Fatalf("expected merged location, got %q", games[0].Location)
+	if got := requestCounts["/teams/479393"]; got != 1 {
+		t.Fatalf("unexpected team lookup call count: got %d want 1", got)
+	}
+	if got := requestCounts["/facilities/4"]; got != 1 {
+		t.Fatalf("unexpected facility lookup call count: got %d want 1", got)
+	}
+
+	game := games[0]
+	if game.ID != "3037322" {
+		t.Fatalf("unexpected game ID: %q", game.ID)
+	}
+	if game.PlayerTeamName != "STRUGGLE BUS" {
+		t.Fatalf("unexpected player team name: %q", game.PlayerTeamName)
+	}
+	if game.OpponentTeamName != "FC CHAIN MAIL" {
+		t.Fatalf("unexpected opponent team name: %q", game.OpponentTeamName)
+	}
+	if game.DivisionName != "Coed Over 30 B Sun" {
+		t.Fatalf("unexpected division name: %q", game.DivisionName)
+	}
+	if game.FacilityName != "Boise Indoor Soccer" {
+		t.Fatalf("unexpected facility name: %q", game.FacilityName)
+	}
+	if game.FacilityAddress != "11448 W. President Drive" || game.FacilityCity != "Boise" || game.FacilityState != "ID" || game.FacilityZIP != "83713" {
+		t.Fatalf("unexpected facility details: %#v", game)
+	}
+	if game.Result != "7 - 3" {
+		t.Fatalf("unexpected result: %q", game.Result)
+	}
+	if game.StartAt != expectedStart.Format(time.RFC3339) {
+		t.Fatalf("unexpected start time: %q", game.StartAt)
+	}
+}
+
+func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
+	previousConfig := configData
+	lookupCounts := map[string]int{}
+	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lookupCounts[r.URL.Path]++
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/teams/479691":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 7001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"UTeam1": 479691,
+						"UTeam2": 479700,
+						"home_team": {
+							"UTeamID": 479691,
+							"team_name": "UNITED NATIONS",
+							"division_name": "Coed F Fri",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						},
+						"visitor_team": {
+							"UTeamID": 479700,
+							"team_name": "GALACTICOS FC",
+							"division_name": "Coed F Fri",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						}
+					},
+					{
+						"UGameID": 7002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 4",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"UTeam1": 479691,
+						"UTeam2": 479701,
+						"home_team": {
+							"UTeamID": 479691,
+							"team_name": "UNITED NATIONS",
+							"division_name": "Coed F Fri",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						},
+						"visitor_team": {
+							"UTeamID": 479701,
+							"team_name": "RIVALS",
+							"division_name": "Coed F Fri",
+							"FacilityID": 4,
+							"facility_name": "Boise",
+							"Season": 169
+						}
+					}
+				],
+				"team": {
+					"UTeamID": 479691,
+					"team_name": "UNITED NATIONS",
+					"division_name": "Coed F Fri",
+					"FacilityID": 4,
+					"facility_name": "Boise",
+					"Season": 169
+				}
+			}`, futureOne, futureTwo)))
+		case "/facilities/4":
+			_, _ = w.Write([]byte(`{
+				"FacilityID": 4,
+				"FacilityName": "Boise Indoor Soccer",
+				"Address": "11448 W. President Drive",
+				"City": "Boise",
+				"State": "ID",
+				"ZIP": "83713"
+			}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	configData = serverConfig{
+		SessionKey:    previousConfig.SessionKey,
+		LPSAPIBaseURL: server.URL,
+	}
+	defer func() {
+		configData = previousConfig
+	}()
+
+	games, err := lpsFetchGamesForTeams(t.Context(), []int{479691})
+	if err != nil {
+		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
+	}
+	if len(games) != 2 {
+		t.Fatalf("unexpected games length: got %d want 2", len(games))
+	}
+	if got := lookupCounts["/facilities/4"]; got != 1 {
+		t.Fatalf("expected one cached facility lookup, got %d", got)
+	}
+	if games[0].FacilityAddress != "11448 W. President Drive" {
+		t.Fatalf("unexpected facility address: %q", games[0].FacilityAddress)
+	}
+	if games[0].PlayerTeamName != "UNITED NATIONS" || games[0].OpponentTeamName != "GALACTICOS FC" {
+		t.Fatalf("unexpected team matchup: %#v", games[0])
 	}
 }
 
@@ -909,9 +1068,9 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	past := time.Now().Add(-2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
-	sharedFuture := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
-	uniqueFuture := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	past := testMislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	sharedFuture := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	uniqueFuture := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1319,22 +1478,45 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	}()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); !strings.HasPrefix(got, "Bearer ") {
+		if got := r.Header.Get("Authorization"); !strings.HasPrefix(got, "Bearer ") && strings.HasPrefix(r.URL.Path, "/players/") {
 			t.Fatalf("missing bearer auth header: %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[
-			{
-				"UGameID": 888,
-				"SchedGameDateTime": "2026-05-15T20:00:00-06:00",
-				"schedGameEndTime": "2026-05-15T21:30:00-06:00",
-				"facilityName": "North Fieldhouse",
-				"field_name": "Pitch 2",
-				"home_team": {"TeamName": "Craig FC"},
-				"visitor_team": {"TeamName": "Rivals"},
-				"SeasonID": 300
-			}
-		]`))
+		switch r.URL.Path {
+		case "/players/1001/my_teams":
+			_, _ = w.Write([]byte(`[
+				{
+					"UTeamID": 8881,
+					"team_name": "Craig FC",
+					"division_name": "Premier",
+					"FacilityID": 12,
+					"facility_name": "North Fieldhouse",
+					"Season": 300
+				}
+			]`))
+		case "/teams/8881":
+			_, _ = w.Write([]byte(`{
+				"games": [
+					{
+						"UGameID": 888,
+						"SchedGameDateTime": "2026-05-15T20:00:00-06:00",
+						"schedGameEndTime": "2026-05-15T21:30:00-06:00",
+						"facilityName": "North Fieldhouse",
+						"field_name": "Pitch 2",
+						"FacilityID": 12,
+						"UTeam1": 8881,
+						"UTeam2": 8882,
+						"home_team": {"UTeamID": 8881, "team_name": "Craig FC", "division_name": "Premier", "FacilityID": 12, "facility_name": "North Fieldhouse", "Season": 300},
+						"visitor_team": {"UTeamID": 8882, "team_name": "Rivals", "division_name": "Premier", "FacilityID": 12, "facility_name": "North Fieldhouse", "Season": 300}
+					}
+				],
+				"team": {"UTeamID": 8881, "team_name": "Craig FC", "division_name": "Premier", "FacilityID": 12, "facility_name": "North Fieldhouse", "Season": 300}
+			}`))
+		case "/facilities/12":
+			_, _ = w.Write([]byte(`{"FacilityID": 12, "FacilityName": "North Fieldhouse", "Address": "123 Main St", "City": "Boise", "State": "ID", "ZIP": "83709"}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
 	}))
 	defer server.Close()
 	configData.LPSAPIBaseURL = server.URL
@@ -1382,7 +1564,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	future := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/teams/479691" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -1552,35 +1734,61 @@ func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
 	}
 }
 
-func TestGoogleEventPayloadPreservesUTCZuluTimestamps(t *testing.T) {
-	previousLocal := time.Local
-	localZone, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		t.Fatalf("time.LoadLocation returned error: %v", err)
+func TestParseScheduleTimeTreatsMislabelledZuluTimestampsAsMountainWallTime(t *testing.T) {
+	got, ok := parseScheduleTime("2026-03-29T17:20:00.000Z")
+	if !ok {
+		t.Fatal("parseScheduleTime returned false")
 	}
-	time.Local = localZone
-	defer func() {
-		time.Local = previousLocal
-	}()
 
+	if got.Format(time.RFC3339) != "2026-03-29T17:20:00-06:00" {
+		t.Fatalf("unexpected schedule parse result: %s", got.Format(time.RFC3339))
+	}
+	if got.In(mountainTimeLocation).Format("MST") != "MDT" {
+		t.Fatalf("unexpected mountain timezone label: %s", got.In(mountainTimeLocation).Format("MST"))
+	}
+}
+
+func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.T) {
+	game := mapLPSGame(map[string]any{
+		"UGameID":           5001,
+		"SchedGameDateTime": "2026-03-29T17:20:00.000Z",
+		"home_team":         map[string]any{"team_name": "Team A"},
+		"visitor_team":      map[string]any{"team_name": "Team B"},
+	})
+
+	if game.StartAt != "2026-03-29T17:20:00-06:00" {
+		t.Fatalf("unexpected normalized start time: %q", game.StartAt)
+	}
+	if game.DateTime != "Sun 03/29/26 05:20 PM MDT" {
+		t.Fatalf("unexpected display datetime: %q", game.DateTime)
+	}
+}
+
+func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	event, ok := googleEventPayload(req, &Game{
 		ID:      "zulu-game",
 		Home:    "Team A",
 		Away:    "Team B",
-		StartAt: "2026-01-12T01:00:00.000Z",
-		EndAt:   "2026-01-12T02:30:00.000Z",
+		StartAt: "2026-03-29T17:20:00.000Z",
+		EndAt:   "2026-03-29T18:50:00.000Z",
 		Season:  "169",
 	})
 	if !ok {
 		t.Fatal("googleEventPayload returned false")
 	}
 
-	if event.Start.DateTime != "2026-01-12T01:00:00Z" {
+	if event.Start.DateTime != "2026-03-29T17:20:00" {
 		t.Fatalf("unexpected google start datetime: %q", event.Start.DateTime)
 	}
-	if event.End.DateTime != "2026-01-12T02:30:00Z" {
+	if event.Start.TimeZone != mountainTimeZoneID {
+		t.Fatalf("unexpected google start timezone: %q", event.Start.TimeZone)
+	}
+	if event.End.DateTime != "2026-03-29T18:50:00" {
 		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
+	}
+	if event.End.TimeZone != mountainTimeZoneID {
+		t.Fatalf("unexpected google end timezone: %q", event.End.TimeZone)
 	}
 }
 
@@ -1676,6 +1884,26 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 		if len([]byte(line)) > 75 {
 			t.Fatalf("ics utf8 line exceeds 75 octets: %d bytes in %q", len([]byte(line)), line)
 		}
+	}
+}
+
+func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) {
+	ics := buildICS([]Game{{
+		ID:      "mountain-game",
+		Home:    "Team A",
+		Away:    "Team B",
+		StartAt: "2026-03-29T17:20:00.000Z",
+		EndAt:   "2026-03-29T18:50:00.000Z",
+	}})
+
+	if !strings.Contains(ics, "X-WR-TIMEZONE:America/Denver") {
+		t.Fatalf("expected calendar timezone in ICS output, got %q", ics)
+	}
+	if !strings.Contains(ics, "DTSTART;TZID=America/Denver:20260329T172000") {
+		t.Fatalf("expected mountain DTSTART in ICS output, got %q", ics)
+	}
+	if !strings.Contains(ics, "DTEND;TZID=America/Denver:20260329T185000") {
+		t.Fatalf("expected mountain DTEND in ICS output, got %q", ics)
 	}
 }
 
@@ -1800,6 +2028,10 @@ func testJWT(t *testing.T, expiresAt time.Time) string {
 	payloadToken := base64.RawURLEncoding.EncodeToString(payload)
 	signature := base64.RawURLEncoding.EncodeToString([]byte("signature"))
 	return strings.Join([]string{header, payloadToken, signature}, ".")
+}
+
+func testMislabelledLPSZuluTime(at time.Time) string {
+	return at.In(mountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
 }
 
 func resetSoccerLoginAttempts(t *testing.T) {
@@ -2104,8 +2336,8 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 
 	insertedIDs := make([]string, 0, 2)
 	lookupIDs := make([]string, 0, 1)
-	futureOne := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
-	futureTwo := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/teams/479691":
@@ -2215,8 +2447,8 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 	insertedIDs := make([]string, 0, 2)
 	lookupIDs := make([]string, 0, 2)
 	restoredIDs := make([]string, 0, 1)
-	futureOne := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
-	futureTwo := time.Now().Add(48 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/teams/479691":
@@ -2259,7 +2491,7 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 			lookupIDs = append(lookupIDs, eventID)
 			w.Header().Set("Content-Type", "application/json")
 			if len(lookupIDs) == 1 {
-				_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"cancelled"}`, eventID)))
+				_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"canceled"}`, eventID)))
 				return
 			}
 			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"confirmed"}`, eventID)))
@@ -2326,8 +2558,8 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	past := time.Now().Add(-2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
-	future := time.Now().Add(24 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z")
+	past := testMislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/teams/479691" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)

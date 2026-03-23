@@ -1,172 +1,128 @@
-# Feature: Soccer Page UX Overhaul
+# Feature: Google Calendar and ICS Event Format Parity
 
 ## Overview
 
-Redesign the soccer schedule tool page to reorder its input methods by usage likelihood, add progress/loading indicators for all async operations, and elevate the visual design to be the standout page of the portfolio site.
+Update the soccer schedule export flow so both Google Calendar events and the downloaded ICS file match the event field format defined in `event_format.md` exactly. This requires enriching upstream schedule data with player-team context and facility addresses, routing both outputs through shared event formatting logic, and updating existing Google events only when they can be matched to the same game ID.
 
 ## Success Criteria
 
 - [ ] All tasks complete
 - [ ] All tests passing (`just test`)
 - [ ] Build succeeds (`just build`)
-- [ ] Lint passes (`just lint`)
-- [ ] No regressions to existing soccer auth, fetch, download, or Google Calendar flows
+- [ ] Google Calendar inserts and updates match `event_format.md` for summary, description, location, start, end, status, ID, and private game ID
+- [ ] ICS downloads match `event_format.md` for summary, description, location, start, end, status, and stable game identity
+- [ ] Existing Google events are updated only when they match the same game ID value
 - [ ] No blockers
 
 ## Tasks
 
-### Task-001: Reorder Input Sections — Manual Team IDs First
-
-**Priority**: High
-**Estimated Iterations**: 1-2
-
-The "Fetch Schedules" unified card currently renders three sections in this order:
-
-1. JWT import (soccer-auth-shell with HTMX-loaded soccer-auth-panel)
-2. Google Calendar connection (inside soccer-auth-panel via `SoccerLoginState`)
-3. Manual team IDs (soccer-manual-entry with fetch form)
-
-Swap the order so the manual team ID entry appears **first**, Google Calendar stays in the **middle**, and JWT import moves **last**.
-
-**Files to modify**:
-
-- `components/pages/soccer.templ` — reorder the DOM structure inside `.unified-form-section`
-- `components/partials/soccer_login_state.templ` — no logic changes needed, but confirm Google Calendar section remains between the new ordering boundaries
-- `static/css/soccer.css` — adjust any CSS assumptions tied to ordering (border-top on `.soccer-manual-entry`, spacing)
-
-**Acceptance Criteria**:
-
-- [ ] Manual team ID form appears first inside the unified card's left column
-- [ ] Google Calendar connection/selection appears second (middle position)
-- [ ] JWT import section (soccer-auth-shell) appears last
-- [ ] "How to Import Access" sidebar instructions remain on the right
-- [ ] Each section has clear visual separators (borders or spacing) so they read as distinct options
-- [ ] Existing HTMX swap targets (`#soccer-auth-panel`, `#games-container`, `#loading-indicator`) remain functional
-- [ ] All existing tests pass without modification
-
-**Verification**:
-
-```bash
-just generate && just test && just build
-```
-
----
-
-### Task-002: Add Loading/Progress Indicators to Async Operations
+### Task-001: Enrich Schedule Data for Exact Event Fields
 
 **Priority**: High
 **Estimated Iterations**: 2-3
 
-Currently, clicking "Import access" in the JWT modal and "Add Selected to Google Calendar" provides no visual feedback while the request is in-flight. Users cannot tell whether their click registered.
-
-Add clear loading/progress states to every async action on the page:
-
-1. **JWT Import modal** — show a spinner and disable the "Import access" button while the HTMX POST to `/soccer/import` is in flight
-2. **Google Calendar "Add Selected"** — show a spinner and disable the button while the HTMX POST to `/soccer/google/add` is in flight
-3. **Google Calendar "Save calendar"** — show a spinner on submission
-4. **Google Calendar "Connect" / "Reconnect" / "Disconnect"** — disable on click so double-clicks are prevented
-5. **"Fetch Player Schedules"** (player select form) — show a spinner while fetching
-6. **"Clear import" / Logout** — brief disabled state while clearing
-
-Use HTMX's built-in `hx-indicator` and `hx-disabled-elt` attributes where possible. For the JWT modal, add an `htmx:beforeRequest` / `htmx:afterRequest` listener in `main.js` to toggle a spinner inside the submit button and disable it.
-
-**Files to modify**:
-
-- `components/partials/soccer_login_modal.templ` — add `hx-indicator` and `hx-disabled-elt` attributes to the import form/button
-- `components/partials/soccer_login_state.templ` — add `hx-disabled-elt` to Clear import, Disconnect, Save calendar, Reconnect buttons
-- `components/partials/soccer_player_select.templ` — add `hx-indicator` / `hx-disabled-elt` to "Fetch Player Schedules"
-- `components/partials/soccer_table_fragment.templ` — add `hx-indicator` / `hx-disabled-elt` to "Add Selected to Google Calendar"
-- `static/css/soccer.css` — add spinner styles for buttons (`.btn-loading` class with inline spinner)
-- `static/js/main.js` — add HTMX event listeners for the JWT modal form to toggle loading state
-
 **Acceptance Criteria**:
 
-- [ ] Clicking "Import access" in the modal shows a spinner inside the button and disables it until the response arrives
-- [ ] Clicking "Add Selected to Google Calendar" shows a spinner inside the button and disables it until the response arrives
-- [ ] "Save calendar", "Clear import", "Disconnect", "Reconnect Google", and "Fetch Player Schedules" show a disabled/loading state while their respective requests are in flight
-- [ ] Double-clicking any button does not fire duplicate requests
-- [ ] Loading states automatically clear on both success and error responses
-- [ ] Spinner is accessible (uses `aria-busy` or similar)
-- [ ] All existing tests still pass
+- [ ] Schedule resolution returns the exact upstream data needed to build the target event fields: `UGameID`, player team name, opponent team name, division name, facility name, facility address, city, state, ZIP, field name, result, and start time
+- [ ] Discovered-player schedule resolution follows the `event_format.md` flow when needed for parity: resolve player teams from `/players/<PLAYER_ID>/my_teams`, then fetch `/teams/<TEAM_ID>` so the selected player's team and opponent can be identified correctly
+- [ ] Manual team-ID schedule resolution preserves the same enriched game data shape used by the discovered-player path
+- [ ] Facility enrichment fetches `/facilities/<FacilityID>` and captures `Address`, `City`, `State`, `ZIP`, and canonical facility name for downstream event formatting
+- [ ] Facility lookups are cached within a request by `FacilityID` so repeated games at the same facility do not trigger duplicate upstream fetches
+- [ ] Shared schedule/domain data is extended in existing repo patterns (`main.go` plus `types/types.go` if needed) without introducing a new package split
+- [ ] Upstream lookup failures surface explicit schedule export errors consistent with current fetch/download handling instead of silently falling back to incorrect event content
+- [ ] Automated tests cover player-team resolution, facility enrichment, and duplicate facility lookup behavior
 
 **Verification**:
 
 ```bash
-just generate && just test && just build
+just test
 ```
 
-Manual test: Open the soccer page, trigger each action, and confirm spinner/disabled state appears and clears.
+### Task-002: Build One Canonical Event Formatter for Google and ICS
 
----
+**Priority**: High
+**Estimated Iterations**: 2-3
 
-### Task-003: Visual Design Polish — Make the Soccer Page Stand Out
+**Acceptance Criteria**:
+
+- [ ] Google event payload generation and ICS `VEVENT` generation both use one shared formatting path so they stay in lockstep
+- [ ] Summary is formatted exactly as `PlayerTeamName vs OpponentTeamName - Field`
+- [ ] Description is formatted exactly as `PlayerTeamName is playing OpponentTeamName\nDivision: DivisionName\nFacility: FacilityName\nField: FieldName\nResult: Result`
+- [ ] Location is formatted from the facility lookup as `Facility.Address, Facility.City, Facility.State, Facility.ZIP`
+- [ ] Start is derived from `SchedGameDateTime` and End is exactly 45 minutes after the start time when no explicit upstream end time is provided
+- [ ] Google event `ID` is the raw `UGameID` string and `ExtendedProperties.Private["game_id"]` is set to the same game ID value
+- [ ] Google event status is `cancelled` when the upstream result is `cancelled`; otherwise it is `confirmed`
+- [ ] ICS output mirrors the same canonical fields with `SUMMARY`, `DESCRIPTION`, `LOCATION`, `STATUS`, `DTSTART`, `DTEND`, and `UID` aligned to the same game identity
+- [ ] The previous season-only description and hashed/prefixed Google event identity are fully removed from the new event formatter path
+- [ ] Automated tests assert the exact Google payload fields and ICS lines for representative games, including cancelled games
+
+**Verification**:
+
+```bash
+just test && just build
+```
+
+### Task-003: Update Existing Google Events Only When Game IDs Match
+
+**Priority**: High
+**Estimated Iterations**: 2-3
+
+**Acceptance Criteria**:
+
+- [ ] Adding selected games to Google Calendar updates an existing calendar event when the existing event maps to the same `UGameID` value
+- [ ] Matching logic uses the same game ID value carried by the Google event ID and/or private `game_id` field; non-matching events are left untouched
+- [ ] Existing matching events are refreshed with the canonical summary, description, location, start, end, status, source, and private game ID fields instead of being counted as duplicates
+- [ ] Matching cancelled events are restored or updated back to confirmed when the upstream game is no longer cancelled
+- [ ] Matching confirmed events are updated to cancelled when the upstream result is `cancelled`
+- [ ] Legacy Google events that do not expose the same game ID value are not migrated or mutated by this change
+- [ ] User feedback from the Google add flow reports added, updated/restored, and skipped counts accurately
+- [ ] Automated tests cover insert, update, restore, cancel, and skip scenarios for matching versus non-matching Google events
+
+**Verification**:
+
+```bash
+just test
+```
+
+Manual test: Connect a test Google Calendar, add one selected game, change the upstream fixture so the same game ID has different event fields, add it again, and confirm the existing event is updated rather than duplicated.
+
+### Task-004: Harden Regression Coverage for Calendar Exports
 
 **Priority**: Medium
-**Estimated Iterations**: 3-5
-
-After Tasks 001 and 002 are complete, review the full soccer page and polish it to be the most visually striking page on the site. It should feel premium and draw visitors in while remaining functional and minimal.
-
-**Design direction**:
-
-- Maintain the existing dark theme with warm orange (`--accent-primary`) and teal (`--accent-secondary`) accents
-- Introduce a secondary accent glow / gradient flair that gives the page its own identity (e.g., a subtle green-to-teal pitch gradient in the hero background overlay, or a neon pitch-line accent on cards)
-- Ensure the three reordered input sections in the unified card are visually distinct and easy to scan — consider numbered step badges, subtle color-coded left borders, or icon badges for each option
-- Polish the "How It Works" and "Built For Players" card sections for consistency with other pages
-- Improve the empty state in the games container — add an icon or illustration placeholder
-- Ensure the schedule table, when loaded, looks polished with subtle row highlights and clear action buttons
-- Review spacing, font sizing, and padding for a balanced, airy feel that matches the rest of the portfolio
-
-**Files to modify**:
-
-- `static/css/soccer.css` — primary file for all style updates
-- `components/pages/soccer.templ` — minor markup tweaks for any new visual elements (section badges, icons, decorative elements)
-- `components/partials/soccer_login_state.templ` — any markup tweaks for visual improvements
-- `components/partials/soccer_table_fragment.templ` — table styling improvements if markup changes are needed
+**Estimated Iterations**: 1-2
 
 **Acceptance Criteria**:
 
-- [ ] The three input sections (Manual Team ID, Google Calendar, JWT Import) are visually distinct with clear headers and subtle differentiation (e.g., numbered badges, colour-coded left borders, or distinct icons)
-- [ ] Hero section has a unique visual flair that distinguishes it from other portfolio pages (e.g., pitch-inspired gradient, soccer-themed accent)
-- [ ] "How It Works" steps update to reflect the reordered flow (Manual Team ID first)
-- [ ] Empty state in the games container is visually appealing (icon + descriptive text)
-- [ ] Schedule table rows have clear hover states and the action bar is well-styled
-- [ ] All card sections (How It Works, Features, Unified Card) have consistent border radius, shadow, spacing
-- [ ] Page reads as cohesive, polished, and premium on both desktop and mobile
-- [ ] Color contrast meets WCAG AA (4.5:1 for text, 3:1 for interactive elements)
-- [ ] No visual regressions on other pages
-- [ ] Responsive layout still works correctly at 768px and 1024px breakpoints
+- [ ] `main_test.go` includes regression coverage for enriched schedule fetching, canonical event formatting, Google add/update semantics, and ICS field generation
+- [ ] Existing export behaviors that must remain stable continue to be covered: selected-game filtering, invalid selection handling, timezone normalization, and ICS line folding
+- [ ] New tests use the repo's existing `httptest` + fake upstream server patterns instead of adding new test frameworks
+- [ ] Verification commands for the change are documented in the PRD/progress flow so a Ralph loop can stop only after tests and build pass cleanly
 
 **Verification**:
 
-```bash
-just generate && just build
-```
-
-Manual test: View on desktop and mobile viewport; compare visual consistency with home, projects, and skills pages.
-
----
+- Automated: `just test && just build`
+- Manual test: Download an ICS file and compare one event against the Google Calendar event for the same game ID to confirm matching summary, description, location, timing, and cancelled/confirmed state
 
 ## Technical Constraints
 
 - Language: Go 1.26.1
-- Templating: Templ (edit `.templ` files, run `just generate`)
-- Frontend: HTMX + vanilla JS (no build step, no bundler)
-- Styling: Plain CSS with CSS custom properties (no preprocessor)
-- Testing: `go test` via `just test`
-- Linting: `just lint` (golangci-lint + stylelint)
-- Formatting: `just fmt`
+- Framework: Standard `net/http` server with Templ/HTMX UI; keep the existing monolithic `main.go` application layout
+- Testing: Go `testing` package via `just test`
+- Build: `just build`
+- Style: Follow existing Go patterns in `main.go`, shared models in `types/types.go`, and existing handler tests in `main_test.go`
 
 ## Architecture Notes
 
-- All changes are UI/UX focused — no new Go handlers or API routes required
-- HTMX swap targets (`#soccer-auth-panel`, `#games-container`, `#loading-indicator`, `#soccer-login-feedback`, `#google-calendar-feedback`) must remain stable since handlers render HTML fragments targeting these IDs
-- The `SoccerLoginState` component is loaded via `hx-get="/soccer/session"` on page load and swapped via `hx-swap-oob` after import/logout — reordering in `soccer.templ` must keep the `#soccer-auth-panel` div functional
-- `main.js` handles modal open/close and select-all logic — new loading state JS should follow the same IIFE pattern
+- `event_format.md` is the source of truth for the target event fields and upstream lookup sequence
+- Current Google and ICS event builders live in `main.go`; this work should replace duplicated field derivation with one shared formatter/helper path
+- The current discovered-player flow uses player-based schedule fetching, but exact parity may require unifying both player and manual flows around team/facility enrichment before export formatting
+- The Google add flow already has insert/conflict/restore behavior; extend that path to update matching events rather than only restoring cancelled ones or skipping duplicates
+- Keep changes focused inside the existing architecture: handler orchestration in `main.go`, shared field storage in `types/types.go`, and regression coverage in `main_test.go`
+- Preserve existing HTMX/UI behavior unless minimal feedback copy updates are required to report added versus updated events
 
 ## Out of Scope
 
-- Changing Go handler logic or API routes
-- Adding new backend features (email subscription is already stubbed)
-- Modifying other portfolio pages' styles
-- Changing the chrome extension
-- Introducing a CSS preprocessor or JS bundler
+- Migrating legacy Google events whose stored IDs or private properties do not match the same `UGameID` value
+- Changing the soccer page UX, auth flow, or manual import workflow beyond export-status messaging required by this feature
+- Adding new calendar providers or subscription mechanisms
+- Refactoring the repo into additional Go packages

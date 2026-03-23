@@ -2,38 +2,30 @@
 
 ## Completed
 
-- [x] Task-001: Reorder input sections — manual team IDs first
-- [x] Task-002: Add loading/progress indicators to async soccer actions
-- [x] Task-002 review follow-up: add missing loading/disabled states to manual fetch and subscribe actions
-- [x] Task-002: Reviewer-approved loading/progress states across soccer async actions (commits: 7b8af43, 0b37288)
-- [x] Task-003: Visual design polish — make the soccer page stand out
-- [x] Task-003 review follow-up: preserve polished empty state on reset and improve accent contrast
-- [x] Final verification: `just ci` passed
+- [x] Task-001: Enrich Schedule Data for Exact Event Fields
 
 ## Current Iteration
 
-- Iteration: 8
-- Working on: All tasks complete
-- Started: 2026-03-22T16:10:00-06:00
+- Iteration: 1
+- Working on: Task-001: Enrich Schedule Data for Exact Event Fields
+- Started: 2026-03-23T04:29:00.612Z
 
 ## Last Completed
 
-- Final verification
-- Validation: `just ci` ✅
+- Task-001: Enrich Schedule Data for Exact Event Fields
+- Tests: ✅ `just test`
+- Build: ✅ `just build`
 - Key decisions:
-  - All PRD tasks passed RalphReviewer review before final verification
-  - The repo-supported full quality path (`fmt`, `vet`, `lint`, `test`, `build`) passed via `just ci`
+  - Discovered-player schedule resolution now follows `my_teams -> teams -> facilities`
+  - Manual team-ID resolution reuses the same enriched game mapping and facility cache
+  - Added flat enriched schedule fields to `types.Game` for downstream event formatting work
 
 ## Blockers
 
 - None
 
-## Notes
+## Notes for Next Iteration
 
-- Ralph loop initialized
-- PRD created: 2026-03-22
-- Three tasks: reorder inputs, add loading indicators, visual polish
-- Task-001 keeps the right-side import instructions in place and uses card-level section styling for clearer separation
-- Task-003 completed with soccer-only styling and copy polish; no backend changes were required
-- Task-003 review follow-up stayed JS/CSS-only and preserved existing HTMX IDs, targets, and flows
-- Ralph loop completed successfully on 2026-03-22
+- Task-002 can build canonical Google/ICS event formatting directly from the enriched `Game` fields
+- Facility addresses are cached per schedule request by `FacilityID`
+- Existing timezone/export changes in `main.go` and `main_test.go` were preserved
