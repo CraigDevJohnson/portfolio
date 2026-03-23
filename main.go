@@ -2416,43 +2416,28 @@ func googleCalendarSummary(calendars []GoogleCalendarOption, calendarID string) 
 	return ""
 }
 
-func googleEventID(game *Game) string {
-	stableID := fallbackGameID(game)
-	if stableID == "" {
-		hash := md5.Sum([]byte(gameKey(game)))
-		stableID = hex.EncodeToString(hash[:])
-	}
-	// Google Calendar event IDs only allow lowercase a-v and digits 0-9
-	return "soccer" + stableID
-}
-
 func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
-	start, end, ok := scheduleTimes(game)
+	formatted, ok := canonicalGameEvent(game)
 	if !ok {
 		return googleEvent{}, false
 	}
-	start = start.In(mountainTimeLocation)
-	end = end.In(mountainTimeLocation)
 	event := googleEvent{
-		Description: strings.TrimSpace("Season " + game.Season),
+		Description: formatted.Description,
 		End: googleEventDateTime{
-			DateTime: end.Format("2006-01-02T15:04:05"),
+			DateTime: formatted.End.Format("2006-01-02T15:04:05"),
 			TimeZone: mountainTimeZoneID,
 		},
-		ID:       googleEventID(game),
-		Location: strings.TrimSpace(game.Location),
+		ID:       formatted.ID,
+		Location: formatted.Location,
 		Start: googleEventDateTime{
-			DateTime: start.Format("2006-01-02T15:04:05"),
+			DateTime: formatted.Start.Format("2006-01-02T15:04:05"),
 			TimeZone: mountainTimeZoneID,
 		},
-		Summary: strings.TrimSpace(strings.TrimSpace(game.Home) + " vs " + strings.TrimSpace(game.Away)),
-	}
-	if event.Location == "" && strings.TrimSpace(game.Field) != "" {
-		event.Location = "Field " + strings.TrimSpace(game.Field)
+		Status:  formatted.Status,
+		Summary: formatted.Summary,
 	}
 	event.ExtendedProperties.Private = map[string]string{
-		"portfolio_game_id": fallbackGameID(game),
-		"portfolio_source":  "soccer",
+		"game_id": formatted.ID,
 	}
 	event.Source = &googleEventSource{
 		Title: "Soccer Schedule",
@@ -3587,34 +3572,110 @@ func buildICS(games []Game) string {
 	writeICSLine(&builder, "X-WR-TIMEZONE:"+mountainTimeZoneID)
 	for i := range games {
 		game := &games[i]
-		start, end, ok := scheduleTimes(game)
+		formatted, ok := canonicalGameEvent(game)
 		if !ok {
 			log.Printf("skipping game: could not parse start time")
 			continue
 		}
-		start = start.In(mountainTimeLocation)
-		end = end.In(mountainTimeLocation)
 		writeICSLine(&builder, "BEGIN:VEVENT")
-		writeICSLine(&builder, "UID:"+escapeICSText(game.ID)+"@craigdevjohnson.com")
+		writeICSLine(&builder, "UID:"+escapeICSText(formatted.ID))
 		writeICSLine(&builder, "DTSTAMP:"+time.Now().UTC().Format("20060102T150405Z"))
-		writeICSLine(&builder, "DTSTART;TZID="+mountainTimeZoneID+":"+start.Format("20060102T150405"))
-		writeICSLine(&builder, "DTEND;TZID="+mountainTimeZoneID+":"+end.Format("20060102T150405"))
-		writeICSLine(&builder, "SUMMARY:"+escapeICSText(strings.TrimSpace(game.Home)+" vs "+strings.TrimSpace(game.Away)))
-		location := strings.TrimSpace(game.Location)
-		if location == "" && strings.TrimSpace(game.Field) != "" {
-			location = "Field " + strings.TrimSpace(game.Field)
-		}
-		if location != "" {
-			writeICSLine(&builder, "LOCATION:"+escapeICSText(location))
-		}
-		description := strings.TrimSpace("Season " + game.Season)
-		if description != "Season" {
-			writeICSLine(&builder, "DESCRIPTION:"+escapeICSText(description))
-		}
+		writeICSLine(&builder, "DTSTART;TZID="+mountainTimeZoneID+":"+formatted.Start.Format("20060102T150405"))
+		writeICSLine(&builder, "DTEND;TZID="+mountainTimeZoneID+":"+formatted.End.Format("20060102T150405"))
+		writeICSLine(&builder, "SUMMARY:"+escapeICSText(formatted.Summary))
+		writeICSLine(&builder, "DESCRIPTION:"+escapeICSText(formatted.Description))
+		writeICSLine(&builder, "LOCATION:"+escapeICSText(formatted.Location))
+		writeICSLine(&builder, "STATUS:"+strings.ToUpper(formatted.Status))
 		writeICSLine(&builder, "END:VEVENT")
 	}
 	writeICSLine(&builder, "END:VCALENDAR")
 	return builder.String()
+}
+
+type formattedGameEvent struct {
+	Description string
+	End         time.Time
+	ID          string
+	Location    string
+	Start       time.Time
+	Status      string
+	Summary     string
+}
+
+func canonicalGameEvent(game *Game) (formattedGameEvent, bool) {
+	start, end, ok := scheduleTimes(game)
+	if !ok {
+		return formattedGameEvent{}, false
+	}
+
+	start = start.In(mountainTimeLocation)
+	end = end.In(mountainTimeLocation)
+
+	playerTeam := strings.TrimSpace(game.PlayerTeamName)
+	if playerTeam == "" {
+		playerTeam = strings.TrimSpace(game.Home)
+	}
+
+	opponentTeam := strings.TrimSpace(game.OpponentTeamName)
+	if opponentTeam == "" {
+		opponentTeam = strings.TrimSpace(game.Away)
+	}
+
+	fieldName := strings.TrimSpace(game.Field)
+	location := canonicalGameLocation(game)
+	if location == "" {
+		location = strings.TrimSpace(game.Location)
+	}
+
+	gameID := strings.TrimSpace(game.ID)
+	if gameID == "" {
+		gameID = fallbackGameID(game)
+	}
+
+	status := canonicalGameStatus(game)
+
+	return formattedGameEvent{
+		Description: fmt.Sprintf("%s is playing %s\nDivision: %s\nFacility: %s\nField: %s\nResult: %s",
+			playerTeam,
+			opponentTeam,
+			strings.TrimSpace(game.DivisionName),
+			strings.TrimSpace(game.FacilityName),
+			fieldName,
+			strings.TrimSpace(game.Result),
+		),
+		End:      end,
+		ID:       gameID,
+		Location: location,
+		Start:    start,
+		Status:   status,
+		Summary:  fmt.Sprintf("%s vs %s - %s", playerTeam, opponentTeam, fieldName),
+	}, true
+}
+
+func canonicalGameLocation(game *Game) string {
+	parts := []string{
+		strings.TrimSpace(game.FacilityAddress),
+		strings.TrimSpace(game.FacilityCity),
+		strings.TrimSpace(game.FacilityState),
+		strings.TrimSpace(game.FacilityZIP),
+	}
+
+	locationParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		locationParts = append(locationParts, part)
+	}
+
+	return strings.Join(locationParts, ", ")
+}
+
+func canonicalGameStatus(game *Game) string {
+	if strings.EqualFold(strings.TrimSpace(game.Result), "cancelled") {
+		return "cancelled"
+	}
+	return "confirmed"
 }
 
 func scheduleTimes(game *Game) (time.Time, time.Time, bool) {
@@ -3624,7 +3685,7 @@ func scheduleTimes(game *Game) (time.Time, time.Time, bool) {
 	}
 	end, ok := parseScheduleTime(game.EndAt)
 	if !ok || !end.After(start) {
-		end = start.Add(90 * time.Minute)
+		end = start.Add(45 * time.Minute)
 	}
 	return start, end, true
 }

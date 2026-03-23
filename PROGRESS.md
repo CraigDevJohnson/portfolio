@@ -3,22 +3,23 @@
 ## Completed
 
 - [x] Task-001: Enrich Schedule Data for Exact Event Fields
+- [x] Task-002: Build One Canonical Event Formatter for Google and ICS
 
 ## Current Iteration
 
-- Iteration: 1
-- Working on: Task-001: Enrich Schedule Data for Exact Event Fields
-- Started: 2026-03-23T04:29:00.612Z
+- Iteration: 3
+- Working on: Task-003: Update Existing Google Events Only When Game IDs Match
+- Started: 2026-03-23T04:46:00Z
 
 ## Last Completed
 
-- Task-001: Enrich Schedule Data for Exact Event Fields
+- Task-002: Build One Canonical Event Formatter for Google and ICS
 - Tests: ✅ `just test`
 - Build: ✅ `just build`
 - Key decisions:
-  - Discovered-player schedule resolution now follows `my_teams -> teams -> facilities`
-  - Manual team-ID resolution reuses the same enriched game mapping and facility cache
-  - Added flat enriched schedule fields to `types.Game` for downstream event formatting work
+  - Added one shared canonical formatter for Google payloads and ICS VEVENT output
+  - Google event IDs now use raw `UGameID` with private `game_id` parity and confirmed/cancelled status mapping
+  - ICS now mirrors canonical summary, description, location, UID, status, and 45-minute default duration
 
 ## Blockers
 
@@ -26,6 +27,6 @@
 
 ## Notes for Next Iteration
 
-- Task-002 can build canonical Google/ICS event formatting directly from the enriched `Game` fields
-- Facility addresses are cached per schedule request by `FacilityID`
-- Existing timezone/export changes in `main.go` and `main_test.go` were preserved
+- Task-003 should match/update Google events using the raw event `ID` and `extendedProperties.private.game_id`
+- Canonical event formatting now lives in `canonicalGameEvent` and is shared by `googleEventPayload` and `buildICS`
+- Existing timezone normalization and ICS line folding behavior remain covered by tests

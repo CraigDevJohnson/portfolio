@@ -20,6 +20,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+func unfoldICS(ics string) string {
+	return strings.ReplaceAll(ics, "\r\n ", "")
+}
+
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
@@ -1547,11 +1551,18 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
 		t.Fatalf("unexpected content type: %q", contentType)
 	}
-	if !strings.Contains(resp.Body.String(), "UID:888@craigdevjohnson.com") {
+	unfoldedICS := unfoldICS(resp.Body.String())
+	if !strings.Contains(unfoldedICS, "UID:888") {
 		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
 	}
-	if !strings.Contains(resp.Body.String(), "LOCATION:North Fieldhouse") {
+	if !strings.Contains(unfoldedICS, "LOCATION:123 Main St\\, Boise\\, ID\\, 83709") {
 		t.Fatalf("expected facility location in ICS body: %q", resp.Body.String())
+	}
+	if !strings.Contains(unfoldedICS, "SUMMARY:Craig FC vs Rivals - Pitch 2") {
+		t.Fatalf("expected canonical summary in ICS body: %q", resp.Body.String())
+	}
+	if !strings.Contains(unfoldedICS, "STATUS:CONFIRMED") {
+		t.Fatalf("expected confirmed status in ICS body: %q", resp.Body.String())
 	}
 }
 
@@ -1566,23 +1577,29 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 
 	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/teams/479691" {
+		switch r.URL.Path {
+		case "/teams/479691":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 7001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"home_team": {"team_name": "UNITED NATIONS", "division_name": "Coed F Fri"},
+						"visitor_team": {"team_name": "GALACTICOS FC", "division_name": "Coed F Fri"},
+						"Season": 169
+					}
+				]
+			}`, future)))
+		case "/facilities/4":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "Boise", "Address": "11448 W. President Drive", "City": "Boise", "State": "ID", "ZIP": "83713"}`))
+		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(fmt.Sprintf(`{
-			"games": [
-				{
-					"UGameID": 7001,
-					"SchedGameDateTime": %q,
-					"field_name": "Field 3",
-					"facilityName": "Boise",
-					"home_team": {"team_name": "UNITED NATIONS"},
-					"visitor_team": {"team_name": "GALACTICOS FC"},
-					"Season": 169
-				}
-			]
-		}`, future)))
 	}))
 	defer server.Close()
 
@@ -1606,11 +1623,15 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
 		t.Fatalf("unexpected content type: %q", contentType)
 	}
-	if !strings.Contains(resp.Body.String(), "UID:7001@craigdevjohnson.com") {
+	unfoldedICS := unfoldICS(resp.Body.String())
+	if !strings.Contains(unfoldedICS, "UID:7001") {
 		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
 	}
-	if !strings.Contains(resp.Body.String(), "LOCATION:Boise") {
+	if !strings.Contains(unfoldedICS, "LOCATION:11448 W. President Drive\\, Boise\\, ID\\, 83713") {
 		t.Fatalf("expected facility location in ICS body: %q", resp.Body.String())
+	}
+	if !strings.Contains(unfoldedICS, "SUMMARY:UNITED NATIONS vs GALACTICOS FC - Field 3") {
+		t.Fatalf("expected canonical summary in ICS body: %q", resp.Body.String())
 	}
 }
 
@@ -1767,12 +1788,14 @@ func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.
 func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	event, ok := googleEventPayload(req, &Game{
-		ID:      "zulu-game",
-		Home:    "Team A",
-		Away:    "Team B",
-		StartAt: "2026-03-29T17:20:00.000Z",
-		EndAt:   "2026-03-29T18:50:00.000Z",
-		Season:  "169",
+		ID:               "zulu-game",
+		Home:             "Team A",
+		Away:             "Team B",
+		PlayerTeamName:   "Team A",
+		OpponentTeamName: "Team B",
+		Field:            "Field 1",
+		StartAt:          "2026-03-29T17:20:00.000Z",
+		EndAt:            "2026-03-29T18:50:00.000Z",
 	})
 	if !ok {
 		t.Fatal("googleEventPayload returned false")
@@ -1789,6 +1812,56 @@ func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *test
 	}
 	if event.End.TimeZone != mountainTimeZoneID {
 		t.Fatalf("unexpected google end timezone: %q", event.End.TimeZone)
+	}
+}
+
+func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req.Host = "example.com"
+	event, ok := googleEventPayload(req, &Game{
+		ID:               "3037322",
+		PlayerTeamName:   "STRUGGLE BUS",
+		OpponentTeamName: "FC CHAIN MAIL",
+		DivisionName:     "Coed Over 30 B Sun",
+		FacilityName:     "Boise",
+		FacilityAddress:  "11448 W. President Drive",
+		FacilityCity:     "Boise",
+		FacilityState:    "ID",
+		FacilityZIP:      "83713",
+		Field:            "Field 2",
+		Result:           "7 - 3",
+		StartAt:          "2026-03-08T12:30:00-06:00",
+	})
+	if !ok {
+		t.Fatal("googleEventPayload returned false")
+	}
+
+	if event.ID != "3037322" {
+		t.Fatalf("unexpected google event id: %q", event.ID)
+	}
+	if event.Summary != "STRUGGLE BUS vs FC CHAIN MAIL - Field 2" {
+		t.Fatalf("unexpected google event summary: %q", event.Summary)
+	}
+	if event.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: 7 - 3" {
+		t.Fatalf("unexpected google event description: %q", event.Description)
+	}
+	if event.Location != "11448 W. President Drive, Boise, ID, 83713" {
+		t.Fatalf("unexpected google event location: %q", event.Location)
+	}
+	if event.Start.DateTime != "2026-03-08T12:30:00" {
+		t.Fatalf("unexpected google start datetime: %q", event.Start.DateTime)
+	}
+	if event.End.DateTime != "2026-03-08T13:15:00" {
+		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
+	}
+	if event.Status != "confirmed" {
+		t.Fatalf("unexpected google event status: %q", event.Status)
+	}
+	if got := event.ExtendedProperties.Private["game_id"]; got != "3037322" {
+		t.Fatalf("unexpected google private game id: %q", got)
+	}
+	if _, exists := event.ExtendedProperties.Private["portfolio_game_id"]; exists {
+		t.Fatalf("legacy portfolio_game_id should not be set: %#v", event.ExtendedProperties.Private)
 	}
 }
 
@@ -1904,6 +1977,39 @@ func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) 
 	}
 	if !strings.Contains(ics, "DTEND;TZID=America/Denver:20260329T185000") {
 		t.Fatalf("expected mountain DTEND in ICS output, got %q", ics)
+	}
+}
+
+func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
+	ics := unfoldICS(buildICS([]Game{{
+		ID:               "3042954",
+		PlayerTeamName:   "STRUGGLE BUS",
+		OpponentTeamName: "MANEFESTO",
+		DivisionName:     "Coed Over 30 B Sun",
+		FacilityName:     "Boise",
+		FacilityAddress:  "11448 W. President Drive",
+		FacilityCity:     "Boise",
+		FacilityState:    "ID",
+		FacilityZIP:      "83713",
+		Field:            "Field 1",
+		Result:           "cancelled",
+		StartAt:          "2026-03-29T17:20:00-06:00",
+	}}))
+
+	expectedLines := []string{
+		"UID:3042954",
+		"DTSTART;TZID=America/Denver:20260329T172000",
+		"DTEND;TZID=America/Denver:20260329T180500",
+		"SUMMARY:STRUGGLE BUS vs MANEFESTO - Field 1",
+		"DESCRIPTION:STRUGGLE BUS is playing MANEFESTO\\nDivision: Coed Over 30 B Sun\\nFacility: Boise\\nField: Field 1\\nResult: cancelled",
+		"LOCATION:11448 W. President Drive\\, Boise\\, ID\\, 83713",
+		"STATUS:CANCELLED",
+	}
+
+	for _, expectedLine := range expectedLines {
+		if !strings.Contains(ics, expectedLine) {
+			t.Fatalf("expected ICS to contain %q, got %q", expectedLine, ics)
+		}
 	}
 }
 
@@ -2416,8 +2522,8 @@ func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
 	if len(lookupIDs) != 1 {
 		t.Fatalf("unexpected lookup count: got %d want 1", len(lookupIDs))
 	}
-	if !strings.HasPrefix(insertedIDs[0], "soccer") {
-		t.Fatalf("expected deterministic google event id, got %q", insertedIDs[0])
+	if insertedIDs[0] != "7001" {
+		t.Fatalf("expected raw upstream google event id, got %q", insertedIDs[0])
 	}
 }
 
