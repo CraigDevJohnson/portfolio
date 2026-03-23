@@ -2463,117 +2463,51 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	}
 }
 
-func TestSoccerGoogleAddHandlerAddsAndSkipsDuplicateGames(t *testing.T) {
-	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "", "", "")
-	previousConfig := configData
-	previousLocal := time.Local
-	time.Local = time.UTC
-	defer func() {
-		configData = previousConfig
-		time.Local = previousLocal
-	}()
-	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
-	if err != nil {
-		t.Fatalf("encryptGoogleToken returned error: %v", err)
-	}
-	store.records["connection-1"] = googleConnectionRecord{
-		ConnectionID:    "connection-1",
-		TokenCiphertext: tokenCiphertext,
-		CalendarID:      "primary",
-		CalendarSummary: "Primary Calendar",
-		CreatedAt:       time.Now().UTC(),
-		UpdatedAt:       time.Now().UTC(),
+func TestGoogleEventMatchesGameIDUsesOnlyCanonicalGameIDFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		event     googleEvent
+		configure func(*googleEvent)
+		gameID    string
+		expected  bool
+	}{
+		{
+			name:     "matches raw google event id",
+			event:    googleEvent{ID: "7001"},
+			gameID:   "7001",
+			expected: true,
+		},
+		{
+			name:  "matches private game id when event id differs",
+			event: googleEvent{ID: "legacy-7002"},
+			configure: func(event *googleEvent) {
+				event.ExtendedProperties.Private = map[string]string{"game_id": "7002"}
+			},
+			gameID:   "7002",
+			expected: true,
+		},
+		{
+			name:   "does not match legacy event without canonical id",
+			event:  googleEvent{ID: "legacy-7005"},
+			gameID: "7005",
+		},
 	}
 
-	insertedIDs := make([]string, 0, 2)
-	lookupIDs := make([]string, 0, 1)
-	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
-	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/teams/479691":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(fmt.Sprintf(`{
-				"games": [
-					{
-						"UGameID": 7001,
-						"SchedGameDateTime": %q,
-						"field_name": "Field 3",
-						"facilityName": "Boise",
-						"home_team": {"team_name": "UNITED NATIONS"},
-						"visitor_team": {"team_name": "GALACTICOS FC"},
-						"Season": 169
-					},
-					{
-						"UGameID": 7002,
-						"SchedGameDateTime": %q,
-						"field_name": "Field 1",
-						"facilityName": "Boise",
-						"home_team": {"team_name": "UNITED NATIONS"},
-						"visitor_team": {"team_name": "CLASSIC XI"},
-						"Season": 169
-					}
-				]
-			}`, futureOne, futureTwo)))
-		case r.URL.Path == "/calendar/v3/calendars/primary/events":
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				t.Fatalf("io.ReadAll returned error: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := tt.event
+			if tt.configure != nil {
+				tt.configure(&event)
 			}
-			var event googleEvent
-			if err := json.Unmarshal(body, &event); err != nil {
-				t.Fatalf("json.Unmarshal returned error: %v", err)
+			got := googleEventMatchesGameID(&event, tt.gameID)
+			if got != tt.expected {
+				t.Fatalf("googleEventMatchesGameID() = %t, want %t", got, tt.expected)
 			}
-			insertedIDs = append(insertedIDs, event.ID)
-			if len(insertedIDs) == 1 {
-				w.WriteHeader(http.StatusCreated)
-				return
-			}
-			w.WriteHeader(http.StatusConflict)
-		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
-			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
-			lookupIDs = append(lookupIDs, eventID)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"confirmed"}`, eventID)))
-		default:
-			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	defer apiServer.Close()
-
-	configData.LPSAPIBaseURL = apiServer.URL
-	googleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
-
-	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
-		"team_codes": {"479691"},
-		"selected":   {"7001", "7002"},
-	}.Encode()))
-	req.Host = "example.com"
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: googleConnectionCookieName, Value: "connection-1"})
-	resp := httptest.NewRecorder()
-
-	soccerGoogleAddHandler(resp, req)
-
-	if !strings.Contains(resp.Body.String(), "Added 1 selected game(s) to Google Calendar.") {
-		t.Fatalf("expected add success message, got %q", resp.Body.String())
-	}
-	if !strings.Contains(resp.Body.String(), "Skipped 1 game(s) that were already present.") {
-		t.Fatalf("expected duplicate skip message, got %q", resp.Body.String())
-	}
-	if len(insertedIDs) != 2 {
-		t.Fatalf("unexpected insert attempt count: got %d want 2", len(insertedIDs))
-	}
-	if len(lookupIDs) != 1 {
-		t.Fatalf("unexpected lookup count: got %d want 1", len(lookupIDs))
-	}
-	if insertedIDs[0] != "7001" {
-		t.Fatalf("expected raw upstream google event id, got %q", insertedIDs[0])
+		})
 	}
 }
 
-func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
+func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
 	configureGoogleTestRuntime(t, store, "", "", "")
 	previousConfig := configData
@@ -2597,10 +2531,13 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 	}
 
 	insertedIDs := make([]string, 0, 2)
-	lookupIDs := make([]string, 0, 2)
-	restoredIDs := make([]string, 0, 1)
+	privateLookupIDs := make([]string, 0, 4)
+	updatedEvents := map[string]googleEvent{}
 	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	futureThree := testMislabelledLPSZuluTime(time.Now().Add(72 * time.Hour))
+	futureFour := testMislabelledLPSZuluTime(time.Now().Add(96 * time.Hour))
+	futureFive := testMislabelledLPSZuluTime(time.Now().Add(120 * time.Hour))
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/teams/479691":
@@ -2612,8 +2549,16 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 						"SchedGameDateTime": %q,
 						"field_name": "Field 3",
 						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
 						"home_team": {"team_name": "UNITED NATIONS"},
 						"visitor_team": {"team_name": "GALACTICOS FC"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "",
 						"Season": 169
 					},
 					{
@@ -2621,12 +2566,74 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 						"SchedGameDateTime": %q,
 						"field_name": "Field 1",
 						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
 						"home_team": {"team_name": "UNITED NATIONS"},
 						"visitor_team": {"team_name": "CLASSIC XI"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "1 - 0",
+						"Season": 169
+					},
+					{
+						"UGameID": 7003,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 2",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "RED STARS"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "",
+						"Season": 169
+					},
+					{
+						"UGameID": 7004,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 4",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "NIGHT OWLS"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "cancelled",
+						"Season": 169
+					},
+					{
+						"UGameID": 7005,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 5",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"Address": "123 Main St",
+						"City": "Boise",
+						"State": "ID",
+						"ZIP": "83702",
+						"home_team": {"team_name": "UNITED NATIONS"},
+						"visitor_team": {"team_name": "OLD GUARD"},
+						"division_name": "Coed F Fri",
+						"DivisionName": "Coed F Fri",
+						"result": "",
 						"Season": 169
 					}
 				]
-			}`, futureOne, futureTwo)))
+			}`, futureOne, futureTwo, futureThree, futureFour, futureFive)))
+		case r.URL.Path == "/facilities/4":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"facilityName":"Boise","Address":"123 Main St","City":"Boise","State":"ID","ZIP":"83702"}`))
 		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodPost:
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -2637,17 +2644,43 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 				t.Fatalf("json.Unmarshal returned error: %v", err)
 			}
 			insertedIDs = append(insertedIDs, event.ID)
-			w.WriteHeader(http.StatusConflict)
-		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
-			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
-			lookupIDs = append(lookupIDs, eventID)
-			w.Header().Set("Content-Type", "application/json")
-			if len(lookupIDs) == 1 {
-				_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"canceled"}`, eventID)))
+			if event.ID == "7001" {
+				w.WriteHeader(http.StatusCreated)
 				return
 			}
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"id":%q,"status":"confirmed"}`, eventID)))
+			if event.ID == "7005" {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			t.Fatalf("unexpected insert for event id %q", event.ID)
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
+			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
+			switch eventID {
+			case "7001", "7002", "7005":
+				w.WriteHeader(http.StatusNotFound)
+			case "7003":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"7003","status":"canceled","extendedProperties":{"private":{"game_id":"7003"}}}`))
+			case "7004":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"7004","status":"confirmed","extendedProperties":{"private":{"game_id":"7004"}}}`))
+			default:
+				t.Fatalf("unexpected get for event id %q", eventID)
+			}
+		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodGet:
+			privateLookup := r.URL.Query().Get("privateExtendedProperty")
+			privateLookupIDs = append(privateLookupIDs, strings.TrimPrefix(privateLookup, "game_id="))
+			w.Header().Set("Content-Type", "application/json")
+			switch privateLookup {
+			case "game_id=7002":
+				_, _ = w.Write([]byte(`{"items":[{"id":"legacy-7002","status":"confirmed","extendedProperties":{"private":{"game_id":"7002"}}}]}`))
+			case "game_id=7005":
+				_, _ = w.Write([]byte(`{"items":[{"id":"legacy-7005","status":"confirmed","extendedProperties":{"private":{"game_id":"legacy-7005"}}}]}`))
+			default:
+				_, _ = w.Write([]byte(`{"items":[]}`))
+			}
 		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodPut:
+			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatalf("io.ReadAll returned error: %v", err)
@@ -2656,10 +2689,7 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 			if err := json.Unmarshal(body, &event); err != nil {
 				t.Fatalf("json.Unmarshal returned error: %v", err)
 			}
-			restoredIDs = append(restoredIDs, event.ID)
-			if event.Status != "confirmed" {
-				t.Fatalf("expected restored event status to be confirmed, got %q", event.Status)
-			}
+			updatedEvents[eventID] = event
 			w.WriteHeader(http.StatusOK)
 		default:
 			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
@@ -2672,7 +2702,7 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
 		"team_codes": {"479691"},
-		"selected":   {"7001", "7002"},
+		"selected":   {"7001", "7002", "7003", "7004", "7005"},
 	}.Encode()))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -2682,22 +2712,63 @@ func TestSoccerGoogleAddHandlerRestoresDeletedGoogleEvents(t *testing.T) {
 	soccerGoogleAddHandler(resp, req)
 
 	if !strings.Contains(resp.Body.String(), "Added 1 selected game(s) to Google Calendar.") {
-		t.Fatalf("expected restored add success message, got %q", resp.Body.String())
+		t.Fatalf("expected add success message, got %q", resp.Body.String())
 	}
-	if !strings.Contains(resp.Body.String(), "Skipped 1 game(s) that were already present.") {
-		t.Fatalf("expected duplicate skip message, got %q", resp.Body.String())
+	if !strings.Contains(resp.Body.String(), "Updated/restored 3 matching game(s).") {
+		t.Fatalf("expected update success message, got %q", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "Skipped 1 game(s) that could not be matched to the same Google game ID.") {
+		t.Fatalf("expected skip message, got %q", resp.Body.String())
 	}
 	if len(insertedIDs) != 2 {
 		t.Fatalf("unexpected insert attempt count: got %d want 2", len(insertedIDs))
 	}
-	if len(lookupIDs) != 2 {
-		t.Fatalf("unexpected lookup count: got %d want 2", len(lookupIDs))
+	if len(updatedEvents) != 3 {
+		t.Fatalf("unexpected update count: got %d want 3", len(updatedEvents))
 	}
-	if len(restoredIDs) != 1 {
-		t.Fatalf("unexpected restore count: got %d want 1", len(restoredIDs))
+	if updated, ok := updatedEvents["legacy-7002"]; !ok {
+		t.Fatalf("expected private game_id match to update legacy-7002: %#v", updatedEvents)
+	} else {
+		if updated.ID != "legacy-7002" {
+			t.Fatalf("expected existing google event id to be preserved, got %q", updated.ID)
+		}
+		if updated.Status != "confirmed" {
+			t.Fatalf("expected private-match update to stay confirmed, got %q", updated.Status)
+		}
+		if got := updated.ExtendedProperties.Private["game_id"]; got != "7002" {
+			t.Fatalf("expected canonical private game id, got %q", got)
+		}
+		if updated.Summary != "UNITED NATIONS vs CLASSIC XI - Field 1" {
+			t.Fatalf("unexpected updated summary: %q", updated.Summary)
+		}
+		if !strings.Contains(updated.Description, "UNITED NATIONS is playing CLASSIC XI") || !strings.Contains(updated.Description, "Field: Field 1") || !strings.Contains(updated.Description, "Result: 1 - 0") {
+			t.Fatalf("unexpected updated description: %q", updated.Description)
+		}
+		if updated.Location != "123 Main St, Boise, ID, 83702" {
+			t.Fatalf("unexpected updated location: %q", updated.Location)
+		}
+		if updated.Source == nil || updated.Source.Title != "Soccer Schedule" || updated.Source.URL != "http://example.com/soccer" {
+			t.Fatalf("unexpected updated source: %#v", updated.Source)
+		}
 	}
-	if restoredIDs[0] != insertedIDs[0] {
-		t.Fatalf("expected first conflicting event to be restored, got restored=%q inserted=%q", restoredIDs[0], insertedIDs[0])
+	if updated, ok := updatedEvents["7003"]; !ok {
+		t.Fatalf("expected cancelled matching event to be restored: %#v", updatedEvents)
+	} else if updated.Status != "confirmed" {
+		t.Fatalf("expected restored status to be confirmed, got %q", updated.Status)
+	}
+	if updated, ok := updatedEvents["7004"]; !ok {
+		t.Fatalf("expected confirmed matching event to be cancelled: %#v", updatedEvents)
+	} else if updated.Status != "cancelled" {
+		t.Fatalf("expected cancelled status to be propagated, got %q", updated.Status)
+	}
+	if _, exists := updatedEvents["legacy-7005"]; exists {
+		t.Fatalf("non-matching legacy event should not be mutated: %#v", updatedEvents["legacy-7005"])
+	}
+	if len(privateLookupIDs) == 0 {
+		t.Fatal("expected at least one private game_id lookup")
+	}
+	if insertedIDs[0] != "7001" || insertedIDs[1] != "7005" {
+		t.Fatalf("unexpected insert ids: %#v", insertedIDs)
 	}
 }
 
