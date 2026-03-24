@@ -7,24 +7,27 @@
 - [x] Task-003: Extract portfolio handlers and data
 - [x] Task-004: Extract soccer handlers
 - [x] Task-005: Extract Google OAuth and Calendar
+- [x] Task-006: Extract LPS client, schedule, decode, time, and ICS
 
 ## Current Iteration
 
-- Iteration: 6
-- Working on: Task-006 (pending assignment)
-- Started: pending
+- Iteration: 7
+- Working on: None (Task-006 complete, awaiting next assignment)
 
 ## Last Completed
 
-- Task-005: Extract Google OAuth and Calendar
+- Task-006: Extract LPS client, schedule, decode, time, and ICS
 - Tests: ✅ All passing (cached)
 - Build: ✅ Compiles cleanly
 - Key decisions:
-  - `google_oauth.go` (392 lines, 24 functions): connection store types/methods, OAuth handlers, token management, DynamoDB store
-  - `google_calendar.go` (558 lines, 22 functions): Calendar API types, event CRUD, calendar list/selection, event payload builder
-  - Removed 10 unused imports from main.go (bytes, crypto/rand, oauth2, partials, awsconfig, attributevalue, dynamodb, dynamodbTypes)
-  - main.go reduced from ~2254 to 1337 lines (50 functions remaining)
-  - Route registrations remain in main()
+  - `lps_client.go` (53 lines, 4 functions): lpsHTTPClient, lpsAPIRequest, apiURL, newLPSHTTPClient
+  - `lps_schedule.go` (531 lines, 15 functions): fetchSchedulesForPlayers, resolveManualSchedules, buildManualSched, mergeSchedules, etc.
+  - `lps_decode.go` (221 lines, 7 functions): decodeLPSUser, decodeLPSPlayerIDs, decodeLPSTeam, decodeLPSSchedule, etc.
+  - `schedule.go` (207 lines, 10 functions): buildSchedulePayload, normalizeScheduleGames, sortedUniqueIDs, intString, etc.
+  - `schedule_time.go` (110 lines, 7 functions): scheduleTimes, parseMountainTime, formatDate, formatTime, etc.
+  - `schedule_ics.go` (159 lines, 6 functions): buildICS, buildICSEvent, foldICSLine, etc.
+  - main.go reduced from 1337 to 101 lines (1 function: main only)
+  - All route registrations remain in main()
 
 ## Blockers
 
@@ -32,6 +35,6 @@
 
 ## Notes for Next Iteration
 
-- main.go (1337 lines, 50 functions) still has: LPS client, LPS decode, schedule resolvers, schedule time utils, ICS builder, main()
-- All route registrations remain in main() inside main.go
-- Next candidates: lps_client.go, lps_schedule.go, lps_decode.go, schedule.go, schedule_time.go, schedule_ics.go
+- main.go is now 101 lines with only main() and imports
+- All domain logic extracted into dedicated files
+- Total extracted files: config.go, cookies.go, data_portfolio.go, session.go, helpers.go, handlers_portfolio.go, handlers_soccer.go, google_oauth.go, google_calendar.go, lps_client.go, lps_schedule.go, lps_decode.go, schedule.go, schedule_time.go, schedule_ics.go, schedule_errors.go
