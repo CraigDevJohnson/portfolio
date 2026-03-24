@@ -7,6 +7,20 @@
   background-image: url('/static/images/backgrounds/soccer-hero.jpg');
 }
 
+.soccer-hero::after {
+  content: '';
+  position: absolute;
+  inset: 14% 8% 18%;
+  border: 1px solid rgb(var(--accent-secondary-rgb), 0.2);
+  border-radius: calc(var(--radius-lg) + var(--space-sm));
+  background:
+    radial-gradient(circle at center, transparent 0 3rem, rgb(var(--accent-secondary-rgb), 0.18) 3rem 3.15rem, transparent 3.15rem),
+    linear-gradient(90deg, transparent 49.75%, rgb(var(--accent-secondary-rgb), 0.18) 49.75%, rgb(var(--accent-secondary-rgb), 0.18) 50.25%, transparent 50.25%);
+  opacity: 0.65;
+  z-index: 1;
+  pointer-events: none;
+}
+
 /* Animated hero orbs */
 .soccer-hero-bg {
   position: absolute;
@@ -53,8 +67,44 @@
 }
 
 /* Soccer-specific overrides */
+.soccer-hero-header {
+  max-width: min(48rem, 100%);
+}
+
 .soccer-hero .lead {
   font-size: var(--text-lg);
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+.soccer-hero-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin: var(--space-xl) auto 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soccer-hero-highlights li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid rgb(var(--accent-secondary-rgb), 0.24);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, rgb(15 23 42 / 66%) 0%, rgb(var(--accent-secondary-rgb), 0.12) 100%);
+  color: var(--fg-primary);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 24px rgb(var(--accent-secondary-rgb), 0.12);
+}
+
+.soccer-hero-highlights li::before {
+  content: '•';
+  color: var(--accent-primary);
+  font-size: 1.1em;
 }
 
 /* Soccer Content */
@@ -128,6 +178,10 @@
 .info-inline {
   padding: var(--space-lg);
   height: 100%;
+  border: 1px solid rgb(var(--accent-secondary-rgb), 0.18);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgb(var(--accent-secondary-rgb), 0.08) 0%, rgb(15 23 42 / 16%) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
 .info-inline h3 {
@@ -138,6 +192,13 @@
   margin-bottom: var(--space-md);
   color: var(--fg-accent);
   font-weight: var(--font-semibold);
+}
+
+.info-inline-intro {
+  margin: 0 0 var(--space-md);
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
 }
 
 .info-inline ol {
@@ -177,23 +238,103 @@
   min-width: 0;
 }
 
-.soccer-auth-shell {
+.soccer-input-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  background: rgb(var(--accent-secondary-rgb), 0.08);
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%),
+    var(--shadow-sm);
+}
+
+.soccer-input-section::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: linear-gradient(180deg, rgb(var(--accent-primary-rgb), 0.92) 0%, rgb(var(--accent-secondary-rgb), 0.92) 100%);
+}
+
+.soccer-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.soccer-section-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: white;
+  background: var(--accent-gradient);
+  box-shadow: 0 0 0 4px rgb(var(--accent-primary-rgb), 0.14);
+  flex-shrink: 0;
+}
+
+.soccer-section-eyebrow {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-accent);
+}
+
+.soccer-section-intro {
+  margin: 0;
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-manual-entry {
+  background: linear-gradient(135deg, rgb(var(--accent-primary-rgb), 0.09) 0%, rgb(255 255 255 / 3%) 100%);
+  border-color: rgb(var(--accent-primary-rgb), 0.18);
+}
+
+.soccer-google-shell {
+  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 0.12) 0%, rgb(15 23 42 / 16%) 100%);
+  border-color: rgb(var(--accent-secondary-rgb), 0.22);
+}
+
+.soccer-auth-shell {
+  background: linear-gradient(135deg, rgb(var(--accent-primary-rgb), 0.1) 0%, rgb(15 23 42 / 14%) 100%);
+  border-color: rgb(var(--accent-primary-rgb), 0.22);
+}
+
+.soccer-input-google .soccer-section-step {
+  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 1) 0%, rgb(var(--accent-primary-rgb), 0.85) 100%);
+  box-shadow: 0 0 0 4px rgb(var(--accent-secondary-rgb), 0.14);
+}
+
+.soccer-input-google::before {
+  background: linear-gradient(180deg, rgb(var(--accent-secondary-rgb), 0.94) 0%, rgb(var(--accent-primary-rgb), 0.78) 100%);
+}
+
+.soccer-input-import .soccer-section-step {
+  box-shadow: 0 0 0 4px rgb(var(--accent-primary-rgb), 0.14);
 }
 
 .soccer-auth-copy h3,
+.soccer-google-copy h3,
 .soccer-manual-entry h3 {
   font-size: var(--text-base);
-  margin-bottom: var(--space-xs);
+  margin: 0;
 }
 
-.soccer-auth-copy p {
+.soccer-auth-copy p,
+.soccer-google-copy p {
   color: var(--fg-secondary);
   font-size: var(--text-sm);
 }
@@ -202,9 +343,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  min-width: 0;
 }
 
 .soccer-auth-panel-loading {
+  color: inherit;
+}
+
+.soccer-panel-loading-state {
   color: var(--fg-muted);
 }
 
@@ -234,11 +380,6 @@
   border: 1px solid var(--warning-border);
   border-radius: var(--radius-md);
   background: var(--warning-bg);
-}
-
-.soccer-manual-entry {
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border-color);
 }
 
 .soccer-player-fieldset {
@@ -462,6 +603,40 @@ body.soccer-modal-open {
   display: inline;
 }
 
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.btn-loading-indicator {
+  display: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.htmx-request .btn-loading-indicator,
+.htmx-request.btn-loading-indicator,
+.btn-loading.is-loading .btn-loading-indicator {
+  display: inline-flex;
+}
+
+.btn-loading[aria-busy='true'] {
+  cursor: progress;
+}
+
+a.btn-loading[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: progress;
+}
+
 .form-hint {
   margin-top: var(--space-md);
   font-size: var(--text-sm);
@@ -498,12 +673,59 @@ body.soccer-modal-open {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-xl);
+  gap: var(--space-sm);
+  margin: var(--space-lg);
+  padding: var(--space-2xl);
   text-align: center;
+  border: 1px solid rgb(var(--accent-secondary-rgb), 0.16);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 0.08) 0%, rgb(var(--accent-primary-rgb), 0.08) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--shadow-sm);
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: var(--text-xl);
 }
 
 .empty-state p {
-  color: var(--fg-muted);
+  max-width: 38rem;
+  margin: 0;
+  color: var(--fg-secondary);
+}
+
+.empty-state-icon,
+.no-results-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgb(var(--accent-primary-rgb), 0.16) 0%, rgb(var(--accent-secondary-rgb), 0.14) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  font-size: 1.8rem;
+}
+
+.empty-state-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty-state-item {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid rgb(var(--accent-primary-rgb), 0.18);
+  border-radius: var(--radius-full);
+  background: rgb(15 23 42 / 44%);
+  color: var(--fg-primary);
+  font-size: var(--text-sm);
 }
 
 /* No Results */
@@ -511,20 +733,27 @@ body.soccer-modal-open {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-lg);
   padding: var(--space-2xl);
-  background: var(--warning-bg);
-  border: 1px solid var(--warning-border);
+  background: linear-gradient(135deg, rgb(var(--accent-primary-rgb), 0.12) 0%, rgb(var(--accent-secondary-rgb), 0.08) 100%);
+  border: 1px solid rgb(var(--accent-primary-rgb), 0.22);
   border-radius: var(--radius-lg);
   text-align: center;
 }
 
+.no-results h3 {
+  margin: 0;
+}
+
 .no-results p {
-  color: var(--warning-fg);
+  margin: 0;
+  color: var(--fg-primary);
 }
 
 .no-results .hint {
   font-size: var(--text-sm);
-  margin-top: var(--space-sm);
+  color: var(--fg-secondary);
 }
 
 /* Games Form / Table */
@@ -537,7 +766,7 @@ body.soccer-modal-open {
   justify-content: space-between;
   align-items: center;
   padding: var(--space-lg);
-  background: rgb(var(--accent-primary-rgb), 0.12);
+  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 0.12) 0%, rgb(var(--accent-primary-rgb), 0.14) 100%);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
   gap: var(--space-md);
@@ -547,6 +776,27 @@ body.soccer-modal-open {
   display: flex;
   align-items: center;
   gap: var(--space-lg);
+}
+
+.table-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.table-eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-accent);
+}
+
+.table-selection-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
 }
 
 .select-all-label {
@@ -566,7 +816,11 @@ body.soccer-modal-open {
 
 .games-count {
   font-size: var(--text-sm);
-  color: var(--fg-muted);
+  color: var(--fg-secondary);
+}
+
+.table-cta-group {
+  align-items: center;
 }
 
 .download-btn {
@@ -577,8 +831,9 @@ body.soccer-modal-open {
 
 .download-btn,
 .subscribe-form .btn {
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
   color: white;
+  border: 1px solid rgb(255 255 255 / 10%);
   box-shadow:
     var(--shadow-sm),
     0 4px 16px rgb(var(--accent-primary-rgb), 0.25);
@@ -586,7 +841,7 @@ body.soccer-modal-open {
 
 .download-btn:hover:not(:disabled),
 .subscribe-form .btn:hover:not(:disabled) {
-  background: var(--accent-gradient-hover);
+  background: linear-gradient(135deg, #6c2e12 0%, #7c2d12 35%, #9a3412 100%);
   transform: translateY(-2px);
   box-shadow:
     var(--shadow-md),
@@ -596,6 +851,7 @@ body.soccer-modal-open {
 /* Table Wrapper */
 .table-wrapper {
   overflow-x: auto;
+  background: rgb(255 255 255 / 2%);
 }
 
 .games-table {
@@ -625,11 +881,16 @@ body.soccer-modal-open {
   transition: all var(--duration-normal) var(--ease-out);
 }
 
-.games-table tbody tr:hover {
+.games-table tbody tr:nth-child(even) {
+  background: rgb(255 255 255 / 2%);
+}
+
+.games-table tbody tr:hover,
+.games-table tbody tr:focus-within {
   background: linear-gradient(
     90deg,
-    rgb(234 88 12 / 10%) 0%,
-    rgb(255 255 255 / 3%) 100%
+    rgb(var(--accent-secondary-rgb), 0.08) 0%,
+    rgb(var(--accent-primary-rgb), 0.12) 100%
   );
   box-shadow: inset 3px 0 0 var(--accent-primary);
 }
@@ -660,11 +921,12 @@ body.soccer-modal-open {
   justify-content: center;
   min-width: 36px;
   padding: var(--space-xs) var(--space-sm);
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
   color: white;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   border-radius: var(--radius-sm);
+  border: 1px solid rgb(255 255 255 / 10%);
   box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
 }
 
@@ -910,6 +1172,10 @@ body.soccer-modal-open {
     grid-template-columns: 1fr;
   }
 
+  .soccer-hero::after {
+    inset: 18% 6% 20%;
+  }
+
   .how-it-works-grid,
   .features-grid {
     grid-template-columns: 1fr;
@@ -920,6 +1186,23 @@ body.soccer-modal-open {
   .unified-header {
     padding: var(--space-lg);
     gap: var(--space-lg);
+  }
+
+  .soccer-hero::after {
+    inset: 22% 5% 24%;
+  }
+
+  .soccer-hero-highlights {
+    justify-content: flex-start;
+  }
+
+  .soccer-hero-highlights li {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .soccer-section-header {
+    align-items: flex-start;
   }
 
   .input-row {
@@ -935,11 +1218,27 @@ body.soccer-modal-open {
     align-items: stretch;
   }
 
-  .table-actions {
+  .table-actions,
+  .table-selection-row,
+  .table-cta-group {
     justify-content: space-between;
   }
 
   .download-btn {
+    width: 100%;
+  }
+
+  .empty-state,
+  .no-results {
+    margin: var(--space-md);
+    padding: var(--space-xl) var(--space-lg);
+  }
+
+  .empty-state-list {
+    width: 100%;
+  }
+
+  .empty-state-item {
     width: 100%;
   }
 
@@ -984,11 +1283,17 @@ body.soccer-modal-open {
 
 @media (forced-colors: active) {
   .soccer-auth-shell,
+  .soccer-google-shell,
+  .soccer-manual-entry,
   .soccer-player-option,
   .soccer-login-dialog,
   .soccer-login-message,
   .soccer-login-success,
   .soccer-auth-unavailable,
+  .empty-state,
+  .no-results,
+  .info-inline,
+  .table-header,
   .field-badge,
   .season-badge {
     background: Canvas;
@@ -997,11 +1302,18 @@ body.soccer-modal-open {
     box-shadow: none;
   }
 
+  .soccer-hero::after,
+  .soccer-unified-card::before {
+    display: none;
+  }
+
   .soccer-login-backdrop {
     background: rgb(0 0 0 / 80%);
   }
 
   .soccer-modal-close,
+  .soccer-section-step,
+  .soccer-hero-highlights li,
   .soccer-player-badge,
   .soccer-auth-status {
     color: ButtonText;

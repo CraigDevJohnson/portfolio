@@ -9,10 +9,6 @@ BINARY := if os() == "windows" { "portfolio-server.exe" } else { "portfolio-serv
 GO := "go"
 GOFLAGS := ""
 
-# Use Go-installed templ binary (avoids PATH conflict with .cargo/bin/templ on Windows)
-
-TEMPL := if os() == "windows" { `go env GOPATH` + "\\bin\\templ.exe" } else { "templ" }
-
 # Default recipe (runs when you just run 'just')
 default: build
 
@@ -23,7 +19,7 @@ generate: templ
 # Check and generate Templ components
 [group('build')]
 templ:
-    {{ TEMPL }} generate
+  {{ GO }} tool templ generate
 
 # Build the binary
 [group('build')]
@@ -88,13 +84,6 @@ install-air:
     {{ GO }} install github.com/air-verse/air@latest
     @echo "air installed successfully!"
 
-# Install templ for code generation
-[group('tools')]
-install-templ:
-    @echo "Installing templ for code generation..."
-    {{ GO }} install github.com/a-h/templ/cmd/templ@latest
-    @echo "templ installed successfully!"
-
 # Install golangci-lint v2 for linting
 [group('tools')]
 install-lint:
@@ -119,7 +108,7 @@ install-lint:
 
 # Install all development tools
 [group('tools')]
-install-tools: install-air install-lint install-templ
+install-tools: install-air install-lint
     @echo "All development tools installed successfully!"
 
 # Run tests

@@ -1,0 +1,748 @@
+# Instructions for Event Format
+
+## Determine Teams for Player
+
+Determine teams the player is on by querying `https://lps-api-prod.lps-test.com/players/<PLAYER_ID>/my_teams` which will respond with a list of teams, example:
+
+```json
+[
+    {
+        "UTeamID": 479393,
+        "team_name": "STRUGGLE BUS",
+        "division_name": "Coed Over 30 B Sun",
+        "div_code": "CO30BSun",
+        "Dropped": false,
+        "UCoachID": 1297298,
+        "UAltID": null,
+        "UDivSeasonID": 112145,
+        "Season": 169,
+        "role_result": "Player",
+        "facility_name": "Boise",
+        "team_action": "contact_coach",
+        "player_that_belongs": null,
+        "FacilityID": 4,
+        "Color": "RED"
+    },
+    {
+        "UTeamID": 479400,
+        "team_name": "WOLVES FC",
+        "division_name": "Coed F Fri",
+        "div_code": "CFFri",
+        "Dropped": false,
+        "UCoachID": 897709,
+        "UAltID": null,
+        "UDivSeasonID": 112523,
+        "Season": 169,
+        "role_result": "Player",
+        "facility_name": "Boise",
+        "team_action": "contact_coach",
+        "player_that_belongs": null,
+        "FacilityID": 4,
+        "Color": null
+    }
+]
+```
+
+## Determine Games for Team
+
+After getting the team ids, query `https://lps-api-prod.lps-test.com/teams/<TEAM_ID>` for each team to get the games for that team. The response will include a `Games` field with a list of games, example:
+
+```json
+{
+    "games": [
+        {
+            "UGameID": 3037322,
+            "field_name": "Field 2",
+            "SchedGameDateTime": "2026-03-08T12:30:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "7 - 3",
+            "Field": 2,
+            "FacilityID": 4,
+            "UTeam1": 479830,
+            "UTeam2": 479393,
+            "winner_id": 479830,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479830,
+                "team_name": "FC CHAIN MAIL",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1592347,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "BLACK"
+            },
+            "visitor_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            }
+        },
+        {
+            "UGameID": 3042076,
+            "field_name": "Field 2",
+            "SchedGameDateTime": "2026-03-15T14:00:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "5 - 6",
+            "Field": 2,
+            "FacilityID": 4,
+            "UTeam1": 479393,
+            "UTeam2": 479625,
+            "winner_id": 479625,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            },
+            "visitor_team": {
+                "UTeamID": 479625,
+                "team_name": "EYE CANDY",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1279194,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "BLACK "
+            }
+        },
+        {
+            "UGameID": 3042803,
+            "field_name": "Field 1",
+            "SchedGameDateTime": "2026-03-22T12:05:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "8 - 2",
+            "Field": 1,
+            "FacilityID": 4,
+            "UTeam1": 479393,
+            "UTeam2": 480889,
+            "winner_id": 479393,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            },
+            "visitor_team": {
+                "UTeamID": 480889,
+                "team_name": "THE GERI-HAT-TRICKS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1954276,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "BLACK"
+            }
+        },
+        {
+            "UGameID": 3042954,
+            "field_name": "Field 1",
+            "SchedGameDateTime": "2026-03-29T17:20:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "",
+            "Field": 1,
+            "FacilityID": 4,
+            "UTeam1": 479204,
+            "UTeam2": 479393,
+            "winner_id": null,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479204,
+                "team_name": "MANEFESTO",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 897241,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": null
+            },
+            "visitor_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            }
+        },
+        {
+            "UGameID": 3042993,
+            "field_name": "Field 1",
+            "SchedGameDateTime": "2026-04-05T13:05:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "",
+            "Field": 1,
+            "FacilityID": 4,
+            "UTeam1": 479393,
+            "UTeam2": 480153,
+            "winner_id": null,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            },
+            "visitor_team": {
+                "UTeamID": 480153,
+                "team_name": "NO BUENO O30",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 537371,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "WHITE"
+            }
+        },
+        {
+            "UGameID": 3043096,
+            "field_name": "Field 2",
+            "SchedGameDateTime": "2026-04-12T12:30:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "",
+            "Field": 2,
+            "FacilityID": 4,
+            "UTeam1": 479860,
+            "UTeam2": 479393,
+            "winner_id": null,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479860,
+                "team_name": "NARWHALS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1673921,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": null
+            },
+            "visitor_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            }
+        },
+        {
+            "UGameID": 3043100,
+            "field_name": "Field 1",
+            "SchedGameDateTime": "2026-04-12T14:20:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "",
+            "Field": 1,
+            "FacilityID": 4,
+            "UTeam1": 480223,
+            "UTeam2": 479393,
+            "winner_id": null,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 480223,
+                "team_name": "ADVIL ATHLETICS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1954767,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "BLACK"
+            },
+            "visitor_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            }
+        },
+        {
+            "UGameID": 3043250,
+            "field_name": "Field 1",
+            "SchedGameDateTime": "2026-04-19T18:50:00.000Z",
+            "schedGameEndTime": null,
+            "facilityName": "Boise",
+            "team_position": null,
+            "result": "",
+            "Field": 1,
+            "FacilityID": 4,
+            "UTeam1": 479527,
+            "UTeam2": 479393,
+            "winner_id": null,
+            "team_id_selected": null,
+            "generate_player_pass": null,
+            "home_team": {
+                "UTeamID": 479527,
+                "team_name": "LP VALENCIA FC",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1944285,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "WHITE"
+            },
+            "visitor_team": {
+                "UTeamID": 479393,
+                "team_name": "STRUGGLE BUS",
+                "division_name": "Coed Over 30 B Sun",
+                "div_code": "CO30BSun",
+                "Dropped": false,
+                "UCoachID": 1297298,
+                "UAltID": null,
+                "UDivSeasonID": 112145,
+                "Season": 169,
+                "role_result": null,
+                "facility_name": "Boise",
+                "team_action": null,
+                "player_that_belongs": null,
+                "FacilityID": 4,
+                "Color": "RED"
+            }
+        }
+    ],
+    "standings": [
+        {
+            "Season": 169,
+            "TeamName": "EYE CANDY",
+            "FacilityID": 4,
+            "UTeamID": 479625,
+            "position": 1,
+            "wins": 4,
+            "losses": 0,
+            "ties": 0,
+            "goalsfor": 40,
+            "goalsagainst": 25,
+            "points": 60,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "NARWHALS",
+            "FacilityID": 4,
+            "UTeamID": 479860,
+            "position": 2,
+            "wins": 3,
+            "losses": 1,
+            "ties": 0,
+            "goalsfor": 29,
+            "goalsagainst": 18,
+            "points": 50,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "FC CHAIN MAIL",
+            "FacilityID": 4,
+            "UTeamID": 479830,
+            "position": 3,
+            "wins": 3,
+            "losses": 1,
+            "ties": 0,
+            "goalsfor": 30,
+            "goalsagainst": 23,
+            "points": 50,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "NO BUENO O30",
+            "FacilityID": 4,
+            "UTeamID": 480153,
+            "position": 4,
+            "wins": 2,
+            "losses": 1,
+            "ties": 1,
+            "goalsfor": 18,
+            "goalsagainst": 21,
+            "points": 40,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "MANEFESTO",
+            "FacilityID": 4,
+            "UTeamID": 479204,
+            "position": 5,
+            "wins": 2,
+            "losses": 2,
+            "ties": 0,
+            "goalsfor": 25,
+            "goalsagainst": 18,
+            "points": 38,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "THIS GUY!",
+            "FacilityID": 4,
+            "UTeamID": 479853,
+            "position": 6,
+            "wins": 1,
+            "losses": 1,
+            "ties": 1,
+            "goalsfor": 15,
+            "goalsagainst": 19,
+            "points": 30,
+            "gamesplayed": 3
+        },
+        {
+            "Season": 169,
+            "TeamName": "STRUGGLE BUS",
+            "FacilityID": 4,
+            "UTeamID": 479393,
+            "position": 7,
+            "wins": 1,
+            "losses": 2,
+            "ties": 0,
+            "goalsfor": 16,
+            "goalsagainst": 15,
+            "points": 23,
+            "gamesplayed": 3
+        },
+        {
+            "Season": 169,
+            "TeamName": "ADVIL ATHLETICS",
+            "FacilityID": 4,
+            "UTeamID": 480223,
+            "position": 8,
+            "wins": 0,
+            "losses": 2,
+            "ties": 1,
+            "goalsfor": 10,
+            "goalsagainst": 18,
+            "points": 15,
+            "gamesplayed": 3
+        },
+        {
+            "Season": 169,
+            "TeamName": "LP VALENCIA FC",
+            "FacilityID": 4,
+            "UTeamID": 479527,
+            "position": 9,
+            "wins": 0,
+            "losses": 4,
+            "ties": 0,
+            "goalsfor": 16,
+            "goalsagainst": 31,
+            "points": 14,
+            "gamesplayed": 4
+        },
+        {
+            "Season": 169,
+            "TeamName": "THE GERI-HAT-TRICKS",
+            "FacilityID": 4,
+            "UTeamID": 480889,
+            "position": 10,
+            "wins": 0,
+            "losses": 2,
+            "ties": 1,
+            "goalsfor": 8,
+            "goalsagainst": 19,
+            "points": 13,
+            "gamesplayed": 3
+        }
+    ],
+    "show_add_my_calendar": true,
+    "team": {
+        "UTeamID": 479393,
+        "team_name": "STRUGGLE BUS",
+        "division_name": "Coed Over 30 B Sun",
+        "div_code": "CO30BSun",
+        "Dropped": false,
+        "UCoachID": 1297298,
+        "UAltID": null,
+        "UDivSeasonID": 112145,
+        "Season": 169,
+        "role_result": null,
+        "facility_name": "Boise",
+        "team_action": null,
+        "player_that_belongs": null,
+        "FacilityID": 4,
+        "Color": "RED"
+    },
+    "roster": null
+}
+```
+
+Also at some point, get the facility address via `https://lps-api-prod.lps-test.com/facilities/4` which returns:
+
+```json
+{
+    "FacilityID": 4,
+    "FacilityName": "Boise",
+    "url_name": "boise",
+    "FacilityCode": "BO",
+    "long_name": "Boise Indoor Soccer",
+    "legal_name": "SixteenLine, Inc.",
+    "FormalName": "Let's Play Soccer, Boise",
+    "City": "Boise",
+    "State": "ID",
+    "Address": "11448 W. President Drive",
+    "phone_number": "208-321-7336",
+    "sms_phone_number": "208-793-8108",
+    "FacilityEmail": "boise@letsplaysoccer.com",
+    "state_name": "Idaho",
+    "doing_business_as": "Let's Play Soccer, Boise",
+    "valid_for_sms": true,
+    "video_link_url": "https://www.youtube.com/watch?v=gq7DikhRcy0",
+    "facebook_url": "https://www.facebook.com/Boise.Indoor/",
+    "instagram_url": "https://www.instagram.com/boise_indoor",
+    "twitter_url": "",
+    "youtube_url": "https://www.youtube.com/channel/UCq_DDqBGoUI18ExGhx6ogNA/",
+    "ZIP": "83713"
+}
+```
+
+```go
+type googleEventDateTime struct {
+  DateTime string `json:"dateTime"`
+  TimeZone string `json:"timeZone,omitempty"`
+}
+type lpsTeamSummary struct {
+  UTeamID      int    `json:"UTeamID"`
+  TeamName     string `json:"team_name"`
+  DivisionName string `json:"division_name"`
+  FacilityID   int    `json:"FacilityID"`
+  FacilityName string `json:"facility_name"`
+  Season       int    `json:"Season"`
+}
+type lpsTeamScheduleGame struct {
+  UGameID           int            `json:"UGameID"`
+  FieldName         string         `json:"field_name"`
+  SchedGameDateTime string         `json:"SchedGameDateTime"`
+  SchedGameEndTime  *string        `json:"schedGameEndTime"`
+  FacilityName      string         `json:"facilityName"`
+  Result            string         `json:"result"`
+  Field             int            `json:"Field"`
+  Season            int            `json:"Season"`
+  FacilityID        int            `json:"FacilityID"`
+  UTeam1            int            `json:"UTeam1"`
+  UTeam2            int            `json:"UTeam2"`
+  TeamIDSelected    *int           `json:"team_id_selected"`
+  HomeTeam          lpsTeamSummary `json:"home_team"`
+  VisitorTeam       lpsTeamSummary `json:"visitor_team"`
+}
+type lpsFacility struct {
+  FacilityID   int    `json:"FacilityID"`
+  FacilityName string `json:"FacilityName"`
+  Address      string `json:"Address"`
+  City         string `json:"City"`
+  State        string `json:"State"`
+  ZIP          string `json:"ZIP"`
+}
+  type googleEvent struct {
+  Description        string              `json:"description,omitempty"`
+  End                googleEventDateTime `json:"end"`
+  ExtendedProperties struct {
+    Private map[string]string `json:"private,omitempty"`
+  } `json:"extendedProperties,omitempty"`
+  ID       string              `json:"id,omitempty"`
+  Location string              `json:"location,omitempty"`
+  Source   *googleEventSource  `json:"source,omitempty"`
+  Start    googleEventDateTime `json:"start"`
+  Status   string              `json:"status,omitempty"`
+  Summary  string              `json:"summary"`
+}
+```
+
+Where the following are set:
+
+```go
+const defaultLocation = "Let's Play Soccer, 11448 W President Dr #8967, Boise, ID 83713"
+t = lpsTeamSummary // The team the player is on
+pt = t.TeamName
+g = lpsTeamScheduleGame
+f = lpsFacility
+r = g.Result
+if r == "" {
+  r = "TBD"
+}
+// gameTime set to SchedGameDateTime parsed as time.Time and set to Mountain Time
+// Example: 2026-04-19T18:50:00.000Z is returned from LPS API but the game is actually at 2026-04-19T12:50:00.000-06:00
+// So we need to parse the time and set it to Mountain Time without changing the actual time, since the API returns the time in UTC but it's actually in Mountain Time
+t, _ := time.Parse(time.RFC3339, g.SchedGameDateTime)
+loc, _ := time.LoadLocation("America/Denver")
+gameStartDateTime := googleEventDateTime{
+  DateTime: t.In(loc).Format(time.RFC3339),
+  TimeZone: "America/Denver",
+}
+gameEndDateTime := googleEventDateTime{
+  DateTime: t.Add(45 * time.Minute).In(loc).Format(time.RFC3339),
+  TimeZone: "America/Denver",
+}
+description := fmt.Sprintf("%s vs %s\nField: %s\nDivision: %s\nResult: %s", g.HomeTeam.TeamName, g.VisitorTeam.TeamName, g.Field, t.DivisionName, r)
+extendedProperties := struct {
+  Private map[string]string `json:"private,omitempty"`
+}{
+  Private: map[string]string{
+    "game_id": strconv.Itoa(g.UGameID),
+  },
+}
+location := defaultLocation
+if f.Address != "11448 W. President Drive" {
+  location = fmt.Sprintf("%s, %s, %s, %s", f.Address, f.City, f.State, f.ZIP)
+}
+uid := "lps" + strconv.Itoa(f.FacilityID) + "game" + strconv.Itoa(g.UGameID)
+
+```
+
+Then generate the calendar events for the player. The event format should be as follows:
+Description: "HomeTeam vs AwayTeam\nField: Field\nDivision: DivisionName\nResult: Result"
+End = SchedGameDateTime + 45 minutes
+ExtendedProperties.Private["game_id"] = UGameID
+UID = UGameID
+Location = Facility.Address, Facility.City, Facility.State, Facility.ZIP
+Start = SchedGameDateTime
+Status = "cancelled" if game result is "cancelled", otherwise "confirmed"
+Summary = "PlayerTeamName vs OpponentTeamName"

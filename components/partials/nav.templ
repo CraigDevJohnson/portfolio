@@ -28,6 +28,9 @@ templ NavLinks(page string) {
 		<a
 			href={ templ.SafeURL(item.Href) }
 			class={ "nav-link", templ.KV("active", page == item.Page) }
+			if page == item.Page {
+				aria-current="page"
+			}
 		>{ item.Label }</a>
 	}
 }

@@ -100,8 +100,8 @@ resource "aws_iam_role_policy_attachment" "apprunner_ecr_access" {
 }
 
 # ──────────────────────────────────────────────
-# IAM — App Runner instance role (for future
-# DynamoDB, SES, Lambda, etc.)
+# IAM — App Runner instance role (for DynamoDB,
+# and future SES, Lambda, etc.)
 # ──────────────────────────────────────────────
 
 resource "aws_iam_role" "apprunner_instance" {
@@ -201,6 +201,11 @@ resource "aws_apprunner_service" "app" {
         runtime_environment_variables = {
           APP_BIND_ALL                 = "true"
           GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
+        }
+        runtime_environment_secrets = {
+          CLIENT_ID_KEY                = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY"
+          CLIENT_SECRET_KEY            = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY"
+          LPS_SESSION_KEY              = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY"
         }
       }
     }

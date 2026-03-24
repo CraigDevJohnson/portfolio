@@ -8,13 +8,13 @@ templ Header(page string) {
 			</a>
 			@Nav(page)
 			<div class="header-actions">
-				<button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+				<button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu" aria-controls="mobile-nav" aria-expanded="false">
 					<span class="hamburger"></span>
 				</button>
 			</div>
 		</div>
 		<!-- Mobile Navigation -->
-		<nav id="mobile-nav" class="mobile-nav" aria-hidden="true">
+		<nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation" aria-hidden="true">
 			@NavLinks(page)
 		</nav>
 	</header>
