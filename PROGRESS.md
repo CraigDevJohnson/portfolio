@@ -4,25 +4,24 @@
 
 - [x] Task-001: Extract constants, config, and helpers
 - [x] Task-002: Extract session and cookie management
+- [x] Task-003: Extract portfolio handlers and data
 
 ## Current Iteration
 
-- Iteration: 3
-- Working on: Task-003 - Extract portfolio handlers and data
+- Iteration: 4
+- Working on: Task-004 (pending assignment)
 - Started: pending
 
 ## Last Completed
 
-- Task-002: Extract session and cookie management
+- Task-003: Extract portfolio handlers and data
 - Tests: ✅ 80/80 passing
 - Build: ✅ Compiles cleanly
 - Key decisions:
-  - `session.go` holds AES-GCM encrypt/decrypt, session CRUD, loginRateLimiter type and all methods, loginAttempt type
-  - `cookies.go` holds Google connection/OAuth state cookie CRUD, requestIsHTTPS(), requestBaseURL()
-  - Added `newSecureCookie(r, name, value, path, maxAge, sameSite)` helper in cookies.go
-  - Accepted SameSite as a parameter (not hardcoded Lax) because session cookies use SameSiteStrictMode while OAuth state uses SameSiteLaxMode
-  - Refactored 6 cookie-setting call sites (setSession, clearSession, setGoogleConnectionCookie, clearGoogleConnectionCookie, setGoogleOAuthStateCookie, clearGoogleOAuthStateCookie) to use newSecureCookie()
-  - Removed crypto/aes, crypto/cipher, sync imports from main.go (no longer needed there)
+  - `handlers_portfolio.go` holds homeHandler, aboutHandler, experienceHandler, experienceTimelineHandler, skillsHandler, skillsGridHandler, skillsFilteredHandler, skillsDetailHandler, projectsHandler, projectsGridHandler, educationHandler, contactHandler, getFeaturedSkills (~185 lines)
+  - `data_portfolio.go` holds gravatarURL, experienceData, skillsData, projectsData, and 12 SVG icon constants (~320 lines)
+  - No import changes needed in main.go — all existing imports still used by soccer/Google/LPS code
+  - Section comments (Home/About/Experience/Skills/Projects/Education/Contact) removed from main.go along with the functions
 
 ## Blockers
 
@@ -30,9 +29,9 @@
 
 ## Notes for Next Iteration
 
-- session.go and cookies.go are fully extracted
-- `newSecureCookie()` consolidates the repeated cookie struct boilerplate
-- `setSession` and `clearSession` in session.go depend on `newSecureCookie` from cookies.go (same package, no issue)
-- `setGoogleOAuthStateCookie` in cookies.go depends on `encryptJSONValue` from session.go (same package)
-- main.go still has: handlers, portfolio data, soccer logic, Google OAuth/Calendar, LPS client, schedule/ICS code
-- Next task: Task-003 (extract portfolio handlers and data)
+- handlers_portfolio.go and data_portfolio.go are fully extracted
+- main.go still has: soccer handlers, Google OAuth/Calendar, LPS client, schedule/ICS code, DynamoDB connection store, main()
+- All portfolio route registrations remain in main() inside main.go
+- getFeaturedSkills calls skillsData from data_portfolio.go (same package, no issue)
+- homeHandler calls gravatarURL from data_portfolio.go (same package, no issue)
+- Next task: Task-004 (extract soccer handlers or another domain slice)
