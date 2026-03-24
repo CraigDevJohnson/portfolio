@@ -19,7 +19,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,33 +36,6 @@ import (
 	"portfolio/components/partials"
 	"portfolio/types"
 )
-
-/*
-========================================
-Main
-========================================
-*/
-
-const careerStartYear = 2012
-
-const (
-	defaultLPSAPIBaseURL       = "https://lps-api-prod.lps-test.com"
-	lpsSessionCookieName       = "lps_session"
-	googleConnectionCookieName = "google_connection"
-	googleOAuthStateCookieName = "google_oauth_state"
-	defaultSessionTTL          = 12 * time.Hour
-	googleConnectionCookieTTL  = 180 * 24 * time.Hour
-	googleOAuthStateTTL        = 10 * time.Minute
-	mountainTimeZoneID         = "America/Denver"
-)
-
-type serverConfig struct {
-	SessionKey                []byte
-	LPSAPIBaseURL             string
-	GoogleClientID            string
-	GoogleClientSecret        string
-	GoogleConnectionTableName string
-}
 
 type loginAttempt struct {
 	Count       int
@@ -160,134 +132,6 @@ func (err *googleAPIError) Error() string {
 	return "google api request failed"
 }
 
-var (
-	configData               = loadServerConfig()
-	lpsHTTPClient            = &http.Client{Timeout: 15 * time.Second}
-	mountainTimeLocation     = loadMountainTimeLocation()
-	soccerLoginAttempts      = newLoginRateLimiter(5, time.Minute)
-	errSessionExpired        = errors.New("session expired")
-	errPlayerSessionRequired = errors.New("an imported session is required for discovered players")
-	errInvalidTeamSelection  = errors.New("one or more team IDs were invalid")
-	errScheduleSelection     = errors.New("at least one team ID or discovered player is required")
-	googleConnectionsMu      sync.RWMutex
-	googleConnections        googleConnectionStore = noopGoogleConnectionStore{}
-	googleOAuthAuthURL                             = "https://accounts.google.com/o/oauth2/auth"
-	googleOAuthTokenURL                            = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
-	googleCalendarAPIBaseURL                       = "https://www.googleapis.com/calendar/v3"
-)
-
-type lpsErrorKind string
-
-const (
-	lpsErrorMalformedToken lpsErrorKind = "malformed_token"
-	lpsErrorUnauthorized   lpsErrorKind = "unauthorized"
-	lpsErrorForbidden      lpsErrorKind = "forbidden"
-	lpsErrorInvalidPlayer  lpsErrorKind = "invalid_player"
-	lpsErrorInvalidTeam    lpsErrorKind = "invalid_team"
-	lpsErrorUpstream       lpsErrorKind = "upstream"
-)
-
-type lpsFetchError struct {
-	Kind       lpsErrorKind
-	PlayerID   int
-	StatusCode int
-	Err        error
-}
-
-func (err *lpsFetchError) Error() string {
-	if err == nil {
-		return ""
-	}
-	if err.Err != nil {
-		return err.Err.Error()
-	}
-	return "schedule fetch failed"
-}
-
-func (err *lpsFetchError) Unwrap() error {
-	if err == nil {
-		return nil
-	}
-	return err.Err
-}
-
-func newLPSFetchError(kind lpsErrorKind, playerID, statusCode int, format string, args ...any) error {
-	return &lpsFetchError{
-		Kind:       kind,
-		PlayerID:   playerID,
-		StatusCode: statusCode,
-		Err:        fmt.Errorf(format, args...),
-	}
-}
-
-func loadServerConfig() serverConfig {
-	config := serverConfig{
-		LPSAPIBaseURL:             strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
-		GoogleClientID:            strings.TrimSpace(os.Getenv("CLIENT_ID_KEY")),
-		GoogleClientSecret:        strings.TrimSpace(os.Getenv("CLIENT_SECRET_KEY")),
-		GoogleConnectionTableName: strings.TrimSpace(os.Getenv("GOOGLE_CONNECTION_TABLE_NAME")),
-	}
-	if config.LPSAPIBaseURL == "" {
-		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
-	}
-	validatedLPSAPIBaseURL, err := normalizeLPSAPIBaseURL(config.LPSAPIBaseURL)
-	if err != nil {
-		log.Printf("invalid LPS_API_BASE_URL; using default %q", defaultLPSAPIBaseURL)
-		config.LPSAPIBaseURL = defaultLPSAPIBaseURL
-	} else {
-		config.LPSAPIBaseURL = validatedLPSAPIBaseURL
-	}
-	if (config.GoogleClientID != "" || config.GoogleClientSecret != "" || config.GoogleConnectionTableName != "") &&
-		(config.GoogleClientID == "" || config.GoogleClientSecret == "" || config.GoogleConnectionTableName == "") {
-		log.Printf("google calendar add disabled: CLIENT_ID_KEY, CLIENT_SECRET_KEY, and GOOGLE_CONNECTION_TABLE_NAME must all be configured")
-	}
-
-	keyHex := strings.TrimSpace(os.Getenv("LPS_SESSION_KEY"))
-	if keyHex == "" {
-		log.Printf("soccer auth disabled: LPS_SESSION_KEY is not configured")
-		return config
-	}
-
-	decoded, err := hex.DecodeString(keyHex)
-	if err != nil || len(decoded) != 32 {
-		log.Printf("soccer auth disabled: LPS_SESSION_KEY must be a 64-character hex string")
-		return config
-	}
-
-	config.SessionKey = decoded
-
-	return config
-}
-
-func normalizeLPSAPIBaseURL(raw string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
-		raw = defaultLPSAPIBaseURL
-	}
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return "", err
-	}
-	if !parsed.IsAbs() || parsed.Hostname() == "" {
-		return "", errors.New("LPS API base URL must be absolute")
-	}
-	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", errors.New("LPS API base URL cannot include credentials, query, or fragment")
-	}
-	if parsed.Scheme != "https" && (parsed.Scheme != "http" || !isLoopbackHost(parsed.Hostname())) {
-		return "", errors.New("LPS API base URL must use https, or http on loopback only")
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/")
-	return parsed.String(), nil
-}
-
-func isLoopbackHost(host string) bool {
-	if strings.EqualFold(strings.TrimSpace(host), "localhost") {
-		return true
-	}
-	parsedIP := net.ParseIP(strings.TrimSpace(host))
-	return parsedIP != nil && parsedIP.IsLoopback()
-}
-
 func lpsAPIEndpoint(pathParts ...string) (string, error) {
 	baseURL, err := normalizeLPSAPIBaseURL(configData.LPSAPIBaseURL)
 	if err != nil {
@@ -331,35 +175,6 @@ func doLPSAPIRequest(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	return lpsHTTPClient.Do(req) //nolint:gosec // Request URLs are rebuilt from normalizeLPSAPIBaseURL and revalidated here.
-}
-
-func publicBindEnabled() bool {
-	value := strings.TrimSpace(os.Getenv("APP_BIND_ALL"))
-	return strings.EqualFold(value, "1") || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
-}
-
-func serverListenAddress() string {
-	port := strings.TrimSpace(os.Getenv("PORT"))
-	if port == "" {
-		port = "8080"
-	}
-	host := strings.TrimSpace(os.Getenv("HOST"))
-	if host == "" {
-		if publicBindEnabled() {
-			host = "0.0.0.0"
-		} else {
-			host = "127.0.0.1"
-		}
-	}
-	return net.JoinHostPort(host, port)
-}
-
-func localServerURL(listenAddress string) string {
-	_, port, err := net.SplitHostPort(listenAddress)
-	if err != nil || port == "" {
-		return "http://localhost:8080"
-	}
-	return "http://localhost:" + port
 }
 
 func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (googleConnectionStore, error) {
@@ -444,8 +259,6 @@ func (store *dynamoGoogleConnectionStore) Put(ctx context.Context, record *googl
 	})
 	return err
 }
-
-const rateLimiterMaxKeys = 10000
 
 func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimiter {
 	limiter := &loginRateLimiter{
@@ -670,11 +483,8 @@ Experience
 ========================================
 */
 
-// Use types from shared package
-type Experience = types.Experience
-
-func experienceData() []Experience {
-	return []Experience{
+func experienceData() []types.Experience {
+	return []types.Experience{
 		{
 			ID:               1,
 			Position:         "Cloud Engineer Principal",
@@ -771,12 +581,6 @@ Skills
 ========================================
 */
 
-// Use types from shared package
-type (
-	Skill         = types.Skill
-	SkillCategory = types.SkillCategory
-)
-
 const (
 	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
 	iconIdentityAccess string = `<svg viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>`
@@ -791,11 +595,11 @@ const (
 	iconSecOps         string = `<svg viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"/></svg>`
 )
 
-func skillsData() []SkillCategory {
-	return []SkillCategory{
+func skillsData() []types.SkillCategory {
+	return []types.SkillCategory{
 		{
 			Name: "Languages & Scripting",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 5, Name: "Bash", IconPath: "/static/images/skills/bash.svg", Link: "https://www.gnu.org/software/bash/", Proficiency: "expert", Featured: true, Description: "Unix shell and command language for task automation and system administration"},
 				{ID: 2, Name: "Go", IconPath: "/static/images/skills/go.svg", Link: "https://go.dev/", Proficiency: "advanced", Featured: true, Description: "Statically typed language for building scalable cloud services and CLI tools"},
 				{ID: 3, Name: "JavaScript", IconPath: "/static/images/skills/javascript.svg", Link: "https://developer.mozilla.org/en-US/docs/Web/JavaScript", Proficiency: "advanced"},
@@ -809,7 +613,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Cloud Platforms",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 12, Name: "AWS", IconPath: "/static/images/skills/aws.svg", Link: "https://aws.amazon.com/", Proficiency: "expert", Featured: true, Description: "Primary cloud platform for compute, storage, networking, and serverless solutions"},
 				{ID: 13, Name: "Azure", IconPath: "/static/images/skills/azure.svg", Link: "https://azure.microsoft.com/", Proficiency: "advanced", Featured: true, Description: "Microsoft cloud platform for hybrid identity, VMs, and enterprise services"},
 				{ID: 15, Name: "Cloudflare", IconPath: "/static/images/skills/cloudflare.svg", Link: "https://www.cloudflare.com/", Proficiency: "intermediate"},
@@ -818,7 +622,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Security & Identity",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 121, Name: "Cognito", IconPath: "/static/images/skills/aws_cognito.svg", Link: "https://aws.amazon.com/cognito/", Proficiency: "advanced"},
 				{ID: 120, Name: "IAM", IconPath: "/static/images/skills/aws_iam.svg", Link: "https://aws.amazon.com/iam/", Proficiency: "expert", Featured: true, Description: "Identity and access management for implementing least-privilege security"},
 				{ID: 30, Name: "Vault", IconPath: "/static/images/skills/hashicorp_vault.svg", Link: "https://www.vaultproject.io/", Proficiency: "advanced"},
@@ -826,7 +630,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Containers & Orchestration",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 18, Name: "Docker", IconPath: "/static/images/skills/docker.svg", Link: "https://www.docker.com/", Proficiency: "expert", Featured: true, Description: "Container platform for building, shipping, and running applications consistently"},
 				{ID: 19, Name: "Kubernetes", IconPath: "/static/images/skills/kubernetes.svg", Link: "https://kubernetes.io/", Proficiency: "advanced", Featured: true, Description: "Container orchestration for deploying and scaling containerized workloads"},
 				{ID: 20, Name: "Podman", IconPath: "/static/images/skills/podman.svg", Link: "https://podman.io/", Proficiency: "advanced", Featured: true, Description: "Daemonless container engine for running OCI containers and pods"},
@@ -835,7 +639,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "CI/CD & Automation",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 27, Name: "Ansible", IconPath: "/static/images/skills/ansible.svg", Link: "https://www.ansible.com/", Proficiency: "expert", Featured: true, Description: "Agentless automation for configuration management and application deployment"},
 				{ID: 125, Name: "CodeBuild", IconPath: "/static/images/skills/aws_codebuild.svg", Link: "https://aws.amazon.com/codebuild/", Proficiency: "advanced"},
 				{ID: 126, Name: "CodeDeploy", IconPath: "/static/images/skills/aws_codedeploy.svg", Link: "https://aws.amazon.com/codedeploy/", Proficiency: "advanced"},
@@ -848,7 +652,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Infrastructure as Code",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 107, Name: "CloudFormation", IconPath: "/static/images/skills/cloudformation.svg", Link: "https://aws.amazon.com/cloudformation/", Proficiency: "expert", Featured: true, Description: "AWS-native infrastructure as code for provisioning cloud resources"},
 				{ID: 104, Name: "OpenTofu", IconPath: "/static/images/skills/opentofu.svg", Link: "https://opentofu.org/", Proficiency: "advanced"},
 				{ID: 29, Name: "Terraform", IconPath: "/static/images/skills/hashicorp_terraform.svg", Link: "https://www.terraform.io/", Proficiency: "expert", Featured: true, Description: "Multi-cloud infrastructure as code for declarative resource provisioning"},
@@ -858,7 +662,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Databases",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 36, Name: "DynamoDB", IconPath: "/static/images/skills/dynamodb.svg", Link: "https://aws.amazon.com/dynamodb/", Proficiency: "advanced"},
 				{ID: 38, Name: "Elasticsearch", IconPath: "/static/images/skills/elasticsearch.svg", Link: "https://www.elastic.co/elasticsearch/", Proficiency: "intermediate"},
 				{ID: 34, Name: "MongoDB", IconPath: "/static/images/skills/mongodb.svg", Link: "https://www.mongodb.com/", Proficiency: "intermediate"},
@@ -871,7 +675,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "API & Testing",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 124, Name: "API Gateway", IconPath: "/static/images/skills/aws_api_gateway.svg", Link: "https://aws.amazon.com/api-gateway/", Proficiency: "advanced"},
 				{ID: 39, Name: "FastAPI", IconPath: "/static/images/skills/fastapi.svg", Link: "https://fastapi.tiangolo.com/", Proficiency: "intermediate"},
 				{ID: 40, Name: "OpenAPI", IconPath: "/static/images/skills/openapi.svg", Link: "https://www.openapis.org/", Proficiency: "advanced"},
@@ -882,7 +686,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Development Tools",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 44, Name: "Git", IconPath: "/static/images/skills/git.svg", Link: "https://git-scm.com/", Proficiency: "expert", Featured: true, Description: "Distributed version control for collaborative development and code management"},
 				{ID: 45, Name: "GitHub", IconPath: "/static/images/skills/github.svg", Link: "https://github.com/", Proficiency: "expert"},
 				{ID: 46, Name: "GitHub Codespaces", IconPath: "/static/images/skills/github_codespaces.svg", Link: "https://github.com/features/codespaces", Proficiency: "advanced"},
@@ -895,7 +699,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Monitoring & Observability",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 108, Name: "CloudWatch", IconPath: "/static/images/skills/cloudwatch.svg", Link: "https://aws.amazon.com/cloudwatch/", Proficiency: "expert"},
 				{ID: 55, Name: "Datadog", IconPath: "/static/images/skills/datadog.svg", Link: "https://www.datadoghq.com/", Proficiency: "advanced"},
 				{ID: 54, Name: "Grafana", IconPath: "/static/images/skills/grafana.svg", Link: "https://grafana.com/", Proficiency: "intermediate"},
@@ -905,7 +709,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Operating Systems",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 111, Name: "Debian", IconPath: "/static/images/skills/debian.svg", Link: "https://www.debian.org/", Proficiency: "advanced"},
 				{ID: 60, Name: "Raspberry Pi", IconPath: "/static/images/skills/raspberrypi.svg", Link: "https://www.raspberrypi.org/", Proficiency: "intermediate"},
 				{ID: 109, Name: "RHEL", IconPath: "/static/images/skills/red_hat.svg", Link: "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux", Proficiency: "expert"},
@@ -916,7 +720,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Web Servers & Frameworks",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 62, Name: "Apache", IconPath: "/static/images/skills/apache.svg", Link: "https://httpd.apache.org/", Proficiency: "advanced"},
 				{ID: 61, Name: "Nginx", IconPath: "/static/images/skills/nginx.svg", Link: "https://nginx.org/", Proficiency: "advanced"},
 				{ID: 123, Name: "Amplify", IconPath: "/static/images/skills/aws_amplify.svg", Link: "https://aws.amazon.com/amplify/", Proficiency: "advanced"},
@@ -925,7 +729,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Collaboration Tools",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 67, Name: "Confluence", IconPath: "/static/images/skills/confluence.svg", Link: "https://www.atlassian.com/software/confluence", Proficiency: "advanced"},
 				{ID: 66, Name: "Jira", IconPath: "/static/images/skills/jira.svg", Link: "https://www.atlassian.com/software/jira", Proficiency: "advanced"},
 				{ID: 119, Name: "Notion", IconPath: "/static/images/skills/notion.svg", Link: "https://www.notion.so/", Proficiency: "intermediate"},
@@ -934,7 +738,7 @@ func skillsData() []SkillCategory {
 		},
 		{
 			Name: "Concepts & Practices",
-			Skills: []Skill{
+			Skills: []types.Skill{
 				{ID: 75, Name: "Cloud Architecture", Icon: iconCloudArch, Link: "https://aws.amazon.com/architecture/", Proficiency: "expert"},
 				{ID: 71, Name: "Cloud Security", Icon: iconCloudSecurity, Link: "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/", Proficiency: "expert"},
 				{ID: 72, Name: "Compliance & Governance", Icon: iconCompliance, Link: "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/", Proficiency: "advanced"},
@@ -952,8 +756,8 @@ func skillsData() []SkillCategory {
 }
 
 // getFeaturedSkills extracts all featured skills from provided categories
-func getFeaturedSkills(categories []SkillCategory) []Skill {
-	var featured []Skill
+func getFeaturedSkills(categories []types.SkillCategory) []types.Skill {
+	var featured []types.Skill
 	for _, category := range categories {
 		for i := range category.Skills {
 			if category.Skills[i].Featured {
@@ -1009,7 +813,7 @@ func skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	categories := skillsData()
-	var found Skill
+	var found types.Skill
 	var foundCategory string
 	for _, cat := range categories {
 		for i := range cat.Skills {
@@ -1045,11 +849,8 @@ Projects
 ========================================
 */
 
-// Use types from shared package
-type Project = types.Project
-
-func projectsData() []Project {
-	return []Project{
+func projectsData() []types.Project {
+	return []types.Project{
 		{
 			ID:           1,
 			Name:         "Personal Portfolio Website",
@@ -1137,15 +938,6 @@ Soccer
 ========================================
 */
 
-// Use types from shared package
-type (
-	Game                 = types.Game
-	GoogleCalendarOption = types.GoogleCalendarOption
-	LambdaGamesResponse  = types.LambdaGamesResponse
-	LPSPlayer            = types.LPSPlayer
-	SessionData          = types.SessionData
-)
-
 func soccerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1189,7 +981,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginFeedback(w, "error", "Could not read the import form. Try again.")
 		return
@@ -1376,7 +1168,7 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginState(w, r, session)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginState(w, r, session)
 		return
@@ -1446,7 +1238,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginFeedback(w, "error", "Could not read the selected games. Try again.")
 		return
@@ -1724,7 +1516,7 @@ func googleEventMatchesGameID(event *googleEvent, gameID string) bool {
 func decodeGoogleEvent(resp *http.Response) (*googleEvent, error) {
 	defer resp.Body.Close()
 	var event googleEvent
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&event); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&event); err != nil {
 		return nil, err
 	}
 	return &event, nil
@@ -1733,7 +1525,7 @@ func decodeGoogleEvent(resp *http.Response) (*googleEvent, error) {
 func decodeGoogleEventList(resp *http.Response) ([]googleEvent, error) {
 	defer resp.Body.Close()
 	var response googleEventListResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&response); err != nil {
 		return nil, err
 	}
 	return response.Items, nil
@@ -1821,7 +1613,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -1870,26 +1662,12 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func splitDelimitedValues(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	return strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ',' || r == ';' || r == ' '
-	})
-}
-
-func parseTeamIDs(raw string) []int {
-	return parsePlayerIDs(splitDelimitedValues(raw))
-}
-
 func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -1952,11 +1730,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func loginEnabled() bool {
-	return len(configData.SessionKey) == 32
-}
-
-func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRecord, calendars []GoogleCalendarOption) (calendarID, summary string) {
+func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
 	calendarID = strings.TrimSpace(record.CalendarID)
 	if calendarID == "" {
 		calendarID, summary = preferredGoogleCalendar(calendars)
@@ -1981,13 +1755,6 @@ func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRe
 		}
 	}
 	return calendarID, summary
-}
-
-func googleEnabled() bool {
-	return loginEnabled() &&
-		strings.TrimSpace(configData.GoogleClientID) != "" &&
-		strings.TrimSpace(configData.GoogleClientSecret) != "" &&
-		strings.TrimSpace(configData.GoogleConnectionTableName) != ""
 }
 
 func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) partials.SoccerLoginStateProps {
@@ -2152,7 +1919,7 @@ func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) er
 	http.SetCookie(w, &http.Cookie{
 		Name:     lpsSessionCookieName,
 		Value:    encrypted,
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -2164,7 +1931,7 @@ func clearSession(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     lpsSessionCookieName,
 		Value:    "",
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -2185,7 +1952,7 @@ func setGoogleConnectionCookie(w http.ResponseWriter, r *http.Request, connectio
 	http.SetCookie(w, &http.Cookie{
 		Name:     googleConnectionCookieName,
 		Value:    connectionID,
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -2197,7 +1964,7 @@ func clearGoogleConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     googleConnectionCookieName,
 		Value:    "",
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteStrictMode,
@@ -2214,7 +1981,7 @@ func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state goo
 	http.SetCookie(w, &http.Cookie{
 		Name:     googleOAuthStateCookieName,
 		Value:    encrypted,
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
@@ -2245,7 +2012,7 @@ func clearGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     googleOAuthStateCookieName,
 		Value:    "",
-		Path:     "/soccer",
+		Path:     soccerCookiePath,
 		HttpOnly: true,
 		Secure:   requestIsHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
@@ -2460,7 +2227,7 @@ func googleListCalendarEventsByPrivateGameID(ctx context.Context, calendarID str
 
 func readGoogleAPIError(resp *http.Response) error {
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxRequestBodySize))
 	message := strings.TrimSpace(string(body))
 	if message == "" {
 		message = resp.Status
@@ -2471,7 +2238,7 @@ func readGoogleAPIError(resp *http.Response) error {
 	}
 }
 
-func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]GoogleCalendarOption, error) {
+func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]types.GoogleCalendarOption, error) {
 	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "users/me/calendarList", url.Values{"minAccessRole": {"writer"}}, token, nil)
 	if err != nil {
 		return nil, err
@@ -2485,15 +2252,15 @@ func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]G
 	}
 	defer resp.Body.Close()
 	var response googleCalendarListResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&response); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&response); err != nil {
 		return nil, err
 	}
-	options := make([]GoogleCalendarOption, 0, len(response.Items))
+	options := make([]types.GoogleCalendarOption, 0, len(response.Items))
 	for _, item := range response.Items {
 		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Summary) == "" {
 			continue
 		}
-		options = append(options, GoogleCalendarOption{
+		options = append(options, types.GoogleCalendarOption{
 			ID:      item.ID,
 			Primary: item.Primary,
 			Summary: item.Summary,
@@ -2508,7 +2275,7 @@ func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]G
 	return options, nil
 }
 
-func googleListCalendars(ctx context.Context, r *http.Request, record *googleConnectionRecord) ([]GoogleCalendarOption, error) {
+func googleListCalendars(ctx context.Context, r *http.Request, record *googleConnectionRecord) ([]types.GoogleCalendarOption, error) {
 	token, err := currentGoogleToken(ctx, r, record)
 	if err != nil {
 		return nil, err
@@ -2516,7 +2283,7 @@ func googleListCalendars(ctx context.Context, r *http.Request, record *googleCon
 	return googleListCalendarsWithToken(googleHTTPContext(ctx), token)
 }
 
-func preferredGoogleCalendar(calendars []GoogleCalendarOption) (string, string) {
+func preferredGoogleCalendar(calendars []types.GoogleCalendarOption) (string, string) {
 	for _, calendar := range calendars {
 		if calendar.Primary {
 			return calendar.ID, calendar.Summary
@@ -2528,7 +2295,7 @@ func preferredGoogleCalendar(calendars []GoogleCalendarOption) (string, string) 
 	return calendars[0].ID, calendars[0].Summary
 }
 
-func googleCalendarSummary(calendars []GoogleCalendarOption, calendarID string) string {
+func googleCalendarSummary(calendars []types.GoogleCalendarOption, calendarID string) string {
 	for _, calendar := range calendars {
 		if calendar.ID == calendarID {
 			return calendar.Summary
@@ -2651,7 +2418,7 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
 	if err != nil {
 		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not read the player lookup response: %w", err)
 	}
@@ -2815,7 +2582,7 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not read the schedule response: %w", err)
 	}
@@ -2860,7 +2627,7 @@ func (resolver *lpsScheduleResolver) fetchPlayerTeams(ctx context.Context, playe
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not read the player teams response: %w", err)
 	}
@@ -2927,7 +2694,7 @@ func (resolver *lpsScheduleResolver) fetchTeamSchedule(ctx context.Context, team
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
 	if err != nil {
 		return schedule, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not read the team schedule response: %w", err)
 	}
@@ -3026,7 +2793,7 @@ func (resolver *lpsScheduleResolver) fetchFacility(ctx context.Context, facility
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
 	if err != nil {
 		return lpsFacility{}, newLPSFetchError(lpsErrorUpstream, facilityID, http.StatusBadGateway, "could not read the facility response for facility %d: %w", facilityID, err)
 	}
@@ -3091,70 +2858,6 @@ func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
 	return discovery, nil
 }
 
-func fullName(parts ...string) string {
-	nonEmpty := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			nonEmpty = append(nonEmpty, part)
-		}
-	}
-	return strings.Join(nonEmpty, " ")
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func firstPositiveInt(values ...int) int {
-	for _, value := range values {
-		if value > 0 {
-			return value
-		}
-	}
-	return 0
-}
-
-func intString(value int) string {
-	if value <= 0 {
-		return ""
-	}
-	return strconv.Itoa(value)
-}
-
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
-func sortedUniqueIDs(values []int) []int {
-	if len(values) == 0 {
-		return nil
-	}
-
-	seen := make(map[int]struct{}, len(values))
-	normalized := make([]int, 0, len(values))
-	for _, value := range values {
-		if value <= 0 {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		normalized = append(normalized, value)
-	}
-	sort.Ints(normalized)
-	return normalized
-}
-
 func resolveSelectedTeamMatchup(rawGame *lpsTeamScheduleGame, responseTeam lpsTeamSummary, selectedTeam *lpsTeamSummary) (string, string, string) {
 	if rawGame == nil {
 		return "", "", ""
@@ -3194,7 +2897,7 @@ func resolveSelectedTeamMatchup(rawGame *lpsTeamScheduleGame, responseTeam lpsTe
 }
 
 func decodeLPSGames(payload []byte) ([]Game, error) {
-	var envelope LambdaGamesResponse
+	var envelope types.LambdaGamesResponse
 	if err := json.Unmarshal(payload, &envelope); err == nil && len(envelope.Games) > 0 {
 		return envelope.Games, nil
 	}
@@ -3355,45 +3058,6 @@ func anyToString(value any) string {
 		}
 	}
 	return ""
-}
-
-func parseSelectedIDs(form url.Values) map[string]struct{} {
-	selectedIDs := make(map[string]struct{})
-	for _, id := range form["selected"] {
-		id = strings.TrimSpace(id)
-		if id != "" {
-			selectedIDs[id] = struct{}{}
-		}
-	}
-	return selectedIDs
-}
-
-func parsePlayerIDs(values []string) []int {
-	seen := make(map[int]struct{})
-	playerIDs := make([]int, 0, len(values))
-	for _, value := range values {
-		playerID, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil || playerID <= 0 {
-			continue
-		}
-		if _, exists := seen[playerID]; exists {
-			continue
-		}
-		seen[playerID] = struct{}{}
-		playerIDs = append(playerIDs, playerID)
-	}
-	return playerIDs
-}
-
-func nonEmptyStrings(values []string) []string {
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			normalized = append(normalized, value)
-		}
-	}
-	return normalized
 }
 
 func mergeGames(base, incoming *Game) Game {
@@ -3806,7 +3470,7 @@ func scheduleTimes(game *Game) (time.Time, time.Time, bool) {
 	}
 	end, ok := parseScheduleTime(game.EndAt)
 	if !ok || !end.After(start) {
-		end = start.Add(45 * time.Minute)
+		end = start.Add(defaultGameDuration)
 	}
 	return start, end, true
 }
@@ -3845,145 +3509,4 @@ func writeICSLine(builder *strings.Builder, line string) {
 		line = line[written:]
 		firstSegment = false
 	}
-}
-
-func scheduleFetchFeedback(err error) (string, string, bool) {
-	if err == nil {
-		return "", "", false
-	}
-	var fetchErr *lpsFetchError
-	if errors.As(err, &fetchErr) {
-		if detail, ok := scheduleErrorDetail(fetchErr); ok {
-			return detail.feedbackMessage, detail.feedbackHint, detail.clearSession
-		}
-	}
-	if errors.Is(err, errSessionExpired) {
-		return "Your imported Let's Play Soccer token expired.", "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.", true
-	}
-	return "Could not load schedules from Let's Play Soccer right now.", "Try again in a moment, or use team IDs manually.", false
-}
-
-func scheduleDownloadError(err error) (int, string) {
-	var fetchErr *lpsFetchError
-	if errors.As(err, &fetchErr) {
-		if detail, ok := scheduleErrorDetail(fetchErr); ok {
-			return detail.downloadStatus, detail.downloadMessage
-		}
-	}
-	return http.StatusBadGateway, "could not refresh the authenticated schedule"
-}
-
-type scheduleErrorDetails struct {
-	clearSession    bool
-	downloadMessage string
-	downloadStatus  int
-	feedbackHint    string
-	feedbackMessage string
-}
-
-func scheduleErrorDetail(fetchErr *lpsFetchError) (scheduleErrorDetails, bool) {
-	if fetchErr == nil {
-		return scheduleErrorDetails{}, false
-	}
-
-	switch fetchErr.Kind {
-	case lpsErrorMalformedToken:
-		return scheduleErrorDetails{
-			clearSession:    true,
-			downloadMessage: "the imported Let's Play Soccer token is malformed; import the full bearer JWT again",
-			downloadStatus:  http.StatusUnauthorized,
-			feedbackHint:    "Copy the full bearer JWT from letsplaysoccer.com and import it again.",
-			feedbackMessage: "The imported Let's Play Soccer token is not a valid JWT.",
-		}, true
-	case lpsErrorUnauthorized:
-		return scheduleErrorDetails{
-			clearSession:    true,
-			downloadMessage: "your imported Let's Play Soccer token was rejected; import a fresh bearer JWT from letsplaysoccer.com",
-			downloadStatus:  http.StatusUnauthorized,
-			feedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
-			feedbackMessage: "Your imported Let's Play Soccer token was rejected.",
-		}, true
-	case lpsErrorForbidden:
-		return scheduleErrorDetails{
-			clearSession:    false,
-			downloadMessage: fmt.Sprintf("Let's Play Soccer denied access to discovered player %d; clear the imported players and import again", fetchErr.PlayerID),
-			downloadStatus:  http.StatusForbidden,
-			feedbackHint:    "Clear the imported players and import again to refresh the discovered player list.",
-			feedbackMessage: fmt.Sprintf("Let's Play Soccer denied access to discovered player %d.", fetchErr.PlayerID),
-		}, true
-	case lpsErrorInvalidPlayer:
-		return scheduleErrorDetails{
-			clearSession:    false,
-			downloadMessage: fmt.Sprintf("discovered player %d was not accepted by Let's Play Soccer; clear the imported players and import again", fetchErr.PlayerID),
-			downloadStatus:  http.StatusBadRequest,
-			feedbackHint:    "Clear the imported players and import again to refresh the discovered player list.",
-			feedbackMessage: fmt.Sprintf("Discovered player %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID),
-		}, true
-	case lpsErrorInvalidTeam:
-		return scheduleErrorDetails{
-			clearSession:    false,
-			downloadMessage: fmt.Sprintf("team ID %d was not accepted by Let's Play Soccer; enter a valid numeric team ID and try again", fetchErr.PlayerID),
-			downloadStatus:  http.StatusBadRequest,
-			feedbackHint:    "Enter valid numeric team IDs from the Let's Play Soccer Team Schedules page and try again.",
-			feedbackMessage: fmt.Sprintf("Team ID %d was not accepted by Let's Play Soccer.", fetchErr.PlayerID),
-		}, true
-	case lpsErrorUpstream:
-		return scheduleErrorDetails{
-			clearSession:    false,
-			downloadMessage: "could not refresh the authenticated schedule because Let's Play Soccer is unavailable",
-			downloadStatus:  http.StatusBadGateway,
-			feedbackHint:    "Their API may be unavailable. Try again in a moment, or use team IDs manually.",
-			feedbackMessage: "Could not load schedules from Let's Play Soccer right now.",
-		}, true
-	default:
-		return scheduleErrorDetails{}, false
-	}
-}
-
-func clientIP(r *http.Request) string {
-	if ip, ok := forwardedClientIP(r); ok {
-		return ip
-	}
-
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
-	if err == nil {
-		return host
-	}
-	return strings.TrimSpace(r.RemoteAddr)
-}
-
-func forwardedClientIP(r *http.Request) (string, bool) {
-	remoteIP := remoteAddrIP(r.RemoteAddr)
-	if remoteIP == nil || !isTrustedProxyIP(remoteIP) {
-		return "", false
-	}
-
-	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
-		return ip, true
-	}
-
-	for _, candidate := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
-		candidate = strings.TrimSpace(candidate)
-		if isValidIP(candidate) {
-			return candidate, true
-		}
-	}
-
-	return "", false
-}
-
-func remoteAddrIP(remoteAddr string) net.IP {
-	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr))
-	if err != nil {
-		host = strings.TrimSpace(remoteAddr)
-	}
-	return net.ParseIP(host)
-}
-
-func isTrustedProxyIP(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
-}
-
-func isValidIP(value string) bool {
-	return net.ParseIP(strings.TrimSpace(value)) != nil
 }
