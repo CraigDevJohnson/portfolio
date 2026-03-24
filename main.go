@@ -131,7 +131,7 @@ type googleEvent struct {
 	End                googleEventDateTime `json:"end"`
 	ExtendedProperties struct {
 		Private map[string]string `json:"private,omitempty"`
-	} `json:"extendedProperties,omitempty"`
+	} `json:"extendedProperties"`
 	ID       string              `json:"id,omitempty"`
 	Location string              `json:"location,omitempty"`
 	Source   *googleEventSource  `json:"source,omitempty"`

@@ -644,12 +644,105 @@ Also at some point, get the facility address via `https://lps-api-prod.lps-test.
 }
 ```
 
+```go
+type googleEventDateTime struct {
+  DateTime string `json:"dateTime"`
+  TimeZone string `json:"timeZone,omitempty"`
+}
+type lpsTeamSummary struct {
+  UTeamID      int    `json:"UTeamID"`
+  TeamName     string `json:"team_name"`
+  DivisionName string `json:"division_name"`
+  FacilityID   int    `json:"FacilityID"`
+  FacilityName string `json:"facility_name"`
+  Season       int    `json:"Season"`
+}
+type lpsTeamScheduleGame struct {
+  UGameID           int            `json:"UGameID"`
+  FieldName         string         `json:"field_name"`
+  SchedGameDateTime string         `json:"SchedGameDateTime"`
+  SchedGameEndTime  *string        `json:"schedGameEndTime"`
+  FacilityName      string         `json:"facilityName"`
+  Result            string         `json:"result"`
+  Field             int            `json:"Field"`
+  Season            int            `json:"Season"`
+  FacilityID        int            `json:"FacilityID"`
+  UTeam1            int            `json:"UTeam1"`
+  UTeam2            int            `json:"UTeam2"`
+  TeamIDSelected    *int           `json:"team_id_selected"`
+  HomeTeam          lpsTeamSummary `json:"home_team"`
+  VisitorTeam       lpsTeamSummary `json:"visitor_team"`
+}
+type lpsFacility struct {
+  FacilityID   int    `json:"FacilityID"`
+  FacilityName string `json:"FacilityName"`
+  Address      string `json:"Address"`
+  City         string `json:"City"`
+  State        string `json:"State"`
+  ZIP          string `json:"ZIP"`
+}
+  type googleEvent struct {
+  Description        string              `json:"description,omitempty"`
+  End                googleEventDateTime `json:"end"`
+  ExtendedProperties struct {
+    Private map[string]string `json:"private,omitempty"`
+  } `json:"extendedProperties,omitempty"`
+  ID       string              `json:"id,omitempty"`
+  Location string              `json:"location,omitempty"`
+  Source   *googleEventSource  `json:"source,omitempty"`
+  Start    googleEventDateTime `json:"start"`
+  Status   string              `json:"status,omitempty"`
+  Summary  string              `json:"summary"`
+}
+```
+
+Where the following are set:
+
+```go
+const defaultLocation = "Let's Play Soccer, 11448 W President Dr #8967, Boise, ID 83713"
+t = lpsTeamSummary // The team the player is on
+pt = t.TeamName
+g = lpsTeamScheduleGame
+f = lpsFacility
+r = g.Result
+if r == "" {
+  r = "TBD"
+}
+// gameTime set to SchedGameDateTime parsed as time.Time and set to Mountain Time
+// Example: 2026-04-19T18:50:00.000Z is returned from LPS API but the game is actually at 2026-04-19T12:50:00.000-06:00
+// So we need to parse the time and set it to Mountain Time without changing the actual time, since the API returns the time in UTC but it's actually in Mountain Time
+t, _ := time.Parse(time.RFC3339, g.SchedGameDateTime)
+loc, _ := time.LoadLocation("America/Denver")
+gameStartDateTime := googleEventDateTime{
+  DateTime: t.In(loc).Format(time.RFC3339),
+  TimeZone: "America/Denver",
+}
+gameEndDateTime := googleEventDateTime{
+  DateTime: t.Add(45 * time.Minute).In(loc).Format(time.RFC3339),
+  TimeZone: "America/Denver",
+}
+description := fmt.Sprintf("%s vs %s\nField: %s\nDivision: %s\nResult: %s", g.HomeTeam.TeamName, g.VisitorTeam.TeamName, g.Field, t.DivisionName, r)
+extendedProperties := struct {
+  Private map[string]string `json:"private,omitempty"`
+}{
+  Private: map[string]string{
+    "game_id": strconv.Itoa(g.UGameID),
+  },
+}
+location := defaultLocation
+if f.Address != "11448 W. President Drive" {
+  location = fmt.Sprintf("%s, %s, %s, %s", f.Address, f.City, f.State, f.ZIP)
+}
+uid := "lps" + strconv.Itoa(f.FacilityID) + "game" + strconv.Itoa(g.UGameID)
+
+```
+
 Then generate the calendar events for the player. The event format should be as follows:
-Description = "PlayerTeamName is playing OpponentTeamName\nDivision: DivisionName\nFacility: FacilityName\nField: FieldName\nResult: Result"
+Description: "HomeTeam vs AwayTeam\nField: Field\nDivision: DivisionName\nResult: Result"
 End = SchedGameDateTime + 45 minutes
 ExtendedProperties.Private["game_id"] = UGameID
-ID = UGameID
+UID = UGameID
 Location = Facility.Address, Facility.City, Facility.State, Facility.ZIP
 Start = SchedGameDateTime
 Status = "cancelled" if game result is "cancelled", otherwise "confirmed"
-Summary = "PlayerTeamName vs OpponentTeamName - Field"
+Summary = "PlayerTeamName vs OpponentTeamName"
