@@ -1,3 +1,4 @@
+// Schedule payload construction: game merging, sorting, normalization, and deduplication.
 package main
 
 import (

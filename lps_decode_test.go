@@ -21,7 +21,6 @@ func TestNormalizeImportedJWTAcceptsBearerPrefix(t *testing.T) {
 	}
 }
 
-
 func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 	token := testJWT(t, time.Now().Add(-30*time.Minute))
 
@@ -33,7 +32,6 @@ func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 		t.Fatalf("unexpected error message: %v", err)
 	}
 }
-
 
 func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 	previousConfig := configData
@@ -102,7 +100,6 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 	}
 }
 
-
 func TestLPSFetchUserPlayersClassifiesAuthFailureJSON(t *testing.T) {
 	previousConfig := configData
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +134,6 @@ func TestLPSFetchUserPlayersClassifiesAuthFailureJSON(t *testing.T) {
 		t.Fatalf("unexpected error message: %v", fetchErr)
 	}
 }
-
 
 func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 	tests := []struct {
@@ -184,7 +180,6 @@ func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 	}
 }
 
-
 func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
 	previousConfig := configData
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +212,6 @@ func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
 	}
 }
 
-
 func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.T) {
 	game := mapLPSGame(map[string]any{
 		"UGameID":           5001,
@@ -233,4 +227,3 @@ func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.
 		t.Fatalf("unexpected display datetime: %q", game.DateTime)
 	}
 }
-

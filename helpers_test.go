@@ -49,7 +49,6 @@ func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 	})
 }
 
-
 func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 	t.Run("trusts X-Forwarded-Proto from trusted proxy", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
@@ -80,4 +79,3 @@ func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 		}
 	})
 }
-

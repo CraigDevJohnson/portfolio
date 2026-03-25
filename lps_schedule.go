@@ -1,3 +1,4 @@
+// LPS schedule resolution: player/team/facility fetching, game mapping, and response decoding.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// HTTP handlers for soccer JWT import, schedule fetch, ICS download, and Google Calendar sync.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// ICS calendar event builder with RFC 5545 line folding.
 package main
 
 import (

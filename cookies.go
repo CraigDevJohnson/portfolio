@@ -1,12 +1,14 @@
+// Shared cookie builders, HTTPS detection, and base URL resolution.
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 )
 
-func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie {
+func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie { //nolint:unparam // path kept general for reuse outside /soccer
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
@@ -51,7 +53,7 @@ func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state goo
 
 func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
 	cookie, err := r.Cookie(googleOAuthStateCookieName)
-	if err == http.ErrNoCookie {
+	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
 	}
 	if err != nil {

@@ -44,7 +44,6 @@ func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *test
 	}
 }
 
-
 func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	req.Host = "example.com"
@@ -95,7 +94,6 @@ func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	}
 }
 
-
 func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	event, ok := googleEventPayload(req, &Game{
@@ -142,7 +140,6 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 	}
 }
 
-
 func TestGoogleEventMatchesGameIDUsesOnlyCanonicalGameIDFields(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -186,7 +183,6 @@ func TestGoogleEventMatchesGameIDUsesOnlyCanonicalGameIDFields(t *testing.T) {
 		})
 	}
 }
-
 
 func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
@@ -478,4 +474,3 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 		t.Fatalf("unselected game should not be updated: %#v", updatedEvents["7006"])
 	}
 }
-

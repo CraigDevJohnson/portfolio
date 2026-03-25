@@ -20,7 +20,6 @@ func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) 
 	}
 }
 
-
 func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
 	got, ok := parseFlexibleTime("2026-01-11T14:55:00-07:00")
 	if !ok {
@@ -34,7 +33,6 @@ func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
 		t.Fatalf("unexpected RFC3339 offset: %d", offset)
 	}
 }
-
 
 func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
 	previousLocal := time.Local
@@ -61,7 +59,6 @@ func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
 	}
 }
 
-
 func TestParseScheduleTimeTreatsMislabelledZuluTimestampsAsMountainWallTime(t *testing.T) {
 	got, ok := parseScheduleTime("2026-03-29T17:20:00.000Z")
 	if !ok {
@@ -76,11 +73,9 @@ func TestParseScheduleTimeTreatsMislabelledZuluTimestampsAsMountainWallTime(t *t
 	}
 }
 
-
 func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
 	_, _, ok := scheduleTimes(&Game{ID: "no-time"})
 	if ok {
 		t.Fatal("expected scheduleTimes to return false for game with no start time")
 	}
 }
-

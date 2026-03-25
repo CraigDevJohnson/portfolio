@@ -14,7 +14,6 @@ func unfoldICS(ics string) string {
 	return strings.ReplaceAll(ics, "\r\n ", "")
 }
 
-
 func testJWT(t *testing.T, expiresAt time.Time) string {
 	t.Helper()
 
@@ -28,11 +27,9 @@ func testJWT(t *testing.T, expiresAt time.Time) string {
 	return strings.Join([]string{header, payloadToken, signature}, ".")
 }
 
-
 func testMislabelledLPSZuluTime(at time.Time) string {
 	return at.In(mountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
 }
-
 
 func resetSoccerLoginAttempts(t *testing.T) {
 	t.Helper()
@@ -45,7 +42,6 @@ func resetSoccerLoginAttempts(t *testing.T) {
 	})
 }
 
-
 func addSessionCookie(t *testing.T, req *http.Request, session *SessionData) {
 	t.Helper()
 	encrypted, err := encryptSession(session)
@@ -54,7 +50,6 @@ func addSessionCookie(t *testing.T, req *http.Request, session *SessionData) {
 	}
 	req.AddCookie(&http.Cookie{Name: lpsSessionCookieName, Value: encrypted})
 }
-
 
 type fakeGoogleConnectionStore struct {
 	records map[string]googleConnectionRecord
@@ -78,7 +73,6 @@ func (store *fakeGoogleConnectionStore) Put(_ context.Context, record *googleCon
 	store.records[record.ConnectionID] = *record
 	return nil
 }
-
 
 func configureGoogleTestRuntime(t *testing.T, store googleConnectionStore, authURL, tokenURL, apiBaseURL string) {
 	t.Helper()
@@ -115,4 +109,3 @@ func configureGoogleTestRuntime(t *testing.T, store googleConnectionStore, authU
 		googleCalendarAPIBaseURL = previousAPIBaseURL
 	})
 }
-

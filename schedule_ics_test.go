@@ -49,7 +49,6 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 	}
 }
 
-
 func TestBuildICSFoldsLongLines(t *testing.T) {
 	ics := buildICS([]Game{
 		{
@@ -77,7 +76,6 @@ func TestBuildICSFoldsLongLines(t *testing.T) {
 	}
 }
 
-
 func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 	ics := buildICS([]Game{
 		{
@@ -104,7 +102,6 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 	}
 }
 
-
 func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) {
 	ics := buildICS([]Game{{
 		ID:      "mountain-game",
@@ -124,7 +121,6 @@ func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) 
 		t.Fatalf("expected mountain DTEND in ICS output, got %q", ics)
 	}
 }
-
 
 func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 	ics := unfoldICS(buildICS([]Game{{
@@ -159,7 +155,6 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 	}
 }
 
-
 func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
 	ics := buildICS([]Game{
 		{
@@ -184,4 +179,3 @@ func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
 		t.Fatal("expected bad-game to be skipped in ICS output")
 	}
 }
-

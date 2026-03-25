@@ -112,7 +112,6 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	}
 }
 
-
 func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testing.T) {
 	resetSoccerLoginAttempts(t)
 
@@ -300,7 +299,6 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	}
 }
 
-
 func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -362,7 +360,6 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 		})
 	}
 }
-
 
 func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 	tests := []struct {
@@ -430,7 +427,6 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 	}
 }
 
-
 func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T) {
 	resetSoccerLoginAttempts(t)
 
@@ -463,7 +459,6 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }
-
 
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
 	previousConfig := configData
@@ -525,7 +520,6 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 		t.Fatalf("did not expect authenticated controls after logout, got %q", resp.Body.String())
 	}
 }
-
 
 func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthenticatedState(t *testing.T) {
 	previousConfig := configData
@@ -610,7 +604,6 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 	}
 }
 
-
 func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"abc"},
@@ -627,7 +620,6 @@ func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }
-
 
 func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	previousConfig := configData
@@ -671,7 +663,6 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	}
 }
 
-
 func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"game-1"},
@@ -689,7 +680,6 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
 	}
 }
-
 
 func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	previousConfig := configData
@@ -786,7 +776,6 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	}
 }
 
-
 func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	previousConfig := configData
 	previousLocal := time.Local
@@ -870,7 +859,6 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	}
 }
 
-
 func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"7001"},
@@ -888,7 +876,6 @@ func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
 		t.Fatalf("expected invalid team selection message, got %q", resp.Body.String())
 	}
 }
-
 
 func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 	tests := []struct {
@@ -956,7 +943,6 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 	}
 }
 
-
 func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	previousConfig := configData
 	previousLocal := time.Local
@@ -1022,4 +1008,3 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 		t.Fatalf("expected past games to be filtered from rendered schedule, got %q", body)
 	}
 }
-

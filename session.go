@@ -1,3 +1,4 @@
+// Session management: AES-GCM encryption, session cookies, and rate limiting.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Time parsing and formatting for Mountain timezone schedules.
 package main
 
 import (

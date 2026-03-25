@@ -1,3 +1,4 @@
+// LPS API HTTP client: endpoint construction and authenticated request execution.
 package main
 
 import (
@@ -15,7 +16,7 @@ func lpsAPIEndpoint(pathParts ...string) (string, error) {
 	return url.JoinPath(baseURL, pathParts...)
 }
 
-func newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts ...string) (*http.Request, error) {
+func newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts ...string) (*http.Request, error) { //nolint:unparam // method kept general for future POST/PUT support
 	endpoint, err := lpsAPIEndpoint(pathParts...)
 	if err != nil {
 		return nil, err

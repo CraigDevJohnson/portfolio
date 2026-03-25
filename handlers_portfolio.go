@@ -1,3 +1,4 @@
+// HTTP handlers for portfolio pages and HTMX partial endpoints.
 package main
 
 import (

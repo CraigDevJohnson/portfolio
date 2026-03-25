@@ -42,7 +42,6 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	}
 }
 
-
 func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	limiter := newLoginRateLimiter(100, time.Hour)
 	defer limiter.Close()
@@ -66,7 +65,6 @@ func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	}
 }
 
-
 func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
 	limiter := newLoginRateLimiter(100, 50*time.Millisecond)
 	defer limiter.Close()
@@ -85,10 +83,8 @@ func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
 	}
 }
 
-
 func TestRateLimiterCloseIsIdempotent(t *testing.T) {
 	limiter := newLoginRateLimiter(5, time.Minute)
 	limiter.Close()
 	limiter.Close() // must not panic
 }
-

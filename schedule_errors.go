@@ -1,3 +1,4 @@
+// LPS error classification and user-facing schedule error messages.
 package main
 
 import (

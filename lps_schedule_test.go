@@ -63,7 +63,6 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	}
 }
 
-
 func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	previousConfig := configData
 	token := testJWT(t, time.Now().Add(30*time.Minute))
@@ -136,7 +135,6 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 		t.Fatalf("unexpected display datetime: %s", games[0].DateTime)
 	}
 }
-
 
 func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing.T) {
 	previousConfig := configData
@@ -273,7 +271,6 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 	}
 }
 
-
 func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 	previousConfig := configData
 	lookupCounts := map[string]int{}
@@ -387,7 +384,6 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 	}
 }
 
-
 func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T) {
 	_, err := lpsFetchGamesForPlayers(t.Context(), "not-a-jwt", []int{1001})
 	if err == nil {
@@ -401,7 +397,6 @@ func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T)
 		t.Fatalf("unexpected error kind: %s", fetchErr.Kind)
 	}
 }
-
 
 func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 	previousConfig := configData
@@ -510,7 +505,6 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 	}
 }
 
-
 func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -555,4 +549,3 @@ func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
 		})
 	}
 }
-

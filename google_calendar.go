@@ -1,3 +1,4 @@
+// Google Calendar API integration: event sync, insert, update, calendar listing, and selection.
 package main
 
 import (

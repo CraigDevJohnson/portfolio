@@ -1,3 +1,4 @@
+// Google OAuth connect/callback/disconnect handlers, token refresh, and DynamoDB connection store.
 package main
 
 import (

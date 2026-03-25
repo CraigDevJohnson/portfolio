@@ -1,3 +1,4 @@
+// Server configuration, environment parsing, constants, and package-level state.
 package main
 
 import (
@@ -175,4 +176,3 @@ func googleEnabled() bool {
 		strings.TrimSpace(configData.GoogleClientSecret) != "" &&
 		strings.TrimSpace(configData.GoogleConnectionTableName) != ""
 }
-

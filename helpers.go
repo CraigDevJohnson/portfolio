@@ -1,3 +1,4 @@
+// General-purpose helpers: name formatting, ID parsing, IP detection, and proxy trust.
 package main
 
 import (

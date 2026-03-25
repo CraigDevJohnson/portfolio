@@ -1,3 +1,4 @@
+// Static portfolio data: experience, skills, projects, and gravatar URL.
 package main
 
 import (

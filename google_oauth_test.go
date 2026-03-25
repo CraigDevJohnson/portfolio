@@ -54,7 +54,6 @@ func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
 	}
 }
 
-
 func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
 
@@ -164,7 +163,6 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	}
 }
 
-
 func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
 	configureGoogleTestRuntime(t, store, "", "", "")
@@ -210,4 +208,3 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 		t.Fatalf("expected selected calendar in response body, got %q", resp.Body.String())
 	}
 }
-

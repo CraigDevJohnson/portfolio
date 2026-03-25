@@ -1,3 +1,4 @@
+// LPS JSON response decoders: user-player discovery, game extraction, and map-access helpers.
 package main
 
 import (
