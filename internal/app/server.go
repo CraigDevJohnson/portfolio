@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/portfolio"
 )
 
 // Run loads configuration, constructs the App, registers routes, and starts the server.
@@ -36,19 +37,43 @@ func Run() {
 
 	mux := http.NewServeMux()
 
-	// routes - pages
-	mux.HandleFunc("/", app.homeHandler)
-	mux.HandleFunc("/about", app.aboutHandler)
-	mux.HandleFunc("/experience", app.experienceHandler)
-	mux.HandleFunc("/experience/timeline", app.experienceTimelineHandler)
-	mux.HandleFunc("/skills", app.skillsHandler)
-	mux.HandleFunc("/skills/grid", app.skillsGridHandler)
-	mux.HandleFunc("/skills/filtered", app.skillsFilteredHandler)
-	mux.HandleFunc("/skills/detail", app.skillsDetailHandler)
-	mux.HandleFunc("/projects", app.projectsHandler)
-	mux.HandleFunc("/projects/grid", app.projectsGridHandler)
-	mux.HandleFunc("/education", app.educationHandler)
-	mux.HandleFunc("/contact", app.contactHandler)
+	// portfolio routes
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		portfolio.HomeHandler(w, r, config.CareerStartYear)
+	})
+	mux.HandleFunc("/about", func(w http.ResponseWriter, r *http.Request) {
+		portfolio.AboutHandler(w, config.CareerStartYear)
+	})
+	mux.HandleFunc("/experience", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.ExperienceHandler(w)
+	})
+	mux.HandleFunc("/experience/timeline", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.ExperienceTimelineHandler(w)
+	})
+	mux.HandleFunc("/skills", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.SkillsHandler(w)
+	})
+	mux.HandleFunc("/skills/grid", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.SkillsGridHandler(w)
+	})
+	mux.HandleFunc("/skills/filtered", func(w http.ResponseWriter, r *http.Request) {
+		portfolio.SkillsFilteredHandler(w, r)
+	})
+	mux.HandleFunc("/skills/detail", func(w http.ResponseWriter, r *http.Request) {
+		portfolio.SkillsDetailHandler(w, r)
+	})
+	mux.HandleFunc("/projects", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.ProjectsHandler(w)
+	})
+	mux.HandleFunc("/projects/grid", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.ProjectsGridHandler(w)
+	})
+	mux.HandleFunc("/education", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.EducationHandler(w)
+	})
+	mux.HandleFunc("/contact", func(w http.ResponseWriter, _ *http.Request) {
+		portfolio.ContactHandler(w)
+	})
 
 	// soccer routes
 	mux.HandleFunc("/soccer", app.soccerHandler)

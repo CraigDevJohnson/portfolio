@@ -4,27 +4,23 @@
 
 - [x] Task-001: Extract `internal/config` package
 - [x] Task-002: Introduce App struct — convert all test files to use App struct pattern
+- [x] Task-003: Eliminate portfolio wrapper files
 
 ## Last Completed
 
-- Task-002: Introduce App struct — test file conversions
+- Task-003: Eliminate portfolio wrapper files
 - Tests: ✅ All 80 passing
-- Build: ✅ Success (`just build` clean)
-- Vet: ✅ 0 issues
+- Build: ✅ Success
 - Key decisions:
-  - Converted 5 test files from `configData` global to `newTestApp(t)` pattern
-  - Files converted: `google_oauth_test.go`, `google_calendar_test.go`, `handlers_soccer_test.go`, `lps_decode_test.go`, `lps_schedule_test.go`
-  - Also fixed `schedule_time_test.go` (`mountainTimeLocation` → `loadMountainTimeLocation()`)
-  - Removed all `previousConfig := configData` / save-restore patterns
-  - Removed all `resetSoccerLoginAttempts(t)` calls
-  - Removed all `configureGoogleTestRuntime` calls
-  - All handler/LPS method calls now prefixed with `app.`
-  - `addSessionCookie` signature updated to include `app` parameter
+  - Deleted `internal/app/handlers_portfolio.go` (12 handler wrappers)
+  - Deleted `internal/app/data_portfolio.go` (4 data wrappers)
+  - Route registration in `server.go` now calls `portfolio.*Handler` directly via closures
+  - `config.CareerStartYear` injected into `HomeHandler` and `AboutHandler` closures
 
 ## Current Iteration
 
-- Iteration: 2
-- Working on: Task-002 (Introduce App struct) — complete
+- Iteration: 3
+- Working on: Task-003 — complete
 
 ## Blockers
 
@@ -32,8 +28,6 @@
 
 ## Notes for Next Iteration
 
-- All test files now use `newTestApp(t)` or `newTestAppWithGoogle(t, ...)` helpers
-- No remaining references to `configData` in test files
-- `serverConfig = config.Config` type alias still in `internal/app/config.go`
-- Test helper `addSessionCookie(t, app, req, session)` requires `app` as second param
+- Portfolio routes are now decoupled from `App` struct
+- Next candidates for wrapper elimination: schedule wrapper files (Task-004), LPS/helpers wrappers (Task-005)
 - 80 tests all passing
