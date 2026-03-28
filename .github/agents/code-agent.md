@@ -121,7 +121,6 @@ func newPageFragmentHandler(w http.ResponseWriter, r *http.Request) {
 
 ### You SHOULD NOT:
 
-- Change the core architecture (single-file Go + HTMX)
 - Add unnecessary dependencies
 - Break existing pages or functionality
 - Remove working code without good reason

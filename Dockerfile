@@ -9,14 +9,14 @@ COPY . .
 
 # Generate templ components using the version pinned in go.mod
 RUN go tool templ generate
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/portfolio-server .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 
 COPY --from=builder /out/portfolio-server /app/portfolio-server
-COPY --from=builder /src/static /app/static
+COPY --from=builder /src/cmd/web/static /app/static
 
 EXPOSE 8080
 

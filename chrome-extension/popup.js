@@ -1,5 +1,4 @@
 const CAPTURE_KEY = 'lpsJwtCapture'
-// const AUTOFILL_URL = 'https://craigdevjohnson.com/soccer?extension_autofill=1'
 const AUTOFILL_URL = 'https://dev.craigdevjohnson.com/soccer?extension_autofill=1'
 
 const statusNode = document.getElementById('status')

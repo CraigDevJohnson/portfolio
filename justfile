@@ -24,7 +24,7 @@ templ:
 # Build the binary
 [group('build')]
 build: generate
-    {{ GO }} build {{ GOFLAGS }} -o {{ BINARY }} .
+  {{ GO }} build {{ GOFLAGS }} -o {{ BINARY }} ./cmd/server
 
 # Build and run the server
 [group('run')]
@@ -66,7 +66,7 @@ lint:
       echo "stylelint not found -- please run 'just install-lint' to install it"
       exit 1
     fi
-    npx stylelint "**/*.css" --fix
+    npx stylelint "cmd/web/static/css/**/*.css" --fix
 
 # Check quality, run tests and build the binary
 [group('quality')]

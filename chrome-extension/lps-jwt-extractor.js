@@ -57,7 +57,6 @@ function saveCapture(token, sourceType, details) {
 
   chrome.storage.local.set({ [CAPTURE_KEY]: capture })
   syncBadge(true)
-  console.info('Captured LPS JWT from', sourceType, details.url)
 }
 
 chrome.runtime.onInstalled.addListener(() => {

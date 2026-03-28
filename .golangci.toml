@@ -85,7 +85,7 @@ linters = ["gocyclo", "nestif", "gocritic", "gosec"]
 [[linters.exclusions.rules]]
 # Relax error checks, security rules, and complexity linters in test files
 path = "_test\\.go"
-linters = ["errcheck", "bodyclose", "gosec", "unparam", "gocyclo", "nestif", "maintidx"]
+linters = ["errcheck", "bodyclose", "gosec", "unparam", "gocyclo", "nestif", "maintidx", "testpackage"]
 
 [[linters.exclusions.rules]]
 # Ignore G104 (errors unhandled) for defer/Close patterns — very common in handlers

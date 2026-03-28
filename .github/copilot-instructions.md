@@ -8,7 +8,7 @@ Use these files in this order when instructions conflict:
 
 1. `PRD.md` and `PROGRESS.md` for the current soccer product behavior and recent task completion.
 2. `justfile` for build, test, formatting, lint, and dev commands.
-3. `main.go` and `main_test.go` for the actual application flow.
+3. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
 4. `README.md` for high-level architecture and local usage.
 5. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
 
@@ -17,12 +17,13 @@ Link to those docs instead of copying long procedures into new instructions or P
 ## Architecture
 
 - Go 1.26.1 server-rendered app with Templ and HTMX.
-- `main.go` is intentionally the application center: routes, handlers, LPS client code, session helpers, and hardcoded portfolio data live there by design.
-- `components/layouts` contains layout wrappers, `components/pages` contains full pages, and `components/partials` contains reusable fragments and HTMX swap targets.
+- `cmd/server/main.go` is intentionally thin and delegates to `internal/app` for startup and route wiring.
+- `internal/app` contains route handlers and app-level orchestration.
+- `cmd/web/layouts` contains layout wrappers, `cmd/web/pages` contains full pages, and `cmd/web/partials` contains reusable fragments and HTMX swap targets.
 - `types/types.go` holds shared typed models used across handlers and templates.
-- `static/js/main.js` owns client-side behavior such as the mobile nav, skills interactions, and soccer modal handling.
+- `cmd/web/static/js/main.js` owns client-side behavior such as the mobile nav, skills interactions, and soccer modal handling.
 
-Do not refactor this repo into extra packages unless the user explicitly asks for that. The monolithic layout is intentional.
+The repo is already split into `internal/app`, `internal/portfolio`, `internal/schedule`, `internal/lps`, `internal/httpx`, and `internal/session`. Prefer extending those packages rather than rebuilding a monolith.
 
 ## Daily Commands
 
@@ -41,15 +42,15 @@ Prefer the `just` recipes over ad hoc commands. `go fmt ./...` is not this repo'
 
 - Edit `.templ` source files, not generated `*_templ.go` files.
 - Run `just generate` after any `.templ` change unless another command already does it.
-- Per-page CSS follows `static/css/{page}.css` and is wired through the base layout's `Page` prop.
+- Per-page CSS follows `cmd/web/static/css/{page}.css` and is wired through the base layout's `Page` prop.
 - Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
 Useful exemplars:
 
-- `components/layouts/base.templ` for layout structure and asset loading.
-- `components/pages/soccer.templ` for a full page that mixes static content with HTMX fragments.
-- `components/partials/soccer_login_state.templ` and `components/partials/soccer_table_fragment.templ` for fragment patterns.
-- `main_test.go` for handler tests using `httptest` and stub upstream servers.
+- `cmd/web/layouts/base.templ` for layout structure and asset loading.
+- `cmd/web/pages/soccer.templ` for a full page that mixes static content with HTMX fragments.
+- `cmd/web/partials/soccer_login_state.templ` and `cmd/web/partials/soccer_table_fragment.templ` for fragment patterns.
+- `internal/app/*_test.go` for handler tests using `httptest` and stub upstream servers.
 
 ## Soccer Auth Flow
 
@@ -63,11 +64,11 @@ The current soccer flow is JWT import with server-side player discovery, not man
 
 Relevant handlers and components:
 
-- `soccerSessionHandler`, `soccerImportHandler`, `soccerLogoutHandler`, `fetchSchedulesHandler`, and `downloadICSHandler` in `main.go`.
-- `components/pages/soccer.templ`.
-- `components/partials/soccer_login_modal.templ`.
-- `components/partials/soccer_login_state.templ`.
-- `components/partials/soccer_player_select.templ`.
+- `soccerSessionHandler`, `soccerImportHandler`, `soccerLogoutHandler`, `fetchSchedulesHandler`, and `downloadICSHandler` in `internal/app/handlers_soccer.go`.
+- `cmd/web/pages/soccer.templ`.
+- `cmd/web/partials/soccer_login_modal.templ`.
+- `cmd/web/partials/soccer_login_state.templ`.
+- `cmd/web/partials/soccer_player_select.templ`.
 
 ## Environment And Deployment Notes
 

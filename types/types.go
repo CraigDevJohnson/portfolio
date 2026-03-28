@@ -2,7 +2,7 @@ package types
 
 import "time"
 
-// Experience represents a work experience entry
+// Experience is a work history entry displayed on the experience page.
 type Experience struct {
 	ID               int
 	Position         string
@@ -14,7 +14,7 @@ type Experience struct {
 	Side             string
 }
 
-// Skill represents a technical skill
+// Skill is a technical skill displayed on the skills page.
 type Skill struct {
 	ID          int
 	Name        string
@@ -27,13 +27,13 @@ type Skill struct {
 	Description string // Short description for skill detail view
 }
 
-// SkillCategory represents a category of skills
+// SkillCategory groups related skills under a named heading.
 type SkillCategory struct {
 	Name   string
 	Skills []Skill
 }
 
-// Project represents a project
+// Project is a portfolio project displayed on the projects page.
 type Project struct {
 	ID           int
 	Name         string
@@ -46,7 +46,7 @@ type Project struct {
 	Category     string
 }
 
-// Game represents a soccer game
+// Game is a soccer schedule entry from the LPS API.
 type Game struct {
 	ID               string `json:"id"`
 	DateTime         string `json:"datetime"`
@@ -69,11 +69,12 @@ type Game struct {
 	Result           string `json:"result,omitempty"`
 }
 
-// LambdaGamesResponse represents the response from the games API
+// LambdaGamesResponse is the envelope for the LPS games API response.
 type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
 }
 
+// LPSPlayer is a player linked to a Let's Play Soccer user account.
 type LPSPlayer struct {
 	UPlayerID    int    `json:"UPlayerID"`
 	FirstName    string `json:"FirstName"`
@@ -81,6 +82,7 @@ type LPSPlayer struct {
 	IsMainPlayer bool   `json:"is_main_player"`
 }
 
+// SessionData holds the encrypted cookie state for a soccer JWT import session.
 type SessionData struct {
 	JWT       string      `json:"jwt"`
 	UserID    int         `json:"user_id"`
@@ -89,13 +91,14 @@ type SessionData struct {
 	ExpiresAt time.Time   `json:"expires_at"`
 }
 
+// GoogleCalendarOption is a writable calendar returned by the Google Calendar API.
 type GoogleCalendarOption struct {
 	ID      string
 	Summary string
 	Primary bool
 }
 
-// Education represents an education entry
+// Education is an education entry displayed on the education page.
 type Education struct {
 	ID           int
 	School       string
@@ -107,7 +110,7 @@ type Education struct {
 	Credentials  []Credential
 }
 
-// Credential represents a certification or credential
+// Credential is a certification or professional credential.
 type Credential struct {
 	Name       string
 	Issuer     string
