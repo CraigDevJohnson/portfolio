@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/schedule"
 	"portfolio/internal/session"
 )
 
@@ -32,7 +33,7 @@ func New(cfg config.Config) *App {
 		Config:                   cfg,
 		LPSClient:                &http.Client{Timeout: 15 * time.Second},
 		LoginLimiter:             newLoginRateLimiter(5, time.Minute),
-		MountainTZ:               loadMountainTimeLocation(),
+		MountainTZ:               schedule.MountainTimeLocation,
 		googleStore:              noopGoogleConnectionStore{},
 		GoogleOAuthAuthURL:       googleOAuthAuthURL,
 		GoogleOAuthTokenURL:      googleOAuthTokenURL,

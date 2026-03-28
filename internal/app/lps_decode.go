@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
@@ -109,15 +110,15 @@ func extractGameMaps(raw any) []map[string]any {
 }
 
 func mapLPSGame(raw map[string]any) Game {
-	startAt := normalizeLPSScheduleTime(firstString(raw,
+	startAt := schedule.NormalizeLPSScheduleTime(firstString(raw,
 		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
 	))
-	endAt := normalizeLPSScheduleTime(firstString(raw,
+	endAt := schedule.NormalizeLPSScheduleTime(firstString(raw,
 		"end_at", "ends_at", "end_datetime", "EndDateTime", "schedGameEndTime", "SchedGameEndTime", "game_end_datetime", "end_time",
 	))
-	dateTime := normalizeLPSScheduleTime(firstString(raw, "display_datetime", "DisplayDateTime", "DateTime", "datetime", "date_time"))
+	dateTime := schedule.NormalizeLPSScheduleTime(firstString(raw, "display_datetime", "DisplayDateTime", "DateTime", "datetime", "date_time"))
 	if dateTime == "" {
-		dateTime = formatGameDateTime(startAt)
+		dateTime = schedule.FormatGameDateTime(startAt)
 	}
 
 	homeTeam := firstString(raw, "home", "Home", "home_team", "HomeTeam", "home_team_name", "TeamName")

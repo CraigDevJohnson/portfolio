@@ -3,12 +3,14 @@ package app
 import (
 	"testing"
 	"time"
+
+	"portfolio/internal/schedule"
 )
 
 func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) {
-	got, ok := parseFlexibleTime("2026-01-11T14:55:00")
+	got, ok := schedule.ParseFlexibleTime("2026-01-11T14:55:00")
 	if !ok {
-		t.Fatal("parseFlexibleTime returned false")
+		t.Fatal("schedule.ParseFlexibleTime returned false")
 	}
 
 	want := time.Date(2026, time.January, 11, 14, 55, 0, 0, time.Local)
@@ -21,9 +23,9 @@ func TestParseFlexibleTimeUsesLocalTimezoneForTimezoneLessLayouts(t *testing.T) 
 }
 
 func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
-	got, ok := parseFlexibleTime("2026-01-11T14:55:00-07:00")
+	got, ok := schedule.ParseFlexibleTime("2026-01-11T14:55:00-07:00")
 	if !ok {
-		t.Fatal("parseFlexibleTime returned false")
+		t.Fatal("schedule.ParseFlexibleTime returned false")
 	}
 
 	if got.Format(time.RFC3339) != "2026-01-11T14:55:00-07:00" {
@@ -45,9 +47,9 @@ func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	got, ok := parseFlexibleTime("2026-01-12T01:00:00.000Z")
+	got, ok := schedule.ParseFlexibleTime("2026-01-12T01:00:00.000Z")
 	if !ok {
-		t.Fatal("parseFlexibleTime returned false")
+		t.Fatal("schedule.ParseFlexibleTime returned false")
 	}
 
 	want := time.Date(2026, time.January, 12, 1, 0, 0, 0, time.UTC)
@@ -60,23 +62,23 @@ func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
 }
 
 func TestParseScheduleTimeTreatsMislabelledZuluTimestampsAsMountainWallTime(t *testing.T) {
-	got, ok := parseScheduleTime("2026-03-29T17:20:00.000Z")
+	got, ok := schedule.ParseScheduleTime("2026-03-29T17:20:00.000Z")
 	if !ok {
-		t.Fatal("parseScheduleTime returned false")
+		t.Fatal("schedule.ParseScheduleTime returned false")
 	}
 
 	if got.Format(time.RFC3339) != "2026-03-29T17:20:00-06:00" {
 		t.Fatalf("unexpected schedule parse result: %s", got.Format(time.RFC3339))
 	}
-	mtz := loadMountainTimeLocation()
+	mtz := schedule.MountainTimeLocation
 	if got.In(mtz).Format("MST") != "MDT" {
 		t.Fatalf("unexpected mountain timezone label: %s", got.In(mtz).Format("MST"))
 	}
 }
 
 func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
-	_, _, ok := scheduleTimes(&Game{ID: "no-time"})
+	_, _, ok := schedule.ScheduleTimes(&Game{ID: "no-time"})
 	if ok {
-		t.Fatal("expected scheduleTimes to return false for game with no start time")
+		t.Fatal("expected schedule.ScheduleTimes to return false for game with no start time")
 	}
 }

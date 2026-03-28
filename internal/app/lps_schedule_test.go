@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"portfolio/internal/schedule"
 )
 
 func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
@@ -129,9 +131,9 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	requestCounts := map[string]int{}
 	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	expectedStart, ok := parseScheduleTime(future)
+	expectedStart, ok := schedule.ParseScheduleTime(future)
 	if !ok {
-		t.Fatalf("parseScheduleTime returned false for %q", future)
+		t.Fatalf("schedule.ParseScheduleTime returned false for %q", future)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCounts[r.URL.Path]++

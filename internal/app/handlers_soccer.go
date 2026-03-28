@@ -14,6 +14,7 @@ import (
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
+	"portfolio/internal/schedule"
 )
 
 func (app *App) soccerHandler(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +235,7 @@ func (app *App) downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	icsContent := buildICS(filteredGames)
+	icsContent := schedule.BuildICS(filteredGames)
 
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")

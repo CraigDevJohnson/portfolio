@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"portfolio/internal/schedule"
 )
 
 func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
-	formatted, ok := canonicalGameEvent(&Game{
+	formatted, ok := schedule.CanonicalGameEvent(&Game{
 		ID:               "3037322",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "FC CHAIN MAIL",
@@ -23,7 +25,7 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 		StartAt:          "2026-03-08T12:30:00-06:00",
 	})
 	if !ok {
-		t.Fatal("canonicalGameEvent returned false")
+		t.Fatal("schedule.CanonicalGameEvent returned false")
 	}
 
 	if formatted.ID != "3037322" {
@@ -50,7 +52,7 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 }
 
 func TestBuildICSFoldsLongLines(t *testing.T) {
-	ics := buildICS([]Game{
+	ics := schedule.BuildICS([]Game{
 		{
 			ID:       strings.Repeat("abc123", 8),
 			Home:     strings.Repeat("Home Team ", 6),
@@ -77,7 +79,7 @@ func TestBuildICSFoldsLongLines(t *testing.T) {
 }
 
 func TestBuildICSFoldsUTF8Lines(t *testing.T) {
-	ics := buildICS([]Game{
+	ics := schedule.BuildICS([]Game{
 		{
 			ID:       "utf8-game",
 			Home:     strings.Repeat("⚽", 20),
@@ -103,7 +105,7 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 }
 
 func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) {
-	ics := buildICS([]Game{{
+	ics := schedule.BuildICS([]Game{{
 		ID:      "mountain-game",
 		Home:    "Team A",
 		Away:    "Team B",
@@ -123,7 +125,7 @@ func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) 
 }
 
 func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
-	ics := unfoldICS(buildICS([]Game{{
+	ics := unfoldICS(schedule.BuildICS([]Game{{
 		ID:               "3042954",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "MANEFESTO",
@@ -156,7 +158,7 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 }
 
 func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
-	ics := buildICS([]Game{
+	ics := schedule.BuildICS([]Game{
 		{
 			ID:      "good-game",
 			Home:    "Team A",

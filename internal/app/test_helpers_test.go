@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/schedule"
 )
 
 func unfoldICS(ics string) string {
@@ -30,7 +31,7 @@ func testJWT(t *testing.T, expiresAt time.Time) string {
 }
 
 func testMislabelledLPSZuluTime(at time.Time) string {
-	return at.In(loadMountainTimeLocation()).Format("2006-01-02T15:04:05.000") + "Z"
+	return at.In(schedule.MountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
 }
 
 func newTestApp(t *testing.T) *App {
@@ -42,7 +43,7 @@ func newTestApp(t *testing.T) *App {
 		},
 		LPSClient:               &http.Client{Timeout: 5 * time.Second},
 		LoginLimiter:             newLoginRateLimiter(5, time.Minute),
-		MountainTZ:               loadMountainTimeLocation(),
+		MountainTZ:               schedule.MountainTimeLocation,
 		googleStore:              noopGoogleConnectionStore{},
 		GoogleOAuthAuthURL:       googleOAuthAuthURL,
 		GoogleOAuthTokenURL:      googleOAuthTokenURL,

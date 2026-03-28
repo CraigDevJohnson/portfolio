@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/schedule"
 )
 
 type lpsUserPlayerDiscovery struct {
@@ -222,9 +223,9 @@ func (app *App) lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerI
 		if err != nil {
 			return nil, err
 		}
-		games = mergeScheduleGames(games, teamGames, indexByKey)
+		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
 	}
-	sortScheduleGames(games)
+	schedule.SortScheduleGames(games)
 	return games, nil
 }
 
@@ -237,9 +238,9 @@ func (app *App) lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Gam
 		if err != nil {
 			return nil, err
 		}
-		games = mergeScheduleGames(games, teamGames, indexByKey)
+		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
 	}
-	sortScheduleGames(games)
+	schedule.SortScheduleGames(games)
 	return games, nil
 }
 
@@ -288,7 +289,7 @@ func (app *App) lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string,
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "%v", err)
 	}
-	normalizeScheduleGames(games)
+	schedule.NormalizeScheduleGames(games)
 	return games, nil
 }
 
@@ -358,8 +359,8 @@ func (resolver *lpsScheduleResolver) fetchTeamGames(ctx context.Context, teamID 
 		games = append(games, game)
 	}
 
-	normalizeScheduleGames(games)
-	return upcomingScheduleGames(games), nil
+	schedule.NormalizeScheduleGames(games)
+	return schedule.UpcomingScheduleGames(games), nil
 }
 
 func (resolver *lpsScheduleResolver) fetchTeamSchedule(ctx context.Context, teamID int) (lpsTeamScheduleResponse, error) {
@@ -436,9 +437,9 @@ func (resolver *lpsScheduleResolver) mapTeamScheduleGame(ctx context.Context, ra
 
 	game := Game{
 		ID:               intString(rawGame.UGameID),
-		DateTime:         formatGameDateTime(normalizeLPSScheduleTime(rawGame.SchedGameDateTime)),
-		StartAt:          normalizeLPSScheduleTime(rawGame.SchedGameDateTime),
-		EndAt:            normalizeLPSScheduleTime(stringPointerValue(rawGame.SchedGameEndTime)),
+		DateTime:         schedule.FormatGameDateTime(schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime)),
+		StartAt:          schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime),
+		EndAt:            schedule.NormalizeLPSScheduleTime(stringPointerValue(rawGame.SchedGameEndTime)),
 		Field:            fieldName,
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,

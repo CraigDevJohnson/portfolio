@@ -18,6 +18,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/internal/config"
+	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
@@ -530,7 +531,7 @@ func googleCalendarSummary(calendars []types.GoogleCalendarOption, calendarID st
 }
 
 func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
-	formatted, ok := canonicalGameEvent(game)
+	formatted, ok := schedule.CanonicalGameEvent(game)
 	if !ok {
 		return googleEvent{}, false
 	}
