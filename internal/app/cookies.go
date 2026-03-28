@@ -35,8 +35,8 @@ func clearGoogleConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, cookie)
 }
 
-func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state googleOAuthState) error {
-	encrypted, err := encryptJSONValue(state)
+func (app *App) setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state googleOAuthState) error {
+	encrypted, err := app.encryptJSONValue(state)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state goo
 	return nil
 }
 
-func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
+func (app *App) getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
 	cookie, err := r.Cookie(config.GoogleOAuthStateCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
@@ -55,7 +55,7 @@ func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
 		return nil, err
 	}
 	var state googleOAuthState
-	if err := decryptJSONValue(cookie.Value, &state); err != nil {
+	if err := app.decryptJSONValue(cookie.Value, &state); err != nil {
 		return nil, err
 	}
 	if time.Now().After(state.ExpiresAt) {

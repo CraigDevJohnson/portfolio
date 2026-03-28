@@ -68,8 +68,9 @@ func TestParseScheduleTimeTreatsMislabelledZuluTimestampsAsMountainWallTime(t *t
 	if got.Format(time.RFC3339) != "2026-03-29T17:20:00-06:00" {
 		t.Fatalf("unexpected schedule parse result: %s", got.Format(time.RFC3339))
 	}
-	if got.In(mountainTimeLocation).Format("MST") != "MDT" {
-		t.Fatalf("unexpected mountain timezone label: %s", got.In(mountainTimeLocation).Format("MST"))
+	mtz := loadMountainTimeLocation()
+	if got.In(mtz).Format("MST") != "MDT" {
+		t.Fatalf("unexpected mountain timezone label: %s", got.In(mtz).Format("MST"))
 	}
 }
 

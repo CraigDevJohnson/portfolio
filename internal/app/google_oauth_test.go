@@ -15,13 +15,13 @@ import (
 
 func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "https://accounts.example.com/o/oauth2/auth", "", "")
+	app := newTestAppWithGoogle(t, store, "https://accounts.example.com/o/oauth2/auth", "", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
 	req.Host = "example.com"
 	resp := httptest.NewRecorder()
 
-	soccerGoogleConnectHandler(resp, req)
+	app.soccerGoogleConnectHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusSeeOther {
@@ -85,12 +85,12 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configureGoogleTestRuntime(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
+	app := newTestAppWithGoogle(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
 
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
 	connectReq.Host = "example.com"
 	connectResp := httptest.NewRecorder()
-	soccerGoogleConnectHandler(connectResp, connectReq)
+	app.soccerGoogleConnectHandler(connectResp, connectReq)
 
 	connectResult := connectResp.Result()
 	location, err := connectResult.Location()
@@ -118,7 +118,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	callbackReq.AddCookie(stateCookie)
 	callbackResp := httptest.NewRecorder()
 
-	soccerHandler(callbackResp, callbackReq)
+	app.soccerHandler(callbackResp, callbackReq)
 
 	callbackResult := callbackResp.Result()
 	if callbackResult.StatusCode != http.StatusSeeOther {
@@ -134,7 +134,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 
 	cookieReq := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	cookieReq.AddCookie(stateCookie)
-	storedState, err := getGoogleOAuthStateCookie(cookieReq)
+	storedState, err := app.getGoogleOAuthStateCookie(cookieReq)
 	if err != nil || storedState == nil {
 		t.Fatalf("getGoogleOAuthStateCookie returned %v, %v", storedState, err)
 	}
@@ -145,7 +145,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	if record.CalendarID != "primary" || record.CalendarSummary != "Primary Calendar" {
 		t.Fatalf("unexpected stored calendar selection: %#v", record)
 	}
-	token, err := decryptGoogleToken(record.TokenCiphertext)
+	token, err := app.decryptGoogleToken(record.TokenCiphertext)
 	if err != nil {
 		t.Fatalf("decryptGoogleToken returned error: %v", err)
 	}
@@ -167,8 +167,8 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 
 func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "", "", "")
-	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
+	app := newTestAppWithGoogle(t, store, "", "", "")
+	tokenCiphertext, err := app.encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
 		t.Fatalf("encryptGoogleToken returned error: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	googleCalendarAPIBaseURL = server.URL + "/calendar/v3"
+	app.GoogleCalendarAPIBaseURL = server.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/calendar", strings.NewReader(url.Values{
 		"calendar_id": {"team"},
@@ -200,7 +200,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()
 
-	soccerGoogleCalendarHandler(resp, req)
+	app.soccerGoogleCalendarHandler(resp, req)
 
 	record := store.records["connection-1"]
 	if record.CalendarID != "team" || record.CalendarSummary != "Team Calendar" {

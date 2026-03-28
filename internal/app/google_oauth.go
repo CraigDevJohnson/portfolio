@@ -51,8 +51,8 @@ type googleOAuthState struct {
 	State        string    `json:"state"`
 }
 
-func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (googleConnectionStore, error) {
-	if strings.TrimSpace(config.GoogleConnectionTableName) == "" {
+func newGoogleConnectionStore(ctx context.Context, cfg *config.Config) (googleConnectionStore, error) {
+	if strings.TrimSpace(cfg.GoogleConnectionTableName) == "" {
 		return noopGoogleConnectionStore{}, nil
 	}
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -61,20 +61,8 @@ func newGoogleConnectionStore(ctx context.Context, config *serverConfig) (google
 	}
 	return &dynamoGoogleConnectionStore{
 		client:    dynamodb.NewFromConfig(awsCfg),
-		tableName: config.GoogleConnectionTableName,
+		tableName: cfg.GoogleConnectionTableName,
 	}, nil
-}
-
-func currentGoogleConnectionStore() googleConnectionStore {
-	googleConnectionsMu.RLock()
-	defer googleConnectionsMu.RUnlock()
-	return googleConnections
-}
-
-func setGoogleConnectionStore(store googleConnectionStore) {
-	googleConnectionsMu.Lock()
-	googleConnections = store
-	googleConnectionsMu.Unlock()
 }
 
 func (noopGoogleConnectionStore) Delete(_ context.Context, _ string) error {
@@ -142,12 +130,12 @@ func redirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, stat
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-func soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !googleEnabled() {
+	if !app.Config.GoogleEnabled() {
 		redirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
@@ -167,12 +155,12 @@ func soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
 		redirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	if err := setGoogleOAuthStateCookie(w, r, state); err != nil {
+	if err := app.setGoogleOAuthStateCookie(w, r, state); err != nil {
 		log.Printf("google oauth state cookie write failed: %v", err)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	authURL := googleOAuthConfigForRequest(r).AuthCodeURL(
+	authURL := app.googleOAuthConfigForRequest(r).AuthCodeURL(
 		state.State,
 		oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
@@ -181,8 +169,8 @@ func soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, authURL, http.StatusSeeOther)
 }
 
-func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	if !googleEnabled() {
+func (app *App) soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	if !app.Config.GoogleEnabled() {
 		redirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
@@ -191,7 +179,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		redirectSoccerWithGoogleStatus(w, r, "denied")
 		return
 	}
-	state, err := getGoogleOAuthStateCookie(r)
+	state, err := app.getGoogleOAuthStateCookie(r)
 	if errors.Is(err, errSessionExpired) {
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
@@ -202,15 +190,15 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		redirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	ctx := googleHTTPContext(r.Context())
-	token, err := googleOAuthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
+	ctx := app.googleHTTPContext(r.Context())
+	token, err := app.googleOAuthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
 	if err != nil {
 		log.Printf("google token exchange failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	calendars, err := googleListCalendarsWithToken(ctx, token)
+	calendars, err := app.googleListCalendarsWithToken(ctx, token)
 	if err != nil || len(calendars) == 0 {
 		log.Printf("google calendar list after connect failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
@@ -218,7 +206,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	selectedCalendarID, selectedCalendarSummary := preferredGoogleCalendar(calendars)
-	encryptedToken, err := encryptGoogleToken(token)
+	encryptedToken, err := app.encryptGoogleToken(token)
 	if err != nil {
 		log.Printf("google token encryption failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
@@ -226,7 +214,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, err := currentGoogleConnectionStore().Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
+	if existing, err := app.currentGoogleConnectionStore().Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
 		createdAt = existing.CreatedAt
 	}
 	record := googleConnectionRecord{
@@ -237,7 +225,7 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:       createdAt,
 		UpdatedAt:       time.Now().UTC(),
 	}
-	if err := currentGoogleConnectionStore().Put(r.Context(), &record); err != nil {
+	if err := app.currentGoogleConnectionStore().Put(r.Context(), &record); err != nil {
 		log.Printf("google connection save failed: %v", err)
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
@@ -248,20 +236,20 @@ func soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	redirectSoccerWithGoogleStatus(w, r, "connected")
 }
 
-func soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	session, _ := loadSoccerSession(w, r)
-	deleteGoogleConnection(r.Context(), w, r)
-	renderSoccerLoginState(w, r, session)
+	session, _ := app.loadSoccerSession(w, r)
+	app.deleteGoogleConnection(r.Context(), w, r)
+	app.renderSoccerLoginState(w, r, session)
 }
 
-func renderGoogleDisconnectFeedback(w http.ResponseWriter, r *http.Request, session *SessionData, message string) {
-	deleteGoogleConnection(r.Context(), w, r)
+func (app *App) renderGoogleDisconnectFeedback(w http.ResponseWriter, r *http.Request, session *SessionData, message string) {
+	app.deleteGoogleConnection(r.Context(), w, r)
 	if session != nil {
-		if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
+		if err := partials.SoccerLoginState(app.soccerLoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -269,14 +257,14 @@ func renderGoogleDisconnectFeedback(w http.ResponseWriter, r *http.Request, sess
 	renderSoccerLoginFeedback(w, "error", message)
 }
 
-func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
+func (app *App) syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
 	calendarID = strings.TrimSpace(record.CalendarID)
 	if calendarID == "" {
 		calendarID, summary = preferredGoogleCalendar(calendars)
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
-		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
+		if err := app.currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			log.Printf("google connection default calendar save failed: %v", err)
 		}
 		return calendarID, summary
@@ -289,7 +277,7 @@ func syncGoogleCalendarSelection(ctx context.Context, record *googleConnectionRe
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
-		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
+		if err := app.currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			log.Printf("google connection calendar sync failed: %v", err)
 		}
 	}
@@ -316,62 +304,62 @@ func newGoogleOAuthState(connectionID string) (googleOAuthState, error) {
 	}, nil
 }
 
-func googleOAuthConfigForRequest(r *http.Request) *oauth2.Config {
+func (app *App) googleOAuthConfigForRequest(r *http.Request) *oauth2.Config {
 	return &oauth2.Config{
-		ClientID:     configData.GoogleClientID,
-		ClientSecret: configData.GoogleClientSecret,
+		ClientID:     app.Config.GoogleClientID,
+		ClientSecret: app.Config.GoogleClientSecret,
 		RedirectURL:  requestBaseURL(r) + "/soccer",
 		Scopes: []string{
 			"https://www.googleapis.com/auth/calendar.events",
 			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 		},
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  googleOAuthAuthURL,
-			TokenURL: googleOAuthTokenURL,
+			AuthURL:  app.GoogleOAuthAuthURL,
+			TokenURL: app.GoogleOAuthTokenURL,
 		},
 	}
 }
 
-func googleHTTPContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, lpsHTTPClient)
+func (app *App) googleHTTPContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, app.LPSClient)
 }
 
-func encryptGoogleToken(token *oauth2.Token) (string, error) {
-	return encryptJSONValue(token)
+func (app *App) encryptGoogleToken(token *oauth2.Token) (string, error) {
+	return app.encryptJSONValue(token)
 }
 
-func decryptGoogleToken(ciphertext string) (*oauth2.Token, error) {
+func (app *App) decryptGoogleToken(ciphertext string) (*oauth2.Token, error) {
 	var token oauth2.Token
-	if err := decryptJSONValue(ciphertext, &token); err != nil {
+	if err := app.decryptJSONValue(ciphertext, &token); err != nil {
 		return nil, err
 	}
 	return &token, nil
 }
 
-func loadGoogleConnectionRecord(ctx context.Context, r *http.Request) (*googleConnectionRecord, error) {
+func (app *App) loadGoogleConnectionRecord(ctx context.Context, r *http.Request) (*googleConnectionRecord, error) {
 	connectionID := getGoogleConnectionID(r)
 	if connectionID == "" {
 		return nil, nil
 	}
-	return currentGoogleConnectionStore().Get(ctx, connectionID)
+	return app.currentGoogleConnectionStore().Get(ctx, connectionID)
 }
 
-func deleteGoogleConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (app *App) deleteGoogleConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	connectionID := getGoogleConnectionID(r)
 	if connectionID != "" {
-		if err := currentGoogleConnectionStore().Delete(ctx, connectionID); err != nil {
+		if err := app.currentGoogleConnectionStore().Delete(ctx, connectionID); err != nil {
 			log.Printf("google connection delete failed: %v", err)
 		}
 	}
 	clearGoogleConnectionCookie(w, r)
 }
 
-func currentGoogleToken(ctx context.Context, r *http.Request, record *googleConnectionRecord) (*oauth2.Token, error) {
-	storedToken, err := decryptGoogleToken(record.TokenCiphertext)
+func (app *App) currentGoogleToken(ctx context.Context, r *http.Request, record *googleConnectionRecord) (*oauth2.Token, error) {
+	storedToken, err := app.decryptGoogleToken(record.TokenCiphertext)
 	if err != nil {
 		return nil, err
 	}
-	tokenSource := googleOAuthConfigForRequest(r).TokenSource(googleHTTPContext(ctx), storedToken)
+	tokenSource := app.googleOAuthConfigForRequest(r).TokenSource(app.googleHTTPContext(ctx), storedToken)
 	token, err := tokenSource.Token()
 	if err != nil {
 		return nil, err
@@ -380,13 +368,13 @@ func currentGoogleToken(ctx context.Context, r *http.Request, record *googleConn
 		token.RefreshToken = storedToken.RefreshToken
 	}
 	if token.AccessToken != storedToken.AccessToken || token.RefreshToken != storedToken.RefreshToken || !token.Expiry.Equal(storedToken.Expiry) {
-		encryptedToken, encryptErr := encryptGoogleToken(token)
+		encryptedToken, encryptErr := app.encryptGoogleToken(token)
 		if encryptErr != nil {
 			return nil, encryptErr
 		}
 		record.TokenCiphertext = encryptedToken
 		record.UpdatedAt = time.Now().UTC()
-		if err := currentGoogleConnectionStore().Put(ctx, record); err != nil {
+		if err := app.currentGoogleConnectionStore().Put(ctx, record); err != nil {
 			return nil, err
 		}
 	}

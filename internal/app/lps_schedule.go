@@ -75,6 +75,7 @@ type lpsFacility struct {
 }
 
 type lpsScheduleResolver struct {
+	app           *App
 	jwt           string
 	facilityCache map[int]lpsFacility
 }
@@ -139,7 +140,7 @@ func importedSessionExpiry(token string) time.Time {
 	return expiresAt
 }
 
-func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscovery, error) {
+func (app *App) lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscovery, error) {
 	var discovery lpsUserPlayerDiscovery
 
 	normalizedJWT, err := normalizeImportedJWT(jwt)
@@ -147,12 +148,12 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 		return discovery, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
-	req, err := newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "users", "check")
+	req, err := app.newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "users", "check")
 	if err != nil {
 		return discovery, err
 	}
 
-	resp, err := doLPSAPIRequest(req)
+	resp, err := app.doLPSAPIRequest(req)
 	if err != nil {
 		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
 	}
@@ -184,13 +185,13 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 	return discovery, nil
 }
 
-func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) ([]Game, error) {
+func (app *App) lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) ([]Game, error) {
 	normalizedJWT, err := normalizeImportedJWT(jwt)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
-	resolver := newLPSScheduleResolver(normalizedJWT)
+	resolver := app.newLPSScheduleResolver(normalizedJWT)
 	teamByID := make(map[int]lpsTeamSummary)
 	for _, playerID := range sortedUniqueIDs(playerIDs) {
 		playerTeams, err := resolver.fetchPlayerTeams(ctx, playerID)
@@ -227,8 +228,8 @@ func lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerIDs []int) (
 	return games, nil
 }
 
-func lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Game, error) {
-	resolver := newLPSScheduleResolver("")
+func (app *App) lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Game, error) {
+	resolver := app.newLPSScheduleResolver("")
 	games := make([]Game, 0)
 	indexByKey := make(map[string]int)
 	for _, teamID := range sortedUniqueIDs(teamIDs) {
@@ -242,24 +243,25 @@ func lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Game, error) {
 	return games, nil
 }
 
-func newLPSScheduleResolver(jwt string) *lpsScheduleResolver {
+func (app *App) newLPSScheduleResolver(jwt string) *lpsScheduleResolver {
 	return &lpsScheduleResolver{
+		app:           app,
 		jwt:           jwt,
 		facilityCache: make(map[int]lpsFacility),
 	}
 }
 
-func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID int) ([]Game, error) {
+func (app *App) lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID int) ([]Game, error) {
 	if playerID <= 0 {
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	req, err := newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
+	req, err := app.newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := doLPSAPIRequest(req)
+	resp, err := app.doLPSAPIRequest(req)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading schedules: %w", err)
 	}
@@ -290,8 +292,8 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 	return games, nil
 }
 
-func lpsFetchTeamGames(ctx context.Context, teamID int) ([]Game, error) {
-	return newLPSScheduleResolver("").fetchTeamGames(ctx, teamID, nil)
+func (app *App) lpsFetchTeamGames(ctx context.Context, teamID int) ([]Game, error) {
+	return app.newLPSScheduleResolver("").fetchTeamGames(ctx, teamID, nil)
 }
 
 func (resolver *lpsScheduleResolver) fetchPlayerTeams(ctx context.Context, playerID int) ([]lpsTeamSummary, error) {
@@ -299,12 +301,12 @@ func (resolver *lpsScheduleResolver) fetchPlayerTeams(ctx context.Context, playe
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	req, err := newLPSAPIRequest(ctx, http.MethodGet, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
+	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := doLPSAPIRequest(req)
+	resp, err := resolver.app.doLPSAPIRequest(req)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading player teams: %w", err)
 	}
@@ -366,12 +368,12 @@ func (resolver *lpsScheduleResolver) fetchTeamSchedule(ctx context.Context, team
 		return schedule, newLPSFetchError(lpsErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
 	}
 
-	req, err := newLPSAPIRequest(ctx, http.MethodGet, "", "teams", strconv.Itoa(teamID))
+	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, "", "teams", strconv.Itoa(teamID))
 	if err != nil {
 		return schedule, err
 	}
 
-	resp, err := doLPSAPIRequest(req)
+	resp, err := resolver.app.doLPSAPIRequest(req)
 	if err != nil {
 		return schedule, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading team schedules: %w", err)
 	}
@@ -465,12 +467,12 @@ func (resolver *lpsScheduleResolver) fetchFacility(ctx context.Context, facility
 		return facility, nil
 	}
 
-	req, err := newLPSAPIRequest(ctx, http.MethodGet, "", "facilities", strconv.Itoa(facilityID))
+	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, "", "facilities", strconv.Itoa(facilityID))
 	if err != nil {
 		return lpsFacility{}, err
 	}
 
-	resp, err := doLPSAPIRequest(req)
+	resp, err := resolver.app.doLPSAPIRequest(req)
 	if err != nil {
 		return lpsFacility{}, newLPSFetchError(lpsErrorUpstream, facilityID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading facility %d: %w", facilityID, err)
 	}

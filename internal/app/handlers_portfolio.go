@@ -9,19 +9,19 @@ import (
 	"portfolio/types"
 )
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) homeHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.HomeHandler(w, r, config.CareerStartYear)
 }
 
-func aboutHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) aboutHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.AboutHandler(w, config.CareerStartYear)
 }
 
-func experienceHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) experienceHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.ExperienceHandler(w)
 }
 
-func experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) experienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.ExperienceTimelineHandler(w)
 }
 
@@ -29,34 +29,34 @@ func getFeaturedSkills(categories []types.SkillCategory) []types.Skill {
 	return internalportfolio.GetFeaturedSkills(categories)
 }
 
-func skillsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) skillsHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.SkillsHandler(w)
 }
 
-func skillsGridHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) skillsGridHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.SkillsGridHandler(w)
 }
 
-func skillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) skillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.SkillsFilteredHandler(w, r)
 }
 
-func skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) skillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.SkillsDetailHandler(w, r)
 }
 
-func projectsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) projectsHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.ProjectsHandler(w)
 }
 
-func projectsGridHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) projectsGridHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.ProjectsGridHandler(w)
 }
 
-func educationHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) educationHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.EducationHandler(w)
 }
 
-func contactHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) contactHandler(w http.ResponseWriter, r *http.Request) {
 	internalportfolio.ContactHandler(w)
 }

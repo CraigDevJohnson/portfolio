@@ -10,14 +10,7 @@ import (
 )
 
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
-	previousConfig := configData
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app := newTestApp(t)
 
 	expected := SessionData{
 		JWT:      "token-value",
@@ -29,12 +22,12 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 		ExpiresAt: time.Unix(1_773_634_161, 0).UTC(),
 	}
 
-	encrypted, err := encryptSession(&expected)
+	encrypted, err := app.encryptSession(&expected)
 	if err != nil {
 		t.Fatalf("encryptSession returned error: %v", err)
 	}
 
-	actual, err := decryptSession(encrypted)
+	actual, err := app.decryptSession(encrypted)
 	if err != nil {
 		t.Fatalf("decryptSession returned error: %v", err)
 	}

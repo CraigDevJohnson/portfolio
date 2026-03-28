@@ -14,6 +14,7 @@ import (
 	"portfolio/internal/config"
 )
 
+// Run loads configuration, constructs the App, registers routes, and starts the server.
 func Run() {
 	mimeTypes := map[string]string{
 		".css":  "text/css",
@@ -30,42 +31,47 @@ func Run() {
 		}
 	}
 
+	cfg := config.Load()
+	app := New(cfg)
+
+	mux := http.NewServeMux()
+
 	// routes - pages
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/about", aboutHandler)
-	http.HandleFunc("/experience", experienceHandler)
-	http.HandleFunc("/experience/timeline", experienceTimelineHandler)
-	http.HandleFunc("/skills", skillsHandler)
-	http.HandleFunc("/skills/grid", skillsGridHandler)
-	http.HandleFunc("/skills/filtered", skillsFilteredHandler)
-	http.HandleFunc("/skills/detail", skillsDetailHandler)
-	http.HandleFunc("/projects", projectsHandler)
-	http.HandleFunc("/projects/grid", projectsGridHandler)
-	http.HandleFunc("/education", educationHandler)
-	http.HandleFunc("/contact", contactHandler)
+	mux.HandleFunc("/", app.homeHandler)
+	mux.HandleFunc("/about", app.aboutHandler)
+	mux.HandleFunc("/experience", app.experienceHandler)
+	mux.HandleFunc("/experience/timeline", app.experienceTimelineHandler)
+	mux.HandleFunc("/skills", app.skillsHandler)
+	mux.HandleFunc("/skills/grid", app.skillsGridHandler)
+	mux.HandleFunc("/skills/filtered", app.skillsFilteredHandler)
+	mux.HandleFunc("/skills/detail", app.skillsDetailHandler)
+	mux.HandleFunc("/projects", app.projectsHandler)
+	mux.HandleFunc("/projects/grid", app.projectsGridHandler)
+	mux.HandleFunc("/education", app.educationHandler)
+	mux.HandleFunc("/contact", app.contactHandler)
 
 	// soccer routes
-	http.HandleFunc("/soccer", soccerHandler)
-	http.HandleFunc("/soccer/session", soccerSessionHandler)
-	http.HandleFunc("/soccer/import", soccerImportHandler)
-	http.HandleFunc("/soccer/logout", soccerLogoutHandler)
-	http.HandleFunc("/soccer/google/add", soccerGoogleAddHandler)
-	http.HandleFunc("/soccer/google/calendar", soccerGoogleCalendarHandler)
-	http.HandleFunc("/soccer/google/connect", soccerGoogleConnectHandler)
-	http.HandleFunc("/soccer/google/disconnect", soccerGoogleDisconnectHandler)
-	http.HandleFunc("/soccer/fetch", fetchSchedulesHandler)
-	http.HandleFunc("/soccer/download", downloadICSHandler)
-	http.HandleFunc("/soccer/subscribe", subscribeHandler)
+	mux.HandleFunc("/soccer", app.soccerHandler)
+	mux.HandleFunc("/soccer/session", app.soccerSessionHandler)
+	mux.HandleFunc("/soccer/import", app.soccerImportHandler)
+	mux.HandleFunc("/soccer/logout", app.soccerLogoutHandler)
+	mux.HandleFunc("/soccer/google/add", app.soccerGoogleAddHandler)
+	mux.HandleFunc("/soccer/google/calendar", app.soccerGoogleCalendarHandler)
+	mux.HandleFunc("/soccer/google/connect", app.soccerGoogleConnectHandler)
+	mux.HandleFunc("/soccer/google/disconnect", app.soccerGoogleDisconnectHandler)
+	mux.HandleFunc("/soccer/fetch", app.fetchSchedulesHandler)
+	mux.HandleFunc("/soccer/download", app.downloadICSHandler)
+	mux.HandleFunc("/soccer/subscribe", app.subscribeHandler)
 
 	// static files
-	http.Handle(
+	mux.Handle(
 		"/static/",
 		http.StripPrefix("/static/",
 			http.FileServer(http.Dir("cmd/web/static")),
 		),
 	)
 
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "cmd/web/static/images/favicon.ico")
 	})
 
@@ -77,6 +83,7 @@ func Run() {
 	}
 
 	server := &http.Server{
+		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -89,16 +96,16 @@ func Run() {
 
 	// Initialize the Google connection store in the background so App Runner
 	// health checks never wait on AWS SDK startup or credential resolution.
-	if googleEnabled() {
+	if app.Config.GoogleEnabled() {
 		go func() {
 			initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer initCancel()
-			store, initErr := newGoogleConnectionStore(initCtx, &configData)
+			store, initErr := newGoogleConnectionStore(initCtx, &app.Config)
 			if initErr != nil {
 				log.Printf("google calendar add disabled: could not initialize connection store: %v", initErr)
 				return
 			}
-			setGoogleConnectionStore(store)
+			app.setGoogleConnectionStore(store)
 		}()
 	}
 

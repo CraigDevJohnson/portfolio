@@ -12,7 +12,7 @@ import (
 )
 
 func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
@@ -37,15 +37,9 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	games, err := lpsFetchUpcomingGames(t.Context(), token, 1001)
+	games, err := app.lpsFetchUpcomingGames(t.Context(), token, 1001)
 	if err != nil {
 		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
 	}
@@ -64,7 +58,7 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 }
 
 func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
@@ -95,15 +89,9 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	games, err := lpsFetchUpcomingGames(t.Context(), token, 1001)
+	games, err := app.lpsFetchUpcomingGames(t.Context(), token, 1001)
 	if err != nil {
 		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
 	}
@@ -137,7 +125,7 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 }
 
 func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	requestCounts := map[string]int{}
 	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
@@ -219,15 +207,9 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	games, err := lpsFetchGamesForPlayers(t.Context(), token, []int{1001})
+	games, err := app.lpsFetchGamesForPlayers(t.Context(), token, []int{1001})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
 	}
@@ -272,7 +254,7 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 }
 
 func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	lookupCounts := map[string]int{}
 	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
@@ -358,15 +340,9 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	games, err := lpsFetchGamesForTeams(t.Context(), []int{479691})
+	games, err := app.lpsFetchGamesForTeams(t.Context(), []int{479691})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
 	}
@@ -385,7 +361,8 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 }
 
 func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T) {
-	_, err := lpsFetchGamesForPlayers(t.Context(), "not-a-jwt", []int{1001})
+	app := newTestApp(t)
+	_, err := app.lpsFetchGamesForPlayers(t.Context(), "not-a-jwt", []int{1001})
 	if err == nil {
 		t.Fatal("expected malformed token error")
 	}
@@ -399,11 +376,10 @@ func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T)
 }
 
 func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	previousLocal := time.Local
 	time.Local = time.UTC
 	defer func() {
-		configData = previousConfig
 		time.Local = previousLocal
 	}()
 
@@ -473,12 +449,9 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
+	app.Config.LPSAPIBaseURL = server.URL
 
-	games, err := lpsFetchGamesForTeams(t.Context(), []int{479691, 479147})
+	games, err := app.lpsFetchGamesForTeams(t.Context(), []int{479691, 479147})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
 	}
@@ -494,9 +467,7 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 		t.Fatalf("expected shared game to merge richer data, got %#v", games[0])
 	}
 
-	// Verify that merge behavior is deterministic with respect to team order.
-	// Reversing the team IDs should yield the same merged, deduplicated schedule.
-	gamesReversed, err := lpsFetchGamesForTeams(t.Context(), []int{479147, 479691})
+	gamesReversed, err := app.lpsFetchGamesForTeams(t.Context(), []int{479147, 479691})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams (reversed teams) returned error: %v", err)
 	}
@@ -521,21 +492,15 @@ func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			previousConfig := configData
+			app := newTestApp(t)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
 
-			configData = serverConfig{
-				SessionKey:    previousConfig.SessionKey,
-				LPSAPIBaseURL: server.URL,
-			}
-			defer func() {
-				configData = previousConfig
-			}()
+			app.Config.LPSAPIBaseURL = server.URL
 
-			_, err := lpsFetchUpcomingGames(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
+			_, err := app.lpsFetchUpcomingGames(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
 			if err == nil {
 				t.Fatal("expected fetch error")
 			}

@@ -14,9 +14,7 @@ import (
 )
 
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
-	resetSoccerLoginAttempts(t)
-
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/users/check" {
@@ -51,13 +49,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
 	form := url.Values{
 		"jwt": {"Bearer " + token},
@@ -66,7 +58,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	soccerImportHandler(resp, req)
+	app.soccerImportHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusOK {
@@ -93,7 +85,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 		t.Fatalf("unexpected same-site mode: %v", sessionCookie.SameSite)
 	}
 
-	session, err := decryptSession(sessionCookie.Value)
+	session, err := app.decryptSession(sessionCookie.Value)
 	if err != nil {
 		t.Fatalf("decryptSession returned error: %v", err)
 	}
@@ -115,9 +107,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 }
 
 func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testing.T) {
-	resetSoccerLoginAttempts(t)
-
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	requestCounts := map[string]int{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -218,13 +208,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
 	importReq := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 		"jwt": {"Bearer " + token},
@@ -232,7 +216,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	importReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	importResp := httptest.NewRecorder()
 
-	soccerImportHandler(importResp, importReq)
+	app.soccerImportHandler(importResp, importReq)
 
 	if importResp.Code != http.StatusOK {
 		t.Fatalf("unexpected import status code: got %d want %d", importResp.Code, http.StatusOK)
@@ -252,7 +236,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 		t.Fatal("expected session cookie to be set")
 	}
 
-	session, err := decryptSession(sessionCookie.Value)
+	session, err := app.decryptSession(sessionCookie.Value)
 	if err != nil {
 		t.Fatalf("decryptSession returned error: %v", err)
 	}
@@ -276,7 +260,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	fetchReq.AddCookie(sessionCookie)
 	fetchResp := httptest.NewRecorder()
 
-	fetchSchedulesHandler(fetchResp, fetchReq)
+	app.fetchSchedulesHandler(fetchResp, fetchReq)
 
 	if fetchResp.Code != http.StatusOK {
 		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
@@ -321,9 +305,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			resetSoccerLoginAttempts(t)
-
-			previousConfig := configData
+			app := newTestApp(t)
 			apiCalls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				apiCalls++
@@ -331,13 +313,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 			}))
 			defer server.Close()
 
-			configData = serverConfig{
-				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-				LPSAPIBaseURL: server.URL,
-			}
-			defer func() {
-				configData = previousConfig
-			}()
+			app.Config.LPSAPIBaseURL = server.URL
 
 			req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 				"jwt": {tc.jwt},
@@ -345,7 +321,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			resp := httptest.NewRecorder()
 
-			soccerImportHandler(resp, req)
+			app.soccerImportHandler(resp, req)
 
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -392,21 +368,13 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetSoccerLoginAttempts(t)
-
-			previousConfig := configData
+			app := newTestApp(t)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				tt.serverResponse(w)
 			}))
 			defer server.Close()
 
-			configData = serverConfig{
-				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-				LPSAPIBaseURL: server.URL,
-			}
-			defer func() {
-				configData = previousConfig
-			}()
+			app.Config.LPSAPIBaseURL = server.URL
 
 			req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 				"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
@@ -414,7 +382,7 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			resp := httptest.NewRecorder()
 
-			soccerImportHandler(resp, req)
+			app.soccerImportHandler(resp, req)
 
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -430,21 +398,13 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 }
 
 func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T) {
-	resetSoccerLoginAttempts(t)
-
-	previousConfig := configData
+	app := newTestApp(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
@@ -452,7 +412,7 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	soccerImportHandler(resp, req)
+	app.soccerImportHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -463,17 +423,9 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 }
 
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
-	previousConfig := configData
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
-
+	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
-	addSessionCookie(t, req, &SessionData{
+	addSessionCookie(t, app, req, &SessionData{
 		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Current browser session",
 		Players: []LPSPlayer{
@@ -483,7 +435,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 	})
 	resp := httptest.NewRecorder()
 
-	soccerLogoutHandler(resp, req)
+	app.soccerLogoutHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusOK {
@@ -524,14 +476,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 }
 
 func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthenticatedState(t *testing.T) {
-	previousConfig := configData
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app := newTestApp(t)
 
 	tests := []struct {
 		name      string
@@ -540,7 +485,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 		{
 			name: "expired session",
 			addCookie: func(t *testing.T, req *http.Request) {
-				addSessionCookie(t, req, &SessionData{
+				addSessionCookie(t, app, req, &SessionData{
 					JWT:      testJWT(t, time.Now().Add(-30*time.Minute)),
 					UserName: "Current browser session",
 					Players: []LPSPlayer{
@@ -564,7 +509,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 			tc.addCookie(t, req)
 			resp := httptest.NewRecorder()
 
-			soccerSessionHandler(resp, req)
+			app.soccerSessionHandler(resp, req)
 
 			result := resp.Result()
 			if result.StatusCode != http.StatusOK {
@@ -607,13 +552,14 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 }
 
 func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
+	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"abc"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	fetchSchedulesHandler(resp, req)
+	app.fetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -624,20 +570,13 @@ func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
 }
 
 func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
-	previousConfig := configData
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app := newTestApp(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, req, &SessionData{
+	addSessionCookie(t, app, req, &SessionData{
 		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Craig Johnson",
 		Players: []LPSPlayer{{
@@ -652,10 +591,10 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer server.Close()
-	configData.LPSAPIBaseURL = server.URL
+	app.Config.LPSAPIBaseURL = server.URL
 	resp := httptest.NewRecorder()
 
-	fetchSchedulesHandler(resp, req)
+	app.fetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -666,6 +605,7 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 }
 
 func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
+	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"game-1"},
 		"player_ids": {"bad-id"},
@@ -673,7 +613,7 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	downloadICSHandler(resp, req)
+	app.downloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
@@ -684,14 +624,7 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 }
 
 func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
-	previousConfig := configData
-	configData = serverConfig{
-		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app := newTestApp(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); !strings.HasPrefix(got, "Bearer ") && strings.HasPrefix(r.URL.Path, "/players/") {
@@ -735,7 +668,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	configData.LPSAPIBaseURL = server.URL
+	app.Config.LPSAPIBaseURL = server.URL
 
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
@@ -743,7 +676,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, req, &SessionData{
+	addSessionCookie(t, app, req, &SessionData{
 		JWT:      token,
 		UserName: "Craig Johnson",
 		Players: []LPSPlayer{{
@@ -755,7 +688,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	})
 	resp := httptest.NewRecorder()
 
-	downloadICSHandler(resp, req)
+	app.downloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -779,11 +712,10 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 }
 
 func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	previousLocal := time.Local
 	time.Local = time.UTC
 	defer func() {
-		configData = previousConfig
 		time.Local = previousLocal
 	}()
 
@@ -826,10 +758,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
+	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"7001"},
@@ -838,7 +767,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	downloadICSHandler(resp, req)
+	app.downloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -862,6 +791,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 }
 
 func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
+	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"7001"},
 		"team_codes": {"abc,def"},
@@ -869,7 +799,7 @@ func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	downloadICSHandler(resp, req)
+	app.downloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
@@ -892,20 +822,13 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			previousConfig := configData
-			configData = serverConfig{
-				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-				LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
-			}
-			defer func() {
-				configData = previousConfig
-			}()
+			app := newTestApp(t)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
-			configData.LPSAPIBaseURL = server.URL
+			app.Config.LPSAPIBaseURL = server.URL
 
 			token := testJWT(t, time.Now().Add(30*time.Minute))
 			req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
@@ -913,7 +836,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 				"player_ids": {"1001"},
 			}.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			addSessionCookie(t, req, &SessionData{
+			addSessionCookie(t, app, req, &SessionData{
 				JWT:      token,
 				UserName: "Craig Johnson",
 				Players: []LPSPlayer{{
@@ -925,7 +848,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 			})
 			resp := httptest.NewRecorder()
 
-			downloadICSHandler(resp, req)
+			app.downloadICSHandler(resp, req)
 
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, tt.wantStatus)
@@ -946,11 +869,10 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 }
 
 func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	previousLocal := time.Local
 	time.Local = time.UTC
 	defer func() {
-		configData = previousConfig
 		time.Local = previousLocal
 	}()
 
@@ -986,10 +908,7 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
+	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"team_codes": {"479691"},
@@ -997,7 +916,7 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	fetchSchedulesHandler(resp, req)
+	app.fetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)

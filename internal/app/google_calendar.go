@@ -82,12 +82,12 @@ const (
 	googleCalendarEventUpdated
 )
 
-func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !googleEnabled() {
+	if !app.Config.GoogleEnabled() {
 		renderSoccerLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
@@ -96,7 +96,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Could not read the selected games. Try again.")
 		return
 	}
-	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	record, err := app.loadGoogleConnectionRecord(r.Context(), r)
 	if err != nil || record == nil {
 		if err != nil {
 			log.Printf("google connection read failed: %v", err)
@@ -116,8 +116,8 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
 		return
 	}
-	session, _ := loadSoccerSession(w, r)
-	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
+	session, _ := app.loadSoccerSession(w, r)
+	games, err := app.requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
 	if err != nil {
 		renderSoccerLoginFeedback(w, "error", googleAddScheduleErrorMessage(err))
 		return
@@ -127,20 +127,20 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "No selected games were found to add.")
 		return
 	}
-	token, err := currentGoogleToken(r.Context(), r, record)
+	token, err := app.currentGoogleToken(r.Context(), r, record)
 	if err != nil {
 		log.Printf("google token refresh failed: %v", err)
-		renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
+		app.renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
 		return
 	}
-	added, updated, skipped, authRejected, err := insertGoogleCalendarEvents(r, record, token, filteredGames)
+	added, updated, skipped, authRejected, err := app.insertGoogleCalendarEvents(r, record, token, filteredGames)
 	if err != nil {
 		log.Printf("google event insert failed: %v", err)
 		renderSoccerLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
 		return
 	}
 	if authRejected {
-		renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
+		app.renderGoogleDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
 		return
 	}
 	message := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
@@ -153,33 +153,33 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	renderSoccerLoginFeedback(w, "success", message)
 }
 
-func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	session, _ := loadSoccerSession(w, r)
-	if !googleEnabled() {
-		renderSoccerLoginState(w, r, session)
+	session, _ := app.loadSoccerSession(w, r)
+	if !app.Config.GoogleEnabled() {
+		app.renderSoccerLoginState(w, r, session)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
-		renderSoccerLoginState(w, r, session)
+		app.renderSoccerLoginState(w, r, session)
 		return
 	}
-	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	record, err := app.loadGoogleConnectionRecord(r.Context(), r)
 	if err != nil || record == nil {
 		if err != nil {
 			log.Printf("google connection read failed: %v", err)
 		}
-		renderSoccerLoginState(w, r, session)
+		app.renderSoccerLoginState(w, r, session)
 		return
 	}
-	calendars, err := googleListCalendars(r.Context(), r, record)
+	calendars, err := app.googleListCalendars(r.Context(), r, record)
 	if err != nil {
 		log.Printf("google calendar list failed: %v", err)
-		renderSoccerLoginState(w, r, session)
+		app.renderSoccerLoginState(w, r, session)
 		return
 	}
 	selectedCalendarID := strings.TrimSpace(r.FormValue("calendar_id"))
@@ -190,10 +190,10 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 	record.CalendarID = selectedCalendarID
 	record.CalendarSummary = selectedCalendarSummary
 	record.UpdatedAt = time.Now().UTC()
-	if err := currentGoogleConnectionStore().Put(r.Context(), record); err != nil {
+	if err := app.currentGoogleConnectionStore().Put(r.Context(), record); err != nil {
 		log.Printf("google calendar selection save failed: %v", err)
 	}
-	renderSoccerLoginState(w, r, session)
+	app.renderSoccerLoginState(w, r, session)
 }
 
 func googleAPIResponseError(resp *http.Response) (bool, error) {
@@ -203,7 +203,7 @@ func googleAPIResponseError(resp *http.Response) (bool, error) {
 	return errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden), apiErr
 }
 
-func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord, token *oauth2.Token, games []Game) (int, int, int, bool, error) {
+func (app *App) insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord, token *oauth2.Token, games []Game) (int, int, int, bool, error) {
 	added := 0
 	updated := 0
 	skipped := 0
@@ -212,7 +212,7 @@ func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord,
 		if !ok {
 			continue
 		}
-		action, authRejected, err := syncGoogleCalendarEvent(googleHTTPContext(r.Context()), record.CalendarID, token, &event)
+		action, authRejected, err := app.syncGoogleCalendarEvent(app.googleHTTPContext(r.Context()), record.CalendarID, token, &event)
 		if err != nil {
 			return 0, 0, 0, false, err
 		}
@@ -231,8 +231,8 @@ func insertGoogleCalendarEvents(r *http.Request, record *googleConnectionRecord,
 	return added, updated, skipped, false, nil
 }
 
-func syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (googleCalendarEventAction, bool, error) {
-	existingEvent, found, authRejected, err := googleFindCalendarEventByGameID(ctx, calendarID, token, event.ID)
+func (app *App) syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (googleCalendarEventAction, bool, error) {
+	existingEvent, found, authRejected, err := app.googleFindCalendarEventByGameID(ctx, calendarID, token, event.ID)
 	if err != nil {
 		return googleCalendarEventSkipped, false, err
 	}
@@ -240,10 +240,10 @@ func syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oaut
 		return googleCalendarEventSkipped, true, nil
 	}
 	if found {
-		return refreshGoogleCalendarEvent(ctx, calendarID, token, existingEvent, event)
+		return app.refreshGoogleCalendarEvent(ctx, calendarID, token, existingEvent, event)
 	}
 
-	resp, err := googleInsertCalendarEvent(ctx, calendarID, token, event)
+	resp, err := app.googleInsertCalendarEvent(ctx, calendarID, token, event)
 	if err != nil {
 		return googleCalendarEventSkipped, false, err
 	}
@@ -253,7 +253,7 @@ func syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oaut
 		return googleCalendarEventInserted, false, nil
 	case http.StatusConflict:
 		resp.Body.Close()
-		existingEvent, found, authRejected, err = googleFindCalendarEventByGameID(ctx, calendarID, token, event.ID)
+		existingEvent, found, authRejected, err = app.googleFindCalendarEventByGameID(ctx, calendarID, token, event.ID)
 		if err != nil {
 			return googleCalendarEventSkipped, false, err
 		}
@@ -263,7 +263,7 @@ func syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oaut
 		if !found {
 			return googleCalendarEventSkipped, false, nil
 		}
-		return refreshGoogleCalendarEvent(ctx, calendarID, token, existingEvent, event)
+		return app.refreshGoogleCalendarEvent(ctx, calendarID, token, existingEvent, event)
 	default:
 		authRejected, apiErr := googleAPIResponseError(resp)
 		if authRejected {
@@ -273,7 +273,7 @@ func syncGoogleCalendarEvent(ctx context.Context, calendarID string, token *oaut
 	}
 }
 
-func refreshGoogleCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, existingEvent, event *googleEvent) (googleCalendarEventAction, bool, error) {
+func (app *App) refreshGoogleCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, existingEvent, event *googleEvent) (googleCalendarEventAction, bool, error) {
 	refreshedEvent := *event
 	if existingEvent != nil {
 		if existingID := strings.TrimSpace(existingEvent.ID); existingID != "" {
@@ -281,7 +281,7 @@ func refreshGoogleCalendarEvent(ctx context.Context, calendarID string, token *o
 		}
 	}
 
-	resp, err := googleUpdateCalendarEvent(ctx, calendarID, refreshedEvent.ID, token, &refreshedEvent)
+	resp, err := app.googleUpdateCalendarEvent(ctx, calendarID, refreshedEvent.ID, token, &refreshedEvent)
 	if err != nil {
 		return googleCalendarEventSkipped, false, err
 	}
@@ -301,13 +301,13 @@ func refreshGoogleCalendarEvent(ctx context.Context, calendarID string, token *o
 	}
 }
 
-func googleFindCalendarEventByGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*googleEvent, bool, bool, error) {
+func (app *App) googleFindCalendarEventByGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*googleEvent, bool, bool, error) {
 	gameID = strings.TrimSpace(gameID)
 	if gameID == "" {
 		return nil, false, false, nil
 	}
 
-	resp, err := googleGetCalendarEvent(ctx, calendarID, gameID, token)
+	resp, err := app.googleGetCalendarEvent(ctx, calendarID, gameID, token)
 	if err != nil {
 		return nil, false, false, err
 	}
@@ -330,7 +330,7 @@ func googleFindCalendarEventByGameID(ctx context.Context, calendarID string, tok
 		return nil, false, false, apiErr
 	}
 
-	resp, err = googleListCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
+	resp, err = app.googleListCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
 	if err != nil {
 		return nil, false, false, err
 	}
@@ -387,7 +387,7 @@ func decodeGoogleEventList(resp *http.Response) ([]googleEvent, error) {
 	return response.Items, nil
 }
 
-func newGoogleAPIRequest(ctx context.Context, method, requestPath string, query url.Values, token *oauth2.Token, body any) (*http.Request, error) {
+func (app *App) newGoogleAPIRequest(ctx context.Context, method, requestPath string, query url.Values, token *oauth2.Token, body any) (*http.Request, error) {
 	var requestBody io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -396,7 +396,7 @@ func newGoogleAPIRequest(ctx context.Context, method, requestPath string, query 
 		}
 		requestBody = bytes.NewReader(payload)
 	}
-	endpoint, err := url.JoinPath(googleCalendarAPIBaseURL, requestPath)
+	endpoint, err := url.JoinPath(app.GoogleCalendarAPIBaseURL, requestPath)
 	if err != nil {
 		return nil, err
 	}
@@ -414,32 +414,32 @@ func newGoogleAPIRequest(ctx context.Context, method, requestPath string, query 
 	return req, nil
 }
 
-func googleInsertCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
-	req, err := newGoogleAPIRequest(ctx, http.MethodPost, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
+func (app *App) googleInsertCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
+	req, err := app.newGoogleAPIRequest(ctx, http.MethodPost, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
 	if err != nil {
 		return nil, err
 	}
-	return lpsHTTPClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
+	return app.LPSClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
 }
 
-func googleGetCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token) (*http.Response, error) {
-	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), nil, token, nil)
+func (app *App) googleGetCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token) (*http.Response, error) {
+	req, err := app.newGoogleAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), nil, token, nil)
 	if err != nil {
 		return nil, err
 	}
-	return lpsHTTPClient.Do(req)
+	return app.LPSClient.Do(req)
 }
 
-func googleUpdateCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
-	req, err := newGoogleAPIRequest(ctx, http.MethodPut, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), url.Values{"sendUpdates": {"none"}}, token, event)
+func (app *App) googleUpdateCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token, event *googleEvent) (*http.Response, error) {
+	req, err := app.newGoogleAPIRequest(ctx, http.MethodPut, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), url.Values{"sendUpdates": {"none"}}, token, event)
 	if err != nil {
 		return nil, err
 	}
-	return lpsHTTPClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
+	return app.LPSClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
 }
 
-func googleListCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
-	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{
+func (app *App) googleListCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
+	req, err := app.newGoogleAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{
 		"maxResults":              {"10"},
 		"privateExtendedProperty": {"game_id=" + gameID},
 		"showDeleted":             {"true"},
@@ -447,7 +447,7 @@ func googleListCalendarEventsByPrivateGameID(ctx context.Context, calendarID str
 	if err != nil {
 		return nil, err
 	}
-	return lpsHTTPClient.Do(req)
+	return app.LPSClient.Do(req)
 }
 
 func readGoogleAPIError(resp *http.Response) error {
@@ -463,12 +463,12 @@ func readGoogleAPIError(resp *http.Response) error {
 	}
 }
 
-func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]types.GoogleCalendarOption, error) {
-	req, err := newGoogleAPIRequest(ctx, http.MethodGet, "users/me/calendarList", url.Values{"minAccessRole": {"writer"}}, token, nil)
+func (app *App) googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]types.GoogleCalendarOption, error) {
+	req, err := app.newGoogleAPIRequest(ctx, http.MethodGet, "users/me/calendarList", url.Values{"minAccessRole": {"writer"}}, token, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := lpsHTTPClient.Do(req)
+	resp, err := app.LPSClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -500,12 +500,12 @@ func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]t
 	return options, nil
 }
 
-func googleListCalendars(ctx context.Context, r *http.Request, record *googleConnectionRecord) ([]types.GoogleCalendarOption, error) {
-	token, err := currentGoogleToken(ctx, r, record)
+func (app *App) googleListCalendars(ctx context.Context, r *http.Request, record *googleConnectionRecord) ([]types.GoogleCalendarOption, error) {
+	token, err := app.currentGoogleToken(ctx, r, record)
 	if err != nil {
 		return nil, err
 	}
-	return googleListCalendarsWithToken(googleHTTPContext(ctx), token)
+	return app.googleListCalendarsWithToken(app.googleHTTPContext(ctx), token)
 }
 
 func preferredGoogleCalendar(calendars []types.GoogleCalendarOption) (string, string) {

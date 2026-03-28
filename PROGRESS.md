@@ -3,24 +3,28 @@
 ## Completed
 
 - [x] Task-001: Extract `internal/config` package
+- [x] Task-002: Introduce App struct — convert all test files to use App struct pattern
 
 ## Last Completed
 
-- Task-001: Extract `internal/config`
+- Task-002: Introduce App struct — test file conversions
 - Tests: ✅ All 80 passing
-- Build: ✅ Success
-- Lint: ✅ 0 issues
+- Build: ✅ Success (`just build` clean)
+- Vet: ✅ 0 issues
 - Key decisions:
-  - Config methods use pointer receivers to satisfy gocritic hugeParam
-  - `serverConfig` kept as type alias `= config.Config` for test compatibility
-  - All constants moved to `internal/config/constants.go` (exported)
-  - Package-level vars and sentinel errors stay in `internal/app` temporarily
-  - Fixed corrupted `constants.go` from prior incomplete attempt
+  - Converted 5 test files from `configData` global to `newTestApp(t)` pattern
+  - Files converted: `google_oauth_test.go`, `google_calendar_test.go`, `handlers_soccer_test.go`, `lps_decode_test.go`, `lps_schedule_test.go`
+  - Also fixed `schedule_time_test.go` (`mountainTimeLocation` → `loadMountainTimeLocation()`)
+  - Removed all `previousConfig := configData` / save-restore patterns
+  - Removed all `resetSoccerLoginAttempts(t)` calls
+  - Removed all `configureGoogleTestRuntime` calls
+  - All handler/LPS method calls now prefixed with `app.`
+  - `addSessionCookie` signature updated to include `app` parameter
 
 ## Current Iteration
 
-- Iteration: 1
-- Working on: Task-001 (complete, awaiting commit)
+- Iteration: 2
+- Working on: Task-002 (Introduce App struct) — complete
 
 ## Blockers
 
@@ -28,6 +32,8 @@
 
 ## Notes for Next Iteration
 
-- `internal/config` is stable: Config struct, Load(), LoginEnabled(), GoogleEnabled(), all constants
-- `serverConfig = config.Config` alias in `internal/app/config.go` lets tests construct config values without importing config
-- Next task (Task-002) should introduce the `App` struct and eliminate package-level mutable vars
+- All test files now use `newTestApp(t)` or `newTestAppWithGoogle(t, ...)` helpers
+- No remaining references to `configData` in test files
+- `serverConfig = config.Config` type alias still in `internal/app/config.go`
+- Test helper `addSessionCookie(t, app, req, session)` requires `app` as second param
+- 80 tests all passing

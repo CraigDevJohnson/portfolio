@@ -188,15 +188,13 @@ func TestGoogleEventMatchesGameIDUsesOnlyCanonicalGameIDFields(t *testing.T) {
 
 func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	configureGoogleTestRuntime(t, store, "", "", "")
-	previousConfig := configData
+	app := newTestAppWithGoogle(t, store, "", "", "")
 	previousLocal := time.Local
 	time.Local = time.UTC
 	defer func() {
-		configData = previousConfig
 		time.Local = previousLocal
 	}()
-	tokenCiphertext, err := encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
+	tokenCiphertext, err := app.encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
 		t.Fatalf("encryptGoogleToken returned error: %v", err)
 	}
@@ -394,8 +392,8 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	}))
 	defer apiServer.Close()
 
-	configData.LPSAPIBaseURL = apiServer.URL
-	googleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
+	app.Config.LPSAPIBaseURL = apiServer.URL
+	app.GoogleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
 		"team_codes": {"479691"},
@@ -406,7 +404,7 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()
 
-	soccerGoogleAddHandler(resp, req)
+	app.soccerGoogleAddHandler(resp, req)
 
 	if !strings.Contains(resp.Body.String(), "Added 1 selected game(s) to Google Calendar.") {
 		t.Fatalf("expected add success message, got %q", resp.Body.String())

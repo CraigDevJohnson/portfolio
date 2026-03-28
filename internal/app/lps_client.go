@@ -8,16 +8,16 @@ import (
 	internallps "portfolio/internal/lps"
 )
 
-func lpsAPIEndpoint(pathParts ...string) (string, error) {
-	baseURL, err := normalizeLPSAPIBaseURL(configData.LPSAPIBaseURL)
+func (app *App) lpsAPIEndpoint(pathParts ...string) (string, error) {
+	baseURL, err := normalizeLPSAPIBaseURL(app.Config.LPSAPIBaseURL)
 	if err != nil {
 		return "", err
 	}
 	return internallps.APIEndpoint(baseURL, pathParts...)
 }
 
-func newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts ...string) (*http.Request, error) { //nolint:unparam // method kept general for future POST/PUT support
-	baseURL, err := normalizeLPSAPIBaseURL(configData.LPSAPIBaseURL)
+func (app *App) newLPSAPIRequest(ctx context.Context, method, bearerToken string, pathParts ...string) (*http.Request, error) { //nolint:unparam // method kept general for future POST/PUT support
+	baseURL, err := normalizeLPSAPIBaseURL(app.Config.LPSAPIBaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -28,6 +28,6 @@ func validateLPSAPIRequest(req *http.Request) error {
 	return internallps.ValidateAPIRequest(req)
 }
 
-func doLPSAPIRequest(req *http.Request) (*http.Response, error) {
-	return internallps.DoAPIRequest(lpsHTTPClient, req)
+func (app *App) doLPSAPIRequest(req *http.Request) (*http.Response, error) {
+	return internallps.DoAPIRequest(app.LPSClient, req)
 }

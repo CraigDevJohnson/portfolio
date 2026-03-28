@@ -19,23 +19,23 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimite
 	return internalsession.NewLoginRateLimiter(maxAttempts, window, config.RateLimiterMaxKeys)
 }
 
-func encryptJSONValue(data any) (string, error) {
-	return internalsession.EncryptJSONValue(configData.SessionKey, data)
+func (app *App) encryptJSONValue(data any) (string, error) {
+	return internalsession.EncryptJSONValue(app.Config.SessionKey, data)
 }
 
-func decryptJSONValue(value string, out any) error {
-	return internalsession.DecryptJSONValue(configData.SessionKey, value, out)
+func (app *App) decryptJSONValue(value string, out any) error {
+	return internalsession.DecryptJSONValue(app.Config.SessionKey, value, out)
 }
 
-func encryptSession(data *SessionData) (string, error) {
-	return internalsession.EncryptSession(configData.SessionKey, data)
+func (app *App) encryptSession(data *SessionData) (string, error) {
+	return internalsession.EncryptSession(app.Config.SessionKey, data)
 }
 
-func decryptSession(value string) (SessionData, error) {
-	return internalsession.DecryptSession(configData.SessionKey, value)
+func (app *App) decryptSession(value string) (SessionData, error) {
+	return internalsession.DecryptSession(app.Config.SessionKey, value)
 }
 
-func getSession(r *http.Request) (*SessionData, error) {
+func (app *App) getSession(r *http.Request) (*SessionData, error) {
 	cookie, err := r.Cookie(config.LPSSessionCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
@@ -43,7 +43,7 @@ func getSession(r *http.Request) (*SessionData, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := decryptSession(cookie.Value)
+	session, err := app.decryptSession(cookie.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -53,22 +53,22 @@ func getSession(r *http.Request) (*SessionData, error) {
 	return &session, nil
 }
 
-func loadSoccerSession(w http.ResponseWriter, r *http.Request) (*SessionData, bool) {
-	session, err := getSession(r)
+func (app *App) loadSoccerSession(w http.ResponseWriter, r *http.Request) (*SessionData, bool) {
+	session, err := app.getSession(r)
 	if errors.Is(err, errSessionExpired) {
-		clearSession(w, r)
+		app.clearSession(w, r)
 		return nil, true
 	}
 	if err != nil {
 		log.Printf("soccer session read failed: %v", err)
-		clearSession(w, r)
+		app.clearSession(w, r)
 		return nil, true
 	}
 	return session, false
 }
 
-func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) error {
-	encrypted, err := encryptSession(session)
+func (app *App) setSession(w http.ResponseWriter, r *http.Request, session *SessionData) error {
+	encrypted, err := app.encryptSession(session)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) er
 	return nil
 }
 
-func clearSession(w http.ResponseWriter, r *http.Request) {
+func (app *App) clearSession(w http.ResponseWriter, r *http.Request) {
 	cookie := newSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)

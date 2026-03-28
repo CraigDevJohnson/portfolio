@@ -34,7 +34,7 @@ func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	token := testJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/users/check" {
@@ -70,15 +70,9 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	discovery, err := lpsFetchUserPlayers(t.Context(), token)
+	discovery, err := app.lpsFetchUserPlayers(t.Context(), token)
 	if err != nil {
 		t.Fatalf("lpsFetchUserPlayers returned error: %v", err)
 	}
@@ -101,22 +95,16 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersClassifiesAuthFailureJSON(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+	_, err := app.lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
 	if err == nil {
 		t.Fatal("expected fetch error")
 	}
@@ -148,21 +136,15 @@ func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			previousConfig := configData
+			app := newTestApp(t)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
 
-			configData = serverConfig{
-				SessionKey:    previousConfig.SessionKey,
-				LPSAPIBaseURL: server.URL,
-			}
-			defer func() {
-				configData = previousConfig
-			}()
+			app.Config.LPSAPIBaseURL = server.URL
 
-			_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+			_, err := app.lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
 			if err == nil {
 				t.Fatal("expected fetch error")
 			}
@@ -181,22 +163,16 @@ func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
-	previousConfig := configData
+	app := newTestApp(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"players":`))
 	}))
 	defer server.Close()
 
-	configData = serverConfig{
-		SessionKey:    previousConfig.SessionKey,
-		LPSAPIBaseURL: server.URL,
-	}
-	defer func() {
-		configData = previousConfig
-	}()
+	app.Config.LPSAPIBaseURL = server.URL
 
-	_, err := lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
+	_, err := app.lpsFetchUserPlayers(t.Context(), testJWT(t, time.Now().Add(30*time.Minute)))
 	if err == nil {
 		t.Fatal("expected fetch error")
 	}

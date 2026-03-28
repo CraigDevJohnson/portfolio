@@ -30,23 +30,52 @@ func testJWT(t *testing.T, expiresAt time.Time) string {
 }
 
 func testMislabelledLPSZuluTime(at time.Time) string {
-	return at.In(mountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
+	return at.In(loadMountainTimeLocation()).Format("2006-01-02T15:04:05.000") + "Z"
 }
 
-func resetSoccerLoginAttempts(t *testing.T) {
+func newTestApp(t *testing.T) *App {
 	t.Helper()
-
-	previousLimiter := soccerLoginAttempts
-	soccerLoginAttempts = newLoginRateLimiter(5, time.Minute)
+	app := &App{
+		Config: config.Config{
+			SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
+			LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
+		},
+		LPSClient:               &http.Client{Timeout: 5 * time.Second},
+		LoginLimiter:             newLoginRateLimiter(5, time.Minute),
+		MountainTZ:               loadMountainTimeLocation(),
+		googleStore:              noopGoogleConnectionStore{},
+		GoogleOAuthAuthURL:       googleOAuthAuthURL,
+		GoogleOAuthTokenURL:      googleOAuthTokenURL,
+		GoogleCalendarAPIBaseURL: googleCalendarAPIBaseURL,
+	}
 	t.Cleanup(func() {
-		soccerLoginAttempts.Close()
-		soccerLoginAttempts = previousLimiter
+		app.LoginLimiter.Close()
 	})
+	return app
 }
 
-func addSessionCookie(t *testing.T, req *http.Request, session *SessionData) {
+func newTestAppWithGoogle(t *testing.T, store googleConnectionStore, authURL, tokenURL, apiBaseURL string) *App {
 	t.Helper()
-	encrypted, err := encryptSession(session)
+	app := newTestApp(t)
+	app.Config.GoogleClientID = "google-client-id"
+	app.Config.GoogleClientSecret = "google-client-secret"
+	app.Config.GoogleConnectionTableName = "google-connections"
+	app.setGoogleConnectionStore(store)
+	if authURL != "" {
+		app.GoogleOAuthAuthURL = authURL
+	}
+	if tokenURL != "" {
+		app.GoogleOAuthTokenURL = tokenURL
+	}
+	if apiBaseURL != "" {
+		app.GoogleCalendarAPIBaseURL = apiBaseURL
+	}
+	return app
+}
+
+func addSessionCookie(t *testing.T, app *App, req *http.Request, session *SessionData) {
+	t.Helper()
+	encrypted, err := app.encryptSession(session)
 	if err != nil {
 		t.Fatalf("encryptSession returned error: %v", err)
 	}
@@ -74,40 +103,4 @@ func (store *fakeGoogleConnectionStore) Get(_ context.Context, connectionID stri
 func (store *fakeGoogleConnectionStore) Put(_ context.Context, record *googleConnectionRecord) error {
 	store.records[record.ConnectionID] = *record
 	return nil
-}
-
-func configureGoogleTestRuntime(t *testing.T, store googleConnectionStore, authURL, tokenURL, apiBaseURL string) {
-	t.Helper()
-
-	previousConfig := configData
-	previousStore := googleConnections
-	previousAuthURL := googleOAuthAuthURL
-	previousTokenURL := googleOAuthTokenURL
-	previousAPIBaseURL := googleCalendarAPIBaseURL
-
-	configData = serverConfig{
-		SessionKey:                []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL:             config.DefaultLPSAPIBaseURL,
-		GoogleClientID:            "google-client-id",
-		GoogleClientSecret:        "google-client-secret",
-		GoogleConnectionTableName: "google-connections",
-	}
-	googleConnections = store
-	if authURL != "" {
-		googleOAuthAuthURL = authURL
-	}
-	if tokenURL != "" {
-		googleOAuthTokenURL = tokenURL
-	}
-	if apiBaseURL != "" {
-		googleCalendarAPIBaseURL = apiBaseURL
-	}
-
-	t.Cleanup(func() {
-		configData = previousConfig
-		googleConnections = previousStore
-		googleOAuthAuthURL = previousAuthURL
-		googleOAuthTokenURL = previousTokenURL
-		googleCalendarAPIBaseURL = previousAPIBaseURL
-	})
 }

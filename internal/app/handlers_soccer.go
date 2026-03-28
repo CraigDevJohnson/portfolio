@@ -16,13 +16,13 @@ import (
 	"portfolio/internal/config"
 )
 
-func soccerHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if r.URL.Query().Get("code") != "" || r.URL.Query().Get("error") != "" || r.URL.Query().Get("state") != "" {
-		soccerGoogleCallbackHandler(w, r)
+		app.soccerGoogleCallbackHandler(w, r)
 		return
 	}
 	props := pages.SoccerProps{
@@ -35,27 +35,27 @@ func soccerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerSessionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	session, _ := loadSoccerSession(w, r)
+	session, _ := app.loadSoccerSession(w, r)
 
-	renderSoccerLoginState(w, r, session)
+	app.renderSoccerLoginState(w, r, session)
 }
 
-func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !loginEnabled() {
+	if !app.Config.LoginEnabled() {
 		renderSoccerLoginFeedback(w, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
 	}
-	if !soccerLoginAttempts.Allow(clientIP(r)) {
+	if !app.LoginLimiter.Allow(clientIP(r)) {
 		renderSoccerLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
@@ -71,7 +71,7 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	discovery, err := lpsFetchUserPlayers(r.Context(), jwt)
+	discovery, err := app.lpsFetchUserPlayers(r.Context(), jwt)
 	if err != nil {
 		var fetchErr *lpsFetchError
 		if errors.As(err, &fetchErr) {
@@ -98,31 +98,31 @@ func soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		Players:   discovery.Players,
 		ExpiresAt: importedSessionExpiry(jwt),
 	}
-	if err := setSession(w, r, &session); err != nil {
+	if err := app.setSession(w, r, &session); err != nil {
 		log.Printf("soccer import session write failed: %v", err)
 		renderSoccerLoginFeedback(w, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, &session, true)).Render(context.Background(), w); err != nil {
+	if err := partials.SoccerLoginState(app.soccerLoginStateProps(w, r, &session, true)).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your players below.</div>`)
 }
 
-func soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) soccerLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	clearSession(w, r)
+	app.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
-	renderSoccerLoginState(w, r, nil)
+	app.renderSoccerLoginState(w, r, nil)
 }
 
-func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -135,11 +135,11 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := parsePlayerIDs(r.Form["player_ids"])
-	session, swapAuthState := loadSoccerSession(w, r)
+	session, swapAuthState := app.loadSoccerSession(w, r)
 
 	googleConnected := false
-	if googleEnabled() {
-		record, googleErr := loadGoogleConnectionRecord(r.Context(), r)
+	if app.Config.GoogleEnabled() {
+		record, googleErr := app.loadGoogleConnectionRecord(r.Context(), r)
 		if googleErr != nil {
 			log.Printf("google connection read failed: %v", googleErr)
 			clearGoogleConnectionCookie(w, r)
@@ -148,13 +148,13 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	props := partials.SoccerTableFragmentProps{TeamCodes: teamCodes, PlayerIDs: playerIDs, GoogleConnected: googleConnected}
-	if resolveScheduleData(r.Context(), session, playerIDs, teamCodes, rawPlayerIDs, &props) {
-		clearSession(w, r)
+	if app.resolveScheduleData(r.Context(), session, playerIDs, teamCodes, rawPlayerIDs, &props) {
+		app.clearSession(w, r)
 		swapAuthState = true
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if swapAuthState {
-		if err := partials.SoccerLoginState(soccerLoginStateProps(w, r, nil, true)).Render(context.Background(), w); err != nil {
+		if err := partials.SoccerLoginState(app.soccerLoginStateProps(w, r, nil, true)).Render(context.Background(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -164,7 +164,7 @@ func fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func subscribeHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -176,7 +176,7 @@ func subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
+func (app *App) downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -206,9 +206,9 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
-	session, _ := loadSoccerSession(w, r)
+	session, _ := app.loadSoccerSession(w, r)
 
-	games, err := requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
+	games, err := app.requestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
 	if errors.Is(err, errPlayerSessionRequired) {
 		http.Error(w, "import a bearer JWT again before downloading schedules for your discovered players", http.StatusUnauthorized)
 		return
@@ -219,7 +219,7 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		log.Printf("soccer LPS fetch failed: %v", err)
-		handleScheduleDownloadError(w, r, err)
+		app.handleScheduleDownloadError(w, r, err)
 		return
 	}
 
@@ -244,11 +244,11 @@ func downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) partials.SoccerLoginStateProps {
+func (app *App) soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *SessionData, swapOOB bool) partials.SoccerLoginStateProps {
 	props := partials.SoccerLoginStateProps{
 		Authenticated:   session != nil,
-		GoogleAvailable: googleEnabled(),
-		LoginAvailable:  loginEnabled(),
+		GoogleAvailable: app.Config.GoogleEnabled(),
+		LoginAvailable:  app.Config.LoginEnabled(),
 		SwapOOB:         swapOOB,
 	}
 	if session != nil {
@@ -258,7 +258,7 @@ func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *Sess
 	if !props.GoogleAvailable {
 		return props
 	}
-	record, err := loadGoogleConnectionRecord(r.Context(), r)
+	record, err := app.loadGoogleConnectionRecord(r.Context(), r)
 	if err != nil {
 		log.Printf("google connection read failed: %v", err)
 		clearGoogleConnectionCookie(w, r)
@@ -267,24 +267,24 @@ func soccerLoginStateProps(w http.ResponseWriter, r *http.Request, session *Sess
 	if record == nil {
 		return props
 	}
-	calendars, err := googleListCalendars(r.Context(), r, record)
+	calendars, err := app.googleListCalendars(r.Context(), r, record)
 	if err != nil {
 		log.Printf("google calendar list failed: %v", err)
 		var apiErr *googleAPIError
 		if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
-			deleteGoogleConnection(r.Context(), w, r)
+			app.deleteGoogleConnection(r.Context(), w, r)
 		}
 		return props
 	}
 	props.GoogleConnected = true
 	props.GoogleCalendars = calendars
-	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = syncGoogleCalendarSelection(r.Context(), record, calendars)
+	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = app.syncGoogleCalendarSelection(r.Context(), record, calendars)
 	return props
 }
 
-func renderSoccerLoginState(w http.ResponseWriter, r *http.Request, session *SessionData) {
+func (app *App) renderSoccerLoginState(w http.ResponseWriter, r *http.Request, session *SessionData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	props := soccerLoginStateProps(w, r, session, false)
+	props := app.soccerLoginStateProps(w, r, session, false)
 	if err := partials.SoccerLoginState(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -299,8 +299,8 @@ func renderSoccerLoginFeedback(w http.ResponseWriter, kind, message string) {
 	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, html.EscapeString(message)))
 }
 
-func populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
-	games, fetchErr := resolveScheduleGames(ctx, session, playerIDs, nil)
+func (app *App) populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
+	games, fetchErr := app.resolveScheduleGames(ctx, session, playerIDs, nil)
 	message, hint, clearSession := scheduleFetchFeedback(fetchErr)
 	if fetchErr != nil && !clearSession {
 		log.Printf("soccer LPS fetch failed: %v", fetchErr)
@@ -314,14 +314,14 @@ func populateScheduleProps(ctx context.Context, session *SessionData, playerIDs 
 	return clearSession
 }
 
-func resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
+func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
 	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false
 	}
 	if session != nil && len(playerIDs) > 0 {
-		return populateScheduleProps(ctx, session, playerIDs, props)
+		return app.populateScheduleProps(ctx, session, playerIDs, props)
 	}
 	if len(playerIDs) > 0 {
 		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
@@ -335,7 +335,7 @@ func resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []
 			props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
 			return false
 		}
-		games, fetchErr := resolveScheduleGames(ctx, session, playerIDs, teamIDs)
+		games, fetchErr := app.resolveScheduleGames(ctx, session, playerIDs, teamIDs)
 		message, hint, clearSession := scheduleFetchFeedback(fetchErr)
 		if fetchErr != nil && !clearSession {
 			log.Printf("soccer LPS fetch failed: %v", fetchErr)
@@ -353,40 +353,40 @@ func resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []
 	return false
 }
 
-func resolveScheduleGames(ctx context.Context, session *SessionData, playerIDs, teamIDs []int) ([]Game, error) {
+func (app *App) resolveScheduleGames(ctx context.Context, session *SessionData, playerIDs, teamIDs []int) ([]Game, error) {
 	switch {
 	case session != nil && len(playerIDs) > 0:
-		return lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
+		return app.lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
 	case len(teamIDs) > 0:
-		return lpsFetchGamesForTeams(ctx, teamIDs)
+		return app.lpsFetchGamesForTeams(ctx, teamIDs)
 	default:
 		return nil, nil
 	}
 }
 
-func handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
+func (app *App) handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
 	_, _, shouldClearSession := scheduleFetchFeedback(err)
 	if shouldClearSession {
-		clearSession(w, r)
+		app.clearSession(w, r)
 	}
 	status, message := scheduleDownloadError(err)
 	if status == http.StatusUnauthorized || status == http.StatusBadRequest {
-		clearSession(w, r)
+		app.clearSession(w, r)
 	}
 	http.Error(w, message, status)
 }
 
-func requestedScheduleGames(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string) ([]Game, error) {
+func (app *App) requestedScheduleGames(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string) ([]Game, error) {
 	teamIDs := parseTeamIDs(teamCodes)
 	switch {
 	case session != nil && len(playerIDs) > 0:
-		return resolveScheduleGames(ctx, session, playerIDs, nil)
+		return app.resolveScheduleGames(ctx, session, playerIDs, nil)
 	case len(playerIDs) > 0:
 		return nil, errPlayerSessionRequired
 	case strings.TrimSpace(teamCodes) != "" && len(teamIDs) == 0:
 		return nil, errInvalidTeamSelection
 	case len(teamIDs) > 0:
-		return resolveScheduleGames(ctx, session, nil, teamIDs)
+		return app.resolveScheduleGames(ctx, session, nil, teamIDs)
 	default:
 		return nil, errScheduleSelection
 	}
