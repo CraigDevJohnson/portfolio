@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"portfolio/internal/config"
 )
 
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
@@ -73,7 +75,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 
 	var sessionCookie *http.Cookie
 	for _, cookie := range result.Cookies() {
-		if cookie.Name == lpsSessionCookieName {
+		if cookie.Name == config.LPSSessionCookieName {
 			sessionCookie = cookie
 			break
 		}
@@ -241,7 +243,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 
 	var sessionCookie *http.Cookie
 	for _, cookie := range importResp.Result().Cookies() {
-		if cookie.Name == lpsSessionCookieName {
+		if cookie.Name == config.LPSSessionCookieName {
 			sessionCookie = cookie
 			break
 		}
@@ -348,7 +350,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 			}
-			if strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+			if strings.Contains(resp.Header().Get("Set-Cookie"), config.LPSSessionCookieName+"=") {
 				t.Fatalf("did not expect a session cookie on invalid JWT: %q", resp.Header().Get("Set-Cookie"))
 			}
 			if !strings.Contains(resp.Body.String(), tc.wantMessage) {
@@ -417,7 +419,7 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 			}
-			if tt.noCookie && strings.Contains(resp.Header().Get("Set-Cookie"), lpsSessionCookieName+"=") {
+			if tt.noCookie && strings.Contains(resp.Header().Get("Set-Cookie"), config.LPSSessionCookieName+"=") {
 				t.Fatalf("did not expect a session cookie: %q", resp.Header().Get("Set-Cookie"))
 			}
 			if !strings.Contains(resp.Body.String(), tt.wantBody) {
@@ -464,7 +466,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 	previousConfig := configData
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -493,7 +495,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 
 	var sessionCookie *http.Cookie
 	for _, cookie := range result.Cookies() {
-		if cookie.Name == lpsSessionCookieName {
+		if cookie.Name == config.LPSSessionCookieName {
 			sessionCookie = cookie
 			break
 		}
@@ -525,7 +527,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 	previousConfig := configData
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -551,7 +553,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 		{
 			name: "invalid session payload",
 			addCookie: func(t *testing.T, req *http.Request) {
-				req.AddCookie(&http.Cookie{Name: lpsSessionCookieName, Value: "not-valid-session-data"})
+				req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: "not-valid-session-data"})
 			},
 		},
 	}
@@ -571,7 +573,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 
 			var sessionCookie *http.Cookie
 			for _, cookie := range result.Cookies() {
-				if cookie.Name == lpsSessionCookieName {
+				if cookie.Name == config.LPSSessionCookieName {
 					sessionCookie = cookie
 					break
 				}
@@ -625,7 +627,7 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -685,7 +687,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -893,7 +895,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 			previousConfig := configData
 			configData = serverConfig{
 				SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-				LPSAPIBaseURL: defaultLPSAPIBaseURL,
+				LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 			}
 			defer func() {
 				configData = previousConfig
@@ -931,7 +933,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 
 			var cookieCleared bool
 			for _, setCookie := range resp.Result().Cookies() {
-				if setCookie.Name == lpsSessionCookieName && setCookie.MaxAge < 0 {
+				if setCookie.Name == config.LPSSessionCookieName && setCookie.MaxAge < 0 {
 					cookieCleared = true
 					break
 				}

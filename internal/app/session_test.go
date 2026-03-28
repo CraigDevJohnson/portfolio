@@ -5,13 +5,15 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"portfolio/internal/config"
 )
 
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	previousConfig := configData
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL: defaultLPSAPIBaseURL,
+		LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 	}
 	defer func() {
 		configData = previousConfig
@@ -47,7 +49,7 @@ func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 	defer limiter.Close()
 
 	// Fill up to the max key limit
-	for i := 0; i < rateLimiterMaxKeys; i++ {
+	for i := 0; i < config.RateLimiterMaxKeys; i++ {
 		key := fmt.Sprintf("ip-%d", i)
 		if !limiter.Allow(key) {
 			t.Fatalf("expected Allow to return true for key %d", i)
@@ -70,7 +72,7 @@ func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
 	defer limiter.Close()
 
 	// Fill to capacity
-	for i := 0; i < rateLimiterMaxKeys; i++ {
+	for i := 0; i < config.RateLimiterMaxKeys; i++ {
 		limiter.Allow(fmt.Sprintf("ip-%d", i))
 	}
 

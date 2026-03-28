@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
 )
 
@@ -15,7 +16,7 @@ func newSecureCookie(r *http.Request, name, value, path string, maxAge int, same
 }
 
 func getGoogleConnectionID(r *http.Request) string {
-	cookie, err := r.Cookie(googleConnectionCookieName)
+	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
 	if err != nil {
 		return ""
 	}
@@ -23,13 +24,13 @@ func getGoogleConnectionID(r *http.Request) string {
 }
 
 func setGoogleConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
-	cookie := newSecureCookie(r, googleConnectionCookieName, connectionID, soccerCookiePath, 0, http.SameSiteStrictMode)
-	cookie.Expires = time.Now().Add(googleConnectionCookieTTL)
+	cookie := newSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
+	cookie.Expires = time.Now().Add(config.GoogleConnectionCookieTTL)
 	http.SetCookie(w, cookie)
 }
 
 func clearGoogleConnectionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, googleConnectionCookieName, "", soccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie := newSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }
@@ -39,14 +40,14 @@ func setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state goo
 	if err != nil {
 		return err
 	}
-	cookie := newSecureCookie(r, googleOAuthStateCookieName, encrypted, soccerCookiePath, 0, http.SameSiteLaxMode)
+	cookie := newSecureCookie(r, config.GoogleOAuthStateCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
 	cookie.Expires = state.ExpiresAt
 	http.SetCookie(w, cookie)
 	return nil
 }
 
 func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
-	cookie, err := r.Cookie(googleOAuthStateCookieName)
+	cookie, err := r.Cookie(config.GoogleOAuthStateCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
 	}
@@ -64,7 +65,7 @@ func getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
 }
 
 func clearGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, googleOAuthStateCookieName, "", soccerCookiePath, -1, http.SameSiteLaxMode)
+	cookie := newSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }

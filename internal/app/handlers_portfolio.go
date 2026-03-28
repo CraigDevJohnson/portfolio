@@ -4,16 +4,17 @@ package app
 import (
 	"net/http"
 
+	"portfolio/internal/config"
 	internalportfolio "portfolio/internal/portfolio"
 	"portfolio/types"
 )
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	internalportfolio.HomeHandler(w, r, careerStartYear)
+	internalportfolio.HomeHandler(w, r, config.CareerStartYear)
 }
 
 func aboutHandler(w http.ResponseWriter, r *http.Request) {
-	internalportfolio.AboutHandler(w, careerStartYear)
+	internalportfolio.AboutHandler(w, config.CareerStartYear)
 }
 
 func experienceHandler(w http.ResponseWriter, r *http.Request) {

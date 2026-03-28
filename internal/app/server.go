@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"portfolio/internal/config"
 )
 
 func Run() {
@@ -68,7 +70,7 @@ func Run() {
 	})
 
 	// Bind the listener before any slow init so health checks pass immediately.
-	listenAddress := serverListenAddress()
+	listenAddress := config.ServerListenAddress()
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("failed to listen on %s: %v", listenAddress, err)
@@ -81,7 +83,7 @@ func Run() {
 	}
 
 	go func() {
-		log.Printf("Craig Johnson Portfolio running at %s", localServerURL(listenAddress))
+		log.Printf("Craig Johnson Portfolio running at %s", config.LocalServerURL(listenAddress))
 		log.Fatal(server.Serve(ln))
 	}()
 

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/config"
 	"portfolio/types"
 )
 
@@ -310,7 +311,7 @@ func newGoogleOAuthState(connectionID string) (googleOAuthState, error) {
 	}
 	return googleOAuthState{
 		ConnectionID: connectionID,
-		ExpiresAt:    time.Now().Add(googleOAuthStateTTL),
+		ExpiresAt:    time.Now().Add(config.GoogleOAuthStateTTL),
 		State:        stateValue,
 	}, nil
 }

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"portfolio/internal/config"
 )
 
 func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T) {
@@ -33,13 +35,13 @@ func TestGoogleEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *test
 	if event.Start.DateTime != "2026-03-29T17:20:00" {
 		t.Fatalf("unexpected google start datetime: %q", event.Start.DateTime)
 	}
-	if event.Start.TimeZone != mountainTimeZoneID {
+	if event.Start.TimeZone != config.MountainTimeZoneID {
 		t.Fatalf("unexpected google start timezone: %q", event.Start.TimeZone)
 	}
 	if event.End.DateTime != "2026-03-29T18:50:00" {
 		t.Fatalf("unexpected google end datetime: %q", event.End.DateTime)
 	}
-	if event.End.TimeZone != mountainTimeZoneID {
+	if event.End.TimeZone != config.MountainTimeZoneID {
 		t.Fatalf("unexpected google end timezone: %q", event.End.TimeZone)
 	}
 }
@@ -401,7 +403,7 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	}.Encode()))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: googleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()
 
 	soccerGoogleAddHandler(resp, req)

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+
+	"portfolio/internal/config"
 )
 
 func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
@@ -41,7 +43,7 @@ func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
 
 	var stateCookie *http.Cookie
 	for _, cookie := range result.Cookies() {
-		if cookie.Name == googleOAuthStateCookieName {
+		if cookie.Name == config.GoogleOAuthStateCookieName {
 			stateCookie = cookie
 			break
 		}
@@ -102,7 +104,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 
 	var stateCookie *http.Cookie
 	for _, cookie := range connectResult.Cookies() {
-		if cookie.Name == googleOAuthStateCookieName {
+		if cookie.Name == config.GoogleOAuthStateCookieName {
 			stateCookie = cookie
 			break
 		}
@@ -153,7 +155,7 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 
 	var connectionCookie *http.Cookie
 	for _, cookie := range callbackResult.Cookies() {
-		if cookie.Name == googleConnectionCookieName {
+		if cookie.Name == config.GoogleConnectionCookieName {
 			connectionCookie = cookie
 			break
 		}
@@ -195,7 +197,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	}.Encode()))
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: googleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()
 
 	soccerGoogleCalendarHandler(resp, req)

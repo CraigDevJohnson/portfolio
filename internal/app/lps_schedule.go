@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"portfolio/internal/config"
 )
 
 type lpsUserPlayerDiscovery struct {
@@ -129,7 +131,7 @@ func normalizeImportedJWT(raw string) (string, error) {
 }
 
 func importedSessionExpiry(token string) time.Time {
-	deadline := time.Now().Add(defaultSessionTTL)
+	deadline := time.Now().Add(config.DefaultSessionTTL)
 	expiresAt := jwtExpiry(token)
 	if expiresAt.IsZero() || expiresAt.After(deadline) {
 		return deadline
@@ -156,7 +158,7 @@ func lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPlayerDiscover
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
 	if err != nil {
 		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not read the player lookup response: %w", err)
 	}
@@ -263,7 +265,7 @@ func lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string, playerID i
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not read the schedule response: %w", err)
 	}
@@ -308,7 +310,7 @@ func (resolver *lpsScheduleResolver) fetchPlayerTeams(ctx context.Context, playe
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not read the player teams response: %w", err)
 	}
@@ -375,7 +377,7 @@ func (resolver *lpsScheduleResolver) fetchTeamSchedule(ctx context.Context, team
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
 	if err != nil {
 		return schedule, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not read the team schedule response: %w", err)
 	}
@@ -474,7 +476,7 @@ func (resolver *lpsScheduleResolver) fetchFacility(ctx context.Context, facility
 	}
 	defer resp.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLPSResponseBodySize))
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
 	if err != nil {
 		return lpsFacility{}, newLPSFetchError(lpsErrorUpstream, facilityID, http.StatusBadGateway, "could not read the facility response for facility %d: %w", facilityID, err)
 	}

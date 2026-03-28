@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"portfolio/internal/config"
 	internalsession "portfolio/internal/session"
 )
 
@@ -15,7 +16,7 @@ type loginAttempt = internalsession.LoginAttempt
 type loginRateLimiter = internalsession.LoginRateLimiter
 
 func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimiter {
-	return internalsession.NewLoginRateLimiter(maxAttempts, window, rateLimiterMaxKeys)
+	return internalsession.NewLoginRateLimiter(maxAttempts, window, config.RateLimiterMaxKeys)
 }
 
 func encryptJSONValue(data any) (string, error) {
@@ -35,7 +36,7 @@ func decryptSession(value string) (SessionData, error) {
 }
 
 func getSession(r *http.Request) (*SessionData, error) {
-	cookie, err := r.Cookie(lpsSessionCookieName)
+	cookie, err := r.Cookie(config.LPSSessionCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
 	}
@@ -71,12 +72,12 @@ func setSession(w http.ResponseWriter, r *http.Request, session *SessionData) er
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, newSecureCookie(r, lpsSessionCookieName, encrypted, soccerCookiePath, 0, http.SameSiteStrictMode))
+	http.SetCookie(w, newSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteStrictMode))
 	return nil
 }
 
 func clearSession(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, lpsSessionCookieName, "", soccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie := newSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }

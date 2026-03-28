@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"portfolio/internal/config"
 	"portfolio/types"
 )
 
@@ -90,7 +91,7 @@ func soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginFeedback(w, "error", "Could not read the selected games. Try again.")
 		return
@@ -162,7 +163,7 @@ func soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginState(w, r, session)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		renderSoccerLoginState(w, r, session)
 		return
@@ -371,7 +372,7 @@ func googleEventMatchesGameID(event *googleEvent, gameID string) bool {
 func decodeGoogleEvent(resp *http.Response) (*googleEvent, error) {
 	defer resp.Body.Close()
 	var event googleEvent
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&event); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&event); err != nil {
 		return nil, err
 	}
 	return &event, nil
@@ -380,7 +381,7 @@ func decodeGoogleEvent(resp *http.Response) (*googleEvent, error) {
 func decodeGoogleEventList(resp *http.Response) ([]googleEvent, error) {
 	defer resp.Body.Close()
 	var response googleEventListResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&response); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&response); err != nil {
 		return nil, err
 	}
 	return response.Items, nil
@@ -451,7 +452,7 @@ func googleListCalendarEventsByPrivateGameID(ctx context.Context, calendarID str
 
 func readGoogleAPIError(resp *http.Response) error {
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxRequestBodySize))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, config.MaxRequestBodySize))
 	message := strings.TrimSpace(string(body))
 	if message == "" {
 		message = resp.Status
@@ -476,7 +477,7 @@ func googleListCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]t
 	}
 	defer resp.Body.Close()
 	var response googleCalendarListResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRequestBodySize)).Decode(&response); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&response); err != nil {
 		return nil, err
 	}
 	options := make([]types.GoogleCalendarOption, 0, len(response.Items))
@@ -537,13 +538,13 @@ func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
 		Description: formatted.Description,
 		End: googleEventDateTime{
 			DateTime: formatted.End.Format("2006-01-02T15:04:05"),
-			TimeZone: mountainTimeZoneID,
+			TimeZone: config.MountainTimeZoneID,
 		},
 		ID:       formatted.ID,
 		Location: formatted.Location,
 		Start: googleEventDateTime{
 			DateTime: formatted.Start.Format("2006-01-02T15:04:05"),
-			TimeZone: mountainTimeZoneID,
+			TimeZone: config.MountainTimeZoneID,
 		},
 		Status:  formatted.Status,
 		Summary: formatted.Summary,

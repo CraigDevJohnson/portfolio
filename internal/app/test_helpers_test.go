@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"portfolio/internal/config"
 )
 
 func unfoldICS(ics string) string {
@@ -48,7 +50,7 @@ func addSessionCookie(t *testing.T, req *http.Request, session *SessionData) {
 	if err != nil {
 		t.Fatalf("encryptSession returned error: %v", err)
 	}
-	req.AddCookie(&http.Cookie{Name: lpsSessionCookieName, Value: encrypted})
+	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
 }
 
 type fakeGoogleConnectionStore struct {
@@ -85,7 +87,7 @@ func configureGoogleTestRuntime(t *testing.T, store googleConnectionStore, authU
 
 	configData = serverConfig{
 		SessionKey:                []byte("0123456789abcdef0123456789abcdef"),
-		LPSAPIBaseURL:             defaultLPSAPIBaseURL,
+		LPSAPIBaseURL:             config.DefaultLPSAPIBaseURL,
 		GoogleClientID:            "google-client-id",
 		GoogleClientSecret:        "google-client-secret",
 		GoogleConnectionTableName: "google-connections",
