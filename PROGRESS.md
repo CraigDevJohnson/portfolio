@@ -7,23 +7,24 @@
 - [x] Task-003: Eliminate portfolio wrapper files
 - [x] Task-004: Eliminate schedule/time/ICS wrapper files
 - [x] Task-005: Eliminate LPS client and helpers wrapper files (commits: f622be4, 988849b)
+- [x] Task-006: Expand `internal/lps` with resolver, decode, errors, and JWT helpers (commits: b6a0138, 017b126)
 
 ## Last Completed
 
-- Task-005: Eliminate LPS client and helpers wrapper files
+- Task-006: Expand `internal/lps` with resolver, decode, errors, and JWT helpers
 - Tests: ✅ All 80 passing
 - Build: ✅ Success
 - Key decisions:
-  - Deleted `internal/app/lps_client.go` and `internal/app/helpers.go`
-  - Moved LPS value helpers to `internal/lps/helpers.go`
-  - Added focused form parsing helpers in `internal/soccer/form.go`
-  - Replaced app-local IP/base URL wrappers with direct `internal/httpx` usage
-  - Reviewer-required fix moved `NonEmptyStrings` from `internal/soccer` to `internal/lps`
+  - Moved resolver, decode, error classification, and JWT helpers from `internal/app` into `internal/lps`
+  - Added `internal/lps/resolver.go`, `decode.go`, `errors.go`, `types.go`, and `jwt.go`
+  - Updated `internal/app/handlers_soccer.go` to call `internal/lps` directly
+  - Kept scope tight by leaving soccer and Google handlers in `internal/app`
+  - Reviewer follow-up confirmed stale app-side LPS files are gone from the current tree
 
 ## Current Iteration
 
-- Iteration: 8
-- Working on: Task-006: Expand `internal/lps` with schedule resolver and decode
+- Iteration: 9
+- Working on: Task-007: Extract `internal/soccer` handlers
 
 ## Blockers
 
@@ -31,7 +32,6 @@
 
 ## Notes for Next Iteration
 
-- Task-006 implementation moved resolver, decode, JWT, and schedule error logic into `internal/lps`
-- `internal/app/handlers_soccer.go` and the Task-006 tests now call `internal/lps` directly
-- Reviewer follow-up removed stale tracked `internal/app/lps_schedule.go`, `internal/app/lps_decode.go`, and lingering `internal/app/lps_client.go`
-- Verified current Task-006 implementation with `just test` and `just build`; leave completion marking to coordinator/review
+- Next task is Task-007: move soccer handlers and soccer-specific session helpers from `internal/app` into `internal/soccer`
+- Reuse the small `internal/soccer/form.go` package introduced in Task-005 rather than replacing it
+- Keep Google OAuth/Calendar in `internal/app` for now except for any interface boundaries needed by soccer handler construction

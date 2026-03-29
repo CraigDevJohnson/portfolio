@@ -13,6 +13,7 @@ import (
 
 	"portfolio/internal/config"
 	"portfolio/internal/portfolio"
+	internalsoccer "portfolio/internal/soccer"
 )
 
 // Run loads configuration, constructs the App, registers routes, and starts the server.
@@ -34,6 +35,7 @@ func Run() {
 
 	cfg := config.Load()
 	app := New(cfg)
+	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{app: app})
 
 	mux := http.NewServeMux()
 
@@ -76,17 +78,17 @@ func Run() {
 	})
 
 	// soccer routes
-	mux.HandleFunc("/soccer", app.soccerHandler)
-	mux.HandleFunc("/soccer/session", app.soccerSessionHandler)
-	mux.HandleFunc("/soccer/import", app.soccerImportHandler)
-	mux.HandleFunc("/soccer/logout", app.soccerLogoutHandler)
+	mux.HandleFunc("/soccer", soccerHandler.SoccerPage)
+	mux.HandleFunc("/soccer/session", soccerHandler.SessionHandler)
+	mux.HandleFunc("/soccer/import", soccerHandler.ImportHandler)
+	mux.HandleFunc("/soccer/logout", soccerHandler.LogoutHandler)
 	mux.HandleFunc("/soccer/google/add", app.soccerGoogleAddHandler)
 	mux.HandleFunc("/soccer/google/calendar", app.soccerGoogleCalendarHandler)
 	mux.HandleFunc("/soccer/google/connect", app.soccerGoogleConnectHandler)
 	mux.HandleFunc("/soccer/google/disconnect", app.soccerGoogleDisconnectHandler)
-	mux.HandleFunc("/soccer/fetch", app.fetchSchedulesHandler)
-	mux.HandleFunc("/soccer/download", app.downloadICSHandler)
-	mux.HandleFunc("/soccer/subscribe", app.subscribeHandler)
+	mux.HandleFunc("/soccer/fetch", soccerHandler.FetchSchedulesHandler)
+	mux.HandleFunc("/soccer/download", soccerHandler.DownloadICSHandler)
+	mux.HandleFunc("/soccer/subscribe", soccerHandler.SubscribeHandler)
 
 	// static files
 	mux.Handle(

@@ -21,6 +21,7 @@ import (
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
 
@@ -181,7 +182,7 @@ func (app *App) soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	state, err := app.getGoogleOAuthStateCookie(r)
-	if errors.Is(err, errSessionExpired) {
+	if errors.Is(err, internalsoccer.ErrSessionExpired) {
 		clearGoogleOAuthStateCookie(w, r)
 		redirectSoccerWithGoogleStatus(w, r, "failed")
 		return

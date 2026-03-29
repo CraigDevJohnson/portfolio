@@ -9,10 +9,20 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	internalsession "portfolio/internal/session"
+	internalsoccer "portfolio/internal/soccer"
 )
 
 func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie { //nolint:unparam // path kept general for reuse outside /soccer
 	return internalhttpx.NewSecureCookie(r, name, value, path, maxAge, sameSite)
+}
+
+func (app *App) encryptJSONValue(data any) (string, error) {
+	return internalsession.EncryptJSONValue(app.Config.SessionKey, data)
+}
+
+func (app *App) decryptJSONValue(value string, out any) error {
+	return internalsession.DecryptJSONValue(app.Config.SessionKey, value, out)
 }
 
 func getGoogleConnectionID(r *http.Request) string {
@@ -59,7 +69,7 @@ func (app *App) getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, e
 		return nil, err
 	}
 	if time.Now().After(state.ExpiresAt) {
-		return nil, errSessionExpired
+		return nil, internalsoccer.ErrSessionExpired
 	}
 	return &state, nil
 }

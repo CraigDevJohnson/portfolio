@@ -1,11 +1,9 @@
-// Type aliases, sentinel errors, and Google API constants retained in internal/app.
+// Type aliases and Google API constants retained in internal/app.
 // Config struct, loading, and feature toggles live in internal/config.
 // Runtime state lives on the App struct (app.go).
 package app
 
 import (
-	"errors"
-
 	"portfolio/internal/config"
 	"portfolio/types"
 )
@@ -20,13 +18,6 @@ type (
 // serverConfig is a temporary alias so tests can construct config values
 // without importing internal/config directly (migrated in later tasks).
 type serverConfig = config.Config
-
-var (
-	errSessionExpired        = errors.New("session expired")
-	errPlayerSessionRequired = errors.New("an imported session is required for discovered players")
-	errInvalidTeamSelection  = errors.New("one or more team IDs were invalid")
-	errScheduleSelection     = errors.New("at least one team ID or discovered player is required")
-)
 
 const (
 	googleOAuthAuthURL       = "https://accounts.google.com/o/oauth2/auth"
