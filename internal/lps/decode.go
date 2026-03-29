@@ -1,5 +1,4 @@
-// LPS JSON response decoders: user-player discovery, game extraction, and map-access helpers.
-package app
+package lps
 
 import (
 	"encoding/json"
@@ -8,15 +7,15 @@ import (
 	"strconv"
 	"strings"
 
-	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
-func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
-	var discovery lpsUserPlayerDiscovery
+// DecodeLPSUserPlayers normalizes the LPS /users/check payload into a filtered discovery result.
+func DecodeLPSUserPlayers(payload []byte) (UserPlayerDiscovery, error) {
+	var discovery UserPlayerDiscovery
 
-	var envelope lpsUserCheckResponse
+	var envelope UserCheckResponse
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return discovery, errors.New("The player lookup response format was not recognized.")
 	}
@@ -25,14 +24,15 @@ func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
 		if message == "" {
 			message = "Let's Play Soccer rejected the imported token."
 		}
-		return discovery, newLPSFetchError(lpsErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
+		return discovery, NewFetchError(ErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
 	}
-	discovery.UserName = lps.FullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
+
+	discovery.UserName = FullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
 	if discovery.UserName == "" {
 		discovery.UserName = "Let's Play Soccer account"
 	}
 	if len(envelope.Players) == 0 {
-		discovery.Players = []LPSPlayer{}
+		discovery.Players = []types.LPSPlayer{}
 		return discovery, nil
 	}
 
@@ -47,7 +47,7 @@ func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
 		return discovery, nil
 	}
 
-	players := make([]LPSPlayer, 0, len(envelope.Players))
+	players := make([]types.LPSPlayer, 0, len(envelope.Players))
 	for _, player := range envelope.Players {
 		if _, deleted := deletedPlayerIDs[player.UPlayerID]; deleted {
 			continue
@@ -59,7 +59,8 @@ func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
 	return discovery, nil
 }
 
-func decodeLPSGames(payload []byte) ([]Game, error) {
+// DecodeLPSGames decodes the flexible LPS games payload shapes into normalized games.
+func DecodeLPSGames(payload []byte) ([]types.Game, error) {
 	var envelope types.LambdaGamesResponse
 	if err := json.Unmarshal(payload, &envelope); err == nil && len(envelope.Games) > 0 {
 		return envelope.Games, nil
@@ -70,13 +71,14 @@ func decodeLPSGames(payload []byte) ([]Game, error) {
 		return nil, errors.New("The schedule response format was not recognized.")
 	}
 
-	items := extractGameMaps(raw)
+	items := ExtractGameMaps(raw)
 	if len(items) == 0 {
-		return []Game{}, nil
+		return []types.Game{}, nil
 	}
-	games := make([]Game, 0, len(items))
+
+	games := make([]types.Game, 0, len(items))
 	for _, item := range items {
-		game := mapLPSGame(item)
+		game := MapLPSGame(item)
 		if game.ID == "" && game.DateTime == "" && game.Home == "" && game.Away == "" {
 			continue
 		}
@@ -85,7 +87,8 @@ func decodeLPSGames(payload []byte) ([]Game, error) {
 	return games, nil
 }
 
-func extractGameMaps(raw any) []map[string]any {
+// ExtractGameMaps pulls game objects out of the common LPS response envelopes.
+func ExtractGameMaps(raw any) []map[string]any {
 	switch value := raw.(type) {
 	case []any:
 		games := make([]map[string]any, 0, len(value))
@@ -98,7 +101,7 @@ func extractGameMaps(raw any) []map[string]any {
 	case map[string]any:
 		for _, key := range []string{"games", "upcoming_games", "data", "results", "items"} {
 			if nested, ok := value[key]; ok {
-				games := extractGameMaps(nested)
+				games := ExtractGameMaps(nested)
 				if len(games) > 0 {
 					return games
 				}
@@ -110,7 +113,8 @@ func extractGameMaps(raw any) []map[string]any {
 	}
 }
 
-func mapLPSGame(raw map[string]any) Game {
+// MapLPSGame maps a flexible LPS game payload into the shared game model.
+func MapLPSGame(raw map[string]any) types.Game {
 	startAt := schedule.NormalizeLPSScheduleTime(firstString(raw,
 		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
 	))
@@ -135,7 +139,7 @@ func mapLPSGame(raw map[string]any) Game {
 		}
 	}
 
-	return Game{
+	return types.Game{
 		ID:               firstString(raw, "id", "ID", "game_id", "GameID", "UGameID"),
 		DateTime:         dateTime,
 		StartAt:          startAt,

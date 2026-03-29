@@ -69,21 +69,21 @@ func (app *App) soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwt, err := normalizeImportedJWT(r.FormValue("jwt"))
+	jwt, err := internallps.NormalizeImportedJWT(r.FormValue("jwt"))
 	if err != nil {
 		renderSoccerLoginFeedback(w, "error", err.Error())
 		return
 	}
 
-	discovery, err := app.lpsFetchUserPlayers(r.Context(), jwt)
+	discovery, err := internallps.FetchUserPlayers(r.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, jwt)
 	if err != nil {
-		var fetchErr *lpsFetchError
+		var fetchErr *internallps.FetchError
 		if errors.As(err, &fetchErr) {
 			switch fetchErr.Kind {
-			case lpsErrorUnauthorized, lpsErrorForbidden:
+			case internallps.ErrorUnauthorized, internallps.ErrorForbidden:
 				renderSoccerLoginFeedback(w, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
 				return
-			case lpsErrorUpstream:
+			case internallps.ErrorUpstream:
 				renderSoccerLoginFeedback(w, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
 				return
 			}
@@ -100,7 +100,7 @@ func (app *App) soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		JWT:       jwt,
 		UserName:  discovery.UserName,
 		Players:   discovery.Players,
-		ExpiresAt: importedSessionExpiry(jwt),
+		ExpiresAt: internallps.ImportedSessionExpiry(jwt),
 	}
 	if err := app.setSession(w, r, &session); err != nil {
 		log.Printf("soccer import session write failed: %v", err)
@@ -305,7 +305,12 @@ func renderSoccerLoginFeedback(w http.ResponseWriter, kind, message string) {
 
 func (app *App) populateScheduleProps(ctx context.Context, session *SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
 	games, fetchErr := app.resolveScheduleGames(ctx, session, playerIDs, nil)
-	message, hint, clearSession := scheduleFetchFeedback(fetchErr)
+	message, hint, clearSession := internallps.ScheduleFetchFeedback(fetchErr)
+	if errors.Is(fetchErr, errSessionExpired) {
+		message = "Your imported Let's Play Soccer token expired."
+		hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
+		clearSession = true
+	}
 	if fetchErr != nil && !clearSession {
 		log.Printf("soccer LPS fetch failed: %v", fetchErr)
 	}
@@ -340,7 +345,12 @@ func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, p
 			return false
 		}
 		games, fetchErr := app.resolveScheduleGames(ctx, session, playerIDs, teamIDs)
-		message, hint, clearSession := scheduleFetchFeedback(fetchErr)
+		message, hint, clearSession := internallps.ScheduleFetchFeedback(fetchErr)
+		if errors.Is(fetchErr, errSessionExpired) {
+			message = "Your imported Let's Play Soccer token expired."
+			hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
+			clearSession = true
+		}
 		if fetchErr != nil && !clearSession {
 			log.Printf("soccer LPS fetch failed: %v", fetchErr)
 		}
@@ -360,20 +370,23 @@ func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, p
 func (app *App) resolveScheduleGames(ctx context.Context, session *SessionData, playerIDs, teamIDs []int) ([]Game, error) {
 	switch {
 	case session != nil && len(playerIDs) > 0:
-		return app.lpsFetchGamesForPlayers(ctx, session.JWT, playerIDs)
+		return internallps.FetchGamesForPlayers(ctx, app.Config.LPSAPIBaseURL, app.LPSClient, session.JWT, playerIDs)
 	case len(teamIDs) > 0:
-		return app.lpsFetchGamesForTeams(ctx, teamIDs)
+		return internallps.FetchGamesForTeams(ctx, app.Config.LPSAPIBaseURL, app.LPSClient, teamIDs)
 	default:
 		return nil, nil
 	}
 }
 
 func (app *App) handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
-	_, _, shouldClearSession := scheduleFetchFeedback(err)
+	_, _, shouldClearSession := internallps.ScheduleFetchFeedback(err)
+	if errors.Is(err, errSessionExpired) {
+		shouldClearSession = true
+	}
 	if shouldClearSession {
 		app.clearSession(w, r)
 	}
-	status, message := scheduleDownloadError(err)
+	status, message := internallps.ScheduleDownloadError(err)
 	if status == http.StatusUnauthorized || status == http.StatusBadRequest {
 		app.clearSession(w, r)
 	}
