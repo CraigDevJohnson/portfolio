@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	internalhttpx "portfolio/internal/httpx"
 )
 
 func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
@@ -13,7 +15,7 @@ func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 		req.RemoteAddr = "127.0.0.1:443"
 		req.Header.Set("CF-Connecting-IP", "198.51.100.24")
 
-		if got := clientIP(req); got != "198.51.100.24" {
+		if got := internalhttpx.ClientIP(req); got != "198.51.100.24" {
 			t.Fatalf("unexpected client IP: got %s", got)
 		}
 	})
@@ -23,7 +25,7 @@ func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 		req.RemoteAddr = "203.0.113.10:443"
 		req.Header.Set("CF-Connecting-IP", "198.51.100.24")
 
-		if got := clientIP(req); got != "203.0.113.10" {
+		if got := internalhttpx.ClientIP(req); got != "203.0.113.10" {
 			t.Fatalf("unexpected client IP: got %s", got)
 		}
 	})
@@ -33,7 +35,7 @@ func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 		req.RemoteAddr = "127.0.0.1:443"
 		req.Header.Set("X-Forwarded-For", "198.51.100.25, 10.0.0.5")
 
-		if got := clientIP(req); got != "198.51.100.25" {
+		if got := internalhttpx.ClientIP(req); got != "198.51.100.25" {
 			t.Fatalf("unexpected client IP: got %s", got)
 		}
 	})
@@ -43,7 +45,7 @@ func TestClientIPPrefersTrustedForwardedHeaders(t *testing.T) {
 		req.RemoteAddr = "203.0.113.11:443"
 		req.Header.Set("X-Forwarded-For", "198.51.100.26")
 
-		if got := clientIP(req); got != "203.0.113.11" {
+		if got := internalhttpx.ClientIP(req); got != "203.0.113.11" {
 			t.Fatalf("unexpected client IP: got %s", got)
 		}
 	})
@@ -55,7 +57,7 @@ func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 		req.RemoteAddr = "127.0.0.1:443"
 		req.Header.Set("X-Forwarded-Proto", "https")
 
-		if !requestIsHTTPS(req) {
+		if !internalhttpx.RequestIsHTTPS(req) {
 			t.Fatal("expected requestIsHTTPS to return true for trusted proxy with https proto")
 		}
 	})
@@ -65,7 +67,7 @@ func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 		req.RemoteAddr = "203.0.113.10:443"
 		req.Header.Set("X-Forwarded-Proto", "https")
 
-		if requestIsHTTPS(req) {
+		if internalhttpx.RequestIsHTTPS(req) {
 			t.Fatal("expected requestIsHTTPS to return false for untrusted source with spoofed proto")
 		}
 	})
@@ -74,7 +76,7 @@ func TestRequestIsHTTPSOnlyTrustsProxiedHeader(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 		req.TLS = &tls.ConnectionState{}
 
-		if !requestIsHTTPS(req) {
+		if !internalhttpx.RequestIsHTTPS(req) {
 			t.Fatal("expected requestIsHTTPS to return true for direct TLS")
 		}
 	})

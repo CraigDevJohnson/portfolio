@@ -33,7 +33,3 @@ const (
 	googleOAuthTokenURL      = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
 	googleCalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 )
-
-func normalizeLPSAPIBaseURL(raw string) (string, error) {
-	return config.NormalizeLPSAPIBaseURL(raw)
-}

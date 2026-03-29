@@ -69,11 +69,3 @@ func clearGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }
-
-func requestIsHTTPS(r *http.Request) bool {
-	return internalhttpx.RequestIsHTTPS(r)
-}
-
-func requestBaseURL(r *http.Request) string {
-	return internalhttpx.RequestBaseURL(r)
-}

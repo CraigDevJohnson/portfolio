@@ -20,6 +20,7 @@ import (
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
+	internalhttpx "portfolio/internal/httpx"
 	"portfolio/types"
 )
 
@@ -308,7 +309,7 @@ func (app *App) googleOAuthConfigForRequest(r *http.Request) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     app.Config.GoogleClientID,
 		ClientSecret: app.Config.GoogleClientSecret,
-		RedirectURL:  requestBaseURL(r) + "/soccer",
+		RedirectURL:  internalhttpx.RequestBaseURL(r) + "/soccer",
 		Scopes: []string{
 			"https://www.googleapis.com/auth/calendar.events",
 			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",

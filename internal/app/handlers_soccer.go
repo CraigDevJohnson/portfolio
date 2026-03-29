@@ -14,7 +14,9 @@ import (
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
+	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/schedule"
+	internalsoccer "portfolio/internal/soccer"
 )
 
 func (app *App) soccerHandler(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +58,7 @@ func (app *App) soccerImportHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
 	}
-	if !app.LoginLimiter.Allow(clientIP(r)) {
+	if !app.LoginLimiter.Allow(internalhttpx.ClientIP(r)) {
 		renderSoccerLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
@@ -135,7 +137,7 @@ func (app *App) fetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := parsePlayerIDs(r.Form["player_ids"])
+	playerIDs := internalsoccer.ParsePlayerIDs(r.Form["player_ids"])
 	session, swapAuthState := app.loadSoccerSession(w, r)
 
 	googleConnected := false
@@ -202,8 +204,8 @@ func (app *App) downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := parsePlayerIDs(r.Form["player_ids"])
-	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	playerIDs := internalsoccer.ParsePlayerIDs(r.Form["player_ids"])
+	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
@@ -316,7 +318,7 @@ func (app *App) populateScheduleProps(ctx context.Context, session *SessionData,
 }
 
 func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
-	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false
@@ -330,7 +332,7 @@ func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, p
 		return false
 	}
 	if strings.TrimSpace(teamCodes) != "" {
-		teamIDs := parseTeamIDs(teamCodes)
+		teamIDs := internalsoccer.ParseTeamIDs(teamCodes)
 		if len(teamIDs) == 0 {
 			props.Message = "One or more team IDs were invalid."
 			props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
@@ -378,7 +380,7 @@ func (app *App) handleScheduleDownloadError(w http.ResponseWriter, r *http.Reque
 }
 
 func (app *App) requestedScheduleGames(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string) ([]Game, error) {
-	teamIDs := parseTeamIDs(teamCodes)
+	teamIDs := internalsoccer.ParseTeamIDs(teamCodes)
 	switch {
 	case session != nil && len(playerIDs) > 0:
 		return app.resolveScheduleGames(ctx, session, playerIDs, nil)

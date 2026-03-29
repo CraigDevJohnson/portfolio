@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
@@ -26,7 +27,7 @@ func decodeLPSUserPlayers(payload []byte) (lpsUserPlayerDiscovery, error) {
 		}
 		return discovery, newLPSFetchError(lpsErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
 	}
-	discovery.UserName = fullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
+	discovery.UserName = lps.FullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
 	if discovery.UserName == "" {
 		discovery.UserName = "Let's Play Soccer account"
 	}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
 )
 
@@ -149,12 +150,12 @@ func (app *App) lpsFetchUserPlayers(ctx context.Context, jwt string) (lpsUserPla
 		return discovery, newLPSFetchError(lpsErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
-	req, err := app.newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "users", "check")
+	req, err := lps.NewAPIRequest(ctx, app.Config.LPSAPIBaseURL, http.MethodGet, normalizedJWT, "users", "check")
 	if err != nil {
 		return discovery, err
 	}
 
-	resp, err := app.doLPSAPIRequest(req)
+	resp, err := lps.DoAPIRequest(app.LPSClient, req)
 	if err != nil {
 		return discovery, newLPSFetchError(lpsErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
 	}
@@ -194,7 +195,7 @@ func (app *App) lpsFetchGamesForPlayers(ctx context.Context, jwt string, playerI
 
 	resolver := app.newLPSScheduleResolver(normalizedJWT)
 	teamByID := make(map[int]lpsTeamSummary)
-	for _, playerID := range sortedUniqueIDs(playerIDs) {
+	for _, playerID := range lps.SortedUniqueIDs(playerIDs) {
 		playerTeams, err := resolver.fetchPlayerTeams(ctx, playerID)
 		if err != nil {
 			return nil, err
@@ -233,7 +234,7 @@ func (app *App) lpsFetchGamesForTeams(ctx context.Context, teamIDs []int) ([]Gam
 	resolver := app.newLPSScheduleResolver("")
 	games := make([]Game, 0)
 	indexByKey := make(map[string]int)
-	for _, teamID := range sortedUniqueIDs(teamIDs) {
+	for _, teamID := range lps.SortedUniqueIDs(teamIDs) {
 		teamGames, err := resolver.fetchTeamGames(ctx, teamID, nil)
 		if err != nil {
 			return nil, err
@@ -257,12 +258,12 @@ func (app *App) lpsFetchUpcomingGames(ctx context.Context, normalizedJWT string,
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	req, err := app.newLPSAPIRequest(ctx, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
+	req, err := lps.NewAPIRequest(ctx, app.Config.LPSAPIBaseURL, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := app.doLPSAPIRequest(req)
+	resp, err := lps.DoAPIRequest(app.LPSClient, req)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading schedules: %w", err)
 	}
@@ -302,12 +303,12 @@ func (resolver *lpsScheduleResolver) fetchPlayerTeams(ctx context.Context, playe
 		return nil, newLPSFetchError(lpsErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
+	req, err := lps.NewAPIRequest(ctx, resolver.app.Config.LPSAPIBaseURL, http.MethodGet, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := resolver.app.doLPSAPIRequest(req)
+	resp, err := lps.DoAPIRequest(resolver.app.LPSClient, req)
 	if err != nil {
 		return nil, newLPSFetchError(lpsErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading player teams: %w", err)
 	}
@@ -369,12 +370,12 @@ func (resolver *lpsScheduleResolver) fetchTeamSchedule(ctx context.Context, team
 		return schedule, newLPSFetchError(lpsErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
 	}
 
-	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, "", "teams", strconv.Itoa(teamID))
+	req, err := lps.NewAPIRequest(ctx, resolver.app.Config.LPSAPIBaseURL, http.MethodGet, "", "teams", strconv.Itoa(teamID))
 	if err != nil {
 		return schedule, err
 	}
 
-	resp, err := resolver.app.doLPSAPIRequest(req)
+	resp, err := lps.DoAPIRequest(resolver.app.LPSClient, req)
 	if err != nil {
 		return schedule, newLPSFetchError(lpsErrorUpstream, teamID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading team schedules: %w", err)
 	}
@@ -407,8 +408,8 @@ func (resolver *lpsScheduleResolver) mapTeamScheduleGame(ctx context.Context, ra
 		selected = *selectedTeam
 	}
 
-	facilityID := firstPositiveInt(rawGame.FacilityID, selected.FacilityID, responseTeam.FacilityID, rawGame.HomeTeam.FacilityID, rawGame.VisitorTeam.FacilityID)
-	facilityName := firstNonEmptyString(rawGame.FacilityName, selected.FacilityName, responseTeam.FacilityName, rawGame.HomeTeam.FacilityName, rawGame.VisitorTeam.FacilityName)
+	facilityID := lps.FirstPositiveInt(rawGame.FacilityID, selected.FacilityID, responseTeam.FacilityID, rawGame.HomeTeam.FacilityID, rawGame.VisitorTeam.FacilityID)
+	facilityName := lps.FirstNonEmptyString(rawGame.FacilityName, selected.FacilityName, responseTeam.FacilityName, rawGame.HomeTeam.FacilityName, rawGame.VisitorTeam.FacilityName)
 	facility, err := resolver.fetchFacility(ctx, facilityID)
 	if err != nil {
 		return Game{}, err
@@ -436,15 +437,15 @@ func (resolver *lpsScheduleResolver) mapTeamScheduleGame(ctx context.Context, ra
 	}
 
 	game := Game{
-		ID:               intString(rawGame.UGameID),
+		ID:               lps.IntString(rawGame.UGameID),
 		DateTime:         schedule.FormatGameDateTime(schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime)),
 		StartAt:          schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime),
-		EndAt:            schedule.NormalizeLPSScheduleTime(stringPointerValue(rawGame.SchedGameEndTime)),
+		EndAt:            schedule.NormalizeLPSScheduleTime(lps.StringPointerValue(rawGame.SchedGameEndTime)),
 		Field:            fieldName,
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,
 		Away:             visitorName,
-		Season:           firstNonEmptyString(intString(selected.Season), intString(responseTeam.Season), intString(rawGame.Season), intString(rawGame.HomeTeam.Season), intString(rawGame.VisitorTeam.Season)),
+		Season:           lps.FirstNonEmptyString(lps.IntString(selected.Season), lps.IntString(responseTeam.Season), lps.IntString(rawGame.Season), lps.IntString(rawGame.HomeTeam.Season), lps.IntString(rawGame.VisitorTeam.Season)),
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
 		DivisionName:     divisionName,
@@ -468,12 +469,12 @@ func (resolver *lpsScheduleResolver) fetchFacility(ctx context.Context, facility
 		return facility, nil
 	}
 
-	req, err := resolver.app.newLPSAPIRequest(ctx, http.MethodGet, "", "facilities", strconv.Itoa(facilityID))
+	req, err := lps.NewAPIRequest(ctx, resolver.app.Config.LPSAPIBaseURL, http.MethodGet, "", "facilities", strconv.Itoa(facilityID))
 	if err != nil {
 		return lpsFacility{}, err
 	}
 
-	resp, err := resolver.app.doLPSAPIRequest(req)
+	resp, err := lps.DoAPIRequest(resolver.app.LPSClient, req)
 	if err != nil {
 		return lpsFacility{}, newLPSFetchError(lpsErrorUpstream, facilityID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading facility %d: %w", facilityID, err)
 	}
@@ -507,16 +508,16 @@ func resolveSelectedTeamMatchup(rawGame *lpsTeamScheduleGame, responseTeam lpsTe
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)
 	if selectedTeam != nil {
-		selectedTeamID = firstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
-		selectedTeamName = firstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
-		divisionName = firstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
+		selectedTeamID = lps.FirstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
+		selectedTeamName = lps.FirstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
+		divisionName = lps.FirstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
 	}
 	if selectedTeamID == 0 && rawGame.TeamIDSelected != nil {
 		selectedTeamID = *rawGame.TeamIDSelected
 	}
 
-	homeID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
-	visitorID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
+	homeID := lps.FirstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
+	visitorID := lps.FirstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
 	homeDivision := strings.TrimSpace(rawGame.HomeTeam.DivisionName)
@@ -524,14 +525,14 @@ func resolveSelectedTeamMatchup(rawGame *lpsTeamScheduleGame, responseTeam lpsTe
 
 	switch {
 	case selectedTeamID > 0 && homeID == selectedTeamID:
-		return firstNonEmptyString(selectedTeamName, homeName), visitorName, firstNonEmptyString(divisionName, homeDivision, visitorDivision)
+		return lps.FirstNonEmptyString(selectedTeamName, homeName), visitorName, lps.FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
 	case selectedTeamID > 0 && visitorID == selectedTeamID:
-		return firstNonEmptyString(selectedTeamName, visitorName), homeName, firstNonEmptyString(divisionName, visitorDivision, homeDivision)
+		return lps.FirstNonEmptyString(selectedTeamName, visitorName), homeName, lps.FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
 	}
 
-	playerTeamName := firstNonEmptyString(selectedTeamName, homeName)
+	playerTeamName := lps.FirstNonEmptyString(selectedTeamName, homeName)
 	if playerTeamName == visitorName {
-		return playerTeamName, homeName, firstNonEmptyString(divisionName, visitorDivision, homeDivision)
+		return playerTeamName, homeName, lps.FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
 	}
-	return playerTeamName, visitorName, firstNonEmptyString(divisionName, homeDivision, visitorDivision)
+	return playerTeamName, visitorName, lps.FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
 }

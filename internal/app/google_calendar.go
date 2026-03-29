@@ -18,7 +18,9 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/internal/config"
+	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/schedule"
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
 
@@ -105,15 +107,15 @@ func (app *App) soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 		renderSoccerLoginFeedback(w, "error", "Connect Google Calendar before adding selected games.")
 		return
 	}
-	selectedIDs := parseSelectedIDs(r.Form)
+	selectedIDs := internalsoccer.ParseSelectedIDs(r.Form)
 	if len(selectedIDs) == 0 {
 		renderSoccerLoginFeedback(w, "error", "Select at least one game to add to Google Calendar.")
 		return
 	}
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := parsePlayerIDs(rawPlayerIDs)
-	if len(nonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	playerIDs := internalsoccer.ParsePlayerIDs(rawPlayerIDs)
+	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		renderSoccerLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
 		return
 	}
@@ -555,7 +557,7 @@ func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
 	}
 	event.Source = &googleEventSource{
 		Title: "Soccer Schedule",
-		URL:   requestBaseURL(r) + "/soccer",
+		URL:   internalhttpx.RequestBaseURL(r) + "/soccer",
 	}
 	return event, true
 }

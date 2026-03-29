@@ -23,8 +23,8 @@
 
 ## Current Iteration
 
-- Iteration: 5
-- Working on: Next task TBD
+- Iteration: 6
+- Working on: Task-005: Eliminate LPS client and helpers wrapper files
 
 ## Blockers
 
@@ -32,6 +32,6 @@
 
 ## Notes for Next Iteration
 
-- Portfolio routes are now decoupled from `App` struct
-- Next candidates for wrapper elimination: schedule wrapper files (Task-004), LPS/helpers wrappers (Task-005)
-- 80 tests all passing
+- Task-005 work moved shared LPS value helpers into `internal/lps/helpers.go`
+- Task-005 work introduced `internal/soccer/form.go` for form parsing helpers used by soccer and Google handlers
+- `internal/app/helpers.go` and `internal/app/lps_client.go` were removed; local `just test` and `just build` passed
