@@ -23,8 +23,8 @@
 
 ## Current Iteration
 
-- Iteration: 6
-- Working on: Task-005: Eliminate LPS client and helpers wrapper files
+- Iteration: 7
+- Working on: Task-005 review fix: move `NonEmptyStrings` to `internal/lps`
 
 ## Blockers
 
@@ -35,3 +35,4 @@
 - Task-005 work moved shared LPS value helpers into `internal/lps/helpers.go`
 - Task-005 work introduced `internal/soccer/form.go` for form parsing helpers used by soccer and Google handlers
 - `internal/app/helpers.go` and `internal/app/lps_client.go` were removed; local `just test` and `just build` passed
+- RalphReviewer follow-up: `NonEmptyStrings` was moved from `internal/soccer/form.go` to `internal/lps/helpers.go` to keep generic helpers out of the soccer form package

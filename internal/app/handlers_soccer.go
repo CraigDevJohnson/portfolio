@@ -15,6 +15,7 @@ import (
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	internallps "portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	internalsoccer "portfolio/internal/soccer"
 )
@@ -205,7 +206,7 @@ func (app *App) downloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := internalsoccer.ParsePlayerIDs(r.Form["player_ids"])
-	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if len(internallps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
@@ -318,7 +319,7 @@ func (app *App) populateScheduleProps(ctx context.Context, session *SessionData,
 }
 
 func (app *App) resolveScheduleData(ctx context.Context, session *SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
-	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if len(internallps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false

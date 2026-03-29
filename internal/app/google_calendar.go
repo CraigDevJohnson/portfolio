@@ -19,6 +19,7 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	internallps "portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
@@ -115,7 +116,7 @@ func (app *App) soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := internalsoccer.ParsePlayerIDs(rawPlayerIDs)
-	if len(internalsoccer.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if len(internallps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
 		renderSoccerLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
 		return
 	}

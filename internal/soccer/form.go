@@ -42,18 +42,6 @@ func ParseTeamIDs(raw string) []int {
 	return ParsePlayerIDs(splitDelimitedValues(raw))
 }
 
-// NonEmptyStrings returns trimmed non-empty strings.
-func NonEmptyStrings(values []string) []string {
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			normalized = append(normalized, value)
-		}
-	}
-	return normalized
-}
-
 func splitDelimitedValues(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
