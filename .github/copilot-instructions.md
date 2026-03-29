@@ -72,7 +72,9 @@ The current soccer flow is JWT import with server-side player discovery, not man
 
 Relevant handlers and components:
 
-- `SessionHandler`, `ImportHandler`, `LogoutHandler`, `FetchSchedulesHandler`, and `DownloadICSHandler` in `internal/soccer/handler.go`.
+- `SessionHandler`, `ImportHandler`, and `LogoutHandler` in `internal/soccer/auth.go`.
+- `FetchSchedulesHandler` and `DownloadICSHandler` in `internal/soccer/schedule.go`.
+- `SoccerPage` in `internal/soccer/page.go`.
 - `cmd/web/pages/soccer.templ`.
 - `cmd/web/partials/soccer_login_modal.templ`.
 - `cmd/web/partials/soccer_login_state.templ`.
