@@ -393,7 +393,7 @@ func TestSoccerGoogleAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *te
 	defer apiServer.Close()
 
 	app.Config.LPSAPIBaseURL = apiServer.URL
-	app.GoogleCalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
+	app.GoogleHandler.CalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", strings.NewReader(url.Values{
 		"team_codes": {"479691"},

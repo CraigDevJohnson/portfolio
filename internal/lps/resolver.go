@@ -17,9 +17,9 @@ import (
 
 // ScheduleResolver loads players, teams, facilities, and schedule data from LPS.
 type ScheduleResolver struct {
-	baseURL      string
-	httpClient   *http.Client
-	jwt          string
+	baseURL       string
+	httpClient    *http.Client
+	jwt           string
 	facilityCache map[int]Facility
 }
 

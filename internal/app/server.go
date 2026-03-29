@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/portfolio"
 	internalsoccer "portfolio/internal/soccer"
 )
@@ -35,7 +36,8 @@ func Run() {
 
 	cfg := config.Load()
 	app := New(cfg)
-	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{app: app})
+	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{google: app.GoogleHandler})
+	app.GoogleHandler.Soccer = newGoogleSoccerBridge(soccerHandler)
 
 	mux := http.NewServeMux()
 
@@ -82,10 +84,10 @@ func Run() {
 	mux.HandleFunc("/soccer/session", soccerHandler.SessionHandler)
 	mux.HandleFunc("/soccer/import", soccerHandler.ImportHandler)
 	mux.HandleFunc("/soccer/logout", soccerHandler.LogoutHandler)
-	mux.HandleFunc("/soccer/google/add", app.soccerGoogleAddHandler)
-	mux.HandleFunc("/soccer/google/calendar", app.soccerGoogleCalendarHandler)
-	mux.HandleFunc("/soccer/google/connect", app.soccerGoogleConnectHandler)
-	mux.HandleFunc("/soccer/google/disconnect", app.soccerGoogleDisconnectHandler)
+	mux.HandleFunc("/soccer/google/add", app.GoogleHandler.AddHandler)
+	mux.HandleFunc("/soccer/google/calendar", app.GoogleHandler.CalendarHandler)
+	mux.HandleFunc("/soccer/google/connect", app.GoogleHandler.ConnectHandler)
+	mux.HandleFunc("/soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
 	mux.HandleFunc("/soccer/fetch", soccerHandler.FetchSchedulesHandler)
 	mux.HandleFunc("/soccer/download", soccerHandler.DownloadICSHandler)
 	mux.HandleFunc("/soccer/subscribe", soccerHandler.SubscribeHandler)
@@ -127,12 +129,12 @@ func Run() {
 		go func() {
 			initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer initCancel()
-			store, initErr := newGoogleConnectionStore(initCtx, &app.Config)
+			store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
 			if initErr != nil {
 				log.Printf("google calendar add disabled: could not initialize connection store: %v", initErr)
 				return
 			}
-			app.setGoogleConnectionStore(store)
+			app.GoogleHandler.SetStore(store)
 		}()
 	}
 

@@ -16,7 +16,7 @@ import (
 // LoginStateProps returns the soccer auth panel props for the current request state.
 func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
 	props := partials.SoccerLoginStateProps{
-		Authenticated:  session != nil,
+		Authenticated:   session != nil,
 		GoogleAvailable: h.Config.GoogleEnabled(),
 		LoginAvailable:  h.Config.LoginEnabled(),
 		SwapOOB:         swapOOB,

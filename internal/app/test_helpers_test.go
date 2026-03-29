@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/schedule"
 )
 
@@ -41,14 +42,12 @@ func newTestApp(t *testing.T) *App {
 			SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
 			LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 		},
-		LPSClient:               &http.Client{Timeout: 5 * time.Second},
-		LoginLimiter:             newLoginRateLimiter(5, time.Minute),
-		MountainTZ:               schedule.MountainTimeLocation,
-		googleStore:              noopGoogleConnectionStore{},
-		GoogleOAuthAuthURL:       googleOAuthAuthURL,
-		GoogleOAuthTokenURL:      googleOAuthTokenURL,
-		GoogleCalendarAPIBaseURL: googleCalendarAPIBaseURL,
+		LPSClient:    &http.Client{Timeout: 5 * time.Second},
+		LoginLimiter: newLoginRateLimiter(5, time.Minute),
+		MountainTZ:   schedule.MountainTimeLocation,
 	}
+	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
+	app.GoogleHandler.Soccer = newGoogleSoccerBridge(app.newSoccerHandler())
 	t.Cleanup(func() {
 		app.LoginLimiter.Close()
 	})
@@ -63,13 +62,13 @@ func newTestAppWithGoogle(t *testing.T, store googleConnectionStore, authURL, to
 	app.Config.GoogleConnectionTableName = "google-connections"
 	app.setGoogleConnectionStore(store)
 	if authURL != "" {
-		app.GoogleOAuthAuthURL = authURL
+		app.GoogleHandler.OAuthAuthURL = authURL
 	}
 	if tokenURL != "" {
-		app.GoogleOAuthTokenURL = tokenURL
+		app.GoogleHandler.OAuthTokenURL = tokenURL
 	}
 	if apiBaseURL != "" {
-		app.GoogleCalendarAPIBaseURL = apiBaseURL
+		app.GoogleHandler.CalendarAPIBaseURL = apiBaseURL
 	}
 	return app
 }

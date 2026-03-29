@@ -190,7 +190,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.GoogleCalendarAPIBaseURL = server.URL + "/calendar/v3"
+	app.GoogleHandler.CalendarAPIBaseURL = server.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/calendar", strings.NewReader(url.Values{
 		"calendar_id": {"team"},

@@ -2,53 +2,33 @@ package app
 
 import (
 	"net/http"
-	"sync"
 	"time"
 
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/schedule"
 	"portfolio/internal/session"
 )
 
 // App holds all runtime dependencies, replacing package-level mutable state.
 type App struct {
-	Config       config.Config
-	LPSClient    *http.Client
-	LoginLimiter *session.LoginRateLimiter
-	MountainTZ   *time.Location
-
-	// Google OAuth/Calendar URLs — defaults come from package constants,
-	// but tests can override per-App instance.
-	GoogleOAuthAuthURL       string
-	GoogleOAuthTokenURL      string
-	GoogleCalendarAPIBaseURL string
-
-	googleStoreMu sync.RWMutex
-	googleStore   googleConnectionStore
+	Config        config.Config
+	LPSClient     *http.Client
+	LoginLimiter  *session.LoginRateLimiter
+	MountainTZ    *time.Location
+	GoogleHandler *internalgoogle.Handler
 }
 
 // New constructs an App with production defaults for the given config.
 func New(cfg config.Config) *App {
-	return &App{
-		Config:                   cfg,
-		LPSClient:                &http.Client{Timeout: 15 * time.Second},
-		LoginLimiter:             newLoginRateLimiter(5, time.Minute),
-		MountainTZ:               schedule.MountainTimeLocation,
-		googleStore:              noopGoogleConnectionStore{},
-		GoogleOAuthAuthURL:       googleOAuthAuthURL,
-		GoogleOAuthTokenURL:      googleOAuthTokenURL,
-		GoogleCalendarAPIBaseURL: googleCalendarAPIBaseURL,
+	app := &App{
+		Config:       cfg,
+		LPSClient:    &http.Client{Timeout: 15 * time.Second},
+		LoginLimiter: newLoginRateLimiter(5, time.Minute),
+		MountainTZ:   schedule.MountainTimeLocation,
 	}
-}
-
-func (app *App) currentGoogleConnectionStore() googleConnectionStore {
-	app.googleStoreMu.RLock()
-	defer app.googleStoreMu.RUnlock()
-	return app.googleStore
-}
-
-func (app *App) setGoogleConnectionStore(store googleConnectionStore) {
-	app.googleStoreMu.Lock()
-	app.googleStore = store
-	app.googleStoreMu.Unlock()
+	// GoogleHandler is constructed with a nil SoccerBridge initially;
+	// it gets wired in Run() after the soccer handler is created.
+	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
+	return app
 }

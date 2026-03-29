@@ -1,9 +1,8 @@
-// Type aliases and Google API constants retained in internal/app.
-// Config struct, loading, and feature toggles live in internal/config.
-// Runtime state lives on the App struct (app.go).
+// Type aliases retained for test compatibility.
 package app
 
 import (
+	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/config"
 	"portfolio/types"
 )
@@ -15,12 +14,15 @@ type (
 	SessionData = types.SessionData
 )
 
+// Google type aliases retained for test compatibility (Task-009 will remove these).
+type (
+	googleConnectionRecord = internalgoogle.ConnectionRecord
+	googleConnectionStore  = internalgoogle.ConnectionStore
+	googleOAuthState       = internalgoogle.OAuthState
+	googleEvent            = internalgoogle.Event
+	googleAPIError         = internalgoogle.APIError
+)
+
 // serverConfig is a temporary alias so tests can construct config values
 // without importing internal/config directly (migrated in later tasks).
 type serverConfig = config.Config
-
-const (
-	googleOAuthAuthURL       = "https://accounts.google.com/o/oauth2/auth"
-	googleOAuthTokenURL      = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
-	googleCalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
-)

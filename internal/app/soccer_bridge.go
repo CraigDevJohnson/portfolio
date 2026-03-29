@@ -2,15 +2,16 @@ package app
 
 import (
 	"context"
-	"errors"
-	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	internalsession "portfolio/internal/session"
 	internalsoccer "portfolio/internal/soccer"
+	"portfolio/types"
 )
 
 type loginAttempt = internalsession.LoginAttempt
@@ -21,60 +22,98 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimite
 	return internalsession.NewLoginRateLimiter(maxAttempts, window, config.RateLimiterMaxKeys)
 }
 
-func (app *App) newSoccerHandler() *internalsoccer.Handler {
-	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{app: app})
-}
-
+// soccerGoogleHooks implements soccer.GoogleHooks by delegating to google.Handler.
 type soccerGoogleHooks struct {
-	app *App
+	google *internalgoogle.Handler
 }
 
 func (hooks soccerGoogleHooks) HandlePageCallback(w http.ResponseWriter, r *http.Request) bool {
 	if r.URL.Query().Get("code") == "" && r.URL.Query().Get("error") == "" && r.URL.Query().Get("state") == "" {
 		return false
 	}
-	hooks.app.soccerGoogleCallbackHandler(w, r)
+	hooks.google.CallbackHandler(w, r)
 	return true
 }
 
 func (hooks soccerGoogleHooks) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
-	if !hooks.app.Config.GoogleEnabled() {
-		return false
-	}
-	record, err := hooks.app.loadGoogleConnectionRecord(ctx, r)
-	if err != nil {
-		log.Printf("google connection read failed: %v", err)
-		clearGoogleConnectionCookie(w, r)
-		return false
-	}
-	return record != nil
+	return hooks.google.Connected(ctx, w, r)
 }
 
 func (hooks soccerGoogleHooks) PopulateLoginState(ctx context.Context, w http.ResponseWriter, r *http.Request, props *partials.SoccerLoginStateProps) {
-	if !props.GoogleAvailable {
-		return
-	}
-	record, err := hooks.app.loadGoogleConnectionRecord(ctx, r)
-	if err != nil {
-		log.Printf("google connection read failed: %v", err)
-		clearGoogleConnectionCookie(w, r)
-		return
-	}
-	if record == nil {
-		return
-	}
-	calendars, err := hooks.app.googleListCalendars(ctx, r, record)
-	if err != nil {
-		log.Printf("google calendar list failed: %v", err)
-		var apiErr *googleAPIError
-		if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
-			hooks.app.deleteGoogleConnection(ctx, w, r)
-		}
-		return
-	}
-	props.GoogleConnected = true
-	props.GoogleCalendars = calendars
-	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = hooks.app.syncGoogleCalendarSelection(ctx, record, calendars)
+	hooks.google.PopulateLoginState(ctx, w, r, props)
+}
+
+// googleSoccerBridge implements google.SoccerBridge by delegating to soccer.Handler.
+type googleSoccerBridge struct {
+	soccer *internalsoccer.Handler
+}
+
+func newGoogleSoccerBridge(h *internalsoccer.Handler) *googleSoccerBridge {
+	return &googleSoccerBridge{soccer: h}
+}
+
+func (b *googleSoccerBridge) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
+	return b.soccer.LoadSession(w, r)
+}
+
+func (b *googleSoccerBridge) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
+	return b.soccer.LoginStateProps(w, r, session, swapOOB)
+}
+
+func (b *googleSoccerBridge) RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
+	b.soccer.RenderLoginState(w, r, session)
+}
+
+func (b *googleSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
+	internalsoccer.RenderLoginFeedback(w, kind, message)
+}
+
+func (b *googleSoccerBridge) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
+	return b.soccer.RequestedScheduleGames(ctx, session, playerIDs, teamCodes)
+}
+
+func (b *googleSoccerBridge) SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
+	return internalsoccer.SelectedScheduleGames(games, selectedIDs)
+}
+
+func (b *googleSoccerBridge) GoogleAddScheduleErrorMessage(err error) string {
+	return internalsoccer.GoogleAddScheduleErrorMessage(err)
+}
+
+func (b *googleSoccerBridge) ParseSelectedIDs(form url.Values) map[string]struct{} {
+	return internalsoccer.ParseSelectedIDs(form)
+}
+
+func (b *googleSoccerBridge) ParsePlayerIDs(values []string) []int {
+	return internalsoccer.ParsePlayerIDs(values)
+}
+
+// --- Test compatibility bridges ---
+// These forwarding methods allow existing tests in internal/app to call
+// Google handler methods through the App struct until Task-009 migrates tests.
+
+func (app *App) soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
+	app.GoogleHandler.ConnectHandler(w, r)
+}
+
+func (app *App) soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	app.GoogleHandler.CallbackHandler(w, r)
+}
+
+func (app *App) soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
+	app.GoogleHandler.DisconnectHandler(w, r)
+}
+
+func (app *App) soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
+	app.GoogleHandler.AddHandler(w, r)
+}
+
+func (app *App) soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
+	app.GoogleHandler.CalendarHandler(w, r)
+}
+
+func (app *App) newSoccerHandler() *internalsoccer.Handler {
+	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{google: app.GoogleHandler})
 }
 
 func (app *App) soccerHandler(w http.ResponseWriter, r *http.Request) {

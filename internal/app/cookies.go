@@ -1,16 +1,14 @@
-// Shared cookie builders, HTTPS detection, and base URL resolution.
+// Shared cookie builders, encryption helpers, and test-compatibility bridges for internal/google types.
 package app
 
 import (
-	"errors"
 	"net/http"
-	"strings"
-	"time"
 
-	"portfolio/internal/config"
+	"golang.org/x/oauth2"
+
+	internalgoogle "portfolio/internal/google"
 	internalhttpx "portfolio/internal/httpx"
 	internalsession "portfolio/internal/session"
-	internalsoccer "portfolio/internal/soccer"
 )
 
 func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie { //nolint:unparam // path kept general for reuse outside /soccer
@@ -25,57 +23,60 @@ func (app *App) decryptJSONValue(value string, out any) error {
 	return internalsession.DecryptJSONValue(app.Config.SessionKey, value, out)
 }
 
+// Google cookie bridges retained for test compatibility.
+
 func getGoogleConnectionID(r *http.Request) string {
-	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(cookie.Value)
+	return internalgoogle.GetConnectionID(r)
 }
 
 func setGoogleConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
-	cookie := newSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
-	cookie.Expires = time.Now().Add(config.GoogleConnectionCookieTTL)
-	http.SetCookie(w, cookie)
+	internalgoogle.SetConnectionCookie(w, r, connectionID)
 }
 
 func clearGoogleConnectionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
-	cookie.Expires = time.Unix(0, 0)
-	http.SetCookie(w, cookie)
+	internalgoogle.ClearConnectionCookie(w, r)
 }
 
 func (app *App) setGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request, state googleOAuthState) error {
-	encrypted, err := app.encryptJSONValue(state)
-	if err != nil {
-		return err
-	}
-	cookie := newSecureCookie(r, config.GoogleOAuthStateCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
-	cookie.Expires = state.ExpiresAt
-	http.SetCookie(w, cookie)
-	return nil
+	return app.GoogleHandler.SetOAuthStateCookie(w, r, state)
 }
 
 func (app *App) getGoogleOAuthStateCookie(r *http.Request) (*googleOAuthState, error) {
-	cookie, err := r.Cookie(config.GoogleOAuthStateCookieName)
-	if errors.Is(err, http.ErrNoCookie) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var state googleOAuthState
-	if err := app.decryptJSONValue(cookie.Value, &state); err != nil {
-		return nil, err
-	}
-	if time.Now().After(state.ExpiresAt) {
-		return nil, internalsoccer.ErrSessionExpired
-	}
-	return &state, nil
+	return app.GoogleHandler.GetOAuthStateCookie(r)
 }
 
 func clearGoogleOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
-	cookie.Expires = time.Unix(0, 0)
-	http.SetCookie(w, cookie)
+	internalgoogle.ClearOAuthStateCookie(w, r)
+}
+
+// Google token bridges retained for test compatibility.
+
+func (app *App) encryptGoogleToken(token any) (string, error) {
+	return app.encryptJSONValue(token)
+}
+
+func (app *App) decryptGoogleToken(ciphertext string) (*oauth2.Token, error) {
+	return app.GoogleHandler.DecryptToken(ciphertext)
+}
+
+func (app *App) loadGoogleConnectionRecord(r *http.Request) (*googleConnectionRecord, error) {
+	return app.GoogleHandler.LoadConnectionRecord(r.Context(), r)
+}
+
+// Google calendar/event bridges retained for test compatibility.
+
+func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
+	return internalgoogle.EventPayload(r, game)
+}
+
+func googleEventMatchesGameID(event *googleEvent, gameID string) bool {
+	return internalgoogle.EventMatchesGameID(event, gameID)
+}
+
+func (app *App) setGoogleConnectionStore(store googleConnectionStore) {
+	app.GoogleHandler.SetStore(store)
+}
+
+func (app *App) currentGoogleConnectionStore() googleConnectionStore {
+	return app.GoogleHandler.Store()
 }
