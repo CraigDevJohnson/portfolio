@@ -33,4 +33,5 @@
 
 - Task-006 implementation moved resolver, decode, JWT, and schedule error logic into `internal/lps`
 - `internal/app/handlers_soccer.go` and the Task-006 tests now call `internal/lps` directly
+- Reviewer follow-up removed stale tracked `internal/app/lps_schedule.go`, `internal/app/lps_decode.go`, and lingering `internal/app/lps_client.go`
 - Verified current Task-006 implementation with `just test` and `just build`; leave completion marking to coordinator/review
