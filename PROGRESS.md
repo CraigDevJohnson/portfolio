@@ -33,3 +33,13 @@
 ## Blockers
 
 - None
+
+## Final Verification Evidence (Task-011 / Task-011B)
+
+- Date: 2026-03-29
+- Commands:
+  - `just test` -> ✅ exit code 0
+  - `just build` -> ✅ exit code 0
+- Notes:
+  - Verification executed on current HEAD after Task-011B docs archive commit.
+  - Captured log evidence in `/tmp/task011_just_test.log` and `/tmp/task011_just_build.log`.
