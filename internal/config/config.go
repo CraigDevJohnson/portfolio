@@ -1,3 +1,4 @@
+// Package config provides server configuration, environment variable parsing, and feature toggles.
 package config
 
 import (

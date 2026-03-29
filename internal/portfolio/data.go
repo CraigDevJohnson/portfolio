@@ -1,4 +1,4 @@
-// Static portfolio data for page handlers and HTMX fragments.
+// Package portfolio provides portfolio page handlers and static data.
 package portfolio
 
 import (

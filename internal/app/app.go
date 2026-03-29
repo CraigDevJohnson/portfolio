@@ -1,3 +1,4 @@
+// Package app provides server startup, route wiring, and dependency injection.
 package app
 
 import (

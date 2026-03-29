@@ -18,12 +18,20 @@ Link to those docs instead of copying long procedures into new instructions or P
 
 - Go 1.26.1 server-rendered app with Templ and HTMX.
 - `cmd/server/main.go` is intentionally thin and delegates to `internal/app` for startup and route wiring.
-- `internal/app` contains route handlers and app-level orchestration.
-- `cmd/web/layouts` contains layout wrappers, `cmd/web/pages` contains full pages, and `cmd/web/partials` contains reusable fragments and HTMX swap targets.
+- `internal/app` is a thin routing and dependency-injection layer (~260 lines). It constructs the `App` struct, wires domain packages, registers routes, and starts the HTTP server. It does not contain any business logic.
+- `internal/config` holds env parsing, feature toggles (`LoginEnabled`, `GoogleEnabled`), and shared constants.
+- `internal/soccer` contains soccer page rendering, JWT import, player discovery, session management, schedule fetch, ICS download, and subscribe handlers.
+- `internal/google` contains Google OAuth connect/callback/disconnect, Calendar API event sync, DynamoDB connection store, and token management.
+- `internal/lps` contains the LPS API client, schedule resolver, JSON decode helpers, and error classification.
+- `internal/schedule` contains game normalization, merge/sort/dedup, time parsing, and ICS building.
+- `internal/session` contains AES-GCM cookie encryption and login rate limiting.
+- `internal/httpx` contains client IP detection, HTTPS detection, and secure cookie builder.
+- `internal/portfolio` contains portfolio page handlers and static data.
 - `types/types.go` holds shared typed models used across handlers and templates.
+- `cmd/web/layouts` contains layout wrappers, `cmd/web/pages` contains full pages, and `cmd/web/partials` contains reusable fragments and HTMX swap targets.
 - `cmd/web/static/js/main.js` owns client-side behavior such as the mobile nav, skills interactions, and soccer modal handling.
 
-The repo is already split into `internal/app`, `internal/portfolio`, `internal/schedule`, `internal/lps`, `internal/httpx`, and `internal/session`. Prefer extending those packages rather than rebuilding a monolith.
+Dependencies flow downward from `internal/app` through domain packages to `types`. No circular imports exist. `internal/soccer` and `internal/google` communicate through interfaces (`soccer.GoogleHooks` and `google.SoccerBridge`) wired in `internal/app`.
 
 ## Daily Commands
 
@@ -64,7 +72,7 @@ The current soccer flow is JWT import with server-side player discovery, not man
 
 Relevant handlers and components:
 
-- `soccerSessionHandler`, `soccerImportHandler`, `soccerLogoutHandler`, `fetchSchedulesHandler`, and `downloadICSHandler` in `internal/app/handlers_soccer.go`.
+- `SessionHandler`, `ImportHandler`, `LogoutHandler`, `FetchSchedulesHandler`, and `DownloadICSHandler` in `internal/soccer/handler.go`.
 - `cmd/web/pages/soccer.templ`.
 - `cmd/web/partials/soccer_login_modal.templ`.
 - `cmd/web/partials/soccer_login_state.templ`.

@@ -16,26 +16,6 @@ type LPSPlayer = types.LPSPlayer
 
 type SessionData = types.SessionData
 
-func (app *App) soccerGoogleConnectHandler(w http.ResponseWriter, r *http.Request) {
-	app.GoogleHandler.ConnectHandler(w, r)
-}
-
-func (app *App) soccerGoogleCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	app.GoogleHandler.CallbackHandler(w, r)
-}
-
-func (app *App) soccerGoogleDisconnectHandler(w http.ResponseWriter, r *http.Request) {
-	app.GoogleHandler.DisconnectHandler(w, r)
-}
-
-func (app *App) soccerGoogleAddHandler(w http.ResponseWriter, r *http.Request) {
-	app.GoogleHandler.AddHandler(w, r)
-}
-
-func (app *App) soccerGoogleCalendarHandler(w http.ResponseWriter, r *http.Request) {
-	app.GoogleHandler.CalendarHandler(w, r)
-}
-
 func (app *App) newSoccerHandler() *internalsoccer.Handler {
 	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{google: app.GoogleHandler})
 }

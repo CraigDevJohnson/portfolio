@@ -12,23 +12,25 @@
 - [x] Task-008: Extract `internal/google` (commits: 2acf530, 8e6d13c)
 - [x] Task-009: Migrate tests to domain packages
 - [x] Task-010: Clean internal/app to routing-only
+- [x] Task-011: Update docs and validate final structure
 
 ## Last Completed
 
-- Task-010: Clean internal/app to routing-only
-- Tests: 80 passing, `just ci` green
+- Task-011: Update docs and validate final structure
+- Tests: 80 passing, build green
 - Key decisions:
-  - Moved all test-compatibility wrappers from soccer_bridge.go to bridges_test.go
-  - Deleted dead Google type aliases and cookie bridges (config.go, cookies.go)
-  - Removed dead loginAttempt type alias
-  - internal/app production files: app.go (34), server.go (142), soccer_bridge.go (87) = 263 lines
-  - Test wrappers preserved in _test.go for integration tests
+  - Updated README.md project structure with all 10 domain packages
+  - Updated copilot-instructions.md architecture section and fixed stale handler references
+  - Added package doc comments to all internal/* primary files
+  - Removed 5 dead Google handler test wrappers from bridges_test.go
+  - internal/app production files: app.go (35), server.go (142), soccer_bridge.go (87) = 264 lines
+  - Refactor complete: internal/app is routing-only
 
 ## Current Iteration
 
-- Iteration: 12
-- Working on: Complete
-- Started: 2026-03-29T14:00:00Z
+- Iteration: 13
+- Working on: Complete — full refactor shipped
+- Started: 2026-03-29T14:15:00Z
 
 ## Blockers
 
