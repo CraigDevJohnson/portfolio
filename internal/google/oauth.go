@@ -91,14 +91,6 @@ func (h *Handler) SetStore(store ConnectionStore) {
 	h.storeMu.Unlock()
 }
 
-func (h *Handler) encryptJSONValue(data any) (string, error) {
-	return internalsession.EncryptJSONValue(h.Config.SessionKey, data)
-}
-
-func (h *Handler) decryptJSONValue(value string, out any) error {
-	return internalsession.DecryptJSONValue(h.Config.SessionKey, value, out)
-}
-
 // RedirectSoccerWithGoogleStatus redirects to /soccer with an optional google= query parameter.
 func RedirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, status string) {
 	target := "/soccer"
@@ -289,26 +281,6 @@ func NewOAuthState(connectionID string) (OAuthState, error) {
 	}, nil
 }
 
-func (h *Handler) oauthConfigForRequest(r *http.Request) *oauth2.Config {
-	return &oauth2.Config{
-		ClientID:     h.Config.GoogleClientID,
-		ClientSecret: h.Config.GoogleClientSecret,
-		RedirectURL:  internalhttpx.RequestBaseURL(r) + "/soccer",
-		Scopes: []string{
-			"https://www.googleapis.com/auth/calendar.events",
-			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-		},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  h.OAuthAuthURL,
-			TokenURL: h.OAuthTokenURL,
-		},
-	}
-}
-
-func (h *Handler) httpContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, h.LPSClient)
-}
-
 // EncryptToken encrypts an OAuth token for storage.
 func (h *Handler) EncryptToken(token *oauth2.Token) (string, error) {
 	return h.encryptJSONValue(token)
@@ -420,4 +392,32 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	props.GoogleConnected = true
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+}
+
+func (h *Handler) encryptJSONValue(data any) (string, error) {
+	return internalsession.EncryptJSONValue(h.Config.SessionKey, data)
+}
+
+func (h *Handler) decryptJSONValue(value string, out any) error {
+	return internalsession.DecryptJSONValue(h.Config.SessionKey, value, out)
+}
+
+func (h *Handler) oauthConfigForRequest(r *http.Request) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     h.Config.GoogleClientID,
+		ClientSecret: h.Config.GoogleClientSecret,
+		RedirectURL:  internalhttpx.RequestBaseURL(r) + "/soccer",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/calendar.events",
+			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+		},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  h.OAuthAuthURL,
+			TokenURL: h.OAuthTokenURL,
+		},
+	}
+}
+
+func (h *Handler) httpContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, h.LPSClient)
 }

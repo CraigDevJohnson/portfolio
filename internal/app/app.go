@@ -20,9 +20,9 @@ type App struct {
 }
 
 // New constructs an App with production defaults for the given config.
-func New(cfg config.Config) *App {
+func New(cfg *config.Config) *App {
 	app := &App{
-		Config:       cfg,
+		Config:       *cfg,
 		LPSClient:    &http.Client{Timeout: 15 * time.Second},
 		LoginLimiter: newLoginRateLimiter(5, time.Minute),
 		MountainTZ:   schedule.MountainTimeLocation,

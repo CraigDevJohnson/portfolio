@@ -2,6 +2,7 @@
 package google
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, st
 // GetOAuthStateCookie reads and decrypts the OAuth state cookie.
 func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 	cookie, err := r.Cookie(config.GoogleOAuthStateCookieName)
-	if err == http.ErrNoCookie {
+	if errors.Is(err, http.ErrNoCookie) {
 		return nil, nil
 	}
 	if err != nil {

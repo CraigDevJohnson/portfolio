@@ -2,8 +2,8 @@
 package app
 
 import (
-	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	"portfolio/types"
 )
 

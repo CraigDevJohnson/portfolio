@@ -120,7 +120,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")
-	if _, err := io.WriteString(w, icsContent); err != nil { //nolint:gosec // ICS content is returned as a calendar attachment, not rendered as HTML.
+	if _, err := io.WriteString(w, icsContent); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

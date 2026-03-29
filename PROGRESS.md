@@ -9,23 +9,23 @@
 - [x] Task-005: Eliminate LPS client and helpers wrapper files (commits: f622be4, 988849b)
 - [x] Task-006: Expand `internal/lps` with resolver, decode, errors, and JWT helpers (commits: b6a0138, 017b126)
 - [x] Task-007: Extract `internal/soccer` handlers (commit: 1d1628c)
+- [x] Task-008: Extract `internal/google` (commits: 2acf530, da1960a)
 
 ## Last Completed
 
-- Task-007: Extract `internal/soccer` handlers
-- Tests: All 80 passing
+- Task-008: Extract `internal/google`
+- Tests: All passing
 - Build: Success
 - Key decisions:
-  - Created Handler struct with GoogleHooks interface bridge for temporary Google integration
-  - Split cookies.go: soccer cookie via internal/soccer/cookies.go, Google ops remain in internal/app
-  - Added soccer_bridge.go for Google handler compat (forwarding methods)
-  - Form parsing helpers remain in internal/soccer/form.go from Task-005
-  - Reviewer verified PASS on all acceptance criteria
+  - Moved Google OAuth/Calendar handlers, cookies, store into internal/google
+  - Fixed funcorder lint (unexported methods moved after exported)
+  - Fixed gocritic/hugeParam (New accepts *config.Config)
+  - soccer_bridge.go provides GoogleHooks and SoccerBridge interfaces
 
 ## Current Iteration
 
-- Iteration: 10
-- Working on: Task-008: Extract `internal/google`
+- Iteration: 11
+- Working on: Task-009
 
 ## Blockers
 

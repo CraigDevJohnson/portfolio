@@ -11,7 +11,7 @@ import (
 	internalsession "portfolio/internal/session"
 )
 
-func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie { //nolint:unparam // path kept general for reuse outside /soccer
+func newSecureCookie(r *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie {
 	return internalhttpx.NewSecureCookie(r, name, value, path, maxAge, sameSite)
 }
 

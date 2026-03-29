@@ -35,7 +35,7 @@ func Run() {
 	}
 
 	cfg := config.Load()
-	app := New(cfg)
+	app := New(&cfg)
 	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{google: app.GoogleHandler})
 	app.GoogleHandler.Soccer = newGoogleSoccerBridge(soccerHandler)
 
