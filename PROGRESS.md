@@ -11,26 +11,23 @@
 - [x] Task-007: Extract `internal/soccer` handlers (commit: 1d1628c)
 - [x] Task-008: Extract `internal/google` (commits: 2acf530, 8e6d13c)
 - [x] Task-009: Migrate tests to domain packages
+- [x] Task-010: Clean internal/app to routing-only
 
 ## Last Completed
 
-- Task-009: Migrate tests to domain packages
+- Task-010: Clean internal/app to routing-only
 - Tests: 80 passing, `just ci` green
 - Key decisions:
-  - Schedule tests moved to internal/schedule (time_test.go, ics_test.go)
-  - LPS tests moved to internal/lps (decode_test.go, schedule_test.go)
-  - Google tests already in internal/google (oauth_test.go, calendar_test.go, add_handler_test.go)
-  - httpx tests already in internal/httpx; deleted duplicate from app
-  - Soccer integration tests kept in internal/app (test through App wiring)
-  - Session integration tests kept in internal/app (test session encrypt through App)
-  - Removed corrupted empty stub test files (session/crypto_test.go, soccer/handler_test.go)
-  - Deleted duplicate internal/app/helpers_test.go (exact copy of httpx/request_test.go)
-  - Fixed gocritic rangeValCopy in google/test_helpers_test.go
+  - Moved all test-compatibility wrappers from soccer_bridge.go to bridges_test.go
+  - Deleted dead Google type aliases and cookie bridges (config.go, cookies.go)
+  - Removed dead loginAttempt type alias
+  - internal/app production files: app.go (34), server.go (142), soccer_bridge.go (87) = 263 lines
+  - Test wrappers preserved in _test.go for integration tests
 
 ## Current Iteration
 
 - Iteration: 12
-- Working on: Task-010
+- Working on: Complete
 - Started: 2026-03-29T14:00:00Z
 
 ## Blockers
