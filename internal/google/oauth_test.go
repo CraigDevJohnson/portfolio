@@ -1,4 +1,4 @@
-package app
+package google
 
 import (
 	"net/http"
@@ -13,15 +13,15 @@ import (
 	"portfolio/internal/config"
 )
 
-func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
-	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	app := newTestAppWithGoogle(t, store, "https://accounts.example.com/o/oauth2/auth", "", "")
+func TestConnectHandlerRedirectsToOAuth(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
+	h := newTestHandlerWithURLs(t, store, "https://accounts.example.com/o/oauth2/auth", "", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
 	req.Host = "example.com"
 	resp := httptest.NewRecorder()
 
-	app.soccerGoogleConnectHandler(resp, req)
+	h.ConnectHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusSeeOther {
@@ -56,8 +56,8 @@ func TestSoccerGoogleConnectHandlerRedirectsToOAuth(t *testing.T) {
 	}
 }
 
-func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
-	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
+func TestCallbackHandlerPersistsConnection(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -85,12 +85,13 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app := newTestAppWithGoogle(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
+	h := newTestHandlerWithURLs(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
 
+	// Step 1: Initiate connect to get state cookie
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
 	connectReq.Host = "example.com"
 	connectResp := httptest.NewRecorder()
-	app.soccerGoogleConnectHandler(connectResp, connectReq)
+	h.ConnectHandler(connectResp, connectReq)
 
 	connectResult := connectResp.Result()
 	location, err := connectResult.Location()
@@ -113,12 +114,13 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 		t.Fatal("expected oauth state cookie to be set")
 	}
 
+	// Step 2: Simulate the callback
 	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer?code=auth-code&state="+url.QueryEscape(stateValue), nil)
 	callbackReq.Host = "example.com"
 	callbackReq.AddCookie(stateCookie)
 	callbackResp := httptest.NewRecorder()
 
-	app.soccerHandler(callbackResp, callbackReq)
+	h.CallbackHandler(callbackResp, callbackReq)
 
 	callbackResult := callbackResp.Result()
 	if callbackResult.StatusCode != http.StatusSeeOther {
@@ -132,11 +134,12 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 		t.Fatalf("unexpected callback redirect: got %q want %q", got, "/soccer?google=connected")
 	}
 
-	cookieReq := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	cookieReq.AddCookie(stateCookie)
-	storedState, err := app.getGoogleOAuthStateCookie(cookieReq)
+	// Verify state cookie was used to derive connection ID
+	readReq := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	readReq.AddCookie(stateCookie)
+	storedState, err := h.GetOAuthStateCookie(readReq)
 	if err != nil || storedState == nil {
-		t.Fatalf("getGoogleOAuthStateCookie returned %v, %v", storedState, err)
+		t.Fatalf("GetOAuthStateCookie returned %v, %v", storedState, err)
 	}
 	record, ok := store.records[storedState.ConnectionID]
 	if !ok {
@@ -145,9 +148,9 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	if record.CalendarID != "primary" || record.CalendarSummary != "Primary Calendar" {
 		t.Fatalf("unexpected stored calendar selection: %#v", record)
 	}
-	token, err := app.decryptGoogleToken(record.TokenCiphertext)
+	token, err := h.DecryptToken(record.TokenCiphertext)
 	if err != nil {
-		t.Fatalf("decryptGoogleToken returned error: %v", err)
+		t.Fatalf("DecryptToken returned error: %v", err)
 	}
 	if token.RefreshToken != "refresh-token" {
 		t.Fatalf("unexpected stored refresh token: %#v", token)
@@ -165,14 +168,14 @@ func TestSoccerGoogleCallbackHandlerPersistsConnection(t *testing.T) {
 	}
 }
 
-func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
-	store := &fakeGoogleConnectionStore{records: map[string]googleConnectionRecord{}}
-	app := newTestAppWithGoogle(t, store, "", "", "")
-	tokenCiphertext, err := app.encryptGoogleToken(&oauth2.Token{AccessToken: "access-token"})
+func TestCalendarHandlerUpdatesSelection(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
+	h := newTestHandler(t, store)
+	tokenCiphertext, err := h.EncryptToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
-		t.Fatalf("encryptGoogleToken returned error: %v", err)
+		t.Fatalf("EncryptToken returned error: %v", err)
 	}
-	store.records["connection-1"] = googleConnectionRecord{
+	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
@@ -190,7 +193,7 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.GoogleHandler.CalendarAPIBaseURL = server.URL + "/calendar/v3"
+	h.CalendarAPIBaseURL = server.URL + "/calendar/v3"
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/calendar", strings.NewReader(url.Values{
 		"calendar_id": {"team"},
@@ -200,13 +203,14 @@ func TestSoccerGoogleCalendarHandlerUpdatesSelection(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()
 
-	app.soccerGoogleCalendarHandler(resp, req)
+	h.CalendarHandler(resp, req)
 
 	record := store.records["connection-1"]
 	if record.CalendarID != "team" || record.CalendarSummary != "Team Calendar" {
 		t.Fatalf("unexpected updated calendar selection: %#v", record)
 	}
-	if !strings.Contains(resp.Body.String(), "Selected calendar: Team Calendar") {
-		t.Fatalf("expected selected calendar in response body, got %q", resp.Body.String())
+	// CalendarHandler calls RenderLoginState, which our stub writes "login-state-rendered"
+	if !strings.Contains(resp.Body.String(), "login-state-rendered") {
+		t.Fatalf("expected login state render, got %q", resp.Body.String())
 	}
 }

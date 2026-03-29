@@ -1,4 +1,4 @@
-package app
+package lps
 
 import (
 	"errors"
@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"portfolio/internal/lps"
+	"portfolio/internal/testutil"
 )
 
 func TestNormalizeImportedJWTAcceptsBearerPrefix(t *testing.T) {
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 
-	got, err := lps.NormalizeImportedJWT("Bearer " + token)
+	got, err := NormalizeImportedJWT("Bearer " + token)
 	if err != nil {
 		t.Fatalf("normalizeImportedJWT returned error: %v", err)
 	}
@@ -24,9 +24,9 @@ func TestNormalizeImportedJWTAcceptsBearerPrefix(t *testing.T) {
 }
 
 func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
-	token := testJWT(t, time.Now().Add(-30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(-30*time.Minute))
 
-	_, err := lps.NormalizeImportedJWT(token)
+	_, err := NormalizeImportedJWT(token)
 	if err == nil {
 		t.Fatal("expected normalizeImportedJWT to reject expired tokens")
 	}
@@ -36,8 +36,7 @@ func TestNormalizeImportedJWTRejectsExpiredToken(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
-	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/users/check" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -72,9 +71,8 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	discovery, err := lps.FetchUserPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, token)
+	client := &http.Client{Timeout: 5 * time.Second}
+	discovery, err := FetchUserPlayers(t.Context(), server.URL, client, token)
 	if err != nil {
 		t.Fatalf("lpsFetchUserPlayers returned error: %v", err)
 	}
@@ -97,25 +95,23 @@ func TestLPSFetchUserPlayersMapsSuccessfulPayload(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersClassifiesAuthFailureJSON(t *testing.T) {
-	app := newTestApp(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"authFailure":true,"error":"You need to sign in or sign up before continuing."}`))
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	_, err := lps.FetchUserPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, testJWT(t, time.Now().Add(30*time.Minute)))
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, err := FetchUserPlayers(t.Context(), server.URL, client, testutil.TestJWT(t, time.Now().Add(30*time.Minute)))
 	if err == nil {
 		t.Fatal("expected fetch error")
 	}
-	var fetchErr *lps.FetchError
+	var fetchErr *FetchError
 	if !errors.As(err, &fetchErr) {
-		t.Fatalf("expected lps.FetchError, got %T", err)
+		t.Fatalf("expected FetchError, got %T", err)
 	}
-	if fetchErr.Kind != lps.ErrorUnauthorized {
-		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, lps.ErrorUnauthorized)
+	if fetchErr.Kind != ErrorUnauthorized {
+		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, ErrorUnauthorized)
 	}
 	if fetchErr.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("unexpected status code: got %d want %d", fetchErr.StatusCode, http.StatusUnauthorized)
@@ -129,30 +125,28 @@ func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 	tests := []struct {
 		name       string
 		statusCode int
-		wantKind   lps.ErrorKind
+		wantKind   ErrorKind
 	}{
-		{name: "unauthorized", statusCode: http.StatusUnauthorized, wantKind: lps.ErrorUnauthorized},
-		{name: "forbidden", statusCode: http.StatusForbidden, wantKind: lps.ErrorForbidden},
-		{name: "upstream outage", statusCode: http.StatusBadGateway, wantKind: lps.ErrorUpstream},
+		{name: "unauthorized", statusCode: http.StatusUnauthorized, wantKind: ErrorUnauthorized},
+		{name: "forbidden", statusCode: http.StatusForbidden, wantKind: ErrorForbidden},
+		{name: "upstream outage", statusCode: http.StatusBadGateway, wantKind: ErrorUpstream},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := newTestApp(t)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
 
-			app.Config.LPSAPIBaseURL = server.URL
-
-			_, err := lps.FetchUserPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, testJWT(t, time.Now().Add(30*time.Minute)))
+			client := &http.Client{Timeout: 5 * time.Second}
+			_, err := FetchUserPlayers(t.Context(), server.URL, client, testutil.TestJWT(t, time.Now().Add(30*time.Minute)))
 			if err == nil {
 				t.Fatal("expected fetch error")
 			}
-			var fetchErr *lps.FetchError
+			var fetchErr *FetchError
 			if !errors.As(err, &fetchErr) {
-				t.Fatalf("expected lps.FetchError, got %T", err)
+				t.Fatalf("expected FetchError, got %T", err)
 			}
 			if fetchErr.Kind != tt.wantKind {
 				t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, tt.wantKind)
@@ -165,25 +159,23 @@ func TestLPSFetchUserPlayersClassifiesHTTPFailures(t *testing.T) {
 }
 
 func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
-	app := newTestApp(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"players":`))
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	_, err := lps.FetchUserPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, testJWT(t, time.Now().Add(30*time.Minute)))
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, err := FetchUserPlayers(t.Context(), server.URL, client, testutil.TestJWT(t, time.Now().Add(30*time.Minute)))
 	if err == nil {
 		t.Fatal("expected fetch error")
 	}
-	var fetchErr *lps.FetchError
+	var fetchErr *FetchError
 	if !errors.As(err, &fetchErr) {
-		t.Fatalf("expected lps.FetchError, got %T", err)
+		t.Fatalf("expected FetchError, got %T", err)
 	}
-	if fetchErr.Kind != lps.ErrorUpstream {
-		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, lps.ErrorUpstream)
+	if fetchErr.Kind != ErrorUpstream {
+		t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, ErrorUpstream)
 	}
 	if !strings.Contains(fetchErr.Error(), "response format was not recognized") {
 		t.Fatalf("unexpected error message: %v", fetchErr)
@@ -191,7 +183,7 @@ func TestLPSFetchUserPlayersRejectsMalformedResponseBody(t *testing.T) {
 }
 
 func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.T) {
-	game := lps.MapLPSGame(map[string]any{
+	game := MapLPSGame(map[string]any{
 		"UGameID":           5001,
 		"SchedGameDateTime": "2026-03-29T17:20:00.000Z",
 		"home_team":         map[string]any{"team_name": "Team A"},

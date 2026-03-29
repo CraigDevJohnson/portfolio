@@ -1,4 +1,4 @@
-package app
+package schedule
 
 import (
 	"strings"
@@ -6,11 +6,15 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"portfolio/internal/schedule"
+	"portfolio/types"
 )
 
+func unfoldICS(ics string) string {
+	return strings.ReplaceAll(ics, "\r\n ", "")
+}
+
 func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
-	formatted, ok := schedule.CanonicalGameEvent(&Game{
+	formatted, ok := CanonicalGameEvent(&types.Game{
 		ID:               "3037322",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "FC CHAIN MAIL",
@@ -25,7 +29,7 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 		StartAt:          "2026-03-08T12:30:00-06:00",
 	})
 	if !ok {
-		t.Fatal("schedule.CanonicalGameEvent returned false")
+		t.Fatal("CanonicalGameEvent returned false")
 	}
 
 	if formatted.ID != "3037322" {
@@ -52,7 +56,7 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 }
 
 func TestBuildICSFoldsLongLines(t *testing.T) {
-	ics := schedule.BuildICS([]Game{
+	ics := BuildICS([]types.Game{
 		{
 			ID:       strings.Repeat("abc123", 8),
 			Home:     strings.Repeat("Home Team ", 6),
@@ -79,7 +83,7 @@ func TestBuildICSFoldsLongLines(t *testing.T) {
 }
 
 func TestBuildICSFoldsUTF8Lines(t *testing.T) {
-	ics := schedule.BuildICS([]Game{
+	ics := BuildICS([]types.Game{
 		{
 			ID:       "utf8-game",
 			Home:     strings.Repeat("⚽", 20),
@@ -105,7 +109,7 @@ func TestBuildICSFoldsUTF8Lines(t *testing.T) {
 }
 
 func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) {
-	ics := schedule.BuildICS([]Game{{
+	ics := BuildICS([]types.Game{{
 		ID:      "mountain-game",
 		Home:    "Team A",
 		Away:    "Team B",
@@ -125,7 +129,7 @@ func TestBuildICSUsesMountainTimezoneForMislabelledZuluTimestamps(t *testing.T) 
 }
 
 func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
-	ics := unfoldICS(schedule.BuildICS([]Game{{
+	ics := unfoldICS(BuildICS([]types.Game{{
 		ID:               "3042954",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "MANEFESTO",
@@ -158,7 +162,7 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 }
 
 func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
-	ics := schedule.BuildICS([]Game{
+	ics := BuildICS([]types.Game{
 		{
 			ID:      "good-game",
 			Home:    "Team A",
@@ -170,7 +174,6 @@ func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
 			ID:   "bad-game",
 			Home: "Team C",
 			Away: "Team D",
-			// No StartAt — unparseable
 		},
 	})
 

@@ -1,4 +1,4 @@
-package app
+package lps
 
 import (
 	"errors"
@@ -10,13 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
+	"portfolio/internal/testutil"
 )
 
 func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
-	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -40,9 +39,8 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	games, err := lps.FetchUpcomingGames(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, token, 1001)
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchUpcomingGames(t.Context(), server.URL, client, token, 1001)
 	if err != nil {
 		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
 	}
@@ -61,8 +59,7 @@ func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
 }
 
 func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
-	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/players/1001/upcoming_games" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -92,9 +89,8 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	games, err := lps.FetchUpcomingGames(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, token, 1001)
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchUpcomingGames(t.Context(), server.URL, client, token, 1001)
 	if err != nil {
 		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
 	}
@@ -128,10 +124,9 @@ func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
 }
 
 func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing.T) {
-	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	requestCounts := map[string]int{}
-	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	expectedStart, ok := schedule.ParseScheduleTime(future)
 	if !ok {
 		t.Fatalf("schedule.ParseScheduleTime returned false for %q", future)
@@ -210,9 +205,8 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	games, err := lps.FetchGamesForPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, token, []int{1001})
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchGamesForPlayers(t.Context(), server.URL, client, token, []int{1001})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForPlayers returned error: %v", err)
 	}
@@ -257,10 +251,9 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 }
 
 func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
-	app := newTestApp(t)
 	lookupCounts := map[string]int{}
-	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	futureOne := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureTwo := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lookupCounts[r.URL.Path]++
 		w.Header().Set("Content-Type", "application/json")
@@ -343,9 +336,8 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	games, err := lps.FetchGamesForTeams(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, []int{479691})
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchGamesForTeams(t.Context(), server.URL, client, []int{479691})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
 	}
@@ -364,31 +356,30 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 }
 
 func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T) {
-	app := newTestApp(t)
-	_, err := lps.FetchGamesForPlayers(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, "not-a-jwt", []int{1001})
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, err := FetchGamesForPlayers(t.Context(), "http://localhost:0", client, "not-a-jwt", []int{1001})
 	if err == nil {
 		t.Fatal("expected malformed token error")
 	}
-	var fetchErr *lps.FetchError
+	var fetchErr *FetchError
 	if !errors.As(err, &fetchErr) {
-		t.Fatalf("expected lps.FetchError, got %T", err)
+		t.Fatalf("expected FetchError, got %T", err)
 	}
-	if fetchErr.Kind != lps.ErrorMalformedToken {
+	if fetchErr.Kind != ErrorMalformedToken {
 		t.Fatalf("unexpected error kind: %s", fetchErr.Kind)
 	}
 }
 
 func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
-	app := newTestApp(t)
 	previousLocal := time.Local
 	time.Local = time.UTC
 	defer func() {
 		time.Local = previousLocal
 	}()
 
-	past := testMislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
-	sharedFuture := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	uniqueFuture := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	sharedFuture := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	uniqueFuture := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -452,9 +443,8 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 	}))
 	defer server.Close()
 
-	app.Config.LPSAPIBaseURL = server.URL
-
-	games, err := lps.FetchGamesForTeams(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, []int{479691, 479147})
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchGamesForTeams(t.Context(), server.URL, client, []int{479691, 479147})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams returned error: %v", err)
 	}
@@ -470,7 +460,7 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 		t.Fatalf("expected shared game to merge richer data, got %#v", games[0])
 	}
 
-	gamesReversed, err := lps.FetchGamesForTeams(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, []int{479147, 479691})
+	gamesReversed, err := FetchGamesForTeams(t.Context(), server.URL, client, []int{479147, 479691})
 	if err != nil {
 		t.Fatalf("lpsFetchGamesForTeams (reversed teams) returned error: %v", err)
 	}
@@ -484,32 +474,30 @@ func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
 		name       string
 		statusCode int
 		playerID   int
-		wantKind   lps.ErrorKind
+		wantKind   ErrorKind
 	}{
-		{name: "unauthorized", statusCode: http.StatusUnauthorized, playerID: 1001, wantKind: lps.ErrorUnauthorized},
-		{name: "forbidden", statusCode: http.StatusForbidden, playerID: 1001, wantKind: lps.ErrorForbidden},
-		{name: "invalid player bad request", statusCode: http.StatusBadRequest, playerID: 999999, wantKind: lps.ErrorInvalidPlayer},
-		{name: "invalid player not found", statusCode: http.StatusNotFound, playerID: 999999, wantKind: lps.ErrorInvalidPlayer},
-		{name: "upstream outage", statusCode: http.StatusBadGateway, playerID: 1001, wantKind: lps.ErrorUpstream},
+		{name: "unauthorized", statusCode: http.StatusUnauthorized, playerID: 1001, wantKind: ErrorUnauthorized},
+		{name: "forbidden", statusCode: http.StatusForbidden, playerID: 1001, wantKind: ErrorForbidden},
+		{name: "invalid player bad request", statusCode: http.StatusBadRequest, playerID: 999999, wantKind: ErrorInvalidPlayer},
+		{name: "invalid player not found", statusCode: http.StatusNotFound, playerID: 999999, wantKind: ErrorInvalidPlayer},
+		{name: "upstream outage", statusCode: http.StatusBadGateway, playerID: 1001, wantKind: ErrorUpstream},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := newTestApp(t)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
 
-			app.Config.LPSAPIBaseURL = server.URL
-
-			_, err := lps.FetchUpcomingGames(t.Context(), app.Config.LPSAPIBaseURL, app.LPSClient, testJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
+			client := &http.Client{Timeout: 5 * time.Second}
+			_, err := FetchUpcomingGames(t.Context(), server.URL, client, testutil.TestJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
 			if err == nil {
 				t.Fatal("expected fetch error")
 			}
-			var fetchErr *lps.FetchError
+			var fetchErr *FetchError
 			if !errors.As(err, &fetchErr) {
-				t.Fatalf("expected lps.FetchError, got %T", err)
+				t.Fatalf("expected FetchError, got %T", err)
 			}
 			if fetchErr.Kind != tt.wantKind {
 				t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, tt.wantKind)
