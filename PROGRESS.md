@@ -13,23 +13,21 @@
 - [x] Task-009: Migrate tests to domain packages
 - [x] Task-010: Clean internal/app to routing-only
 - [x] Task-011: Update docs and validate final structure
+- [x] Task-011B: Archive stale pre-refactor references in plan.md
 
 ## Last Completed
 
-- Task-011: Update docs and validate final structure
-- Tests: 80 passing, build green
+- Task-011B: Archive stale pre-refactor references in plan.md
+- Tests: not rerun (docs-only change)
 - Key decisions:
-  - Updated README.md project structure with all 10 domain packages
-  - Updated copilot-instructions.md architecture section and fixed stale handler references
-  - Added package doc comments to all internal/* primary files
-  - Removed 5 dead Google handler test wrappers from bridges_test.go
-  - internal/app production files: app.go (35), server.go (142), soccer_bridge.go (87) = 264 lines
-  - Refactor complete: internal/app is routing-only
+  - Converted plan.md from actionable migration checklist into historical archive note
+  - Removed stale removed-file references and old root-monolith narrative
+  - Kept current source-of-truth pointers to PRD.md, PROGRESS.md, README.md, and copilot-instructions.md
 
 ## Current Iteration
 
-- Iteration: 13
-- Working on: Complete — full refactor shipped
+- Iteration: 14
+- Working on: Complete — Task-011 docs follow-up shipped
 - Started: 2026-03-29T14:15:00Z
 
 ## Blockers
