@@ -1,4 +1,3 @@
-// Google OAuth connect/callback/disconnect handlers, token refresh, and connection management.
 package google
 
 import (
@@ -23,11 +22,8 @@ import (
 )
 
 const (
-	// OAuthAuthURL is the default Google OAuth authorization endpoint.
-	OAuthAuthURL = "https://accounts.google.com/o/oauth2/auth"
-	// OAuthTokenURL is the default Google OAuth token endpoint.
-	OAuthTokenURL = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
-	// CalendarAPIBaseURL is the default Google Calendar API base URL.
+	OAuthAuthURL       = "https://accounts.google.com/o/oauth2/auth"
+	OAuthTokenURL      = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
 	CalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 )
 
@@ -44,14 +40,12 @@ type SoccerBridge interface {
 	ParsePlayerIDs(values []string) []int
 }
 
-// OAuthState holds the encrypted state for the OAuth flow.
 type OAuthState struct {
 	ConnectionID string    `json:"connection_id"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	State        string    `json:"state"`
 }
 
-// Handler owns Google OAuth and Calendar HTTP behavior and its runtime dependencies.
 type Handler struct {
 	Config             *config.Config
 	OAuthAuthURL       string

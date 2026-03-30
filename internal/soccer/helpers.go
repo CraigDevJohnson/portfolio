@@ -13,7 +13,6 @@ import (
 	"portfolio/types"
 )
 
-// LoginStateProps returns the soccer auth panel props for the current request state.
 func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
 	props := partials.SoccerLoginStateProps{
 		Authenticated:   session != nil,
@@ -31,7 +30,6 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 	return props
 }
 
-// RenderLoginState renders the soccer auth panel for the given session.
 func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := h.LoginStateProps(w, r, session, false)
@@ -40,7 +38,6 @@ func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, sessi
 	}
 }
 
-// RenderLoginFeedback renders an escaped status or error message for soccer auth and Google actions.
 func RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	role := "status"
@@ -50,7 +47,6 @@ func RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
 	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, html.EscapeString(message)))
 }
 
-// RequestedScheduleGames resolves the game list implied by the current player or team selection.
 func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
 	teamIDs := ParseTeamIDs(teamCodes)
 	switch {
@@ -67,7 +63,6 @@ func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.Ses
 	}
 }
 
-// GoogleAddScheduleErrorMessage returns the user-facing Google add message for soccer selection errors.
 func GoogleAddScheduleErrorMessage(err error) string {
 	switch {
 	case errors.Is(err, ErrPlayerSessionRequired):
@@ -81,7 +76,6 @@ func GoogleAddScheduleErrorMessage(err error) string {
 	}
 }
 
-// SelectedScheduleGames filters games by the currently selected IDs.
 func SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
 	filteredGames := make([]types.Game, 0, len(games))
 	for i := range games {

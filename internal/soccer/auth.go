@@ -14,7 +14,6 @@ import (
 	"portfolio/types"
 )
 
-// SessionHandler renders the current soccer login state fragment.
 func (h *Handler) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -25,7 +24,6 @@ func (h *Handler) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	h.RenderLoginState(w, r, session)
 }
 
-// ImportHandler imports a bearer JWT, discovers linked players, and stores the encrypted browser session.
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -92,7 +90,6 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your players below.</div>`)
 }
 
-// LogoutHandler clears the imported soccer session and renders the logged-out auth panel.
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

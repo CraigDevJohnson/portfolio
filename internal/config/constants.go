@@ -1,4 +1,3 @@
-// Exported constants shared across domain packages.
 package config
 
 import "time"

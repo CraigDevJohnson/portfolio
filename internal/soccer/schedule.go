@@ -15,7 +15,6 @@ import (
 	"portfolio/types"
 )
 
-// FetchSchedulesHandler renders the schedule fragment for discovered players or manual team IDs.
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -56,7 +55,6 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// SubscribeHandler returns the current placeholder subscribe confirmation.
 func (h *Handler) SubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -68,7 +66,6 @@ func (h *Handler) SubscribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DownloadICSHandler returns an .ics file for the selected schedule games.
 func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

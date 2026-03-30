@@ -1,4 +1,3 @@
-// Package lps contains Let's Play Soccer API helpers and domain logic.
 package lps
 
 import (

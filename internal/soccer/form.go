@@ -1,4 +1,3 @@
-// Package soccer contains soccer-domain helpers and handlers.
 package soccer
 
 import (
@@ -7,7 +6,6 @@ import (
 	"strings"
 )
 
-// ParseSelectedIDs returns the selected IDs from form values.
 func ParseSelectedIDs(form url.Values) map[string]struct{} {
 	selectedIDs := make(map[string]struct{})
 	for _, id := range form["selected"] {
@@ -19,7 +17,6 @@ func ParseSelectedIDs(form url.Values) map[string]struct{} {
 	return selectedIDs
 }
 
-// ParsePlayerIDs returns positive deduplicated player IDs from form values.
 func ParsePlayerIDs(values []string) []int {
 	seen := make(map[int]struct{})
 	playerIDs := make([]int, 0, len(values))
@@ -37,7 +34,6 @@ func ParsePlayerIDs(values []string) []int {
 	return playerIDs
 }
 
-// ParseTeamIDs returns positive deduplicated team IDs from a delimited string.
 func ParseTeamIDs(raw string) []int {
 	return ParsePlayerIDs(splitDelimitedValues(raw))
 }
@@ -56,7 +52,6 @@ func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
 	return false
 }
 
-// splitDelimitedValues accepts commas, semicolons, and whitespace as separators.
 func splitDelimitedValues(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

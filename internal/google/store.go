@@ -12,14 +12,12 @@ import (
 	dynamodbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-// ConnectionStore persists Google OAuth connection records.
 type ConnectionStore interface {
 	Delete(ctx context.Context, connectionID string) error
 	Get(ctx context.Context, connectionID string) (*ConnectionRecord, error)
 	Put(ctx context.Context, record *ConnectionRecord) error
 }
 
-// ConnectionRecord holds a persisted Google OAuth connection.
 type ConnectionRecord struct {
 	ConnectionID    string    `dynamodbav:"connection_id"`
 	TokenCiphertext string    `dynamodbav:"token_ciphertext"`
@@ -29,13 +27,11 @@ type ConnectionRecord struct {
 	UpdatedAt       time.Time `dynamodbav:"updated_at"`
 }
 
-// DynamoStore is a DynamoDB-backed ConnectionStore.
 type DynamoStore struct {
 	client    *dynamodb.Client
 	tableName string
 }
 
-// NoopStore discards all operations — used when Google is not configured.
 type NoopStore struct{}
 
 // NewConnectionStore returns a DynamoStore if a table name is configured,

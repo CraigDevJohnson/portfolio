@@ -67,13 +67,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 		t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
 	}
 
-	var sessionCookie *http.Cookie
-	for _, cookie := range result.Cookies() {
-		if cookie.Name == config.LPSSessionCookieName {
-			sessionCookie = cookie
-			break
-		}
-	}
+	sessionCookie := findSessionCookie(t, result)
 	if sessionCookie == nil {
 		t.Fatal("expected session cookie to be set")
 	}
@@ -224,13 +218,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 		t.Fatalf("unexpected /users/check call count: got %d want 1", got)
 	}
 
-	var sessionCookie *http.Cookie
-	for _, cookie := range importResp.Result().Cookies() {
-		if cookie.Name == config.LPSSessionCookieName {
-			sessionCookie = cookie
-			break
-		}
-	}
+	sessionCookie := findSessionCookie(t, importResp.Result())
 	if sessionCookie == nil {
 		t.Fatal("expected session cookie to be set")
 	}
@@ -302,9 +290,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newTestApp(t)
-			apiCalls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				apiCalls++
 				t.Fatalf("did not expect upstream call for %s token validation test", tc.name)
 			}))
 			defer server.Close()
@@ -327,9 +313,6 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 			}
 			if !strings.Contains(resp.Body.String(), tc.wantMessage) {
 				t.Fatalf("unexpected response body: %q", resp.Body.String())
-			}
-			if apiCalls != 0 {
-				t.Fatalf("unexpected upstream API calls: got %d want 0", apiCalls)
 			}
 		})
 	}
@@ -441,25 +424,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 		t.Fatalf("unexpected HX-Trigger header: got %q want %q", got, "soccer-logout")
 	}
 
-	var sessionCookie *http.Cookie
-	for _, cookie := range result.Cookies() {
-		if cookie.Name == config.LPSSessionCookieName {
-			sessionCookie = cookie
-			break
-		}
-	}
-	if sessionCookie == nil {
-		t.Fatal("expected cleared session cookie to be set")
-	}
-	if sessionCookie.Value != "" {
-		t.Fatalf("expected cleared session cookie value to be empty, got %q", sessionCookie.Value)
-	}
-	if sessionCookie.MaxAge >= 0 {
-		t.Fatalf("expected cleared session cookie max-age to be negative, got %d", sessionCookie.MaxAge)
-	}
-	if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
-		t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
-	}
+	assertClearedSessionCookie(t, result)
 	if !strings.Contains(resp.Body.String(), "No import active") {
 		t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
 	}
@@ -512,25 +477,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 				t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
 			}
 
-			var sessionCookie *http.Cookie
-			for _, cookie := range result.Cookies() {
-				if cookie.Name == config.LPSSessionCookieName {
-					sessionCookie = cookie
-					break
-				}
-			}
-			if sessionCookie == nil {
-				t.Fatal("expected cleared session cookie to be set")
-			}
-			if sessionCookie.Value != "" {
-				t.Fatalf("expected cleared session cookie value to be empty, got %q", sessionCookie.Value)
-			}
-			if sessionCookie.MaxAge >= 0 {
-				t.Fatalf("expected cleared session cookie max-age to be negative, got %d", sessionCookie.MaxAge)
-			}
-			if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
-				t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
-			}
+			assertClearedSessionCookie(t, result)
 			if strings.Contains(resp.Body.String(), "hx-swap-oob") {
 				t.Fatalf("expected /soccer/session to render auth panel as primary content (no OOB swap), got %q", resp.Body.String())
 			}

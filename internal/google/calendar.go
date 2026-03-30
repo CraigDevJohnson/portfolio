@@ -1,4 +1,3 @@
-// Google Calendar API integration: event sync, insert, update, calendar listing, and selection.
 package google
 
 import (
@@ -38,13 +37,11 @@ type calendar struct {
 	Summary string `json:"summary"`
 }
 
-// EventDateTime holds a Google Calendar event start/end time.
 type EventDateTime struct {
 	DateTime string `json:"dateTime"`
 	TimeZone string `json:"timeZone,omitempty"`
 }
 
-// Event represents a Google Calendar event.
 type Event struct {
 	Description        string        `json:"description,omitempty"`
 	End                EventDateTime `json:"end"`
@@ -59,13 +56,11 @@ type Event struct {
 	Summary  string        `json:"summary"`
 }
 
-// EventSource is the source metadata on a Google Calendar event.
 type EventSource struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
 }
 
-// APIError represents a Google API error response.
 type APIError struct {
 	StatusCode int
 	Message    string

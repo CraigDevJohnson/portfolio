@@ -31,7 +31,6 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	return &session, nil
 }
 
-// LoadSession returns the decrypted soccer session and clears invalid or expired cookies.
 func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
 	session, err := h.getSession(r)
 	if errors.Is(err, ErrSessionExpired) {

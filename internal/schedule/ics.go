@@ -1,4 +1,3 @@
-// Package schedule provides game normalization, merge/sort/dedup, time parsing, and ICS calendar building.
 package schedule
 
 import (

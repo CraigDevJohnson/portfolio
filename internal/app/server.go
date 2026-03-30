@@ -1,6 +1,3 @@
-// Main server setup and routing for the portfolio application.
-// This file initializes the HTTP server, sets up routes for both the portfolio pages
-// and the soccer scheduling feature, and configures MIME types for static assets.
 package app
 
 import (
@@ -52,12 +49,8 @@ func Run() {
 	mux.HandleFunc("/experience/timeline", portfolio.ExperienceTimelineHandler)
 	mux.HandleFunc("/skills", portfolio.SkillsHandler)
 	mux.HandleFunc("/skills/grid", portfolio.SkillsGridHandler)
-	mux.HandleFunc("/skills/filtered", func(w http.ResponseWriter, r *http.Request) {
-		portfolio.SkillsFilteredHandler(w, r)
-	})
-	mux.HandleFunc("/skills/detail", func(w http.ResponseWriter, r *http.Request) {
-		portfolio.SkillsDetailHandler(w, r)
-	})
+	mux.HandleFunc("/skills/filtered", portfolio.SkillsFilteredHandler)
+	mux.HandleFunc("/skills/detail", portfolio.SkillsDetailHandler)
 	mux.HandleFunc("/projects", portfolio.ProjectsHandler)
 	mux.HandleFunc("/projects/grid", portfolio.ProjectsGridHandler)
 	mux.HandleFunc("/education", portfolio.EducationHandler)

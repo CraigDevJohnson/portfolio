@@ -1,4 +1,3 @@
-// Package lps provides the Let's Play Soccer API client, schedule resolver, JSON decode helpers, and error classification.
 package lps
 
 import (

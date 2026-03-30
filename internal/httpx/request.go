@@ -1,4 +1,3 @@
-// Package httpx provides HTTP request helpers including client IP detection, HTTPS detection, and secure cookie building.
 package httpx
 
 import (

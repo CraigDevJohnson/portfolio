@@ -62,3 +62,30 @@ func addSessionCookie(t *testing.T, app *App, req *http.Request, session *types.
 	encrypted := encryptTestSession(t, app, session)
 	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
 }
+
+func findSessionCookie(t *testing.T, resp *http.Response) *http.Cookie {
+	t.Helper()
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == config.LPSSessionCookieName {
+			return cookie
+		}
+	}
+	return nil
+}
+
+func assertClearedSessionCookie(t *testing.T, resp *http.Response) {
+	t.Helper()
+	sessionCookie := findSessionCookie(t, resp)
+	if sessionCookie == nil {
+		t.Fatal("expected cleared session cookie to be set")
+	}
+	if sessionCookie.Value != "" {
+		t.Fatalf("expected cleared session cookie value to be empty, got %q", sessionCookie.Value)
+	}
+	if sessionCookie.MaxAge >= 0 {
+		t.Fatalf("expected cleared session cookie max-age to be negative, got %d", sessionCookie.MaxAge)
+	}
+	if !sessionCookie.Expires.Equal(time.Unix(0, 0)) {
+		t.Fatalf("expected cleared session cookie expiry to be Unix epoch, got %v", sessionCookie.Expires)
+	}
+}

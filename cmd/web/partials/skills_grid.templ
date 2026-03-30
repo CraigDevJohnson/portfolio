@@ -18,7 +18,6 @@ type SkillsFilterableProps struct {
 	ActiveProficiency string
 }
 
-// buildFilterURL constructs a URL for the skills filter endpoint
 func buildFilterURL(category, proficiency string) string {
 	params := url.Values{}
 	if category != "" {
@@ -43,7 +42,6 @@ func catSlug(name string) string {
 	return s
 }
 
-// countCategorySkills counts visible skills matching proficiency filter
 func countCategorySkills(skills []types.Skill, proficiency string) int {
 	c := 0
 	for _, s := range skills {
@@ -55,7 +53,6 @@ func countCategorySkills(skills []types.Skill, proficiency string) int {
 	return c
 }
 
-// shouldShowSkill checks if a skill should be displayed in the grid
 func shouldShowSkill(skill types.Skill, proficiency string) bool {
 	if proficiency != "" && skill.Proficiency != proficiency {
 		return false
@@ -63,7 +60,6 @@ func shouldShowSkill(skill types.Skill, proficiency string) bool {
 	return true
 }
 
-// hasVisibleSkills checks if any categories have visible skills after filtering
 func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activeProficiency string) bool {
 	for _, cat := range categories {
 		if cat.Name == "Concepts & Practices" {

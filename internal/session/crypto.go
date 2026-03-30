@@ -1,4 +1,3 @@
-// Package session provides AES-GCM cookie encryption and login rate limiting.
 package session
 
 import (

@@ -1,4 +1,3 @@
-// Package portfolio provides portfolio page handlers and static data.
 package portfolio
 
 import (

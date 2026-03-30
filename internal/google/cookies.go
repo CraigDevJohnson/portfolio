@@ -1,4 +1,3 @@
-// Google cookie operations for connection and OAuth state cookies.
 package google
 
 import (
@@ -16,7 +15,6 @@ func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires tim
 	http.SetCookie(w, cookie)
 }
 
-// GetConnectionID reads the Google connection ID from the request cookie.
 func GetConnectionID(r *http.Request) string {
 	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
 	if err != nil {
@@ -25,19 +23,16 @@ func GetConnectionID(r *http.Request) string {
 	return strings.TrimSpace(cookie.Value)
 }
 
-// SetConnectionCookie sets the persistent Google connection cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
 	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
-// ClearConnectionCookie removes the Google connection cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
-// SetOAuthStateCookie encrypts and sets the OAuth state cookie.
 func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, state OAuthState) error {
 	encrypted, err := h.encryptJSONValue(state)
 	if err != nil {
@@ -48,7 +43,6 @@ func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, st
 	return nil
 }
 
-// GetOAuthStateCookie reads and decrypts the OAuth state cookie.
 func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 	cookie, err := r.Cookie(config.GoogleOAuthStateCookieName)
 	if errors.Is(err, http.ErrNoCookie) {
@@ -67,7 +61,6 @@ func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 	return &state, nil
 }
 
-// ClearOAuthStateCookie removes the OAuth state cookie.
 func ClearOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
