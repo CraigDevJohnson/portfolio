@@ -346,10 +346,6 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 }
 
 func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (string, string, string) {
-	if rawGame == nil {
-		return "", "", ""
-	}
-
 	selectedTeamID := responseTeam.UTeamID
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)
@@ -368,17 +364,19 @@ func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSumm
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
 	homeDivision := strings.TrimSpace(rawGame.HomeTeam.DivisionName)
 	visitorDivision := strings.TrimSpace(rawGame.VisitorTeam.DivisionName)
+	homeTeamDivision := FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
+	visitorTeamDivision := FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
 
 	switch {
 	case selectedTeamID > 0 && homeID == selectedTeamID:
-		return FirstNonEmptyString(selectedTeamName, homeName), visitorName, FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
+		return FirstNonEmptyString(selectedTeamName, homeName), visitorName, homeTeamDivision
 	case selectedTeamID > 0 && visitorID == selectedTeamID:
-		return FirstNonEmptyString(selectedTeamName, visitorName), homeName, FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
+		return FirstNonEmptyString(selectedTeamName, visitorName), homeName, visitorTeamDivision
 	}
 
 	playerTeamName := FirstNonEmptyString(selectedTeamName, homeName)
 	if playerTeamName == visitorName {
-		return playerTeamName, homeName, FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
+		return playerTeamName, homeName, visitorTeamDivision
 	}
-	return playerTeamName, visitorName, FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
+	return playerTeamName, visitorName, homeTeamDivision
 }

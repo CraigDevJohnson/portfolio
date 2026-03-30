@@ -4,7 +4,6 @@ package soccer
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -23,18 +22,16 @@ type Handler struct {
 	Config       *config.Config
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
-	MountainTZ   *time.Location
 
 	googleHooks GoogleHooks
 }
 
 // NewHandler constructs a soccer handler with the provided dependencies.
-func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, mountainTZ *time.Location, googleHooks GoogleHooks) *Handler {
+func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks) *Handler {
 	return &Handler{
 		Config:       cfg,
 		LPSClient:    lpsClient,
 		LoginLimiter: loginLimiter,
-		MountainTZ:   mountainTZ,
 		googleHooks:  googleHooks,
 	}
 }

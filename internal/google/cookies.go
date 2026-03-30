@@ -11,6 +11,11 @@ import (
 	internalhttpx "portfolio/internal/httpx"
 )
 
+func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) {
+	cookie.Expires = expires
+	http.SetCookie(w, cookie)
+}
+
 // GetConnectionID reads the Google connection ID from the request cookie.
 func GetConnectionID(r *http.Request) string {
 	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
@@ -23,15 +28,13 @@ func GetConnectionID(r *http.Request) string {
 // SetConnectionCookie sets the persistent Google connection cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
-	cookie.Expires = time.Now().Add(config.GoogleConnectionCookieTTL)
-	http.SetCookie(w, cookie)
+	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
 // ClearConnectionCookie removes the Google connection cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
-	cookie.Expires = time.Unix(0, 0)
-	http.SetCookie(w, cookie)
+	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
 // SetOAuthStateCookie encrypts and sets the OAuth state cookie.
@@ -41,8 +44,7 @@ func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, st
 		return err
 	}
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleOAuthStateCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
-	cookie.Expires = state.ExpiresAt
-	http.SetCookie(w, cookie)
+	setCookieWithExpiry(w, cookie, state.ExpiresAt)
 	return nil
 }
 
@@ -68,6 +70,5 @@ func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 // ClearOAuthStateCookie removes the OAuth state cookie.
 func ClearOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
-	cookie.Expires = time.Unix(0, 0)
-	http.SetCookie(w, cookie)
+	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }

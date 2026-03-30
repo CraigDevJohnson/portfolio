@@ -4,7 +4,9 @@
 
 locals {
   google_connection_table_name = "${var.app_name}-google-connections"
+  environment                  = "development"
   ssm_parameter_base_arn       = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}"
+  # Runtime secrets for Google OAuth and soccer JWT session authentication.
   ssm_parameter_names          = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
 }
 
@@ -71,7 +73,7 @@ resource "aws_dynamodb_table" "google_connections" {
 
   tags = {
     Name        = local.google_connection_table_name
-    Environment = "development"
+    Environment = local.environment
   }
 }
 
@@ -224,6 +226,6 @@ resource "aws_apprunner_service" "app" {
 
   tags = {
     Name        = var.app_name
-    Environment = "development"
+    Environment = local.environment
   }
 }

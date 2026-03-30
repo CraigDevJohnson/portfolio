@@ -27,9 +27,7 @@ function formatTimestamp(value) {
 
 function setButtonState(hasCapture) {
   copyButton.disabled = !hasCapture
-  copyButton.setAttribute('aria-disabled', `${!hasCapture}`)
   clearButton.disabled = !hasCapture
-  clearButton.setAttribute('aria-disabled', `${!hasCapture}`)
 }
 
 function renderCapture(capture) {

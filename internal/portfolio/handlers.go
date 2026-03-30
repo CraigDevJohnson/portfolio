@@ -6,17 +6,25 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
 	"portfolio/types"
 )
+
+func renderComponent(w http.ResponseWriter, component templ.Component) {
+	if err := component.Render(context.Background(), w); err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
 
 func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
-	if err := pages.Home(pages.HomeProps{
+	renderComponent(w, pages.Home(pages.HomeProps{
 		Name:               "Craig Johnson",
 		Role:               "Cloud Engineer Principal",
 		AvatarURL:          GravatarURL("gravatar@craigdevjohnson.com", 275),
@@ -24,34 +32,26 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 		YearsInTech:        time.Now().Year() - careerStartYear,
 		Certifications:     10,
 		AutomationProjects: "100",
-	}).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	}))
 }
 
-func AboutHandler(w http.ResponseWriter, careerStartYear int) {
+func AboutHandler(w http.ResponseWriter, _ *http.Request, careerStartYear int) {
 	props := pages.AboutProps{
 		YearsInTech:    time.Now().Year() - careerStartYear,
 		Certifications: 10,
 		TechUsed:       30,
 		CupsOfCoffee:   "∞",
 	}
-	if err := pages.About(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, pages.About(props))
 }
 
-func ExperienceHandler(w http.ResponseWriter) {
-	if err := pages.Experience().Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func ExperienceHandler(w http.ResponseWriter, _ *http.Request) {
+	renderComponent(w, pages.Experience())
 }
 
-func ExperienceTimelineHandler(w http.ResponseWriter) {
+func ExperienceTimelineHandler(w http.ResponseWriter, _ *http.Request) {
 	props := partials.ExperienceTimelineProps{Experiences: ExperienceData()}
-	if err := partials.ExperienceTimeline(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, partials.ExperienceTimeline(props))
 }
 
 func featuredSkills(categories []types.SkillCategory) []types.Skill {
@@ -81,21 +81,17 @@ func findSkillByID(categories []types.SkillCategory, id int) (types.Skill, strin
 	return types.Skill{}, "", false
 }
 
-func SkillsHandler(w http.ResponseWriter) {
-	if err := pages.Skills().Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func SkillsHandler(w http.ResponseWriter, _ *http.Request) {
+	renderComponent(w, pages.Skills())
 }
 
-func SkillsGridHandler(w http.ResponseWriter) {
+func SkillsGridHandler(w http.ResponseWriter, _ *http.Request) {
 	categories := SkillsData()
 	props := partials.SkillsGridProps{
 		Categories:     categories,
 		FeaturedSkills: featuredSkills(categories),
 	}
-	if err := partials.SkillsGrid(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, partials.SkillsGrid(props))
 }
 
 func SkillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
@@ -104,9 +100,7 @@ func SkillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
 		ActiveCategory:    r.URL.Query().Get("category"),
 		ActiveProficiency: r.URL.Query().Get("proficiency"),
 	}
-	if err := partials.SkillsFilterableSection(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, partials.SkillsFilterableSection(props))
 }
 
 func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
@@ -124,37 +118,27 @@ func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	found.Category = foundCategory
-	if err := partials.SkillDetail(partials.SkillDetailProps{Skill: found}).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, partials.SkillDetail(partials.SkillDetailProps{Skill: found}))
 }
 
-func ProjectsHandler(w http.ResponseWriter) {
-	if err := pages.Projects().Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func ProjectsHandler(w http.ResponseWriter, _ *http.Request) {
+	renderComponent(w, pages.Projects())
 }
 
-func ProjectsGridHandler(w http.ResponseWriter) {
+func ProjectsGridHandler(w http.ResponseWriter, _ *http.Request) {
 	props := partials.ProjectsGridProps{Projects: ProjectsData()}
-	if err := partials.ProjectsGrid(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, partials.ProjectsGrid(props))
 }
 
-func EducationHandler(w http.ResponseWriter) {
+func EducationHandler(w http.ResponseWriter, _ *http.Request) {
 	props := pages.EducationProps{
 		TotalCerts:      10,
 		Providers:       5,
 		YearsCertifying: time.Now().Year() - 2018,
 	}
-	if err := pages.Education(props).Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	renderComponent(w, pages.Education(props))
 }
 
-func ContactHandler(w http.ResponseWriter) {
-	if err := pages.Contact().Render(context.Background(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func ContactHandler(w http.ResponseWriter, _ *http.Request) {
+	renderComponent(w, pages.Contact())
 }

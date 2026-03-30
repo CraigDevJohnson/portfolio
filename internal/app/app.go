@@ -7,7 +7,6 @@ import (
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
-	"portfolio/internal/schedule"
 	"portfolio/internal/session"
 )
 
@@ -16,7 +15,6 @@ type App struct {
 	Config        config.Config
 	LPSClient     *http.Client
 	LoginLimiter  *session.LoginRateLimiter
-	MountainTZ    *time.Location
 	GoogleHandler *internalgoogle.Handler
 }
 
@@ -26,7 +24,6 @@ func New(cfg *config.Config) *App {
 		Config:       *cfg,
 		LPSClient:    &http.Client{Timeout: 15 * time.Second},
 		LoginLimiter: newLoginRateLimiter(5, time.Minute),
-		MountainTZ:   schedule.MountainTimeLocation,
 	}
 	// GoogleHandler is constructed with a nil SoccerBridge initially;
 	// it gets wired in Run() after the soccer handler is created.

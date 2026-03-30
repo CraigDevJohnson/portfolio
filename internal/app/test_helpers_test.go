@@ -7,7 +7,6 @@ import (
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
-	"portfolio/internal/schedule"
 	internalsession "portfolio/internal/session"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
@@ -22,7 +21,6 @@ func newTestApp(t *testing.T) *App {
 		},
 		LPSClient:    &http.Client{Timeout: 5 * time.Second},
 		LoginLimiter: newLoginRateLimiter(5, time.Minute),
-		MountainTZ:   schedule.MountainTimeLocation,
 	}
 	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
 	app.GoogleHandler.Soccer = newGoogleSoccerBridge(newTestSoccerHandler(app))
@@ -33,7 +31,7 @@ func newTestApp(t *testing.T) *App {
 }
 
 func newTestSoccerHandler(app *App) *internalsoccer.Handler {
-	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.MountainTZ, soccerGoogleHooks{google: app.GoogleHandler})
+	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, soccerGoogleHooks{google: app.GoogleHandler})
 }
 
 func encryptTestSession(t *testing.T, app *App, session *types.SessionData) string {

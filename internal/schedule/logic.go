@@ -10,6 +10,30 @@ import (
 
 const fieldLocationPrefix = "Field "
 
+func normalizeScheduleGame(game *Game) {
+	if game.DateTime == "" {
+		game.DateTime = FormatGameDateTime(game.StartAt)
+	}
+	if game.Location == "" && game.Field != "" {
+		game.Location = fieldLocationPrefix + game.Field
+	}
+	if game.Field == "" && game.Location != "" {
+		game.Field = game.Location
+	}
+	if game.PlayerTeamName == "" {
+		game.PlayerTeamName = game.Home
+	}
+	if game.OpponentTeamName == "" {
+		game.OpponentTeamName = game.Away
+	}
+	if game.FacilityName == "" {
+		game.FacilityName = game.Location
+	}
+	if game.ID == "" {
+		game.ID = FallbackGameID(game)
+	}
+}
+
 func MergeGames(base, incoming *Game) Game {
 	merged := *base
 	if merged.ID == "" {
@@ -69,18 +93,7 @@ func MergeGames(base, incoming *Game) Game {
 	if merged.Result == "" {
 		merged.Result = incoming.Result
 	}
-	if merged.Location == "" && merged.Field != "" {
-		merged.Location = fieldLocationPrefix + merged.Field
-	}
-	if merged.Field == "" && merged.Location != "" {
-		merged.Field = merged.Location
-	}
-	if merged.DateTime == "" {
-		merged.DateTime = FormatGameDateTime(merged.StartAt)
-	}
-	if merged.ID == "" {
-		merged.ID = FallbackGameID(&merged)
-	}
+	normalizeScheduleGame(&merged)
 	return merged
 }
 
@@ -113,27 +126,7 @@ func GameStartTime(game *Game) (time.Time, bool) {
 
 func NormalizeScheduleGames(games []Game) {
 	for index := range games {
-		if games[index].ID == "" {
-			games[index].ID = FallbackGameID(&games[index])
-		}
-		if games[index].DateTime == "" {
-			games[index].DateTime = FormatGameDateTime(games[index].StartAt)
-		}
-		if games[index].Location == "" && games[index].Field != "" {
-			games[index].Location = fieldLocationPrefix + games[index].Field
-		}
-		if games[index].Field == "" && games[index].Location != "" {
-			games[index].Field = games[index].Location
-		}
-		if games[index].PlayerTeamName == "" {
-			games[index].PlayerTeamName = games[index].Home
-		}
-		if games[index].OpponentTeamName == "" {
-			games[index].OpponentTeamName = games[index].Away
-		}
-		if games[index].FacilityName == "" {
-			games[index].FacilityName = games[index].Location
-		}
+		normalizeScheduleGame(&games[index])
 	}
 }
 

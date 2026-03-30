@@ -20,6 +20,7 @@ type LoginRateLimiter struct {
 	closeOnce   sync.Once
 }
 
+// NewLoginRateLimiter tracks login attempts per key within a fixed time window.
 func NewLoginRateLimiter(maxAttempts int, window time.Duration, maxKeys int) *LoginRateLimiter {
 	limiter := &LoginRateLimiter{
 		maxAttempts: maxAttempts,
@@ -36,6 +37,8 @@ func (limiter *LoginRateLimiter) Close() {
 	limiter.closeOnce.Do(func() { close(limiter.stop) })
 }
 
+// Allow reports whether the provided key may make another login attempt.
+// Empty keys bypass rate limiting.
 func (limiter *LoginRateLimiter) Allow(key string) bool {
 	if key == "" {
 		return true
@@ -48,9 +51,6 @@ func (limiter *LoginRateLimiter) Allow(key string) bool {
 	attempt := limiter.attempts[key]
 	if now.Sub(attempt.WindowStart) > limiter.window {
 		attempt = LoginAttempt{WindowStart: now}
-	}
-	if attempt.WindowStart.IsZero() {
-		attempt.WindowStart = now
 	}
 	if attempt.Count >= limiter.maxAttempts {
 		return false
