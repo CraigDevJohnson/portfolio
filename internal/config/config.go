@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// Config holds the server's runtime configuration.
 type Config struct {
 	SessionKey                []byte
 	LPSAPIBaseURL             string
@@ -19,12 +20,13 @@ type Config struct {
 	GoogleConnectionTableName string
 }
 
+// Load reads runtime configuration from the environment.
 func Load() Config {
 	cfg := Config{
-		LPSAPIBaseURL:             strings.TrimSpace(os.Getenv("LPS_API_BASE_URL")),
-		GoogleClientID:            strings.TrimSpace(os.Getenv("CLIENT_ID_KEY")),
-		GoogleClientSecret:        strings.TrimSpace(os.Getenv("CLIENT_SECRET_KEY")),
-		GoogleConnectionTableName: strings.TrimSpace(os.Getenv("GOOGLE_CONNECTION_TABLE_NAME")),
+		LPSAPIBaseURL:             envTrimmed("LPS_API_BASE_URL"),
+		GoogleClientID:            envTrimmed("CLIENT_ID_KEY"),
+		GoogleClientSecret:        envTrimmed("CLIENT_SECRET_KEY"),
+		GoogleConnectionTableName: envTrimmed("GOOGLE_CONNECTION_TABLE_NAME"),
 	}
 	if cfg.LPSAPIBaseURL == "" {
 		cfg.LPSAPIBaseURL = DefaultLPSAPIBaseURL
@@ -37,7 +39,7 @@ func Load() Config {
 		cfg.LPSAPIBaseURL = validatedURL
 	}
 
-	keyHex := strings.TrimSpace(os.Getenv("LPS_SESSION_KEY"))
+	keyHex := envTrimmed("LPS_SESSION_KEY")
 	if keyHex == "" {
 		log.Printf("soccer auth disabled: LPS_SESSION_KEY is not configured")
 		return cfg
@@ -54,28 +56,32 @@ func Load() Config {
 	return cfg
 }
 
+// LoginEnabled reports whether soccer JWT import is configured.
 func (c *Config) LoginEnabled() bool {
 	return len(c.SessionKey) == 32
 }
 
+// GoogleEnabled reports whether direct Google Calendar add is configured.
 func (c *Config) GoogleEnabled() bool {
 	return c.LoginEnabled() &&
-		strings.TrimSpace(c.GoogleClientID) != "" &&
-		strings.TrimSpace(c.GoogleClientSecret) != "" &&
-		strings.TrimSpace(c.GoogleConnectionTableName) != ""
+		c.GoogleClientID != "" &&
+		c.GoogleClientSecret != "" &&
+		c.GoogleConnectionTableName != ""
 }
 
+// PublicBindEnabled reports whether the server should bind to all interfaces.
 func PublicBindEnabled() bool {
-	value := strings.TrimSpace(os.Getenv("APP_BIND_ALL"))
+	value := envTrimmed("APP_BIND_ALL")
 	return strings.EqualFold(value, "1") || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }
 
+// ServerListenAddress returns the host:port address the server should bind to.
 func ServerListenAddress() string {
-	port := strings.TrimSpace(os.Getenv("PORT"))
+	port := envTrimmed("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	host := strings.TrimSpace(os.Getenv("HOST"))
+	host := envTrimmed("HOST")
 	if host == "" {
 		if PublicBindEnabled() {
 			host = "0.0.0.0"
@@ -86,6 +92,7 @@ func ServerListenAddress() string {
 	return net.JoinHostPort(host, port)
 }
 
+// LocalServerURL returns a localhost URL derived from the bound listen address.
 func LocalServerURL(listenAddress string) string {
 	_, port, err := net.SplitHostPort(listenAddress)
 	if err != nil || port == "" {
@@ -94,6 +101,7 @@ func LocalServerURL(listenAddress string) string {
 	return "http://localhost:" + port
 }
 
+// NormalizeLPSAPIBaseURL validates and normalizes the configured LPS API base URL.
 func NormalizeLPSAPIBaseURL(raw string) (string, error) {
 	if strings.TrimSpace(raw) == "" {
 		raw = DefaultLPSAPIBaseURL
@@ -113,6 +121,10 @@ func NormalizeLPSAPIBaseURL(raw string) (string, error) {
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	return parsed.String(), nil
+}
+
+func envTrimmed(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 func isLoopbackHost(host string) bool {

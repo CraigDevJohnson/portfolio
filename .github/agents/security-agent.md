@@ -118,7 +118,7 @@ You are a specialized **security review agent** for this portfolio website. Your
 # Files that should NEVER contain secrets:
 cmd/server/main.go
 internal/**/*.go
-*.html
+cmd/web/**/*.templ
 *.js
 *.css
 *.md

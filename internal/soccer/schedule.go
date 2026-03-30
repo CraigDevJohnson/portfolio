@@ -89,7 +89,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := ParsePlayerIDs(rawPlayerIDs)
-	if hasInvalidPlayerSelection(rawPlayerIDs, playerIDs) {
+	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
@@ -135,7 +135,7 @@ func (h *Handler) populateScheduleProps(ctx context.Context, session *types.Sess
 }
 
 func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
-	if hasInvalidPlayerSelection(rawPlayerIDs, playerIDs) {
+	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false

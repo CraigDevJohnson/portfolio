@@ -10,9 +10,11 @@ import (
 	"errors"
 )
 
+const errSessionKeyNotConfigured = "session encryption key is not configured"
+
 func EncryptJSONValue(key []byte, data any) (string, error) {
 	if len(key) != 32 {
-		return "", errors.New("session encryption key is not configured")
+		return "", errors.New(errSessionKeyNotConfigured)
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -36,7 +38,7 @@ func EncryptJSONValue(key []byte, data any) (string, error) {
 
 func DecryptJSONValue(key []byte, value string, out any) error {
 	if len(key) != 32 {
-		return errors.New("session encryption key is not configured")
+		return errors.New(errSessionKeyNotConfigured)
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {

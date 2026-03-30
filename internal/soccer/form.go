@@ -42,7 +42,7 @@ func ParseTeamIDs(raw string) []int {
 	return ParsePlayerIDs(splitDelimitedValues(raw))
 }
 
-func hasInvalidPlayerSelection(rawValues []string, playerIDs []int) bool {
+func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
 	if len(playerIDs) > 0 {
 		return false
 	}
@@ -56,6 +56,7 @@ func hasInvalidPlayerSelection(rawValues []string, playerIDs []int) bool {
 	return false
 }
 
+// splitDelimitedValues accepts commas, semicolons, and whitespace as separators.
 func splitDelimitedValues(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

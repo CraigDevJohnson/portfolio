@@ -218,10 +218,10 @@ resource "aws_apprunner_service" "app" {
   health_check_configuration {
     protocol            = "HTTP"
     path                = "/"
-    healthy_threshold   = 2  # consecutive successes to mark healthy
-    unhealthy_threshold = 3  # consecutive failures to mark unhealthy
-    interval            = 10 # seconds between checks
-    timeout             = 5  # seconds to wait before considering the check failed
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 10
+    timeout             = 5
   }
 
   tags = {

@@ -8,8 +8,8 @@ RUN go mod download
 COPY . .
 
 # Generate templ components using the version pinned in go.mod
-RUN go tool templ generate
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
+RUN go tool templ generate \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

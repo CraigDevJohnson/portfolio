@@ -86,13 +86,12 @@ You are a specialized **documentation agent** for this portfolio website project
 
 #### Code Comments
 ```go
-// Package main implements the portfolio web server using Go and HTMX.
-// All application logic is contained in this single file for simplicity.
-package main
+// Package portfolio contains the static portfolio data and page handler helpers.
+package portfolio
 
 // experienceData returns the work experience entries displayed on the experience page.
 // Entries are returned in reverse chronological order (most recent first).
-func experienceData() []Experience {
+func experienceData() []types.Experience {
     // ...
 }
 ```

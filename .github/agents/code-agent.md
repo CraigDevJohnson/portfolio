@@ -139,7 +139,7 @@ Your work is successful when:
 3. ✅ HTMX interactions work smoothly
 4. ✅ Theme displays properly across all pages
 5. ✅ Responsive design works on mobile and desktop
-6. ✅ Code follows Go conventions and is formatted with `gofmt`
+6. ✅ Code follows Go conventions and is formatted with `just fmt`
 7. ✅ No new bugs introduced in existing functionality
 8. ✅ Changes are well-documented with clear commit messages
 

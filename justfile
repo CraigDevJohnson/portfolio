@@ -101,8 +101,8 @@ install-lint:
       exit 1
     fi
     if [ ! -d node_modules/stylelint ] || [ ! -d node_modules/stylelint-config-standard ]; then
-      echo "stylelint dependencies not installed -- running npm install..."
-      npm install
+      echo "stylelint dependencies not installed -- running npm ci..."
+      npm ci
     fi
     echo "stylelint is installed and ready to use!"
 
