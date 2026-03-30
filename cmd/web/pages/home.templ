@@ -70,15 +70,30 @@ templ Home(props HomeProps) {
 					</div>
 					<div class="hero-stats">
 						<div class="stat">
-							<span class="home-stat-value" data-target={ fmt.Sprintf("%d", props.YearsInTech) } data-suffix="+">0</span>
+							<span
+								class="home-stat-value"
+								data-target={ fmt.Sprintf("%d", props.YearsInTech) }
+								data-suffix="+"
+								aria-label={ fmt.Sprintf("%d plus years experience", props.YearsInTech) }
+							>0</span>
 							<span class="stat-label">Years Experience</span>
 						</div>
 						<div class="stat">
-							<span class="home-stat-value" data-target={ fmt.Sprintf("%d", props.Certifications) } data-suffix="+">0</span>
+							<span
+								class="home-stat-value"
+								data-target={ fmt.Sprintf("%d", props.Certifications) }
+								data-suffix="+"
+								aria-label={ fmt.Sprintf("%d plus certifications", props.Certifications) }
+							>0</span>
 							<span class="stat-label">Certifications</span>
 						</div>
 						<div class="stat">
-							<span class="home-stat-value" data-target={ props.AutomationProjects } data-suffix="+">0</span>
+							<span
+								class="home-stat-value"
+								data-target={ props.AutomationProjects }
+								data-suffix="+"
+								aria-label={ fmt.Sprintf("%s plus automation projects", props.AutomationProjects) }
+							>0</span>
 							<span class="stat-label">Automation Projects</span>
 						</div>
 					</div>

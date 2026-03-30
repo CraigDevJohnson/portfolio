@@ -8,11 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-
-	"portfolio/types"
 )
-
-type SessionData = types.SessionData
 
 func EncryptJSONValue(key []byte, data any) (string, error) {
 	if len(key) != 32 {
@@ -64,16 +60,4 @@ func DecryptJSONValue(key []byte, value string, out any) error {
 		return err
 	}
 	return json.Unmarshal(payload, out)
-}
-
-func EncryptSession(key []byte, data *SessionData) (string, error) {
-	return EncryptJSONValue(key, data)
-}
-
-func DecryptSession(key []byte, value string) (SessionData, error) {
-	var data SessionData
-	if err := DecryptJSONValue(key, value, &data); err != nil {
-		return data, err
-	}
-	return data, nil
 }

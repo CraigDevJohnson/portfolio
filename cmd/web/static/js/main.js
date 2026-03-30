@@ -109,6 +109,11 @@
       ? new Date().getFullYear() - Number.parseInt(targetYear, 10)
       : Number.parseInt(targetValue, 10) || 0
 
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      counter.textContent = `${finalValue}${suffix}`
+      return
+    }
+
     const start = performance.now()
 
     function update(now) {
@@ -435,6 +440,18 @@
   })
 
   document.addEventListener('click', event => {
+    const closeDetailButton = event.target.closest('[data-close-detail]')
+    if (!closeDetailButton) {
+      return
+    }
+
+    const detailSlot = closeDetailButton.closest('.skill-detail-slot')
+    if (detailSlot) {
+      detailSlot.replaceChildren()
+    }
+  })
+
+  document.addEventListener('click', event => {
     const loadingLink = event.target.closest('[data-loading-link]')
     if (!loadingLink) {
       return
@@ -471,6 +488,7 @@
   resetSoccerLoadingLinks()
   observeCounterSection('.hero-stats', '.home-stat-value', 2000)
   observeCounterSection('.about-stats', '.about-stat-value', 2000)
+  observeCounterSection('.experience-summary', '.exp-stat-value', 1500)
   observeCounterSection('.edu-stats', '.edu-stat-value[data-target]', 1500)
   observeCounterSection('.projects-stats', '.proj-stat-value', 1500)
   setupProjectsCategoryFilter()

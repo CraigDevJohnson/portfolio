@@ -4,6 +4,8 @@
 
 locals {
   google_connection_table_name = "${var.app_name}-google-connections"
+  ssm_parameter_base_arn       = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}"
+  ssm_parameter_names          = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
 }
 
 # ──────────────────────────────────────────────
@@ -159,11 +161,7 @@ resource "aws_iam_policy" "apprunner_runtime_secrets" {
           "ssm:GetParameter",
           "ssm:GetParameters",
         ]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY",
-        ]
+        Resource = [for name in local.ssm_parameter_names : "${local.ssm_parameter_base_arn}/${name}"]
       },
       {
         Effect   = "Allow"
@@ -202,11 +200,7 @@ resource "aws_apprunner_service" "app" {
           APP_BIND_ALL                 = "true"
           GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
         }
-        runtime_environment_secrets = {
-          CLIENT_ID_KEY                = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY"
-          CLIENT_SECRET_KEY            = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY"
-          LPS_SESSION_KEY              = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY"
-        }
+        runtime_environment_secrets = { for name in local.ssm_parameter_names : name => "${local.ssm_parameter_base_arn}/${name}" }
       }
     }
 

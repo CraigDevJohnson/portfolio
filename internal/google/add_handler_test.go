@@ -13,6 +13,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/internal/config"
+	"portfolio/internal/testutil"
 	"portfolio/types"
 )
 
@@ -38,12 +39,12 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 		UpdatedAt:       time.Now().UTC(),
 	}
 
-	futureOne := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	futureTwo := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
-	futureThree := testMislabelledLPSZuluTime(time.Now().Add(72 * time.Hour))
-	futureFour := testMislabelledLPSZuluTime(time.Now().Add(96 * time.Hour))
-	futureFive := testMislabelledLPSZuluTime(time.Now().Add(120 * time.Hour))
-	futureSix := testMislabelledLPSZuluTime(time.Now().Add(144 * time.Hour))
+	futureOne := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureTwo := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	futureThree := testutil.MislabelledLPSZuluTime(time.Now().Add(72 * time.Hour))
+	futureFour := testutil.MislabelledLPSZuluTime(time.Now().Add(96 * time.Hour))
+	futureFive := testutil.MislabelledLPSZuluTime(time.Now().Add(120 * time.Hour))
+	futureSix := testutil.MislabelledLPSZuluTime(time.Now().Add(144 * time.Hour))
 
 	bridge.games = []types.Game{
 		{ID: "7001", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "GALACTICOS FC", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 3", Result: "", StartAt: futureOne},

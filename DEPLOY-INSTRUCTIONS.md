@@ -196,7 +196,7 @@ Review the output. It should show the creation of:
 - 1 IAM role policy attachment
 - 1 App Runner service
 
-### 3c. Build and push the Docker image first
+### 3c. Make sure the ECR image exists before the final apply
 
 **Important:** The App Runner service references the ECR image, so the image must exist in ECR
 before `tofu apply` can succeed. You have two options:
@@ -222,9 +222,10 @@ If you've already pushed an image, simply run:
 tofu apply
 ```
 
-### 3d. Apply the infrastructure
+### 3d. Apply the infrastructure after the image is available in ECR
 
-When prompted, type `yes` to confirm:
+After you complete **Step 4** or confirm that the image already exists in ECR,
+run the final apply. When prompted, type `yes` to confirm:
 
 ```bash
 tofu apply
@@ -246,6 +247,9 @@ Save the `ecr_repository_url` — you'll need it in the next step.
 ---
 
 ## Step 4 — Build and Push the Docker Image
+
+Complete this step after **Step 3c Option A**, or before **Step 3d** if you are
+using **Option B**.
 
 ### 4a. Authenticate Docker with ECR
 

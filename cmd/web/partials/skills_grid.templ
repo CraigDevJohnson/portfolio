@@ -79,6 +79,30 @@ func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activePr
 	return false
 }
 
+templ featuredSkillCardContent(skill types.Skill) {
+	<div class="skill-card-icon">
+		if skill.IconPath != "" {
+			<img src={ skill.IconPath } alt={ skill.Name }/>
+		} else if skill.Icon != "" {
+			@templ.Raw(skill.Icon)
+		}
+	</div>
+	<div class="skill-card-content">
+		<h3 class="skill-card-name">{ skill.Name }</h3>
+		if skill.Category != "" {
+			<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
+		}
+		if skill.Description != "" {
+			<p class="skill-card-desc">{ skill.Description }</p>
+		}
+		<div class="skill-proficiency">
+			<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
+				{ skill.Proficiency }
+			</div>
+		</div>
+	</div>
+}
+
 templ SkillsGrid(props SkillsGridProps) {
 	<div class="skills-container">
 		<!-- Core Competencies -->
@@ -93,52 +117,12 @@ templ SkillsGrid(props SkillsGridProps) {
 						<div class="featured-skill-card" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
 							if skill.Link != "" {
 								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-card-link">
-									<div class="skill-card-icon">
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt={ skill.Name }/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-									</div>
-									<div class="skill-card-content">
-										<h3 class="skill-card-name">{ skill.Name }</h3>
-										if skill.Category != "" {
-											<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
-										}
-										if skill.Description != "" {
-											<p class="skill-card-desc">{ skill.Description }</p>
-										}
-										<div class="skill-proficiency">
-											<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
-												{ skill.Proficiency }
-											</div>
-										</div>
-									</div>
+									@featuredSkillCardContent(skill)
 									<div class="external-link-icon">↗</div>
 								</a>
 							} else {
 								<div class="skill-card-link skill-card-static">
-									<div class="skill-card-icon">
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt={ skill.Name }/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-									</div>
-									<div class="skill-card-content">
-										<h3 class="skill-card-name">{ skill.Name }</h3>
-										if skill.Category != "" {
-											<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
-										}
-										if skill.Description != "" {
-											<p class="skill-card-desc">{ skill.Description }</p>
-										}
-										<div class="skill-proficiency">
-											<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
-												{ skill.Proficiency }
-											</div>
-										</div>
-									</div>
+									@featuredSkillCardContent(skill)
 								</div>
 							}
 						</div>

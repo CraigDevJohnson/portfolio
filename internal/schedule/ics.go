@@ -29,7 +29,7 @@ func BuildICS(games []Game) string {
 		game := &games[i]
 		formatted, ok := CanonicalGameEvent(game)
 		if !ok {
-			log.Printf("skipping game: could not parse start time")
+			log.Printf("skipping game %q: could not parse start time %q", game.ID, game.StartAt)
 			continue
 		}
 		WriteICSLine(&builder, "BEGIN:VEVENT")
@@ -67,7 +67,7 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 	}
 
 	fieldName := strings.TrimSpace(game.Field)
-	location := CanonicalGameLocation(game)
+	location := canonicalGameLocation(game)
 	if location == "" {
 		location = strings.TrimSpace(game.Location)
 	}
@@ -77,7 +77,7 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 		gameID = FallbackGameID(game)
 	}
 
-	status := CanonicalGameStatus(game)
+	status := canonicalGameStatus(game)
 
 	return FormattedGameEvent{
 		Description: fmt.Sprintf("%s is playing %s\nDivision: %s\nFacility: %s\nField: %s\nResult: %s",
@@ -97,7 +97,7 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 	}, true
 }
 
-func CanonicalGameLocation(game *Game) string {
+func canonicalGameLocation(game *Game) string {
 	parts := []string{
 		strings.TrimSpace(game.FacilityAddress),
 		strings.TrimSpace(game.FacilityCity),
@@ -116,7 +116,7 @@ func CanonicalGameLocation(game *Game) string {
 	return strings.Join(locationParts, ", ")
 }
 
-func CanonicalGameStatus(game *Game) string {
+func canonicalGameStatus(game *Game) string {
 	if strings.EqualFold(strings.TrimSpace(game.Result), "canceled") {
 		return "canceled"
 	}

@@ -10,7 +10,8 @@ You are a specialized **Go + HTMX development agent** for this portfolio website
 - **HTMX Integration**: Dynamic fragment loading, form handling, progressive enhancement
 - **Templ Components**: page layouts, partial composition, and generated server-rendered fragments
 - **CSS Styling**: Modern CSS with variables, responsive design, theme support
-- **Single-File Architecture**: All application logic in `main.go`
+- **Distributed Architecture**: Thin entrypoint in `cmd/server/main.go`, routing in
+    `internal/app`, and domain logic in focused `internal/*` packages
 
 ## Key Responsibilities
 
@@ -44,7 +45,8 @@ You are a specialized **Go + HTMX development agent** for this portfolio website
 ### When Implementing Features
 
 - **Follow the Handler Pattern**: Use Templ page components for full pages and partial components for HTMX endpoints
-- **Data in main.go**: Add/update data in typed functions like `experienceData()`, never hardcode in templates
+- **Data in domain packages**: Update portfolio data in `internal/portfolio/data.go`
+    and keep templates free of hardcoded content data
 - **CSS Scoping**: Create page-specific CSS files in `static/css/{pagename}.css`
 - **Template Structure**: Reuse partials, keep pages focused on content
 - **HTMX Best Practices**: Use `hx-target`, `hx-swap`, `hx-indicator` appropriately
@@ -54,8 +56,10 @@ You are a specialized **Go + HTMX development agent** for this portfolio website
 Always validate changes before submitting:
 
 ```bash
-# Build and run
-go build -o portfolio-server . && ./portfolio-server
+# Build, test, and run with repo-standard commands
+just build
+just test
+./portfolio-server
 
 # In browser, test:
 # - Page loads at http://localhost:8080/{page}
@@ -68,7 +72,7 @@ go build -o portfolio-server . && ./portfolio-server
 ### Code Quality Standards
 
 - **Format code**: Run `just fmt` before committing
-- **Check for issues**: Run `go vet ./...` to catch common mistakes
+- **Check for issues**: Run `just vet` to catch common mistakes
 - **Descriptive names**: Use clear function and variable names
 - **Comment complex logic**: Add comments for non-obvious code
 - **Keep it simple**: Prefer clarity over cleverness
@@ -85,7 +89,7 @@ func newPageHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-// 2. Register route in main()
+// 2. Register route in internal/app
 http.HandleFunc("/newpage", newPageHandler)
 ```
 
@@ -144,8 +148,9 @@ Your work is successful when:
 If you're unsure about:
 
 - **Architecture**: Review `.github/copilot-instructions.md`
-- **Patterns**: Look at similar existing implementations in `main.go`
-- **Templates**: Check `components/` for examples
+- **Patterns**: Look at similar existing implementations in `internal/app`,
+  `internal/portfolio`, `internal/soccer`, and `internal/google`
+- **Templates**: Check `cmd/web/` for examples
 - **Styling**: Reference `static/css/styles.css` for design tokens
 
 Remember: Consistency with existing patterns is more important than innovation. Follow what works!

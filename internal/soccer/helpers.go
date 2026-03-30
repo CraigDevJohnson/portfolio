@@ -91,29 +91,3 @@ func SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) 
 	}
 	return filteredGames
 }
-
-func soccerGoogleFlashKind(code string) string {
-	switch strings.TrimSpace(code) {
-	case "failed", "denied", "unavailable":
-		return "error"
-	default:
-		return "success"
-	}
-}
-
-func soccerGoogleFlashMessage(code string) string {
-	switch strings.TrimSpace(code) {
-	case "connected":
-		return "Google Calendar connected. Choose a calendar below and add selected games directly from the schedule table."
-	case "denied":
-		return "Google Calendar connection was canceled before access was granted."
-	case "disconnected":
-		return "Google Calendar connection removed."
-	case "failed":
-		return "Google Calendar connection could not be completed. Try again."
-	case "unavailable":
-		return "Google Calendar add is unavailable until Google OAuth and server-side storage are configured."
-	default:
-		return ""
-	}
-}

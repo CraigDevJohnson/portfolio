@@ -3,6 +3,7 @@ const AUTOFILL_QUERY_KEY = 'extension_autofill'
 const FIELD_SELECTOR = '#soccer-import-jwt'
 const OPEN_BUTTON_SELECTOR = '[data-open-login-modal]'
 let cachedImportValue = ''
+let applyQueued = false
 
 function dispatchFieldEvents(field) {
   field.dispatchEvent(new Event('input', { bubbles: true }))
@@ -51,7 +52,7 @@ function maybeOpenImportModal() {
   return true
 }
 
-async function applyCaptureToPage() {
+function applyCaptureToPage() {
   if (!cachedImportValue) {
     cleanAutofillQueryParam()
     return
@@ -61,11 +62,23 @@ async function applyCaptureToPage() {
   maybeOpenImportModal()
 }
 
+function scheduleApplyCapture() {
+  if (applyQueued) {
+    return
+  }
+
+  applyQueued = true
+  window.requestAnimationFrame(() => {
+    applyQueued = false
+    applyCaptureToPage()
+  })
+}
+
 async function refreshCapture() {
   const result = await chrome.storage.local.get(CAPTURE_KEY)
   const capture = result[CAPTURE_KEY]
   cachedImportValue = capture?.importValue || ''
-  applyCaptureToPage()
+  scheduleApplyCapture()
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -74,11 +87,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   cachedImportValue = changes[CAPTURE_KEY].newValue?.importValue || ''
-  applyCaptureToPage()
+  scheduleApplyCapture()
 })
 
 const observer = new MutationObserver(() => {
-  applyCaptureToPage()
+  scheduleApplyCapture()
 })
 
 observer.observe(document.documentElement, {

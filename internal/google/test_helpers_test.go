@@ -9,7 +9,6 @@ import (
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
-	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
@@ -43,10 +42,6 @@ func newTestHandlerWithURLs(t *testing.T, store ConnectionStore, authURL, tokenU
 		h.CalendarAPIBaseURL = apiBaseURL
 	}
 	return h
-}
-
-func testMislabelledLPSZuluTime(at time.Time) string {
-	return at.In(schedule.MountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
 }
 
 type fakeConnectionStore struct {

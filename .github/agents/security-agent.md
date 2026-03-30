@@ -74,7 +74,9 @@ You are a specialized **security review agent** for this portfolio website. Your
 
 **For this Codebase:**
 
-- Currently no database (no SQL injection risk)
+- No relational database is used, so there is no SQL injection surface today
+- DynamoDB is used for Google OAuth connection storage, so review token storage,
+  IAM access, and table access patterns in `internal/google/store.go`
 - No command execution (no command injection risk)
 - Templates are pre-compiled (no template injection risk)
 
@@ -114,7 +116,8 @@ You are a specialized **security review agent** for this portfolio website. Your
 
 ```bash
 # Files that should NEVER contain secrets:
-main.go
+cmd/server/main.go
+internal/**/*.go
 *.html
 *.js
 *.css
@@ -171,7 +174,9 @@ if err != nil {
 }
 ```
 
-**Note:** The current codebase (main.go) exposes error details in some handlers. This is a known inconsistency that should be addressed. When reviewing code, flag instances where `err.Error()` is passed to `http.Error()` and recommend using the secure pattern shown above.
+**Note:** The current codebase still exposes error details in some handlers across
+distributed packages. When reviewing code, flag instances where `err.Error()` is
+passed to `http.Error()` and recommend using the secure pattern shown above.
 
 ### HTTP Security Headers
 

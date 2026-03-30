@@ -194,7 +194,7 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	selectedCalendarID := strings.TrimSpace(r.FormValue("calendar_id"))
 	selectedCalendarSummary := calendarSummary(calendars, selectedCalendarID)
 	if selectedCalendarSummary == "" {
-		selectedCalendarID, selectedCalendarSummary = PreferredCalendar(calendars)
+		selectedCalendarID, selectedCalendarSummary = preferredCalendar(calendars)
 	}
 	record.CalendarID = selectedCalendarID
 	record.CalendarSummary = selectedCalendarSummary
@@ -217,7 +217,7 @@ func (h *Handler) insertCalendarEvents(r *http.Request, record *ConnectionRecord
 	updated := 0
 	skipped := 0
 	for i := range games {
-		event, ok := EventPayload(r, &games[i])
+		event, ok := eventPayload(r, &games[i])
 		if !ok {
 			continue
 		}
@@ -326,7 +326,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 		if decodeErr != nil {
 			return nil, false, false, decodeErr
 		}
-		if EventMatchesGameID(existingEvent, gameID) {
+		if eventMatchesGameID(existingEvent, gameID) {
 			return existingEvent, true, false, nil
 		}
 	case http.StatusNotFound, http.StatusGone:
@@ -350,7 +350,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 			return nil, false, false, decodeErr
 		}
 		for i := range events {
-			if EventMatchesGameID(&events[i], gameID) {
+			if eventMatchesGameID(&events[i], gameID) {
 				return &events[i], true, false, nil
 			}
 		}
@@ -364,8 +364,8 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 	}
 }
 
-// EventMatchesGameID checks if a Google Calendar event matches a game ID.
-func EventMatchesGameID(event *Event, gameID string) bool {
+// eventMatchesGameID checks if a Google Calendar event matches a game ID.
+func eventMatchesGameID(event *Event, gameID string) bool {
 	if event == nil {
 		return false
 	}
@@ -510,8 +510,8 @@ func (h *Handler) listCalendarsWithToken(ctx context.Context, token *oauth2.Toke
 	return options, nil
 }
 
-// PreferredCalendar returns the primary calendar or the first in the list.
-func PreferredCalendar(calendars []types.GoogleCalendarOption) (string, string) {
+// preferredCalendar returns the primary calendar or the first in the list.
+func preferredCalendar(calendars []types.GoogleCalendarOption) (string, string) {
 	for _, cal := range calendars {
 		if cal.Primary {
 			return cal.ID, cal.Summary
@@ -532,8 +532,8 @@ func calendarSummary(calendars []types.GoogleCalendarOption, calendarID string) 
 	return ""
 }
 
-// EventPayload builds a Google Calendar event from a game.
-func EventPayload(r *http.Request, game *types.Game) (Event, bool) {
+// eventPayload builds a Google Calendar event from a game.
+func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 	formatted, ok := schedule.CanonicalGameEvent(game)
 	if !ok {
 		return Event{}, false

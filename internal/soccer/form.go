@@ -42,6 +42,20 @@ func ParseTeamIDs(raw string) []int {
 	return ParsePlayerIDs(splitDelimitedValues(raw))
 }
 
+func hasInvalidPlayerSelection(rawValues []string, playerIDs []int) bool {
+	if len(playerIDs) > 0 {
+		return false
+	}
+
+	for _, value := range rawValues {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func splitDelimitedValues(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

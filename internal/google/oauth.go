@@ -177,7 +177,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		RedirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	selectedCalendarID, selectedCalendarSummary := PreferredCalendar(calendars)
+	selectedCalendarID, selectedCalendarSummary := preferredCalendar(calendars)
 	encryptedToken, err := h.EncryptToken(token)
 	if err != nil {
 		log.Printf("google token encryption failed: %v", err)
@@ -186,7 +186,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, err := h.Store().Get(r.Context(), state.ConnectionID); err == nil && existing != nil && !existing.CreatedAt.IsZero() {
+	if existing, err := h.Store().Get(r.Context(), state.ConnectionID); err == nil && existing != nil {
 		createdAt = existing.CreatedAt
 	}
 	record := ConnectionRecord{
@@ -235,7 +235,7 @@ func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Reques
 func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
 	calendarID = strings.TrimSpace(record.CalendarID)
 	if calendarID == "" {
-		calendarID, summary = PreferredCalendar(calendars)
+		calendarID, summary = preferredCalendar(calendars)
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
@@ -246,7 +246,7 @@ func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionR
 	}
 	summary = calendarSummary(calendars, calendarID)
 	if summary == "" {
-		calendarID, summary = PreferredCalendar(calendars)
+		calendarID, summary = preferredCalendar(calendars)
 	}
 	if summary != "" && (record.CalendarID != calendarID || record.CalendarSummary != summary) {
 		record.CalendarID = calendarID

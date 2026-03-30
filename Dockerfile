@@ -16,7 +16,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 
 COPY --from=builder /out/portfolio-server /app/portfolio-server
-COPY --from=builder /src/cmd/web/static /app/static
+COPY --from=builder /src/cmd/web/static /app/cmd/web/static
 
 EXPOSE 8080
 

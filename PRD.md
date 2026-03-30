@@ -1,5 +1,10 @@
 # Feature: Extract `internal/app` into Domain Packages
 
+> **Historical record:** This refactor is complete. Use this document as
+> archived implementation context for the March 2026 cleanup, and use
+> `README.md` plus `.github/copilot-instructions.md` for the current
+> architecture and workflow.
+
 ## Overview
 
 Split the monolithic `internal/app` package (~3,800 lines, 16 source files, 10 test files) into proper Go domain packages following `cmd/server + internal/...` architecture. The previous refactor (complete) moved all code from a root `package main` monolith into `internal/app` with satellite packages that already contain extracted domain logic. This refactor completes the job: it eliminates the thin wrapper files in `internal/app`, moves remaining logic into focused domain packages, introduces dependency injection via a central `App` struct, and leaves `internal/app` as a thin routing/wiring layer.
@@ -7,6 +12,7 @@ Split the monolithic `internal/app` package (~3,800 lines, 16 source files, 10 t
 ### Current State
 
 The codebase has satellite packages with real logic already extracted:
+
 - `internal/httpx` -- client IP, proxy trust, HTTPS detection, secure cookie builder
 - `internal/session` -- AES-GCM encryption, rate limiter
 - `internal/lps` -- LPS API endpoint/request construction
@@ -14,6 +20,7 @@ The codebase has satellite packages with real logic already extracted:
 - `internal/portfolio` -- page handlers and static data
 
 But `internal/app` still contains:
+
 - ~8 thin wrapper files that delegate 1:1 to satellite packages (schedule.go, schedule_time.go, schedule_ics.go, lps_client.go, handlers_portfolio.go, data_portfolio.go, helpers.go fragments)
 - ~560-line soccer handler file with JWT import, session management, schedule fetch/download
 - ~400-line Google OAuth file with DynamoDB store, token management, connect/callback/disconnect
@@ -27,6 +34,7 @@ But `internal/app` still contains:
 ### Target State
 
 After this refactor:
+
 - `cmd/server/main.go` -- 6 lines, calls `app.Run()`
 - `internal/app` -- ~200 lines: `App` struct, route registration, `Run()`, dependency wiring
 - `internal/config` -- server config, env parsing, feature toggles
@@ -40,18 +48,18 @@ After this refactor:
 
 ## Success Criteria
 
-- [ ] All tasks complete
-- [ ] All tests passing (`just test`)
-- [ ] Lint passing (`just lint`)
-- [ ] Build succeeds (`just build`)
-- [ ] `just ci` passes (fmt -> vet -> lint -> test -> build)
-- [ ] `internal/app` contains only route registration, `App` struct, `Run()` (~200 lines)
-- [ ] Every `internal/*` package has a clear single-domain purpose
-- [ ] No thin 1:1 wrapper files remain (schedule.go, lps_client.go, etc. eliminated)
-- [ ] Callers import domain packages directly
-- [ ] Tests migrated to their domain packages
-- [ ] Package-level mutable globals replaced with injected dependencies where practical
-- [ ] All existing routes, behavior, and security properties preserved
+- [x] All tasks complete
+- [x] All tests passing (`just test`)
+- [x] Lint passing (`just lint`)
+- [x] Build succeeds (`just build`)
+- [x] `just ci` passes (fmt -> vet -> lint -> test -> build)
+- [x] `internal/app` contains only route registration, `App` struct, `Run()` (~200 lines)
+- [x] Every `internal/*` package has a clear single-domain purpose
+- [x] No thin 1:1 wrapper files remain (schedule.go, lps_client.go, etc. eliminated)
+- [x] Callers import domain packages directly
+- [x] Tests migrated to their domain packages
+- [x] Package-level mutable globals replaced with injected dependencies where practical
+- [x] All existing routes, behavior, and security properties preserved
 
 ## Tasks
 
@@ -360,7 +368,7 @@ wc -l internal/app/*.go
 - [ ] `just ci` passes
 - [ ] Final structure matches target:
 
-```
+```text
 cmd/server/main.go           -- entry point (~6 lines)
 internal/
   app/                        -- routing, wiring, server startup (~200 lines)
@@ -398,7 +406,7 @@ wc -l internal/app/*.go
 
 ### Dependency Direction
 
-```
+```text
 cmd/server/main.go
   |__ internal/app
         |-- internal/config
@@ -457,7 +465,7 @@ type Handler struct {
 
 ### Task Ordering and Dependencies
 
-```
+```text
 Task-001 (config) ---+
                      +-- Task-002 (App struct) ---+
 Task-003 (portfolio wrappers) --------------------+

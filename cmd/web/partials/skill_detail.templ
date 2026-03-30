@@ -11,7 +11,7 @@ type SkillDetailProps struct {
 
 templ SkillDetail(props SkillDetailProps) {
 	<div class="skill-detail-card">
-		<button class="skill-detail-close" onclick="this.closest('.skill-detail-slot').innerHTML=''" aria-label="Close detail" type="button">&times;</button>
+		<button class="skill-detail-close" aria-label="Close detail" type="button" data-close-detail>&times;</button>
 		<div class="skill-detail-content">
 			<div class="skill-detail-icon">
 				if props.Skill.IconPath != "" {

@@ -57,6 +57,9 @@ just build
 
 `just build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
 
+When you edit Templ files (`*.templ`), run `just generate` before building unless
+another command already does it for you.
+
 ### Running
 
 ```bash
@@ -81,9 +84,10 @@ just install-air
 just dev
 ```
 
-**Note**: When Templ files (`*.templ`) are modified, run `just generate` before building unless another command already does it.
+**Note**: `just dev` handles the normal local development loop, but Templ source
+changes still need regeneration before commands that do not already trigger it.
 
-### Google Calendar Configuration
+### Optional: Google Calendar Configuration
 
 Direct Google Calendar add requires these runtime environment variables:
 
@@ -256,52 +260,18 @@ The authenticated soccer import flow requires `LPS_SESSION_KEY` to be set before
 Current import flow:
 
 1. Sign in on letsplaysoccer.com in your browser.
-2. Open DevTools and inspect an authenticated network request.
-3. Copy the bearer JWT from the `Authorization` header value or request details.
-4. Open the soccer page in this app and import the JWT.
-5. The server calls `/users/check`, discovers linked players, filters deleted players, and shows the player selector with all discovered players pre-selected.
-6. Fetch schedules or export ICS for the selected players.
-7. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
+2. Copy the bearer JWT from your current authenticated session. You can use
+   browser DevTools or the included helper extension in `chrome-extension/`.
+3. Open the soccer page in this app and import the JWT.
+4. The server calls `/users/check`, discovers linked players, filters deleted players, and shows the player selector with all discovered players pre-selected.
+5. Fetch schedules or export ICS for the selected players.
+6. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
 
-#### Chrome Extension snippet for easy JWT copying
+#### Chrome extension helper
 
-**Manafest**:
-
-```json
-{
-  "manifest_version": 3,
-  "name": "JWT Extractor",
-  "version": "1.0",
-  "permissions": ["webRequest", "webRequestBlocking"],
-  "host_permissions": ["https://example.com/*"],
-  "background": {
-    "service_worker": "background.js"
-  }
-}
-```
-
-**Script**:
-
-```javascript
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  function (details) {
-    const headers = details.requestHeaders;
-
-    for (let h of headers) {
-      if (h.name.toLowerCase() === "authorization") {
-        console.log("JWT:", h.value);
-
-        // Optionally store it
-        chrome.storage.local.set({ jwt: h.value });
-      }
-    }
-
-    return { requestHeaders: headers };
-  },
-  { urls: ["https://example.com/*"] },
-  ["requestHeaders"]
-);
-```
+This repository includes a working helper extension under `chrome-extension/`
+for copying the current Let's Play Soccer JWT. Use the files in that directory
+as the source of truth instead of older inline manifest examples.
 
 ### Container Notes
 

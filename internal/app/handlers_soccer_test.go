@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/testutil"
+	"portfolio/types"
 )
 
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/users/check" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -58,7 +60,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.soccerImportHandler(resp, req)
+	newTestSoccerHandler(app).ImportHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusOK {
@@ -85,10 +87,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 		t.Fatalf("unexpected same-site mode: %v", sessionCookie.SameSite)
 	}
 
-	session, err := app.decryptSession(sessionCookie.Value)
-	if err != nil {
-		t.Fatalf("decryptSession returned error: %v", err)
-	}
+	session := decryptTestSession(t, app, sessionCookie.Value)
 	if session.JWT == "" {
 		t.Fatal("expected imported JWT to be stored in the session")
 	}
@@ -108,7 +107,7 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 
 func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testing.T) {
 	app := newTestApp(t)
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	requestCounts := map[string]int{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCounts[r.URL.Path]++
@@ -216,7 +215,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	importReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	importResp := httptest.NewRecorder()
 
-	app.soccerImportHandler(importResp, importReq)
+	newTestSoccerHandler(app).ImportHandler(importResp, importReq)
 
 	if importResp.Code != http.StatusOK {
 		t.Fatalf("unexpected import status code: got %d want %d", importResp.Code, http.StatusOK)
@@ -236,10 +235,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 		t.Fatal("expected session cookie to be set")
 	}
 
-	session, err := app.decryptSession(sessionCookie.Value)
-	if err != nil {
-		t.Fatalf("decryptSession returned error: %v", err)
-	}
+	session := decryptTestSession(t, app, sessionCookie.Value)
 	if session.UserName != "Craig Johnson" {
 		t.Fatalf("unexpected stored user name: got %q want %q", session.UserName, "Craig Johnson")
 	}
@@ -260,7 +256,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	fetchReq.AddCookie(sessionCookie)
 	fetchResp := httptest.NewRecorder()
 
-	app.fetchSchedulesHandler(fetchResp, fetchReq)
+	newTestSoccerHandler(app).FetchSchedulesHandler(fetchResp, fetchReq)
 
 	if fetchResp.Code != http.StatusOK {
 		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
@@ -298,7 +294,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 		},
 		{
 			name:        "expired token",
-			jwt:         testJWT(t, time.Now().Add(-30*time.Minute)),
+			jwt:         testutil.TestJWT(t, time.Now().Add(-30*time.Minute)),
 			wantMessage: "This JWT has expired.",
 		},
 	}
@@ -321,7 +317,7 @@ func TestSoccerImportHandlerRejectsMalformedJWT(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			resp := httptest.NewRecorder()
 
-			app.soccerImportHandler(resp, req)
+			newTestSoccerHandler(app).ImportHandler(resp, req)
 
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -377,12 +373,12 @@ func TestSoccerImportHandlerShowsActionableUsersCheckAuthFailure(t *testing.T) {
 			app.Config.LPSAPIBaseURL = server.URL
 
 			req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
-				"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+				"jwt": {testutil.TestJWT(t, time.Now().Add(30*time.Minute))},
 			}.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			resp := httptest.NewRecorder()
 
-			app.soccerImportHandler(resp, req)
+			newTestSoccerHandler(app).ImportHandler(resp, req)
 
 			if resp.Code != http.StatusOK {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -407,12 +403,12 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
-		"jwt": {testJWT(t, time.Now().Add(30*time.Minute))},
+		"jwt": {testutil.TestJWT(t, time.Now().Add(30*time.Minute))},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.soccerImportHandler(resp, req)
+	newTestSoccerHandler(app).ImportHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -425,17 +421,17 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
-	addSessionCookie(t, app, req, &SessionData{
-		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Current browser session",
-		Players: []LPSPlayer{
+		Players: []types.LPSPlayer{
 			{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
 		},
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 	})
 	resp := httptest.NewRecorder()
 
-	app.soccerLogoutHandler(resp, req)
+	newTestSoccerHandler(app).LogoutHandler(resp, req)
 
 	result := resp.Result()
 	if result.StatusCode != http.StatusOK {
@@ -485,10 +481,10 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 		{
 			name: "expired session",
 			addCookie: func(t *testing.T, req *http.Request) {
-				addSessionCookie(t, app, req, &SessionData{
-					JWT:      testJWT(t, time.Now().Add(-30*time.Minute)),
+				addSessionCookie(t, app, req, &types.SessionData{
+					JWT:      testutil.TestJWT(t, time.Now().Add(-30*time.Minute)),
 					UserName: "Current browser session",
-					Players: []LPSPlayer{
+					Players: []types.LPSPlayer{
 						{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
 					},
 					ExpiresAt: time.Now().Add(-5 * time.Minute),
@@ -509,7 +505,7 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 			tc.addCookie(t, req)
 			resp := httptest.NewRecorder()
 
-			app.soccerSessionHandler(resp, req)
+			newTestSoccerHandler(app).SessionHandler(resp, req)
 
 			result := resp.Result()
 			if result.StatusCode != http.StatusOK {
@@ -559,7 +555,7 @@ func TestFetchSchedulesHandlerShowsInvalidPlayerMessage(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.fetchSchedulesHandler(resp, req)
+	newTestSoccerHandler(app).FetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -576,10 +572,10 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, app, req, &SessionData{
-		JWT:      testJWT(t, time.Now().Add(30*time.Minute)),
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Craig Johnson",
-		Players: []LPSPlayer{{
+		Players: []types.LPSPlayer{{
 			UPlayerID: 1001,
 			FirstName: "Craig",
 			LastName:  "Johnson",
@@ -594,7 +590,7 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	app.Config.LPSAPIBaseURL = server.URL
 	resp := httptest.NewRecorder()
 
-	app.fetchSchedulesHandler(resp, req)
+	newTestSoccerHandler(app).FetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -613,7 +609,7 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.downloadICSHandler(resp, req)
+	newTestSoccerHandler(app).DownloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
@@ -670,16 +666,16 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	defer server.Close()
 	app.Config.LPSAPIBaseURL = server.URL
 
-	token := testJWT(t, time.Now().Add(30*time.Minute))
+	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 		"selected":   {"888"},
 		"player_ids": {"1001"},
 	}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addSessionCookie(t, app, req, &SessionData{
+	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      token,
 		UserName: "Craig Johnson",
-		Players: []LPSPlayer{{
+		Players: []types.LPSPlayer{{
 			UPlayerID: 1001,
 			FirstName: "Craig",
 			LastName:  "Johnson",
@@ -688,7 +684,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	})
 	resp := httptest.NewRecorder()
 
-	app.downloadICSHandler(resp, req)
+	newTestSoccerHandler(app).DownloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -696,7 +692,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
 		t.Fatalf("unexpected content type: %q", contentType)
 	}
-	unfoldedICS := unfoldICS(resp.Body.String())
+	unfoldedICS := testutil.UnfoldICS(resp.Body.String())
 	if !strings.Contains(unfoldedICS, "UID:888") {
 		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
 	}
@@ -719,8 +715,8 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	futureUnselected := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	futureUnselected := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/teams/479691":
@@ -767,7 +763,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.downloadICSHandler(resp, req)
+	newTestSoccerHandler(app).DownloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
@@ -775,7 +771,7 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	if contentType := resp.Header().Get("Content-Type"); contentType != "text/calendar" {
 		t.Fatalf("unexpected content type: %q", contentType)
 	}
-	unfoldedICS := unfoldICS(resp.Body.String())
+	unfoldedICS := testutil.UnfoldICS(resp.Body.String())
 	if !strings.Contains(unfoldedICS, "UID:7001") {
 		t.Fatalf("unexpected ICS body: %q", resp.Body.String())
 	}
@@ -799,7 +795,7 @@ func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.downloadICSHandler(resp, req)
+	newTestSoccerHandler(app).DownloadICSHandler(resp, req)
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusBadRequest)
@@ -830,16 +826,16 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 			defer server.Close()
 			app.Config.LPSAPIBaseURL = server.URL
 
-			token := testJWT(t, time.Now().Add(30*time.Minute))
+			token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 			req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
 				"selected":   {"game-1"},
 				"player_ids": {"1001"},
 			}.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			addSessionCookie(t, app, req, &SessionData{
+			addSessionCookie(t, app, req, &types.SessionData{
 				JWT:      token,
 				UserName: "Craig Johnson",
-				Players: []LPSPlayer{{
+				Players: []types.LPSPlayer{{
 					UPlayerID: 1001,
 					FirstName: "Craig",
 					LastName:  "Johnson",
@@ -848,7 +844,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 			})
 			resp := httptest.NewRecorder()
 
-			app.downloadICSHandler(resp, req)
+			newTestSoccerHandler(app).DownloadICSHandler(resp, req)
 
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("unexpected status code: got %d want %d", resp.Code, tt.wantStatus)
@@ -876,8 +872,8 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 		time.Local = previousLocal
 	}()
 
-	past := testMislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
-	future := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/teams/479691" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -916,7 +912,7 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
 
-	app.fetchSchedulesHandler(resp, req)
+	newTestSoccerHandler(app).FetchSchedulesHandler(resp, req)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)

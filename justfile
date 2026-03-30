@@ -100,9 +100,9 @@ install-lint:
       echo "npx not found -- please install Node.js and npm"
       exit 1
     fi
-    if ! npx stylelint --version >/dev/null 2>&1; then
-      echo "stylelint not found -- installing..."
-      npm install stylelint stylelint-config-standard --save-dev
+    if [ ! -d node_modules/stylelint ] || [ ! -d node_modules/stylelint-config-standard ]; then
+      echo "stylelint dependencies not installed -- running npm install..."
+      npm install
     fi
     echo "stylelint is installed and ready to use!"
 

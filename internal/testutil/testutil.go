@@ -27,6 +27,8 @@ func TestJWT(t *testing.T, expiresAt time.Time) string {
 	return strings.Join([]string{header, payloadToken, signature}, ".")
 }
 
+// MislabelledLPSZuluTime mirrors the upstream API quirk where Mountain time is
+// formatted with a trailing Z suffix.
 func MislabelledLPSZuluTime(at time.Time) string {
 	return at.In(schedule.MountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
 }

@@ -72,7 +72,7 @@ func ScheduleFetchFeedback(err error) (string, string, bool) {
 
 	var fetchErr *FetchError
 	if errors.As(err, &fetchErr) {
-		if detail, ok := ScheduleErrorDetail(fetchErr); ok {
+		if detail, ok := scheduleErrorDetail(fetchErr); ok {
 			return detail.FeedbackMessage, detail.FeedbackHint, detail.ClearSession
 		}
 	}
@@ -84,7 +84,7 @@ func ScheduleFetchFeedback(err error) (string, string, bool) {
 func ScheduleDownloadError(err error) (int, string) {
 	var fetchErr *FetchError
 	if errors.As(err, &fetchErr) {
-		if detail, ok := ScheduleErrorDetail(fetchErr); ok {
+		if detail, ok := scheduleErrorDetail(fetchErr); ok {
 			return detail.DownloadStatus, detail.DownloadMessage
 		}
 	}
@@ -92,8 +92,8 @@ func ScheduleDownloadError(err error) (int, string) {
 	return http.StatusBadGateway, "could not refresh the authenticated schedule"
 }
 
-// ScheduleErrorDetail maps a classified LPS error to user-facing feedback.
-func ScheduleErrorDetail(fetchErr *FetchError) (ScheduleErrorDetails, bool) {
+// scheduleErrorDetail maps a classified LPS error to user-facing feedback.
+func scheduleErrorDetail(fetchErr *FetchError) (ScheduleErrorDetails, bool) {
 	if fetchErr == nil {
 		return ScheduleErrorDetails{}, false
 	}

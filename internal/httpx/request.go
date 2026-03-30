@@ -8,7 +8,7 @@ import (
 )
 
 func ClientIP(request *http.Request) string {
-	if ip, ok := ForwardedClientIP(request); ok {
+	if ip, ok := forwardedClientIP(request); ok {
 		return ip
 	}
 
@@ -19,19 +19,19 @@ func ClientIP(request *http.Request) string {
 	return strings.TrimSpace(request.RemoteAddr)
 }
 
-func ForwardedClientIP(request *http.Request) (string, bool) {
-	remoteIP := RemoteAddrIP(request.RemoteAddr)
-	if remoteIP == nil || !IsTrustedProxyIP(remoteIP) {
+func forwardedClientIP(request *http.Request) (string, bool) {
+	remoteIP := remoteAddrIP(request.RemoteAddr)
+	if remoteIP == nil || !isTrustedProxyIP(remoteIP) {
 		return "", false
 	}
 
-	if ip := strings.TrimSpace(request.Header.Get("CF-Connecting-IP")); IsValidIP(ip) {
+	if ip := strings.TrimSpace(request.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
 		return ip, true
 	}
 
 	for _, candidate := range strings.Split(request.Header.Get("X-Forwarded-For"), ",") {
 		candidate = strings.TrimSpace(candidate)
-		if IsValidIP(candidate) {
+		if isValidIP(candidate) {
 			return candidate, true
 		}
 	}
@@ -39,7 +39,7 @@ func ForwardedClientIP(request *http.Request) (string, bool) {
 	return "", false
 }
 
-func RemoteAddrIP(remoteAddr string) net.IP {
+func remoteAddrIP(remoteAddr string) net.IP {
 	host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr))
 	if err != nil {
 		host = strings.TrimSpace(remoteAddr)
@@ -47,11 +47,11 @@ func RemoteAddrIP(remoteAddr string) net.IP {
 	return net.ParseIP(host)
 }
 
-func IsTrustedProxyIP(ip net.IP) bool {
+func isTrustedProxyIP(ip net.IP) bool {
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
-func IsValidIP(value string) bool {
+func isValidIP(value string) bool {
 	return net.ParseIP(strings.TrimSpace(value)) != nil
 }
 
@@ -59,7 +59,7 @@ func RequestIsHTTPS(request *http.Request) bool {
 	if request.TLS != nil {
 		return true
 	}
-	if remoteIP := RemoteAddrIP(request.RemoteAddr); remoteIP != nil && IsTrustedProxyIP(remoteIP) {
+	if remoteIP := remoteAddrIP(request.RemoteAddr); remoteIP != nil && isTrustedProxyIP(remoteIP) {
 		return strings.EqualFold(strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")), "https")
 	}
 	return false

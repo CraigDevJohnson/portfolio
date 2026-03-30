@@ -1,9 +1,6 @@
 package partials
 
-type SoccerLoginModalProps struct {
-}
-
-templ SoccerLoginModal(props SoccerLoginModalProps) {
+templ SoccerLoginModal() {
 	<div id="soccer-login-modal" class="soccer-login-modal" hidden>
 		<div class="soccer-login-backdrop" data-close-login-modal></div>
 		<div
@@ -36,7 +33,6 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 				hx-swap="innerHTML"
 				hx-indicator=".soccer-login-submit-indicator"
 				hx-disabled-elt="find button[type='submit']"
-				autocomplete="off"
 			>
 				<div class="form-group">
 					<label for="soccer-import-jwt" class="form-label">Bearer JWT</label>

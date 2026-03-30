@@ -54,7 +54,7 @@ func ExperienceTimelineHandler(w http.ResponseWriter) {
 	}
 }
 
-func GetFeaturedSkills(categories []types.SkillCategory) []types.Skill {
+func featuredSkills(categories []types.SkillCategory) []types.Skill {
 	var featured []types.Skill
 	for _, category := range categories {
 		for i := range category.Skills {
@@ -67,6 +67,20 @@ func GetFeaturedSkills(categories []types.SkillCategory) []types.Skill {
 	return featured
 }
 
+func findSkillByID(categories []types.SkillCategory, id int) (types.Skill, string, bool) {
+	for _, category := range categories {
+		for i := range category.Skills {
+			if category.Skills[i].ID != id {
+				continue
+			}
+
+			return category.Skills[i], category.Name, true
+		}
+	}
+
+	return types.Skill{}, "", false
+}
+
 func SkillsHandler(w http.ResponseWriter) {
 	if err := pages.Skills().Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -77,7 +91,7 @@ func SkillsGridHandler(w http.ResponseWriter) {
 	categories := SkillsData()
 	props := partials.SkillsGridProps{
 		Categories:     categories,
-		FeaturedSkills: GetFeaturedSkills(categories),
+		FeaturedSkills: featuredSkills(categories),
 	}
 	if err := partials.SkillsGrid(props).Render(context.Background(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -103,24 +117,8 @@ func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	categories := SkillsData()
-	var found types.Skill
-	var foundCategory string
-	foundSkill := false
-	for _, category := range categories {
-		for i := range category.Skills {
-			if category.Skills[i].ID == id {
-				found = category.Skills[i]
-				foundCategory = category.Name
-				foundSkill = true
-				break
-			}
-		}
-		if foundSkill {
-			break
-		}
-	}
-
-	if !foundSkill {
+	found, foundCategory, ok := findSkillByID(categories, id)
+	if !ok {
 		http.Error(w, "skill not found", http.StatusNotFound)
 		return
 	}

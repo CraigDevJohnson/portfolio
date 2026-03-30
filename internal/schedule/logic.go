@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const FieldLocationPrefix = "Field "
+const fieldLocationPrefix = "Field "
 
 func MergeGames(base, incoming *Game) Game {
 	merged := *base
@@ -70,7 +70,7 @@ func MergeGames(base, incoming *Game) Game {
 		merged.Result = incoming.Result
 	}
 	if merged.Location == "" && merged.Field != "" {
-		merged.Location = FieldLocationPrefix + merged.Field
+		merged.Location = fieldLocationPrefix + merged.Field
 	}
 	if merged.Field == "" && merged.Location != "" {
 		merged.Field = merged.Location
@@ -120,7 +120,7 @@ func NormalizeScheduleGames(games []Game) {
 			games[index].DateTime = FormatGameDateTime(games[index].StartAt)
 		}
 		if games[index].Location == "" && games[index].Field != "" {
-			games[index].Location = FieldLocationPrefix + games[index].Field
+			games[index].Location = fieldLocationPrefix + games[index].Field
 		}
 		if games[index].Field == "" && games[index].Location != "" {
 			games[index].Field = games[index].Location
@@ -159,16 +159,16 @@ func SortScheduleGames(games []Game) {
 			if !left.Equal(right) {
 				return left.Before(right)
 			}
-			return CompareScheduleGames(&games[i], &games[j]) < 0
+			return compareScheduleGames(&games[i], &games[j]) < 0
 		}
 		if games[i].DateTime != games[j].DateTime {
 			return games[i].DateTime < games[j].DateTime
 		}
-		return CompareScheduleGames(&games[i], &games[j]) < 0
+		return compareScheduleGames(&games[i], &games[j]) < 0
 	})
 }
 
-func CompareScheduleGames(left, right *Game) int {
+func compareScheduleGames(left, right *Game) int {
 	for _, pair := range [][2]string{
 		{left.DateTime, right.DateTime},
 		{left.StartAt, right.StartAt},

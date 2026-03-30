@@ -18,7 +18,7 @@
 ## Last Completed
 
 - Task-011B: Archive stale pre-refactor references in plan.md
-- Tests: not rerun (docs-only change)
+- Tests/Build/CI: ✅ final verification rerun on current HEAD
 - Key decisions:
   - Converted plan.md from actionable migration checklist into historical archive note
   - Removed stale removed-file references and old root-monolith narrative
@@ -38,8 +38,8 @@
 
 - Date: 2026-03-29
 - Commands:
+  - `just ci` -> ✅ exit code 0
   - `just test` -> ✅ exit code 0
   - `just build` -> ✅ exit code 0
 - Notes:
-  - Verification executed on current HEAD after Task-011B docs archive commit.
-  - Captured log evidence in `/tmp/task011_just_test.log` and `/tmp/task011_just_build.log`.
+  - Verification executed on current HEAD after Task-011B docs archive commit and final reviewer closeout.

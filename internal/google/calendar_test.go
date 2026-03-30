@@ -11,7 +11,7 @@ import (
 
 func TestEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	event, ok := EventPayload(req, &types.Game{
+	event, ok := eventPayload(req, &types.Game{
 		ID:               "zulu-game",
 		Home:             "Team A",
 		Away:             "Team B",
@@ -41,7 +41,7 @@ func TestEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T)
 func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
 	req.Host = "example.com"
-	event, ok := EventPayload(req, &types.Game{
+	event, ok := eventPayload(req, &types.Game{
 		ID:               "3037322",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "FC CHAIN MAIL",
@@ -89,7 +89,7 @@ func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
 
 func TestEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	event, ok := EventPayload(req, &types.Game{
+	event, ok := eventPayload(req, &types.Game{
 		ID:               "3042954",
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "MANEFESTO",
@@ -168,9 +168,9 @@ func TestEventMatchesGameIDUsesOnlyCanonicalGameIDFields(t *testing.T) {
 			if tt.configure != nil {
 				tt.configure(&event)
 			}
-			got := EventMatchesGameID(&event, tt.gameID)
+			got := eventMatchesGameID(&event, tt.gameID)
 			if got != tt.expected {
-				t.Fatalf("EventMatchesGameID() = %t, want %t", got, tt.expected)
+				t.Fatalf("eventMatchesGameID() = %t, want %t", got, tt.expected)
 			}
 		})
 	}

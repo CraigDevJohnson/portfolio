@@ -1,5 +1,6 @@
 const CAPTURE_KEY = 'lpsJwtCapture'
-const AUTOFILL_URL = 'https://dev.craigdevjohnson.com/soccer?extension_autofill=1'
+const AUTOFILL_URL = 'https://craigdevjohnson.com/soccer?extension_autofill=1'
+const COPY_STATUS_RESET_DELAY_MS = 2000
 
 const statusNode = document.getElementById('status')
 const jwtField = document.getElementById('jwt-value')
@@ -9,6 +10,7 @@ const sourceUrlNode = document.getElementById('source-url')
 const copyButton = document.getElementById('copy-btn')
 const openButton = document.getElementById('open-btn')
 const clearButton = document.getElementById('clear-btn')
+let copyStatusResetId = 0
 
 function formatTimestamp(value) {
   if (!value) {
@@ -25,7 +27,9 @@ function formatTimestamp(value) {
 
 function setButtonState(hasCapture) {
   copyButton.disabled = !hasCapture
+  copyButton.setAttribute('aria-disabled', `${!hasCapture}`)
   clearButton.disabled = !hasCapture
+  clearButton.setAttribute('aria-disabled', `${!hasCapture}`)
 }
 
 function renderCapture(capture) {
@@ -57,8 +61,16 @@ copyButton.addEventListener('click', async () => {
     return
   }
 
-  await navigator.clipboard.writeText(jwtField.value)
-  statusNode.textContent = 'Import value copied.'
+  try {
+    await navigator.clipboard.writeText(jwtField.value)
+    statusNode.textContent = 'Import value copied.'
+    window.clearTimeout(copyStatusResetId)
+    copyStatusResetId = window.setTimeout(() => {
+      loadCapture()
+    }, COPY_STATUS_RESET_DELAY_MS)
+  } catch {
+    statusNode.textContent = 'Unable to copy the import value. Copy it manually from the field.'
+  }
 })
 
 openButton.addEventListener('click', () => {

@@ -197,3 +197,105 @@ func TestMapLPSGameNormalizesMislabelledZuluTimestampsToMountainTime(t *testing.
 		t.Fatalf("unexpected display datetime: %q", game.DateTime)
 	}
 }
+
+func TestDecodeLPSGamesAcceptsLambdaEnvelope(t *testing.T) {
+	payload := []byte(`{
+		"games": [
+			{
+				"id": "game-1",
+				"datetime": "Sun 03/29/26 05:20 PM MDT",
+				"start_at": "2026-03-29T17:20:00-06:00",
+				"field": "Field 1",
+				"home": "Team A",
+				"away": "Team B",
+				"season": "2026"
+			}
+		]
+	}`)
+
+	games, err := DecodeLPSGames(payload)
+	if err != nil {
+		t.Fatalf("DecodeLPSGames returned error: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("unexpected game count: got %d want 1", len(games))
+	}
+	if games[0].ID != "game-1" {
+		t.Fatalf("unexpected game ID: %q", games[0].ID)
+	}
+	if games[0].Home != "Team A" || games[0].Away != "Team B" {
+		t.Fatalf("unexpected teams: %#v", games[0])
+	}
+	if games[0].StartAt != "2026-03-29T17:20:00-06:00" {
+		t.Fatalf("unexpected start time: %q", games[0].StartAt)
+	}
+}
+
+func TestDecodeLPSGamesMapsFlexibleEnvelope(t *testing.T) {
+	payload := []byte(`{
+		"results": [
+			{
+				"UGameID": 5001,
+				"SchedGameDateTime": "2026-03-29T17:20:00.000Z",
+				"field_name": "Field 7",
+				"facilityName": "LPS Arena",
+				"home_team": {"team_name": "Team A"},
+				"visitor_team": {"team_name": "Team B"},
+				"Season": 2026,
+				"result": "Final"
+			}
+		]
+	}`)
+
+	games, err := DecodeLPSGames(payload)
+	if err != nil {
+		t.Fatalf("DecodeLPSGames returned error: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("unexpected game count: got %d want 1", len(games))
+	}
+
+	game := games[0]
+	if game.ID != "5001" {
+		t.Fatalf("unexpected game ID: %q", game.ID)
+	}
+	if game.Home != "Team A" || game.Away != "Team B" {
+		t.Fatalf("unexpected matchup: %#v", game)
+	}
+	if game.Field != "Field 7" {
+		t.Fatalf("unexpected field: %q", game.Field)
+	}
+	if game.Location != "LPS Arena" {
+		t.Fatalf("unexpected location: %q", game.Location)
+	}
+	if game.StartAt != "2026-03-29T17:20:00-06:00" {
+		t.Fatalf("unexpected normalized start time: %q", game.StartAt)
+	}
+	if game.DateTime != "Sun 03/29/26 05:20 PM MDT" {
+		t.Fatalf("unexpected display datetime: %q", game.DateTime)
+	}
+	if game.Season != "2026" {
+		t.Fatalf("unexpected season: %q", game.Season)
+	}
+	if game.Result != "Final" {
+		t.Fatalf("unexpected result: %q", game.Result)
+	}
+}
+
+func TestExtractGameMapsHandlesNestedEnvelope(t *testing.T) {
+	raw := map[string]any{
+		"data": map[string]any{
+			"items": []any{
+				map[string]any{"UGameID": 5001},
+			},
+		},
+	}
+
+	games := ExtractGameMaps(raw)
+	if len(games) != 1 {
+		t.Fatalf("unexpected game count: got %d want 1", len(games))
+	}
+	if got := games[0]["UGameID"]; got != 5001 {
+		t.Fatalf("unexpected game payload: %#v", games[0])
+	}
+}

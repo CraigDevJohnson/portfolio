@@ -42,12 +42,12 @@ func FetchUserPlayers(ctx context.Context, baseURL string, httpClient *http.Clie
 		return discovery, NewFetchError(ErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
 	}
 
-	req, err := NewAPIRequest(ctx, baseURL, http.MethodGet, normalizedJWT, "users", "check")
+	req, err := newAPIRequest(ctx, baseURL, normalizedJWT, "users", "check")
 	if err != nil {
 		return discovery, err
 	}
 
-	resp, err := DoAPIRequest(httpClient, req)
+	resp, err := doAPIRequest(httpClient, req)
 	if err != nil {
 		return discovery, NewFetchError(ErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
 	}
@@ -139,69 +139,18 @@ func FetchGamesForTeams(ctx context.Context, baseURL string, httpClient *http.Cl
 	return games, nil
 }
 
-// FetchUpcomingGames loads a player's upcoming games from LPS.
-func FetchUpcomingGames(ctx context.Context, baseURL string, httpClient *http.Client, jwt string, playerID int) ([]types.Game, error) {
-	normalizedJWT, err := NormalizeImportedJWT(jwt)
-	if err != nil {
-		return nil, NewFetchError(ErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
-	}
-	if playerID <= 0 {
-		return nil, NewFetchError(ErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
-	}
-
-	req, err := NewAPIRequest(ctx, baseURL, http.MethodGet, normalizedJWT, "players", strconv.Itoa(playerID), "upcoming_games")
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := DoAPIRequest(httpClient, req)
-	if err != nil {
-		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading schedules: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
-	if err != nil {
-		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "could not read the schedule response: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, NewFetchError(ErrorUnauthorized, playerID, resp.StatusCode, "Let's Play Soccer rejected the imported token for player %d with status 401", playerID)
-	}
-	if resp.StatusCode == http.StatusForbidden {
-		return nil, NewFetchError(ErrorForbidden, playerID, resp.StatusCode, "Let's Play Soccer denied access to player %d with status 403", playerID)
-	}
-	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
-		return nil, NewFetchError(ErrorInvalidPlayer, playerID, resp.StatusCode, "Let's Play Soccer could not find upcoming games for player %d", playerID)
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, NewFetchError(ErrorUpstream, playerID, resp.StatusCode, "Let's Play Soccer returned status %d while loading schedules", resp.StatusCode)
-	}
-
-	games, err := DecodeLPSGames(responseBody)
-	if err != nil {
-		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "%v", err)
-	}
-	schedule.NormalizeScheduleGames(games)
-	return games, nil
-}
-
-// FetchTeamGames loads the upcoming schedule for a single team.
-func FetchTeamGames(ctx context.Context, baseURL string, httpClient *http.Client, teamID int) ([]types.Game, error) {
-	return NewScheduleResolver(baseURL, httpClient, "").FetchTeamGames(ctx, teamID, nil)
-}
-
 // FetchPlayerTeams loads the teams linked to a player.
 func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID int) ([]TeamSummary, error) {
 	if playerID <= 0 {
 		return nil, NewFetchError(ErrorInvalidPlayer, playerID, http.StatusBadRequest, "player ID %d is invalid", playerID)
 	}
 
-	req, err := NewAPIRequest(ctx, resolver.baseURL, http.MethodGet, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
+	req, err := newAPIRequest(ctx, resolver.baseURL, resolver.jwt, "players", strconv.Itoa(playerID), "my_teams")
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := DoAPIRequest(resolver.httpClient, req)
+	resp, err := doAPIRequest(resolver.httpClient, req)
 	if err != nil {
 		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading player teams: %w", err)
 	}
@@ -265,12 +214,12 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 		return teamSchedule, NewFetchError(ErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
 	}
 
-	req, err := NewAPIRequest(ctx, resolver.baseURL, http.MethodGet, "", "teams", strconv.Itoa(teamID))
+	req, err := newAPIRequest(ctx, resolver.baseURL, "", "teams", strconv.Itoa(teamID))
 	if err != nil {
 		return teamSchedule, err
 	}
 
-	resp, err := DoAPIRequest(resolver.httpClient, req)
+	resp, err := doAPIRequest(resolver.httpClient, req)
 	if err != nil {
 		return teamSchedule, NewFetchError(ErrorUpstream, teamID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading team schedules: %w", err)
 	}
@@ -366,12 +315,12 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 		return facility, nil
 	}
 
-	req, err := NewAPIRequest(ctx, resolver.baseURL, http.MethodGet, "", "facilities", strconv.Itoa(facilityID))
+	req, err := newAPIRequest(ctx, resolver.baseURL, "", "facilities", strconv.Itoa(facilityID))
 	if err != nil {
 		return Facility{}, err
 	}
 
-	resp, err := DoAPIRequest(resolver.httpClient, req)
+	resp, err := doAPIRequest(resolver.httpClient, req)
 	if err != nil {
 		return Facility{}, NewFetchError(ErrorUpstream, facilityID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading facility %d: %w", facilityID, err)
 	}

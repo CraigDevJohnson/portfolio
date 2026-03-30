@@ -1,7 +1,6 @@
 package partials
 
 import "fmt"
-import "strings"
 import "portfolio/types"
 
 type ExperienceTimelineProps struct {
@@ -14,11 +13,6 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 			<article
 				class={ "career-card", templ.KV("current", index == 0) }
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
-				data-position={ exp.Position }
-				data-technologies={ strings.Join(exp.Technologies, ",") }
-				data-skills={ exp.SkillAreas }
-				data-company={ exp.Company }
-				data-duration={ exp.Duration }
 			>
 				if index == 0 {
 					<div class="card-status current-badge">

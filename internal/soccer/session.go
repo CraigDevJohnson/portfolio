@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/httpx"
 	internalsession "portfolio/internal/session"
 	"portfolio/types"
 )
@@ -19,7 +20,8 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := internalsession.DecryptSession(h.Config.SessionKey, cookie.Value)
+	var session types.SessionData
+	err = internalsession.DecryptJSONValue(h.Config.SessionKey, cookie.Value, &session)
 	if err != nil {
 		return nil, err
 	}
@@ -45,16 +47,16 @@ func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.Se
 }
 
 func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *types.SessionData) error {
-	encrypted, err := internalsession.EncryptSession(h.Config.SessionKey, session)
+	encrypted, err := internalsession.EncryptJSONValue(h.Config.SessionKey, session)
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, newSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteStrictMode))
+	http.SetCookie(w, httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteStrictMode))
 	return nil
 }
 
 func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
-	cookie := newSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }

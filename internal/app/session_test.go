@@ -7,30 +7,24 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/types"
 )
 
 func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 	app := newTestApp(t)
 
-	expected := SessionData{
+	expected := types.SessionData{
 		JWT:      "token-value",
 		UserID:   42,
 		UserName: "Craig Johnson",
-		Players: []LPSPlayer{
+		Players: []types.LPSPlayer{
 			{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
 		},
 		ExpiresAt: time.Unix(1_773_634_161, 0).UTC(),
 	}
 
-	encrypted, err := app.encryptSession(&expected)
-	if err != nil {
-		t.Fatalf("encryptSession returned error: %v", err)
-	}
-
-	actual, err := app.decryptSession(encrypted)
-	if err != nil {
-		t.Fatalf("decryptSession returned error: %v", err)
-	}
+	encrypted := encryptTestSession(t, app, &expected)
+	actual := decryptTestSession(t, app, encrypted)
 
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("decryptSession mismatch: got %#v want %#v", actual, expected)

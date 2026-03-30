@@ -89,7 +89,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	teamCodes := r.FormValue("team_codes")
 	rawPlayerIDs := r.Form["player_ids"]
 	playerIDs := ParsePlayerIDs(rawPlayerIDs)
-	if len(lps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if hasInvalidPlayerSelection(rawPlayerIDs, playerIDs) {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
@@ -127,26 +127,15 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) populateScheduleProps(ctx context.Context, session *types.SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
 	games, fetchErr := h.resolveScheduleGames(ctx, session, playerIDs, nil)
-	message, hint, clearSession := lps.ScheduleFetchFeedback(fetchErr)
-	if errors.Is(fetchErr, ErrSessionExpired) {
-		message = "Your imported Let's Play Soccer token expired."
-		hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
-		clearSession = true
-	}
-	if fetchErr != nil && !clearSession {
-		log.Printf("soccer LPS fetch failed: %v", fetchErr)
-	}
 	if fetchErr != nil {
-		props.Message = message
-		props.Hint = hint
-	} else {
-		props.Games = games
+		return applyScheduleFetchError(props, fetchErr)
 	}
-	return clearSession
+	props.Games = games
+	return false
 }
 
 func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
-	if len(lps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
+	if hasInvalidPlayerSelection(rawPlayerIDs, playerIDs) {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false
@@ -167,19 +156,8 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 			return false
 		}
 		games, fetchErr := h.resolveScheduleGames(ctx, session, playerIDs, teamIDs)
-		message, hint, clearSession := lps.ScheduleFetchFeedback(fetchErr)
-		if errors.Is(fetchErr, ErrSessionExpired) {
-			message = "Your imported Let's Play Soccer token expired."
-			hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
-			clearSession = true
-		}
-		if fetchErr != nil && !clearSession {
-			log.Printf("soccer LPS fetch failed: %v", fetchErr)
-		}
 		if fetchErr != nil {
-			props.Message = message
-			props.Hint = hint
-			return clearSession
+			return applyScheduleFetchError(props, fetchErr)
 		}
 		props.Games = games
 		return false
@@ -198,6 +176,21 @@ func (h *Handler) resolveScheduleGames(ctx context.Context, session *types.Sessi
 	default:
 		return nil, nil
 	}
+}
+
+func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
+	message, hint, clearSession := lps.ScheduleFetchFeedback(fetchErr)
+	if errors.Is(fetchErr, ErrSessionExpired) {
+		message = "Your imported Let's Play Soccer token expired."
+		hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
+		clearSession = true
+	}
+	if fetchErr != nil && !clearSession {
+		log.Printf("soccer LPS fetch failed: %v", fetchErr)
+	}
+	props.Message = message
+	props.Hint = hint
+	return clearSession
 }
 
 func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {

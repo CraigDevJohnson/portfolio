@@ -36,10 +36,6 @@ func Load() Config {
 	} else {
 		cfg.LPSAPIBaseURL = validatedURL
 	}
-	if (cfg.GoogleClientID != "" || cfg.GoogleClientSecret != "" || cfg.GoogleConnectionTableName != "") &&
-		(cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" || cfg.GoogleConnectionTableName == "") {
-		log.Printf("google calendar add disabled: CLIENT_ID_KEY, CLIENT_SECRET_KEY, and GOOGLE_CONNECTION_TABLE_NAME must all be configured")
-	}
 
 	keyHex := strings.TrimSpace(os.Getenv("LPS_SESSION_KEY"))
 	if keyHex == "" {

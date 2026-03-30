@@ -6,122 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
 	"portfolio/internal/schedule"
 	"portfolio/internal/testutil"
 )
-
-func TestLPSFetchUpcomingGamesMapsFlexiblePayload(t *testing.T) {
-	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/players/1001/upcoming_games" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
-			t.Fatalf("unexpected authorization header: %s", got)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[
-			{
-				"UGameID": 9001,
-				"StartDateTime": "2026-01-11T14:55:00-07:00",
-				"EndDateTime": "2026-01-11T16:25:00-07:00",
-				"FieldName": "3",
-				"HomeTeam": "YOUR TEAM",
-				"AwayTeam": "OPPONENT A",
-				"SeasonID": 168
-			}
-		]`))
-	}))
-	defer server.Close()
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	games, err := FetchUpcomingGames(t.Context(), server.URL, client, token, 1001)
-	if err != nil {
-		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
-	}
-	if len(games) != 1 {
-		t.Fatalf("unexpected games length: %d", len(games))
-	}
-	if games[0].Home != "YOUR TEAM" || games[0].Away != "OPPONENT A" {
-		t.Fatalf("unexpected game teams: %#v", games[0])
-	}
-	if !strings.Contains(games[0].DateTime, "01/11/26") {
-		t.Fatalf("unexpected display datetime: %s", games[0].DateTime)
-	}
-	if games[0].Location != "Field 3" {
-		t.Fatalf("unexpected location: %s", games[0].Location)
-	}
-}
-
-func TestLPSFetchUpcomingGamesMapsLivePayloadShape(t *testing.T) {
-	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/players/1001/upcoming_games" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
-			t.Fatalf("unexpected authorization header: %s", got)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[
-			{
-				"UGameID": 734433,
-				"field_name": "Arena 7",
-				"Field": "7",
-				"SchedGameDateTime": "2026-04-12T19:10:00-06:00",
-				"schedGameEndTime": null,
-				"facilityName": "LetsPlay North Campus",
-				"SeasonID": 244,
-				"home_team": {
-					"TeamName": "Craig FC"
-				},
-				"visitor_team": {
-					"TeamName": "Visitors United"
-				}
-			}
-		]`))
-	}))
-	defer server.Close()
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	games, err := FetchUpcomingGames(t.Context(), server.URL, client, token, 1001)
-	if err != nil {
-		t.Fatalf("lpsFetchUpcomingGames returned error: %v", err)
-	}
-	if len(games) != 1 {
-		t.Fatalf("unexpected games length: %d", len(games))
-	}
-	if games[0].ID != "734433" {
-		t.Fatalf("unexpected game ID: %s", games[0].ID)
-	}
-	if games[0].Home != "Craig FC" || games[0].Away != "Visitors United" {
-		t.Fatalf("unexpected game teams: %#v", games[0])
-	}
-	if games[0].StartAt != "2026-04-12T19:10:00-06:00" {
-		t.Fatalf("unexpected start time: %s", games[0].StartAt)
-	}
-	if games[0].EndAt != "" {
-		t.Fatalf("expected empty end time for null payload value, got %q", games[0].EndAt)
-	}
-	if games[0].Field != "Arena 7" {
-		t.Fatalf("unexpected field: %s", games[0].Field)
-	}
-	if games[0].Location != "LetsPlay North Campus" {
-		t.Fatalf("unexpected location: %s", games[0].Location)
-	}
-	if games[0].Season != "244" {
-		t.Fatalf("unexpected season: %s", games[0].Season)
-	}
-	if !strings.Contains(games[0].DateTime, "04/12/26") {
-		t.Fatalf("unexpected display datetime: %s", games[0].DateTime)
-	}
-}
 
 func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing.T) {
 	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
@@ -466,42 +356,5 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 	}
 	if !reflect.DeepEqual(games, gamesReversed) {
 		t.Fatalf("expected deterministic merge regardless of team order:\noriginal: %#v\nreversed: %#v", games, gamesReversed)
-	}
-}
-
-func TestLPSFetchUpcomingGamesClassifiesHTTPFailures(t *testing.T) {
-	tests := []struct {
-		name       string
-		statusCode int
-		playerID   int
-		wantKind   ErrorKind
-	}{
-		{name: "unauthorized", statusCode: http.StatusUnauthorized, playerID: 1001, wantKind: ErrorUnauthorized},
-		{name: "forbidden", statusCode: http.StatusForbidden, playerID: 1001, wantKind: ErrorForbidden},
-		{name: "invalid player bad request", statusCode: http.StatusBadRequest, playerID: 999999, wantKind: ErrorInvalidPlayer},
-		{name: "invalid player not found", statusCode: http.StatusNotFound, playerID: 999999, wantKind: ErrorInvalidPlayer},
-		{name: "upstream outage", statusCode: http.StatusBadGateway, playerID: 1001, wantKind: ErrorUpstream},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.statusCode)
-			}))
-			defer server.Close()
-
-			client := &http.Client{Timeout: 5 * time.Second}
-			_, err := FetchUpcomingGames(t.Context(), server.URL, client, testutil.TestJWT(t, time.Now().Add(30*time.Minute)), tt.playerID)
-			if err == nil {
-				t.Fatal("expected fetch error")
-			}
-			var fetchErr *FetchError
-			if !errors.As(err, &fetchErr) {
-				t.Fatalf("expected FetchError, got %T", err)
-			}
-			if fetchErr.Kind != tt.wantKind {
-				t.Fatalf("unexpected error kind: got %s want %s", fetchErr.Kind, tt.wantKind)
-			}
-		})
 	}
 }

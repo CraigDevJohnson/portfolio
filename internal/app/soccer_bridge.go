@@ -14,9 +14,7 @@ import (
 	"portfolio/types"
 )
 
-type loginRateLimiter = internalsession.LoginRateLimiter
-
-func newLoginRateLimiter(maxAttempts int, window time.Duration) *loginRateLimiter {
+func newLoginRateLimiter(maxAttempts int, window time.Duration) *internalsession.LoginRateLimiter {
 	return internalsession.NewLoginRateLimiter(maxAttempts, window, config.RateLimiterMaxKeys)
 }
 
