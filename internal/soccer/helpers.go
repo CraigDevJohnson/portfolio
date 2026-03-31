@@ -21,7 +21,6 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 		SwapOOB:         swapOOB,
 	}
 	if session != nil {
-		props.UserName = session.UserName
 		props.Players = session.Players
 	}
 	if h.googleHooks != nil {

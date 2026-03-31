@@ -1,6 +1,5 @@
 # Compiled binaries
 portfolio-server
-server
 *.exe
 
 # IDE

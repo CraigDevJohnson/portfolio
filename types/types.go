@@ -77,7 +77,6 @@ type LPSPlayer struct {
 
 type SessionData struct {
 	JWT       string      `json:"jwt"`
-	UserID    int         `json:"user_id"`
 	UserName  string      `json:"user_name"`
 	Players   []LPSPlayer `json:"players"`
 	ExpiresAt time.Time   `json:"expires_at"`

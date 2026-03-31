@@ -15,7 +15,6 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 
 	expected := types.SessionData{
 		JWT:      "token-value",
-		UserID:   42,
 		UserName: "Craig Johnson",
 		Players: []types.LPSPlayer{
 			{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true},
