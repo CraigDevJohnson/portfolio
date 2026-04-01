@@ -121,25 +121,6 @@
   overflow: hidden;
 }
 
-.skill-card-link::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgb(234 88 12 / 15%) 0%,
-    rgb(249 115 22 / 8%) 50%,
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  z-index: 0;
-}
-
-.skill-card-link > * {
-  position: relative;
-  z-index: 1;
-}
 
 .skill-card-link[href] {
   cursor: pointer;
@@ -160,9 +141,6 @@
     inset 0 0 20px rgb(var(--accent-primary-rgb), 0.15);
 }
 
-.skill-card-link[href]:hover::before {
-  opacity: 1;
-}
 
 .skill-card-link.skill-card-static {
   opacity: 0.8;
@@ -385,6 +363,7 @@
   gap: var(--space-md);
 }
 
+/* Uses shared .card base from styles.css */
 .concept-card {
   display: flex;
   align-items: center;
@@ -395,35 +374,11 @@
     rgb(13 148 136 / 10%) 0%,
     rgb(255 255 255 / 3%) 100%
   );
-  border: 1px solid rgb(255 255 255 / 8%);
-  border-radius: var(--radius-lg);
   text-decoration: none;
   color: inherit;
-  transition: all var(--duration-normal) var(--ease-out);
   animation: fade-in var(--duration-normal) var(--ease-out) both;
-  position: relative;
-  overflow: hidden;
 }
 
-.concept-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgb(13 148 136 / 15%) 0%,
-    rgb(13 148 136 / 5%) 50%,
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  z-index: 0;
-}
-
-.concept-card > * {
-  position: relative;
-  z-index: 1;
-}
 
 .concept-card:hover {
   transform: translateY(-4px);
@@ -439,9 +394,6 @@
     inset 0 0 16px rgb(var(--accent-secondary-rgb), 0.12);
 }
 
-.concept-card:hover::before {
-  opacity: 1;
-}
 
 .concept-icon {
   width: 44px;
@@ -1004,18 +956,6 @@
 
 .skill-detail-link:hover .link-arrow {
   transform: translate(2px, -2px);
-}
-
-/* No Results */
-.no-results {
-  text-align: center;
-  padding: var(--space-3xl) var(--space-xl);
-  color: var(--fg-muted);
-}
-
-.no-results p {
-  margin-bottom: var(--space-lg);
-  font-size: var(--text-lg);
 }
 
 /* ================================

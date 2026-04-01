@@ -27,29 +27,29 @@ templ Projects() {
 		</section>
 		<!-- Stats -->
 		<section class="projects-stats">
-			<div class="proj-stats-grid">
-				<div class="proj-stat-card">
+			<div class="stats-grid">
+				<div class="card card--compact stagger-enter proj-stat-card">
 					<div class="proj-icon-wrap">
 						<span class="proj-icon" aria-hidden="true">🛠️</span>
 					</div>
 					<span class="proj-stat-value" data-target="3" aria-label="3 projects">0</span>
 					<span class="proj-stat-label">Projects</span>
 				</div>
-				<div class="proj-stat-card">
+				<div class="card card--compact stagger-enter proj-stat-card">
 					<div class="proj-icon-wrap">
 						<span class="proj-icon" aria-hidden="true">💻</span>
 					</div>
 					<span class="proj-stat-value" data-target="12" aria-label="12 technologies">0</span>
 					<span class="proj-stat-label">Technologies</span>
 				</div>
-				<div class="proj-stat-card">
+				<div class="card card--compact stagger-enter proj-stat-card">
 					<div class="proj-icon-wrap">
 						<span class="proj-icon" aria-hidden="true">🏷️</span>
 					</div>
 					<span class="proj-stat-value" data-target="3" aria-label="3 categories">0</span>
 					<span class="proj-stat-label">Categories</span>
 				</div>
-				<div class="proj-stat-card">
+				<div class="card card--compact stagger-enter proj-stat-card">
 					<div class="proj-icon-wrap">
 						<span class="proj-icon" aria-hidden="true">⭐</span>
 					</div>
@@ -69,10 +69,10 @@ templ Projects() {
 			</p>
 		</section>
 		<!-- Category Filters -->
-		<div class="proj-category-filters">
-			<button class="proj-category-pill active" aria-pressed="true" data-category="all">All</button>
-			<button class="proj-category-pill" aria-pressed="false" data-category="web">Web</button>
-			<button class="proj-category-pill" aria-pressed="false" data-category="automation">Automation</button>
+		<div class="proj-category-filters" role="toolbar" aria-label="Project category filters">
+			<button type="button" class="proj-category-pill active" aria-pressed="true" data-category="all">All</button>
+			<button type="button" class="proj-category-pill" aria-pressed="false" data-category="web">Web</button>
+			<button type="button" class="proj-category-pill" aria-pressed="false" data-category="automation">Automation</button>
 		</div>
 		<!-- Project Grid -->
 		<section class="projects-grid-wrapper">
@@ -83,7 +83,7 @@ templ Projects() {
 			<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
 				<div class="projects-grid">
 					for i := 1; i <= 3; i++ {
-						<div class="project-card skeleton-project">
+						<div class="card project-card skeleton-project">
 							<div class="skeleton skeleton-image"></div>
 							<div class="project-content">
 								<div class="skeleton skeleton-title"></div>
@@ -113,7 +113,7 @@ templ Projects() {
 					class="btn btn-primary"
 				>
 					<span>View GitHub Profile</span>
-					<span class="btn-icon">→</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
 				</a>
 				<a href="/experience" class="btn btn-secondary">See Experience</a>
 			</div>

@@ -13,9 +13,6 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h.googleHooks != nil && h.googleHooks.HandlePageCallback(w, r) {
-		return
-	}
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"))
 	props := pages.SoccerProps{
 		GoogleMessage:     googleMessage,

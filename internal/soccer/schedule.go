@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -26,19 +25,17 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	teamCodes := r.FormValue("team_codes")
-	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := ParsePlayerIDs(rawPlayerIDs)
+	input := parseScheduleFormInput(r.Form)
 	session, swapAuthState := h.LoadSession(w, r)
 
 	props := partials.SoccerTableFragmentProps{
-		TeamCodes: teamCodes,
-		PlayerIDs: playerIDs,
+		TeamCodes: input.TeamCodes,
+		PlayerIDs: input.PlayerIDs,
 	}
 	if h.googleHooks != nil {
 		props.GoogleConnected = h.googleHooks.GoogleConnected(r.Context(), w, r)
 	}
-	if h.resolveScheduleData(r.Context(), session, playerIDs, teamCodes, rawPlayerIDs, &props) {
+	if h.resolveScheduleData(r.Context(), session, input, &props) {
 		h.clearSession(w, r)
 		swapAuthState = true
 	}
@@ -77,22 +74,20 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	selectedIDs := ParseSelectedIDs(r.Form)
+	selectedIDs := parseSelectedIDs(r.Form)
 	if len(selectedIDs) == 0 {
 		http.Error(w, "select at least one game", http.StatusBadRequest)
 		return
 	}
 
-	teamCodes := r.FormValue("team_codes")
-	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := ParsePlayerIDs(rawPlayerIDs)
-	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
+	input := parseScheduleFormInput(r.Form)
+	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
 		http.Error(w, "one or more selected players were invalid; clear the imported players and import again to refresh the discovered player list", http.StatusBadRequest)
 		return
 	}
 	session, _ := h.LoadSession(w, r)
 
-	games, err := h.RequestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
+	games, err := h.RequestedScheduleGames(r.Context(), session, input.PlayerIDs, input.TeamCodes)
 	if errors.Is(err, ErrPlayerSessionRequired) {
 		http.Error(w, "import a bearer JWT again before downloading schedules for your discovered players", http.StatusUnauthorized)
 		return
@@ -107,7 +102,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filteredGames := SelectedScheduleGames(games, selectedIDs)
+	filteredGames := selectedScheduleGames(games, selectedIDs)
 	if len(filteredGames) == 0 {
 		http.Error(w, "no selected games were found", http.StatusBadRequest)
 		return
@@ -122,46 +117,23 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) populateScheduleProps(ctx context.Context, session *types.SessionData, playerIDs []int, props *partials.SoccerTableFragmentProps) bool {
-	games, fetchErr := h.resolveScheduleGames(ctx, session, playerIDs, nil)
-	if fetchErr != nil {
-		return applyScheduleFetchError(props, fetchErr)
-	}
-	props.Games = games
-	return false
-}
-
-func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string, rawPlayerIDs []string, props *partials.SoccerTableFragmentProps) bool {
-	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
+func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input scheduleFormInput, props *partials.SoccerTableFragmentProps) bool {
+	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
 		props.Message = "One or more selected players were invalid."
 		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
 		return false
 	}
-	if session != nil && len(playerIDs) > 0 {
-		return h.populateScheduleProps(ctx, session, playerIDs, props)
-	}
-	if len(playerIDs) > 0 {
-		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
-		props.Hint = "Your previous session is no longer available."
-		return false
-	}
-	if strings.TrimSpace(teamCodes) != "" {
-		teamIDs := ParseTeamIDs(teamCodes)
-		if len(teamIDs) == 0 {
-			props.Message = "One or more team IDs were invalid."
-			props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
-			return false
-		}
-		games, fetchErr := h.resolveScheduleGames(ctx, session, playerIDs, teamIDs)
-		if fetchErr != nil {
-			return applyScheduleFetchError(props, fetchErr)
-		}
+
+	games, err := h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	if err == nil {
 		props.Games = games
 		return false
 	}
-	props.Message = "Enter team IDs or choose at least one discovered player."
-	props.Hint = "Manual team ID entry still works if you do not want to import a token."
-	return false
+	if applyScheduleSelectionError(props, err) {
+		return false
+	}
+
+	return applyScheduleFetchError(props, err)
 }
 
 func (h *Handler) resolveScheduleGames(ctx context.Context, session *types.SessionData, playerIDs, teamIDs []int) ([]types.Game, error) {

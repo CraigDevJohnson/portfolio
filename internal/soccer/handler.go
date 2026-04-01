@@ -12,7 +12,6 @@ import (
 // GoogleHooks exposes temporary Google integration points wired from internal/app.
 type GoogleHooks interface {
 	GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool
-	HandlePageCallback(w http.ResponseWriter, r *http.Request) bool
 	PopulateLoginState(ctx context.Context, w http.ResponseWriter, r *http.Request, props *partials.SoccerLoginStateProps)
 }
 

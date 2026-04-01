@@ -73,8 +73,9 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 						<span class="btn-text">Add Selected to Google Calendar</span>
 						<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
 					</button>
-					<button id="download-button" type="submit" class="btn btn-primary download-btn">
+					<button id="download-button" type="submit" class="btn btn-primary download-btn btn-loading" data-loading-button>
 						<span class="btn-text">Download Selected (.ics)</span>
+						<span class="btn-loading-indicator" aria-hidden="true"></span>
 					</button>
 				</div>
 			</div>
@@ -83,8 +84,8 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 					<div class="soccer-login-message" role="status">Connect Google Calendar above to add selected games directly.</div>
 				}
 			</div>
-			<div class="table-wrapper">
-				<table class="games-table" role="table" aria-label="Soccer games schedule">
+			<div class="table-wrapper" role="region" aria-label="Soccer games schedule" tabindex="0">
+				<table class="games-table">
 					<thead>
 						<tr>
 							<th scope="col" class="col-check" aria-label="Select"></th>

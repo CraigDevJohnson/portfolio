@@ -35,20 +35,20 @@ templ Education(props EducationProps) {
 		</section>
 		<!-- Stats -->
 		<section class="edu-stats">
-			<div class="edu-stats-grid">
-				<div class="edu-stat-card">
+			<div class="stats-grid">
+				<div class="card card--compact stagger-enter edu-stat-card">
 					<span class="edu-stat-value" data-target="1" aria-label="1 degree">0</span>
 					<span class="edu-stat-label">Degree</span>
 				</div>
-				<div class="edu-stat-card">
+				<div class="card card--compact stagger-enter edu-stat-card">
 					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.TotalCerts) } aria-label={ fmt.Sprintf("%d certifications", props.TotalCerts) }>0</span>
 					<span class="edu-stat-label">Certifications</span>
 				</div>
-				<div class="edu-stat-card">
+				<div class="card card--compact stagger-enter edu-stat-card">
 					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.Providers) } aria-label={ fmt.Sprintf("%d providers", props.Providers) }>0</span>
 					<span class="edu-stat-label">Providers</span>
 				</div>
-				<div class="edu-stat-card">
+				<div class="card card--compact stagger-enter edu-stat-card">
 					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.YearsCertifying) } aria-label={ fmt.Sprintf("%d years certifying", props.YearsCertifying) }>0</span>
 					<span class="edu-stat-label">Years Certifying</span>
 				</div>
@@ -64,7 +64,7 @@ templ Education(props EducationProps) {
 				href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="edu-degree-card"
+				class="card edu-degree-card"
 			>
 				<div class="degree-image">
 					<img
@@ -85,7 +85,7 @@ templ Education(props EducationProps) {
 						Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
 					</p>
 				</div>
-				<span class="degree-arrow">↗</span>
+				<span class="degree-arrow" aria-hidden="true">↗</span>
 			</a>
 		</section>
 		<!-- Certifications Grid -->
@@ -100,7 +100,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/c35d4426-9abe-4965-9eb2-9599498e1b5e/"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -121,7 +121,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/8bbdc1c8-71d9-4764-b47f-b9f66de1b103"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -142,7 +142,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/c5406a0d-c4d2-41f7-b897-e12c01182f9f"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -163,7 +163,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/c2187483-a746-4268-be1a-ea0e5b9281a1"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -184,7 +184,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/f8416144-c1cb-4388-bc53-8f622fc7e302"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -205,7 +205,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/72ce956a-0c40-485b-8af6-52f7d8652c71"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -226,7 +226,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/276cd921-2315-4136-ae6a-342b477ab6d5"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -247,7 +247,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/4eca7af7-c7e3-4ad5-ad95-b90379c33e52"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -268,7 +268,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/a3c22ccb-3e16-4564-af65-c540ae38e99d"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -289,7 +289,7 @@ templ Education(props EducationProps) {
 					href="https://www.credly.com/badges/b4c88402-4ce7-4d98-a6dd-d0a468d4ac15"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="cert-card"
+					class="card stagger-enter cert-card"
 				>
 					<div class="card-image">
 						<img
@@ -316,7 +316,7 @@ templ Education(props EducationProps) {
 			<div class="cta-buttons">
 				<a href="/experience" class="btn btn-primary">
 					<span>View Experience</span>
-					<span class="btn-icon">→</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
 				</a>
 				<a href="/skills" class="btn btn-secondary">View Skills</a>
 			</div>

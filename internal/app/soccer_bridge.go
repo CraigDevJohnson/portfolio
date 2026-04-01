@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"time"
 
 	"portfolio/cmd/web/partials"
@@ -21,14 +20,6 @@ func newLoginRateLimiter(maxAttempts int, window time.Duration) *internalsession
 // soccerGoogleHooks implements soccer.GoogleHooks by delegating to google.Handler.
 type soccerGoogleHooks struct {
 	google *internalgoogle.Handler
-}
-
-func (hooks soccerGoogleHooks) HandlePageCallback(w http.ResponseWriter, r *http.Request) bool {
-	if r.URL.Query().Get("code") == "" && r.URL.Query().Get("error") == "" && r.URL.Query().Get("state") == "" {
-		return false
-	}
-	hooks.google.CallbackHandler(w, r)
-	return true
 }
 
 func (hooks soccerGoogleHooks) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
@@ -64,22 +55,6 @@ func (b *googleSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, kind, me
 	internalsoccer.RenderLoginFeedback(w, kind, message)
 }
 
-func (b *googleSoccerBridge) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
-	return b.soccer.RequestedScheduleGames(ctx, session, playerIDs, teamCodes)
-}
-
-func (b *googleSoccerBridge) SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
-	return internalsoccer.SelectedScheduleGames(games, selectedIDs)
-}
-
-func (b *googleSoccerBridge) GoogleAddScheduleErrorMessage(err error) string {
-	return internalsoccer.GoogleAddScheduleErrorMessage(err)
-}
-
-func (b *googleSoccerBridge) ParseSelectedIDs(form url.Values) map[string]struct{} {
-	return internalsoccer.ParseSelectedIDs(form)
-}
-
-func (b *googleSoccerBridge) ParsePlayerIDs(values []string) []int {
-	return internalsoccer.ParsePlayerIDs(values)
+func (b *googleSoccerBridge) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	return b.soccer.ResolveGoogleAddSelection(w, r)
 }

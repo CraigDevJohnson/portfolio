@@ -18,7 +18,6 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
-	internallps "portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
@@ -107,27 +106,9 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginFeedback(w, "error", "Connect Google Calendar before adding selected games.")
 		return
 	}
-	selectedIDs := h.Soccer.ParseSelectedIDs(r.Form)
-	if len(selectedIDs) == 0 {
-		h.Soccer.RenderLoginFeedback(w, "error", "Select at least one game to add to Google Calendar.")
-		return
-	}
-	teamCodes := r.FormValue("team_codes")
-	rawPlayerIDs := r.Form["player_ids"]
-	playerIDs := h.Soccer.ParsePlayerIDs(rawPlayerIDs)
-	if len(internallps.NonEmptyStrings(rawPlayerIDs)) > 0 && len(playerIDs) == 0 {
-		h.Soccer.RenderLoginFeedback(w, "error", "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.")
-		return
-	}
-	session, _ := h.Soccer.LoadSession(w, r)
-	games, err := h.Soccer.RequestedScheduleGames(r.Context(), session, playerIDs, teamCodes)
-	if err != nil {
-		h.Soccer.RenderLoginFeedback(w, "error", h.Soccer.GoogleAddScheduleErrorMessage(err))
-		return
-	}
-	filteredGames := h.Soccer.SelectedScheduleGames(games, selectedIDs)
-	if len(filteredGames) == 0 {
-		h.Soccer.RenderLoginFeedback(w, "error", "No selected games were found to add.")
+	session, filteredGames, message, ok := h.Soccer.ResolveGoogleAddSelection(w, r)
+	if !ok {
+		h.Soccer.RenderLoginFeedback(w, "error", message)
 		return
 	}
 	token, err := h.CurrentToken(r.Context(), r, record)
@@ -146,14 +127,14 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
 		return
 	}
-	message := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
+	successMessage := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
 	if updated > 0 {
-		message += fmt.Sprintf(" Updated/restored %d matching game(s).", updated)
+		successMessage += fmt.Sprintf(" Updated/restored %d matching game(s).", updated)
 	}
 	if skipped > 0 {
-		message += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", skipped)
+		successMessage += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", skipped)
 	}
-	h.Soccer.RenderLoginFeedback(w, "success", message)
+	h.Soccer.RenderLoginFeedback(w, "success", successMessage)
 }
 
 // CalendarHandler handles calendar selection changes.

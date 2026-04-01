@@ -61,7 +61,7 @@ templ Home(props HomeProps) {
 					<div class="hero-actions">
 						<a href="/experience" class="btn btn-primary">
 							<span>View Experience</span>
-							<span class="btn-icon">→</span>
+							<span class="btn-icon" aria-hidden="true">→</span>
 						</a>
 						<a href="/projects" class="btn btn-secondary">
 							<span>See Projects</span>
@@ -108,34 +108,34 @@ templ Home(props HomeProps) {
 			</div>
 			<h2 class="section-heading">Building the Future of Infrastructure</h2>
 			<div class="what-i-do-grid">
-				<div class="what-i-do-card">
+				<article class="card stagger-enter what-i-do-card">
 					<div class="wid-icon-wrap">
 						<span class="wid-icon" aria-hidden="true">☁️</span>
 					</div>
 					<h3>Cloud Architecture</h3>
 					<p>Designing and implementing scalable, secure cloud infrastructure on AWS and Azure</p>
-				</div>
-				<div class="what-i-do-card">
+				</article>
+				<article class="card stagger-enter what-i-do-card">
 					<div class="wid-icon-wrap">
 						<span class="wid-icon" aria-hidden="true">⚙️</span>
 					</div>
 					<h3>Infrastructure as Code</h3>
 					<p>Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments</p>
-				</div>
-				<div class="what-i-do-card">
+				</article>
+				<article class="card stagger-enter what-i-do-card">
 					<div class="wid-icon-wrap">
 						<span class="wid-icon" aria-hidden="true">🔄</span>
 					</div>
 					<h3>CI/CD & DevOps</h3>
 					<p>Building pipelines with GitHub Actions and implementing GitOps for continuous delivery</p>
-				</div>
-				<div class="what-i-do-card">
+				</article>
+				<article class="card stagger-enter what-i-do-card">
 					<div class="wid-icon-wrap">
 						<span class="wid-icon" aria-hidden="true">🔒</span>
 					</div>
 					<h3>Security & Compliance</h3>
 					<p>Implementing zero-trust architecture, IAM policies, and security automation</p>
-				</div>
+				</article>
 			</div>
 		</section>
 		<!-- Explore -->
@@ -146,25 +146,25 @@ templ Home(props HomeProps) {
 			</div>
 			<h2 class="section-heading">Dive Deeper</h2>
 			<div class="links-grid">
-				<a href="/experience" class="quick-link-card">
+				<a href="/experience" class="card stagger-enter quick-link-card">
 					<span class="ql-icon">💼</span>
 					<h3>Experience</h3>
 					<p>View my professional journey through cloud engineering and IT</p>
 					<span class="ql-arrow">→</span>
 				</a>
-				<a href="/skills" class="quick-link-card">
+				<a href="/skills" class="card stagger-enter quick-link-card">
 					<span class="ql-icon">🛠️</span>
 					<h3>Skills</h3>
 					<p>60+ tools and technologies I use to build and automate</p>
 					<span class="ql-arrow">→</span>
 				</a>
-				<a href="/projects" class="quick-link-card">
+				<a href="/projects" class="card stagger-enter quick-link-card">
 					<span class="ql-icon">🚀</span>
 					<h3>Projects</h3>
 					<p>Real-world applications and automation I've built</p>
 					<span class="ql-arrow">→</span>
 				</a>
-				<a href="/soccer" class="quick-link-card">
+				<a href="/soccer" class="card stagger-enter quick-link-card">
 					<span class="ql-icon">⚽</span>
 					<h3>Soccer Tool</h3>
 					<p>A schedule download utility built with Python and AWS Lambda</p>

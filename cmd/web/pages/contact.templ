@@ -30,8 +30,9 @@ templ Contact() {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Ways to Connect</span>
 			</div>
+			<h2 class="sr-only">Ways to Connect</h2>
 			<div class="contact-methods-grid">
-				<a href="mailto:opportunity@craigdevjohnson.com" class="contact-method-card">
+				<a href="mailto:opportunity@craigdevjohnson.com" class="card stagger-enter contact-method-card" aria-label="Email opportunity@craigdevjohnson.com">
 					<div class="cm-icon-wrap">
 						<span class="cm-icon" aria-hidden="true">✉️</span>
 					</div>
@@ -40,13 +41,13 @@ templ Contact() {
 						<p class="cm-value">opportunity@craigdevjohnson.com</p>
 						<p class="cm-desc">Best for professional inquiries & opportunities</p>
 					</div>
-					<span class="cm-arrow">↗</span>
+					<span class="cm-arrow" aria-hidden="true">↗</span>
 				</a>
 				<a
 					href="https://linkedin.com/in/craigdevjohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="contact-method-card"
+					class="card stagger-enter contact-method-card" aria-label="LinkedIn profile for Craig Johnson"
 				>
 					<div class="cm-icon-wrap">
 						<span class="cm-icon" aria-hidden="true">💼</span>
@@ -56,13 +57,13 @@ templ Contact() {
 						<p class="cm-value">linkedin.com/in/craigdevjohnson</p>
 						<p class="cm-desc">Connect for networking & career discussions</p>
 					</div>
-					<span class="cm-arrow">↗</span>
+					<span class="cm-arrow" aria-hidden="true">↗</span>
 				</a>
 				<a
 					href="https://github.com/CraigDevJohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="contact-method-card"
+					class="card stagger-enter contact-method-card" aria-label="GitHub profile for Craig Johnson"
 				>
 					<div class="cm-icon-wrap">
 						<span class="cm-icon" aria-hidden="true">🛠️</span>
@@ -72,7 +73,7 @@ templ Contact() {
 						<p class="cm-value">github.com/CraigDevJohnson</p>
 						<p class="cm-desc">Technical collaborations & open source</p>
 					</div>
-					<span class="cm-arrow">↗</span>
+					<span class="cm-arrow" aria-hidden="true">↗</span>
 				</a>
 			</div>
 		</section>
@@ -84,22 +85,22 @@ templ Contact() {
 			</div>
 			<h2 class="contact-section-title">Expertise That Delivers</h2>
 			<div class="bring-grid">
-				<div class="bring-card">
+				<div class="card stagger-enter bring-card">
 					<div class="bring-icon-wrap">☁️</div>
 					<h3>Cloud Architecture</h3>
 					<p>Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
 				</div>
-				<div class="bring-card">
+				<div class="card stagger-enter bring-card">
 					<div class="bring-icon-wrap">🔄</div>
 					<h3>CI/CD Pipelines</h3>
 					<p>Build automated deployment workflows that ship reliable code faster and more safely.</p>
 				</div>
-				<div class="bring-card">
+				<div class="card stagger-enter bring-card">
 					<div class="bring-icon-wrap">🔒</div>
 					<h3>Security First</h3>
 					<p>Embed security into every layer — from IAM policies to compliance automation.</p>
 				</div>
-				<div class="bring-card">
+				<div class="card stagger-enter bring-card">
 					<div class="bring-icon-wrap">📈</div>
 					<h3>Growth Mindset</h3>
 					<p>Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
@@ -140,7 +141,7 @@ templ Contact() {
 			<div class="cta-buttons">
 				<a href="/projects" class="btn btn-primary">
 					<span>View Projects</span>
-					<span class="btn-icon">→</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
 				</a>
 				<a href="/experience" class="btn btn-secondary">See Experience</a>
 			</div>

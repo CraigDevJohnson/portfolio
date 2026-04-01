@@ -13,17 +13,19 @@ templ Footer() {
 				<nav class="footer-nav" aria-label="Footer navigation">
 					<div class="footer-nav-section">
 						<h3 class="footer-heading">Pages</h3>
-						<a href="/">Home</a>
-						<a href="/about">About</a>
-						<a href="/experience">Experience</a>
-						<a href="/skills">Skills</a>
+						for i, item := range navItems() {
+							if i < 4 {
+								<a href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+							}
+						}
 					</div>
 					<div class="footer-nav-section">
 						<h3 class="footer-heading">More</h3>
-						<a href="/projects">Projects</a>
-						<a href="/education">Education</a>
-						<a href="/contact">Contact</a>
-						<a href="/soccer">Soccer Tool</a>
+						for i, item := range navItems() {
+							if i >= 4 {
+								<a href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+							}
+						}
 					</div>
 					<div class="footer-nav-section">
 						<h3 class="footer-heading">Connect</h3>

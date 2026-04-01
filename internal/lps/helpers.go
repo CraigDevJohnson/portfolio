@@ -75,15 +75,3 @@ func SortedUniqueIDs(values []int) []int {
 	sort.Ints(normalized)
 	return normalized
 }
-
-// NonEmptyStrings returns trimmed non-empty strings.
-func NonEmptyStrings(values []string) []string {
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			normalized = append(normalized, value)
-		}
-	}
-	return normalized
-}

@@ -36,19 +36,19 @@ templ About(props AboutProps) {
 		<!-- Fun Stats -->
 		<section class="about-stats">
 			<div class="stats-grid">
-				<div class="about-stat-card">
+				<div class="card card--compact stagger-enter about-stat-card">
 					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
 					<span class="about-stat-label">Years in Tech</span>
 				</div>
-				<div class="about-stat-card">
+				<div class="card card--compact stagger-enter about-stat-card">
 					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
 					<span class="about-stat-label">Certifications</span>
 				</div>
-				<div class="about-stat-card">
+				<div class="card card--compact stagger-enter about-stat-card">
 					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
 					<span class="about-stat-label">Technologies</span>
 				</div>
-				<div class="about-stat-card">
+				<div class="card card--compact stagger-enter about-stat-card">
 					<span class="about-stat-value" data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
 					<span class="about-stat-label">Cups of Coffee</span>
 					<span class="about-stat-icon" aria-hidden="true">☕</span>
@@ -186,22 +186,22 @@ templ About(props AboutProps) {
 			</div>
 			<h2 class="interests-title">When I'm Not in the Terminal</h2>
 			<div class="interests-grid">
-				<div class="interest-card">
+				<div class="card stagger-enter interest-card">
 					<span class="interest-icon">⚽</span>
 					<h3>Soccer</h3>
 					<p>Playing and coaching — built a schedule tool to manage team calendars</p>
 				</div>
-				<div class="interest-card">
+				<div class="card stagger-enter interest-card">
 					<span class="interest-icon">🏔️</span>
 					<h3>Outdoors</h3>
 					<p>Alaska roots means a love for hiking, fishing, and exploring nature</p>
 				</div>
-				<div class="interest-card">
+				<div class="card stagger-enter interest-card">
 					<span class="interest-icon">🎮</span>
 					<h3>Gaming</h3>
 					<p>Strategy and building games — same problem-solving muscles as engineering</p>
 				</div>
-				<div class="interest-card">
+				<div class="card stagger-enter interest-card">
 					<span class="interest-icon">🐕</span>
 					<h3>Dog Dad</h3>
 					<p>Two furry coworkers who keep the home office lively</p>
@@ -216,29 +216,29 @@ templ About(props AboutProps) {
 			</div>
 			<h2 class="values-title">Core Values</h2>
 			<div class="values-grid">
-				<div class="value-card">
-					<div class="value-icon-wrap">
+				<div class="card stagger-enter value-card">
+					<div class="icon-wrap">
 						<span class="value-icon">🔄</span>
 					</div>
 					<h3>Continuous Improvement</h3>
 					<p>Always iterating, always learning — there's always a better way to build</p>
 				</div>
-				<div class="value-card">
-					<div class="value-icon-wrap">
+				<div class="card stagger-enter value-card">
+					<div class="icon-wrap">
 						<span class="value-icon">🤝</span>
 					</div>
 					<h3>Collaboration</h3>
 					<p>The best solutions come from diverse perspectives working together</p>
 				</div>
-				<div class="value-card">
-					<div class="value-icon-wrap">
+				<div class="card stagger-enter value-card">
+					<div class="icon-wrap">
 						<span class="value-icon">🧩</span>
 					</div>
 					<h3>Problem Solving</h3>
 					<p>Breaking down complex challenges into elegant, maintainable solutions</p>
 				</div>
-				<div class="value-card">
-					<div class="value-icon-wrap">
+				<div class="card stagger-enter value-card">
+					<div class="icon-wrap">
 						<span class="value-icon">📝</span>
 					</div>
 					<h3>Documentation</h3>
@@ -254,7 +254,7 @@ templ About(props AboutProps) {
 			<div class="cta-buttons">
 				<a href="/experience" class="btn btn-primary">
 					<span>View My Experience</span>
-					<span class="btn-icon">→</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
 				</a>
 				<a href="/contact" class="btn btn-secondary">Get in Touch</a>
 			</div>

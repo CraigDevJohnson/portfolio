@@ -27,28 +27,28 @@ templ Experience() {
 		<!-- Summary Stats -->
 		<section class="experience-summary">
 			<div class="summary-grid">
-				<div class="summary-card">
+				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">🚀</span>
 					</div>
           <span class="summary-value exp-stat-value" data-target-year="2012">0</span>
 					<span class="summary-label">Years in Tech</span>
 				</div>
-				<div class="summary-card">
+				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">🏢</span>
 					</div>
 					<span class="summary-value exp-stat-value" data-target="4">0</span>
 					<span class="summary-label">Companies</span>
 				</div>
-				<div class="summary-card">
+				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">📋</span>
 					</div>
 					<span class="summary-value exp-stat-value" data-target="7">0</span>
 					<span class="summary-label">Positions Held</span>
 				</div>
-				<div class="summary-card">
+				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">☁️</span>
 					</div>
@@ -100,6 +100,7 @@ templ Experience() {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Refine Results</span>
 			</div>
+			<h2 class="sr-only">Refine Results</h2>
 			<p class="filter-intro">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
 			<div class="filter-section collapsed" id="position-section">
 				<h3 class="filter-title">
@@ -222,7 +223,7 @@ templ Experience() {
 			>
 				<div class="career-grid">
 					for i := 1; i <= 7; i++ {
-						<div class="career-card skeleton-card">
+						<div class="card career-card skeleton-card">
 							<div class="card-status skeleton"></div>
 							<div class="skeleton skeleton-title"></div>
 							<div class="skeleton skeleton-subtitle"></div>
@@ -245,7 +246,7 @@ templ Experience() {
 			<div class="cta-buttons">
 				<a href="/projects" class="btn btn-primary">
 					<span>View Projects</span>
-					<span class="btn-icon">→</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
 				</a>
 				<a href="/skills" class="btn btn-secondary">See Skills</a>
 			</div>

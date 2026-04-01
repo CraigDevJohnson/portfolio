@@ -39,7 +39,7 @@ templ SkillDetail(props SkillDetailProps) {
 				if props.Skill.Link != "" {
 					<a href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link">
 						Learn More
-						<span class="link-arrow">↗</span>
+						<span class="link-arrow" aria-hidden="true">↗</span>
 					</a>
 				}
 			</div>

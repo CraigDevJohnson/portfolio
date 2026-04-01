@@ -57,7 +57,13 @@ func Run() {
 	mux.HandleFunc("/contact", portfolio.ContactHandler)
 
 	// soccer routes
-	mux.HandleFunc("/soccer", soccerHandler.SoccerPage)
+	mux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
+		if isGoogleCallbackRequest(r) {
+			app.GoogleHandler.CallbackHandler(w, r)
+			return
+		}
+		soccerHandler.SoccerPage(w, r)
+	})
 	mux.HandleFunc("/soccer/session", soccerHandler.SessionHandler)
 	mux.HandleFunc("/soccer/import", soccerHandler.ImportHandler)
 	mux.HandleFunc("/soccer/logout", soccerHandler.LogoutHandler)
@@ -116,4 +122,9 @@ func Run() {
 	}
 
 	select {}
+}
+
+func isGoogleCallbackRequest(r *http.Request) bool {
+	query := r.URL.Query()
+	return query.Get("code") != "" || query.Get("error") != "" || query.Get("state") != ""
 }

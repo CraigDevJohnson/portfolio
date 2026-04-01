@@ -46,8 +46,9 @@ templ Soccer(props SoccerProps) {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>How It Works</span>
 			</div>
+			<h2 class="sr-only">How It Works</h2>
 			<div class="how-it-works-grid">
-				<div class="step-card">
+				<div class="card stagger-enter step-card">
 					<div class="soccer-icon-wrap">
 						<span class="step-icon">#️⃣</span>
 					</div>
@@ -55,7 +56,7 @@ templ Soccer(props SoccerProps) {
 					<h3 class="step-title">Start With Team IDs</h3>
 					<p class="step-desc">Use manual team IDs first for the fastest lookup when you already know which Let&apos;s Play Soccer teams you want.</p>
 				</div>
-				<div class="step-card">
+				<div class="card stagger-enter step-card">
 					<div class="soccer-icon-wrap">
 						<span class="step-icon">🗓️</span>
 					</div>
@@ -63,7 +64,7 @@ templ Soccer(props SoccerProps) {
 					<h3 class="step-title">Choose Your Calendar Path</h3>
 					<p class="step-desc">Connect Google Calendar when you want one-click adds, or keep the universal ICS download for Apple Calendar, Outlook, and more.</p>
 				</div>
-				<div class="step-card">
+				<div class="card stagger-enter step-card">
 					<div class="soccer-icon-wrap">
 						<span class="step-icon">🔐</span>
 					</div>
@@ -79,22 +80,23 @@ templ Soccer(props SoccerProps) {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Built For Players</span>
 			</div>
+			<h2 class="sr-only">Built For Players</h2>
 			<div class="features-grid">
-				<div class="feature-card">
+				<div class="card stagger-enter feature-card">
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">🎯</span>
 					</div>
 					<h3 class="feature-title">Automatic Player Discovery</h3>
 					<p class="feature-desc">Import your bearer JWT and the app will discover the linked players available in that authenticated LPS session</p>
 				</div>
-				<div class="feature-card">
+				<div class="card stagger-enter feature-card">
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">🔄</span>
 					</div>
 					<h3 class="feature-title">Session-Only Import</h3>
 					<p class="feature-desc">Your imported JWT stays in an encrypted HttpOnly cookie for the current browser session only</p>
 				</div>
-				<div class="feature-card">
+				<div class="card stagger-enter feature-card">
 					<div class="soccer-icon-wrap">
 						<span class="feature-icon">📱</span>
 					</div>
@@ -109,7 +111,8 @@ templ Soccer(props SoccerProps) {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Fetch Schedules</span>
 			</div>
-			<div class="soccer-unified-card">
+			<h2 class="sr-only">Fetch Schedules</h2>
+			<div class="card card--compact soccer-unified-card">
 				if props.GoogleMessage != "" {
 					<div class={ "soccer-login-message soccer-login-message-" + props.GoogleMessageKind } role="status">
 						{ props.GoogleMessage }

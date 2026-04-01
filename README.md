@@ -87,6 +87,23 @@ just dev
 **Note**: `just dev` handles the normal local development loop, but Templ source
 changes still need regeneration before commands that do not already trigger it.
 
+### Validation
+
+Use the existing `just` recipes for verification:
+
+```bash
+# Fast checks during development
+just vet
+just test
+just build
+
+# Full project gate
+just ci
+```
+
+`just build` regenerates Templ output before compiling, and `just ci` is the
+final validation gate for formatting, vet, generation, build, and tests.
+
 ### Optional: Google Calendar Configuration
 
 Direct Google Calendar add requires these runtime environment variables:
@@ -197,13 +214,16 @@ For more information on Templ syntax, see the [Templ documentation](https://temp
 
 ### Styling
 
-CSS variables are defined in `cmd/web/static/css/styles.css`:
+Shared design tokens and reusable UI primitives live in
+`cmd/web/static/css/styles.css`, while page-specific CSS files only layer on
+the styles unique to each route. The shared stylesheet owns:
 
 - Colors (light and dark themes)
 - Spacing
 - Typography
 - Shadows
 - Animations
+- Reusable card, alert, stats-grid, and section-header primitives
 
 ## Deployment
 

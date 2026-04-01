@@ -112,12 +112,12 @@ templ SkillsGrid(props SkillsGridProps) {
 					for i, skill := range props.FeaturedSkills {
 						<div class="featured-skill-card" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
 							if skill.Link != "" {
-								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-card-link">
+								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="card skill-card-link">
 									@featuredSkillCardContent(skill)
-									<div class="external-link-icon">↗</div>
+									<div class="external-link-icon" aria-hidden="true">↗</div>
 								</a>
 							} else {
-								<div class="skill-card-link skill-card-static">
+								<div class="card skill-card-link skill-card-static">
 									@featuredSkillCardContent(skill)
 								</div>
 							}
@@ -141,7 +141,7 @@ templ SkillsGrid(props SkillsGridProps) {
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="concept-card"
+									class="card card--teal concept-card"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									<div class="concept-icon">
@@ -155,11 +155,11 @@ templ SkillsGrid(props SkillsGridProps) {
 											{ skill.Proficiency }
 										</div>
 									</div>
-									<span class="concept-arrow">↗</span>
+									<span class="concept-arrow" aria-hidden="true">↗</span>
 								</a>
 							} else {
 								<div
-									class="concept-card"
+									class="card card--teal concept-card"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									<div class="concept-icon">
@@ -307,8 +307,10 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 												hx-target={ fmt.Sprintf("#detail-slot-%d", catIndex) }
 												hx-swap="innerHTML"
 												style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
-											aria-label={ skill.Name }
-												>
+												aria-label={ skill.Name }
+												aria-expanded="false"
+												aria-controls={ fmt.Sprintf("detail-slot-%d", catIndex) }
+											>
 												if skill.IconPath != "" {
 													<img src={ skill.IconPath } alt={ skill.Name }/>
 												} else if skill.Icon != "" {

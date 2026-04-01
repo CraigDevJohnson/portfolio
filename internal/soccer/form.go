@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func ParseSelectedIDs(form url.Values) map[string]struct{} {
+func parseSelectedIDs(form url.Values) map[string]struct{} {
 	selectedIDs := make(map[string]struct{})
 	for _, id := range form["selected"] {
 		id = strings.TrimSpace(id)
@@ -17,25 +17,12 @@ func ParseSelectedIDs(form url.Values) map[string]struct{} {
 	return selectedIDs
 }
 
-func ParsePlayerIDs(values []string) []int {
-	seen := make(map[int]struct{})
-	playerIDs := make([]int, 0, len(values))
-	for _, value := range values {
-		playerID, err := strconv.Atoi(strings.TrimSpace(value))
-		if err != nil || playerID <= 0 {
-			continue
-		}
-		if _, exists := seen[playerID]; exists {
-			continue
-		}
-		seen[playerID] = struct{}{}
-		playerIDs = append(playerIDs, playerID)
-	}
-	return playerIDs
+func parsePlayerIDs(values []string) []int {
+	return parsePositiveUniqueIDs(values)
 }
 
-func ParseTeamIDs(raw string) []int {
-	return ParsePlayerIDs(splitDelimitedValues(raw))
+func parseTeamIDs(raw string) []int {
+	return parsePositiveUniqueIDs(splitDelimitedValues(raw))
 }
 
 func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
@@ -43,6 +30,43 @@ func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
 		return false
 	}
 
+	return hasNonEmptyTrimmedValues(rawValues)
+}
+
+// scheduleFormInput holds the parsed form values shared by schedule handlers.
+type scheduleFormInput struct {
+	TeamCodes    string
+	RawPlayerIDs []string
+	PlayerIDs    []int
+}
+
+func parseScheduleFormInput(form url.Values) scheduleFormInput {
+	rawPlayerIDs := form["player_ids"]
+	return scheduleFormInput{
+		TeamCodes:    form.Get("team_codes"),
+		RawPlayerIDs: rawPlayerIDs,
+		PlayerIDs:    parsePlayerIDs(rawPlayerIDs),
+	}
+}
+
+func parsePositiveUniqueIDs(values []string) []int {
+	seen := make(map[int]struct{})
+	ids := make([]int, 0, len(values))
+	for _, value := range values {
+		id, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func hasNonEmptyTrimmedValues(rawValues []string) bool {
 	for _, value := range rawValues {
 		if strings.TrimSpace(value) != "" {
 			return true

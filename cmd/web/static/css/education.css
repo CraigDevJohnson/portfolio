@@ -59,32 +59,12 @@
   padding: var(--space-xl) 0;
 }
 
-.edu-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-lg);
-}
-
+/* Uses shared .card base from styles.css */
 .edu-stat-card {
   text-align: center;
-  padding: var(--space-lg);
-  background: linear-gradient(135deg, rgb(255 255 255 / 4%) 0%, rgb(255 255 255 / 1%) 100%);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
-  transition: all var(--duration-normal) var(--ease-out);
 }
 
-.edu-stat-card:nth-child(1) { animation-delay: 0.1s; }
-.edu-stat-card:nth-child(2) { animation-delay: 0.2s; }
-.edu-stat-card:nth-child(3) { animation-delay: 0.3s; }
-.edu-stat-card:nth-child(4) { animation-delay: 0.4s; }
-
-.edu-stat-card:hover {
-  border-color: rgb(234 88 12 / 30%);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 32px rgb(234 88 12 / 10%);
-}
 
 .edu-stat-value {
   display: block;
@@ -115,6 +95,7 @@
   padding: var(--space-xl) 0 var(--space-2xl);
 }
 
+/* Uses shared .card base from styles.css */
 .edu-degree-card {
   display: flex;
   align-items: center;
@@ -122,42 +103,11 @@
   padding: var(--space-2xl);
   background: linear-gradient(135deg, rgb(234 88 12 / 8%) 0%, rgb(13 148 136 / 5%) 100%);
   border: 1px solid rgb(234 88 12 / 30%);
-  border-radius: var(--radius-lg);
   text-decoration: none;
   color: inherit;
-  position: relative;
-  overflow: hidden;
-  transition: all var(--duration-normal) var(--ease-out);
   animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
 }
 
-.edu-degree-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgb(234 88 12 / 12%) 0%, rgb(13 148 136 / 8%) 100%);
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  z-index: 0;
-}
-
-.edu-degree-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.edu-degree-card:hover {
-  transform: translateY(-6px);
-  box-shadow:
-    var(--shadow-xl),
-    0 0 48px rgb(234 88 12 / 20%),
-    inset 0 0 24px rgb(234 88 12 / 5%);
-  border-color: rgb(234 88 12 / 50%);
-}
-
-.edu-degree-card:hover::before {
-  opacity: 1;
-}
 
 .degree-image {
   width: 160px;
@@ -249,62 +199,17 @@
   gap: var(--space-lg);
 }
 
+/* Uses shared .card base from styles.css */
 .cert-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: var(--space-lg);
-  background: linear-gradient(135deg, rgb(255 255 255 / 5%) 0%, rgb(255 255 255 / 2%) 100%);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
   text-decoration: none;
   color: inherit;
-  transition: all var(--duration-normal) var(--ease-out);
-  position: relative;
-  overflow: hidden;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
 }
 
-/* Staggered entrance */
-.education-grid > :nth-child(1) { animation-delay: 0.05s; }
-.education-grid > :nth-child(2) { animation-delay: 0.1s; }
-.education-grid > :nth-child(3) { animation-delay: 0.15s; }
-.education-grid > :nth-child(4) { animation-delay: 0.2s; }
-.education-grid > :nth-child(5) { animation-delay: 0.25s; }
-.education-grid > :nth-child(6) { animation-delay: 0.3s; }
-.education-grid > :nth-child(7) { animation-delay: 0.35s; }
-.education-grid > :nth-child(8) { animation-delay: 0.4s; }
-.education-grid > :nth-child(9) { animation-delay: 0.45s; }
-.education-grid > :nth-child(10) { animation-delay: 0.5s; }
-
-.cert-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgb(234 88 12 / 10%) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  z-index: 0;
-}
-
-.cert-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.cert-card:hover {
-  transform: translateY(-6px);
-  box-shadow:
-    var(--shadow-xl),
-    0 0 40px rgb(234 88 12 / 20%),
-    inset 0 0 20px rgb(234 88 12 / 5%);
-  border-color: rgb(234 88 12 / 50%);
-}
-
-.cert-card:hover::before {
-  opacity: 1;
-}
 
 /* Card Image */
 .card-image {
@@ -370,10 +275,6 @@
 }
 
 @media (width <= 768px) {
-  .edu-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .education-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -391,11 +292,6 @@
 }
 
 @media (width <= 480px) {
-  .edu-stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-sm);
-  }
-
   .edu-stat-value {
     font-size: 2rem;
   }
@@ -416,9 +312,5 @@
   .card-image {
     width: 120px;
     height: 120px;
-  }
-
-  .page-cta-section {
-    padding: var(--space-2xl) var(--space-lg);
   }
 }

@@ -35,6 +35,13 @@
         closeMobileNav()
       }
     })
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && mobileNav.classList.contains('open')) {
+        closeMobileNav()
+        mobileMenuBtn.focus()
+      }
+    })
   }
 
   // Smooth scroll for anchor links (skip links exempt for accessibility)
@@ -160,6 +167,36 @@
     observer.observe(section)
   }
 
+  function moveFocusByArrowKey(event, items, currentIndex) {
+    if (currentIndex === -1 || items.length === 0) {
+      return
+    }
+
+    let nextIndex = currentIndex
+
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1) % items.length
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + items.length) % items.length
+        break
+      case 'Home':
+        nextIndex = 0
+        break
+      case 'End':
+        nextIndex = items.length - 1
+        break
+      default:
+        return
+    }
+
+    event.preventDefault()
+    items[nextIndex].focus()
+  }
+
   function setupProjectsCategoryFilter() {
     const pills = document.querySelectorAll('.proj-category-pill')
 
@@ -193,6 +230,28 @@
           card.style.display = cardCategory === category ? '' : 'none'
         })
       })
+
+      pill.addEventListener('keydown', event => {
+        const pillList = Array.from(pills)
+        moveFocusByArrowKey(event, pillList, pillList.indexOf(pill))
+      })
+    })
+  }
+
+  function setupSkillsFilterKeyboard() {
+    document.querySelectorAll('.filter-tabs').forEach(group => {
+      if (group.dataset.kbBound === 'true') {
+        return
+      }
+
+      group.dataset.kbBound = 'true'
+      const buttons = Array.from(group.querySelectorAll('.filter-tab'))
+
+      buttons.forEach(btn => {
+        btn.addEventListener('keydown', event => {
+          moveFocusByArrowKey(event, buttons, buttons.indexOf(btn))
+        })
+      })
     })
   }
 
@@ -212,14 +271,23 @@
     ).filter(element => !element.hidden)
   }
 
+  function setSoccerModalVisibility(isVisible) {
+    if (!soccerLoginModal) {
+      return
+    }
+
+    soccerLoginModal.hidden = !isVisible
+    soccerLoginModal.setAttribute('aria-hidden', isVisible ? 'false' : 'true')
+    document.body.classList.toggle('soccer-modal-open', isVisible)
+  }
+
   function openSoccerLoginModal(trigger) {
     if (!soccerLoginModal) {
       return
     }
 
     soccerLoginTrigger = trigger || document.activeElement
-    soccerLoginModal.hidden = false
-    document.body.classList.add('soccer-modal-open')
+    setSoccerModalVisibility(true)
 
     const dialog = soccerLoginModal.querySelector('.soccer-login-dialog')
     const firstField = soccerLoginModal.querySelector('#soccer-import-jwt')
@@ -233,8 +301,7 @@
       return
     }
 
-    soccerLoginModal.hidden = true
-    document.body.classList.remove('soccer-modal-open')
+    setSoccerModalVisibility(false)
 
     if (soccerLoginTrigger && typeof soccerLoginTrigger.focus === 'function') {
       soccerLoginTrigger.focus()
@@ -406,6 +473,12 @@
     }
 
     setupProjectsCategoryFilter()
+    setupSkillsFilterKeyboard()
+
+    // Skills page: set aria-expanded on the triggering skill button after detail loads
+    if (evt.detail.elt && evt.detail.elt.classList.contains('skill-icon-btn') && evt.detail.target.classList.contains('skill-detail-slot')) {
+      evt.detail.elt.setAttribute('aria-expanded', 'true')
+    }
 
     // Skills page: re-observe new skill categories after filter swap
     if (evt.detail.target.id === 'skills-filterable' || evt.detail.target.closest('.skills-section')) {
@@ -424,6 +497,9 @@
     }
 
     if (evt.detail.elt && evt.detail.elt.classList.contains('skill-icon-btn')) {
+      document.querySelectorAll('.skill-icon-btn[aria-expanded="true"]').forEach(function (btn) {
+        btn.setAttribute('aria-expanded', 'false')
+      })
       document.querySelectorAll('.skill-detail-slot').forEach(function (slot) {
         slot.innerHTML = ''
       })
@@ -447,7 +523,19 @@
 
     const detailSlot = closeDetailButton.closest('.skill-detail-slot')
     if (detailSlot) {
+      let focusTarget = null
+      if (detailSlot.id) {
+        document.querySelectorAll(`[aria-controls="${detailSlot.id}"]`).forEach(btn => {
+          if (btn.getAttribute('aria-expanded') === 'true') {
+            focusTarget = btn
+          }
+          btn.setAttribute('aria-expanded', 'false')
+        })
+      }
       detailSlot.replaceChildren()
+      if (focusTarget) {
+        focusTarget.focus()
+      }
     }
   })
 
@@ -477,6 +565,19 @@
     setSoccerLoadingState(loadingLink, true)
   })
 
+  document.addEventListener('submit', event => {
+    if (!(event.target instanceof HTMLFormElement) || event.defaultPrevented) {
+      return
+    }
+
+    const loadingControl = getSoccerLoadingControl(event.submitter || event.target)
+    if (!loadingControl || loadingControl.getAttribute('aria-busy') === 'true') {
+      return
+    }
+
+    setSoccerLoadingState(loadingControl, true)
+  })
+
   document.body.addEventListener('soccer-logout', resetSoccerResults)
 
   window.addEventListener('pageshow', resetSoccerLoadingLinks)
@@ -492,6 +593,7 @@
   observeCounterSection('.edu-stats', '.edu-stat-value[data-target]', 1500)
   observeCounterSection('.projects-stats', '.proj-stat-value', 1500)
   setupProjectsCategoryFilter()
+  setupSkillsFilterKeyboard()
 
   // Add intersection observer for scroll animations
   const observerOptions = {

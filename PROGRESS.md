@@ -17,29 +17,35 @@
 
 ## Last Completed
 
-- Task-011B: Archive stale pre-refactor references in plan.md
-- Tests/Build/CI: ✅ final verification rerun on current HEAD
+- Portfolio polish and maintainability sweep across frontend, accessibility,
+  backend cleanup, and docs refresh
+- Verification rerun on current HEAD after the refactor sweep
 - Key decisions:
-  - Converted plan.md from actionable migration checklist into historical archive note
-  - Removed stale removed-file references and old root-monolith narrative
-  - Kept current source-of-truth pointers to PRD.md, PROGRESS.md, README.md, and copilot-instructions.md
+  - Consolidated shared UI primitives into `cmd/web/static/css/styles.css`
+  - Standardized JS accessibility behavior for modals, filters, and focus
+  - Kept soccer login on JWT import with automatic player discovery
+  - Simplified soccer/google coordination without changing external behavior
 
 ## Current Iteration
 
-- Iteration: 14
-- Working on: Complete — Task-011 docs follow-up shipped
-- Started: 2026-03-29T14:15:00Z
+- Iteration: 15
+- Working on: Complete — frontend polish, accessibility hardening, backend cleanup
+- Started: 2026-03-31T00:00:00Z
 
 ## Blockers
 
 - None
 
-## Final Verification Evidence (Task-011 / Task-011B)
+## Final Verification Evidence (Iteration 15)
 
-- Date: 2026-03-29
+- Date: 2026-03-31
 - Commands:
   - `just ci` -> ✅ exit code 0
   - `just test` -> ✅ exit code 0
   - `just build` -> ✅ exit code 0
+  - `just vet` -> ✅ exit code 0
 - Notes:
-  - Verification executed on current HEAD after Task-011B docs archive commit and final reviewer closeout.
+  - Responsive, WCAG, modal/table, backend simplification, and architecture
+    follow-up changes were revalidated on current HEAD.
+  - The soccer flow remains JWT import with server-side player discovery,
+    schedule fetch, ICS download, and optional Google Calendar add.

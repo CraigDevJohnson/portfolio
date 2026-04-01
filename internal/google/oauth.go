@@ -33,11 +33,7 @@ type SoccerBridge interface {
 	LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps
 	RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData)
 	RenderLoginFeedback(w http.ResponseWriter, kind, message string)
-	RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error)
-	SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game
-	GoogleAddScheduleErrorMessage(err error) string
-	ParseSelectedIDs(form url.Values) map[string]struct{}
-	ParsePlayerIDs(values []string) []int
+	ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
 }
 
 type OAuthState struct {

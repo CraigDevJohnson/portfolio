@@ -3,7 +3,6 @@ package google
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"testing"
 	"time"
 
@@ -91,32 +90,26 @@ func (b *stubSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, kind, mess
 	_, _ = w.Write([]byte(message))
 }
 
-func (b *stubSoccerBridge) RequestedScheduleGames(_ context.Context, _ *types.SessionData, _ []int, _ string) ([]types.Game, error) {
-	return b.games, nil
-}
+func (b *stubSoccerBridge) ResolveGoogleAddSelection(_ http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	selectedIDs := map[string]struct{}{}
+	for _, id := range r.Form["selected"] {
+		if id == "" {
+			continue
+		}
+		selectedIDs[id] = struct{}{}
+	}
+	if len(selectedIDs) == 0 {
+		return nil, nil, "Select at least one game to add to Google Calendar.", false
+	}
 
-func (b *stubSoccerBridge) SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
 	var filtered []types.Game
-	for i := range games {
-		if _, ok := selectedIDs[games[i].ID]; ok {
-			filtered = append(filtered, games[i])
+	for i := range b.games {
+		if _, ok := selectedIDs[b.games[i].ID]; ok {
+			filtered = append(filtered, b.games[i])
 		}
 	}
-	return filtered
-}
-
-func (b *stubSoccerBridge) GoogleAddScheduleErrorMessage(_ error) string {
-	return "schedule error"
-}
-
-func (b *stubSoccerBridge) ParseSelectedIDs(form url.Values) map[string]struct{} {
-	ids := map[string]struct{}{}
-	for _, id := range form["selected"] {
-		ids[id] = struct{}{}
+	if len(filtered) == 0 {
+		return nil, nil, "No selected games were found to add.", false
 	}
-	return ids
-}
-
-func (b *stubSoccerBridge) ParsePlayerIDs(_ []string) []int {
-	return nil
+	return nil, filtered, "", true
 }

@@ -47,7 +47,7 @@ func RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
 }
 
 func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
-	teamIDs := ParseTeamIDs(teamCodes)
+	teamIDs := parseTeamIDs(teamCodes)
 	switch {
 	case session != nil && len(playerIDs) > 0:
 		return h.resolveScheduleGames(ctx, session, playerIDs, nil)
@@ -62,7 +62,7 @@ func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.Ses
 	}
 }
 
-func GoogleAddScheduleErrorMessage(err error) string {
+func googleAddScheduleErrorMessage(err error) string {
 	switch {
 	case errors.Is(err, ErrPlayerSessionRequired):
 		return "Import a bearer JWT again before adding schedules for discovered players to Google Calendar."
@@ -75,7 +75,50 @@ func GoogleAddScheduleErrorMessage(err error) string {
 	}
 }
 
-func SelectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
+func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	selectedIDs := parseSelectedIDs(r.Form)
+	if len(selectedIDs) == 0 {
+		return nil, nil, "Select at least one game to add to Google Calendar.", false
+	}
+
+	input := parseScheduleFormInput(r.Form)
+	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
+		return nil, nil, "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.", false
+	}
+
+	session, _ := h.LoadSession(w, r)
+	games, err := h.RequestedScheduleGames(r.Context(), session, input.PlayerIDs, input.TeamCodes)
+	if err != nil {
+		return nil, nil, googleAddScheduleErrorMessage(err), false
+	}
+
+	filteredGames := selectedScheduleGames(games, selectedIDs)
+	if len(filteredGames) == 0 {
+		return nil, nil, "No selected games were found to add.", false
+	}
+
+	return session, filteredGames, "", true
+}
+
+func applyScheduleSelectionError(props *partials.SoccerTableFragmentProps, err error) bool {
+	switch {
+	case errors.Is(err, ErrPlayerSessionRequired):
+		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
+		props.Hint = "Your previous session is no longer available."
+	case errors.Is(err, ErrInvalidTeamSelection):
+		props.Message = "One or more team IDs were invalid."
+		props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
+	case errors.Is(err, ErrScheduleSelection):
+		props.Message = "Enter team IDs or choose at least one discovered player."
+		props.Hint = "Manual team ID entry still works if you do not want to import a token."
+	default:
+		return false
+	}
+
+	return true
+}
+
+func selectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
 	filteredGames := make([]types.Game, 0, len(games))
 	for i := range games {
 		if _, ok := selectedIDs[games[i].ID]; ok {
