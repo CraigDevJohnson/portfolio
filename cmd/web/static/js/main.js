@@ -83,31 +83,6 @@
     }
   }
 
-  // Email subscription toggle
-  function setupEmailSubscription() {
-    const emailCheckbox = document.getElementById('email-updates-checkbox')
-    const subscribeForm = document.getElementById('subscribe-form')
-
-    if (emailCheckbox && subscribeForm) {
-      emailCheckbox.addEventListener('change', () => {
-        subscribeForm.style.display = emailCheckbox.checked ? 'block' : 'none'
-        if (emailCheckbox.checked) {
-          const emailInput = document.getElementById('subscription-email')
-          if (emailInput) emailInput.focus()
-        }
-      })
-    }
-  }
-
-  // Show subscribe section after games load
-  function showSubscribeSection() {
-    const subscribeSection = document.getElementById('subscribe-section')
-    if (subscribeSection) {
-      subscribeSection.style.display = 'block'
-      subscribeSection.classList.add('fade-in')
-    }
-  }
-
   function animateCounter(counter, duration) {
     const targetYear = counter.dataset.targetYear
     const targetValue = counter.dataset.target
@@ -309,29 +284,9 @@
 
   function resetSoccerResults() {
     const gamesContainer = document.getElementById('games-container')
-    const subscribeSection = document.getElementById('subscribe-section')
-    const subscribeForm = document.getElementById('subscribe-form')
-    const emailCheckbox = document.getElementById('email-updates-checkbox')
-    const subscribeResult = document.getElementById('subscribe-result')
 
     if (gamesContainer) {
       gamesContainer.replaceChildren()
-    }
-
-    if (subscribeSection) {
-      subscribeSection.style.display = 'none'
-    }
-
-    if (emailCheckbox) {
-      emailCheckbox.checked = false
-    }
-
-    if (subscribeForm) {
-      subscribeForm.style.display = 'none'
-    }
-
-    if (subscribeResult) {
-      subscribeResult.innerHTML = ''
     }
   }
 
@@ -458,9 +413,7 @@
 
     // Soccer page specific handlers - check for soccer form using data attribute
     if (evt.target.querySelector('[data-soccer-form]') || evt.target.id === 'games-container') {
-      showSubscribeSection()
       setupSoccerSelectAll()
-      setupEmailSubscription()
     }
 
     if (evt.detail.target.id === 'soccer-login-feedback' && evt.detail.target.querySelector('[data-login-success]')) {
@@ -582,7 +535,6 @@
   window.addEventListener('pageshow', resetSoccerLoadingLinks)
 
   // Initialize on page load (for non-HTMX scenarios)
-  setupEmailSubscription()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   resetSoccerLoadingLinks()

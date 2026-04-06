@@ -79,8 +79,6 @@ func Run() {
 	mux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
 	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
 	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
-	mux.HandleFunc("POST /soccer/subscribe", soccerHandler.SubscribeHandler)
-
 	// static files
 	mux.Handle(
 		"/static/",

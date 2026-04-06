@@ -179,7 +179,6 @@ portfolio/
 - `POST /soccer/logout` - Clear imported soccer session
 - `POST /soccer/fetch` - Fetch soccer schedules
 - `POST /soccer/download` - Download ICS file
-- `POST /soccer/subscribe` - Subscribe to updates
 
 ## Design Principles
 

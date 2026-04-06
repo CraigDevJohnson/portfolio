@@ -238,39 +238,6 @@ templ Soccer(props SoccerProps) {
 						</ul>
 					</div>
 				</div>
-				<div id="subscribe-section" class="subscribe-section" style="display: none">
-					<label class="subscribe-checkbox">
-						<input id="email-updates-checkbox" type="checkbox"/>
-						<span>Subscribe to email updates for schedule changes</span>
-					</label>
-					<form
-						id="subscribe-form"
-						class="subscribe-form"
-						hx-post="/soccer/subscribe"
-						hx-target="#subscribe-result"
-						hx-swap="innerHTML"
-						hx-indicator=".soccer-subscribe-submit-indicator"
-						hx-disabled-elt="find button[type='submit']"
-						style="display: none"
-					>
-						<div class="email-row">
-							<input
-								id="subscription-email"
-								name="email"
-								class="text-input email-input"
-								type="email"
-								placeholder="your@email.com"
-								required
-								aria-label="Email address for schedule updates"
-							/>
-							<button type="submit" class="btn btn-primary btn-loading" data-loading-button>
-								<span class="btn-text">Subscribe</span>
-								<span class="btn-loading-indicator soccer-subscribe-submit-indicator htmx-indicator" aria-hidden="true"></span>
-							</button>
-						</div>
-						<div id="subscribe-result" class="subscribe-result"></div>
-					</form>
-				</div>
 			</div>
 		</section>
 		@partials.SoccerLoginModal()
