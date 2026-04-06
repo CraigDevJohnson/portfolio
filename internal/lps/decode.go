@@ -27,7 +27,7 @@ func DecodeLPSUserPlayers(payload []byte) (UserPlayerDiscovery, error) {
 		return discovery, NewFetchError(ErrorUnauthorized, 0, http.StatusUnauthorized, "%s", message)
 	}
 
-	discovery.UserName = FullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
+	discovery.UserName = fullName(strings.TrimSpace(envelope.FirstName), strings.TrimSpace(envelope.LastName))
 	if discovery.UserName == "" {
 		discovery.UserName = "Let's Play Soccer account"
 	}
@@ -170,12 +170,12 @@ func mapGameFacility(raw map[string]any) *types.Facility {
 	}
 
 	return buildGameFacility(
-		FirstPositiveInt(firstInt(raw, "FacilityID", "facility_id"), firstInt(nested, "id", "ID", "facility_id", "FacilityID")),
-		FirstNonEmptyString(firstString(raw, "facilityName", "FacilityName", "facility_name"), firstString(nested, "name", "Name", "facility_name", "FacilityName")),
-		FirstNonEmptyString(firstString(raw, "Address", "address"), firstString(nested, "address", "Address")),
-		FirstNonEmptyString(firstString(raw, "City", "city"), firstString(nested, "city", "City")),
-		FirstNonEmptyString(firstString(raw, "State", "state"), firstString(nested, "state", "State")),
-		FirstNonEmptyString(firstString(raw, "ZIP", "zip"), firstString(nested, "zip", "ZIP")),
+		firstPositiveInt(firstInt(raw, "FacilityID", "facility_id"), firstInt(nested, "id", "ID", "facility_id", "FacilityID")),
+		firstNonEmptyString(firstString(raw, "facilityName", "FacilityName", "facility_name"), firstString(nested, "name", "Name", "facility_name", "FacilityName")),
+		firstNonEmptyString(firstString(raw, "Address", "address"), firstString(nested, "address", "Address")),
+		firstNonEmptyString(firstString(raw, "City", "city"), firstString(nested, "city", "City")),
+		firstNonEmptyString(firstString(raw, "State", "state"), firstString(nested, "state", "State")),
+		firstNonEmptyString(firstString(raw, "ZIP", "zip"), firstString(nested, "zip", "ZIP")),
 	)
 }
 

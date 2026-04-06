@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"portfolio/internal/config"
+	"portfolio/types"
 )
 
 type FormattedGameEvent struct {
@@ -20,7 +21,7 @@ type FormattedGameEvent struct {
 	Summary     string
 }
 
-func BuildICS(games []Game) string {
+func BuildICS(games []types.Game) string {
 	var builder strings.Builder
 	WriteICSLine(&builder, "BEGIN:VCALENDAR")
 	WriteICSLine(&builder, "VERSION:2.0")
@@ -48,7 +49,7 @@ func BuildICS(games []Game) string {
 	return builder.String()
 }
 
-func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
+func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 	start, end, ok := ScheduleTimes(game)
 	if !ok {
 		return FormattedGameEvent{}, false
@@ -98,7 +99,7 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 	}, true
 }
 
-func canonicalGameLocation(game *Game) string {
+func canonicalGameLocation(game *types.Game) string {
 	if game == nil || game.Facility == nil {
 		return ""
 	}
@@ -121,7 +122,7 @@ func canonicalGameLocation(game *Game) string {
 	return strings.Join(locationParts, ", ")
 }
 
-func canonicalGameStatus(game *Game) string {
+func canonicalGameStatus(game *types.Game) string {
 	if strings.EqualFold(strings.TrimSpace(game.Result), "canceled") {
 		return "canceled"
 	}

@@ -12,7 +12,7 @@ import (
 
 const fieldLocationPrefix = "Field "
 
-func normalizeScheduleGame(game *Game) {
+func normalizeScheduleGame(game *types.Game) {
 	if game.DateTime == "" {
 		game.DateTime = FormatGameDateTime(game.StartAt)
 	}
@@ -41,7 +41,7 @@ func normalizeScheduleGame(game *Game) {
 	}
 }
 
-func MergeGames(base, incoming *Game) Game {
+func MergeGames(base, incoming *types.Game) types.Game {
 	merged := *base
 	merged.ID = mergeStringValue(merged.ID, incoming.ID)
 	merged.DateTime = mergeStringValue(merged.DateTime, incoming.DateTime)
@@ -61,11 +61,11 @@ func MergeGames(base, incoming *Game) Game {
 	return merged
 }
 
-func StableGameFields(game *Game) string {
+func StableGameFields(game *types.Game) string {
 	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
 }
 
-func FallbackGameID(game *Game) string {
+func FallbackGameID(game *types.Game) string {
 	base := StableGameFields(game)
 	if strings.ReplaceAll(base, "|", "") == "" {
 		return ""
@@ -74,27 +74,27 @@ func FallbackGameID(game *Game) string {
 	return hex.EncodeToString(checksum[:])
 }
 
-func GameKey(game *Game) string {
+func GameKey(game *types.Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
 	return StableGameFields(game)
 }
 
-func GameStartTime(game *Game) (time.Time, bool) {
+func GameStartTime(game *types.Game) (time.Time, bool) {
 	if parsed, ok := ParseScheduleTime(game.StartAt); ok {
 		return parsed, true
 	}
 	return ParseScheduleTime(game.DateTime)
 }
 
-func NormalizeScheduleGames(games []Game) {
+func NormalizeScheduleGames(games []types.Game) {
 	for index := range games {
 		normalizeScheduleGame(&games[index])
 	}
 }
 
-func MergeScheduleGames(games, incoming []Game, indexByKey map[string]int) []Game {
+func MergeScheduleGames(games, incoming []types.Game, indexByKey map[string]int) []types.Game {
 	for i := range incoming {
 		game := &incoming[i]
 		key := GameKey(game)
@@ -108,7 +108,7 @@ func MergeScheduleGames(games, incoming []Game, indexByKey map[string]int) []Gam
 	return games
 }
 
-func SortScheduleGames(games []Game) {
+func SortScheduleGames(games []types.Game) {
 	sort.Slice(games, func(i, j int) bool {
 		left, leftOK := GameStartTime(&games[i])
 		right, rightOK := GameStartTime(&games[j])
@@ -125,7 +125,7 @@ func SortScheduleGames(games []Game) {
 	})
 }
 
-func compareScheduleGames(left, right *Game) int {
+func compareScheduleGames(left, right *types.Game) int {
 	for _, pair := range [][2]string{
 		{left.DateTime, right.DateTime},
 		{left.StartAt, right.StartAt},
@@ -152,8 +152,8 @@ func compareScheduleGames(left, right *Game) int {
 	return 0
 }
 
-func UpcomingScheduleGames(games []Game) []Game {
-	filtered := make([]Game, 0, len(games))
+func UpcomingScheduleGames(games []types.Game) []types.Game {
+	filtered := make([]types.Game, 0, len(games))
 	now := time.Now()
 	for i := range games {
 		start, ok := GameStartTime(&games[i])
@@ -172,7 +172,7 @@ func mergeStringValue(base, incoming string) string {
 	return incoming
 }
 
-func gameFacilityName(game *Game) string {
+func gameFacilityName(game *types.Game) string {
 	if game == nil || game.Facility == nil {
 		return ""
 	}

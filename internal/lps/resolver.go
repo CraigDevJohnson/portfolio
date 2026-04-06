@@ -61,7 +61,7 @@ func FetchUserPlayers(ctx context.Context, baseURL string, httpClient *http.Clie
 func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.Client, jwt string, playerIDs []int) ([]types.Game, error) {
 	resolver := NewScheduleResolver(baseURL, httpClient, jwt)
 	teamByID := make(map[int]TeamSummary)
-	for _, playerID := range SortedUniqueIDs(playerIDs) {
+	for _, playerID := range sortedUniqueIDs(playerIDs) {
 		playerTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
 		if err != nil {
 			return nil, err
@@ -91,7 +91,7 @@ func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.
 // FetchGamesForTeams loads and merges schedules for the selected team IDs.
 func FetchGamesForTeams(ctx context.Context, baseURL string, httpClient *http.Client, teamIDs []int) ([]types.Game, error) {
 	resolver := NewScheduleResolver(baseURL, httpClient, "")
-	return resolver.mergeTeamSchedules(ctx, SortedUniqueIDs(teamIDs), nil)
+	return resolver.mergeTeamSchedules(ctx, sortedUniqueIDs(teamIDs), nil)
 }
 
 // FetchPlayerTeams loads the teams linked to a player.
@@ -182,8 +182,8 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		selected = *selectedTeam
 	}
 
-	facilityID := FirstPositiveInt(rawGame.FacilityID, selected.FacilityID, responseTeam.FacilityID, rawGame.HomeTeam.FacilityID, rawGame.VisitorTeam.FacilityID)
-	facilityName := FirstNonEmptyString(rawGame.FacilityName, selected.FacilityName, responseTeam.FacilityName, rawGame.HomeTeam.FacilityName, rawGame.VisitorTeam.FacilityName)
+	facilityID := firstPositiveInt(rawGame.FacilityID, selected.FacilityID, responseTeam.FacilityID, rawGame.HomeTeam.FacilityID, rawGame.VisitorTeam.FacilityID)
+	facilityName := firstNonEmptyString(rawGame.FacilityName, selected.FacilityName, responseTeam.FacilityName, rawGame.HomeTeam.FacilityName, rawGame.VisitorTeam.FacilityName)
 	facility, err := resolver.FetchFacility(ctx, facilityID)
 	if err != nil {
 		return types.Game{}, err
@@ -219,15 +219,15 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	}
 
 	game := types.Game{
-		ID:               IntString(rawGame.UGameID),
+		ID:               intString(rawGame.UGameID),
 		DateTime:         schedule.FormatGameDateTime(schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime)),
 		StartAt:          schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime),
-		EndAt:            schedule.NormalizeLPSScheduleTime(StringPointerValue(rawGame.SchedGameEndTime)),
+		EndAt:            schedule.NormalizeLPSScheduleTime(stringPointerValue(rawGame.SchedGameEndTime)),
 		Field:            fieldName,
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,
 		Away:             visitorName,
-		Season:           FirstNonEmptyString(IntString(selected.Season), IntString(responseTeam.Season), IntString(rawGame.Season), IntString(rawGame.HomeTeam.Season), IntString(rawGame.VisitorTeam.Season)),
+		Season:           firstNonEmptyString(intString(selected.Season), intString(responseTeam.Season), intString(rawGame.Season), intString(rawGame.HomeTeam.Season), intString(rawGame.VisitorTeam.Season)),
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
 		DivisionName:     divisionName,
@@ -290,31 +290,31 @@ func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSumm
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)
 	if selectedTeam != nil {
-		selectedTeamID = FirstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
-		selectedTeamName = FirstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
-		divisionName = FirstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
+		selectedTeamID = firstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
+		selectedTeamName = firstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
+		divisionName = firstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
 	}
 	if selectedTeamID == 0 && rawGame.TeamIDSelected != nil {
 		selectedTeamID = *rawGame.TeamIDSelected
 	}
 
-	homeID := FirstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
-	visitorID := FirstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
+	homeID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
+	visitorID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
 	homeDivision := strings.TrimSpace(rawGame.HomeTeam.DivisionName)
 	visitorDivision := strings.TrimSpace(rawGame.VisitorTeam.DivisionName)
-	homeTeamDivision := FirstNonEmptyString(divisionName, homeDivision, visitorDivision)
-	visitorTeamDivision := FirstNonEmptyString(divisionName, visitorDivision, homeDivision)
+	homeTeamDivision := firstNonEmptyString(divisionName, homeDivision, visitorDivision)
+	visitorTeamDivision := firstNonEmptyString(divisionName, visitorDivision, homeDivision)
 
 	switch {
 	case selectedTeamID > 0 && homeID == selectedTeamID:
-		return FirstNonEmptyString(selectedTeamName, homeName), visitorName, homeTeamDivision
+		return firstNonEmptyString(selectedTeamName, homeName), visitorName, homeTeamDivision
 	case selectedTeamID > 0 && visitorID == selectedTeamID:
-		return FirstNonEmptyString(selectedTeamName, visitorName), homeName, visitorTeamDivision
+		return firstNonEmptyString(selectedTeamName, visitorName), homeName, visitorTeamDivision
 	}
 
-	playerTeamName := FirstNonEmptyString(selectedTeamName, homeName)
+	playerTeamName := firstNonEmptyString(selectedTeamName, homeName)
 	if playerTeamName == visitorName {
 		return playerTeamName, homeName, visitorTeamDivision
 	}

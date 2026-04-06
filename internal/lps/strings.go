@@ -8,8 +8,7 @@ import (
 	"portfolio/types"
 )
 
-// FullName joins non-empty trimmed name parts with spaces.
-func FullName(parts ...string) string {
+func fullName(parts ...string) string {
 	nonEmpty := make([]string, 0, len(parts))
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -20,8 +19,7 @@ func FullName(parts ...string) string {
 	return strings.Join(nonEmpty, " ")
 }
 
-// FirstNonEmptyString returns the first trimmed non-empty string.
-func FirstNonEmptyString(values ...string) string {
+func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
@@ -30,8 +28,7 @@ func FirstNonEmptyString(values ...string) string {
 	return ""
 }
 
-// FirstPositiveInt returns the first positive integer.
-func FirstPositiveInt(values ...int) int {
+func firstPositiveInt(values ...int) int {
 	for _, value := range values {
 		if value > 0 {
 			return value
@@ -40,24 +37,21 @@ func FirstPositiveInt(values ...int) int {
 	return 0
 }
 
-// IntString returns the decimal string for a positive integer.
-func IntString(value int) string {
+func intString(value int) string {
 	if value <= 0 {
 		return ""
 	}
 	return strconv.Itoa(value)
 }
 
-// StringPointerValue returns a trimmed string pointer value.
-func StringPointerValue(value *string) string {
+func stringPointerValue(value *string) string {
 	if value == nil {
 		return ""
 	}
 	return strings.TrimSpace(*value)
 }
 
-// SortedUniqueIDs returns positive IDs in ascending order without duplicates.
-func SortedUniqueIDs(values []int) []int {
+func sortedUniqueIDs(values []int) []int {
 	if len(values) == 0 {
 		return nil
 	}

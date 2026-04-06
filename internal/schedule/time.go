@@ -11,8 +11,6 @@ import (
 
 var MountainTimeLocation = loadMountainTimeLocation()
 
-type Game = types.Game
-
 func loadMountainTimeLocation() *time.Location {
 	location, err := time.LoadLocation(config.MountainTimeZoneID)
 	if err == nil {
@@ -106,7 +104,7 @@ func FormatGameDateTime(value string) string {
 	return parsed.In(MountainTimeLocation).Format("Mon 01/02/06 03:04 PM MST")
 }
 
-func ScheduleTimes(game *Game) (time.Time, time.Time, bool) {
+func ScheduleTimes(game *types.Game) (time.Time, time.Time, bool) {
 	start, ok := GameStartTime(game)
 	if !ok {
 		return time.Time{}, time.Time{}, false
