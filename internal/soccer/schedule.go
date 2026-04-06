@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -161,4 +162,56 @@ func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Req
 		h.clearSession(w, r)
 	}
 	http.Error(w, detail.DownloadMessage, detail.DownloadStatus)
+}
+
+func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
+	teamIDs := parseTeamIDs(teamCodes)
+	switch {
+	case session != nil && len(playerIDs) > 0:
+		return h.resolveScheduleGames(ctx, session, playerIDs, nil)
+	case len(playerIDs) > 0:
+		return nil, ErrPlayerSessionRequired
+	case strings.TrimSpace(teamCodes) != "" && len(teamIDs) == 0:
+		return nil, ErrInvalidTeamSelection
+	case len(teamIDs) > 0:
+		return h.resolveScheduleGames(ctx, session, nil, teamIDs)
+	default:
+		return nil, ErrScheduleSelection
+	}
+}
+
+func selectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {
+	filteredGames := make([]types.Game, 0, len(games))
+	for i := range games {
+		if _, ok := selectedIDs[games[i].ID]; ok {
+			filteredGames = append(filteredGames, games[i])
+		}
+	}
+	return filteredGames
+}
+
+func applyScheduleSelectionError(props *partials.SoccerTableFragmentProps, err error) bool {
+	message, hint, ok := scheduleSelectionFeedback(err)
+	if !ok {
+		return false
+	}
+	props.Message = message
+	props.Hint = hint
+	return true
+}
+
+func scheduleSelectionFeedback(err error) (message, hint string, ok bool) {
+	switch {
+	case errors.Is(err, ErrPlayerSessionRequired):
+		return "Import a bearer JWT again to fetch schedules for your discovered players.",
+			"Your previous session is no longer available.", true
+	case errors.Is(err, ErrInvalidTeamSelection):
+		return "One or more team IDs were invalid.",
+			"Enter numeric Let's Play Soccer team IDs separated by commas.", true
+	case errors.Is(err, ErrScheduleSelection):
+		return "Enter team IDs or choose at least one discovered player.",
+			"Manual team ID entry still works if you do not want to import a token.", true
+	default:
+		return "", "", false
+	}
 }
