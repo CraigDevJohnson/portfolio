@@ -8,51 +8,6 @@
   background-image: url('/static/images/backgrounds/experience-hero.jpg');
 }
 
-/* Animated hero orbs */
-.exp-hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.exp-hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.exp-hero-orb-1 {
-  width: 420px;
-  height: 420px;
-  background: radial-gradient(circle, rgb(234 88 12 / 30%) 0%, transparent 70%);
-  top: -120px;
-  right: -60px;
-  animation: orb-float 8s ease-in-out infinite;
-}
-
-.exp-hero-orb-2 {
-  width: 340px;
-  height: 340px;
-  background: radial-gradient(circle, rgb(13 148 136 / 25%) 0%, transparent 70%);
-  bottom: -100px;
-  left: -40px;
-  animation: orb-float 8s ease-in-out infinite reverse;
-}
-
-.exp-hero-orb-3 {
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, rgb(234 88 12 / 20%) 0%, transparent 70%);
-  top: 40%;
-  left: 50%;
-  animation: orb-float 10s ease-in-out infinite;
-  animation-delay: -5s;
-}
-
 /* Summary Section */
 .experience-summary {
   padding: 0 0 var(--space-3xl);

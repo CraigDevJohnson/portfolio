@@ -51,8 +51,8 @@ func (b *googleSoccerBridge) RenderLoginState(w http.ResponseWriter, r *http.Req
 	b.soccer.RenderLoginState(w, r, session)
 }
 
-func (b *googleSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
-	internalsoccer.RenderLoginFeedback(w, kind, message)
+func (b *googleSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string) {
+	internalsoccer.RenderLoginFeedback(w, r, kind, message)
 }
 
 func (b *googleSoccerBridge) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {

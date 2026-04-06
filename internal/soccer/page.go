@@ -1,7 +1,6 @@
 package soccer
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
@@ -9,16 +8,12 @@ import (
 )
 
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"))
 	props := pages.SoccerProps{
 		GoogleMessage:     googleMessage,
 		GoogleMessageKind: googleMessageKind,
 	}
-	if err := pages.Soccer(props).Render(context.Background(), w); err != nil {
+	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

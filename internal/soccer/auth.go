@@ -1,7 +1,6 @@
 package soccer
 
 import (
-	"context"
 	"errors"
 	"io"
 	"log"
@@ -15,37 +14,28 @@ import (
 )
 
 func (h *Handler) SessionHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	session, _ := h.LoadSession(w, r)
 	h.RenderLoginState(w, r, session)
 }
 
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if !h.Config.LoginEnabled() {
-		RenderLoginFeedback(w, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
+		RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
 	}
 	if !h.LoginLimiter.Allow(httpx.ClientIP(r)) {
-		RenderLoginFeedback(w, "error", "Too many import attempts. Wait a minute and try again.")
+		RenderLoginFeedback(w, r, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
-		RenderLoginFeedback(w, "error", "Could not read the import form. Try again.")
+		RenderLoginFeedback(w, r, "error", "Could not read the import form. Try again.")
 		return
 	}
 
 	jwt, err := lps.NormalizeImportedJWT(r.FormValue("jwt"))
 	if err != nil {
-		RenderLoginFeedback(w, "error", err.Error())
+		RenderLoginFeedback(w, r, "error", err.Error())
 		return
 	}
 
@@ -55,18 +45,18 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &fetchErr) {
 			switch fetchErr.Kind {
 			case lps.ErrorUnauthorized, lps.ErrorForbidden:
-				RenderLoginFeedback(w, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
+				RenderLoginFeedback(w, r, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
 				return
 			case lps.ErrorUpstream:
-				RenderLoginFeedback(w, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
+				RenderLoginFeedback(w, r, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
 				return
 			}
 		}
-		RenderLoginFeedback(w, "error", err.Error())
+		RenderLoginFeedback(w, r, "error", err.Error())
 		return
 	}
 	if len(discovery.Players) == 0 {
-		RenderLoginFeedback(w, "error", "No linked players found for this account.")
+		RenderLoginFeedback(w, r, "error", "No linked players found for this account.")
 		return
 	}
 
@@ -78,12 +68,12 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.setSession(w, r, &session); err != nil {
 		log.Printf("soccer import session write failed: %v", err)
-		RenderLoginFeedback(w, "error", "The import succeeded, but the session cookie could not be saved.")
+		RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(context.Background(), w); err != nil {
+	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -91,10 +81,6 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
 	h.RenderLoginState(w, r, nil)

@@ -19,14 +19,16 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "FC CHAIN MAIL",
 		DivisionName:     "Coed Over 30 B Sun",
-		FacilityName:     "Boise",
-		FacilityAddress:  "11448 W. President Drive",
-		FacilityCity:     "Boise",
-		FacilityState:    "ID",
-		FacilityZIP:      "83713",
-		Field:            "Field 2",
-		Result:           "7 - 3",
-		StartAt:          "2026-03-08T12:30:00-06:00",
+		Facility: &types.Facility{
+			Name:    "Boise",
+			Address: "11448 W. President Drive",
+			City:    "Boise",
+			State:   "ID",
+			ZIP:     "83713",
+		},
+		Field:   "Field 2",
+		Result:  "7 - 3",
+		StartAt: "2026-03-08T12:30:00-06:00",
 	})
 	if !ok {
 		t.Fatal("CanonicalGameEvent returned false")
@@ -134,14 +136,16 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 		PlayerTeamName:   "STRUGGLE BUS",
 		OpponentTeamName: "MANEFESTO",
 		DivisionName:     "Coed Over 30 B Sun",
-		FacilityName:     "Boise",
-		FacilityAddress:  "11448 W. President Drive",
-		FacilityCity:     "Boise",
-		FacilityState:    "ID",
-		FacilityZIP:      "83713",
-		Field:            "Field 1",
-		Result:           "canceled",
-		StartAt:          "2026-03-29T17:20:00-06:00",
+		Facility: &types.Facility{
+			Name:    "Boise",
+			Address: "11448 W. President Drive",
+			City:    "Boise",
+			State:   "ID",
+			ZIP:     "83713",
+		},
+		Field:   "Field 1",
+		Result:  "canceled",
+		StartAt: "2026-03-29T17:20:00-06:00",
 	}}))
 
 	expectedLines := []string{

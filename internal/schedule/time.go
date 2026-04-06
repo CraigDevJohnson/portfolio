@@ -5,24 +5,21 @@ import (
 	"strings"
 	"time"
 
+	"portfolio/internal/config"
 	"portfolio/types"
 )
-
-const MountainTimeZoneID = "America/Denver"
-
-const DefaultGameDuration = 45 * time.Minute
 
 var MountainTimeLocation = loadMountainTimeLocation()
 
 type Game = types.Game
 
 func loadMountainTimeLocation() *time.Location {
-	location, err := time.LoadLocation(MountainTimeZoneID)
+	location, err := time.LoadLocation(config.MountainTimeZoneID)
 	if err == nil {
 		return location
 	}
 
-	log.Printf("could not load %s timezone; falling back to MST: %v", MountainTimeZoneID, err)
+	log.Printf("could not load %s timezone; falling back to MST: %v", config.MountainTimeZoneID, err)
 	const fallbackTimezoneOffsetSeconds = -7 * 60 * 60
 	return time.FixedZone("MST", fallbackTimezoneOffsetSeconds)
 }
@@ -116,7 +113,7 @@ func ScheduleTimes(game *Game) (time.Time, time.Time, bool) {
 	}
 	end, ok := ParseScheduleTime(game.EndAt)
 	if !ok || !end.After(start) {
-		end = start.Add(DefaultGameDuration)
+		end = start.Add(config.DefaultGameDuration)
 	}
 	return start, end, true
 }

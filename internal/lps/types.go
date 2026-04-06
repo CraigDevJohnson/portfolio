@@ -55,8 +55,8 @@ type TeamScheduleResponse struct {
 	Team  TeamSummary        `json:"team"`
 }
 
-// Facility is the raw LPS facility payload.
-type Facility struct {
+// FacilityResponse is the raw LPS facility payload.
+type FacilityResponse struct {
 	FacilityID   int    `json:"FacilityID"`
 	FacilityName string `json:"FacilityName"`
 	Address      string `json:"Address"`

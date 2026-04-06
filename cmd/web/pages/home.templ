@@ -21,7 +21,7 @@ templ Home(props HomeProps) {
 		Page:  "home",
 	}) {
 		<section class="hero">
-			<div class="hero-bg" aria-hidden="true">
+			<div class="hero-orb-bg" aria-hidden="true">
 				<div class="hero-orb hero-orb-1"></div>
 				<div class="hero-orb hero-orb-2"></div>
 				<div class="hero-orb hero-orb-3"></div>
@@ -72,6 +72,7 @@ templ Home(props HomeProps) {
 						<div class="stat">
 							<span
 								class="home-stat-value"
+								data-counter
 								data-target={ fmt.Sprintf("%d", props.YearsInTech) }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%d plus years experience", props.YearsInTech) }
@@ -81,6 +82,7 @@ templ Home(props HomeProps) {
 						<div class="stat">
 							<span
 								class="home-stat-value"
+								data-counter
 								data-target={ fmt.Sprintf("%d", props.Certifications) }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%d plus certifications", props.Certifications) }
@@ -90,6 +92,7 @@ templ Home(props HomeProps) {
 						<div class="stat">
 							<span
 								class="home-stat-value"
+								data-counter
 								data-target={ props.AutomationProjects }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%s plus automation projects", props.AutomationProjects) }

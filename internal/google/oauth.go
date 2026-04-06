@@ -32,7 +32,7 @@ type SoccerBridge interface {
 	LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool)
 	LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps
 	RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData)
-	RenderLoginFeedback(w http.ResponseWriter, kind, message string)
+	RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string)
 	ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
 }
 
@@ -92,10 +92,6 @@ func RedirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, stat
 
 // ConnectHandler initiates the Google OAuth flow.
 func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if !h.Config.GoogleEnabled() {
 		RedirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
@@ -105,20 +101,17 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		connectionID, err = NewRandomHex(16)
 		if err != nil {
-			log.Printf("google connection id generation failed: %v", err)
-			RedirectSoccerWithGoogleStatus(w, r, "failed")
+			h.failConnectf(w, r, "google connection id generation failed: %v", err)
 			return
 		}
 	}
 	state, err := NewOAuthState(connectionID)
 	if err != nil {
-		log.Printf("google oauth state generation failed: %v", err)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failConnectf(w, r, "google oauth state generation failed: %v", err)
 		return
 	}
 	if err := h.SetOAuthStateCookie(w, r, state); err != nil {
-		log.Printf("google oauth state cookie write failed: %v", err)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failConnectf(w, r, "google oauth state cookie write failed: %v", err)
 		return
 	}
 	authURL := h.oauthConfigForRequest(r).AuthCodeURL(
@@ -155,24 +148,18 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := h.httpContext(r.Context())
 	token, err := h.oauthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
 	if err != nil {
-		log.Printf("google token exchange failed: %v", err)
-		ClearOAuthStateCookie(w, r)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failCallbackf(w, r, "google token exchange failed: %v", err)
 		return
 	}
 	calendars, err := h.listCalendarsWithToken(ctx, token)
 	if err != nil || len(calendars) == 0 {
-		log.Printf("google calendar list after connect failed: %v", err)
-		ClearOAuthStateCookie(w, r)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failCallbackf(w, r, "google calendar list after connect failed: %v", err)
 		return
 	}
 	selectedCalendarID, selectedCalendarSummary := preferredCalendar(calendars)
 	encryptedToken, err := h.EncryptToken(token)
 	if err != nil {
-		log.Printf("google token encryption failed: %v", err)
-		ClearOAuthStateCookie(w, r)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failCallbackf(w, r, "google token encryption failed: %v", err)
 		return
 	}
 	createdAt := time.Now().UTC()
@@ -188,9 +175,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:       time.Now().UTC(),
 	}
 	if err := h.Store().Put(r.Context(), &record); err != nil {
-		log.Printf("google connection save failed: %v", err)
-		ClearOAuthStateCookie(w, r)
-		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		h.failCallbackf(w, r, "google connection save failed: %v", err)
 		return
 	}
 	SetConnectionCookie(w, r, state.ConnectionID)
@@ -200,10 +185,6 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // DisconnectHandler removes the Google connection.
 func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	session, _ := h.Soccer.LoadSession(w, r)
 	h.DeleteConnection(r.Context(), w, r)
 	h.Soccer.RenderLoginState(w, r, session)
@@ -213,12 +194,12 @@ func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Request, session *types.SessionData, message string) {
 	h.DeleteConnection(r.Context(), w, r)
 	if session != nil {
-		if err := partials.SoccerLoginState(h.Soccer.LoginStateProps(w, r, session, true)).Render(context.Background(), w); err != nil {
+		if err := partials.SoccerLoginState(h.Soccer.LoginStateProps(w, r, session, true)).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-	h.Soccer.RenderLoginFeedback(w, "error", message)
+	h.Soccer.RenderLoginFeedback(w, r, "error", message)
 }
 
 // SyncCalendarSelection ensures the connection record has a valid calendar selection.
@@ -382,6 +363,17 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	props.GoogleConnected = true
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+}
+
+func (h *Handler) failConnectf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
+	log.Printf(format, args...)
+	RedirectSoccerWithGoogleStatus(w, r, "failed")
+}
+
+func (h *Handler) failCallbackf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
+	log.Printf(format, args...)
+	ClearOAuthStateCookie(w, r)
+	RedirectSoccerWithGoogleStatus(w, r, "failed")
 }
 
 func (h *Handler) encryptJSONValue(data any) (string, error) {

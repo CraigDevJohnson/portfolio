@@ -256,7 +256,6 @@
   }
 
   const soccerLoginModal = document.getElementById('soccer-login-modal')
-  const initialSoccerResultsMarkup = document.getElementById('games-container')?.innerHTML.trim() || ''
   let soccerLoginTrigger = null
 
   function getModalFocusableElements() {
@@ -316,7 +315,7 @@
     const subscribeResult = document.getElementById('subscribe-result')
 
     if (gamesContainer) {
-      gamesContainer.innerHTML = initialSoccerResultsMarkup
+      gamesContainer.replaceChildren()
     }
 
     if (subscribeSection) {
@@ -587,11 +586,11 @@
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   resetSoccerLoadingLinks()
-  observeCounterSection('.hero-stats', '.home-stat-value', 2000)
-  observeCounterSection('.about-stats', '.about-stat-value', 2000)
-  observeCounterSection('.experience-summary', '.exp-stat-value', 1500)
-  observeCounterSection('.edu-stats', '.edu-stat-value[data-target]', 1500)
-  observeCounterSection('.projects-stats', '.proj-stat-value', 1500)
+  observeCounterSection('.hero-stats', '[data-counter]', 2000)
+  observeCounterSection('.about-stats', '[data-counter]', 2000)
+  observeCounterSection('.experience-summary', '[data-counter]', 1500)
+  observeCounterSection('.edu-stats', '[data-counter]', 1500)
+  observeCounterSection('.projects-stats', '[data-counter]', 1500)
   setupProjectsCategoryFilter()
   setupSkillsFilterKeyboard()
 
@@ -621,9 +620,7 @@
 
   if (header) {
     window.addEventListener('scroll', () => {
-      const currentScroll = window.pageYOffset
-
-      if (currentScroll > HEADER_SCROLL_SHADOW_THRESHOLD) {
+      if (window.scrollY > HEADER_SCROLL_SHADOW_THRESHOLD) {
         header.style.boxShadow = 'var(--shadow-md)'
       } else {
         header.style.boxShadow = 'none'

@@ -21,51 +21,6 @@
   pointer-events: none;
 }
 
-/* Animated hero orbs */
-.soccer-hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.soccer-hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.soccer-hero-orb-1 {
-  width: 360px;
-  height: 360px;
-  background: radial-gradient(circle, rgb(234 88 12 / 30%) 0%, transparent 70%);
-  top: -100px;
-  right: -40px;
-  animation: orb-float 8s ease-in-out infinite;
-}
-
-.soccer-hero-orb-2 {
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, rgb(13 148 136 / 25%) 0%, transparent 70%);
-  bottom: -80px;
-  left: -30px;
-  animation: orb-float 8s ease-in-out infinite reverse;
-}
-
-.soccer-hero-orb-3 {
-  width: 180px;
-  height: 180px;
-  background: radial-gradient(circle, rgb(234 88 12 / 20%) 0%, transparent 70%);
-  top: 50%;
-  left: 45%;
-  animation: orb-float 10s ease-in-out infinite;
-  animation-delay: -4s;
-}
-
 /* Soccer-specific overrides */
 .soccer-hero-header {
   max-width: min(48rem, 100%);

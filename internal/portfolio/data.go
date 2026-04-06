@@ -90,20 +90,6 @@ func ExperienceData() []types.Experience {
 	}
 }
 
-const (
-	iconZeroTrust      string = `<svg viewBox="0 0 24 24" fill="#8B5CF6" aria-hidden="true"><path d="M12 1l9 4v6c0 5.25-3.81 10.14-9 11-5.19-.86-9-5.75-9-11V5l9-4zm0 2.18L5 6.3v4.7c0 4.08 2.96 7.88 7 8.62 4.04-.74 7-4.54 7-8.62V6.3l-7-3.12zM12 7a2 2 0 110 4 2 2 0 010-4zm0 5c2.67 0 8 1.34 8 4v1H4v-1c0-2.66 5.33-4 8-4z"/></svg>`
-	iconIdentityAccess string = `<svg viewBox="0 0 24 24" fill="#F59E0B" aria-hidden="true"><path d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>`
-	iconCloudSecurity  string = `<svg viewBox="0 0 24 24" fill="#EF4444" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/><path fill="#fff" d="M12 8l3 3h-2v3h-2v-3H9l3-3z"/></svg>`
-	iconCompliance     string = `<svg viewBox="0 0 24 24" fill="#22C55E" aria-hidden="true"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
-	iconMonitoring     string = `<svg viewBox="0 0 24 24" fill="#06B6D4" aria-hidden="true"><path d="M3 13h2v8H3v-8zm6-6h2v14H9V7zm6-4h2v18h-2V3zm6 8h2v10h-2V11z"/></svg>`
-	iconInfraAuto      string = `<svg viewBox="0 0 24 24" fill="#A855F7" aria-hidden="true"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/><path d="M18 9l3 3-3 3M6 9l-3 3 3 3" stroke="#A855F7" stroke-width="1.5" fill="none"/></svg>`
-	iconCloudArch      string = `<svg viewBox="0 0 24 24" fill="#0EA5E9" aria-hidden="true"><path d="M4.5 9.75a6 6 0 0111.573-2.226 3.75 3.75 0 014.133 4.303A4.5 4.5 0 0118 20.25H6.75a5.25 5.25 0 01-2.23-10.004 6.072 6.072 0 01-.02-.496z"/></svg>`
-	iconNetworkSec     string = `<svg viewBox="0 0 24 24" fill="#EC4899" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`
-	iconDevSecOps      string = `<svg viewBox="0 0 24 24" fill="#10B981" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`
-	iconSRE            string = `<svg viewBox="0 0 24 24" fill="#F97316" aria-hidden="true"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/><circle cx="12" cy="12" r="4" fill="#F97316"/></svg>`
-	iconSecOps         string = `<svg viewBox="0 0 24 24" fill="#6366F1" aria-hidden="true"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"/></svg>`
-)
-
 func SkillsData() []types.SkillCategory {
 	return []types.SkillCategory{
 		{
@@ -248,17 +234,17 @@ func SkillsData() []types.SkillCategory {
 		{
 			Name: "Concepts & Practices",
 			Skills: []types.Skill{
-				{ID: 75, Name: "Cloud Architecture", Icon: iconCloudArch, Link: "https://aws.amazon.com/architecture/", Proficiency: "expert"},
-				{ID: 71, Name: "Cloud Security", Icon: iconCloudSecurity, Link: "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/", Proficiency: "expert"},
-				{ID: 72, Name: "Compliance & Governance", Icon: iconCompliance, Link: "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/", Proficiency: "advanced"},
-				{ID: 77, Name: "DevSecOps", Icon: iconDevSecOps, Link: "https://www.redhat.com/en/topics/devops/what-is-devsecops", Proficiency: "expert"},
-				{ID: 70, Name: "Identity & Access Management", Icon: iconIdentityAccess, Link: "https://www.gartner.com/en/information-technology/glossary/identity-and-access-management-iam", Proficiency: "expert"},
-				{ID: 74, Name: "Infrastructure Automation", Icon: iconInfraAuto, Link: "https://www.redhat.com/en/topics/automation/what-is-infrastructure-as-code-iac", Proficiency: "expert"},
-				{ID: 76, Name: "Network Security", Icon: iconNetworkSec, Link: "https://www.cisco.com/c/en/us/products/security/what-is-network-security.html", Proficiency: "advanced"},
-				{ID: 73, Name: "Observability", Icon: iconMonitoring, Link: "https://newrelic.com/blog/best-practices/what-is-observability", Proficiency: "advanced"},
-				{ID: 79, Name: "Security Operations", Icon: iconSecOps, Link: "https://www.microsoft.com/en-us/security/business/security-101/what-is-a-security-operations-center-soc", Proficiency: "advanced"},
-				{ID: 78, Name: "Site Reliability Engineering", Icon: iconSRE, Link: "https://sre.google/", Proficiency: "advanced"},
-				{ID: 69, Name: "Zero Trust Architecture", Icon: iconZeroTrust, Link: "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/", Proficiency: "advanced"},
+				{ID: 75, Name: "Cloud Architecture", IconPath: "/static/images/skills/cloud-architecture.svg", Link: "https://aws.amazon.com/architecture/", Proficiency: "expert"},
+				{ID: 71, Name: "Cloud Security", IconPath: "/static/images/skills/cloud-security.svg", Link: "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/", Proficiency: "expert"},
+				{ID: 72, Name: "Compliance & Governance", IconPath: "/static/images/skills/compliance-governance.svg", Link: "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/", Proficiency: "advanced"},
+				{ID: 77, Name: "DevSecOps", IconPath: "/static/images/skills/devsecops.svg", Link: "https://www.redhat.com/en/topics/devops/what-is-devsecops", Proficiency: "expert"},
+				{ID: 70, Name: "Identity & Access Management", IconPath: "/static/images/skills/identity-access-management.svg", Link: "https://www.gartner.com/en/information-technology/glossary/identity-and-access-management-iam", Proficiency: "expert"},
+				{ID: 74, Name: "Infrastructure Automation", IconPath: "/static/images/skills/infrastructure-automation.svg", Link: "https://www.redhat.com/en/topics/automation/what-is-infrastructure-as-code-iac", Proficiency: "expert"},
+				{ID: 76, Name: "Network Security", IconPath: "/static/images/skills/network-security.svg", Link: "https://www.cisco.com/c/en/us/products/security/what-is-network-security.html", Proficiency: "advanced"},
+				{ID: 73, Name: "Observability", IconPath: "/static/images/skills/observability.svg", Link: "https://newrelic.com/blog/best-practices/what-is-observability", Proficiency: "advanced"},
+				{ID: 79, Name: "Security Operations", IconPath: "/static/images/skills/security-operations.svg", Link: "https://www.microsoft.com/en-us/security/business/security-101/what-is-a-security-operations-center-soc", Proficiency: "advanced"},
+				{ID: 78, Name: "Site Reliability Engineering", IconPath: "/static/images/skills/site-reliability-engineering.svg", Link: "https://sre.google/", Proficiency: "advanced"},
+				{ID: 69, Name: "Zero Trust Architecture", IconPath: "/static/images/skills/zero-trust-architecture.svg", Link: "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/", Proficiency: "advanced"},
 			},
 		},
 	}

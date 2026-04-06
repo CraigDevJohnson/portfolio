@@ -30,47 +30,26 @@
   z-index: 1;
 }
 
-/* Animated background orbs */
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
+/* Hero orb overrides for home page */
+.hero .hero-orb {
   opacity: 0.35;
-  animation: orb-float 8s ease-in-out infinite;
 }
 
-.hero-orb-1 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgb(234 88 12 / 30%) 0%, transparent 70%);
+.hero .hero-orb-1 {
   top: -80px;
   left: 5%;
-  animation-delay: 0s;
+  right: auto;
 }
 
-.hero-orb-2 {
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, rgb(13 148 136 / 25%) 0%, transparent 70%);
+.hero .hero-orb-2 {
   bottom: -40px;
   right: 10%;
-  animation-delay: -3s;
+  left: auto;
 }
 
-.hero-orb-3 {
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, rgb(249 115 22 / 20%) 0%, transparent 70%);
-  top: 40%;
+.hero .hero-orb-3 {
   right: 25%;
-  animation-delay: -5s;
+  left: auto;
 }
 
 .hero-content {

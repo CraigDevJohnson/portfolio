@@ -18,9 +18,9 @@ templ Education(props EducationProps) {
 	}) {
 		<!-- Hero with animated background -->
 		<section class="page-hero education-hero">
-			<div class="edu-hero-bg" aria-hidden="true">
-				<div class="edu-hero-orb edu-hero-orb-1"></div>
-				<div class="edu-hero-orb edu-hero-orb-2"></div>
+			<div class="hero-orb-bg" aria-hidden="true">
+				<div class="hero-orb hero-orb--subdued hero-orb-1"></div>
+				<div class="hero-orb hero-orb--subdued hero-orb-2"></div>
 			</div>
 			<div class="hero-header">
 				<div class="hero-badge">
@@ -37,19 +37,19 @@ templ Education(props EducationProps) {
 		<section class="edu-stats">
 			<div class="stats-grid">
 				<div class="card card--compact stagger-enter edu-stat-card">
-					<span class="edu-stat-value" data-target="1" aria-label="1 degree">0</span>
+					<span class="edu-stat-value" data-counter data-target="1" aria-label="1 degree">0</span>
 					<span class="edu-stat-label">Degree</span>
 				</div>
 				<div class="card card--compact stagger-enter edu-stat-card">
-					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.TotalCerts) } aria-label={ fmt.Sprintf("%d certifications", props.TotalCerts) }>0</span>
+					<span class="edu-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.TotalCerts) } aria-label={ fmt.Sprintf("%d certifications", props.TotalCerts) }>0</span>
 					<span class="edu-stat-label">Certifications</span>
 				</div>
 				<div class="card card--compact stagger-enter edu-stat-card">
-					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.Providers) } aria-label={ fmt.Sprintf("%d providers", props.Providers) }>0</span>
+					<span class="edu-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.Providers) } aria-label={ fmt.Sprintf("%d providers", props.Providers) }>0</span>
 					<span class="edu-stat-label">Providers</span>
 				</div>
 				<div class="card card--compact stagger-enter edu-stat-card">
-					<span class="edu-stat-value" data-target={ fmt.Sprintf("%d", props.YearsCertifying) } aria-label={ fmt.Sprintf("%d years certifying", props.YearsCertifying) }>0</span>
+					<span class="edu-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.YearsCertifying) } aria-label={ fmt.Sprintf("%d years certifying", props.YearsCertifying) }>0</span>
 					<span class="edu-stat-label">Years Certifying</span>
 				</div>
 			</div>

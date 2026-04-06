@@ -1,7 +1,6 @@
 package portfolio
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,8 +12,8 @@ import (
 	"portfolio/types"
 )
 
-func renderComponent(w http.ResponseWriter, component templ.Component) {
-	if err := component.Render(context.Background(), w); err != nil {
+func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Component) {
+	if err := component.Render(r.Context(), w); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -24,7 +23,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 		http.NotFound(w, r)
 		return
 	}
-	renderComponent(w, pages.Home(pages.HomeProps{
+	renderComponent(w, r, pages.Home(pages.HomeProps{
 		Name:               "Craig Johnson",
 		Role:               "Cloud Engineer Principal",
 		AvatarURL:          GravatarURL("gravatar@craigdevjohnson.com", 275),
@@ -35,23 +34,23 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	}))
 }
 
-func AboutHandler(w http.ResponseWriter, _ *http.Request, careerStartYear int) {
+func AboutHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	props := pages.AboutProps{
 		YearsInTech:    time.Now().Year() - careerStartYear,
 		Certifications: 10,
 		TechUsed:       30,
 		CupsOfCoffee:   "∞",
 	}
-	renderComponent(w, pages.About(props))
+	renderComponent(w, r, pages.About(props))
 }
 
-func ExperienceHandler(w http.ResponseWriter, _ *http.Request) {
-	renderComponent(w, pages.Experience())
+func ExperienceHandler(w http.ResponseWriter, r *http.Request) {
+	renderComponent(w, r, pages.Experience())
 }
 
-func ExperienceTimelineHandler(w http.ResponseWriter, _ *http.Request) {
+func ExperienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
 	props := partials.ExperienceTimelineProps{Experiences: ExperienceData()}
-	renderComponent(w, partials.ExperienceTimeline(props))
+	renderComponent(w, r, partials.ExperienceTimeline(props))
 }
 
 func featuredSkills(categories []types.SkillCategory) []types.Skill {
@@ -81,17 +80,17 @@ func findSkillByID(categories []types.SkillCategory, id int) (types.Skill, strin
 	return types.Skill{}, "", false
 }
 
-func SkillsHandler(w http.ResponseWriter, _ *http.Request) {
-	renderComponent(w, pages.Skills())
+func SkillsHandler(w http.ResponseWriter, r *http.Request) {
+	renderComponent(w, r, pages.Skills())
 }
 
-func SkillsGridHandler(w http.ResponseWriter, _ *http.Request) {
+func SkillsGridHandler(w http.ResponseWriter, r *http.Request) {
 	categories := SkillsData()
 	props := partials.SkillsGridProps{
 		Categories:     categories,
 		FeaturedSkills: featuredSkills(categories),
 	}
-	renderComponent(w, partials.SkillsGrid(props))
+	renderComponent(w, r, partials.SkillsGrid(props))
 }
 
 func SkillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +99,7 @@ func SkillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
 		ActiveCategory:    r.URL.Query().Get("category"),
 		ActiveProficiency: r.URL.Query().Get("proficiency"),
 	}
-	renderComponent(w, partials.SkillsFilterableSection(props))
+	renderComponent(w, r, partials.SkillsFilterableSection(props))
 }
 
 func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
@@ -118,27 +117,27 @@ func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	found.Category = foundCategory
-	renderComponent(w, partials.SkillDetail(partials.SkillDetailProps{Skill: found}))
+	renderComponent(w, r, partials.SkillDetail(partials.SkillDetailProps{Skill: found}))
 }
 
-func ProjectsHandler(w http.ResponseWriter, _ *http.Request) {
-	renderComponent(w, pages.Projects())
+func ProjectsHandler(w http.ResponseWriter, r *http.Request) {
+	renderComponent(w, r, pages.Projects())
 }
 
-func ProjectsGridHandler(w http.ResponseWriter, _ *http.Request) {
+func ProjectsGridHandler(w http.ResponseWriter, r *http.Request) {
 	props := partials.ProjectsGridProps{Projects: ProjectsData()}
-	renderComponent(w, partials.ProjectsGrid(props))
+	renderComponent(w, r, partials.ProjectsGrid(props))
 }
 
-func EducationHandler(w http.ResponseWriter, _ *http.Request) {
+func EducationHandler(w http.ResponseWriter, r *http.Request) {
 	props := pages.EducationProps{
 		TotalCerts:      10,
 		Providers:       5,
 		YearsCertifying: time.Now().Year() - 2018,
 	}
-	renderComponent(w, pages.Education(props))
+	renderComponent(w, r, pages.Education(props))
 }
 
-func ContactHandler(w http.ResponseWriter, _ *http.Request) {
-	renderComponent(w, pages.Contact())
+func ContactHandler(w http.ResponseWriter, r *http.Request) {
+	renderComponent(w, r, pages.Contact())
 }

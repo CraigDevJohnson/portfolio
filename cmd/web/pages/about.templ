@@ -19,10 +19,10 @@ templ About(props AboutProps) {
 	}) {
 		<!-- Hero with animated background -->
 		<section class="page-hero about-hero">
-			<div class="about-hero-bg" aria-hidden="true">
-				<div class="about-hero-orb about-hero-orb-1"></div>
-				<div class="about-hero-orb about-hero-orb-2"></div>
-				<div class="about-hero-orb about-hero-orb-3"></div>
+			<div class="hero-orb-bg" aria-hidden="true">
+				<div class="hero-orb hero-orb-1"></div>
+				<div class="hero-orb hero-orb-2"></div>
+				<div class="hero-orb hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
 				<div class="hero-badge">
@@ -37,19 +37,19 @@ templ About(props AboutProps) {
 		<section class="about-stats">
 			<div class="stats-grid">
 				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
+					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
 					<span class="about-stat-label">Years in Tech</span>
 				</div>
 				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
+					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
 					<span class="about-stat-label">Certifications</span>
 				</div>
 				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
+					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
 					<span class="about-stat-label">Technologies</span>
 				</div>
 				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
+					<span class="about-stat-value" data-counter data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
 					<span class="about-stat-label">Cups of Coffee</span>
 					<span class="about-stat-icon" aria-hidden="true">☕</span>
 				</div>

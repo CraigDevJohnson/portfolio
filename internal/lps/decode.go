@@ -139,27 +139,44 @@ func MapLPSGame(raw map[string]any) types.Game {
 		}
 	}
 
+	facility := mapGameFacility(raw)
+	location := firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility", "facilityName")
+	if location == "" {
+		location = gameFacilityName(facility, "")
+	}
+
 	return types.Game{
 		ID:               firstString(raw, "id", "ID", "game_id", "GameID", "UGameID"),
 		DateTime:         dateTime,
 		StartAt:          startAt,
 		EndAt:            endAt,
 		Field:            firstString(raw, "field_name", "FieldName", "field", "Field"),
-		Location:         firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility", "facilityName"),
+		Location:         location,
 		Home:             homeTeam,
 		Away:             awayTeam,
 		Season:           firstString(raw, "season", "Season", "season_id", "SeasonID"),
 		PlayerTeamName:   homeTeam,
 		OpponentTeamName: awayTeam,
 		DivisionName:     firstString(raw, "division_name", "DivisionName"),
-		FacilityID:       firstInt(raw, "FacilityID", "facility_id"),
-		FacilityName:     firstString(raw, "facilityName", "FacilityName", "facility_name"),
-		FacilityAddress:  firstString(raw, "Address", "address"),
-		FacilityCity:     firstString(raw, "City", "city"),
-		FacilityState:    firstString(raw, "State", "state"),
-		FacilityZIP:      firstString(raw, "ZIP", "zip"),
+		Facility:         facility,
 		Result:           firstString(raw, "result", "Result"),
 	}
+}
+
+func mapGameFacility(raw map[string]any) *types.Facility {
+	var nested map[string]any
+	if value, ok := raw["facility"].(map[string]any); ok {
+		nested = value
+	}
+
+	return buildGameFacility(
+		FirstPositiveInt(firstInt(raw, "FacilityID", "facility_id"), firstInt(nested, "id", "ID", "facility_id", "FacilityID")),
+		FirstNonEmptyString(firstString(raw, "facilityName", "FacilityName", "facility_name"), firstString(nested, "name", "Name", "facility_name", "FacilityName")),
+		FirstNonEmptyString(firstString(raw, "Address", "address"), firstString(nested, "address", "Address")),
+		FirstNonEmptyString(firstString(raw, "City", "city"), firstString(nested, "city", "City")),
+		FirstNonEmptyString(firstString(raw, "State", "state"), firstString(nested, "state", "State")),
+		FirstNonEmptyString(firstString(raw, "ZIP", "zip"), firstString(nested, "zip", "ZIP")),
+	)
 }
 
 func firstString(raw map[string]any, keys ...string) string {

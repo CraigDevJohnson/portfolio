@@ -7,49 +7,6 @@
   background-image: url('/static/images/backgrounds/about-hero.jpg');
 }
 
-/* Animated background orbs */
-.about-hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.about-hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.4;
-  animation: orb-float 8s ease-in-out infinite;
-}
-
-.about-hero-orb-1 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgb(234 88 12 / 30%) 0%, transparent 70%);
-  top: -50px;
-  left: 10%;
-  animation-delay: 0s;
-}
-
-.about-hero-orb-2 {
-  width: 250px;
-  height: 250px;
-  background: radial-gradient(circle, rgb(13 148 136 / 25%) 0%, transparent 70%);
-  bottom: -30px;
-  right: 15%;
-  animation-delay: -3s;
-}
-
-.about-hero-orb-3 {
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, rgb(249 115 22 / 20%) 0%, transparent 70%);
-  top: 30%;
-  right: 30%;
-  animation-delay: -5s;
-}
-
 .hero-header h1 {
   font-size: var(--text-5xl);
   font-weight: var(--font-bold);

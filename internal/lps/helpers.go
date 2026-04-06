@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"portfolio/types"
 )
 
 // FullName joins non-empty trimmed name parts with spaces.
@@ -74,4 +76,15 @@ func SortedUniqueIDs(values []int) []int {
 	}
 	sort.Ints(normalized)
 	return normalized
+}
+
+func buildGameFacility(id int, name, address, city, state, zip string) *types.Facility {
+	return types.NewFacilityDetails(id, name, address, city, state, zip)
+}
+
+func gameFacilityName(facility *types.Facility, fallback string) string {
+	if facility != nil && strings.TrimSpace(facility.Name) != "" {
+		return strings.TrimSpace(facility.Name)
+	}
+	return strings.TrimSpace(fallback)
 }

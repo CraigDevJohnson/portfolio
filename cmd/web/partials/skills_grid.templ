@@ -145,7 +145,9 @@ templ SkillsGrid(props SkillsGridProps) {
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									<div class="concept-icon">
-										if skill.Icon != "" {
+										if skill.IconPath != "" {
+											<img src={ skill.IconPath } alt=""/>
+										} else if skill.Icon != "" {
 											@templ.Raw(skill.Icon)
 										}
 									</div>
@@ -163,7 +165,9 @@ templ SkillsGrid(props SkillsGridProps) {
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									<div class="concept-icon">
-										if skill.Icon != "" {
+										if skill.IconPath != "" {
+											<img src={ skill.IconPath } alt=""/>
+										} else if skill.Icon != "" {
 											@templ.Raw(skill.Icon)
 										}
 									</div>

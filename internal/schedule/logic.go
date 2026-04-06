@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"portfolio/types"
 )
 
 const fieldLocationPrefix = "Field "
@@ -14,8 +16,13 @@ func normalizeScheduleGame(game *Game) {
 	if game.DateTime == "" {
 		game.DateTime = FormatGameDateTime(game.StartAt)
 	}
-	if game.Location == "" && game.Field != "" {
-		game.Location = fieldLocationPrefix + game.Field
+	if game.Location == "" {
+		switch {
+		case gameFacilityName(game) != "":
+			game.Location = gameFacilityName(game)
+		case game.Field != "":
+			game.Location = fieldLocationPrefix + game.Field
+		}
 	}
 	if game.Field == "" && game.Location != "" {
 		game.Field = game.Location
@@ -26,8 +33,8 @@ func normalizeScheduleGame(game *Game) {
 	if game.OpponentTeamName == "" {
 		game.OpponentTeamName = game.Away
 	}
-	if game.FacilityName == "" {
-		game.FacilityName = game.Location
+	if gameFacilityName(game) == "" && game.Location != "" {
+		game.Facility = types.MergeFacility(game.Facility, &types.Facility{Name: game.Location})
 	}
 	if game.ID == "" {
 		game.ID = FallbackGameID(game)
@@ -36,63 +43,20 @@ func normalizeScheduleGame(game *Game) {
 
 func MergeGames(base, incoming *Game) Game {
 	merged := *base
-	if merged.ID == "" {
-		merged.ID = incoming.ID
-	}
-	if merged.DateTime == "" {
-		merged.DateTime = incoming.DateTime
-	}
-	if merged.StartAt == "" {
-		merged.StartAt = incoming.StartAt
-	}
-	if merged.EndAt == "" {
-		merged.EndAt = incoming.EndAt
-	}
-	if merged.Field == "" {
-		merged.Field = incoming.Field
-	}
-	if merged.Location == "" {
-		merged.Location = incoming.Location
-	}
-	if merged.Home == "" {
-		merged.Home = incoming.Home
-	}
-	if merged.Away == "" {
-		merged.Away = incoming.Away
-	}
-	if merged.Season == "" {
-		merged.Season = incoming.Season
-	}
-	if merged.PlayerTeamName == "" {
-		merged.PlayerTeamName = incoming.PlayerTeamName
-	}
-	if merged.OpponentTeamName == "" {
-		merged.OpponentTeamName = incoming.OpponentTeamName
-	}
-	if merged.DivisionName == "" {
-		merged.DivisionName = incoming.DivisionName
-	}
-	if merged.FacilityID == 0 {
-		merged.FacilityID = incoming.FacilityID
-	}
-	if merged.FacilityName == "" {
-		merged.FacilityName = incoming.FacilityName
-	}
-	if merged.FacilityAddress == "" {
-		merged.FacilityAddress = incoming.FacilityAddress
-	}
-	if merged.FacilityCity == "" {
-		merged.FacilityCity = incoming.FacilityCity
-	}
-	if merged.FacilityState == "" {
-		merged.FacilityState = incoming.FacilityState
-	}
-	if merged.FacilityZIP == "" {
-		merged.FacilityZIP = incoming.FacilityZIP
-	}
-	if merged.Result == "" {
-		merged.Result = incoming.Result
-	}
+	merged.ID = mergeStringValue(merged.ID, incoming.ID)
+	merged.DateTime = mergeStringValue(merged.DateTime, incoming.DateTime)
+	merged.StartAt = mergeStringValue(merged.StartAt, incoming.StartAt)
+	merged.EndAt = mergeStringValue(merged.EndAt, incoming.EndAt)
+	merged.Field = mergeStringValue(merged.Field, incoming.Field)
+	merged.Location = mergeStringValue(merged.Location, incoming.Location)
+	merged.Home = mergeStringValue(merged.Home, incoming.Home)
+	merged.Away = mergeStringValue(merged.Away, incoming.Away)
+	merged.Season = mergeStringValue(merged.Season, incoming.Season)
+	merged.PlayerTeamName = mergeStringValue(merged.PlayerTeamName, incoming.PlayerTeamName)
+	merged.OpponentTeamName = mergeStringValue(merged.OpponentTeamName, incoming.OpponentTeamName)
+	merged.DivisionName = mergeStringValue(merged.DivisionName, incoming.DivisionName)
+	merged.Facility = types.MergeFacility(merged.Facility, incoming.Facility)
+	merged.Result = mergeStringValue(merged.Result, incoming.Result)
 	normalizeScheduleGame(&merged)
 	return merged
 }
@@ -173,7 +137,7 @@ func compareScheduleGames(left, right *Game) int {
 		{left.PlayerTeamName, right.PlayerTeamName},
 		{left.OpponentTeamName, right.OpponentTeamName},
 		{left.DivisionName, right.DivisionName},
-		{left.FacilityName, right.FacilityName},
+		{facilitySortKey(left.Facility), facilitySortKey(right.Facility)},
 		{left.Result, right.Result},
 		{left.ID, right.ID},
 	} {
@@ -199,4 +163,32 @@ func UpcomingScheduleGames(games []Game) []Game {
 		filtered = append(filtered, games[i])
 	}
 	return filtered
+}
+
+func mergeStringValue(base, incoming string) string {
+	if base != "" {
+		return base
+	}
+	return incoming
+}
+
+func gameFacilityName(game *Game) string {
+	if game == nil || game.Facility == nil {
+		return ""
+	}
+	return strings.TrimSpace(game.Facility.Name)
+}
+
+func facilitySortKey(facility *types.Facility) string {
+	if facility == nil {
+		return ""
+	}
+
+	return strings.Join([]string{
+		strings.TrimSpace(facility.Name),
+		strings.TrimSpace(facility.Address),
+		strings.TrimSpace(facility.City),
+		strings.TrimSpace(facility.State),
+		strings.TrimSpace(facility.ZIP),
+	}, "|")
 }

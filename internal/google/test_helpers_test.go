@@ -84,7 +84,7 @@ func (b *stubSoccerBridge) RenderLoginState(w http.ResponseWriter, _ *http.Reque
 	_, _ = w.Write([]byte("login-state-rendered"))
 }
 
-func (b *stubSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
+func (b *stubSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, _ *http.Request, kind, message string) {
 	b.lastFeedbackKind = kind
 	b.lastFeedbackMessage = message
 	_, _ = w.Write([]byte(message))

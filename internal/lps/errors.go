@@ -64,32 +64,21 @@ type ScheduleErrorDetails struct {
 	FeedbackMessage string
 }
 
-// ScheduleFetchFeedback returns the fragment feedback text for an LPS schedule fetch failure.
-func ScheduleFetchFeedback(err error) (string, string, bool) {
-	if err == nil {
-		return "", "", false
-	}
-
+// ScheduleErrorDetailsFor returns the user-facing schedule error details for a fetch failure.
+func ScheduleErrorDetailsFor(err error) ScheduleErrorDetails {
 	var fetchErr *FetchError
 	if errors.As(err, &fetchErr) {
 		if detail, ok := scheduleErrorDetail(fetchErr); ok {
-			return detail.FeedbackMessage, detail.FeedbackHint, detail.ClearSession
+			return detail
 		}
 	}
 
-	return "Could not load schedules from Let's Play Soccer right now.", "Try again in a moment, or use team IDs manually.", false
-}
-
-// ScheduleDownloadError returns the download HTTP response for an LPS schedule fetch failure.
-func ScheduleDownloadError(err error) (int, string) {
-	var fetchErr *FetchError
-	if errors.As(err, &fetchErr) {
-		if detail, ok := scheduleErrorDetail(fetchErr); ok {
-			return detail.DownloadStatus, detail.DownloadMessage
-		}
+	return ScheduleErrorDetails{
+		DownloadMessage: "could not refresh the authenticated schedule",
+		DownloadStatus:  http.StatusBadGateway,
+		FeedbackHint:    "Try again in a moment, or use team IDs manually.",
+		FeedbackMessage: "Could not load schedules from Let's Play Soccer right now.",
 	}
-
-	return http.StatusBadGateway, "could not refresh the authenticated schedule"
 }
 
 // scheduleErrorDetail maps a classified LPS error to user-facing feedback.

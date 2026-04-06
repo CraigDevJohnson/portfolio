@@ -7,38 +7,6 @@
   background-image: url('/static/images/backgrounds/education-hero.jpg');
 }
 
-.edu-hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.edu-hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.18;
-}
-
-.edu-hero-orb-1 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgb(234 88 12 / 60%), transparent 70%);
-  top: -120px;
-  right: -100px;
-  animation: orb-float 9s ease-in-out infinite;
-}
-
-.edu-hero-orb-2 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgb(13 148 136 / 50%), transparent 70%);
-  bottom: -80px;
-  left: -60px;
-  animation: orb-float 7s ease-in-out infinite reverse;
-}
-
 .education-hero > * {
   position: relative;
   z-index: 2;

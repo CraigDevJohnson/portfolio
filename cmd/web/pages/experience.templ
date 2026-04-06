@@ -9,10 +9,10 @@ templ Experience() {
 	}) {
 		<!-- Hero with animated orbs -->
 		<section class="page-hero experience-hero">
-			<div class="exp-hero-bg" aria-hidden="true">
-				<div class="exp-hero-orb exp-hero-orb-1"></div>
-				<div class="exp-hero-orb exp-hero-orb-2"></div>
-				<div class="exp-hero-orb exp-hero-orb-3"></div>
+			<div class="hero-orb-bg" aria-hidden="true">
+				<div class="hero-orb hero-orb-1"></div>
+				<div class="hero-orb hero-orb-2"></div>
+				<div class="hero-orb hero-orb-3"></div>
 			</div>
 			<div class="hero-header">
 				<div class="hero-badge">
@@ -31,28 +31,28 @@ templ Experience() {
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">🚀</span>
 					</div>
-          <span class="summary-value exp-stat-value" data-target-year="2012">0</span>
+          <span class="summary-value exp-stat-value" data-counter data-target-year="2012">0</span>
 					<span class="summary-label">Years in Tech</span>
 				</div>
 				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">🏢</span>
 					</div>
-					<span class="summary-value exp-stat-value" data-target="4">0</span>
+					<span class="summary-value exp-stat-value" data-counter data-target="4">0</span>
 					<span class="summary-label">Companies</span>
 				</div>
 				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">📋</span>
 					</div>
-					<span class="summary-value exp-stat-value" data-target="7">0</span>
+					<span class="summary-value exp-stat-value" data-counter data-target="7">0</span>
 					<span class="summary-label">Positions Held</span>
 				</div>
 				<div class="card card--compact stagger-enter summary-card">
 					<div class="exp-icon-wrap">
             <span class="exp-icon" aria-hidden="true">☁️</span>
 					</div>
-					<span class="summary-value exp-stat-value" data-target="3">0</span>
+					<span class="summary-value exp-stat-value" data-counter data-target="3">0</span>
 					<span class="summary-label">Cloud Platforms</span>
 				</div>
 			</div>
@@ -252,46 +252,6 @@ templ Experience() {
 			</div>
 		</section>
 		<script>
-  // Animate stat counters on scroll
-  document.addEventListener('DOMContentLoaded', function () {
-    var observer = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            var counters = entry.target.querySelectorAll('.exp-stat-value')
-            counters.forEach(function (counter) {
-              var targetYear = counter.dataset.targetYear
-              var target = counter.dataset.target
-              var finalValue, suffix
-              if (targetYear) {
-                finalValue = new Date().getFullYear() - parseInt(targetYear)
-                suffix = '+'
-              } else {
-                finalValue = parseInt(target) || 0
-                suffix = ''
-              }
-              var duration = 1500
-              var start = performance.now()
-              function update(now) {
-                var elapsed = now - start
-                var progress = Math.min(elapsed / duration, 1)
-                var ease = 1 - Math.pow(1 - progress, 3)
-                counter.textContent = Math.floor(finalValue * ease)
-                if (progress < 1) requestAnimationFrame(update)
-                else counter.textContent = finalValue + suffix
-              }
-              requestAnimationFrame(update)
-            })
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.3 }
-    )
-    var statsSection = document.querySelector('.experience-summary')
-    if (statsSection) observer.observe(statsSection)
-  })
-
   // Filter functionality with collapsible sections and multi-select
   document.addEventListener('DOMContentLoaded', function () {
     const filterPills = document.querySelectorAll('.filter-pill')

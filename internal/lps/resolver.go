@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 
-	"portfolio/internal/config"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
@@ -20,7 +18,7 @@ type ScheduleResolver struct {
 	baseURL       string
 	httpClient    *http.Client
 	jwt           string
-	facilityCache map[int]Facility
+	facilityCache map[int]FacilityResponse
 }
 
 // NewScheduleResolver constructs a resolver with explicit request dependencies.
@@ -29,42 +27,22 @@ func NewScheduleResolver(baseURL string, httpClient *http.Client, jwt string) *S
 		baseURL:       baseURL,
 		httpClient:    httpClient,
 		jwt:           jwt,
-		facilityCache: make(map[int]Facility),
+		facilityCache: make(map[int]FacilityResponse),
 	}
 }
 
-// FetchUserPlayers validates an imported JWT and loads linked players from LPS.
+// FetchUserPlayers loads linked players from LPS using a normalized imported JWT.
 func FetchUserPlayers(ctx context.Context, baseURL string, httpClient *http.Client, jwt string) (UserPlayerDiscovery, error) {
 	var discovery UserPlayerDiscovery
 
-	normalizedJWT, err := NormalizeImportedJWT(jwt)
-	if err != nil {
-		return discovery, NewFetchError(ErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
-	}
-
-	req, err := newAPIRequest(ctx, baseURL, normalizedJWT, "users", "check")
+	req, err := newAPIRequest(ctx, baseURL, jwt, "users", "check")
 	if err != nil {
 		return discovery, err
 	}
 
-	resp, err := doAPIRequest(httpClient, req)
+	responseBody, err := executeAPIRequest(httpClient, req, 0)
 	if err != nil {
-		return discovery, NewFetchError(ErrorUpstream, 0, http.StatusBadGateway, "could not reach Let's Play Soccer while loading players: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
-	if err != nil {
-		return discovery, NewFetchError(ErrorUpstream, 0, http.StatusBadGateway, "could not read the player lookup response: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return discovery, NewFetchError(ErrorUnauthorized, 0, resp.StatusCode, "Let's Play Soccer rejected the imported token with status 401")
-	}
-	if resp.StatusCode == http.StatusForbidden {
-		return discovery, NewFetchError(ErrorForbidden, 0, resp.StatusCode, "Let's Play Soccer denied access to the player lookup with status 403")
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return discovery, NewFetchError(ErrorUpstream, 0, resp.StatusCode, "Let's Play Soccer returned status %d while loading players", resp.StatusCode)
+		return discovery, err
 	}
 
 	discovery, err = DecodeLPSUserPlayers(responseBody)
@@ -79,14 +57,9 @@ func FetchUserPlayers(ctx context.Context, baseURL string, httpClient *http.Clie
 	return discovery, nil
 }
 
-// FetchGamesForPlayers resolves teams for the selected players and merges their schedules.
+// FetchGamesForPlayers resolves teams for the selected players and merges their schedules using a normalized imported JWT.
 func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.Client, jwt string, playerIDs []int) ([]types.Game, error) {
-	normalizedJWT, err := NormalizeImportedJWT(jwt)
-	if err != nil {
-		return nil, NewFetchError(ErrorMalformedToken, 0, http.StatusUnauthorized, "the imported JWT is malformed: %v", err)
-	}
-
-	resolver := NewScheduleResolver(baseURL, httpClient, normalizedJWT)
+	resolver := NewScheduleResolver(baseURL, httpClient, jwt)
 	teamByID := make(map[int]TeamSummary)
 	for _, playerID := range SortedUniqueIDs(playerIDs) {
 		playerTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
@@ -104,39 +77,21 @@ func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.
 	}
 
 	teamIDs := make([]int, 0, len(teamByID))
+	teamLookup := make(map[int]*TeamSummary, len(teamByID))
 	for teamID := range teamByID {
 		teamIDs = append(teamIDs, teamID)
+		team := teamByID[teamID]
+		teamLookup[teamID] = &team
 	}
 	sort.Ints(teamIDs)
 
-	games := make([]types.Game, 0)
-	indexByKey := make(map[string]int)
-	for _, teamID := range teamIDs {
-		team := teamByID[teamID]
-		teamGames, err := resolver.FetchTeamGames(ctx, teamID, &team)
-		if err != nil {
-			return nil, err
-		}
-		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
-	}
-	schedule.SortScheduleGames(games)
-	return games, nil
+	return resolver.mergeTeamSchedules(ctx, teamIDs, teamLookup)
 }
 
 // FetchGamesForTeams loads and merges schedules for the selected team IDs.
 func FetchGamesForTeams(ctx context.Context, baseURL string, httpClient *http.Client, teamIDs []int) ([]types.Game, error) {
 	resolver := NewScheduleResolver(baseURL, httpClient, "")
-	games := make([]types.Game, 0)
-	indexByKey := make(map[string]int)
-	for _, teamID := range SortedUniqueIDs(teamIDs) {
-		teamGames, err := resolver.FetchTeamGames(ctx, teamID, nil)
-		if err != nil {
-			return nil, err
-		}
-		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
-	}
-	schedule.SortScheduleGames(games)
-	return games, nil
+	return resolver.mergeTeamSchedules(ctx, SortedUniqueIDs(teamIDs), nil)
 }
 
 // FetchPlayerTeams loads the teams linked to a player.
@@ -150,27 +105,11 @@ func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID
 		return nil, err
 	}
 
-	resp, err := doAPIRequest(resolver.httpClient, req)
+	responseBody, err := executeAPIRequest(resolver.httpClient, req, playerID,
+		statusErrorKind{codes: []int{http.StatusBadRequest, http.StatusNotFound}, kind: ErrorInvalidPlayer},
+	)
 	if err != nil {
-		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading player teams: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
-	if err != nil {
-		return nil, NewFetchError(ErrorUpstream, playerID, http.StatusBadGateway, "could not read the player teams response: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, NewFetchError(ErrorUnauthorized, playerID, resp.StatusCode, "Let's Play Soccer rejected the imported token for player %d with status 401", playerID)
-	}
-	if resp.StatusCode == http.StatusForbidden {
-		return nil, NewFetchError(ErrorForbidden, playerID, resp.StatusCode, "Let's Play Soccer denied access to player %d with status 403", playerID)
-	}
-	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
-		return nil, NewFetchError(ErrorInvalidPlayer, playerID, resp.StatusCode, "Let's Play Soccer could not find teams for player %d", playerID)
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, NewFetchError(ErrorUpstream, playerID, resp.StatusCode, "Let's Play Soccer returned status %d while loading player teams", resp.StatusCode)
+		return nil, err
 	}
 
 	var teams []TeamSummary
@@ -219,21 +158,11 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 		return teamSchedule, err
 	}
 
-	resp, err := doAPIRequest(resolver.httpClient, req)
+	responseBody, err := executeAPIRequest(resolver.httpClient, req, teamID,
+		statusErrorKind{codes: []int{http.StatusBadRequest, http.StatusNotFound}, kind: ErrorInvalidTeam},
+	)
 	if err != nil {
-		return teamSchedule, NewFetchError(ErrorUpstream, teamID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading team schedules: %w", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
-	if err != nil {
-		return teamSchedule, NewFetchError(ErrorUpstream, teamID, http.StatusBadGateway, "could not read the team schedule response: %w", err)
-	}
-	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
-		return teamSchedule, NewFetchError(ErrorInvalidTeam, teamID, resp.StatusCode, "Let's Play Soccer could not find team %d", teamID)
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return teamSchedule, NewFetchError(ErrorUpstream, teamID, resp.StatusCode, "Let's Play Soccer returned status %d while loading team schedules", resp.StatusCode)
+		return teamSchedule, err
 	}
 
 	if err := json.Unmarshal(responseBody, &teamSchedule); err != nil {
@@ -262,6 +191,14 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	if strings.TrimSpace(facility.FacilityName) != "" {
 		facilityName = strings.TrimSpace(facility.FacilityName)
 	}
+	gameFacility := buildGameFacility(
+		facilityID,
+		facilityName,
+		facility.Address,
+		facility.City,
+		facility.State,
+		facility.ZIP,
+	)
 
 	fieldName := strings.TrimSpace(rawGame.FieldName)
 	if fieldName == "" && rawGame.Field > 0 {
@@ -294,12 +231,7 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
 		DivisionName:     divisionName,
-		FacilityID:       facilityID,
-		FacilityName:     strings.TrimSpace(facilityName),
-		FacilityAddress:  strings.TrimSpace(facility.Address),
-		FacilityCity:     strings.TrimSpace(facility.City),
-		FacilityState:    strings.TrimSpace(facility.State),
-		FacilityZIP:      strings.TrimSpace(facility.ZIP),
+		Facility:         gameFacility,
 		Result:           strings.TrimSpace(rawGame.Result),
 	}
 
@@ -307,9 +239,9 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 }
 
 // FetchFacility loads a facility and caches it for the lifetime of the resolver.
-func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID int) (Facility, error) {
+func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID int) (FacilityResponse, error) {
 	if facilityID <= 0 {
-		return Facility{}, nil
+		return FacilityResponse{}, nil
 	}
 	if facility, ok := resolver.facilityCache[facilityID]; ok {
 		return facility, nil
@@ -317,32 +249,40 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 
 	req, err := newAPIRequest(ctx, resolver.baseURL, "", "facilities", strconv.Itoa(facilityID))
 	if err != nil {
-		return Facility{}, err
+		return FacilityResponse{}, err
 	}
 
-	resp, err := doAPIRequest(resolver.httpClient, req)
+	responseBody, err := executeAPIRequest(resolver.httpClient, req, facilityID,
+		statusErrorKind{codes: []int{http.StatusBadRequest, http.StatusNotFound}, kind: ErrorUpstream},
+	)
 	if err != nil {
-		return Facility{}, NewFetchError(ErrorUpstream, facilityID, http.StatusBadGateway, "could not reach Let's Play Soccer while loading facility %d: %w", facilityID, err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, config.MaxLPSResponseBodySize))
-	if err != nil {
-		return Facility{}, NewFetchError(ErrorUpstream, facilityID, http.StatusBadGateway, "could not read the facility response for facility %d: %w", facilityID, err)
-	}
-	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusNotFound {
-		return Facility{}, NewFetchError(ErrorUpstream, facilityID, resp.StatusCode, "Let's Play Soccer could not find facility %d", facilityID)
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return Facility{}, NewFetchError(ErrorUpstream, facilityID, resp.StatusCode, "Let's Play Soccer returned status %d while loading facility %d", resp.StatusCode, facilityID)
+		return FacilityResponse{}, err
 	}
 
-	var facility Facility
+	var facility FacilityResponse
 	if err := json.Unmarshal(responseBody, &facility); err != nil {
-		return Facility{}, NewFetchError(ErrorUpstream, facilityID, http.StatusBadGateway, "The facility response format was not recognized.")
+		return FacilityResponse{}, NewFetchError(ErrorUpstream, facilityID, http.StatusBadGateway, "The facility response format was not recognized.")
 	}
 	resolver.facilityCache[facilityID] = facility
 	return facility, nil
+}
+
+func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamIDs []int, teamLookup map[int]*TeamSummary) ([]types.Game, error) {
+	games := make([]types.Game, 0)
+	indexByKey := make(map[string]int)
+	for _, teamID := range teamIDs {
+		var selectedTeam *TeamSummary
+		if teamLookup != nil {
+			selectedTeam = teamLookup[teamID]
+		}
+		teamGames, err := resolver.FetchTeamGames(ctx, teamID, selectedTeam)
+		if err != nil {
+			return nil, err
+		}
+		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
+	}
+	schedule.SortScheduleGames(games)
+	return games, nil
 }
 
 func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (string, string, string) {

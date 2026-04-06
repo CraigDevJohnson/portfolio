@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"portfolio/internal/config"
 )
 
 type FormattedGameEvent struct {
@@ -23,7 +25,7 @@ func BuildICS(games []Game) string {
 	WriteICSLine(&builder, "BEGIN:VCALENDAR")
 	WriteICSLine(&builder, "VERSION:2.0")
 	WriteICSLine(&builder, "PRODID:-//Craig Johnson Portfolio//Soccer Schedule//EN")
-	WriteICSLine(&builder, "X-WR-TIMEZONE:"+MountainTimeZoneID)
+	WriteICSLine(&builder, "X-WR-TIMEZONE:"+config.MountainTimeZoneID)
 	for i := range games {
 		game := &games[i]
 		formatted, ok := CanonicalGameEvent(game)
@@ -34,8 +36,8 @@ func BuildICS(games []Game) string {
 		WriteICSLine(&builder, "BEGIN:VEVENT")
 		WriteICSLine(&builder, "UID:"+EscapeICSText(formatted.ID))
 		WriteICSLine(&builder, "DTSTAMP:"+time.Now().UTC().Format("20060102T150405Z"))
-		WriteICSLine(&builder, "DTSTART;TZID="+MountainTimeZoneID+":"+formatted.Start.Format("20060102T150405"))
-		WriteICSLine(&builder, "DTEND;TZID="+MountainTimeZoneID+":"+formatted.End.Format("20060102T150405"))
+		WriteICSLine(&builder, "DTSTART;TZID="+config.MountainTimeZoneID+":"+formatted.Start.Format("20060102T150405"))
+		WriteICSLine(&builder, "DTEND;TZID="+config.MountainTimeZoneID+":"+formatted.End.Format("20060102T150405"))
 		WriteICSLine(&builder, "SUMMARY:"+EscapeICSText(formatted.Summary))
 		WriteICSLine(&builder, "DESCRIPTION:"+EscapeICSText(formatted.Description))
 		WriteICSLine(&builder, "LOCATION:"+EscapeICSText(formatted.Location))
@@ -83,7 +85,7 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 			playerTeam,
 			opponentTeam,
 			strings.TrimSpace(game.DivisionName),
-			strings.TrimSpace(game.FacilityName),
+			gameFacilityName(game),
 			fieldName,
 			strings.TrimSpace(game.Result),
 		),
@@ -97,11 +99,15 @@ func CanonicalGameEvent(game *Game) (FormattedGameEvent, bool) {
 }
 
 func canonicalGameLocation(game *Game) string {
+	if game == nil || game.Facility == nil {
+		return ""
+	}
+
 	parts := []string{
-		strings.TrimSpace(game.FacilityAddress),
-		strings.TrimSpace(game.FacilityCity),
-		strings.TrimSpace(game.FacilityState),
-		strings.TrimSpace(game.FacilityZIP),
+		strings.TrimSpace(game.Facility.Address),
+		strings.TrimSpace(game.Facility.City),
+		strings.TrimSpace(game.Facility.State),
+		strings.TrimSpace(game.Facility.ZIP),
 	}
 
 	locationParts := make([]string, 0, len(parts))

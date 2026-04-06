@@ -45,14 +45,15 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	futureFour := testutil.MislabelledLPSZuluTime(time.Now().Add(96 * time.Hour))
 	futureFive := testutil.MislabelledLPSZuluTime(time.Now().Add(120 * time.Hour))
 	futureSix := testutil.MislabelledLPSZuluTime(time.Now().Add(144 * time.Hour))
+	boiseFacility := &types.Facility{Name: "Boise", Address: "123 Main St", City: "Boise", State: "ID", ZIP: "83702"}
 
 	bridge.games = []types.Game{
-		{ID: "7001", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "GALACTICOS FC", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 3", Result: "", StartAt: futureOne},
-		{ID: "7002", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "CLASSIC XI", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 1", Result: "1 - 0", StartAt: futureTwo},
-		{ID: "7003", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "RED STARS", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 2", Result: "", StartAt: futureThree},
-		{ID: "7004", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "NIGHT OWLS", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 4", Result: "canceled", StartAt: futureFour},
-		{ID: "7005", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "OLD GUARD", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 5", Result: "", StartAt: futureFive},
-		{ID: "7006", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "RESERVES", DivisionName: "Coed F Fri", FacilityName: "Boise", FacilityAddress: "123 Main St", FacilityCity: "Boise", FacilityState: "ID", FacilityZIP: "83702", Field: "Field 6", Result: "", StartAt: futureSix},
+		{ID: "7001", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "GALACTICOS FC", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 3", Result: "", StartAt: futureOne},
+		{ID: "7002", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "CLASSIC XI", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 1", Result: "1 - 0", StartAt: futureTwo},
+		{ID: "7003", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "RED STARS", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 2", Result: "", StartAt: futureThree},
+		{ID: "7004", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "NIGHT OWLS", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 4", Result: "canceled", StartAt: futureFour},
+		{ID: "7005", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "OLD GUARD", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 5", Result: "", StartAt: futureFive},
+		{ID: "7006", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "RESERVES", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 6", Result: "", StartAt: futureSix},
 	}
 
 	insertedIDs := make([]string, 0, 2)

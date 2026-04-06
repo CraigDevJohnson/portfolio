@@ -3,9 +3,6 @@ package soccer
 import (
 	"context"
 	"errors"
-	"fmt"
-	"html"
-	"io"
 	"net/http"
 	"strings"
 
@@ -32,18 +29,17 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := h.LoginStateProps(w, r, session, false)
-	if err := partials.SoccerLoginState(props).Render(context.Background(), w); err != nil {
+	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func RenderLoginFeedback(w http.ResponseWriter, kind, message string) {
+func RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	role := "status"
-	if kind == "error" {
-		role = "alert"
+	props := partials.SoccerLoginFeedbackProps{Kind: kind, Message: message}
+	if err := partials.SoccerLoginFeedback(props).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	_, _ = io.WriteString(w, fmt.Sprintf(`<div class="soccer-login-message soccer-login-message-%s" role="%s">%s</div>`, kind, role, html.EscapeString(message)))
 }
 
 func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
@@ -63,16 +59,11 @@ func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.Ses
 }
 
 func googleAddScheduleErrorMessage(err error) string {
-	switch {
-	case errors.Is(err, ErrPlayerSessionRequired):
-		return "Import a bearer JWT again before adding schedules for discovered players to Google Calendar."
-	case errors.Is(err, ErrInvalidTeamSelection):
-		return "Enter one or more numeric Let's Play Soccer team IDs separated by commas."
-	case errors.Is(err, ErrScheduleSelection):
-		return "Enter team IDs or choose at least one discovered player."
-	default:
-		return err.Error()
+	message, _, ok := scheduleSelectionFeedback(err)
+	if ok {
+		return message
 	}
+	return err.Error()
 }
 
 func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
@@ -101,21 +92,29 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 }
 
 func applyScheduleSelectionError(props *partials.SoccerTableFragmentProps, err error) bool {
-	switch {
-	case errors.Is(err, ErrPlayerSessionRequired):
-		props.Message = "Import a bearer JWT again to fetch schedules for your discovered players."
-		props.Hint = "Your previous session is no longer available."
-	case errors.Is(err, ErrInvalidTeamSelection):
-		props.Message = "One or more team IDs were invalid."
-		props.Hint = "Enter numeric Let's Play Soccer team IDs separated by commas."
-	case errors.Is(err, ErrScheduleSelection):
-		props.Message = "Enter team IDs or choose at least one discovered player."
-		props.Hint = "Manual team ID entry still works if you do not want to import a token."
-	default:
+	message, hint, ok := scheduleSelectionFeedback(err)
+	if !ok {
 		return false
 	}
-
+	props.Message = message
+	props.Hint = hint
 	return true
+}
+
+func scheduleSelectionFeedback(err error) (message, hint string, ok bool) {
+	switch {
+	case errors.Is(err, ErrPlayerSessionRequired):
+		return "Import a bearer JWT again to fetch schedules for your discovered players.",
+			"Your previous session is no longer available.", true
+	case errors.Is(err, ErrInvalidTeamSelection):
+		return "One or more team IDs were invalid.",
+			"Enter numeric Let's Play Soccer team IDs separated by commas.", true
+	case errors.Is(err, ErrScheduleSelection):
+		return "Enter team IDs or choose at least one discovered player.",
+			"Manual team ID entry still works if you do not want to import a token.", true
+	default:
+		return "", "", false
+	}
 }
 
 func selectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {

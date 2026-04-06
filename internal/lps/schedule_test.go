@@ -126,10 +126,13 @@ func TestLPSFetchGamesForPlayersResolvesPlayerTeamsAndFacilityDetails(t *testing
 	if game.DivisionName != "Coed Over 30 B Sun" {
 		t.Fatalf("unexpected division name: %q", game.DivisionName)
 	}
-	if game.FacilityName != "Boise Indoor Soccer" {
-		t.Fatalf("unexpected facility name: %q", game.FacilityName)
+	if game.Facility == nil {
+		t.Fatal("expected facility details to be present")
 	}
-	if game.FacilityAddress != "11448 W. President Drive" || game.FacilityCity != "Boise" || game.FacilityState != "ID" || game.FacilityZIP != "83713" {
+	if game.Facility.Name != "Boise Indoor Soccer" {
+		t.Fatalf("unexpected facility name: %q", game.Facility.Name)
+	}
+	if game.Facility.Address != "11448 W. President Drive" || game.Facility.City != "Boise" || game.Facility.State != "ID" || game.Facility.ZIP != "83713" {
 		t.Fatalf("unexpected facility details: %#v", game)
 	}
 	if game.Result != "7 - 3" {
@@ -237,25 +240,36 @@ func TestLPSFetchGamesForTeamsCachesFacilityLookupsPerRequest(t *testing.T) {
 	if got := lookupCounts["/facilities/4"]; got != 1 {
 		t.Fatalf("expected one cached facility lookup, got %d", got)
 	}
-	if games[0].FacilityAddress != "11448 W. President Drive" {
-		t.Fatalf("unexpected facility address: %q", games[0].FacilityAddress)
+	if games[0].Facility == nil {
+		t.Fatal("expected facility details to be present")
+	}
+	if games[0].Facility.Address != "11448 W. President Drive" {
+		t.Fatalf("unexpected facility address: %q", games[0].Facility.Address)
 	}
 	if games[0].PlayerTeamName != "UNITED NATIONS" || games[0].OpponentTeamName != "GALACTICOS FC" {
 		t.Fatalf("unexpected team matchup: %#v", games[0])
 	}
 }
 
-func TestLPSFetchGamesForPlayersRejectsMalformedTokenBeforeRequest(t *testing.T) {
+func TestLPSFetchGamesForPlayersUsesProvidedJWTWithoutRenormalizing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer not-a-jwt" {
+			t.Fatalf("unexpected authorization header: %q", got)
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, err := FetchGamesForPlayers(t.Context(), "http://localhost:0", client, "not-a-jwt", []int{1001})
+	_, err := FetchGamesForPlayers(t.Context(), server.URL, client, "not-a-jwt", []int{1001})
 	if err == nil {
-		t.Fatal("expected malformed token error")
+		t.Fatal("expected upstream authorization error")
 	}
 	var fetchErr *FetchError
 	if !errors.As(err, &fetchErr) {
 		t.Fatalf("expected FetchError, got %T", err)
 	}
-	if fetchErr.Kind != ErrorMalformedToken {
+	if fetchErr.Kind != ErrorUnauthorized {
 		t.Fatalf("unexpected error kind: %s", fetchErr.Kind)
 	}
 }

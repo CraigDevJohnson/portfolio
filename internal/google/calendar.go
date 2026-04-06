@@ -85,17 +85,13 @@ const (
 
 // AddHandler adds selected games to Google Calendar.
 func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if !h.Config.GoogleEnabled() {
-		h.Soccer.RenderLoginFeedback(w, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
-		h.Soccer.RenderLoginFeedback(w, "error", "Could not read the selected games. Try again.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not read the selected games. Try again.")
 		return
 	}
 	record, err := h.LoadConnectionRecord(r.Context(), r)
@@ -103,12 +99,12 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("google connection read failed: %v", err)
 		}
-		h.Soccer.RenderLoginFeedback(w, "error", "Connect Google Calendar before adding selected games.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Connect Google Calendar before adding selected games.")
 		return
 	}
 	session, filteredGames, message, ok := h.Soccer.ResolveGoogleAddSelection(w, r)
 	if !ok {
-		h.Soccer.RenderLoginFeedback(w, "error", message)
+		h.Soccer.RenderLoginFeedback(w, r, "error", message)
 		return
 	}
 	token, err := h.CurrentToken(r.Context(), r, record)
@@ -120,7 +116,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, filteredGames)
 	if err != nil {
 		log.Printf("google event insert failed: %v", err)
-		h.Soccer.RenderLoginFeedback(w, "error", "Could not add the selected games to Google Calendar. Try again.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not add the selected games to Google Calendar. Try again.")
 		return
 	}
 	if authRejected {
@@ -134,15 +130,11 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	if skipped > 0 {
 		successMessage += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", skipped)
 	}
-	h.Soccer.RenderLoginFeedback(w, "success", successMessage)
+	h.Soccer.RenderLoginFeedback(w, r, "success", successMessage)
 }
 
 // CalendarHandler handles calendar selection changes.
 func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	session, _ := h.Soccer.LoadSession(w, r)
 	if !h.Config.GoogleEnabled() {
 		h.Soccer.RenderLoginState(w, r, session)

@@ -409,6 +409,12 @@
   height: 32px;
 }
 
+.concept-icon img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
 .concept-info {
   display: flex;
   flex-direction: column;

@@ -7,37 +7,7 @@
   background-image: url('/static/images/backgrounds/contact-hero.jpg');
 }
 
-.contact-hero-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.contact-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.18;
-}
-
-.contact-orb-1 {
-  width: 450px;
-  height: 450px;
-  background: radial-gradient(circle, rgb(234 88 12 / 60%), transparent 70%);
-  top: -100px;
-  left: -80px;
-  animation: orb-float 8s ease-in-out infinite;
-}
-
-.contact-orb-2 {
-  width: 380px;
-  height: 380px;
-  background: radial-gradient(circle, rgb(13 148 136 / 50%), transparent 70%);
-  bottom: -60px;
-  right: -60px;
-  animation: orb-float 7s ease-in-out infinite reverse;
-}
+/* Contact Methods Section */
 
 .contact-hero > * {
   position: relative;

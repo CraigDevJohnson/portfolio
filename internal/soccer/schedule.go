@@ -15,10 +15,6 @@ import (
 )
 
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -42,21 +38,17 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if swapAuthState {
-		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(context.Background(), w); err != nil {
+		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-	if err := partials.SoccerTableFragment(props).Render(context.Background(), w); err != nil {
+	if err := partials.SoccerTableFragment(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (h *Handler) SubscribeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := io.WriteString(w, `<div class="subscribe-success">✅ Subscribed! Check your email to confirm.</div>`); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -64,10 +56,6 @@ func (h *Handler) SubscribeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -148,31 +136,36 @@ func (h *Handler) resolveScheduleGames(ctx context.Context, session *types.Sessi
 }
 
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
-	message, hint, clearSession := lps.ScheduleFetchFeedback(fetchErr)
+	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
-		message = "Your imported Let's Play Soccer token expired."
-		hint = "Copy a fresh bearer JWT from letsplaysoccer.com and import it again."
-		clearSession = true
+		detail = lps.ScheduleErrorDetails{
+			ClearSession:    true,
+			FeedbackMessage: "Your imported Let's Play Soccer token expired.",
+			FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
+		}
 	}
-	if fetchErr != nil && !clearSession {
+	if fetchErr != nil && !detail.ClearSession {
 		log.Printf("soccer LPS fetch failed: %v", fetchErr)
 	}
-	props.Message = message
-	props.Hint = hint
-	return clearSession
+	props.Message = detail.FeedbackMessage
+	props.Hint = detail.FeedbackHint
+	return detail.ClearSession
 }
 
 func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Request, err error) {
-	_, _, shouldClearSession := lps.ScheduleFetchFeedback(err)
+	detail := lps.ScheduleErrorDetailsFor(err)
 	if errors.Is(err, ErrSessionExpired) {
-		shouldClearSession = true
+		detail = lps.ScheduleErrorDetails{
+			ClearSession:    true,
+			DownloadMessage: "your imported Let's Play Soccer token expired; import a fresh bearer JWT from letsplaysoccer.com and try again",
+			DownloadStatus:  http.StatusUnauthorized,
+		}
 	}
-	if shouldClearSession {
+	if detail.DownloadStatus == http.StatusUnauthorized || detail.DownloadStatus == http.StatusBadRequest {
+		detail.ClearSession = true
+	}
+	if detail.ClearSession {
 		h.clearSession(w, r)
 	}
-	status, message := lps.ScheduleDownloadError(err)
-	if status == http.StatusUnauthorized || status == http.StatusBadRequest {
-		h.clearSession(w, r)
-	}
-	http.Error(w, message, status)
+	http.Error(w, detail.DownloadMessage, detail.DownloadStatus)
 }
