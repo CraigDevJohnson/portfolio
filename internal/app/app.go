@@ -23,7 +23,7 @@ func New(cfg *config.Config) *App {
 	app := &App{
 		Config:       *cfg,
 		LPSClient:    &http.Client{Timeout: 15 * time.Second},
-		LoginLimiter: newLoginRateLimiter(5, time.Minute),
+		LoginLimiter: session.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys),
 	}
 	// GoogleHandler is constructed with a nil SoccerBridge initially;
 	// it gets wired in Run() after the soccer handler is created.

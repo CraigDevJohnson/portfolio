@@ -20,8 +20,7 @@ import (
 
 const serverShutdownTimeout = 10 * time.Second
 
-// Run loads configuration, constructs the App, registers routes, and starts the server.
-func Run() {
+func registerMIMETypes() {
 	mimeTypes := map[string]string{
 		".css":  "text/css",
 		".js":   "application/javascript",
@@ -36,6 +35,11 @@ func Run() {
 			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
 		}
 	}
+}
+
+// Run loads configuration, constructs the App, registers routes, and starts the server.
+func Run() {
+	registerMIMETypes()
 
 	cfg := config.Load()
 	app := New(&cfg)

@@ -1,19 +1,8 @@
 package portfolio
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-	"strconv"
-	"strings"
-
 	"portfolio/types"
 )
-
-func GravatarURL(email string, size int) string {
-	email = strings.TrimSpace(strings.ToLower(email))
-	hash := md5.Sum([]byte(email))
-	return "https://www.gravatar.com/avatar/" + hex.EncodeToString(hash[:]) + "?s=" + strconv.Itoa(size)
-}
 
 func ExperienceData() []types.Experience {
 	return []types.Experience{

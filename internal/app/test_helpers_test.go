@@ -20,7 +20,7 @@ func newTestApp(t *testing.T) *App {
 			LPSAPIBaseURL: config.DefaultLPSAPIBaseURL,
 		},
 		LPSClient:    &http.Client{Timeout: 5 * time.Second},
-		LoginLimiter: newLoginRateLimiter(5, time.Minute),
+		LoginLimiter: internalsession.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys),
 	}
 	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
 	app.GoogleHandler.Soccer = newGoogleSoccerBridge(newTestSoccerHandler(app))

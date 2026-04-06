@@ -3,19 +3,12 @@ package app
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"portfolio/cmd/web/partials"
-	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
-	internalsession "portfolio/internal/session"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
-
-func newLoginRateLimiter(maxAttempts int, window time.Duration) *internalsession.LoginRateLimiter {
-	return internalsession.NewLoginRateLimiter(maxAttempts, window, config.RateLimiterMaxKeys)
-}
 
 // soccerGoogleHooks implements soccer.GoogleHooks by delegating to google.Handler.
 type soccerGoogleHooks struct {

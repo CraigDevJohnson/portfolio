@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	internalsession "portfolio/internal/session"
 	"portfolio/types"
 )
 
@@ -31,7 +32,7 @@ func TestEncryptDecryptSessionRoundTrip(t *testing.T) {
 }
 
 func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
-	limiter := newLoginRateLimiter(100, time.Hour)
+	limiter := internalsession.NewLoginRateLimiter(100, time.Hour, config.RateLimiterMaxKeys)
 	defer limiter.Close()
 
 	// Fill up to the max key limit
@@ -54,7 +55,7 @@ func TestRateLimiterRejectsAtMaxKeys(t *testing.T) {
 }
 
 func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
-	limiter := newLoginRateLimiter(100, 50*time.Millisecond)
+	limiter := internalsession.NewLoginRateLimiter(100, 50*time.Millisecond, config.RateLimiterMaxKeys)
 	defer limiter.Close()
 
 	// Fill to capacity
@@ -72,7 +73,7 @@ func TestRateLimiterExpiredKeysEvictedAtCapacity(t *testing.T) {
 }
 
 func TestRateLimiterCloseIsIdempotent(t *testing.T) {
-	limiter := newLoginRateLimiter(5, time.Minute)
+	limiter := internalsession.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys)
 	limiter.Close()
 	limiter.Close() // must not panic
 }

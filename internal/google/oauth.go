@@ -27,6 +27,8 @@ const (
 	CalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 )
 
+var ErrOAuthStateExpired = errors.New("oauth state expired")
+
 // SoccerBridge exposes soccer-domain operations that Google handlers need.
 type SoccerBridge interface {
 	LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool)

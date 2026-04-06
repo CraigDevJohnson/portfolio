@@ -1,8 +1,11 @@
 package portfolio
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -11,6 +14,12 @@ import (
 	"portfolio/cmd/web/partials"
 	"portfolio/types"
 )
+
+func gravatarURL(email string, size int) string {
+	email = strings.TrimSpace(strings.ToLower(email))
+	hash := md5.Sum([]byte(email))
+	return "https://www.gravatar.com/avatar/" + hex.EncodeToString(hash[:]) + "?s=" + strconv.Itoa(size)
+}
 
 func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Component) {
 	if err := component.Render(r.Context(), w); err != nil {
@@ -26,7 +35,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	renderComponent(w, r, pages.Home(pages.HomeProps{
 		Name:               "Craig Johnson",
 		Role:               "Cloud Engineer Principal",
-		AvatarURL:          GravatarURL("gravatar@craigdevjohnson.com", 275),
+		AvatarURL:          gravatarURL("gravatar@craigdevjohnson.com", 275),
 		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
 		YearsInTech:        time.Now().Year() - careerStartYear,
 		Certifications:     10,
