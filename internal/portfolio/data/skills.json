@@ -1,0 +1,699 @@
+[
+  {
+    "name": "Languages \u0026 Scripting",
+    "skills": [
+      {
+        "id": 5,
+        "name": "Bash",
+        "icon_path": "/static/images/skills/bash.svg",
+        "link": "https://www.gnu.org/software/bash/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Unix shell and command language for task automation and system administration"
+      },
+      {
+        "id": 2,
+        "name": "Go",
+        "icon_path": "/static/images/skills/go.svg",
+        "link": "https://go.dev/",
+        "proficiency": "advanced",
+        "featured": true,
+        "description": "Statically typed language for building scalable cloud services and CLI tools"
+      },
+      {
+        "id": 3,
+        "name": "JavaScript",
+        "icon_path": "/static/images/skills/javascript.svg",
+        "link": "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 10,
+        "name": "JSON",
+        "icon_path": "/static/images/skills/json.svg",
+        "link": "https://www.json.org/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 11,
+        "name": "Markdown",
+        "icon_path": "/static/images/skills/markdown.svg",
+        "link": "https://www.markdownguide.org/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 6,
+        "name": "PowerShell",
+        "icon_path": "/static/images/skills/powershell.svg",
+        "link": "https://learn.microsoft.com/en-us/powershell/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Cross-platform framework for configuration management and task automation"
+      },
+      {
+        "id": 1,
+        "name": "Python",
+        "icon_path": "/static/images/skills/python.svg",
+        "link": "https://www.python.org/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Versatile language for automation, scripting, and cloud infrastructure tooling"
+      },
+      {
+        "id": 4,
+        "name": "TypeScript",
+        "icon_path": "/static/images/skills/typescript.svg",
+        "link": "https://www.typescriptlang.org/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 9,
+        "name": "YAML",
+        "icon_path": "/static/images/skills/yaml.svg",
+        "link": "https://yaml.org/",
+        "proficiency": "expert"
+      }
+    ]
+  },
+  {
+    "name": "Cloud Platforms",
+    "skills": [
+      {
+        "id": 12,
+        "name": "AWS",
+        "icon_path": "/static/images/skills/aws.svg",
+        "link": "https://aws.amazon.com/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Primary cloud platform for compute, storage, networking, and serverless solutions"
+      },
+      {
+        "id": 13,
+        "name": "Azure",
+        "icon_path": "/static/images/skills/azure.svg",
+        "link": "https://azure.microsoft.com/",
+        "proficiency": "advanced",
+        "featured": true,
+        "description": "Microsoft cloud platform for hybrid identity, VMs, and enterprise services"
+      },
+      {
+        "id": 15,
+        "name": "Cloudflare",
+        "icon_path": "/static/images/skills/cloudflare.svg",
+        "link": "https://www.cloudflare.com/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 17,
+        "name": "vSphere",
+        "icon_path": "/static/images/skills/vsphere.svg",
+        "link": "https://www.vmware.com/products/vsphere.html",
+        "proficiency": "advanced"
+      }
+    ]
+  },
+  {
+    "name": "Security \u0026 Identity",
+    "skills": [
+      {
+        "id": 121,
+        "name": "Cognito",
+        "icon_path": "/static/images/skills/aws_cognito.svg",
+        "link": "https://aws.amazon.com/cognito/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 120,
+        "name": "IAM",
+        "icon_path": "/static/images/skills/aws_iam.svg",
+        "link": "https://aws.amazon.com/iam/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Identity and access management for implementing least-privilege security"
+      },
+      {
+        "id": 30,
+        "name": "Vault",
+        "icon_path": "/static/images/skills/hashicorp_vault.svg",
+        "link": "https://www.vaultproject.io/",
+        "proficiency": "advanced"
+      }
+    ]
+  },
+  {
+    "name": "Containers \u0026 Orchestration",
+    "skills": [
+      {
+        "id": 18,
+        "name": "Docker",
+        "icon_path": "/static/images/skills/docker.svg",
+        "link": "https://www.docker.com/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Container platform for building, shipping, and running applications consistently"
+      },
+      {
+        "id": 19,
+        "name": "Kubernetes",
+        "icon_path": "/static/images/skills/kubernetes.svg",
+        "link": "https://kubernetes.io/",
+        "proficiency": "advanced",
+        "featured": true,
+        "description": "Container orchestration for deploying and scaling containerized workloads"
+      },
+      {
+        "id": 20,
+        "name": "Podman",
+        "icon_path": "/static/images/skills/podman.svg",
+        "link": "https://podman.io/",
+        "proficiency": "advanced",
+        "featured": true,
+        "description": "Daemonless container engine for running OCI containers and pods"
+      },
+      {
+        "id": 101,
+        "name": "Rancher",
+        "icon_path": "/static/images/skills/rancher.svg",
+        "link": "https://www.rancher.com/",
+        "proficiency": "intermediate"
+      }
+    ]
+  },
+  {
+    "name": "CI/CD \u0026 Automation",
+    "skills": [
+      {
+        "id": 27,
+        "name": "Ansible",
+        "icon_path": "/static/images/skills/ansible.svg",
+        "link": "https://www.ansible.com/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Agentless automation for configuration management and application deployment"
+      },
+      {
+        "id": 125,
+        "name": "CodeBuild",
+        "icon_path": "/static/images/skills/aws_codebuild.svg",
+        "link": "https://aws.amazon.com/codebuild/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 126,
+        "name": "CodeDeploy",
+        "icon_path": "/static/images/skills/aws_codedeploy.svg",
+        "link": "https://aws.amazon.com/codedeploy/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 127,
+        "name": "CodePipeline",
+        "icon_path": "/static/images/skills/aws_codepipeline.svg",
+        "link": "https://aws.amazon.com/codepipeline/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 22,
+        "name": "GitHub Actions",
+        "icon_path": "/static/images/skills/github_actions.svg",
+        "link": "https://github.com/features/actions",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "CI/CD platform for automating build, test, and deployment workflows"
+      },
+      {
+        "id": 24,
+        "name": "Jenkins",
+        "icon_path": "/static/images/skills/jenkins.svg",
+        "link": "https://www.jenkins.io/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 28,
+        "name": "Packer",
+        "icon_path": "/static/images/skills/packer.svg",
+        "link": "https://www.packer.io/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 103,
+        "name": "Puppet",
+        "icon_path": "/static/images/skills/puppet.svg",
+        "link": "https://www.puppet.com/",
+        "proficiency": "intermediate"
+      }
+    ]
+  },
+  {
+    "name": "Infrastructure as Code",
+    "skills": [
+      {
+        "id": 107,
+        "name": "CloudFormation",
+        "icon_path": "/static/images/skills/cloudformation.svg",
+        "link": "https://aws.amazon.com/cloudformation/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "AWS-native infrastructure as code for provisioning cloud resources"
+      },
+      {
+        "id": 104,
+        "name": "OpenTofu",
+        "icon_path": "/static/images/skills/opentofu.svg",
+        "link": "https://opentofu.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 29,
+        "name": "Terraform",
+        "icon_path": "/static/images/skills/hashicorp_terraform.svg",
+        "link": "https://www.terraform.io/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Multi-cloud infrastructure as code for declarative resource provisioning"
+      },
+      {
+        "id": 105,
+        "name": "Terragrunt",
+        "icon_path": "/static/images/skills/terragrunt.svg",
+        "link": "https://terragrunt.gruntwork.io/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 106,
+        "name": "Terramate",
+        "icon_path": "/static/images/skills/terramate.svg",
+        "link": "https://terramate.io/",
+        "proficiency": "intermediate"
+      }
+    ]
+  },
+  {
+    "name": "Databases",
+    "skills": [
+      {
+        "id": 36,
+        "name": "DynamoDB",
+        "icon_path": "/static/images/skills/dynamodb.svg",
+        "link": "https://aws.amazon.com/dynamodb/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 38,
+        "name": "Elasticsearch",
+        "icon_path": "/static/images/skills/elasticsearch.svg",
+        "link": "https://www.elastic.co/elasticsearch/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 34,
+        "name": "MongoDB",
+        "icon_path": "/static/images/skills/mongodb.svg",
+        "link": "https://www.mongodb.com/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 32,
+        "name": "MySQL",
+        "icon_path": "/static/images/skills/mysql.svg",
+        "link": "https://www.mysql.com/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 31,
+        "name": "PostgreSQL",
+        "icon_path": "/static/images/skills/postgresql.svg",
+        "link": "https://www.postgresql.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 35,
+        "name": "Redis",
+        "icon_path": "/static/images/skills/redis.svg",
+        "link": "https://redis.io/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 33,
+        "name": "SQL Server",
+        "icon_path": "/static/images/skills/microsoft_sql_server.svg",
+        "link": "https://www.microsoft.com/en-us/sql-server",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 37,
+        "name": "SQLite",
+        "icon_path": "/static/images/skills/sqlite.svg",
+        "link": "https://www.sqlite.org/",
+        "proficiency": "intermediate"
+      }
+    ]
+  },
+  {
+    "name": "API \u0026 Testing",
+    "skills": [
+      {
+        "id": 124,
+        "name": "API Gateway",
+        "icon_path": "/static/images/skills/aws_api_gateway.svg",
+        "link": "https://aws.amazon.com/api-gateway/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 39,
+        "name": "FastAPI",
+        "icon_path": "/static/images/skills/fastapi.svg",
+        "link": "https://fastapi.tiangolo.com/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 40,
+        "name": "OpenAPI",
+        "icon_path": "/static/images/skills/openapi.svg",
+        "link": "https://www.openapis.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 43,
+        "name": "Playwright",
+        "icon_path": "/static/images/skills/playwright.svg",
+        "link": "https://playwright.dev/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 41,
+        "name": "Postman",
+        "icon_path": "/static/images/skills/postman.svg",
+        "link": "https://www.postman.com/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 42,
+        "name": "pytest",
+        "icon_path": "/static/images/skills/pytest.svg",
+        "link": "https://docs.pytest.org/",
+        "proficiency": "advanced"
+      }
+    ]
+  },
+  {
+    "name": "Development Tools",
+    "skills": [
+      {
+        "id": 44,
+        "name": "Git",
+        "icon_path": "/static/images/skills/git.svg",
+        "link": "https://git-scm.com/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Distributed version control for collaborative development and code management"
+      },
+      {
+        "id": 45,
+        "name": "GitHub",
+        "icon_path": "/static/images/skills/github.svg",
+        "link": "https://github.com/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 46,
+        "name": "GitHub Codespaces",
+        "icon_path": "/static/images/skills/github_codespaces.svg",
+        "link": "https://github.com/features/codespaces",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 50,
+        "name": "Node.js",
+        "icon_path": "/static/images/skills/node.js.svg",
+        "link": "https://nodejs.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 49,
+        "name": "npm",
+        "icon_path": "/static/images/skills/npm.svg",
+        "link": "https://www.npmjs.com/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 51,
+        "name": "Poetry",
+        "icon_path": "/static/images/skills/python_poetry.svg",
+        "link": "https://python-poetry.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 52,
+        "name": "Vite",
+        "icon_path": "/static/images/skills/vite.js.svg",
+        "link": "https://vitejs.dev/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 47,
+        "name": "VS Code",
+        "icon_path": "/static/images/skills/vscode.svg",
+        "link": "https://code.visualstudio.com/",
+        "proficiency": "expert"
+      }
+    ]
+  },
+  {
+    "name": "Monitoring \u0026 Observability",
+    "skills": [
+      {
+        "id": 108,
+        "name": "CloudWatch",
+        "icon_path": "/static/images/skills/cloudwatch.svg",
+        "link": "https://aws.amazon.com/cloudwatch/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 55,
+        "name": "Datadog",
+        "icon_path": "/static/images/skills/datadog.svg",
+        "link": "https://www.datadoghq.com/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 54,
+        "name": "Grafana",
+        "icon_path": "/static/images/skills/grafana.svg",
+        "link": "https://grafana.com/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 53,
+        "name": "Prometheus",
+        "icon_path": "/static/images/skills/prometheus.svg",
+        "link": "https://prometheus.io/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 56,
+        "name": "Splunk",
+        "icon_path": "/static/images/skills/splunk.svg",
+        "link": "https://www.splunk.com/",
+        "proficiency": "advanced"
+      }
+    ]
+  },
+  {
+    "name": "Operating Systems",
+    "skills": [
+      {
+        "id": 111,
+        "name": "Debian",
+        "icon_path": "/static/images/skills/debian.svg",
+        "link": "https://www.debian.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 60,
+        "name": "Raspberry Pi",
+        "icon_path": "/static/images/skills/raspberrypi.svg",
+        "link": "https://www.raspberrypi.org/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 109,
+        "name": "RHEL",
+        "icon_path": "/static/images/skills/red_hat.svg",
+        "link": "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux",
+        "proficiency": "expert"
+      },
+      {
+        "id": 110,
+        "name": "Ubuntu",
+        "icon_path": "/static/images/skills/ubuntu.svg",
+        "link": "https://ubuntu.com/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 59,
+        "name": "Windows",
+        "icon_path": "/static/images/skills/windows.svg",
+        "link": "https://www.microsoft.com/windows/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 57,
+        "name": "Linux",
+        "icon_path": "/static/images/skills/linux.svg",
+        "link": "https://www.linux.org/",
+        "proficiency": "expert",
+        "featured": true,
+        "description": "Primary operating system for servers, containers, and cloud infrastructure"
+      }
+    ]
+  },
+  {
+    "name": "Web Servers \u0026 Frameworks",
+    "skills": [
+      {
+        "id": 62,
+        "name": "Apache",
+        "icon_path": "/static/images/skills/apache.svg",
+        "link": "https://httpd.apache.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 61,
+        "name": "Nginx",
+        "icon_path": "/static/images/skills/nginx.svg",
+        "link": "https://nginx.org/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 123,
+        "name": "Amplify",
+        "icon_path": "/static/images/skills/aws_amplify.svg",
+        "link": "https://aws.amazon.com/amplify/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 64,
+        "name": "Vue.js",
+        "icon_path": "/static/images/skills/vue.js.svg",
+        "link": "https://vuejs.org/",
+        "proficiency": "advanced"
+      }
+    ]
+  },
+  {
+    "name": "Collaboration Tools",
+    "skills": [
+      {
+        "id": 67,
+        "name": "Confluence",
+        "icon_path": "/static/images/skills/confluence.svg",
+        "link": "https://www.atlassian.com/software/confluence",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 66,
+        "name": "Jira",
+        "icon_path": "/static/images/skills/jira.svg",
+        "link": "https://www.atlassian.com/software/jira",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 119,
+        "name": "Notion",
+        "icon_path": "/static/images/skills/notion.svg",
+        "link": "https://www.notion.so/",
+        "proficiency": "intermediate"
+      },
+      {
+        "id": 68,
+        "name": "Slack",
+        "icon_path": "/static/images/skills/slack.svg",
+        "link": "https://slack.com/",
+        "proficiency": "expert"
+      }
+    ]
+  },
+  {
+    "name": "Concepts \u0026 Practices",
+    "skills": [
+      {
+        "id": 75,
+        "name": "Cloud Architecture",
+        "icon_path": "/static/images/skills/cloud-architecture.svg",
+        "link": "https://aws.amazon.com/architecture/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 71,
+        "name": "Cloud Security",
+        "icon_path": "/static/images/skills/cloud-security.svg",
+        "link": "https://www.checkpoint.com/cyber-hub/cloud-security/what-is-cloud-security/",
+        "proficiency": "expert"
+      },
+      {
+        "id": 72,
+        "name": "Compliance \u0026 Governance",
+        "icon_path": "/static/images/skills/compliance-governance.svg",
+        "link": "https://www.rapid7.com/fundamentals/compliance-regulatory-frameworks/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 77,
+        "name": "DevSecOps",
+        "icon_path": "/static/images/skills/devsecops.svg",
+        "link": "https://www.redhat.com/en/topics/devops/what-is-devsecops",
+        "proficiency": "expert"
+      },
+      {
+        "id": 70,
+        "name": "Identity \u0026 Access Management",
+        "icon_path": "/static/images/skills/identity-access-management.svg",
+        "link": "https://www.gartner.com/en/information-technology/glossary/identity-and-access-management-iam",
+        "proficiency": "expert"
+      },
+      {
+        "id": 74,
+        "name": "Infrastructure Automation",
+        "icon_path": "/static/images/skills/infrastructure-automation.svg",
+        "link": "https://www.redhat.com/en/topics/automation/what-is-infrastructure-as-code-iac",
+        "proficiency": "expert"
+      },
+      {
+        "id": 76,
+        "name": "Network Security",
+        "icon_path": "/static/images/skills/network-security.svg",
+        "link": "https://www.cisco.com/c/en/us/products/security/what-is-network-security.html",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 73,
+        "name": "Observability",
+        "icon_path": "/static/images/skills/observability.svg",
+        "link": "https://newrelic.com/blog/best-practices/what-is-observability",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 79,
+        "name": "Security Operations",
+        "icon_path": "/static/images/skills/security-operations.svg",
+        "link": "https://www.microsoft.com/en-us/security/business/security-101/what-is-a-security-operations-center-soc",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 78,
+        "name": "Site Reliability Engineering",
+        "icon_path": "/static/images/skills/site-reliability-engineering.svg",
+        "link": "https://sre.google/",
+        "proficiency": "advanced"
+      },
+      {
+        "id": 69,
+        "name": "Zero Trust Architecture",
+        "icon_path": "/static/images/skills/zero-trust-architecture.svg",
+        "link": "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/",
+        "proficiency": "advanced"
+      }
+    ]
+  }
+]

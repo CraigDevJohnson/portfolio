@@ -7,43 +7,43 @@ import (
 )
 
 type Experience struct {
-	ID               int
-	Position         string
-	Company          string
-	Duration         string
-	Responsibilities string
-	Technologies     []string
-	SkillAreas       string
-	Side             string
+	ID               int      `json:"id"`
+	Position         string   `json:"position"`
+	Company          string   `json:"company"`
+	Duration         string   `json:"duration"`
+	Responsibilities string   `json:"responsibilities"`
+	Technologies     []string `json:"technologies"`
+	SkillAreas       string   `json:"skill_areas"`
+	Side             string   `json:"side"`
 }
 
 type Skill struct {
-	ID          int
-	Name        string
-	Icon        string
-	IconPath    string
-	Link        string
-	Proficiency string // "expert", "advanced", "intermediate", "familiar"
-	Featured    bool   // Whether to show in featured skills section
-	Category    string // Category this skill belongs to (populated for featured skills)
-	Description string // Short description for skill detail view
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Icon        string `json:"icon,omitempty"`
+	IconPath    string `json:"icon_path,omitempty"`
+	Link        string `json:"link,omitempty"`
+	Proficiency string `json:"proficiency"`
+	Featured    bool   `json:"featured,omitempty"`
+	Category    string `json:"category,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 type SkillCategory struct {
-	Name   string
-	Skills []Skill
+	Name   string  `json:"name"`
+	Skills []Skill `json:"skills"`
 }
 
 type Project struct {
-	ID           int
-	Name         string
-	Intro        string
-	Description  string
-	Technologies []string
-	Image        string
-	GitHubURL    string
-	DemoURL      string
-	Category     string
+	ID           int      `json:"id"`
+	Name         string   `json:"name"`
+	Intro        string   `json:"intro"`
+	Description  string   `json:"description"`
+	Technologies []string `json:"technologies"`
+	Image        string   `json:"image"`
+	GitHubURL    string   `json:"github_url,omitempty"`
+	DemoURL      string   `json:"demo_url,omitempty"`
+	Category     string   `json:"category"`
 }
 
 type Facility struct {

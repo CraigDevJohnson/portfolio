@@ -224,6 +224,32 @@ the styles unique to each route. The shared stylesheet owns:
 - Animations
 - Reusable card, alert, stats-grid, and section-header primitives
 
+## Chrome Extension
+
+The `chrome-extension/` directory contains a Manifest V3 Chrome extension that streamlines the soccer login flow.
+
+### What It Does
+
+- **JWT Capture**: Passively intercepts bearer tokens from authenticated requests to letsplaysoccer.com.
+- **Autofill**: When you open the soccer page, the extension automatically fills the JWT into the login modal.
+- **Popup UI**: Shows capture status, lets you copy the token, or open the soccer page directly.
+
+### Installation (Developer Mode)
+
+1. Open `chrome://extensions/` and enable **Developer mode**.
+2. Click **Load unpacked** and select the `chrome-extension/` folder.
+3. Visit [letsplaysoccer.com](https://letsplaysoccer.com) while signed in — the extension captures the JWT automatically.
+4. Navigate to the soccer page; the token is autofilled into the import modal.
+
+### Files
+
+| File | Purpose |
+| --- | --- |
+| `manifest.json` | Extension metadata and permissions |
+| `lps-jwt-extractor.js` | Service worker that intercepts auth headers and cookies |
+| `soccer-autofill.js` | Content script that fills the JWT into the login modal |
+| `popup.html` / `popup.css` / `popup.js` | Popup UI for viewing and copying the captured token |
+
 ## Deployment
 
 The application is designed to be deployed as a standalone binary:
