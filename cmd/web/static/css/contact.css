@@ -51,22 +51,11 @@
 }
 
 
-.cm-icon-wrap {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgb(234 88 12 / 15%), rgb(13 148 136 / 10%));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.5rem;
+.contact-method-card .icon-wrap {
+  margin-bottom: 0;
   flex-shrink: 0;
-  transition: all var(--duration-normal) var(--ease-out);
-}
-
-.contact-method-card:hover .cm-icon-wrap {
-  transform: scale(1.1);
-  box-shadow: 0 0 20px rgb(234 88 12 / 20%);
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, rgb(234 88 12 / 15%), rgb(13 148 136 / 10%));
 }
 
 .cm-info {

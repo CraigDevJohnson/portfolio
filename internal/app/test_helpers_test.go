@@ -23,7 +23,7 @@ func newTestApp(t *testing.T) *App {
 		LoginLimiter: internalsession.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys),
 	}
 	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
-	app.GoogleHandler.Soccer = newGoogleSoccerBridge(newTestSoccerHandler(app))
+	app.GoogleHandler.Soccer = newTestSoccerHandler(app)
 	t.Cleanup(func() {
 		app.LoginLimiter.Close()
 	})
@@ -31,7 +31,7 @@ func newTestApp(t *testing.T) *App {
 }
 
 func newTestSoccerHandler(app *App) *internalsoccer.Handler {
-	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, soccerGoogleHooks{google: app.GoogleHandler})
+	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.GoogleHandler)
 }
 
 func encryptTestSession(t *testing.T, app *App, session *types.SessionData) string {

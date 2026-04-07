@@ -6,11 +6,12 @@ Always use Context7 MCP when you need library or API documentation, code generat
 
 Use these files in this order when instructions conflict:
 
-1. `PRD.md` and `PROGRESS.md` for the current soccer product behavior and recent task completion.
+1. `PROGRESS.md` for current soccer product behavior and recent task completion.
 2. `justfile` for build, test, formatting, lint, and dev commands.
 3. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
 4. `README.md` for high-level architecture and local usage.
 5. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
+6. `PRD.md` (index) and `docs/archive/PRD-2026-internal-app-refactor.md` for historical refactor context.
 
 Link to those docs instead of copying long procedures into new instructions or PR notes.
 
@@ -68,7 +69,7 @@ The current soccer flow is JWT import with server-side player discovery, not man
 - Users paste a bearer JWT from their signed-in Let's Play Soccer browser session.
 - The server calls `/users/check`, discovers linked players, filters deleted players, stores the session in an encrypted cookie, and renders the player selector.
 - Do not instruct users to manually copy or paste player IDs. That guidance is stale.
-- If you need current product intent or acceptance criteria for soccer, read `PRD.md` and `PROGRESS.md` first.
+- If you need current product intent or acceptance criteria for soccer, read `PROGRESS.md` and current code first.
 
 Relevant handlers and components:
 
@@ -91,7 +92,7 @@ Relevant handlers and components:
 
 ## Known Drift To Avoid
 
-- Older docs still mention manual player-ID import. Ignore that and follow the current code and PRD.
+- Older docs still mention manual player-ID import. Ignore that and follow the current code and `PROGRESS.md`.
 - Some docs still describe Go 1.23+ and older formatter guidance. The repo is on Go 1.26.1 and uses `just fmt`.
 - Historical workspace tasks may reference generated Templ files or old commit flows. Follow `justfile`, not old one-off tasks, unless the user explicitly asks otherwise.
 

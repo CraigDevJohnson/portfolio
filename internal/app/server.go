@@ -43,8 +43,8 @@ func Run() {
 
 	cfg := config.Load()
 	app := New(&cfg)
-	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, soccerGoogleHooks{google: app.GoogleHandler})
-	app.GoogleHandler.Soccer = newGoogleSoccerBridge(soccerHandler)
+	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.GoogleHandler)
+	app.GoogleHandler.Soccer = soccerHandler
 
 	mux := http.NewServeMux()
 

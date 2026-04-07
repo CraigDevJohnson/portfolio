@@ -5,11 +5,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/httpx"
 	"portfolio/internal/lps"
+	internalsession "portfolio/internal/session"
 	"portfolio/types"
 )
 
@@ -20,22 +22,22 @@ func (h *Handler) SessionHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.Config.LoginEnabled() {
-		RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
+		h.RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
 	}
 	if !h.LoginLimiter.Allow(httpx.ClientIP(r)) {
-		RenderLoginFeedback(w, r, "error", "Too many import attempts. Wait a minute and try again.")
+		h.RenderLoginFeedback(w, r, "error", "Too many import attempts. Wait a minute and try again.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
-		RenderLoginFeedback(w, r, "error", "Could not read the import form. Try again.")
+		h.RenderLoginFeedback(w, r, "error", "Could not read the import form. Try again.")
 		return
 	}
 
 	jwt, err := lps.NormalizeImportedJWT(r.FormValue("jwt"))
 	if err != nil {
-		RenderLoginFeedback(w, r, "error", err.Error())
+		h.RenderLoginFeedback(w, r, "error", err.Error())
 		return
 	}
 
@@ -45,18 +47,18 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &fetchErr) {
 			switch fetchErr.Kind {
 			case lps.ErrorUnauthorized, lps.ErrorForbidden:
-				RenderLoginFeedback(w, r, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
+				h.RenderLoginFeedback(w, r, "error", "The JWT was rejected by Let's Play Soccer. Copy a fresh bearer token and try again.")
 				return
 			case lps.ErrorUpstream:
-				RenderLoginFeedback(w, r, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
+				h.RenderLoginFeedback(w, r, "error", "Could not reach Let's Play Soccer to look up your players. Try again in a moment.")
 				return
 			}
 		}
-		RenderLoginFeedback(w, r, "error", err.Error())
+		h.RenderLoginFeedback(w, r, "error", err.Error())
 		return
 	}
 	if len(discovery.Players) == 0 {
-		RenderLoginFeedback(w, r, "error", "No linked players found for this account.")
+		h.RenderLoginFeedback(w, r, "error", "No linked players found for this account.")
 		return
 	}
 
@@ -68,7 +70,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.setSession(w, r, &session); err != nil {
 		log.Printf("soccer import session write failed: %v", err)
-		RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
+		h.RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
 
@@ -84,4 +86,52 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
 	h.RenderLoginState(w, r, nil)
+}
+
+func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
+	cookie, err := r.Cookie(config.LPSSessionCookieName)
+	if errors.Is(err, http.ErrNoCookie) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var session types.SessionData
+	err = internalsession.DecryptJSONValue(h.Config.SessionKey, cookie.Value, &session)
+	if err != nil {
+		return nil, err
+	}
+	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
+		return nil, ErrSessionExpired
+	}
+	return &session, nil
+}
+
+func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
+	session, err := h.getSession(r)
+	if errors.Is(err, ErrSessionExpired) {
+		h.clearSession(w, r)
+		return nil, true
+	}
+	if err != nil {
+		log.Printf("soccer session read failed: %v", err)
+		h.clearSession(w, r)
+		return nil, true
+	}
+	return session, false
+}
+
+func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *types.SessionData) error {
+	encrypted, err := internalsession.EncryptJSONValue(h.Config.SessionKey, session)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteStrictMode))
+	return nil
+}
+
+func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
+	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie.Expires = time.Unix(0, 0)
+	http.SetCookie(w, cookie)
 }

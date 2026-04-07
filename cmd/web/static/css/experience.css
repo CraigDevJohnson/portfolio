@@ -14,24 +14,8 @@
 }
 
 /* Icon wraps for stat cards and highlight cards */
-.exp-icon-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    rgb(234 88 12 / 15%) 0%,
-    rgb(249 115 22 / 8%) 100%
-  );
-  margin-bottom: var(--space-md);
-  transition: all var(--duration-normal) var(--ease-out);
-}
-
-.summary-card:hover .exp-icon-wrap,
-.highlight-card:hover .exp-icon-wrap {
+.summary-card:hover .icon-wrap,
+.highlight-card:hover .icon-wrap {
   transform: scale(1.1);
   box-shadow: 0 0 24px rgb(234 88 12 / 30%);
 }
