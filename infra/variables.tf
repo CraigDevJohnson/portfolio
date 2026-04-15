@@ -10,10 +10,22 @@ variable "app_name" {
   default     = "portfolio"
 }
 
+variable "environment" {
+  description = "Deployment environment tag for provisioned resources"
+  type        = string
+  default     = "development"
+}
+
 variable "container_port" {
   description = "Port the container listens on"
   type        = number
   default     = 8080
+}
+
+variable "auto_deployments_enabled" {
+  description = "Enable automatic App Runner deployments when a new ECR image is pushed"
+  type        = bool
+  default     = false
 }
 
 variable "ecr_image_tag" {

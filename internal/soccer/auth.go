@@ -15,11 +15,13 @@ import (
 	"portfolio/types"
 )
 
+// SessionHandler renders the current soccer login state fragment.
 func (h *Handler) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.LoadSession(w, r)
 	h.RenderLoginState(w, r, session)
 }
 
+// ImportHandler validates an imported JWT, discovers linked players, and stores the session.
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.Config.LoginEnabled() {
 		h.RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
@@ -82,6 +84,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your players below.</div>`)
 }
 
+// LogoutHandler clears the imported soccer session.
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
@@ -107,6 +110,7 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	return &session, nil
 }
 
+// LoadSession loads the imported soccer session and reports whether it was cleared.
 func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
 	session, err := h.getSession(r)
 	if errors.Is(err, ErrSessionExpired) {

@@ -21,6 +21,7 @@ func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires tim
 	http.SetCookie(w, cookie)
 }
 
+// GetConnectionID returns the Google connection ID stored in the request cookie.
 func GetConnectionID(r *http.Request) string {
 	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
 	if err != nil {
@@ -29,11 +30,13 @@ func GetConnectionID(r *http.Request) string {
 	return strings.TrimSpace(cookie.Value)
 }
 
+// SetConnectionCookie persists the Google connection ID in a secure cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
 	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
+// ClearConnectionCookie removes the Google connection cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))

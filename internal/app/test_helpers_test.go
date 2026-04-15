@@ -30,10 +30,12 @@ func newTestApp(t *testing.T) *App {
 	return app
 }
 
+// newTestSoccerHandler returns a handler wired to the test app dependencies.
 func newTestSoccerHandler(app *App) *internalsoccer.Handler {
 	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.GoogleHandler)
 }
 
+// encryptTestSession creates an encrypted session cookie payload for tests.
 func encryptTestSession(t *testing.T, app *App, session *types.SessionData) string {
 	t.Helper()
 
@@ -45,6 +47,7 @@ func encryptTestSession(t *testing.T, app *App, session *types.SessionData) stri
 	return encrypted
 }
 
+// decryptTestSession decodes an encrypted test session cookie payload.
 func decryptTestSession(t *testing.T, app *App, value string) types.SessionData {
 	t.Helper()
 
@@ -57,12 +60,14 @@ func decryptTestSession(t *testing.T, app *App, value string) types.SessionData 
 	return session
 }
 
+// addSessionCookie attaches an encrypted soccer session cookie to the request.
 func addSessionCookie(t *testing.T, app *App, req *http.Request, session *types.SessionData) {
 	t.Helper()
 	encrypted := encryptTestSession(t, app, session)
 	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
 }
 
+// findSessionCookie returns the soccer session cookie from an HTTP response.
 func findSessionCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	t.Helper()
 	for _, cookie := range resp.Cookies() {
@@ -73,6 +78,7 @@ func findSessionCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	return nil
 }
 
+// assertClearedSessionCookie verifies that the session cookie was explicitly cleared.
 func assertClearedSessionCookie(t *testing.T, resp *http.Response) {
 	t.Helper()
 	sessionCookie := findSessionCookie(t, resp)

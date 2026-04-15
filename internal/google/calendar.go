@@ -14,11 +14,13 @@ type calendar struct {
 	Summary string `json:"summary"`
 }
 
+// EventDateTime describes a Google Calendar datetime field.
 type EventDateTime struct {
 	DateTime string `json:"dateTime"`
 	TimeZone string `json:"timeZone,omitempty"`
 }
 
+// Event represents a Google Calendar event payload.
 type Event struct {
 	Description        string        `json:"description,omitempty"`
 	End                EventDateTime `json:"end"`
@@ -33,11 +35,13 @@ type Event struct {
 	Summary  string        `json:"summary"`
 }
 
+// EventSource attributes an event to its originating site.
 type EventSource struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
 }
 
+// APIError wraps an HTTP status code and message from Google APIs.
 type APIError struct {
 	StatusCode int
 	Message    string

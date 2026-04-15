@@ -11,9 +11,18 @@ import (
 
 const errSessionKeyNotConfigured = "session encryption key is not configured"
 
-func EncryptJSONValue(key []byte, data any) (string, error) {
+func validateSessionKey(key []byte) error {
 	if len(key) != 32 {
-		return "", errors.New(errSessionKeyNotConfigured)
+		return errors.New(errSessionKeyNotConfigured)
+	}
+
+	return nil
+}
+
+// EncryptJSONValue JSON-encodes data and encrypts it with AES-256-GCM.
+func EncryptJSONValue(key []byte, data any) (string, error) {
+	if err := validateSessionKey(key); err != nil {
+		return "", err
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -35,9 +44,10 @@ func EncryptJSONValue(key []byte, data any) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
+// DecryptJSONValue decrypts a value created by EncryptJSONValue into out.
 func DecryptJSONValue(key []byte, value string, out any) error {
-	if len(key) != 32 {
-		return errors.New(errSessionKeyNotConfigured)
+	if err := validateSessionKey(key); err != nil {
+		return err
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {

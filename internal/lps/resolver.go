@@ -286,6 +286,9 @@ func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamID
 }
 
 func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (string, string, string) {
+	// Prefer an explicit selected team ID match first. If the upstream payload does
+	// not identify the selected team clearly, fall back to the response team name
+	// and treat the other side as the opponent.
 	selectedTeamID := responseTeam.UTeamID
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)

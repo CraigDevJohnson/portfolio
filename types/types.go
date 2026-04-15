@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Experience describes a single entry in the portfolio experience timeline.
 type Experience struct {
 	ID               int      `json:"id"`
 	Position         string   `json:"position"`
@@ -17,6 +18,7 @@ type Experience struct {
 	Side             string   `json:"side"`
 }
 
+// Skill describes one portfolio skill and its presentation metadata.
 type Skill struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
@@ -29,11 +31,13 @@ type Skill struct {
 	Description string `json:"description,omitempty"`
 }
 
+// SkillCategory groups related skills for presentation.
 type SkillCategory struct {
 	Name   string  `json:"name"`
 	Skills []Skill `json:"skills"`
 }
 
+// Project describes one portfolio project card.
 type Project struct {
 	ID           int      `json:"id"`
 	Name         string   `json:"name"`
@@ -46,6 +50,7 @@ type Project struct {
 	Category     string   `json:"category"`
 }
 
+// Facility describes a game venue as returned by LPS schedule data.
 type Facility struct {
 	ID      int    `json:"id,omitempty"`
 	Name    string `json:"name,omitempty"`
@@ -55,6 +60,11 @@ type Facility struct {
 	ZIP     string `json:"zip,omitempty"`
 }
 
+// Game describes a normalized soccer game entry.
+//
+// Core fields such as ID, DateTime, Field, Home, Away, and Season are expected
+// on every record. Optional schedule metadata is included when the upstream API
+// provides it.
 type Game struct {
 	ID               string    `json:"id"`
 	DateTime         string    `json:"datetime"`
@@ -72,10 +82,12 @@ type Game struct {
 	Result           string    `json:"result,omitempty"`
 }
 
+// LambdaGamesResponse wraps a list of normalized games from upstream APIs.
 type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
 }
 
+// gameAlias avoids recursive unmarshalling when Game customizes JSON decoding.
 type gameAlias Game
 
 type gameJSON struct {
@@ -89,6 +101,8 @@ type gameJSON struct {
 	FacilityZIP     string `json:"facility_zip,omitempty"`
 }
 
+// UnmarshalJSON hydrates Game and merges legacy flat facility fields into the
+// nested Facility shape used by the rest of the app.
 func (game *Game) UnmarshalJSON(data []byte) error {
 	var payload gameJSON
 	if err := json.Unmarshal(data, &payload); err != nil {
@@ -108,6 +122,7 @@ func (game *Game) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// NewFacilityDetails builds and normalizes a Facility from legacy flat fields.
 func NewFacilityDetails(id int, name, address, city, state, zip string) *Facility {
 	return NormalizeFacility(&Facility{
 		ID:      id,
@@ -119,6 +134,7 @@ func NewFacilityDetails(id int, name, address, city, state, zip string) *Facilit
 	})
 }
 
+// NormalizeFacility trims string fields and returns nil for an empty facility.
 func NormalizeFacility(facility *Facility) *Facility {
 	if facility == nil {
 		return nil
@@ -140,6 +156,7 @@ func NormalizeFacility(facility *Facility) *Facility {
 	return normalized
 }
 
+// MergeFacility prefers populated base fields and fills any gaps from incoming.
 func MergeFacility(base, incoming *Facility) *Facility {
 	base = NormalizeFacility(base)
 	incoming = NormalizeFacility(incoming)
@@ -174,6 +191,7 @@ func MergeFacility(base, incoming *Facility) *Facility {
 	return NormalizeFacility(&merged)
 }
 
+// LPSPlayer describes a player discovered from the Let's Play Soccer account.
 type LPSPlayer struct {
 	UPlayerID    int    `json:"UPlayerID"`
 	FirstName    string `json:"FirstName"`
@@ -181,6 +199,7 @@ type LPSPlayer struct {
 	IsMainPlayer bool   `json:"is_main_player"`
 }
 
+// SessionData stores the encrypted soccer session payload in the auth cookie.
 type SessionData struct {
 	JWT       string      `json:"jwt"`
 	UserName  string      `json:"user_name"`
@@ -188,26 +207,9 @@ type SessionData struct {
 	ExpiresAt time.Time   `json:"expires_at"`
 }
 
+// GoogleCalendarOption describes a calendar the user can target for event sync.
 type GoogleCalendarOption struct {
 	ID      string
 	Summary string
 	Primary bool
-}
-
-type Education struct {
-	ID           int
-	School       string
-	Degree       string
-	FieldOfStudy string
-	Duration     string
-	Description  string
-	Achievements []string
-	Credentials  []Credential
-}
-
-type Credential struct {
-	Name       string
-	Issuer     string
-	IssueDate  string
-	CredlyLink string
 }

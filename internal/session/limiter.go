@@ -5,17 +5,18 @@ import (
 	"time"
 )
 
-type LoginAttempt struct {
+type loginAttempt struct {
 	Count       int
 	WindowStart time.Time
 }
 
+// LoginRateLimiter tracks login attempts per key within a fixed time window.
 type LoginRateLimiter struct {
 	mu          sync.Mutex
 	maxAttempts int
 	maxKeys     int
 	window      time.Duration
-	attempts    map[string]LoginAttempt
+	attempts    map[string]loginAttempt
 	stop        chan struct{}
 	closeOnce   sync.Once
 }
@@ -26,19 +27,20 @@ func NewLoginRateLimiter(maxAttempts int, window time.Duration, maxKeys int) *Lo
 		maxAttempts: maxAttempts,
 		maxKeys:     maxKeys,
 		window:      window,
-		attempts:    make(map[string]LoginAttempt),
+		attempts:    make(map[string]loginAttempt),
 		stop:        make(chan struct{}),
 	}
 	go limiter.periodicCleanup()
 	return limiter
 }
 
+// Close stops the background cleanup goroutine.
 func (limiter *LoginRateLimiter) Close() {
 	limiter.closeOnce.Do(func() { close(limiter.stop) })
 }
 
 // Allow reports whether the provided key may make another login attempt.
-// Empty keys bypass rate limiting.
+// Empty keys bypass rate limiting for internal fallback paths.
 func (limiter *LoginRateLimiter) Allow(key string) bool {
 	if key == "" {
 		return true
@@ -49,23 +51,15 @@ func (limiter *LoginRateLimiter) Allow(key string) bool {
 	defer limiter.mu.Unlock()
 
 	attempt := limiter.attempts[key]
-	if now.Sub(attempt.WindowStart) > limiter.window {
-		attempt = LoginAttempt{WindowStart: now}
+	if limiter.isWindowExpired(attempt, now) {
+		attempt = loginAttempt{WindowStart: now}
 	}
 	if attempt.Count >= limiter.maxAttempts {
 		return false
 	}
 
 	if _, exists := limiter.attempts[key]; !exists && len(limiter.attempts) >= limiter.maxKeys {
-		for candidate, saved := range limiter.attempts {
-			if now.Sub(saved.WindowStart) > limiter.window {
-				delete(limiter.attempts, candidate)
-			}
-			if len(limiter.attempts) < limiter.maxKeys {
-				break
-			}
-		}
-		if len(limiter.attempts) >= limiter.maxKeys {
+		if !limiter.ensureCapacityForNewKey(now) {
 			return false
 		}
 	}
@@ -73,6 +67,24 @@ func (limiter *LoginRateLimiter) Allow(key string) bool {
 	attempt.Count++
 	limiter.attempts[key] = attempt
 	return true
+}
+
+func (limiter *LoginRateLimiter) isWindowExpired(attempt loginAttempt, now time.Time) bool {
+	return now.Sub(attempt.WindowStart) > limiter.window
+}
+
+func (limiter *LoginRateLimiter) ensureCapacityForNewKey(now time.Time) bool {
+	for candidate, attempt := range limiter.attempts {
+		if limiter.isWindowExpired(attempt, now) {
+			delete(limiter.attempts, candidate)
+		}
+
+		if len(limiter.attempts) < limiter.maxKeys {
+			break
+		}
+	}
+
+	return len(limiter.attempts) < limiter.maxKeys
 }
 
 func (limiter *LoginRateLimiter) periodicCleanup() {
@@ -84,7 +96,7 @@ func (limiter *LoginRateLimiter) periodicCleanup() {
 			limiter.mu.Lock()
 			now := time.Now()
 			for key, attempt := range limiter.attempts {
-				if now.Sub(attempt.WindowStart) > limiter.window {
+				if limiter.isWindowExpired(attempt, now) {
 					delete(limiter.attempts, key)
 				}
 			}

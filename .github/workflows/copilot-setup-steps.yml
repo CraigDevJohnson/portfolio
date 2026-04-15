@@ -24,6 +24,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # Warm the module cache for tool installs without running build or lint steps.
       - name: Download Go dependencies
         run: go mod download
 
@@ -33,6 +34,7 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
 
+      # Match the repo's `just install-lint` behavior by installing the latest v2+ release.
       - name: Install golangci-lint
         run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
 

@@ -20,6 +20,7 @@
   --accent-secondary-rgb: 13, 148, 136;
   --accent-gradient: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
   --accent-gradient-hover: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%);
+  --field-badge-gradient: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
 
   /* Success / Error */
   --success-bg: rgb(34 197 94 / 15%);
@@ -300,6 +301,8 @@ code {
   z-index: 100;
   height: var(--header-height);
   background: var(--bg-primary);
+  /* stylelint-disable-next-line property-no-vendor-prefix -- Safari still needs the prefixed backdrop filter. */
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
   backdrop-filter: saturate(180%) blur(16px);
   border-bottom: 1px solid var(--border-color);
   transition:
@@ -990,6 +993,16 @@ a.btn-loading[aria-disabled='true'] {
   0%, 100% { transform: translate(0, 0) scale(1); }
   33% { transform: translate(30px, -20px) scale(1.05); }
   66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* ================================

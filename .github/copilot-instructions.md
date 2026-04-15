@@ -85,7 +85,7 @@ Relevant handlers and components:
 
 - `LPS_SESSION_KEY` is the critical runtime secret for soccer auth.
 - `LPS_API_BASE_URL` is optional and overrides the upstream API base URL.
-- Google Calendar integration also requires `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and `GOOGLE_CONNECTION_TABLE_NAME`; see `DEPLOY-INSTRUCTIONS.md` for deployment details.
+- Google Calendar integration also requires `CLIENT_ID_KEY` and `CLIENT_SECRET_KEY`. In App Runner, `infra/*.tf` supplies `GOOGLE_CONNECTION_TABLE_NAME`; local runs still need it set. See `DEPLOY-INSTRUCTIONS.md` for deployment details.
 - `docker-compose.yml` expects local env configuration and passes through `LPS_SESSION_KEY`.
 - The runtime server listens on port `8080`.
 - Use `infra/*.tf` as the source of truth for actual Terraform or OpenTofu defaults; deployment prose may lag behind.

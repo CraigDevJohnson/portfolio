@@ -16,7 +16,7 @@ default: build
 [group('build')]
 generate: templ
 
-# Check and generate Templ components
+# Low-level Templ generation command used by `generate`
 [group('build')]
 templ:
   {{ GO }} tool templ generate
@@ -115,6 +115,11 @@ install-tools: install-air install-lint
 [group('test')]
 test:
     {{ GO }} test -v ./...
+
+# Run Lighthouse audit against local server (accessibility, best-practices, SEO)
+[group('quality')]
+lighthouse url="http://localhost:8080":
+    npx lighthouse {{ url }} --only-categories=accessibility,best-practices,seo --output=html --view
 
 # Show this help message
 [group('help')]

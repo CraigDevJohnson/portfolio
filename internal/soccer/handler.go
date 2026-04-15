@@ -17,12 +17,17 @@ type GoogleHooks interface {
 }
 
 var (
-	ErrSessionExpired        = errors.New("session expired")
+	// ErrSessionExpired reports that the imported LPS session is no longer valid.
+	ErrSessionExpired = errors.New("session expired")
+	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
-	ErrInvalidTeamSelection  = errors.New("one or more team IDs were invalid")
-	ErrScheduleSelection     = errors.New("at least one team ID or discovered player is required")
+	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.
+	ErrInvalidTeamSelection = errors.New("one or more team IDs were invalid")
+	// ErrScheduleSelection reports that no valid schedule selection was provided.
+	ErrScheduleSelection = errors.New("at least one team ID or discovered player is required")
 )
 
+// Handler owns the soccer auth and schedule handlers.
 type Handler struct {
 	Config       *config.Config
 	LPSClient    *http.Client
@@ -31,6 +36,7 @@ type Handler struct {
 	googleHooks GoogleHooks
 }
 
+// NewHandler constructs a soccer handler with its runtime dependencies.
 func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks) *Handler {
 	return &Handler{
 		Config:       cfg,

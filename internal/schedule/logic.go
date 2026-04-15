@@ -13,6 +13,8 @@ import (
 const fieldLocationPrefix = "Field "
 
 func normalizeScheduleGame(game *types.Game) {
+	// Fill missing derived fields in priority order so downstream sorting, merging,
+	// and ICS export all operate on the same normalized shape.
 	if game.DateTime == "" {
 		game.DateTime = FormatGameDateTime(game.StartAt)
 	}
@@ -41,6 +43,7 @@ func normalizeScheduleGame(game *types.Game) {
 	}
 }
 
+// MergeGames combines two representations of the same game into one normalized record.
 func MergeGames(base, incoming *types.Game) types.Game {
 	merged := *base
 	merged.ID = mergeStringValue(merged.ID, incoming.ID)
@@ -61,10 +64,12 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	return merged
 }
 
+// StableGameFields returns the fields used to derive a stable fallback identifier.
 func StableGameFields(game *types.Game) string {
 	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
 }
 
+// FallbackGameID derives a deterministic identifier when no upstream ID is available.
 func FallbackGameID(game *types.Game) string {
 	base := StableGameFields(game)
 	if strings.ReplaceAll(base, "|", "") == "" {
@@ -74,6 +79,7 @@ func FallbackGameID(game *types.Game) string {
 	return hex.EncodeToString(checksum[:])
 }
 
+// GameKey returns the preferred unique key for a game during merge operations.
 func GameKey(game *types.Game) string {
 	if game.ID != "" {
 		return game.ID
@@ -81,6 +87,7 @@ func GameKey(game *types.Game) string {
 	return StableGameFields(game)
 }
 
+// GameStartTime returns the best available parsed start time for a game.
 func GameStartTime(game *types.Game) (time.Time, bool) {
 	if parsed, ok := ParseScheduleTime(game.StartAt); ok {
 		return parsed, true
@@ -88,12 +95,14 @@ func GameStartTime(game *types.Game) (time.Time, bool) {
 	return ParseScheduleTime(game.DateTime)
 }
 
+// NormalizeScheduleGames normalizes each game in place.
 func NormalizeScheduleGames(games []types.Game) {
 	for index := range games {
 		normalizeScheduleGame(&games[index])
 	}
 }
 
+// MergeScheduleGames merges incoming games into an existing schedule slice.
 func MergeScheduleGames(games, incoming []types.Game, indexByKey map[string]int) []types.Game {
 	for i := range incoming {
 		game := &incoming[i]
@@ -108,6 +117,7 @@ func MergeScheduleGames(games, incoming []types.Game, indexByKey map[string]int)
 	return games
 }
 
+// SortScheduleGames sorts games by start time and then stable field ordering.
 func SortScheduleGames(games []types.Game) {
 	sort.Slice(games, func(i, j int) bool {
 		left, leftOK := GameStartTime(&games[i])
@@ -152,6 +162,7 @@ func compareScheduleGames(left, right *types.Game) int {
 	return 0
 }
 
+// UpcomingScheduleGames filters out games that have already started.
 func UpcomingScheduleGames(games []types.Game) []types.Game {
 	filtered := make([]types.Game, 0, len(games))
 	now := time.Now()

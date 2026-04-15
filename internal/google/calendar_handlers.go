@@ -1,6 +1,7 @@
 package google
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -17,16 +18,12 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
-	if err := r.ParseForm(); err != nil {
+	if err := parseGoogleForm(r, w); err != nil {
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not read the selected games. Try again.")
 		return
 	}
-	record, err := h.LoadConnectionRecord(r.Context(), r)
-	if err != nil || record == nil {
-		if err != nil {
-			log.Printf("google connection read failed: %v", err)
-		}
+	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
+	if !ok {
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Connect Google Calendar before adding selected games.")
 		return
 	}
@@ -68,16 +65,12 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginState(w, r, session)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
-	if err := r.ParseForm(); err != nil {
+	if err := parseGoogleForm(r, w); err != nil {
 		h.Soccer.RenderLoginState(w, r, session)
 		return
 	}
-	record, err := h.LoadConnectionRecord(r.Context(), r)
-	if err != nil || record == nil {
-		if err != nil {
-			log.Printf("google connection read failed: %v", err)
-		}
+	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
+	if !ok {
 		h.Soccer.RenderLoginState(w, r, session)
 		return
 	}
@@ -87,7 +80,7 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginState(w, r, session)
 		return
 	}
-	selectedCalendarID := strings.TrimSpace(r.FormValue("calendar_id"))
+	selectedCalendarID := strings.TrimSpace(r.Form.Get("calendar_id"))
 	selectedCalendarSummary := calendarSummary(calendars, selectedCalendarID)
 	if selectedCalendarSummary == "" {
 		selectedCalendarID, selectedCalendarSummary = preferredCalendar(calendars)
@@ -106,4 +99,21 @@ func apiResponseError(resp *http.Response) (bool, error) {
 	log.Printf("google event insert rejected: %v", apiErr)
 	var googleErr *APIError
 	return errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden), apiErr
+}
+
+func parseGoogleForm(r *http.Request, w http.ResponseWriter) error {
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
+	return r.ParseForm()
+}
+
+func (h *Handler) loadConnectionRecordOrLog(ctx context.Context, r *http.Request) (*ConnectionRecord, bool) {
+	record, err := h.LoadConnectionRecord(ctx, r)
+	if err != nil {
+		log.Printf("google connection read failed: %v", err)
+		return nil, false
+	}
+	if record == nil {
+		return nil, false
+	}
+	return record, true
 }

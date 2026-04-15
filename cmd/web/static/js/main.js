@@ -3,10 +3,22 @@
   'use strict'
 
   const HEADER_SCROLL_SHADOW_THRESHOLD = 100
+  const MODAL_FOCUSABLE_SELECTOR =
+    'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  const prefersReducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  // Add new page-level stat sections here so their counters animate on reveal.
+  const COUNTER_SECTIONS = [
+    { section: '.hero-stats', duration: 2000 },
+    { section: '.about-stats', duration: 2000 },
+    { section: '.experience-summary', duration: 1500 },
+    { section: '.edu-stats', duration: 1500 },
+    { section: '.projects-stats', duration: 1500 },
+  ]
 
   // Mobile menu toggle
   const mobileMenuBtn = document.getElementById('mobile-menu-btn')
   const mobileNav = document.getElementById('mobile-nav')
+  let observer = null
 
   if (mobileMenuBtn && mobileNav) {
     const closeMobileNav = () => {
@@ -24,9 +36,7 @@
 
     // Close menu when clicking on a link
     mobileNav.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', () => {
-        closeMobileNav()
-      })
+      link.addEventListener('click', closeMobileNav)
     })
 
     // Close menu when clicking outside
@@ -91,7 +101,7 @@
       ? new Date().getFullYear() - Number.parseInt(targetYear, 10)
       : Number.parseInt(targetValue, 10) || 0
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotionQuery.matches) {
       counter.textContent = `${finalValue}${suffix}`
       return
     }
@@ -233,16 +243,31 @@
   const soccerLoginModal = document.getElementById('soccer-login-modal')
   let soccerLoginTrigger = null
 
+  function setExpandedState(elements, isExpanded) {
+    elements.forEach(element => {
+      element.setAttribute('aria-expanded', isExpanded ? 'true' : 'false')
+    })
+  }
+
+  function clearElements(elements) {
+    elements.forEach(element => {
+      element.replaceChildren()
+    })
+  }
+
+  function closeAllSkillDetails() {
+    setExpandedState(document.querySelectorAll('.skill-icon-btn[aria-expanded="true"]'), false)
+    clearElements(document.querySelectorAll('.skill-detail-slot'))
+  }
+
   function getModalFocusableElements() {
     if (!soccerLoginModal) {
       return []
     }
 
-    return Array.from(
-      soccerLoginModal.querySelectorAll(
-        'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(element => !element.hidden)
+    return Array.from(soccerLoginModal.querySelectorAll(MODAL_FOCUSABLE_SELECTOR)).filter(
+      element => !element.hidden
+    )
   }
 
   function setSoccerModalVisibility(isVisible) {
@@ -265,9 +290,9 @@
 
     const dialog = soccerLoginModal.querySelector('.soccer-login-dialog')
     const firstField = soccerLoginModal.querySelector('#soccer-import-jwt')
-    window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
       ;(firstField || dialog)?.focus()
-    }, 0)
+    })
   }
 
   function closeSoccerLoginModal() {
@@ -279,7 +304,10 @@
 
     if (soccerLoginTrigger && typeof soccerLoginTrigger.focus === 'function') {
       soccerLoginTrigger.focus()
+      return
     }
+
+    document.getElementById('maincontent')?.focus()
   }
 
   function resetSoccerResults() {
@@ -407,7 +435,7 @@
   // HTMX event handlers
   document.body.addEventListener('htmx:afterSwap', function (evt) {
     // Fade in new content
-    if (evt.detail.target) {
+    if (evt.detail.target && !prefersReducedMotionQuery.matches) {
       evt.detail.target.classList.add('fade-in')
     }
 
@@ -435,9 +463,11 @@
     // Skills page: re-observe new skill categories after filter swap
     if (evt.detail.target.id === 'skills-filterable' || evt.detail.target.closest('.skills-section')) {
       const newCategories = evt.detail.target.querySelectorAll('.skill-category')
-      newCategories.forEach(function (el) {
-        observer.observe(el)
-      })
+      if (observer) {
+        newCategories.forEach(function (el) {
+          observer.observe(el)
+        })
+      }
     }
   })
 
@@ -449,12 +479,7 @@
     }
 
     if (evt.detail.elt && evt.detail.elt.classList.contains('skill-icon-btn')) {
-      document.querySelectorAll('.skill-icon-btn[aria-expanded="true"]').forEach(function (btn) {
-        btn.setAttribute('aria-expanded', 'false')
-      })
-      document.querySelectorAll('.skill-detail-slot').forEach(function (slot) {
-        slot.innerHTML = ''
-      })
+      closeAllSkillDetails()
     }
   })
 
@@ -476,15 +501,20 @@
     const detailSlot = closeDetailButton.closest('.skill-detail-slot')
     if (detailSlot) {
       let focusTarget = null
+      let controlledButtons = []
+
       if (detailSlot.id) {
-        document.querySelectorAll(`[aria-controls="${detailSlot.id}"]`).forEach(btn => {
+        controlledButtons = Array.from(document.querySelectorAll(`[aria-controls="${detailSlot.id}"]`))
+        controlledButtons.forEach(btn => {
           if (btn.getAttribute('aria-expanded') === 'true') {
             focusTarget = btn
           }
-          btn.setAttribute('aria-expanded', 'false')
         })
       }
+
+      setExpandedState(controlledButtons, false)
       detailSlot.replaceChildren()
+
       if (focusTarget) {
         focusTarget.focus()
       }
@@ -538,11 +568,9 @@
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   resetSoccerLoadingLinks()
-  observeCounterSection('.hero-stats', '[data-counter]', 2000)
-  observeCounterSection('.about-stats', '[data-counter]', 2000)
-  observeCounterSection('.experience-summary', '[data-counter]', 1500)
-  observeCounterSection('.edu-stats', '[data-counter]', 1500)
-  observeCounterSection('.projects-stats', '[data-counter]', 1500)
+  COUNTER_SECTIONS.forEach(({ section, duration }) => {
+    observeCounterSection(section, '[data-counter]', duration)
+  })
   setupProjectsCategoryFilter()
   setupSkillsFilterKeyboard()
 
@@ -553,30 +581,38 @@
     threshold: 0.1,
   }
 
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('fade-in')
-        observer.unobserve(entry.target)
-      }
-    })
-  }, observerOptions)
+  if (!prefersReducedMotionQuery.matches) {
+    observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('fade-in')
+          observer?.unobserve(entry.target)
+        }
+      })
+    }, observerOptions)
 
-  // Observe elements that should animate on scroll
-  document.querySelectorAll('.timeline-item, .project-card, .skill-category').forEach(el => {
-    observer.observe(el)
-  })
+    // Observe elements that should animate on scroll
+    document.querySelectorAll('.timeline-item, .project-card, .skill-category').forEach(el => {
+      observer?.observe(el)
+    })
+  }
 
   // Header scroll behavior
   const header = document.querySelector('.site-header')
 
   if (header) {
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > HEADER_SCROLL_SHADOW_THRESHOLD) {
-        header.style.boxShadow = 'var(--shadow-md)'
-      } else {
-        header.style.boxShadow = 'none'
+    let headerShadowVisible = false
+    const syncHeaderShadow = () => {
+      const shouldShowShadow = window.scrollY > HEADER_SCROLL_SHADOW_THRESHOLD
+      if (shouldShowShadow === headerShadowVisible) {
+        return
       }
-    })
+
+      headerShadowVisible = shouldShowShadow
+      header.style.boxShadow = shouldShowShadow ? 'var(--shadow-md)' : 'none'
+    }
+
+    window.addEventListener('scroll', syncHeaderShadow, { passive: true })
+    syncHeaderShadow()
   }
 })()

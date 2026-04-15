@@ -11,6 +11,20 @@ import (
 	"portfolio/types"
 )
 
+var (
+	lpsGameEnvelopeKeys = []string{"games", "upcoming_games", "data", "results", "items"}
+	lpsGameStartAtKeys  = []string{
+		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
+	}
+	lpsGameEndAtKeys = []string{
+		"end_at", "ends_at", "end_datetime", "EndDateTime", "schedGameEndTime", "SchedGameEndTime", "game_end_datetime", "end_time",
+	}
+	lpsGameDateTimeKeys = []string{"display_datetime", "DisplayDateTime", "DateTime", "datetime", "date_time"}
+	lpsGameHomeTeamKeys = []string{"home", "Home", "home_team", "HomeTeam", "home_team_name", "TeamName"}
+	lpsGameAwayTeamKeys = []string{"away", "Away", "away_team", "visitor_team", "AwayTeam", "away_team_name", "visitor_team_name", "OpponentName", "opponent_name"}
+	lpsNestedNameKeys   = []string{"name", "Name", "title", "Title", "value", "Value", "team_name", "TeamName", "display_name", "DisplayName"}
+)
+
 // DecodeLPSUserPlayers normalizes the LPS /users/check payload into a filtered discovery result.
 func DecodeLPSUserPlayers(payload []byte) (UserPlayerDiscovery, error) {
 	var discovery UserPlayerDiscovery
@@ -99,7 +113,9 @@ func ExtractGameMaps(raw any) []map[string]any {
 		}
 		return games
 	case map[string]any:
-		for _, key := range []string{"games", "upcoming_games", "data", "results", "items"} {
+		// Check the most common game collection keys first before falling back to a
+		// single-object payload.
+		for _, key := range lpsGameEnvelopeKeys {
 			if nested, ok := value[key]; ok {
 				games := ExtractGameMaps(nested)
 				if len(games) > 0 {
@@ -115,19 +131,15 @@ func ExtractGameMaps(raw any) []map[string]any {
 
 // MapLPSGame maps a flexible LPS game payload into the shared game model.
 func MapLPSGame(raw map[string]any) types.Game {
-	startAt := schedule.NormalizeLPSScheduleTime(firstString(raw,
-		"start_at", "starts_at", "start_datetime", "StartDateTime", "SchedGameDateTime", "schedGameDateTime", "game_datetime", "datetime", "date_time",
-	))
-	endAt := schedule.NormalizeLPSScheduleTime(firstString(raw,
-		"end_at", "ends_at", "end_datetime", "EndDateTime", "schedGameEndTime", "SchedGameEndTime", "game_end_datetime", "end_time",
-	))
-	dateTime := schedule.NormalizeLPSScheduleTime(firstString(raw, "display_datetime", "DisplayDateTime", "DateTime", "datetime", "date_time"))
+	startAt := schedule.NormalizeLPSScheduleTime(firstString(raw, lpsGameStartAtKeys...))
+	endAt := schedule.NormalizeLPSScheduleTime(firstString(raw, lpsGameEndAtKeys...))
+	dateTime := schedule.NormalizeLPSScheduleTime(firstString(raw, lpsGameDateTimeKeys...))
 	if dateTime == "" {
 		dateTime = schedule.FormatGameDateTime(startAt)
 	}
 
-	homeTeam := firstString(raw, "home", "Home", "home_team", "HomeTeam", "home_team_name", "TeamName")
-	awayTeam := firstString(raw, "away", "Away", "away_team", "visitor_team", "AwayTeam", "away_team_name", "visitor_team_name", "OpponentName", "opponent_name")
+	homeTeam := firstString(raw, lpsGameHomeTeamKeys...)
+	awayTeam := firstString(raw, lpsGameAwayTeamKeys...)
 	if homeTeam == "" && awayTeam == "" {
 		matchup := firstString(raw, "matchup", "Matchup", "title", "Title")
 		if matchup != "" {
@@ -142,7 +154,7 @@ func MapLPSGame(raw map[string]any) types.Game {
 	facility := mapGameFacility(raw)
 	location := firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility", "facilityName")
 	if location == "" {
-		location = gameFacilityName(facility, "")
+		location = gameFacilityName(facility)
 	}
 
 	return types.Game{
@@ -233,7 +245,8 @@ func anyToString(value any) string {
 	case json.Number:
 		return typed.String()
 	case map[string]any:
-		for _, nestedKey := range []string{"name", "Name", "title", "Title", "value", "Value", "team_name", "TeamName", "display_name", "DisplayName"} {
+		// Some LPS fields arrive as nested objects instead of plain strings.
+		for _, nestedKey := range lpsNestedNameKeys {
 			if nestedValue, ok := typed[nestedKey]; ok {
 				if converted := anyToString(nestedValue); converted != "" {
 					return converted

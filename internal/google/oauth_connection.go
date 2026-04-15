@@ -127,8 +127,8 @@ func (h *Handler) ListCalendars(ctx context.Context, r *http.Request, record *Co
 	return h.listCalendarsWithToken(h.httpContext(ctx), token)
 }
 
-// Connected returns true if a valid Google connection exists for the request.
-func (h *Handler) Connected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+// GoogleConnected returns true if a valid Google connection exists for the request.
+func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
 	if !h.Config.GoogleEnabled() {
 		return false
 	}
@@ -139,10 +139,6 @@ func (h *Handler) Connected(ctx context.Context, w http.ResponseWriter, r *http.
 		return false
 	}
 	return record != nil
-}
-
-func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
-	return h.Connected(ctx, w, r)
 }
 
 // PopulateLoginState fills Google-related fields on login state props.

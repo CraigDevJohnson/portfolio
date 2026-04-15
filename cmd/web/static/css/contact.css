@@ -166,7 +166,7 @@
   border-radius: 50%;
   background: var(--accent-primary);
   box-shadow: 0 0 8px rgb(234 88 12 / 50%);
-  animation: contactPulse 2s ease-in-out infinite;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .avail-label {

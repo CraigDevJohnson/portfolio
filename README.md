@@ -84,14 +84,19 @@ just install-air
 just dev
 ```
 
-**Note**: `just dev` handles the normal local development loop, but Templ source
-changes still need regeneration before commands that do not already trigger it.
+**Note**: When you edit `.templ` files, run `just generate` separately.
+The `air` hot-reload loop started by `just dev` does not regenerate Templ output.
 
 ### Validation
 
-Use the existing `just` recipes for verification:
+Use the existing `just` recipes for verification. See `justfile` for the full
+command list, including:
 
 ```bash
+# Format and lint
+just fmt
+just lint
+
 # Fast checks during development
 just vet
 just test
@@ -104,9 +109,10 @@ just ci
 `just build` regenerates Templ output before compiling, and `just ci` is the
 final validation gate for formatting, vet, generation, build, and tests.
 
-### Optional: Google Calendar Configuration
+### Optional Google Calendar Integration
 
-Direct Google Calendar add requires these runtime environment variables:
+The soccer tool can optionally add games directly to Google Calendar.
+To enable that feature, configure these runtime environment variables:
 
 - `CLIENT_ID_KEY`
 - `CLIENT_SECRET_KEY`
@@ -194,12 +200,14 @@ portfolio/
 
 ### Updating Content
 
-Portfolio content is defined in `internal/portfolio/data.go` in the data functions:
+Portfolio content is loaded from embedded JSON in `internal/portfolio/data.go`:
 
-- `experienceData()` - Work experience entries
-- `skillsData()` - Skills by category
-- `projectsData()` - Project showcase
-- `educationData()` - Education entries
+- `ExperienceData()` - Work experience entries from `internal/portfolio/data/experience.json`
+- `SkillsData()` - Skills by category from `internal/portfolio/data/skills.json`
+- `ProjectsData()` - Project showcase from `internal/portfolio/data/projects.json`
+
+The education page content is currently maintained directly in
+`cmd/web/pages/education.templ`.
 
 ### Updating Templates
 
@@ -252,57 +260,27 @@ The `chrome-extension/` directory contains a Manifest V3 Chrome extension that s
 
 ## Deployment
 
-The application is designed to be deployed as a standalone binary:
+For production and AWS App Runner deployment, see
+[`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md).
+
+For local container testing, use Docker Compose:
 
 ```bash
-# Generate Templ components
-just generate
-
-# Build for production
-CGO_ENABLED=0 GOOS=linux go build -o portfolio-server ./cmd/server
-
-# Run
-./portfolio-server
-```
-
-For containerized deployment, use the included `Dockerfile`, `.dockerignore`, and `docker-compose.yml`.
-
-### Docker
-
-```bash
-# Build image
-docker build -t portfolio-app .
-
-# Run container
-docker run --rm -p 8080:8080 portfolio-app
-```
-
-### Docker Compose
-
-```bash
-# Create a local env file and set a 64-character hex session key
 cp .env.example .env
-openssl rand -hex 32
+# Set LPS_SESSION_KEY in .env to a 64-character hex string
 
-# Build and start in background
-docker compose up --build -d
-
-# Follow logs
-docker compose logs -f
-
-# Stop and remove containers/network
-docker compose down
+docker compose up --build
 ```
 
 The app is available at `http://localhost:8080`.
 
 Compose reads the local `.env` file automatically. Set `LPS_SESSION_KEY` in `.env` to a 64-character hex string before starting the stack. This key is used to encrypt soccer session cookies, so rotating it invalidates existing sessions. `LPS_API_BASE_URL` is optional if you need to point the app at a non-default upstream API.
 
-### Authenticated Soccer Workflow
+### JWT Soccer Import Workflow
 
 The authenticated soccer import flow requires `LPS_SESSION_KEY` to be set before the server starts. Without it, the app cannot encrypt the current-session cookie that stores the imported bearer token and discovered players.
 
-Current import flow:
+Use this flow to import a current Let's Play Soccer session token:
 
 1. Sign in on letsplaysoccer.com in your browser.
 2. Copy the bearer JWT from your current authenticated session. You can use
@@ -323,7 +301,7 @@ as the source of truth instead of older inline manifest examples.
 - Runtime image uses distroless and runs as a non-root user.
 - Static assets are copied into the image at build time.
 - Regenerate Templ output (`just generate`) before building if `.templ` files were changed.
-**Note**: Templates are not needed in the runtime image because Templ components are compiled into the binary.
+- Templ source files are compiled into the binary, so they are not needed in the runtime image.
 
 ## License
 

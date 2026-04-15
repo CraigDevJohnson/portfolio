@@ -4,6 +4,19 @@ const FIELD_SELECTOR = '#soccer-import-jwt'
 const OPEN_BUTTON_SELECTOR = '[data-open-login-modal]'
 let cachedImportValue = ''
 let applyQueued = false
+const warnedMissingTargets = {
+  button: false,
+  field: false,
+}
+
+function warnOnce(message, warningKey) {
+  if (warnedMissingTargets[warningKey]) {
+    return
+  }
+
+  console.warn(message)
+  warnedMissingTargets[warningKey] = true
+}
 
 function dispatchFieldEvents(field) {
   field.dispatchEvent(new Event('input', { bubbles: true }))
@@ -13,8 +26,14 @@ function dispatchFieldEvents(field) {
 function fillImportField(importValue) {
   const field = document.querySelector(FIELD_SELECTOR)
   if (!field || !importValue) {
+    if (importValue && !field) {
+      warnOnce(`LPS JWT autofill could not find ${FIELD_SELECTOR}.`, 'field')
+    }
+
     return false
   }
+
+  warnedMissingTargets.field = false
 
   if (field.value.trim() === importValue.trim()) {
     return true
@@ -44,8 +63,11 @@ function maybeOpenImportModal() {
 
   const button = document.querySelector(OPEN_BUTTON_SELECTOR)
   if (!button) {
+    warnOnce(`LPS JWT autofill could not find ${OPEN_BUTTON_SELECTOR}.`, 'button')
     return false
   }
+
+  warnedMissingTargets.button = false
 
   button.click()
   cleanAutofillQueryParam()

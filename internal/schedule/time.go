@@ -9,6 +9,7 @@ import (
 	"portfolio/types"
 )
 
+// MountainTimeLocation is the app's canonical timezone for soccer schedules.
 var MountainTimeLocation = loadMountainTimeLocation()
 
 func loadMountainTimeLocation() *time.Location {
@@ -22,6 +23,7 @@ func loadMountainTimeLocation() *time.Location {
 	return time.FixedZone("MST", fallbackTimezoneOffsetSeconds)
 }
 
+// ParseScheduleTime parses schedule timestamps using the supported LPS formats.
 func ParseScheduleTime(value string) (time.Time, bool) {
 	if parsed, ok := ParseMislabelledLPSZuluTime(value); ok {
 		return parsed, true
@@ -29,6 +31,7 @@ func ParseScheduleTime(value string) (time.Time, bool) {
 	return ParseFlexibleTime(value)
 }
 
+// NormalizeLPSScheduleTime converts mislabelled LPS timestamps to RFC3339.
 func NormalizeLPSScheduleTime(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -42,6 +45,7 @@ func NormalizeLPSScheduleTime(value string) string {
 	return parsed.Format(time.RFC3339)
 }
 
+// ParseMislabelledLPSZuluTime parses local mountain times that incorrectly end in Z.
 func ParseMislabelledLPSZuluTime(value string) (time.Time, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" || !strings.HasSuffix(value, "Z") {
@@ -59,6 +63,7 @@ func ParseMislabelledLPSZuluTime(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// ParseFlexibleTime parses the supported schedule timestamp formats.
 func ParseFlexibleTime(value string) (time.Time, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -96,6 +101,7 @@ func ParseFlexibleTime(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// FormatGameDateTime formats a schedule timestamp for display in mountain time.
 func FormatGameDateTime(value string) string {
 	parsed, ok := ParseScheduleTime(value)
 	if !ok {
@@ -104,6 +110,7 @@ func FormatGameDateTime(value string) string {
 	return parsed.In(MountainTimeLocation).Format("Mon 01/02/06 03:04 PM MST")
 }
 
+// ScheduleTimes returns the event start and end times for a game.
 func ScheduleTimes(game *types.Game) (time.Time, time.Time, bool) {
 	start, ok := GameStartTime(game)
 	if !ok {

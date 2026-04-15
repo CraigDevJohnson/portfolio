@@ -21,6 +21,7 @@ type FormattedGameEvent struct {
 	Summary     string
 }
 
+// BuildICS renders the provided games as an iCalendar payload.
 func BuildICS(games []types.Game) string {
 	var builder strings.Builder
 	WriteICSLine(&builder, "BEGIN:VCALENDAR")
@@ -49,6 +50,7 @@ func BuildICS(games []types.Game) string {
 	return builder.String()
 }
 
+// CanonicalGameEvent converts a game into the normalized event shape used for ICS output.
 func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 	start, end, ok := ScheduleTimes(game)
 	if !ok {
@@ -129,6 +131,7 @@ func canonicalGameStatus(game *types.Game) string {
 	return "confirmed"
 }
 
+// EscapeICSText escapes reserved characters for ICS text fields.
 func EscapeICSText(value string) string {
 	value = strings.ReplaceAll(value, `\`, `\\`)
 	value = strings.ReplaceAll(value, ";", `\;`)
@@ -137,6 +140,7 @@ func EscapeICSText(value string) string {
 	return value
 }
 
+// WriteICSLine writes an ICS line using RFC-5545 line folding.
 func WriteICSLine(builder *strings.Builder, line string) {
 	const maxLineBytes = 75
 

@@ -18,6 +18,7 @@ type ConnectionStore interface {
 	Put(ctx context.Context, record *ConnectionRecord) error
 }
 
+// ConnectionRecord stores the encrypted Google token and selected calendar.
 type ConnectionRecord struct {
 	ConnectionID    string    `dynamodbav:"connection_id"`
 	TokenCiphertext string    `dynamodbav:"token_ciphertext"`
@@ -27,11 +28,13 @@ type ConnectionRecord struct {
 	UpdatedAt       time.Time `dynamodbav:"updated_at"`
 }
 
+// DynamoStore implements ConnectionStore using DynamoDB.
 type DynamoStore struct {
 	client    *dynamodb.Client
 	tableName string
 }
 
+// NoopStore is a no-op ConnectionStore used when Google integration is disabled.
 type NoopStore struct{}
 
 // NewConnectionStore returns a DynamoStore if a table name is configured,

@@ -6,13 +6,8 @@ import (
 	"time"
 )
 
-func newTestLimiter(maxAttempts int, window time.Duration, maxKeys int) *LoginRateLimiter {
-	limiter := NewLoginRateLimiter(maxAttempts, window, maxKeys)
-	return limiter
-}
-
 func TestAllow_EmptyKeyAlwaysAllowed(t *testing.T) {
-	limiter := newTestLimiter(1, time.Minute, 10)
+	limiter := NewLoginRateLimiter(1, time.Minute, 10)
 	defer limiter.Close()
 
 	for range 100 {
@@ -23,7 +18,7 @@ func TestAllow_EmptyKeyAlwaysAllowed(t *testing.T) {
 }
 
 func TestAllow_WithinLimit(t *testing.T) {
-	limiter := newTestLimiter(3, time.Minute, 10)
+	limiter := NewLoginRateLimiter(3, time.Minute, 10)
 	defer limiter.Close()
 
 	for i := range 3 {
@@ -34,7 +29,7 @@ func TestAllow_WithinLimit(t *testing.T) {
 }
 
 func TestAllow_ExceedsLimit(t *testing.T) {
-	limiter := newTestLimiter(3, time.Minute, 10)
+	limiter := NewLoginRateLimiter(3, time.Minute, 10)
 	defer limiter.Close()
 
 	for range 3 {
@@ -47,7 +42,7 @@ func TestAllow_ExceedsLimit(t *testing.T) {
 }
 
 func TestAllow_IndependentKeys(t *testing.T) {
-	limiter := newTestLimiter(2, time.Minute, 10)
+	limiter := NewLoginRateLimiter(2, time.Minute, 10)
 	defer limiter.Close()
 
 	for range 2 {
@@ -64,7 +59,7 @@ func TestAllow_IndependentKeys(t *testing.T) {
 
 func TestAllow_WindowResetsAfterExpiry(t *testing.T) {
 	window := 50 * time.Millisecond
-	limiter := newTestLimiter(2, window, 10)
+	limiter := NewLoginRateLimiter(2, window, 10)
 	defer limiter.Close()
 
 	for range 2 {
@@ -82,7 +77,7 @@ func TestAllow_WindowResetsAfterExpiry(t *testing.T) {
 }
 
 func TestAllow_MaxKeysEnforcement(t *testing.T) {
-	limiter := newTestLimiter(5, time.Minute, 2)
+	limiter := NewLoginRateLimiter(5, time.Minute, 2)
 	defer limiter.Close()
 
 	if !limiter.Allow("a") {
@@ -98,7 +93,7 @@ func TestAllow_MaxKeysEnforcement(t *testing.T) {
 
 func TestAllow_MaxKeysEvictsStale(t *testing.T) {
 	window := 50 * time.Millisecond
-	limiter := newTestLimiter(5, window, 2)
+	limiter := NewLoginRateLimiter(5, window, 2)
 	defer limiter.Close()
 
 	limiter.Allow("old")
@@ -114,13 +109,13 @@ func TestAllow_MaxKeysEvictsStale(t *testing.T) {
 }
 
 func TestClose_Idempotent(t *testing.T) {
-	limiter := newTestLimiter(5, time.Minute, 10)
+	limiter := NewLoginRateLimiter(5, time.Minute, 10)
 	limiter.Close()
 	limiter.Close()
 }
 
 func TestAllow_ConcurrentAccess(t *testing.T) {
-	limiter := newTestLimiter(100, time.Minute, 50)
+	limiter := NewLoginRateLimiter(100, time.Minute, 50)
 	defer limiter.Close()
 
 	var wg sync.WaitGroup
@@ -138,7 +133,7 @@ func TestAllow_ConcurrentAccess(t *testing.T) {
 
 func TestPeriodicCleanup_RemovesExpired(t *testing.T) {
 	window := 50 * time.Millisecond
-	limiter := newTestLimiter(5, window, 10)
+	limiter := NewLoginRateLimiter(5, window, 10)
 	defer limiter.Close()
 
 	limiter.Allow("stale")

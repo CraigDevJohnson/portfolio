@@ -18,6 +18,8 @@ type SkillsFilterableProps struct {
 	ActiveProficiency string
 }
 
+const conceptsCategoryName = "Concepts & Practices"
+
 func buildFilterURL(category, proficiency string) string {
 	params := url.Values{}
 	if category != "" {
@@ -62,7 +64,7 @@ func shouldShowSkill(skill types.Skill, proficiency string) bool {
 
 func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activeProficiency string) bool {
 	for _, cat := range categories {
-		if cat.Name == "Concepts & Practices" {
+		if cat.Name == conceptsCategoryName {
 			continue
 		}
 		if activeCategory != "" && cat.Name != activeCategory {
@@ -75,13 +77,17 @@ func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activePr
 	return false
 }
 
+templ skillAsset(skill types.Skill, altText string) {
+	if skill.IconPath != "" {
+		<img src={ skill.IconPath } alt={ altText } loading="lazy" width="56" height="56"/>
+	} else if skill.Icon != "" {
+		@templ.Raw(skill.Icon)
+	}
+}
+
 templ featuredSkillCardContent(skill types.Skill) {
 	<div class="skill-card-icon">
-		if skill.IconPath != "" {
-			<img src={ skill.IconPath } alt={ skill.Name }/>
-		} else if skill.Icon != "" {
-			@templ.Raw(skill.Icon)
-		}
+		@skillAsset(skill, skill.Name)
 	</div>
 	<div class="skill-card-content">
 		<h3 class="skill-card-name">{ skill.Name }</h3>
@@ -95,6 +101,18 @@ templ featuredSkillCardContent(skill types.Skill) {
 			<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
 				{ skill.Proficiency }
 			</div>
+		</div>
+	</div>
+}
+
+templ conceptCardContent(skill types.Skill) {
+	<div class="concept-icon">
+		@skillAsset(skill, "")
+	</div>
+	<div class="concept-info">
+		<span class="concept-name">{ skill.Name }</span>
+		<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
+			{ skill.Proficiency }
 		</div>
 	</div>
 }
@@ -128,7 +146,7 @@ templ SkillsGrid(props SkillsGridProps) {
 		}
 		<!-- Concepts & Practices (elevated position) -->
 		for _, cat := range props.Categories {
-			if cat.Name == "Concepts & Practices" {
+			if cat.Name == conceptsCategoryName {
 				<div class="concepts-section">
 					<div class="concepts-header">
 						<h2 class="concepts-title">Concepts &amp; Practices</h2>
@@ -144,19 +162,7 @@ templ SkillsGrid(props SkillsGridProps) {
 									class="card card--teal concept-card"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
-									<div class="concept-icon">
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt=""/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-									</div>
-									<div class="concept-info">
-										<span class="concept-name">{ skill.Name }</span>
-										<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
-											{ skill.Proficiency }
-										</div>
-									</div>
+									@conceptCardContent(skill)
 									<span class="concept-arrow" aria-hidden="true">↗</span>
 								</a>
 							} else {
@@ -164,19 +170,7 @@ templ SkillsGrid(props SkillsGridProps) {
 									class="card card--teal concept-card"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
-									<div class="concept-icon">
-										if skill.IconPath != "" {
-											<img src={ skill.IconPath } alt=""/>
-										} else if skill.Icon != "" {
-											@templ.Raw(skill.Icon)
-										}
-									</div>
-									<div class="concept-info">
-										<span class="concept-name">{ skill.Name }</span>
-										<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
-											{ skill.Proficiency }
-										</div>
-									</div>
+									@conceptCardContent(skill)
 								</div>
 							}
 						}
@@ -216,7 +210,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						All
 					</button>
 					for _, cat := range props.Categories {
-						if cat.Name != "Concepts & Practices" {
+						if cat.Name != conceptsCategoryName {
 							<button
 								type="button"
 								class={ "filter-tab", templ.KV("active", props.ActiveCategory == cat.Name) }
@@ -291,7 +285,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 		<div class="all-skills-section">
 			if hasVisibleSkills(props.Categories, props.ActiveCategory, props.ActiveProficiency) {
 				for catIndex, cat := range props.Categories {
-					if cat.Name != "Concepts & Practices" && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
+					if cat.Name != conceptsCategoryName && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
 						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
 							<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
 								<h3 class="category-title">
@@ -315,11 +309,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 												aria-expanded="false"
 												aria-controls={ fmt.Sprintf("detail-slot-%d", catIndex) }
 											>
-												if skill.IconPath != "" {
-													<img src={ skill.IconPath } alt={ skill.Name }/>
-												} else if skill.Icon != "" {
-													@templ.Raw(skill.Icon)
-												}
+												@skillAsset(skill, skill.Name)
 												<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
 											</button>
 										}

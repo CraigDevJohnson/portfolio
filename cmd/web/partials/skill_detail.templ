@@ -14,11 +14,7 @@ templ SkillDetail(props SkillDetailProps) {
 		<button class="skill-detail-close" aria-label="Close detail" type="button" data-close-detail>&times;</button>
 		<div class="skill-detail-content">
 			<div class="skill-detail-icon">
-				if props.Skill.IconPath != "" {
-					<img src={ props.Skill.IconPath } alt={ props.Skill.Name }/>
-				} else if props.Skill.Icon != "" {
-					@templ.Raw(props.Skill.Icon)
-				}
+				@skillAsset(props.Skill, props.Skill.Name)
 			</div>
 			<div class="skill-detail-info">
 				<h4 class="skill-detail-name">{ props.Skill.Name }</h4>

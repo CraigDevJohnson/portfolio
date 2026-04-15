@@ -37,8 +37,8 @@ This guide walks you through deploying the portfolio site to **AWS App Runner** 
 
 **App Runner wins** for this use case because:
 
-- **Cheapest for low traffic** — you pay per compute-second; an idle site costs almost nothing
-  beyond the minimum.
+- **Cheapest for low traffic** — App Runner still has a small monthly floor, then adds
+  compute charges per second while handling requests.
 - **Zero ops** — no load balancers, VPCs, or security groups to manage.
 - **Auto TLS** — HTTPS is provided automatically on the `*.awsapprunner.com` domain and on
   custom domains.
@@ -71,9 +71,9 @@ For a site with fewer than 100 visits per month:
 | Data transfer (< 1 GB) | Free tier |
 | **Total** | **~$5/month** |
 
-> **Note:** App Runner charges per compute-second when handling requests. An idle service with
-> near-zero traffic costs approximately $5/month for the provisioned minimum. This is
-> significantly cheaper than running an always-on ECS task or EC2 instance.
+> **Note:** App Runner charges a minimum of about $5/month even with near-zero traffic,
+> then adds compute charges per second while handling requests. This is still significantly
+> cheaper than running an always-on ECS task or EC2 instance.
 
 ---
 
@@ -201,6 +201,9 @@ Review the output. It should show the creation of:
 **Important:** The App Runner service references the ECR image, so the image must exist in ECR
 before `tofu apply` can succeed. You have two options:
 
+**Recommended for first-time deploys:** use **Option A** so the image exists before
+App Runner is created.
+
 **Option A — Create ECR first, then apply everything:**
 
 ```bash
@@ -290,8 +293,8 @@ docker push $ECR_URL:latest
 
 ## Step 5 — Deploy to App Runner
 
-If you followed **Option A** in Step 3, the App Runner service was already created. If not,
-return to the `infra/` directory and apply:
+If you followed **Option A** in Step 3, the App Runner service was already created.
+If you used **Option B**, return to the `infra/` directory and apply:
 
 ```bash
 cd infra
@@ -315,16 +318,15 @@ tofu apply
 
 ### Configure runtime environment variables
 
-The Google Calendar integration needs these App Runner runtime environment
-variables in addition to `LPS_SESSION_KEY`:
+The Google Calendar integration needs these App Runner runtime values in addition
+to `LPS_SESSION_KEY`:
 
 - `CLIENT_ID_KEY`
 - `CLIENT_SECRET_KEY`
-- `GOOGLE_CONNECTION_TABLE_NAME`
 
-`GOOGLE_CONNECTION_TABLE_NAME` is now supplied automatically from Terraform via
-the App Runner service configuration. The Google client ID and client secret
-still need to be set in the App Runner service runtime configuration.
+Terraform now supplies `GOOGLE_CONNECTION_TABLE_NAME` automatically through the
+App Runner service configuration. You still need to set `CLIENT_ID_KEY` and
+`CLIENT_SECRET_KEY` in the App Runner runtime configuration.
 
 ### Configure Google OAuth redirect URIs
 
@@ -409,7 +411,9 @@ Since App Runner provides its own publicly trusted TLS certificate, configure Cl
 
 ## Updating the Site
 
-When you make changes to the site, redeploy with these steps:
+When you make changes to the site, redeploy with these steps. This is the same
+build-and-push flow from [Step 4](#step-4--build-and-push-the-docker-image),
+repeated here as a shorter update checklist:
 
 ```bash
 # 1. Build the new Docker image
@@ -609,8 +613,8 @@ jobs:
           aws apprunner start-deployment --service-arn "$SERVICE_ARN"
 ```
 
-> **Note:** You'll need to create an IAM role for GitHub Actions OIDC federation. See the
-> [AWS docs on GitHub OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html).
+> **Note:** You'll need to create an IAM role for a GitHub Actions OIDC provider. See the
+> [AWS docs on creating an OIDC identity provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html).
 
 ---
 

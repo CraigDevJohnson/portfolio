@@ -17,10 +17,9 @@ import (
 	"portfolio/types"
 )
 
+// FetchSchedulesHandler renders the schedule table fragment for the current selection.
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	if !parseScheduleRequest(w, r) {
 		return
 	}
 
@@ -51,10 +50,9 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// DownloadICSHandler exports the selected schedule rows as an ICS download.
 func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	if !parseScheduleRequest(w, r) {
 		return
 	}
 
@@ -166,14 +164,21 @@ func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Req
 	http.Error(w, detail.DownloadMessage, detail.DownloadStatus)
 }
 
+// RequestedScheduleGames resolves schedule data from either imported players or manual team IDs.
 func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
 	teamIDs := parseTeamIDs(teamCodes)
-	switch {
-	case session != nil && len(playerIDs) > 0:
+	hasSelectedPlayers := len(playerIDs) > 0
+	hasManualTeamInput := strings.TrimSpace(teamCodes) != ""
+
+	if hasSelectedPlayers {
+		if session == nil {
+			return nil, ErrPlayerSessionRequired
+		}
 		return h.resolveScheduleGames(ctx, session, playerIDs, nil)
-	case len(playerIDs) > 0:
-		return nil, ErrPlayerSessionRequired
-	case strings.TrimSpace(teamCodes) != "" && len(teamIDs) == 0:
+	}
+
+	switch {
+	case hasManualTeamInput && len(teamIDs) == 0:
 		return nil, ErrInvalidTeamSelection
 	case len(teamIDs) > 0:
 		return h.resolveScheduleGames(ctx, session, nil, teamIDs)
@@ -227,6 +232,15 @@ func parseSelectedIDs(form url.Values) map[string]struct{} {
 		}
 	}
 	return selectedIDs
+}
+
+func parseScheduleRequest(w http.ResponseWriter, r *http.Request) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
 func parsePlayerIDs(values []string) []int {

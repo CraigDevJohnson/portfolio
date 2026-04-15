@@ -1,6 +1,7 @@
 package soccer
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"portfolio/types"
 )
 
+// SoccerPage renders the full soccer page.
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"))
 	props := pages.SoccerProps{
@@ -16,10 +18,12 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		GoogleMessageKind: googleMessageKind,
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
+		log.Printf("soccer page render failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
+// LoginStateProps builds the shared login-state fragment props.
 func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
 	props := partials.SoccerLoginStateProps{
 		Authenticated:   session != nil,
@@ -36,26 +40,22 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 	return props
 }
 
+// RenderLoginState renders the soccer login-state fragment.
 func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := h.LoginStateProps(w, r, session, false)
 	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
+		log.Printf("soccer login state render failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
+// RenderLoginFeedback renders a login feedback fragment.
 func (h *Handler) RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := partials.SoccerLoginFeedbackProps{Kind: kind, Message: message}
 	if err := partials.SoccerLoginFeedback(props).Render(r.Context(), w); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string) {
-	props := partials.SoccerLoginFeedbackProps{Kind: kind, Message: message}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := partials.SoccerLoginFeedback(props).Render(r.Context(), w); err != nil {
+		log.Printf("soccer login feedback render failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

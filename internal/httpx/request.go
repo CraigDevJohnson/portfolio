@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// ClientIP returns the best available client IP for the request.
 func ClientIP(request *http.Request) string {
 	if ip, ok := forwardedClientIP(request); ok {
 		return ip
@@ -24,6 +25,7 @@ func forwardedClientIP(request *http.Request) (string, bool) {
 		return "", false
 	}
 
+	// Prefer Cloudflare's single-IP header before falling back to X-Forwarded-For.
 	if ip := strings.TrimSpace(request.Header.Get("CF-Connecting-IP")); isValidIP(ip) {
 		return ip, true
 	}
@@ -54,6 +56,7 @@ func isValidIP(value string) bool {
 	return net.ParseIP(strings.TrimSpace(value)) != nil
 }
 
+// RequestIsHTTPS reports whether the request reached the app over HTTPS.
 func RequestIsHTTPS(request *http.Request) bool {
 	if request.TLS != nil {
 		return true
@@ -64,6 +67,7 @@ func RequestIsHTTPS(request *http.Request) bool {
 	return false
 }
 
+// RequestBaseURL returns the request origin using the detected request scheme.
 func RequestBaseURL(request *http.Request) string {
 	scheme := "http"
 	if RequestIsHTTPS(request) {
@@ -72,6 +76,7 @@ func RequestBaseURL(request *http.Request) string {
 	return scheme + "://" + strings.TrimSpace(request.Host)
 }
 
+// NewSecureCookie builds an HTTP-only cookie using the request security context.
 func NewSecureCookie(request *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie {
 	return &http.Cookie{
 		Name:     name,

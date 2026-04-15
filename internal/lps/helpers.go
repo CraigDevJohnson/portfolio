@@ -82,9 +82,9 @@ func buildGameFacility(id int, name, address, city, state, zip string) *types.Fa
 	return types.NewFacilityDetails(id, name, address, city, state, zip)
 }
 
-func gameFacilityName(facility *types.Facility, fallback string) string {
+func gameFacilityName(facility *types.Facility) string {
 	if facility != nil && strings.TrimSpace(facility.Name) != "" {
 		return strings.TrimSpace(facility.Name)
 	}
-	return strings.TrimSpace(fallback)
+	return ""
 }
