@@ -70,6 +70,8 @@ type stubSoccerBridge struct {
 	lastFeedbackKind    string
 	lastFeedbackMessage string
 	games               []types.Game
+	syncResultsGames    []types.Game
+	syncResultsMessage  string
 }
 
 func (b *stubSoccerBridge) LoadSession(_ http.ResponseWriter, _ *http.Request) (*types.SessionData, bool) {
@@ -112,4 +114,14 @@ func (b *stubSoccerBridge) ResolveGoogleAddSelection(_ http.ResponseWriter, r *h
 		return nil, nil, "No selected games were found to add.", false
 	}
 	return nil, filtered, "", true
+}
+
+func (b *stubSoccerBridge) ResolveSyncResultsGames(_ http.ResponseWriter, _ *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	if b.syncResultsMessage != "" {
+		return nil, nil, b.syncResultsMessage, false
+	}
+	if b.syncResultsGames != nil {
+		return nil, b.syncResultsGames, "", true
+	}
+	return nil, nil, "", true
 }

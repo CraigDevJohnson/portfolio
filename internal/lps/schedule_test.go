@@ -372,3 +372,62 @@ func TestLPSFetchGamesForTeamsFiltersPastGamesAndDeduplicates(t *testing.T) {
 		t.Fatalf("expected deterministic merge regardless of team order:\noriginal: %#v\nreversed: %#v", games, gamesReversed)
 	}
 }
+
+func TestLPSFetchAllGamesForTeamsIncludesPastGames(t *testing.T) {
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = previousLocal
+	}()
+
+	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/teams/479691":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 5001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 9",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "Past FC"},
+						"visitor_team": {"team_name": "Finished"},
+						"Season": 169,
+						"result": "2 - 1"
+					},
+					{
+						"UGameID": 6001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 2",
+						"facilityName": "Boise",
+						"home_team": {"team_name": "Team One"},
+						"visitor_team": {"team_name": "Visitors"},
+						"Season": 169
+					}
+				]
+			}`, past, future)))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	games, err := FetchAllGamesForTeams(t.Context(), server.URL, client, []int{479691})
+	if err != nil {
+		t.Fatalf("FetchAllGamesForTeams returned error: %v", err)
+	}
+	if len(games) != 2 {
+		t.Fatalf("unexpected games length: got %d want 2", len(games))
+	}
+	if games[0].Home != "Past FC" {
+		t.Fatalf("expected past game to be preserved, got %#v", games[0])
+	}
+	if games[0].Result != "2 - 1" {
+		t.Fatalf("expected result text to survive, got %q", games[0].Result)
+	}
+}

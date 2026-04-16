@@ -173,7 +173,7 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 		if updated.Summary != "UNITED NATIONS vs CLASSIC XI - Field 1" {
 			t.Fatalf("unexpected updated summary: %q", updated.Summary)
 		}
-		if !strings.Contains(updated.Description, "UNITED NATIONS is playing CLASSIC XI") || !strings.Contains(updated.Description, "Field: Field 1") || !strings.Contains(updated.Description, "Result: 1 - 0") {
+		if !strings.Contains(updated.Description, "UNITED NATIONS is playing CLASSIC XI") || !strings.Contains(updated.Description, "Field: Field 1") || !strings.Contains(updated.Description, "Result: Win (1-0)") {
 			t.Fatalf("unexpected updated description: %q", updated.Description)
 		}
 		if updated.Location != "123 Main St, Boise, ID, 83702" {
@@ -209,5 +209,158 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	}
 	if _, exists := updatedEvents["7006"]; exists {
 		t.Fatalf("unselected game should not be updated: %#v", updatedEvents["7006"])
+	}
+}
+
+func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
+	h := newTestHandler(t, store)
+	bridge := h.Soccer.(*stubSoccerBridge)
+
+	tokenCiphertext, err := h.EncryptToken(&oauth2.Token{AccessToken: "access-token"})
+	if err != nil {
+		t.Fatalf("EncryptToken returned error: %v", err)
+	}
+	store.records["connection-1"] = ConnectionRecord{
+		ConnectionID:    "connection-1",
+		TokenCiphertext: tokenCiphertext,
+		CalendarID:      "primary",
+		CalendarSummary: "Primary Calendar",
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+
+	pastOne := testutil.MislabelledLPSZuluTime(time.Now().Add(-2 * time.Hour))
+	pastTwo := testutil.MislabelledLPSZuluTime(time.Now().Add(-4 * time.Hour))
+	boiseFacility := &types.Facility{Name: "Boise", Address: "123 Main St", City: "Boise", State: "ID", ZIP: "83702"}
+	bridge.syncResultsGames = []types.Game{
+		{ID: "8101", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "CLASSIC XI", Home: "UNITED NATIONS", Away: "CLASSIC XI", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 1", Result: "2 - 1", StartAt: pastOne},
+		{ID: "8102", PlayerTeamName: "UNITED NATIONS", OpponentTeamName: "NIGHT OWLS", Home: "NIGHT OWLS", Away: "UNITED NATIONS", DivisionName: "Coed F Fri", Facility: boiseFacility, Field: "Field 4", Result: "1 - 3", StartAt: pastTwo},
+	}
+
+	updatedEvents := map[string]Event{}
+	insertedEvents := map[string]Event{}
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
+			w.WriteHeader(http.StatusNotFound)
+		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodGet:
+			privateLookup := r.URL.Query().Get("privateExtendedProperty")
+			w.Header().Set("Content-Type", "application/json")
+			switch privateLookup {
+			case "game_id=8101":
+				_, _ = w.Write([]byte(`{"items":[{"id":"legacy-8101","status":"confirmed","extendedProperties":{"private":{"game_id":"8101"}}}]}`))
+			default:
+				_, _ = w.Write([]byte(`{"items":[]}`))
+			}
+		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodPut:
+			eventID := strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/")
+			body, readErr := io.ReadAll(r.Body)
+			if readErr != nil {
+				t.Fatalf("io.ReadAll returned error: %v", readErr)
+			}
+			var event Event
+			if decodeErr := json.Unmarshal(body, &event); decodeErr != nil {
+				t.Fatalf("json.Unmarshal returned error: %v", decodeErr)
+			}
+			updatedEvents[eventID] = event
+			w.WriteHeader(http.StatusOK)
+		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodPost:
+			body, readErr := io.ReadAll(r.Body)
+			if readErr != nil {
+				t.Fatalf("io.ReadAll returned error: %v", readErr)
+			}
+			var event Event
+			if decodeErr := json.Unmarshal(body, &event); decodeErr != nil {
+				t.Fatalf("json.Unmarshal returned error: %v", decodeErr)
+			}
+			insertedEvents[event.ID] = event
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer apiServer.Close()
+
+	h.CalendarAPIBaseURL = apiServer.URL + "/calendar/v3"
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader(url.Values{
+		"team_codes": {"479691"},
+	}.Encode()))
+	req.Host = "example.com"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	resp := httptest.NewRecorder()
+
+	h.SyncResultsHandler(resp, req)
+
+	body := resp.Body.String()
+	if !strings.Contains(body, "2 game result(s) updated in Google Calendar.") {
+		t.Fatalf("expected sync success message, got %q", body)
+	}
+	if len(updatedEvents) != 1 {
+		t.Fatalf("expected one updated event, got %d", len(updatedEvents))
+	}
+	if len(insertedEvents) != 1 {
+		t.Fatalf("expected one inserted event, got %d", len(insertedEvents))
+	}
+	if updated, ok := updatedEvents["legacy-8101"]; !ok {
+		t.Fatalf("expected legacy-8101 update, got %#v", updatedEvents)
+	} else if !strings.Contains(updated.Description, "Result: Win (2-1)") {
+		t.Fatalf("expected formatted win result in update, got %q", updated.Description)
+	}
+	if inserted, ok := insertedEvents["8102"]; !ok {
+		t.Fatalf("expected inserted event 8102, got %#v", insertedEvents)
+	} else if !strings.Contains(inserted.Description, "Result: Win (3-1)") {
+		t.Fatalf("expected formatted away-win result in insert, got %q", inserted.Description)
+	}
+}
+
+func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
+	h := newTestHandler(t, store)
+	bridge := h.Soccer.(*stubSoccerBridge)
+
+	tokenCiphertext, err := h.EncryptToken(&oauth2.Token{AccessToken: "access-token"})
+	if err != nil {
+		t.Fatalf("EncryptToken returned error: %v", err)
+	}
+	store.records["connection-1"] = ConnectionRecord{
+		ConnectionID:    "connection-1",
+		TokenCiphertext: tokenCiphertext,
+		CalendarID:      "primary",
+		CalendarSummary: "Primary Calendar",
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+
+	bridge.syncResultsGames = []types.Game{}
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader("team_codes=479691"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	resp := httptest.NewRecorder()
+
+	h.SyncResultsHandler(resp, req)
+
+	body := resp.Body.String()
+	if !strings.Contains(body, "No past games with results to sync.") {
+		t.Fatalf("expected no-results sync message, got %q", body)
+	}
+}
+
+func TestSyncResultsHandlerRequiresGoogleConnection(t *testing.T) {
+	h := newTestHandler(t, &fakeConnectionStore{records: map[string]ConnectionRecord{}})
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader("team_codes=479691"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+
+	h.SyncResultsHandler(resp, req)
+
+	body := resp.Body.String()
+	if !strings.Contains(body, "Connect Google Calendar before syncing results.") {
+		t.Fatalf("expected connection required message, got %q", body)
 	}
 }

@@ -66,7 +66,7 @@ func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	if event.Summary != "STRUGGLE BUS vs FC CHAIN MAIL - Field 2" {
 		t.Fatalf("unexpected event summary: %q", event.Summary)
 	}
-	if event.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: 7 - 3" {
+	if event.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: Win (7-3)" {
 		t.Fatalf("unexpected event description: %q", event.Description)
 	}
 	if event.Location != "11448 W. President Drive, Boise, ID, 83713" {
@@ -116,7 +116,7 @@ func TestEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 	if event.Summary != "STRUGGLE BUS vs MANEFESTO - Field 1" {
 		t.Fatalf("unexpected event summary: %q", event.Summary)
 	}
-	if event.Description != "STRUGGLE BUS is playing MANEFESTO\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 1\nResult: canceled" {
+	if event.Description != "STRUGGLE BUS is playing MANEFESTO\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 1\nResult: Canceled" {
 		t.Fatalf("unexpected event description: %q", event.Description)
 	}
 	if event.Location != "11448 W. President Drive, Boise, ID, 83713" {

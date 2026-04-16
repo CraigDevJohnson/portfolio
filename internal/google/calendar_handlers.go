@@ -58,6 +58,61 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	h.Soccer.RenderLoginFeedback(w, r, "success", successMessage)
 }
 
+// SyncResultsHandler updates previously synced past games with result text.
+func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
+	if !h.Config.GoogleEnabled() {
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
+		return
+	}
+	if err := parseGoogleForm(r, w); err != nil {
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not read the selected games. Try again.")
+		return
+	}
+	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
+	if !ok {
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Connect Google Calendar before syncing results.")
+		return
+	}
+	session, games, message, ok := h.Soccer.ResolveSyncResultsGames(w, r)
+	if !ok {
+		if message != "" {
+			log.Printf("google result sync skipped: %s", message)
+		}
+		h.Soccer.RenderLoginFeedback(w, r, "error", message)
+		return
+	}
+	log.Printf("google result sync candidate games: %d", len(games))
+	if len(games) == 0 {
+		log.Print("google result sync found no past games with results")
+		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync.")
+		return
+	}
+
+	token, err := h.CurrentToken(r.Context(), r, record)
+	if err != nil {
+		log.Printf("google token refresh failed: %v", err)
+		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
+		return
+	}
+	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, games)
+	if err != nil {
+		log.Printf("google result sync failed: %v", err)
+		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not sync past game results to Google Calendar. Try again.")
+		return
+	}
+	if authRejected {
+		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
+		return
+	}
+	log.Printf("google result sync completed: updated=%d skipped=%d", added+updated, skipped)
+
+	successMessage := fmt.Sprintf("%d game result(s) updated in Google Calendar.", added+updated)
+	if skipped > 0 {
+		successMessage += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", skipped)
+	}
+	h.Soccer.RenderLoginFeedback(w, r, "success", successMessage)
+}
+
 // CalendarHandler handles calendar selection changes.
 func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.Soccer.LoadSession(w, r)

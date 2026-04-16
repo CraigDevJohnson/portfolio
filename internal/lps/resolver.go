@@ -57,8 +57,17 @@ func FetchUserPlayers(ctx context.Context, baseURL string, httpClient *http.Clie
 	return discovery, nil
 }
 
-// FetchGamesForPlayers resolves teams for the selected players and merges their schedules using a normalized imported JWT.
+// FetchGamesForPlayers resolves teams for the selected players and returns upcoming merged games.
 func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.Client, jwt string, playerIDs []int) ([]types.Game, error) {
+	games, err := FetchAllGamesForPlayers(ctx, baseURL, httpClient, jwt, playerIDs)
+	if err != nil {
+		return nil, err
+	}
+	return schedule.UpcomingScheduleGames(games), nil
+}
+
+// FetchAllGamesForPlayers resolves teams for the selected players and merges all schedule games.
+func FetchAllGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.Client, jwt string, playerIDs []int) ([]types.Game, error) {
 	resolver := NewScheduleResolver(baseURL, httpClient, jwt)
 	teamByID := make(map[int]TeamSummary)
 	for _, playerID := range sortedUniqueIDs(playerIDs) {
@@ -88,8 +97,17 @@ func FetchGamesForPlayers(ctx context.Context, baseURL string, httpClient *http.
 	return resolver.mergeTeamSchedules(ctx, teamIDs, teamLookup)
 }
 
-// FetchGamesForTeams loads and merges schedules for the selected team IDs.
+// FetchGamesForTeams loads and merges upcoming schedules for the selected team IDs.
 func FetchGamesForTeams(ctx context.Context, baseURL string, httpClient *http.Client, teamIDs []int) ([]types.Game, error) {
+	games, err := FetchAllGamesForTeams(ctx, baseURL, httpClient, teamIDs)
+	if err != nil {
+		return nil, err
+	}
+	return schedule.UpcomingScheduleGames(games), nil
+}
+
+// FetchAllGamesForTeams loads and merges all schedules for the selected team IDs.
+func FetchAllGamesForTeams(ctx context.Context, baseURL string, httpClient *http.Client, teamIDs []int) ([]types.Game, error) {
 	resolver := NewScheduleResolver(baseURL, httpClient, "")
 	return resolver.mergeTeamSchedules(ctx, sortedUniqueIDs(teamIDs), nil)
 }
@@ -126,7 +144,7 @@ func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID
 	return teams, nil
 }
 
-// FetchTeamGames loads, maps, and filters a team's upcoming games.
+// FetchTeamGames loads, maps, and normalizes a team's schedule games.
 func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int, selectedTeam *TeamSummary) ([]types.Game, error) {
 	response, err := resolver.FetchTeamSchedule(ctx, teamID)
 	if err != nil {
@@ -143,7 +161,7 @@ func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int
 	}
 
 	schedule.NormalizeScheduleGames(games)
-	return schedule.UpcomingScheduleGames(games), nil
+	return games, nil
 }
 
 // FetchTeamSchedule loads the raw team schedule response.

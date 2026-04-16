@@ -7,6 +7,7 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
@@ -97,7 +98,7 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 	}
 
 	session, _ := h.LoadSession(w, r)
-	games, err := h.RequestedScheduleGames(r.Context(), session, input.PlayerIDs, input.TeamCodes)
+	games, err := h.RequestedAllScheduleGames(r.Context(), session, input.PlayerIDs, input.TeamCodes)
 	if err != nil {
 		return nil, nil, googleAddScheduleErrorMessage(err), false
 	}
@@ -108,4 +109,19 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 	}
 
 	return session, filteredGames, "", true
+}
+
+func (h *Handler) ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	input := parseScheduleFormInput(r.Form)
+	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
+		return nil, nil, "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.", false
+	}
+
+	session, _ := h.LoadSession(w, r)
+	games, err := h.RequestedAllScheduleGames(r.Context(), session, input.PlayerIDs, input.TeamCodes)
+	if err != nil {
+		return nil, nil, googleAddScheduleErrorMessage(err), false
+	}
+
+	return session, schedule.PastGamesWithResults(games), "", true
 }

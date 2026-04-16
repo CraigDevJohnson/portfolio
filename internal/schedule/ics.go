@@ -82,6 +82,7 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 	}
 
 	status := canonicalGameStatus(game)
+	formattedResult := FormatResultLine(ParseGameResult(strings.TrimSpace(game.Result), playerTeam, strings.TrimSpace(game.Home)))
 
 	return FormattedGameEvent{
 		Description: fmt.Sprintf("%s is playing %s\nDivision: %s\nFacility: %s\nField: %s\nResult: %s",
@@ -90,7 +91,7 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 			strings.TrimSpace(game.DivisionName),
 			gameFacilityName(game),
 			fieldName,
-			strings.TrimSpace(game.Result),
+			formattedResult,
 		),
 		End:      end,
 		ID:       gameID,

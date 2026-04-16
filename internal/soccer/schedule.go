@@ -129,6 +129,45 @@ func (h *Handler) resolveScheduleGames(ctx context.Context, session *types.Sessi
 	}
 }
 
+func (h *Handler) resolveAllScheduleGames(ctx context.Context, session *types.SessionData, playerIDs, teamIDs []int) ([]types.Game, error) {
+	switch {
+	case session != nil && len(playerIDs) > 0:
+		return lps.FetchAllGamesForPlayers(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT, playerIDs)
+	case len(teamIDs) > 0:
+		return lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, teamIDs)
+	default:
+		return nil, nil
+	}
+}
+
+func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string, includePast bool) ([]types.Game, error) {
+	teamIDs := parseTeamIDs(teamCodes)
+	hasSelectedPlayers := len(playerIDs) > 0
+	hasManualTeamInput := strings.TrimSpace(teamCodes) != ""
+
+	if hasSelectedPlayers {
+		if session == nil {
+			return nil, ErrPlayerSessionRequired
+		}
+		if includePast {
+			return h.resolveAllScheduleGames(ctx, session, playerIDs, nil)
+		}
+		return h.resolveScheduleGames(ctx, session, playerIDs, nil)
+	}
+
+	switch {
+	case hasManualTeamInput && len(teamIDs) == 0:
+		return nil, ErrInvalidTeamSelection
+	case len(teamIDs) > 0:
+		if includePast {
+			return h.resolveAllScheduleGames(ctx, session, nil, teamIDs)
+		}
+		return h.resolveScheduleGames(ctx, session, nil, teamIDs)
+	default:
+		return nil, ErrScheduleSelection
+	}
+}
+
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
@@ -166,25 +205,12 @@ func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Req
 
 // RequestedScheduleGames resolves schedule data from either imported players or manual team IDs.
 func (h *Handler) RequestedScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
-	teamIDs := parseTeamIDs(teamCodes)
-	hasSelectedPlayers := len(playerIDs) > 0
-	hasManualTeamInput := strings.TrimSpace(teamCodes) != ""
+	return h.requestedScheduleGames(ctx, session, playerIDs, teamCodes, false)
+}
 
-	if hasSelectedPlayers {
-		if session == nil {
-			return nil, ErrPlayerSessionRequired
-		}
-		return h.resolveScheduleGames(ctx, session, playerIDs, nil)
-	}
-
-	switch {
-	case hasManualTeamInput && len(teamIDs) == 0:
-		return nil, ErrInvalidTeamSelection
-	case len(teamIDs) > 0:
-		return h.resolveScheduleGames(ctx, session, nil, teamIDs)
-	default:
-		return nil, ErrScheduleSelection
-	}
+// RequestedAllScheduleGames resolves both past and upcoming games for the current selection.
+func (h *Handler) RequestedAllScheduleGames(ctx context.Context, session *types.SessionData, playerIDs []int, teamCodes string) ([]types.Game, error) {
+	return h.requestedScheduleGames(ctx, session, playerIDs, teamCodes, true)
 }
 
 func selectedScheduleGames(games []types.Game, selectedIDs map[string]struct{}) []types.Game {

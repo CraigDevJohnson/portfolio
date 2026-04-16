@@ -61,6 +61,25 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 							disabled
 						}
 						if props.GoogleConnected {
+							hx-post="/soccer/google/sync-results"
+							hx-include="#download-form"
+							hx-target="#google-calendar-feedback"
+							hx-swap="innerHTML"
+							hx-indicator=".soccer-google-sync-indicator"
+							hx-disabled-elt="this"
+						}
+						data-loading-button
+					>
+						<span class="btn-text">Sync Past Results</span>
+						<span class="btn-loading-indicator soccer-google-sync-indicator htmx-indicator" aria-hidden="true"></span>
+					</button>
+					<button
+						type="button"
+						class="btn soccer-secondary-btn btn-loading"
+						if !props.GoogleConnected {
+							disabled
+						}
+						if props.GoogleConnected {
 							hx-post="/soccer/google/add"
 							hx-include="#download-form"
 							hx-target="#google-calendar-feedback"

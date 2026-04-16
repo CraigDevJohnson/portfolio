@@ -26,6 +26,7 @@ type SoccerBridge interface {
 	RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData)
 	RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string)
 	ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
+	ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
 }
 
 type OAuthState struct {

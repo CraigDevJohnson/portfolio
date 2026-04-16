@@ -78,6 +78,7 @@ func Run() {
 	mux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
 	mux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
 	mux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
+	mux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
 	mux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
 	mux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
 	mux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
@@ -106,9 +107,11 @@ func Run() {
 	}
 
 	server := &http.Server{
-		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Handler:     mux,
+		ReadTimeout: 15 * time.Second,
+		// 60s covers sync-results, which makes N sequential Google Calendar API
+		// calls before writing its response (21 games ≈ 15s in practice).
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 	serveErrCh := make(chan error, 1)

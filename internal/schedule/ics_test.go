@@ -40,7 +40,7 @@ func TestCanonicalGameEventUsesEnrichedScheduleFields(t *testing.T) {
 	if formatted.Summary != "STRUGGLE BUS vs FC CHAIN MAIL - Field 2" {
 		t.Fatalf("unexpected canonical summary: %q", formatted.Summary)
 	}
-	if formatted.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: 7 - 3" {
+	if formatted.Description != "STRUGGLE BUS is playing FC CHAIN MAIL\nDivision: Coed Over 30 B Sun\nFacility: Boise\nField: Field 2\nResult: Win (7-3)" {
 		t.Fatalf("unexpected canonical description: %q", formatted.Description)
 	}
 	if formatted.Location != "11448 W. President Drive, Boise, ID, 83713" {
@@ -153,7 +153,7 @@ func TestBuildICSMirrorsCanonicalFormatterForCancelledGame(t *testing.T) {
 		"DTSTART;TZID=America/Denver:20260329T172000",
 		"DTEND;TZID=America/Denver:20260329T180500",
 		"SUMMARY:STRUGGLE BUS vs MANEFESTO - Field 1",
-		"DESCRIPTION:STRUGGLE BUS is playing MANEFESTO\\nDivision: Coed Over 30 B Sun\\nFacility: Boise\\nField: Field 1\\nResult: canceled",
+		"DESCRIPTION:STRUGGLE BUS is playing MANEFESTO\\nDivision: Coed Over 30 B Sun\\nFacility: Boise\\nField: Field 1\\nResult: Canceled",
 		"LOCATION:11448 W. President Drive\\, Boise\\, ID\\, 83713",
 		"STATUS:CANCELED",
 	}

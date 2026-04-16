@@ -187,3 +187,18 @@ redeploy:
     aws apprunner start-deployment --service-arn "$SERVICE_ARN"
     echo "Redeployment triggered. Check status with:"
     echo "  aws apprunner describe-service --service-arn $SERVICE_ARN --query Service.Status"
+
+[group('troubleshoot')]
+logs:
+    #!/usr/bin/env sh
+    set -eu
+    SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
+    aws apprunner list-instance-ids --service-arn "$SERVICE_ARN" --query 'InstanceIdList[0]' --output text | \
+      xargs -I {} aws apprunner get-instance-logs --instance-id {} --service-arn "$SERVICE_ARN" --query 'LogStream' --output text
+
+# Output logs from Docker container running from docker compose. Useful for local development with `just compose`.
+[group('troubleshoot')]
+local-logs:
+	#!/usr/bin/env sh
+	set -eu
+	docker compose -f docker-compose.yml logs --tail=200 -f portfolio

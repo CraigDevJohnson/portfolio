@@ -253,6 +253,78 @@ func TestDownloadICSHandlerExportsManualTeamSchedules(t *testing.T) {
 	}
 }
 
+func TestResolveSyncResultsGamesIncludesPastManualTeamGamesWithResults(t *testing.T) {
+	app := newTestApp(t)
+	previousLocal := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = previousLocal
+	}()
+
+	pastWithResult := testutil.MislabelledLPSZuluTime(time.Now().Add(-48 * time.Hour))
+	futureWithResult := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/479691":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games": [
+					{
+						"UGameID": 7001,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 3",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"home_team": {"team_name": "UNITED NATIONS", "division_name": "Coed F Fri"},
+						"visitor_team": {"team_name": "GALACTICOS FC", "division_name": "Coed F Fri"},
+						"Season": 169,
+						"result": "4 - 2"
+					},
+					{
+						"UGameID": 7002,
+						"SchedGameDateTime": %q,
+						"field_name": "Field 4",
+						"facilityName": "Boise",
+						"FacilityID": 4,
+						"home_team": {"team_name": "UNITED NATIONS", "division_name": "Coed F Fri"},
+						"visitor_team": {"team_name": "BENCH MOB", "division_name": "Coed F Fri"},
+						"Season": 169,
+						"result": "1 - 0"
+					}
+				]
+			}`, pastWithResult, futureWithResult)))
+		case "/facilities/4":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "Boise", "Address": "11448 W. President Drive", "City": "Boise", "State": "ID", "ZIP": "83713"}`))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader(url.Values{
+		"team_codes": {"479691"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := req.ParseForm(); err != nil {
+		t.Fatalf("ParseForm returned error: %v", err)
+	}
+	resp := httptest.NewRecorder()
+
+	_, games, message, ok := newTestSoccerHandler(app).ResolveSyncResultsGames(resp, req)
+	if !ok {
+		t.Fatalf("ResolveSyncResultsGames returned not ok with message %q", message)
+	}
+	if len(games) != 1 {
+		t.Fatalf("expected one past result game, got %d (%#v)", len(games), games)
+	}
+	if games[0].ID != "7001" {
+		t.Fatalf("unexpected synced game id: got %q want %q", games[0].ID, "7001")
+	}
+}
+
 func TestDownloadICSHandlerRejectsInvalidTeamSelection(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
