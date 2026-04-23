@@ -492,3 +492,18 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 		})
 	}
 }
+
+func TestSoccerPageContainsExtensionInstallGuidance(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body.String(), "LPS JWT Extractor") {
+		t.Fatal("expected soccer page to include LPS JWT Extractor extension guidance")
+	}
+}

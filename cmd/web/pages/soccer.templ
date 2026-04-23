@@ -205,6 +205,15 @@ templ Soccer(props SoccerProps) {
 							<h3>How to Import Access</h3>
 							<p class="info-inline-intro">Use the import tools when you want player-based schedules instead of entering team IDs manually.</p>
 							<ol>
+								<li>Install the LPS JWT Extractor Chrome extension: open <strong>chrome://extensions</strong>, enable Developer mode, and load the <strong>chrome-extension/</strong> folder from the
+									<a
+										href="https://github.com/CraigDevJohnson/portfolio/tree/main/chrome-extension"
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										project repository
+									</a>.
+								</li>
 								<li>
 									Visit
 									<a
@@ -214,11 +223,12 @@ templ Soccer(props SoccerProps) {
 									>
 										Let's Play Soccer
 									</a>
+									while signed in — the extension captures your JWT automatically.
 								</li>
-								<li>Sign in there first, then open browser DevTools and inspect an authenticated network request</li>
-								<li>Copy the bearer JWT from the Authorization header or response data you can already see</li>
-									<li>Paste the JWT into the import dialog and click Import. If the discovered player list looks stale, clear import and import again with a fresh JWT.</li>
+								<li>Click <strong>Import access</strong> on this page — the JWT field is prefilled and ready to submit.</li>
+								<li>If the discovered player list looks stale, clear import and import again with a fresh JWT.</li>
 							</ol>
+							<p class="info-inline-intro">Without the extension: sign in on letsplaysoccer.com, open DevTools, copy the bearer JWT from an authenticated request header, and paste it into the import dialog.</p>
 						</div>
 					</div>
 				</div>
