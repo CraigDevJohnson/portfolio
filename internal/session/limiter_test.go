@@ -148,3 +148,27 @@ func TestPeriodicCleanup_RemovesExpired(t *testing.T) {
 		t.Fatalf("expected 0 stale entries after cleanup, got %d", count)
 	}
 }
+
+func TestNewLoginRateLimiter_InvalidConfigUsesSafeDefaults(t *testing.T) {
+	limiter := NewLoginRateLimiter(0, 0, 0)
+	defer limiter.Close()
+
+	if limiter.maxAttempts != 1 {
+		t.Fatalf("expected maxAttempts to default to 1, got %d", limiter.maxAttempts)
+	}
+	if limiter.window <= 0 {
+		t.Fatalf("expected positive window, got %s", limiter.window)
+	}
+	if limiter.maxKeys != 1 {
+		t.Fatalf("expected maxKeys to default to 1, got %d", limiter.maxKeys)
+	}
+	if !limiter.Allow("a") {
+		t.Fatal("first attempt should be allowed with defaulted maxAttempts=1")
+	}
+	if limiter.Allow("a") {
+		t.Fatal("second attempt should be denied with defaulted maxAttempts=1")
+	}
+	if limiter.Allow("b") {
+		t.Fatal("new key should be denied with defaulted maxKeys=1 while first key is active")
+	}
+}

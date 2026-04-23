@@ -23,6 +23,16 @@ type LoginRateLimiter struct {
 
 // NewLoginRateLimiter tracks login attempts per key within a fixed time window.
 func NewLoginRateLimiter(maxAttempts int, window time.Duration, maxKeys int) *LoginRateLimiter {
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	if window <= 0 {
+		window = time.Minute
+	}
+	if maxKeys <= 0 {
+		maxKeys = 1
+	}
+
 	limiter := &LoginRateLimiter{
 		maxAttempts: maxAttempts,
 		maxKeys:     maxKeys,
