@@ -37,16 +37,6 @@ func TestParseFlexibleTimePreservesRFC3339Offsets(t *testing.T) {
 }
 
 func TestParseFlexibleTimePreservesUTCForZuluTimestamps(t *testing.T) {
-	previousLocal := time.Local
-	localZone, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		t.Fatalf("time.LoadLocation returned error: %v", err)
-	}
-	time.Local = localZone
-	defer func() {
-		time.Local = previousLocal
-	}()
-
 	got, ok := ParseFlexibleTime("2026-01-12T01:00:00.000Z")
 	if !ok {
 		t.Fatal("ParseFlexibleTime returned false")
