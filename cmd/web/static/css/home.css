@@ -30,36 +30,6 @@
   z-index: 1;
 }
 
-/* Hero orb overrides for home page */
-.hero .hero-orb {
-  opacity: 1;
-  filter: blur(32px);
-}
-
-.hero .hero-orb-1 {
-  width: 520px;
-  height: 520px;
-  top: -12px;
-  left: -4%;
-  right: auto;
-}
-
-.hero .hero-orb-2 {
-  width: 440px;
-  height: 440px;
-  bottom: -28px;
-  right: 1%;
-  left: auto;
-}
-
-.hero .hero-orb-3 {
-  width: 320px;
-  height: 320px;
-  top: 16%;
-  right: 10%;
-  left: auto;
-}
-
 .hero-content {
   position: relative;
   z-index: 10;

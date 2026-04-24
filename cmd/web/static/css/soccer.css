@@ -1035,10 +1035,6 @@ body.soccer-modal-open {
     display: none;
   }
 
-  .soccer-hero-orb {
-    display: none;
-  }
-
   .soccer-login-backdrop {
     background: rgb(0 0 0 / 80%);
   }
@@ -1053,8 +1049,7 @@ body.soccer-modal-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .soccer-hero::after,
-  .soccer-hero-orb {
+  .soccer-hero::after {
     display: none;
   }
 }
