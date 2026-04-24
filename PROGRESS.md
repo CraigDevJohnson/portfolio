@@ -4,12 +4,13 @@
 
 - [x] Task-001: Remove hero-orb markup from source templates
 - [x] Task-002: Remove shared and page-specific orb styling
+- [x] Task-003: Regenerate Templ output and verify generated cleanup
 
 ## Current Iteration
 
-- Iteration: 3
-- Working on: Task-003
-- Started: 2026-04-23T00:00:00Z
+- Iteration: 4
+- Working on: Task-004
+- Started: pending handoff
 
 ## Blockers
 
@@ -27,6 +28,7 @@
 - Task-002 complete: removed shared/home/soccer orb CSS and updated shared
   hero layering selectors to no longer depend on `.hero-orb-bg`
 - Scoped CSS validation passed for styles.css, home.css, and soccer.css
-- Templ generation intentionally deferred to Task-003
-- Current focus: Task-003 generated output cleanup and repo-wide orb reference
-  removal
+- Task-003 complete: ran `just generate`, spot-checked refreshed page output,
+  and confirmed `cmd/web` no longer contains hero-orb implementation strings
+- Expected planning references remain in `PRD.md` and `PROGRESS.md`; Task-004
+  is still pending
