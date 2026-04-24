@@ -5,11 +5,12 @@
 - [x] Task-001: Remove hero-orb markup from source templates
 - [x] Task-002: Remove shared and page-specific orb styling
 - [x] Task-003: Regenerate Templ output and verify generated cleanup
+- [x] Task-004: Validate page presentation and repository health
 
 ## Current Iteration
 
 - Iteration: 4
-- Working on: Task-004
+- Working on: Task-004 complete; awaiting next task
 - Started: pending handoff
 
 ## Blockers
@@ -31,4 +32,13 @@
 - Task-003 complete: ran `just generate`, spot-checked refreshed page output,
   and confirmed `cmd/web` no longer contains hero-orb implementation strings
 - Expected planning references remain in `PRD.md` and `PROGRESS.md`; Task-004
-  is still pending
+  is now complete
+- Task-004 complete: reviewed `/`, `/about`, `/experience`, `/projects`,
+  `/education`, `/contact`, and `/soccer` against the current local build with
+  Chrome screenshots at desktop and 320px widths; hero sections remained
+  intentional with no orb UI, empty gaps, layering regressions, or unreadable
+  text
+- Practical accessibility check passed for the reviewed heroes: skip link still
+  present, one main `h1` per page, and visible keyboard focus remained intact
+  during the screenshot pass on Home and Soccer hero-adjacent controls
+- Repo validation passed: `just test`, `just vet`, and `just build`
