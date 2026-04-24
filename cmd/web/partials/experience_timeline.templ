@@ -11,7 +11,7 @@ templ ExperienceTimeline(props ExperienceTimelineProps) {
 	<div class="career-grid" id="career-grid">
 		for index, exp := range props.Experiences {
 			<article
-				class={ "career-card", templ.KV("current", index == 0) }
+				class={ "card career-card", templ.KV("current", index == 0) }
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
 			>
 				if index == 0 {

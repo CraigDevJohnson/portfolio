@@ -7,16 +7,6 @@
   background-image: url('/static/images/backgrounds/about-hero.jpg');
 }
 
-.hero-header h1 {
-  font-size: var(--text-5xl);
-  font-weight: var(--font-bold);
-  margin-bottom: var(--space-md);
-  color: var(--fg-primary);
-  background: var(--accent-gradient);
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 /* ================================
    Stats Section
 ================================ */
@@ -487,10 +477,6 @@
 }
 
 @media (width <= 768px) {
-  .hero-header h1 {
-    font-size: var(--text-4xl);
-  }
-
   .interests-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -514,10 +500,6 @@
 }
 
 @media (width <= 480px) {
-  .hero-header h1 {
-    font-size: var(--text-3xl);
-  }
-
   .story-quote {
     padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
   }

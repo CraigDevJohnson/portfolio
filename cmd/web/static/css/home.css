@@ -23,32 +23,40 @@
   inset: 0;
   background: linear-gradient(
     135deg,
-    rgb(28 25 23 / 75%) 0%,
-    rgb(28 25 23 / 68%) 50%,
-    rgb(41 37 36 / 72%) 100%
+    rgb(28 25 23 / 64%) 0%,
+    rgb(28 25 23 / 56%) 50%,
+    rgb(41 37 36 / 60%) 100%
   );
   z-index: 1;
 }
 
 /* Hero orb overrides for home page */
 .hero .hero-orb {
-  opacity: 0.35;
+  opacity: 1;
+  filter: blur(32px);
 }
 
 .hero .hero-orb-1 {
-  top: -80px;
-  left: 5%;
+  width: 520px;
+  height: 520px;
+  top: -12px;
+  left: -4%;
   right: auto;
 }
 
 .hero .hero-orb-2 {
-  bottom: -40px;
-  right: 10%;
+  width: 440px;
+  height: 440px;
+  bottom: -28px;
+  right: 1%;
   left: auto;
 }
 
 .hero .hero-orb-3 {
-  right: 25%;
+  width: 320px;
+  height: 320px;
+  top: 16%;
+  right: 10%;
   left: auto;
 }
 

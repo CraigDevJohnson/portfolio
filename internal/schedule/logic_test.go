@@ -25,5 +25,5 @@ func TestPastGamesWithResults(t *testing.T) {
 }
 
 func mislabelledZuluTime(at time.Time) string {
-	return at.In(MountainTimeLocation).Format("2006-01-02T15:04:05.000") + "Z"
+	return at.In(MountainTimeLocation()).Format("2006-01-02T15:04:05.000") + "Z"
 }

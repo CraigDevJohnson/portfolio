@@ -4,7 +4,7 @@ package config
 import (
 	"encoding/hex"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -22,6 +22,7 @@ type Config struct {
 
 // Load reads runtime configuration from the environment.
 func Load() Config {
+	logger := slog.Default().With(slog.String("component", "config"))
 	cfg := Config{
 		LPSAPIBaseURL:             envTrimmed("LPS_API_BASE_URL"),
 		GoogleClientID:            envTrimmed("CLIENT_ID_KEY"),
@@ -33,7 +34,12 @@ func Load() Config {
 	}
 	validatedURL, err := NormalizeLPSAPIBaseURL(cfg.LPSAPIBaseURL)
 	if err != nil {
-		log.Printf("invalid LPS_API_BASE_URL; using default %q", DefaultLPSAPIBaseURL)
+		logger.Warn(
+			"invalid LPS API base URL; using default",
+			slog.String("configured_url", cfg.LPSAPIBaseURL),
+			slog.String("default_url", DefaultLPSAPIBaseURL),
+			slog.Any("error", err),
+		)
 		cfg.LPSAPIBaseURL = DefaultLPSAPIBaseURL
 	} else {
 		cfg.LPSAPIBaseURL = validatedURL
@@ -41,13 +47,13 @@ func Load() Config {
 
 	keyHex := envTrimmed("LPS_SESSION_KEY")
 	if keyHex == "" {
-		log.Printf("soccer auth disabled: LPS_SESSION_KEY is not configured")
+		logger.Info("soccer auth disabled; LPS_SESSION_KEY is not configured")
 		return cfg
 	}
 
 	decoded, err := hex.DecodeString(keyHex)
 	if err != nil || len(decoded) != 32 {
-		log.Printf("soccer auth disabled: LPS_SESSION_KEY must be a 64-character hex string")
+		logger.Warn("soccer auth disabled; LPS_SESSION_KEY must be a 64-character hex string")
 		return cfg
 	}
 

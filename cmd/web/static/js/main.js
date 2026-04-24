@@ -18,20 +18,32 @@
   // Mobile menu toggle
   const mobileMenuBtn = document.getElementById('mobile-menu-btn')
   const mobileNav = document.getElementById('mobile-nav')
+  const mobileNavBreakpoint = window.matchMedia('(max-width: 1120px)')
   let observer = null
 
   if (mobileMenuBtn && mobileNav) {
+    const setMobileNavState = isOpen => {
+      const nextState = Boolean(isOpen) && mobileNavBreakpoint.matches
+
+      mobileMenuBtn.setAttribute('aria-expanded', String(nextState))
+      mobileNav.classList.toggle('open', nextState)
+      mobileNav.setAttribute('aria-hidden', String(!nextState))
+      document.documentElement.classList.toggle('mobile-nav-open', nextState)
+      document.body.classList.toggle('mobile-nav-open', nextState)
+
+      if (nextState) {
+        mobileNav.scrollTop = 0
+      }
+    }
+
+    const isMobileNavOpen = () => mobileNav.classList.contains('open')
+
     const closeMobileNav = () => {
-      mobileMenuBtn.setAttribute('aria-expanded', 'false')
-      mobileNav.classList.remove('open')
-      mobileNav.setAttribute('aria-hidden', 'true')
+      setMobileNavState(false)
     }
 
     mobileMenuBtn.addEventListener('click', () => {
-      const isExpanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true'
-      mobileMenuBtn.setAttribute('aria-expanded', !isExpanded)
-      mobileNav.classList.toggle('open')
-      mobileNav.setAttribute('aria-hidden', isExpanded)
+      setMobileNavState(!isMobileNavOpen())
     })
 
     // Close menu when clicking on a link
@@ -39,19 +51,39 @@
       link.addEventListener('click', closeMobileNav)
     })
 
+    mobileNav.addEventListener('click', event => {
+      if (event.target === mobileNav) {
+        closeMobileNav()
+      }
+    })
+
     // Close menu when clicking outside
     document.addEventListener('click', e => {
-      if (!mobileMenuBtn.contains(e.target) && !mobileNav.contains(e.target)) {
+      if (isMobileNavOpen() && !mobileMenuBtn.contains(e.target) && !mobileNav.contains(e.target)) {
         closeMobileNav()
       }
     })
 
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && mobileNav.classList.contains('open')) {
+      if (e.key === 'Escape' && isMobileNavOpen()) {
         closeMobileNav()
         mobileMenuBtn.focus()
       }
     })
+
+    const handleMobileNavBreakpointChange = event => {
+      if (!event.matches) {
+        closeMobileNav()
+      }
+    }
+
+    if (typeof mobileNavBreakpoint.addEventListener === 'function') {
+      mobileNavBreakpoint.addEventListener('change', handleMobileNavBreakpointChange)
+    } else {
+      mobileNavBreakpoint.addListener(handleMobileNavBreakpointChange)
+    }
+
+    closeMobileNav()
   }
 
   // Smooth scroll for anchor links (skip links exempt for accessibility)

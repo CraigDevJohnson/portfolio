@@ -1,7 +1,13 @@
 package main
 
-import "portfolio/internal/app"
+import (
+	"os"
+
+	"portfolio/internal/app"
+)
 
 func main() {
-	app.Run()
+	if err := app.Run(); err != nil {
+		os.Exit(1)
+	}
 }

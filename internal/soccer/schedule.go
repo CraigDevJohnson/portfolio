@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +12,7 @@ import (
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
+	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	"portfolio/types"
@@ -79,7 +80,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("soccer LPS fetch failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("soccer LPS fetch failed", slog.Any("error", err))
 		h.handleScheduleDownloadError(w, r, err)
 		return
 	}
@@ -178,7 +179,7 @@ func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr 
 		}
 	}
 	if fetchErr != nil && !detail.ClearSession {
-		log.Printf("soccer LPS fetch failed: %v", fetchErr)
+		logging.Component("soccer").Error("soccer LPS fetch failed", slog.Any("error", fetchErr))
 	}
 	props.Message = detail.FeedbackMessage
 	props.Hint = detail.FeedbackHint

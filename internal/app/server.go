@@ -3,7 +3,8 @@ package app
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -14,13 +15,14 @@ import (
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
+	"portfolio/internal/logging"
 	"portfolio/internal/portfolio"
 	internalsoccer "portfolio/internal/soccer"
 )
 
 const serverShutdownTimeout = 10 * time.Second
 
-func registerMIMETypes() {
+func registerMIMETypes() error {
 	mimeTypes := map[string]string{
 		".css":  "text/css",
 		".js":   "application/javascript",
@@ -32,18 +34,36 @@ func registerMIMETypes() {
 	}
 	for ext, mtype := range mimeTypes {
 		if err := mime.AddExtensionType(ext, mtype); err != nil {
-			log.Fatalf("Failed to add MIME type for %s: %v", ext, err)
+			return fmt.Errorf("add MIME type for %s: %w", ext, err)
 		}
 	}
+	return nil
 }
 
 // Run loads configuration, constructs the App, registers routes, and starts the server.
-func Run() {
-	registerMIMETypes()
+func Run() error {
+	rootLogger, logConfig, warnings := logging.NewLoggerFromEnv()
+	slog.SetDefault(rootLogger)
+	for _, warning := range warnings {
+		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
+	}
+
+	appLogger := rootLogger.With(slog.String("component", "app"))
+
+	if err := registerMIMETypes(); err != nil {
+		appLogger.Error("mime type registration failed", slog.Any("error", err))
+		return err
+	}
 
 	cfg := config.Load()
-	app := New(&cfg)
-	soccerHandler := internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.GoogleHandler)
+	app := New(&cfg, rootLogger)
+	soccerHandler := internalsoccer.NewHandler(
+		&app.Config,
+		app.LPSClient,
+		app.LoginLimiter,
+		app.GoogleHandler,
+		rootLogger.With(slog.String("component", "soccer")),
+	)
 	app.GoogleHandler.Soccer = soccerHandler
 
 	mux := http.NewServeMux()
@@ -51,6 +71,9 @@ func Run() {
 	// portfolio routes
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		portfolio.HomeHandler(w, r, config.CareerStartYear)
+	})
+	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 	})
 	mux.HandleFunc("GET /about", func(w http.ResponseWriter, r *http.Request) {
 		portfolio.AboutHandler(w, r, config.CareerStartYear)
@@ -103,11 +126,12 @@ func Run() {
 	listenAddress := config.ServerListenAddress()
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		log.Fatalf("failed to listen on %s: %v", listenAddress, err)
+		appLogger.Error("failed to listen", slog.String("listen_address", listenAddress), slog.Any("error", err))
+		return err
 	}
 
 	server := &http.Server{
-		Handler:     mux,
+		Handler:     withRequestLogging(rootLogger.With(slog.String("component", "http")), mux),
 		ReadTimeout: 15 * time.Second,
 		// 60s covers sync-results, which makes N sequential Google Calendar API
 		// calls before writing its response (21 games ≈ 15s in practice).
@@ -117,7 +141,14 @@ func Run() {
 	serveErrCh := make(chan error, 1)
 
 	go func() {
-		log.Printf("Craig Johnson Portfolio running at %s", config.LocalServerURL(listenAddress))
+		appLogger.Info(
+			"server listening",
+			slog.String("listen_address", listenAddress),
+			slog.String("local_url", config.LocalServerURL(listenAddress)),
+			slog.String("log_format", logConfig.Format),
+			slog.String("log_level", logConfig.Level.String()),
+			slog.Bool("log_add_source", logConfig.AddSource),
+		)
 		if err := server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serveErrCh <- err
 		}
@@ -131,10 +162,18 @@ func Run() {
 			defer initCancel()
 			store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
 			if initErr != nil {
-				log.Printf("google calendar add disabled: could not initialize connection store: %v", initErr)
+				app.GoogleHandler.Logger.Warn(
+					"google calendar add remains disabled; connection store initialization failed",
+					slog.String("table_name", app.Config.GoogleConnectionTableName),
+					slog.Any("error", initErr),
+				)
 				return
 			}
 			app.GoogleHandler.SetStore(store)
+			app.GoogleHandler.Logger.Info(
+				"google connection store initialized",
+				slog.String("table_name", app.Config.GoogleConnectionTableName),
+			)
 		}()
 	}
 
@@ -143,18 +182,22 @@ func Run() {
 	select {
 	case err := <-serveErrCh:
 		stopSignals()
-		log.Fatalf("server stopped unexpectedly: %v", err)
+		appLogger.Error("server stopped unexpectedly", slog.Any("error", err))
+		return err
 	case <-shutdownSignals.Done():
 		stopSignals()
-		log.Printf("shutting down server")
+		appLogger.Info("shutting down server")
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
 	defer shutdownCancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("server shutdown failed: %v", err)
+		appLogger.Error("server shutdown failed", slog.Any("error", err))
+		return err
 	}
 	app.LoginLimiter.Close()
+	appLogger.Info("server shutdown complete")
+	return nil
 }
 
 func isGoogleCallbackRequest(r *http.Request) bool {

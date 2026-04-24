@@ -1,12 +1,13 @@
 package soccer
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/logging"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
@@ -19,7 +20,7 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		GoogleMessageKind: googleMessageKind,
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
-		log.Printf("soccer page render failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("soccer page render failed", slog.Any("error", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -46,7 +47,7 @@ func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, sessi
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := h.LoginStateProps(w, r, session, false)
 	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
-		log.Printf("soccer login state render failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("soccer login state render failed", slog.Any("error", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -56,7 +57,7 @@ func (h *Handler) RenderLoginFeedback(w http.ResponseWriter, r *http.Request, ki
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	props := partials.SoccerLoginFeedbackProps{Kind: kind, Message: message}
 	if err := partials.SoccerLoginFeedback(props).Render(r.Context(), w); err != nil {
-		log.Printf("soccer login feedback render failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("soccer login feedback render failed", slog.Any("error", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

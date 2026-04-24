@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
+	rootLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	app := &App{
 		Config: config.Config{
 			SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
@@ -21,8 +24,14 @@ func newTestApp(t *testing.T) *App {
 		},
 		LPSClient:    &http.Client{Timeout: 5 * time.Second},
 		LoginLimiter: internalsession.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys),
+		Logger:       rootLogger.With(slog.String("component", "app")),
 	}
-	app.GoogleHandler = internalgoogle.NewHandler(&app.Config, app.LPSClient, nil)
+	app.GoogleHandler = internalgoogle.NewHandler(
+		&app.Config,
+		app.LPSClient,
+		rootLogger.With(slog.String("component", "google")),
+		nil,
+	)
 	app.GoogleHandler.Soccer = newTestSoccerHandler(app)
 	t.Cleanup(func() {
 		app.LoginLimiter.Close()
@@ -32,7 +41,14 @@ func newTestApp(t *testing.T) *App {
 
 // newTestSoccerHandler returns a handler wired to the test app dependencies.
 func newTestSoccerHandler(app *App) *internalsoccer.Handler {
-	return internalsoccer.NewHandler(&app.Config, app.LPSClient, app.LoginLimiter, app.GoogleHandler)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil)).With(slog.String("component", "soccer"))
+	return internalsoccer.NewHandler(
+		&app.Config,
+		app.LPSClient,
+		app.LoginLimiter,
+		app.GoogleHandler,
+		logger,
+	)
 }
 
 // encryptTestSession creates an encrypted session cookie payload for tests.

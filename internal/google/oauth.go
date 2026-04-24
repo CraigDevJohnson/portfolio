@@ -2,6 +2,7 @@ package google
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ type Handler struct {
 	OAuthTokenURL      string
 	CalendarAPIBaseURL string
 	LPSClient          *http.Client
+	Logger             *slog.Logger
 	Soccer             SoccerBridge
 
 	storeMu sync.RWMutex
@@ -48,13 +50,18 @@ type Handler struct {
 }
 
 // NewHandler constructs a Handler with the given dependencies.
-func NewHandler(cfg *config.Config, lpsClient *http.Client, soccer SoccerBridge) *Handler {
+func NewHandler(cfg *config.Config, lpsClient *http.Client, logger *slog.Logger, soccer SoccerBridge) *Handler {
+	if logger == nil {
+		logger = slog.Default().With(slog.String("component", "google"))
+	}
+
 	return &Handler{
 		Config:             cfg,
 		OAuthAuthURL:       OAuthAuthURL,
 		OAuthTokenURL:      OAuthTokenURL,
 		CalendarAPIBaseURL: CalendarAPIBaseURL,
 		LPSClient:          lpsClient,
+		Logger:             logger,
 		Soccer:             soccer,
 		store:              NoopStore{},
 	}

@@ -3,13 +3,14 @@ package soccer
 import (
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/httpx"
+	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	internalsession "portfolio/internal/session"
 	"portfolio/types"
@@ -71,7 +72,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: lps.ImportedSessionExpiry(jwt),
 	}
 	if err := h.setSession(w, r, &session); err != nil {
-		log.Printf("soccer import session write failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("soccer import session write failed", slog.Any("error", err))
 		h.RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
@@ -118,7 +119,7 @@ func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.Se
 		return nil, true
 	}
 	if err != nil {
-		log.Printf("soccer session read failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer session read failed", slog.Any("error", err))
 		h.clearSession(w, r)
 		return nil, true
 	}

@@ -7,22 +7,15 @@
   background-image: url('/static/images/backgrounds/contact-hero.jpg');
 }
 
-/* Contact Methods Section */
-
-.contact-hero > * {
-  position: relative;
-  z-index: 2;
-}
-
-.contact-hero h1 {
+.contact-hero .hero-header h1 {
   animation: card-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
 }
 
 .contact-hero .lead {
   animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
-  max-width: 600px;
-  margin: 0 auto;
 }
+
+/* Contact Methods Section */
 
 .contact-section-title {
   font-size: var(--text-2xl);

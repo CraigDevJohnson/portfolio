@@ -75,7 +75,7 @@ func (h *Handler) syncCalendarEvent(ctx context.Context, calendarID string, toke
 		}
 		return h.refreshCalendarEvent(ctx, calendarID, token, existingEvent, event)
 	default:
-		authRejected, apiErr := apiResponseError(resp)
+		authRejected, apiErr := apiResponseError(h.Logger, resp)
 		if authRejected {
 			return calendarEventSkipped, true, nil
 		}
@@ -103,7 +103,7 @@ func (h *Handler) refreshCalendarEvent(ctx context.Context, calendarID string, t
 		resp.Body.Close()
 		return calendarEventSkipped, false, nil
 	default:
-		authRejected, apiErr := apiResponseError(resp)
+		authRejected, apiErr := apiResponseError(h.Logger, resp)
 		if authRejected {
 			return calendarEventSkipped, true, nil
 		}
@@ -133,7 +133,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 	case http.StatusNotFound, http.StatusGone:
 		resp.Body.Close()
 	default:
-		authRejected, apiErr := apiResponseError(resp)
+		authRejected, apiErr := apiResponseError(h.Logger, resp)
 		if authRejected {
 			return nil, false, true, nil
 		}
@@ -157,7 +157,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 		}
 		return nil, false, false, nil
 	default:
-		authRejected, apiErr := apiResponseError(resp)
+		authRejected, apiErr := apiResponseError(h.Logger, resp)
 		if authRejected {
 			return nil, false, true, nil
 		}

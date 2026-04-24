@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +14,7 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	"portfolio/internal/logging"
 )
 
 func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) {
@@ -207,12 +208,12 @@ func NewOAuthState(connectionID string) (OAuthState, error) {
 }
 
 func (h *Handler) failConnectf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
-	log.Printf(format, args...)
+	logging.WithContext(h.Logger, r.Context()).Error(fmt.Sprintf(format, args...))
 	RedirectSoccerWithGoogleStatus(w, r, "failed")
 }
 
 func (h *Handler) failCallbackf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
-	log.Printf(format, args...)
+	logging.WithContext(h.Logger, r.Context()).Error(fmt.Sprintf(format, args...))
 	ClearOAuthStateCookie(w, r)
 	RedirectSoccerWithGoogleStatus(w, r, "failed")
 }

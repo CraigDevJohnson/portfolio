@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/logging"
 )
 
 // AddHandler adds selected games to Google Calendar.
@@ -34,13 +35,17 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := h.CurrentToken(r.Context(), r, record)
 	if err != nil {
-		log.Printf("google token refresh failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Warn("google token refresh failed", slog.Any("error", err))
 		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
 		return
 	}
 	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, filteredGames)
 	if err != nil {
-		log.Printf("google event insert failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error(
+			"google event insert failed",
+			slog.Any("error", err),
+			slog.Int("selected_game_count", len(filteredGames)),
+		)
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not add the selected games to Google Calendar. Try again.")
 		return
 	}
@@ -76,27 +81,27 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	session, games, message, ok := h.Soccer.ResolveSyncResultsGames(w, r)
 	if !ok {
 		if message != "" {
-			log.Printf("google result sync skipped: %s", message)
+			logging.WithContext(h.Logger, r.Context()).Info("google result sync skipped", slog.String("reason", message))
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", message)
 		return
 	}
-	log.Printf("google result sync candidate games: %d", len(games))
+	logging.WithContext(h.Logger, r.Context()).Info("google result sync candidate games", slog.Int("candidate_game_count", len(games)))
 	if len(games) == 0 {
-		log.Print("google result sync found no past games with results")
+		logging.WithContext(h.Logger, r.Context()).Info("google result sync found no past games with results")
 		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync.")
 		return
 	}
 
 	token, err := h.CurrentToken(r.Context(), r, record)
 	if err != nil {
-		log.Printf("google token refresh failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Warn("google token refresh failed", slog.Any("error", err))
 		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
 		return
 	}
 	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, games)
 	if err != nil {
-		log.Printf("google result sync failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("google result sync failed", slog.Any("error", err))
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not sync past game results to Google Calendar. Try again.")
 		return
 	}
@@ -104,7 +109,11 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
 		return
 	}
-	log.Printf("google result sync completed: updated=%d skipped=%d", added+updated, skipped)
+	logging.WithContext(h.Logger, r.Context()).Info(
+		"google result sync completed",
+		slog.Int("updated_count", added+updated),
+		slog.Int("skipped_count", skipped),
+	)
 
 	successMessage := fmt.Sprintf("%d game result(s) updated in Google Calendar.", added+updated)
 	if skipped > 0 {
@@ -131,7 +140,13 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	calendars, err := h.ListCalendars(r.Context(), r, record)
 	if err != nil {
-		log.Printf("google calendar list failed: %v", err)
+		logger := logging.WithContext(h.Logger, r.Context())
+		if isGoogleAuthRejected(err) {
+			logger.Warn("google calendar connection expired", slog.Any("error", err))
+			h.DeleteConnection(r.Context(), w, r)
+		} else {
+			logger.Error("google calendar list failed", slog.Any("error", err))
+		}
 		h.Soccer.RenderLoginState(w, r, session)
 		return
 	}
@@ -144,14 +159,17 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	record.CalendarSummary = selectedCalendarSummary
 	record.UpdatedAt = time.Now().UTC()
 	if err := h.Store().Put(r.Context(), record); err != nil {
-		log.Printf("google calendar selection save failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("google calendar selection save failed", slog.Any("error", err))
 	}
 	h.Soccer.RenderLoginState(w, r, session)
 }
 
-func apiResponseError(resp *http.Response) (bool, error) {
+func apiResponseError(logger *slog.Logger, resp *http.Response) (bool, error) {
 	apiErr := readAPIError(resp)
-	log.Printf("google event insert rejected: %v", apiErr)
+	if logger == nil {
+		logger = slog.Default().With(slog.String("component", "google"))
+	}
+	logger.Warn("google event insert rejected", slog.Any("error", apiErr))
 	var googleErr *APIError
 	return errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden), apiErr
 }
@@ -164,7 +182,7 @@ func parseGoogleForm(r *http.Request, w http.ResponseWriter) error {
 func (h *Handler) loadConnectionRecordOrLog(ctx context.Context, r *http.Request) (*ConnectionRecord, bool) {
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
-		log.Printf("google connection read failed: %v", err)
+		logging.WithContext(h.Logger, r.Context()).Error("google connection read failed", slog.Any("error", err))
 		return nil, false
 	}
 	if record == nil {

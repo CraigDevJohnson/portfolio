@@ -1,26 +1,38 @@
 package schedule
 
 import (
-	"log"
+	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"portfolio/internal/config"
 	"portfolio/types"
 )
 
-// MountainTimeLocation is the app's canonical timezone for soccer schedules.
-var MountainTimeLocation = loadMountainTimeLocation()
+var (
+	mountainTimeLocation     *time.Location
+	mountainTimeLocationOnce sync.Once
+)
 
-func loadMountainTimeLocation() *time.Location {
-	location, err := time.LoadLocation(config.MountainTimeZoneID)
-	if err == nil {
-		return location
-	}
+// MountainTimeLocation returns the app's canonical timezone for soccer schedules.
+func MountainTimeLocation() *time.Location {
+	mountainTimeLocationOnce.Do(func() {
+		location, err := time.LoadLocation(config.MountainTimeZoneID)
+		if err == nil {
+			mountainTimeLocation = location
+			return
+		}
 
-	log.Printf("could not load %s timezone; falling back to MST: %v", config.MountainTimeZoneID, err)
-	const fallbackTimezoneOffsetSeconds = -7 * 60 * 60
-	return time.FixedZone("MST", fallbackTimezoneOffsetSeconds)
+		slog.Default().With(slog.String("component", "schedule")).Warn(
+			"could not load configured timezone; falling back to MST",
+			slog.String("timezone", config.MountainTimeZoneID),
+			slog.Any("error", err),
+		)
+		const fallbackTimezoneOffsetSeconds = -7 * 60 * 60
+		mountainTimeLocation = time.FixedZone("MST", fallbackTimezoneOffsetSeconds)
+	})
+	return mountainTimeLocation
 }
 
 // ParseScheduleTime parses schedule timestamps using the supported LPS formats.
@@ -54,7 +66,7 @@ func ParseMislabelledLPSZuluTime(value string) (time.Time, bool) {
 
 	trimmed := strings.TrimSuffix(value, "Z")
 	for _, layout := range []string{"2006-01-02T15:04:05.999999999", "2006-01-02T15:04:05"} {
-		parsed, err := time.ParseInLocation(layout, trimmed, MountainTimeLocation)
+		parsed, err := time.ParseInLocation(layout, trimmed, MountainTimeLocation())
 		if err == nil {
 			return parsed, true
 		}
@@ -81,7 +93,7 @@ func ParseFlexibleTime(value string) (time.Time, bool) {
 		{layout: "2006-01-02T15:04:05", location: time.Local},
 		{layout: "2006-01-02 15:04:05", location: time.Local},
 		{layout: "2006-01-02 15:04", location: time.Local},
-		{layout: "Mon 01/02/06 03:04 PM MST", location: MountainTimeLocation},
+		{layout: "Mon 01/02/06 03:04 PM MST", location: MountainTimeLocation()},
 		{layout: "Mon 01/02/06 03:04 PM", location: time.Local},
 	}
 	for _, candidate := range layouts {
@@ -107,7 +119,7 @@ func FormatGameDateTime(value string) string {
 	if !ok {
 		return strings.TrimSpace(value)
 	}
-	return parsed.In(MountainTimeLocation).Format("Mon 01/02/06 03:04 PM MST")
+	return parsed.In(MountainTimeLocation()).Format("Mon 01/02/06 03:04 PM MST")
 }
 
 // ScheduleTimes returns the event start and end times for a game.

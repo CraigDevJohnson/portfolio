@@ -4,6 +4,9 @@
 
 /* Hero Section */
 .soccer-hero {
+  --page-hero-content-max-width: min(48rem, 100%);
+  --page-hero-copy-max-width: 44rem;
+
   background-image: url('/static/images/backgrounds/soccer-hero.jpg');
 }
 

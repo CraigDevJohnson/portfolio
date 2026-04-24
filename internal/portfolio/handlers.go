@@ -3,7 +3,7 @@ package portfolio
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +13,7 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/logging"
 	"portfolio/types"
 )
 
@@ -38,7 +39,11 @@ func gravatarURL(email string, size int) string {
 // renderComponent renders a templ component and returns a generic 500 on failure.
 func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Component) {
 	if err := component.Render(r.Context(), w); err != nil {
-		log.Printf("portfolio render failed: %v", err)
+		logging.WithContext(logging.Component("portfolio"), r.Context()).Error(
+			"portfolio render failed",
+			slog.Any("error", err),
+			slog.String("path", r.URL.Path),
+		)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }

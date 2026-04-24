@@ -7,19 +7,12 @@
   background-image: url('/static/images/backgrounds/education-hero.jpg');
 }
 
-.education-hero > * {
-  position: relative;
-  z-index: 2;
-}
-
-.education-hero h1 {
+.education-hero .hero-header h1 {
   animation: card-fade-in var(--duration-slow) var(--ease-out) 0.1s both;
 }
 
 .education-hero .lead {
   animation: card-fade-in var(--duration-slow) var(--ease-out) 0.2s both;
-  max-width: 600px;
-  margin: 0 auto;
 }
 
 /* Stats Section */

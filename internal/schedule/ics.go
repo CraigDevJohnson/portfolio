@@ -2,7 +2,7 @@ package schedule
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -32,7 +32,11 @@ func BuildICS(games []types.Game) string {
 		game := &games[i]
 		formatted, ok := CanonicalGameEvent(game)
 		if !ok {
-			log.Printf("skipping game %q: could not parse start time %q", game.ID, game.StartAt)
+			slog.Default().With(slog.String("component", "schedule")).Warn(
+				"skipping game during ICS build; could not parse start time",
+				slog.String("game_id", game.ID),
+				slog.String("start_at", game.StartAt),
+			)
 			continue
 		}
 		WriteICSLine(&builder, "BEGIN:VEVENT")
@@ -57,8 +61,8 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 		return FormattedGameEvent{}, false
 	}
 
-	start = start.In(MountainTimeLocation)
-	end = end.In(MountainTimeLocation)
+	start = start.In(MountainTimeLocation())
+	end = end.In(MountainTimeLocation())
 
 	playerTeam := strings.TrimSpace(game.PlayerTeamName)
 	if playerTeam == "" {

@@ -201,6 +201,9 @@ resource "aws_apprunner_service" "app" {
         runtime_environment_variables = {
           APP_BIND_ALL                 = "true"
           GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
+          LOG_ADD_SOURCE               = "false"
+          LOG_FORMAT                   = "json"
+          LOG_LEVEL                    = "info"
         }
         runtime_environment_secrets = { for name in local.ssm_parameter_names : name => "${local.ssm_parameter_base_arn}/${name}" }
       }

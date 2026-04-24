@@ -4,7 +4,6 @@
 
 /* Hero Section */
 .experience-hero {
-  margin-bottom: var(--space-lg);
   background-image: url('/static/images/backgrounds/experience-hero.jpg');
 }
 
@@ -392,11 +391,25 @@
 
 /* Uses shared .card base from styles.css */
 .career-card {
-  background: var(--bg-secondary);
+  background: linear-gradient(
+    135deg,
+    rgb(234 88 12 / 8%) 0%,
+    rgb(255 255 255 / 3%) 50%,
+    rgb(234 88 12 / 5%) 100%
+  );
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
   display: flex;
   flex-direction: column;
   min-height: 280px;
+}
+
+.career-card:hover {
+  background: linear-gradient(
+    135deg,
+    rgb(234 88 12 / 12%) 0%,
+    rgb(255 255 255 / 6%) 50%,
+    rgb(234 88 12 / 8%) 100%
+  );
 }
 
 /* Highlighted card when filtered */
@@ -426,9 +439,14 @@
 
 /* Current Role Card - special styling */
 .career-card.current {
-  border-color: var(--accent-primary);
+  border-color: rgb(var(--accent-primary-rgb), 0.55);
   border-width: 2px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgb(79 70 229 / 5%) 100%);
+  background: linear-gradient(
+    135deg,
+    rgb(79 70 229 / 10%) 0%,
+    rgb(255 255 255 / 4%) 45%,
+    rgb(234 88 12 / 8%) 100%
+  );
 }
 
 /* Card Status Badge */

@@ -3,7 +3,8 @@ package portfolio
 import (
 	_ "embed"
 	"encoding/json"
-	"log"
+	"fmt"
+	"log/slog"
 	"sync"
 
 	"portfolio/types"
@@ -28,7 +29,12 @@ var (
 func mustUnmarshal[T any](data []byte, name string) T {
 	var result T
 	if err := json.Unmarshal(data, &result); err != nil {
-		log.Fatalf("failed to unmarshal %s: %v", name, err)
+		slog.Default().With(slog.String("component", "portfolio_data")).Error(
+			"embedded portfolio data could not be unmarshaled",
+			slog.String("file_name", name),
+			slog.Any("error", err),
+		)
+		panic(fmt.Sprintf("failed to unmarshal %s: %v", name, err))
 	}
 	return result
 }

@@ -3,7 +3,7 @@ package google
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +12,7 @@ import (
 
 	"portfolio/cmd/web/partials"
 	internalhttpx "portfolio/internal/httpx"
+	"portfolio/internal/logging"
 	internalsession "portfolio/internal/session"
 	"portfolio/types"
 )
@@ -37,7 +38,7 @@ func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionR
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
 		if err := h.Store().Put(ctx, record); err != nil {
-			log.Printf("google connection default calendar save failed: %v", err)
+			logging.WithContext(h.Logger, ctx).Error("google connection default calendar save failed", slog.Any("error", err))
 		}
 		return calendarID, summary
 	}
@@ -50,7 +51,7 @@ func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionR
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
 		if err := h.Store().Put(ctx, record); err != nil {
-			log.Printf("google connection calendar sync failed: %v", err)
+			logging.WithContext(h.Logger, ctx).Error("google connection calendar sync failed", slog.Any("error", err))
 		}
 	}
 	return calendarID, summary
@@ -84,7 +85,11 @@ func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r
 	connectionID := GetConnectionID(r)
 	if connectionID != "" {
 		if err := h.Store().Delete(ctx, connectionID); err != nil {
-			log.Printf("google connection delete failed: %v", err)
+			logging.WithContext(h.Logger, ctx).Error(
+				"google connection delete failed",
+				slog.String("connection_id", connectionID),
+				slog.Any("error", err),
+			)
 		}
 	}
 	ClearConnectionCookie(w, r)
@@ -134,7 +139,7 @@ func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r 
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
-		log.Printf("google connection read failed: %v", err)
+		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
 		ClearConnectionCookie(w, r)
 		return false
 	}
@@ -148,7 +153,7 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
-		log.Printf("google connection read failed: %v", err)
+		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
 		ClearConnectionCookie(w, r)
 		return
 	}
@@ -157,16 +162,42 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	}
 	calendars, err := h.ListCalendars(ctx, r, record)
 	if err != nil {
-		log.Printf("google calendar list failed: %v", err)
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
+		logger := logging.WithContext(h.Logger, ctx)
+		if isGoogleAuthRejected(err) {
+			logger.Warn("google calendar connection expired", slog.Any("error", err))
 			h.DeleteConnection(ctx, w, r)
+		} else {
+			logger.Error("google calendar list failed", slog.Any("error", err))
 		}
 		return
 	}
 	props.GoogleConnected = true
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+}
+
+func isGoogleAuthRejected(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden
+	}
+
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) {
+		if strings.EqualFold(strings.TrimSpace(retrieveErr.ErrorCode), "invalid_grant") {
+			return true
+		}
+		description := strings.ToLower(strings.TrimSpace(retrieveErr.ErrorDescription))
+		return strings.Contains(description, "expired") || strings.Contains(description, "revoked")
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "invalid_grant") &&
+		(strings.Contains(message, "expired") || strings.Contains(message, "revoked"))
 }
 
 func (h *Handler) encryptJSONValue(data any) (string, error) {

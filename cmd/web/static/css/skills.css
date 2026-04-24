@@ -4,32 +4,7 @@
 
 /* Hero Section */
 .skills-hero {
-  padding: var(--space-3xl) 0 var(--space-2xl);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 0;
   background-image: url('/static/images/backgrounds/skills-hero.jpg');
-  background-size: cover;
-  background-position: center 30%;
-}
-
-/* Gradient overlay */
-.skills-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgb(28 25 23 / 80%) 0%,
-    rgb(28 25 23 / 85%) 100%
-  );
-  z-index: 1;
-}
-
-.skills-hero > * {
-  position: relative;
-  z-index: 2;
 }
 
 /* Skills Section */
@@ -1059,6 +1034,10 @@
     grid-template-columns: 1fr;
   }
 
+  .concept-card {
+    align-items: flex-start;
+  }
+
   .skill-card-icon {
     width: 56px;
     height: 56px;
@@ -1130,6 +1109,13 @@
   .concept-icon svg {
     width: 24px;
     height: 24px;
+  }
+
+  .concept-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.35;
   }
 
   .category-title {

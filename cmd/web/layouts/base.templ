@@ -39,9 +39,9 @@ templ Base(props BaseProps) {
 				rel="stylesheet"
 			/>
 			<!-- Styles -->
-			<link rel="stylesheet" href="/static/css/styles.css?v=6"/>
+			<link rel="stylesheet" href="/static/css/styles.css?v=20260424a"/>
 			if props.Page != "" {
-				<link rel="stylesheet" href={ "/static/css/" + props.Page + ".css?v=6" }/>
+				<link rel="stylesheet" href={ "/static/css/" + props.Page + ".css?v=20260424a" }/>
 			}
 			<!-- HTMX with integrity check -->
 			<script
@@ -49,7 +49,7 @@ templ Base(props BaseProps) {
 				integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
 				crossorigin="anonymous"
 			></script>
-			<script src="/static/js/main.js" defer></script>
+			<script src="/static/js/main.js?v=20260423a" defer></script>
 		</head>
 		<body
 			if props.Page == "soccer" {

@@ -3,6 +3,7 @@ package soccer
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"portfolio/cmd/web/partials"
@@ -32,16 +33,22 @@ type Handler struct {
 	Config       *config.Config
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
+	Logger       *slog.Logger
 
 	googleHooks GoogleHooks
 }
 
 // NewHandler constructs a soccer handler with its runtime dependencies.
-func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks) *Handler {
+func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks, logger *slog.Logger) *Handler {
+	if logger == nil {
+		logger = slog.Default().With(slog.String("component", "soccer"))
+	}
+
 	return &Handler{
 		Config:       cfg,
 		LPSClient:    lpsClient,
 		LoginLimiter: loginLimiter,
+		Logger:       logger,
 		googleHooks:  googleHooks,
 	}
 }

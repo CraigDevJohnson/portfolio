@@ -2,6 +2,8 @@ package google
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -23,7 +25,8 @@ func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	if store == nil {
 		store = &fakeConnectionStore{records: map[string]ConnectionRecord{}}
 	}
-	h := NewHandler(cfg, &http.Client{Timeout: 5 * time.Second}, &stubSoccerBridge{})
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	h := NewHandler(cfg, &http.Client{Timeout: 5 * time.Second}, logger, &stubSoccerBridge{})
 	h.SetStore(store)
 	return h
 }
