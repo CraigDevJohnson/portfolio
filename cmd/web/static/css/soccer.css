@@ -676,7 +676,11 @@ body.soccer-modal-open {
 /* Table Wrapper */
 .table-wrapper {
   overflow-x: auto;
-  background: rgb(255 255 255 / 2%);
+  /* CSS scroll shadow: right-edge fade appears when content extends horizontally */
+  background:
+    linear-gradient(to left, var(--bg-primary) 0%, transparent 3rem) right / 3rem 100% no-repeat local,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 35%), transparent) right / 14px 100% no-repeat scroll,
+    rgb(255 255 255 / 2%);
 }
 
 .games-table {
@@ -701,7 +705,7 @@ body.soccer-modal-open {
   white-space: nowrap;
   background: rgb(var(--accent-primary-rgb), 0.1);
   position: sticky;
-  top: 0;
+  top: var(--header-height);
   z-index: 1;
 }
 
@@ -797,32 +801,32 @@ body.soccer-modal-open {
 }
 
 .result-badge--win {
-  background: rgb(22 163 74 / 15%);
-  color: #16a34a;
-  border-color: rgb(22 163 74 / 30%);
+  background: var(--success-bg);
+  color: var(--success-fg);
+  border-color: var(--success-border);
 }
 
 .result-badge--loss {
-  background: rgb(220 38 38 / 15%);
-  color: #dc2626;
-  border-color: rgb(220 38 38 / 30%);
+  background: var(--error-bg);
+  color: var(--error-fg);
+  border-color: var(--error-border);
 }
 
 .result-badge--draw {
-  background: rgb(202 138 4 / 15%);
-  color: #ca8a04;
-  border-color: rgb(202 138 4 / 30%);
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  border-color: var(--warning-border);
 }
 
 .result-badge--canceled {
   background: rgb(107 114 128 / 12%);
-  color: var(--text-muted);
+  color: var(--fg-muted);
   border-color: rgb(107 114 128 / 25%);
 }
 
 .result-badge--final {
   background: rgb(107 114 128 / 12%);
-  color: var(--text-muted);
+  color: var(--fg-muted);
   border-color: rgb(107 114 128 / 25%);
 }
 
@@ -865,12 +869,12 @@ tr[data-past-game] > td {
 .soccer-team-fieldset legend {
   font-size: var(--text-lg);
   font-weight: var(--font-semibold);
-  color: var(--text-primary);
+  color: var(--fg-primary);
   margin-bottom: var(--space-sm);
 }
 
 .soccer-team-hint {
-  color: var(--text-muted);
+  color: var(--fg-muted);
   font-size: var(--text-sm);
   margin: 0;
 }
@@ -883,7 +887,7 @@ tr[data-past-game] > td {
 
 .soccer-team-player-name {
   font-weight: var(--font-semibold);
-  color: var(--text-primary);
+  color: var(--fg-primary);
   font-size: var(--text-base);
 }
 
@@ -898,8 +902,8 @@ tr[data-past-game] > td {
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  background: var(--surface-secondary);
-  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color var(--duration-fast), background var(--duration-fast);
@@ -922,7 +926,7 @@ tr[data-past-game] > td {
 
 .soccer-team-name {
   font-size: var(--text-sm);
-  color: var(--text-primary);
+  color: var(--fg-primary);
 }
 
 .soccer-team-submit {
