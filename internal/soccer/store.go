@@ -57,9 +57,11 @@ func NewSoccerStore(ctx context.Context, tableName string) (SoccerStore, error) 
 	}, nil
 }
 
-func (NoopSoccerStore) Put(_ context.Context, _ *SoccerSessionRecord) error           { return nil }
-func (NoopSoccerStore) Get(_ context.Context, _ string) (*SoccerSessionRecord, error) { return nil, nil }
-func (NoopSoccerStore) Delete(_ context.Context, _ string) error                      { return nil }
+func (NoopSoccerStore) Put(_ context.Context, _ *SoccerSessionRecord) error { return nil }
+func (NoopSoccerStore) Get(_ context.Context, _ string) (*SoccerSessionRecord, error) {
+	return nil, nil
+}
+func (NoopSoccerStore) Delete(_ context.Context, _ string) error { return nil }
 
 func (s *DynamoSoccerStore) Put(ctx context.Context, record *SoccerSessionRecord) error {
 	item, err := attributevalue.MarshalMap(record)

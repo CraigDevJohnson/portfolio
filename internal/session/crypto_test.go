@@ -51,7 +51,16 @@ func TestDecryptJSONValue_TamperedPayload(t *testing.T) {
 		t.Fatalf("EncryptJSONValue returned error: %v", err)
 	}
 
-	tampered := encrypted[:len(encrypted)-1] + "A"
+	// Corrupt a character in the interior so all six base64url bits carry meaning.
+	// The last 1–2 chars of a RawURL string can have padding bits that the decoder
+	// ignores, making last-character substitutions non-deterministic.
+	mid := len(encrypted) / 2
+	orig := encrypted[mid]
+	sub := byte('A')
+	if orig == 'A' {
+		sub = 'B'
+	}
+	tampered := encrypted[:mid] + string(sub) + encrypted[mid+1:]
 	var got map[string]string
 	if err := DecryptJSONValue(key, tampered, &got); err == nil {
 		t.Fatal("DecryptJSONValue should reject tampered payloads")

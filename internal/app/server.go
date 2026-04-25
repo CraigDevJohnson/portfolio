@@ -23,12 +23,12 @@ import (
 const serverShutdownTimeout = 10 * time.Second
 
 const (
-	lpsClientTimeout        = 15 * time.Second
-	httpServerReadTimeout   = 15 * time.Second
-	httpServerWriteTimeout  = 60 * time.Second
-	httpServerIdleTimeout   = 60 * time.Second
-	googleStoreInitTimeout  = 10 * time.Second
-	soccerStoreInitTimeout  = 10 * time.Second
+	lpsClientTimeout       = 15 * time.Second
+	httpServerReadTimeout  = 15 * time.Second
+	httpServerWriteTimeout = 60 * time.Second
+	httpServerIdleTimeout  = 60 * time.Second
+	googleStoreInitTimeout = 10 * time.Second
+	soccerStoreInitTimeout = 10 * time.Second
 )
 
 func registerMIMETypes() error {

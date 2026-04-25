@@ -40,3 +40,8 @@ tfplan
 static/screenshots/
 dev
 .playwright-mcp/
+
+# Review and design screenshots captured in the repo root
+/*.png
+/*.jpg
+/*.jpeg
