@@ -50,7 +50,7 @@ func SkillsData() []types.SkillCategory {
 	skillsDataOnce.Do(func() {
 		skillsData = mustUnmarshal[[]types.SkillCategory](skillsJSON, "skills.json")
 	})
-	return cloneSkillCategories(skillsData)
+	return append([]types.SkillCategory(nil), skillsData...)
 }
 
 func ProjectsData() []types.Project {
@@ -58,13 +58,4 @@ func ProjectsData() []types.Project {
 		projectsData = mustUnmarshal[[]types.Project](projectsJSON, "projects.json")
 	})
 	return append([]types.Project(nil), projectsData...)
-}
-
-func cloneSkillCategories(categories []types.SkillCategory) []types.SkillCategory {
-	cloned := make([]types.SkillCategory, len(categories))
-	for i := range categories {
-		cloned[i] = categories[i]
-		cloned[i].Skills = append([]types.Skill(nil), categories[i].Skills...)
-	}
-	return cloned
 }

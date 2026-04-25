@@ -28,6 +28,14 @@ var (
 	ErrScheduleSelection = errors.New("at least one team ID or discovered player is required")
 )
 
+const (
+	htmlContentType       = "text/html; charset=utf-8"
+	invalidPlayersMessage = "One or more selected players were invalid."
+	invalidPlayersHint    = "Clear the imported players and import again to refresh the discovered player list."
+	invalidTeamIDsMessage = "One or more team IDs were invalid."
+	invalidTeamIDsHint    = "Enter numeric Let's Play Soccer team IDs separated by commas."
+)
+
 // Handler owns the soccer auth and schedule handlers.
 type Handler struct {
 	Config       *config.Config
@@ -51,4 +59,8 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 		Logger:       logger,
 		googleHooks:  googleHooks,
 	}
+}
+
+func (h *Handler) setHTMLContentType(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", htmlContentType)
 }

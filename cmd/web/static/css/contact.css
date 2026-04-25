@@ -33,7 +33,6 @@
   gap: var(--space-md);
 }
 
-/* Uses shared .card base from styles.css */
 .contact-method-card {
   display: flex;
   align-items: center;
@@ -95,7 +94,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .bring-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;

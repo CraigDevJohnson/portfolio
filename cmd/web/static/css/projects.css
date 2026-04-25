@@ -23,7 +23,6 @@
   gap: var(--space-xl);
 }
 
-/* Uses shared .card base from styles.css */
 .project-card {
   display: flex;
   flex-direction: column;
@@ -184,7 +183,6 @@
   padding: var(--space-xl) 0;
 }
 
-/* Uses shared .card base from styles.css */
 .proj-stat-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;

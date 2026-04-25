@@ -39,7 +39,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .summary-card {
   display: flex;
   flex-direction: column;
@@ -389,7 +388,6 @@
   gap: var(--space-xl);
 }
 
-/* Uses shared .card base from styles.css */
 .career-card {
   background: linear-gradient(
     135deg,

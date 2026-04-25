@@ -87,7 +87,8 @@ type LambdaGamesResponse struct {
 	Games []Game `json:"games"`
 }
 
-// gameAlias avoids recursive unmarshalling when Game customizes JSON decoding.
+// gameAlias lets Game.UnmarshalJSON decode the base fields without recursively
+// invoking itself while facility data is merged from both payload shapes.
 type gameAlias Game
 
 type gameJSON struct {
@@ -149,7 +150,12 @@ func NormalizeFacility(facility *Facility) *Facility {
 		ZIP:     strings.TrimSpace(facility.ZIP),
 	}
 
-	if normalized.ID == 0 && normalized.Name == "" && normalized.Address == "" && normalized.City == "" && normalized.State == "" && normalized.ZIP == "" {
+	if normalized.ID == 0 &&
+		normalized.Name == "" &&
+		normalized.Address == "" &&
+		normalized.City == "" &&
+		normalized.State == "" &&
+		normalized.ZIP == "" {
 		return nil
 	}
 

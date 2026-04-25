@@ -209,7 +209,7 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	if strings.TrimSpace(facility.FacilityName) != "" {
 		facilityName = strings.TrimSpace(facility.FacilityName)
 	}
-	gameFacility := buildGameFacility(
+	gameFacility := types.NewFacilityDetails(
 		facilityID,
 		facilityName,
 		facility.Address,
@@ -217,6 +217,10 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		facility.State,
 		facility.ZIP,
 	)
+	endAt := ""
+	if rawGame.SchedGameEndTime != nil {
+		endAt = strings.TrimSpace(*rawGame.SchedGameEndTime)
+	}
 
 	fieldName := strings.TrimSpace(rawGame.FieldName)
 	if fieldName == "" && rawGame.Field > 0 {
@@ -240,7 +244,7 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		ID:               intString(rawGame.UGameID),
 		DateTime:         schedule.FormatGameDateTime(schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime)),
 		StartAt:          schedule.NormalizeLPSScheduleTime(rawGame.SchedGameDateTime),
-		EndAt:            schedule.NormalizeLPSScheduleTime(stringPointerValue(rawGame.SchedGameEndTime)),
+		EndAt:            schedule.NormalizeLPSScheduleTime(endAt),
 		Field:            fieldName,
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,

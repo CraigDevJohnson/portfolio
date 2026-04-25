@@ -130,10 +130,10 @@ func canonicalGameLocation(game *types.Game) string {
 }
 
 func canonicalGameStatus(game *types.Game) string {
-	if strings.EqualFold(strings.TrimSpace(game.Result), "canceled") {
-		return "canceled"
+	if strings.EqualFold(strings.TrimSpace(game.Result), gameStatusCanceled) {
+		return gameStatusCanceled
 	}
-	return "confirmed"
+	return gameStatusConfirmed
 }
 
 // EscapeICSText escapes reserved characters for ICS text fields.

@@ -72,7 +72,6 @@
   animation-delay: 0.1s;
 }
 
-/* Uses shared .card base from styles.css */
 .soccer-unified-card {
   box-shadow: var(--shadow-md);
 }
@@ -789,7 +788,6 @@ body.soccer-modal-open {
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .step-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
@@ -849,7 +847,6 @@ body.soccer-modal-open {
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .feature-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;

@@ -13,14 +13,21 @@ import (
 	"portfolio/internal/logging"
 )
 
+const (
+	googleUnavailableMessage       = "Google Calendar add is unavailable until Google OAuth and server-side storage are configured."
+	googleReadSelectedGamesMessage = "Could not read the selected games. Try again."
+	googleExpiredConnectionMessage = "Your Google Calendar connection has expired. Connect again and retry."
+	googleInvalidConnectionMessage = "Your Google Calendar connection is no longer valid. Connect again and retry."
+)
+
 // AddHandler adds selected games to Google Calendar.
 func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.Config.GoogleEnabled() {
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", googleUnavailableMessage)
 		return
 	}
 	if err := parseGoogleForm(r, w); err != nil {
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not read the selected games. Try again.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", googleReadSelectedGamesMessage)
 		return
 	}
 	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
@@ -36,7 +43,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := h.CurrentToken(r.Context(), r, record)
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("google token refresh failed", slog.Any("error", err))
-		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
+		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
 		return
 	}
 	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, filteredGames)
@@ -50,7 +57,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if authRejected {
-		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
+		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
 		return
 	}
 	successMessage := fmt.Sprintf("Added %d selected game(s) to Google Calendar.", added)
@@ -66,11 +73,11 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 // SyncResultsHandler updates previously synced past games with result text.
 func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.Config.GoogleEnabled() {
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Google Calendar add is unavailable until Google OAuth and server-side storage are configured.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", googleUnavailableMessage)
 		return
 	}
 	if err := parseGoogleForm(r, w); err != nil {
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not read the selected games. Try again.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", googleReadSelectedGamesMessage)
 		return
 	}
 	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
@@ -96,7 +103,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := h.CurrentToken(r.Context(), r, record)
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("google token refresh failed", slog.Any("error", err))
-		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection has expired. Connect again and retry.")
+		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
 		return
 	}
 	added, updated, skipped, authRejected, err := h.insertCalendarEvents(r, record, token, games)
@@ -106,7 +113,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if authRejected {
-		h.RenderDisconnectFeedback(w, r, session, "Your Google Calendar connection is no longer valid. Connect again and retry.")
+		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
 		return
 	}
 	logging.WithContext(h.Logger, r.Context()).Info(

@@ -18,46 +18,6 @@ trim_trailing_whitespace = false
 insert_final_newline = true
 max_line_length = 80
 
-# HTML/CSS/JS/TS
-[*.{html,htm}]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-[*.{css,scss}]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-[*.{js,mjs,cjs,ts}]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-# JSON / manifest files
-[*.json]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-# YAML files
-[*.{yml,yaml}]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
-# Shell scripts
-[*.sh]
-indent_style = space
-indent_size = 2
-trim_trailing_whitespace = true
-insert_final_newline = true
-
 # Go files — use tabs to align with gofmt and the Go toolchain (necessary exception)
 [*.go]
 indent_style = tab
@@ -86,5 +46,3 @@ charset = binary
 
 [*.gif]
 charset = binary
-
-# End of file

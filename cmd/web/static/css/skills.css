@@ -338,7 +338,6 @@
   gap: var(--space-md);
 }
 
-/* Uses shared .card base from styles.css */
 .concept-card {
   display: flex;
   align-items: center;

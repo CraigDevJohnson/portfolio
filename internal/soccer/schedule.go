@@ -39,7 +39,7 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 		swapAuthState = true
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	h.setHTMLContentType(w)
 	if swapAuthState {
 		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -102,8 +102,8 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input scheduleFormInput, props *partials.SoccerTableFragmentProps) bool {
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
-		props.Message = "One or more selected players were invalid."
-		props.Hint = "Clear the imported players and import again to refresh the discovered player list."
+		props.Message = invalidPlayersMessage
+		props.Hint = invalidPlayersHint
 		return false
 	}
 
@@ -240,8 +240,7 @@ func scheduleSelectionFeedback(err error) (message, hint string, ok bool) {
 		return "Import a bearer JWT again to fetch schedules for your discovered players.",
 			"Your previous session is no longer available.", true
 	case errors.Is(err, ErrInvalidTeamSelection):
-		return "One or more team IDs were invalid.",
-			"Enter numeric Let's Play Soccer team IDs separated by commas.", true
+		return invalidTeamIDsMessage, invalidTeamIDsHint, true
 	case errors.Is(err, ErrScheduleSelection):
 		return "Enter team IDs or choose at least one discovered player.",
 			"Manual team ID entry still works if you do not want to import a token.", true

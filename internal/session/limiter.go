@@ -68,10 +68,11 @@ func (limiter *LoginRateLimiter) Allow(key string) bool {
 		return false
 	}
 
-	if _, exists := limiter.attempts[key]; !exists && len(limiter.attempts) >= limiter.maxKeys {
-		if !limiter.ensureCapacityForNewKey(now) {
-			return false
-		}
+	_, exists := limiter.attempts[key]
+	isNewKey := !exists
+	isAtCapacity := len(limiter.attempts) >= limiter.maxKeys
+	if isNewKey && isAtCapacity && !limiter.ensureCapacityForNewKey(now) {
+		return false
 	}
 
 	attempt.Count++

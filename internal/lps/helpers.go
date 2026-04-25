@@ -4,8 +4,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"portfolio/types"
 )
 
 // fullName joins non-empty trimmed name parts with spaces.
@@ -48,14 +46,6 @@ func intString(value int) string {
 	return strconv.Itoa(value)
 }
 
-// stringPointerValue returns a trimmed string pointer value.
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
 // sortedUniqueIDs returns positive IDs in ascending order without duplicates.
 func sortedUniqueIDs(values []int) []int {
 	if len(values) == 0 {
@@ -76,15 +66,4 @@ func sortedUniqueIDs(values []int) []int {
 	}
 	sort.Ints(normalized)
 	return normalized
-}
-
-func buildGameFacility(id int, name, address, city, state, zip string) *types.Facility {
-	return types.NewFacilityDetails(id, name, address, city, state, zip)
-}
-
-func gameFacilityName(facility *types.Facility) string {
-	if facility != nil && strings.TrimSpace(facility.Name) != "" {
-		return strings.TrimSpace(facility.Name)
-	}
-	return ""
 }

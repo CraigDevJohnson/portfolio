@@ -52,7 +52,7 @@ func Load() Config {
 	}
 
 	decoded, err := hex.DecodeString(keyHex)
-	if err != nil || len(decoded) != 32 {
+	if err != nil || len(decoded) != sessionKeyLengthBytes {
 		logger.Warn("soccer auth disabled; LPS_SESSION_KEY must be a 64-character hex string")
 		return cfg
 	}
@@ -64,7 +64,7 @@ func Load() Config {
 
 // LoginEnabled reports whether soccer JWT import is configured.
 func (c *Config) LoginEnabled() bool {
-	return len(c.SessionKey) == 32
+	return len(c.SessionKey) == sessionKeyLengthBytes
 }
 
 // GoogleEnabled reports whether direct Google Calendar add is configured.
@@ -109,10 +109,11 @@ func LocalServerURL(listenAddress string) string {
 
 // NormalizeLPSAPIBaseURL validates and normalizes the configured LPS API base URL.
 func NormalizeLPSAPIBaseURL(raw string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
 		raw = DefaultLPSAPIBaseURL
 	}
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	parsed, err := url.Parse(raw)
 	if err != nil {
 		return "", err
 	}
@@ -134,9 +135,10 @@ func envTrimmed(key string) string {
 }
 
 func isLoopbackHost(host string) bool {
-	if strings.EqualFold(strings.TrimSpace(host), "localhost") {
+	host = strings.TrimSpace(host)
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	parsedIP := net.ParseIP(strings.TrimSpace(host))
+	parsedIP := net.ParseIP(host)
 	return parsedIP != nil && parsedIP.IsLoopback()
 }

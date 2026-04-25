@@ -15,7 +15,10 @@ const (
 	MountainTimeZoneID         = "America/Denver"
 )
 
-const RateLimiterMaxKeys = 10000
+const (
+	RateLimiterMaxKeys    = 10000
+	sessionKeyLengthBytes = 32
+)
 
 const (
 	MaxRequestBodySize     = 1 << 20

@@ -153,8 +153,8 @@ func MapLPSGame(raw map[string]any) types.Game {
 
 	facility := mapGameFacility(raw)
 	location := firstString(raw, "location", "Location", "venue", "Venue", "facility", "Facility", "facilityName")
-	if location == "" {
-		location = gameFacilityName(facility)
+	if location == "" && facility != nil {
+		location = strings.TrimSpace(facility.Name)
 	}
 
 	return types.Game{
@@ -181,7 +181,7 @@ func mapGameFacility(raw map[string]any) *types.Facility {
 		nested = value
 	}
 
-	return buildGameFacility(
+	return types.NewFacilityDetails(
 		firstPositiveInt(firstInt(raw, "FacilityID", "facility_id"), firstInt(nested, "id", "ID", "facility_id", "FacilityID")),
 		firstNonEmptyString(firstString(raw, "facilityName", "FacilityName", "facility_name"), firstString(nested, "name", "Name", "facility_name", "FacilityName")),
 		firstNonEmptyString(firstString(raw, "Address", "address"), firstString(nested, "address", "Address")),

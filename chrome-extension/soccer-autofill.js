@@ -1,21 +1,19 @@
 const CAPTURE_KEY = 'lpsJwtCapture'
 const AUTOFILL_QUERY_KEY = 'extension_autofill'
+// These selectors must match the soccer import UI rendered by the main site.
 const FIELD_SELECTOR = '#soccer-import-jwt'
 const OPEN_BUTTON_SELECTOR = '[data-open-login-modal]'
 let cachedImportValue = ''
 let applyQueued = false
-const warnedMissingTargets = {
-  button: false,
-  field: false,
-}
+const warnedMissingTargets = new Set()
 
 function warnOnce(message, warningKey) {
-  if (warnedMissingTargets[warningKey]) {
+  if (warnedMissingTargets.has(warningKey)) {
     return
   }
 
   console.warn(message)
-  warnedMissingTargets[warningKey] = true
+  warnedMissingTargets.add(warningKey)
 }
 
 function dispatchFieldEvents(field) {
@@ -33,7 +31,7 @@ function fillImportField(importValue) {
     return false
   }
 
-  warnedMissingTargets.field = false
+  warnedMissingTargets.delete('field')
 
   if (field.value.trim() === importValue.trim()) {
     return true
@@ -67,7 +65,7 @@ function maybeOpenImportModal() {
     return false
   }
 
-  warnedMissingTargets.button = false
+  warnedMissingTargets.delete('button')
 
   button.click()
   cleanAutofillQueryParam()

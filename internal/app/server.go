@@ -22,6 +22,14 @@ import (
 
 const serverShutdownTimeout = 10 * time.Second
 
+const (
+	lpsClientTimeout       = 15 * time.Second
+	httpServerReadTimeout  = 15 * time.Second
+	httpServerWriteTimeout = 60 * time.Second
+	httpServerIdleTimeout  = 60 * time.Second
+	googleStoreInitTimeout = 10 * time.Second
+)
+
 func registerMIMETypes() error {
 	mimeTypes := map[string]string{
 		".css":  "text/css",
@@ -132,11 +140,11 @@ func Run() error {
 
 	server := &http.Server{
 		Handler:     withRequestLogging(rootLogger.With(slog.String("component", "http")), mux),
-		ReadTimeout: 15 * time.Second,
+		ReadTimeout: httpServerReadTimeout,
 		// 60s covers sync-results, which makes N sequential Google Calendar API
 		// calls before writing its response (21 games ≈ 15s in practice).
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		WriteTimeout: httpServerWriteTimeout,
+		IdleTimeout:  httpServerIdleTimeout,
 	}
 	serveErrCh := make(chan error, 1)
 
@@ -158,7 +166,7 @@ func Run() error {
 	// health checks never wait on AWS SDK startup or credential resolution.
 	if app.Config.GoogleEnabled() {
 		go func() {
-			initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)
 			defer initCancel()
 			store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
 			if initErr != nil {

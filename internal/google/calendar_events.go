@@ -174,10 +174,12 @@ func eventMatchesGameID(event *Event, gameID string) bool {
 	if gameID == "" {
 		return false
 	}
-	if strings.TrimSpace(event.ID) == gameID {
+	eventID := strings.TrimSpace(event.ID)
+	storedGameID := strings.TrimSpace(event.ExtendedProperties.Private["game_id"])
+	if eventID == gameID {
 		return true
 	}
-	return strings.TrimSpace(event.ExtendedProperties.Private["game_id"]) == gameID
+	return storedGameID == gameID
 }
 
 // preferredCalendar returns the primary calendar or the first in the list.

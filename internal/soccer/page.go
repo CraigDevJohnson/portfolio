@@ -44,7 +44,7 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 
 // RenderLoginState renders the soccer login-state fragment.
 func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	h.setHTMLContentType(w)
 	props := h.LoginStateProps(w, r, session, false)
 	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer login state render failed", slog.Any("error", err))
@@ -54,7 +54,7 @@ func (h *Handler) RenderLoginState(w http.ResponseWriter, r *http.Request, sessi
 
 // RenderLoginFeedback renders a login feedback fragment.
 func (h *Handler) RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	h.setHTMLContentType(w)
 	props := partials.SoccerLoginFeedbackProps{Kind: kind, Message: message}
 	if err := partials.SoccerLoginFeedback(props).Render(r.Context(), w); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer login feedback render failed", slog.Any("error", err))
@@ -95,7 +95,7 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 
 	input := parseScheduleFormInput(r.Form)
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
-		return nil, nil, "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.", false
+		return nil, nil, invalidPlayersMessage + " " + invalidPlayersHint, false
 	}
 
 	session, _ := h.LoadSession(w, r)
@@ -115,7 +115,7 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 func (h *Handler) ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
 	input := parseScheduleFormInput(r.Form)
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
-		return nil, nil, "One or more selected players were invalid. Clear the imported players and import again to refresh the discovered list.", false
+		return nil, nil, invalidPlayersMessage + " " + invalidPlayersHint, false
 	}
 
 	session, _ := h.LoadSession(w, r)

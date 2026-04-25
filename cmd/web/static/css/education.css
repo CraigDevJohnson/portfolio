@@ -20,7 +20,6 @@
   padding: var(--space-xl) 0;
 }
 
-/* Uses shared .card base from styles.css */
 .edu-stat-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
@@ -56,7 +55,6 @@
   padding: var(--space-xl) 0 var(--space-2xl);
 }
 
-/* Uses shared .card base from styles.css */
 .edu-degree-card {
   display: flex;
   align-items: center;
@@ -160,7 +158,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .cert-card {
   display: flex;
   flex-direction: column;

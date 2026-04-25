@@ -96,17 +96,17 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		connectionID, err = NewRandomHex(16)
 		if err != nil {
-			h.failConnectf(w, r, "google connection id generation failed: %v", err)
+			h.failOAuthf(w, r, false, "google connection id generation failed: %v", err)
 			return
 		}
 	}
 	state, err := NewOAuthState(connectionID)
 	if err != nil {
-		h.failConnectf(w, r, "google oauth state generation failed: %v", err)
+		h.failOAuthf(w, r, false, "google oauth state generation failed: %v", err)
 		return
 	}
 	if err := h.SetOAuthStateCookie(w, r, state); err != nil {
-		h.failConnectf(w, r, "google oauth state cookie write failed: %v", err)
+		h.failOAuthf(w, r, false, "google oauth state cookie write failed: %v", err)
 		return
 	}
 	authURL := h.oauthConfigForRequest(r).AuthCodeURL(
@@ -143,18 +143,18 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := h.httpContext(r.Context())
 	token, err := h.oauthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
 	if err != nil {
-		h.failCallbackf(w, r, "google token exchange failed: %v", err)
+		h.failOAuthf(w, r, true, "google token exchange failed: %v", err)
 		return
 	}
 	calendars, err := h.listCalendarsWithToken(ctx, token)
 	if err != nil || len(calendars) == 0 {
-		h.failCallbackf(w, r, "google calendar list after connect failed: %v", err)
+		h.failOAuthf(w, r, true, "google calendar list after connect failed: %v", err)
 		return
 	}
 	selectedCalendarID, selectedCalendarSummary := preferredCalendar(calendars)
 	encryptedToken, err := h.EncryptToken(token)
 	if err != nil {
-		h.failCallbackf(w, r, "google token encryption failed: %v", err)
+		h.failOAuthf(w, r, true, "google token encryption failed: %v", err)
 		return
 	}
 	createdAt := time.Now().UTC()
@@ -170,7 +170,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:       time.Now().UTC(),
 	}
 	if err := h.Store().Put(r.Context(), &record); err != nil {
-		h.failCallbackf(w, r, "google connection save failed: %v", err)
+		h.failOAuthf(w, r, true, "google connection save failed: %v", err)
 		return
 	}
 	SetConnectionCookie(w, r, state.ConnectionID)
@@ -207,13 +207,10 @@ func NewOAuthState(connectionID string) (OAuthState, error) {
 	}, nil
 }
 
-func (h *Handler) failConnectf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
+func (h *Handler) failOAuthf(w http.ResponseWriter, r *http.Request, clearState bool, format string, args ...any) {
 	logging.WithContext(h.Logger, r.Context()).Error(fmt.Sprintf(format, args...))
-	RedirectSoccerWithGoogleStatus(w, r, "failed")
-}
-
-func (h *Handler) failCallbackf(w http.ResponseWriter, r *http.Request, format string, args ...any) {
-	logging.WithContext(h.Logger, r.Context()).Error(fmt.Sprintf(format, args...))
-	ClearOAuthStateCookie(w, r)
+	if clearState {
+		ClearOAuthStateCookie(w, r)
+	}
 	RedirectSoccerWithGoogleStatus(w, r, "failed")
 }

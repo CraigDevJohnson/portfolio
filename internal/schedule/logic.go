@@ -10,7 +10,17 @@ import (
 	"portfolio/types"
 )
 
-const fieldLocationPrefix = "Field "
+const (
+	fieldLocationPrefix = "Field "
+	gameStatusCanceled  = "canceled"
+	gameStatusConfirmed = "confirmed"
+	gameStatusFinal     = "final"
+	gameOutcomeCanceled = "Canceled"
+	gameOutcomeDraw     = "Draw"
+	gameOutcomeFinal    = "Final"
+	gameOutcomeLoss     = "Loss"
+	gameOutcomeWin      = "Win"
+)
 
 func normalizeScheduleGame(game *types.Game) {
 	// Fill missing derived fields in priority order so downstream sorting, merging,
@@ -64,14 +74,14 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	return merged
 }
 
-// StableGameFields returns the fields used to derive a stable fallback identifier.
-func StableGameFields(game *types.Game) string {
+// stableGameFields returns the fields used to derive a stable fallback identifier.
+func stableGameFields(game *types.Game) string {
 	return strings.Join([]string{game.Home, game.Away, game.StartAt, game.DateTime, game.Location, game.Season}, "|")
 }
 
 // FallbackGameID derives a deterministic identifier when no upstream ID is available.
 func FallbackGameID(game *types.Game) string {
-	base := StableGameFields(game)
+	base := stableGameFields(game)
 	if strings.ReplaceAll(base, "|", "") == "" {
 		return ""
 	}
@@ -84,7 +94,7 @@ func GameKey(game *types.Game) string {
 	if game.ID != "" {
 		return game.ID
 	}
-	return StableGameFields(game)
+	return stableGameFields(game)
 }
 
 // GameStartTime returns the best available parsed start time for a game.

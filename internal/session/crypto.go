@@ -9,11 +9,11 @@ import (
 	"errors"
 )
 
-const errSessionKeyNotConfigured = "session encryption key is not configured"
+const errInvalidSessionKey = "session encryption key must be 32 bytes"
 
 func validateSessionKey(key []byte) error {
 	if len(key) != 32 {
-		return errors.New(errSessionKeyNotConfigured)
+		return errors.New(errInvalidSessionKey)
 	}
 
 	return nil

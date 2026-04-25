@@ -23,7 +23,6 @@
   pointer-events: none;
 }
 
-/* Uses shared .card base from styles.css (.card--compact variant) */
 .about-stat-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
@@ -366,7 +365,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .interest-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
@@ -423,7 +421,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .value-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;

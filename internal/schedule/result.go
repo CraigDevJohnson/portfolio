@@ -24,11 +24,11 @@ func ParseGameResult(result, playerTeamName, homeTeamName string) GameOutcome {
 		return GameOutcome{}
 	}
 
-	if strings.EqualFold(raw, "canceled") {
-		return GameOutcome{Outcome: "Canceled", Raw: raw, Parsed: true}
+	if strings.EqualFold(raw, gameStatusCanceled) {
+		return GameOutcome{Outcome: gameOutcomeCanceled, Raw: raw, Parsed: true}
 	}
-	if strings.EqualFold(raw, "final") {
-		return GameOutcome{Outcome: "Final", Raw: raw, Parsed: true}
+	if strings.EqualFold(raw, gameStatusFinal) {
+		return GameOutcome{Outcome: gameOutcomeFinal, Raw: raw, Parsed: true}
 	}
 
 	matches := scorePattern.FindStringSubmatch(raw)
@@ -59,11 +59,11 @@ func ParseGameResult(result, playerTeamName, homeTeamName string) GameOutcome {
 		opponentScore = homeScore
 	}
 
-	outcome := "Draw"
+	outcome := gameOutcomeDraw
 	if playerScore > opponentScore {
-		outcome = "Win"
+		outcome = gameOutcomeWin
 	} else if playerScore < opponentScore {
-		outcome = "Loss"
+		outcome = gameOutcomeLoss
 	}
 
 	return GameOutcome{
@@ -83,12 +83,12 @@ func FormatResultLine(outcome GameOutcome) string {
 	}
 
 	switch outcome.Outcome {
-	case "Win", "Loss", "Draw":
+	case gameOutcomeWin, gameOutcomeLoss, gameOutcomeDraw:
 		return outcome.Outcome + " (" + strconv.Itoa(outcome.PlayerScore) + "-" + strconv.Itoa(outcome.OpponentScore) + ")"
-	case "Canceled":
-		return "Canceled"
-	case "Final":
-		return "Final"
+	case gameOutcomeCanceled:
+		return gameOutcomeCanceled
+	case gameOutcomeFinal:
+		return gameOutcomeFinal
 	default:
 		return outcome.Raw
 	}

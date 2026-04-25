@@ -28,7 +28,7 @@ func New(cfg *config.Config, logger *slog.Logger) *App {
 
 	app := &App{
 		Config:       *cfg,
-		LPSClient:    &http.Client{Timeout: 15 * time.Second},
+		LPSClient:    &http.Client{Timeout: lpsClientTimeout},
 		LoginLimiter: session.NewLoginRateLimiter(5, time.Minute, config.RateLimiterMaxKeys),
 		Logger:       logger.With(slog.String("component", "app")),
 	}

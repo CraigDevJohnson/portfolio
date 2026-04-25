@@ -228,7 +228,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .what-i-do-card {
   text-align: center;
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
@@ -287,7 +286,6 @@
   gap: var(--space-lg);
 }
 
-/* Uses shared .card base from styles.css */
 .quick-link-card {
   display: flex;
   flex-direction: column;

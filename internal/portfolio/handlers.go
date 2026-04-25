@@ -18,15 +18,15 @@ import (
 )
 
 const (
-	portfolioName               = "Craig Johnson"
-	portfolioRole               = "Cloud Engineer Principal"
-	portfolioGravatarEmail      = "gravatar@craigdevjohnson.com"
-	portfolioGravatarSize       = 275
-	portfolioCertificationCount = 10
-	portfolioTechUsedCount      = 30
-	portfolioCoffeeCount        = "∞"
-	educationProviderCount      = 5
-	educationStartYear          = 2018
+	displayName            = "Craig Johnson"
+	displayRole            = "Cloud Engineer Principal"
+	gravatarEmail          = "gravatar@craigdevjohnson.com"
+	gravatarSize           = 275
+	certificationCount     = 10
+	techUsedCount          = 30
+	coffeeCount            = "∞"
+	educationProviderCount = 5
+	educationStartYear     = 2018
 )
 
 // gravatarURL returns the Gravatar image URL for the given email and size.
@@ -55,12 +55,12 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 		return
 	}
 	renderComponent(w, r, pages.Home(pages.HomeProps{
-		Name:               portfolioName,
-		Role:               portfolioRole,
-		AvatarURL:          gravatarURL(portfolioGravatarEmail, portfolioGravatarSize),
+		Name:               displayName,
+		Role:               displayRole,
+		AvatarURL:          gravatarURL(gravatarEmail, gravatarSize),
 		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
 		YearsInTech:        time.Now().Year() - careerStartYear,
-		Certifications:     portfolioCertificationCount,
+		Certifications:     certificationCount,
 		AutomationProjects: "100",
 	}))
 }
@@ -69,9 +69,9 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 func AboutHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	props := pages.AboutProps{
 		YearsInTech:    time.Now().Year() - careerStartYear,
-		Certifications: portfolioCertificationCount,
-		TechUsed:       portfolioTechUsedCount,
-		CupsOfCoffee:   portfolioCoffeeCount,
+		Certifications: certificationCount,
+		TechUsed:       techUsedCount,
+		CupsOfCoffee:   coffeeCount,
 	}
 	renderComponent(w, r, pages.About(props))
 }
@@ -175,7 +175,7 @@ func ProjectsGridHandler(w http.ResponseWriter, r *http.Request) {
 // EducationHandler renders the education page.
 func EducationHandler(w http.ResponseWriter, r *http.Request) {
 	props := pages.EducationProps{
-		TotalCerts:      portfolioCertificationCount,
+		TotalCerts:      certificationCount,
 		Providers:       educationProviderCount,
 		YearsCertifying: time.Now().Year() - educationStartYear,
 	}

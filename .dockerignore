@@ -1,13 +1,32 @@
 .git
 .gitignore
 .github
+.playwright-mcp
+.tmp
+.venv
 .vscode
 .idea
 
+chrome-extension/
+docs/
+infra/
+
+.dockerignore
+.editorconfig
+.env
+.env.example
+.golangci.toml
+
 README.md
+DEPLOY-INSTRUCTIONS.md
+docker-compose.yml
 
 portfolio-server
 
 *.log
 *.tmp
+node_modules/
+package-lock.json
+package.json
+stylelint.config.mjs
 tmp/
