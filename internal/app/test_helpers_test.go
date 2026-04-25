@@ -47,6 +47,7 @@ func newTestSoccerHandler(app *App) *internalsoccer.Handler {
 		app.LPSClient,
 		app.LoginLimiter,
 		app.GoogleHandler,
+		internalsoccer.NoopSoccerStore{},
 		logger,
 	)
 }

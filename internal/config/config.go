@@ -18,6 +18,7 @@ type Config struct {
 	GoogleClientID            string
 	GoogleClientSecret        string
 	GoogleConnectionTableName string
+	SoccerSessionTableName    string
 }
 
 // Load reads runtime configuration from the environment.
@@ -28,6 +29,7 @@ func Load() Config {
 		GoogleClientID:            envTrimmed("CLIENT_ID_KEY"),
 		GoogleClientSecret:        envTrimmed("CLIENT_SECRET_KEY"),
 		GoogleConnectionTableName: envTrimmed("GOOGLE_CONNECTION_TABLE_NAME"),
+		SoccerSessionTableName:    envTrimmed("SOCCER_SESSION_TABLE_NAME"),
 	}
 	if cfg.LPSAPIBaseURL == "" {
 		cfg.LPSAPIBaseURL = DefaultLPSAPIBaseURL
@@ -73,6 +75,11 @@ func (c *Config) GoogleEnabled() bool {
 		c.GoogleClientID != "" &&
 		c.GoogleClientSecret != "" &&
 		c.GoogleConnectionTableName != ""
+}
+
+// SoccerSessionEnabled reports whether DynamoDB soccer session persistence is configured.
+func (c *Config) SoccerSessionEnabled() bool {
+	return c.LoginEnabled() && c.SoccerSessionTableName != ""
 }
 
 // PublicBindEnabled reports whether the server should bind to all interfaces.

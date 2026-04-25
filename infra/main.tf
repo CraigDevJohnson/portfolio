@@ -4,6 +4,7 @@
 
 locals {
   google_connection_table_name = "${var.app_name}-google-connections"
+  soccer_session_table_name    = "${var.app_name}-soccer-sessions"
   ssm_parameter_base_arn       = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}"
   # Runtime secrets for Google OAuth and soccer JWT session authentication.
   ssm_parameter_names = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
@@ -72,6 +73,31 @@ resource "aws_dynamodb_table" "google_connections" {
 
   tags = {
     Name        = local.google_connection_table_name
+    Environment = var.environment
+  }
+}
+
+# ──────────────────────────────────────────────
+# DynamoDB — soccer session store
+# ──────────────────────────────────────────────
+
+resource "aws_dynamodb_table" "soccer_sessions" {
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "session_id"
+  name         = local.soccer_session_table_name
+
+  attribute {
+    name = "session_id"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = local.soccer_session_table_name
     Environment = var.environment
   }
 }
@@ -150,6 +176,30 @@ resource "aws_iam_role_policy_attachment" "google_connections_dynamodb" {
   role       = aws_iam_role.apprunner_instance.name
 }
 
+resource "aws_iam_policy" "soccer_sessions_dynamodb" {
+  name = "${var.app_name}-soccer-sessions-dynamodb"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DeleteItem",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+        ]
+        Resource = aws_dynamodb_table.soccer_sessions.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "soccer_sessions_dynamodb" {
+  policy_arn = aws_iam_policy.soccer_sessions_dynamodb.arn
+  role       = aws_iam_role.apprunner_instance.name
+}
+
 resource "aws_iam_policy" "apprunner_runtime_secrets" {
   name = "${var.app_name}-apprunner-runtime-secrets"
 
@@ -203,6 +253,7 @@ resource "aws_apprunner_service" "app" {
           LOG_ADD_SOURCE               = "false"
           LOG_FORMAT                   = "json"
           LOG_LEVEL                    = "info"
+          SOCCER_SESSION_TABLE_NAME    = local.soccer_session_table_name
         }
         runtime_environment_secrets = { for name in local.ssm_parameter_names : name => "${local.ssm_parameter_base_arn}/${name}" }
       }

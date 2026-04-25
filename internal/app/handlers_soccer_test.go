@@ -18,35 +18,40 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	app := newTestApp(t)
 	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/users/check" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
 		if got := r.Header.Get("Authorization"); got != "Bearer "+token {
-			t.Fatalf("unexpected authorization header: %s", got)
+			t.Fatalf("unexpected authorization header for %s: %s", r.URL.Path, got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
-			"first_name": "Craig",
-			"last_name": "Johnson",
-			"players": [
-				{
-					"UPlayerID": 1001,
-					"FirstName": "Craig",
-					"LastName": "Johnson",
-					"is_main_player": true
-				},
-				{
-					"UPlayerID": 1002,
-					"FirstName": "Taylor",
-					"LastName": "Johnson",
-					"is_main_player": false
-				}
-			],
-			"user_players": [
-				{"player_id": 1001, "deleted": false},
-				{"player_id": 1002, "deleted": false}
-			]
-		}`))
+		switch r.URL.Path {
+		case "/users/check":
+			_, _ = w.Write([]byte(`{
+				"first_name": "Craig",
+				"last_name": "Johnson",
+				"players": [
+					{
+						"UPlayerID": 1001,
+						"FirstName": "Craig",
+						"LastName": "Johnson",
+						"is_main_player": true
+					},
+					{
+						"UPlayerID": 1002,
+						"FirstName": "Taylor",
+						"LastName": "Johnson",
+						"is_main_player": false
+					}
+				],
+				"user_players": [
+					{"player_id": 1001, "deleted": false},
+					{"player_id": 1002, "deleted": false}
+				]
+			}`))
+		case "/players/1001/my_teams", "/players/1002/my_teams":
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}))
 	defer server.Close()
 
@@ -248,11 +253,13 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	if fetchResp.Code != http.StatusOK {
 		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
 	}
-	if got := requestCounts["/players/1669080/my_teams"]; got != 1 {
-		t.Fatalf("unexpected player 1669080 my_teams call count: got %d want 1", got)
+	// my_teams is called once at import (to populate KnownTeams) and once at fetch
+	// (to resolve player teams into games) — 2 total per player.
+	if got := requestCounts["/players/1669080/my_teams"]; got != 2 {
+		t.Fatalf("unexpected player 1669080 my_teams call count: got %d want 2", got)
 	}
-	if got := requestCounts["/players/1669081/my_teams"]; got != 1 {
-		t.Fatalf("unexpected player 1669081 my_teams call count: got %d want 1", got)
+	if got := requestCounts["/players/1669081/my_teams"]; got != 2 {
+		t.Fatalf("unexpected player 1669081 my_teams call count: got %d want 2", got)
 	}
 	if got := requestCounts["/teams/479393"]; got != 1 {
 		t.Fatalf("unexpected team 479393 call count: got %d want 1", got)

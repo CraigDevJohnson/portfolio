@@ -1,6 +1,9 @@
 package soccer
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -65,17 +68,27 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now()
+	sessionID := generateSessionID()
+	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
+	knownTeams := fetchKnownTeams(r.Context(), resolver, discovery.Players)
+
 	session := types.SessionData{
-		JWT:       jwt,
-		UserName:  discovery.UserName,
-		Players:   discovery.Players,
-		ExpiresAt: lps.ImportedSessionExpiry(jwt),
+		JWT:        jwt,
+		UserName:   discovery.UserName,
+		Players:    discovery.Players,
+		ExpiresAt:  lps.ImportedSessionExpiry(jwt),
+		SessionID:  sessionID,
+		KnownTeams: knownTeams,
+		StartedAt:  now,
 	}
 	if err := h.setSession(w, r, &session); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer import session write failed", slog.Any("error", err))
 		h.RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
+
+	go h.persistSessionRecord(sessionID, &session)
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(r.Context(), w); err != nil {
@@ -139,4 +152,63 @@ func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
 	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
+}
+
+func generateSessionID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// fetchKnownTeams calls FetchPlayerTeams for each player and returns the collected teams.
+// Errors from individual players are logged and skipped to avoid blocking import.
+func fetchKnownTeams(ctx context.Context, resolver *lps.ScheduleResolver, players []types.LPSPlayer) []types.LPSTeam {
+	var known []types.LPSTeam
+	for _, player := range players {
+		teams, err := resolver.FetchPlayerTeams(ctx, player.UPlayerID)
+		if err != nil {
+			continue
+		}
+		for _, t := range teams {
+			if t.UTeamID <= 0 {
+				continue
+			}
+			known = append(known, types.LPSTeam{
+				TeamID:   t.UTeamID,
+				TeamName: t.TeamName,
+				Season:   t.Season,
+				PlayerID: player.UPlayerID,
+			})
+		}
+	}
+	return known
+}
+
+func (h *Handler) persistSessionRecord(sessionID string, session *types.SessionData) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	playersJSON, err := marshalPlayersJSON(session.Players)
+	if err != nil {
+		h.Logger.Warn("soccer session persist: failed to marshal players", slog.Any("error", err))
+		return
+	}
+	teamsJSON, err := marshalTeamsJSON(session.KnownTeams)
+	if err != nil {
+		h.Logger.Warn("soccer session persist: failed to marshal teams", slog.Any("error", err))
+		return
+	}
+
+	record := &SoccerSessionRecord{
+		SessionID:   sessionID,
+		UserName:    session.UserName,
+		PlayersJSON: playersJSON,
+		TeamsJSON:   teamsJSON,
+		StartedAt:   session.StartedAt,
+		ExpiresAt:   session.ExpiresAt,
+		TTL:         session.ExpiresAt.Unix(),
+	}
+	if err := h.Store.Put(ctx, record); err != nil {
+		h.Logger.Warn("soccer session persist: DynamoDB write failed", slog.Any("error", err))
+	}
 }

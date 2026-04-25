@@ -22,6 +22,15 @@ const (
 	gameOutcomeWin      = "Win"
 )
 
+// Exported outcome strings for use by templates and external packages.
+const (
+	OutcomeWin      = gameOutcomeWin
+	OutcomeLoss     = gameOutcomeLoss
+	OutcomeDraw     = gameOutcomeDraw
+	OutcomeCanceled = gameOutcomeCanceled
+	OutcomeFinal    = gameOutcomeFinal
+)
+
 func normalizeScheduleGame(game *types.Game) {
 	// Fill missing derived fields in priority order so downstream sorting, merging,
 	// and ICS export all operate on the same normalized shape.

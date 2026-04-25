@@ -1,7 +1,11 @@
 package partials
 
-import "fmt"
-import "portfolio/types"
+import (
+	"fmt"
+	"portfolio/internal/schedule"
+	"portfolio/types"
+	"strings"
+)
 
 type SoccerTableFragmentProps struct {
 	Games           []types.Game
@@ -10,6 +14,23 @@ type SoccerTableFragmentProps struct {
 	Message         string
 	Hint            string
 	GoogleConnected bool
+}
+
+func resultBadgeClass(outcome string) string {
+	switch outcome {
+	case schedule.OutcomeWin:
+		return "result-badge result-badge--win"
+	case schedule.OutcomeLoss:
+		return "result-badge result-badge--loss"
+	case schedule.OutcomeDraw:
+		return "result-badge result-badge--draw"
+	case schedule.OutcomeCanceled:
+		return "result-badge result-badge--canceled"
+	case schedule.OutcomeFinal:
+		return "result-badge result-badge--final"
+	default:
+		return "result-badge"
+	}
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
@@ -113,11 +134,19 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 							<th scope="col" class="col-team">Home</th>
 							<th scope="col" class="col-team">Away</th>
 							<th scope="col" class="col-season">Season</th>
+							<th scope="col" class="col-result">Result</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, game := range props.Games {
-							<tr class="game-row">
+							{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
+							{{ isPast := strings.TrimSpace(game.Result) != "" }}
+							<tr
+								class="game-row"
+								if isPast {
+									data-past-game
+								}
+							>
 								<td class="col-check">
 									<input
 										class="game-checkbox"
@@ -137,6 +166,13 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 								<td class="col-team">{ game.Away }</td>
 								<td class="col-season">
 									<span class="season-badge">{ game.Season }</span>
+								</td>
+								<td class="col-result">
+									if outcome.Parsed {
+										<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
+									} else if outcome.Raw != "" {
+										<span class="result-badge">{ outcome.Raw }</span>
+									}
 								</td>
 							</tr>
 						}

@@ -779,6 +779,157 @@ body.soccer-modal-open {
   border: 1px solid rgb(var(--accent-primary-rgb), 0.2);
 }
 
+/* Result Badges */
+.col-result {
+  min-width: 96px;
+  white-space: nowrap;
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.result-badge--win {
+  background: rgb(22 163 74 / 15%);
+  color: #16a34a;
+  border-color: rgb(22 163 74 / 30%);
+}
+
+.result-badge--loss {
+  background: rgb(220 38 38 / 15%);
+  color: #dc2626;
+  border-color: rgb(220 38 38 / 30%);
+}
+
+.result-badge--draw {
+  background: rgb(202 138 4 / 15%);
+  color: #ca8a04;
+  border-color: rgb(202 138 4 / 30%);
+}
+
+.result-badge--canceled {
+  background: rgb(107 114 128 / 12%);
+  color: var(--text-muted);
+  border-color: rgb(107 114 128 / 25%);
+}
+
+.result-badge--final {
+  background: rgb(107 114 128 / 12%);
+  color: var(--text-muted);
+  border-color: rgb(107 114 128 / 25%);
+}
+
+tr[data-past-game] > td {
+  opacity: 0.75;
+}
+
+/* Team Badges */
+.team-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.team-badge--sub {
+  background: rgb(234 88 12 / 15%);
+  color: #ea580c;
+  border-color: rgb(234 88 12 / 30%);
+}
+
+/* Team Selection Step */
+.soccer-team-select-form {
+  padding: var(--space-lg) 0;
+}
+
+.soccer-team-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.soccer-team-fieldset legend {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.soccer-team-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.soccer-team-player-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.soccer-team-player-name {
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+}
+
+.soccer-team-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.soccer-team-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+
+.soccer-team-option:hover {
+  border-color: rgb(var(--accent-primary-rgb), 0.5);
+  background: rgb(var(--accent-primary-rgb), 0.06);
+}
+
+.soccer-team-option input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.soccer-team-option-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.soccer-team-name {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.soccer-team-submit {
+  align-self: flex-start;
+  margin-top: var(--space-sm);
+}
+
 /* How It Works Section */
 .soccer-how-it-works {
   padding: var(--space-xl) 0 var(--space-2xl);
@@ -1022,7 +1173,10 @@ body.soccer-modal-open {
   .info-inline,
   .table-header,
   .field-badge,
-  .season-badge {
+  .season-badge,
+  .result-badge,
+  .team-badge,
+  .soccer-team-option {
     background: Canvas;
     color: CanvasText;
     border-color: ButtonBorder;

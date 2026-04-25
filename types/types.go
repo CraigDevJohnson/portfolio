@@ -205,12 +205,30 @@ type LPSPlayer struct {
 	IsMainPlayer bool   `json:"is_main_player"`
 }
 
+// LPSTeam describes a team linked to an LPS player, captured at session start.
+type LPSTeam struct {
+	TeamID    int    `json:"team_id"`
+	TeamName  string `json:"team_name"`
+	Season    int    `json:"season"`
+	PlayerID  int    `json:"player_id"`
+	IsSubTeam bool   `json:"is_sub_team"`
+}
+
+// PlayerTeamGroup pairs a player with their discovered teams for the team-select step.
+type PlayerTeamGroup struct {
+	Player LPSPlayer
+	Teams  []LPSTeam
+}
+
 // SessionData stores the encrypted soccer session payload in the auth cookie.
 type SessionData struct {
-	JWT       string      `json:"jwt"`
-	UserName  string      `json:"user_name"`
-	Players   []LPSPlayer `json:"players"`
-	ExpiresAt time.Time   `json:"expires_at"`
+	JWT        string      `json:"jwt"`
+	UserName   string      `json:"user_name"`
+	Players    []LPSPlayer `json:"players"`
+	ExpiresAt  time.Time   `json:"expires_at"`
+	SessionID  string      `json:"session_id,omitempty"`
+	KnownTeams []LPSTeam   `json:"known_teams,omitempty"`
+	StartedAt  time.Time   `json:"started_at,omitempty"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

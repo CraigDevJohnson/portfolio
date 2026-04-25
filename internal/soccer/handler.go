@@ -42,14 +42,18 @@ type Handler struct {
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
 	Logger       *slog.Logger
+	Store        SoccerStore
 
 	googleHooks GoogleHooks
 }
 
 // NewHandler constructs a soccer handler with its runtime dependencies.
-func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks, logger *slog.Logger) *Handler {
+func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks, store SoccerStore, logger *slog.Logger) *Handler {
 	if logger == nil {
 		logger = slog.Default().With(slog.String("component", "soccer"))
+	}
+	if store == nil {
+		store = NoopSoccerStore{}
 	}
 
 	return &Handler{
@@ -57,6 +61,7 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 		LPSClient:    lpsClient,
 		LoginLimiter: loginLimiter,
 		Logger:       logger,
+		Store:        store,
 		googleHooks:  googleHooks,
 	}
 }

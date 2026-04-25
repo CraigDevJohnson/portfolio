@@ -23,11 +23,12 @@ import (
 const serverShutdownTimeout = 10 * time.Second
 
 const (
-	lpsClientTimeout       = 15 * time.Second
-	httpServerReadTimeout  = 15 * time.Second
-	httpServerWriteTimeout = 60 * time.Second
-	httpServerIdleTimeout  = 60 * time.Second
-	googleStoreInitTimeout = 10 * time.Second
+	lpsClientTimeout        = 15 * time.Second
+	httpServerReadTimeout   = 15 * time.Second
+	httpServerWriteTimeout  = 60 * time.Second
+	httpServerIdleTimeout   = 60 * time.Second
+	googleStoreInitTimeout  = 10 * time.Second
+	soccerStoreInitTimeout  = 10 * time.Second
 )
 
 func registerMIMETypes() error {
@@ -70,6 +71,7 @@ func Run() error {
 		app.LPSClient,
 		app.LoginLimiter,
 		app.GoogleHandler,
+		internalsoccer.NoopSoccerStore{},
 		rootLogger.With(slog.String("component", "soccer")),
 	)
 	app.GoogleHandler.Soccer = soccerHandler
@@ -114,6 +116,7 @@ func Run() error {
 	mux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
 	mux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
 	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
+	mux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
 	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
 	// static files
 	mux.Handle(
@@ -181,6 +184,28 @@ func Run() error {
 			app.GoogleHandler.Logger.Info(
 				"google connection store initialized",
 				slog.String("table_name", app.Config.GoogleConnectionTableName),
+			)
+		}()
+	}
+
+	// Initialize the soccer session store in the background — same pattern as Google store.
+	if app.Config.SoccerSessionEnabled() {
+		go func() {
+			initCtx, initCancel := context.WithTimeout(context.Background(), soccerStoreInitTimeout)
+			defer initCancel()
+			store, initErr := internalsoccer.NewSoccerStore(initCtx, app.Config.SoccerSessionTableName)
+			if initErr != nil {
+				soccerHandler.Logger.Warn(
+					"soccer session store initialization failed; DynamoDB persistence disabled",
+					slog.String("table_name", app.Config.SoccerSessionTableName),
+					slog.Any("error", initErr),
+				)
+				return
+			}
+			soccerHandler.Store = store
+			soccerHandler.Logger.Info(
+				"soccer session store initialized",
+				slog.String("table_name", app.Config.SoccerSessionTableName),
 			)
 		}()
 	}

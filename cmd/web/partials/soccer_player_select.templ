@@ -11,7 +11,7 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 	<form
 		id="soccer-player-select-form"
 		class="soccer-player-select-form"
-		hx-post="/soccer/fetch"
+		hx-post="/soccer/discover-teams"
 		hx-target="#games-container"
 		hx-swap="innerHTML"
 		hx-indicator="#loading-indicator, .soccer-player-submit-indicator"
@@ -19,7 +19,7 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 	>
 		<fieldset class="soccer-player-fieldset">
 			<legend>Choose discovered players</legend>
-			<p class="soccer-player-hint">Select one or more discovered players to fetch upcoming games.</p>
+			<p class="soccer-player-hint">Select one or more discovered players to choose which teams to include.</p>
 			<div class="soccer-player-list">
 				for _, player := range props.Players {
 					<label class="soccer-player-option">
@@ -34,7 +34,7 @@ templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
 				}
 			</div>
 			<button type="submit" class="btn btn-primary soccer-player-submit btn-loading" data-loading-button>
-				<span class="btn-text">Fetch Player Schedules</span>
+				<span class="btn-text">Discover Teams</span>
 				<span class="btn-loading-indicator soccer-player-submit-indicator htmx-indicator" aria-hidden="true"></span>
 			</button>
 		</fieldset>

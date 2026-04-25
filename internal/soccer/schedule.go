@@ -27,8 +27,15 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	input := parseScheduleFormInput(r.Form)
 	session, swapAuthState := h.LoadSession(w, r)
 
+	// When team_ids[] is submitted (from the discover-teams step), carry them
+	// forward in TeamCodes so ICS download and Google add forms work unchanged.
+	teamCodes := input.TeamCodes
+	if len(input.TeamIDs) > 0 {
+		teamCodes = joinIntSlice(input.TeamIDs)
+	}
+
 	props := partials.SoccerTableFragmentProps{
-		TeamCodes: input.TeamCodes,
+		TeamCodes: teamCodes,
 		PlayerIDs: input.PlayerIDs,
 	}
 	if h.googleHooks != nil {
@@ -107,7 +114,28 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		return false
 	}
 
-	games, err := h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	// When explicit team_ids[] arrive (from the discover-teams step), fetch all
+	// games for those teams directly — no player session needed.
+	if len(input.TeamIDs) > 0 {
+		games, err := lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, input.TeamIDs)
+		if err == nil {
+			props.Games = games
+			return false
+		}
+		if applyScheduleSelectionError(props, err) {
+			return false
+		}
+		return applyScheduleFetchError(props, err)
+	}
+
+	// Player-based fetch always includes past games so results are visible.
+	var games []types.Game
+	var err error
+	if len(input.PlayerIDs) > 0 {
+		games, err = h.RequestedAllScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	} else {
+		games, err = h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	}
 	if err == nil {
 		props.Games = games
 		return false
@@ -290,6 +318,7 @@ type scheduleFormInput struct {
 	TeamCodes    string
 	RawPlayerIDs []string
 	PlayerIDs    []int
+	TeamIDs      []int
 }
 
 func parseScheduleFormInput(form url.Values) scheduleFormInput {
@@ -298,6 +327,7 @@ func parseScheduleFormInput(form url.Values) scheduleFormInput {
 		TeamCodes:    form.Get("team_codes"),
 		RawPlayerIDs: rawPlayerIDs,
 		PlayerIDs:    parsePlayerIDs(rawPlayerIDs),
+		TeamIDs:      parsePlayerIDs(form["team_ids"]),
 	}
 }
 
@@ -336,4 +366,94 @@ func splitDelimitedValues(raw string) []string {
 	return strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == ';' || r == ' '
 	})
+}
+
+// DiscoverTeamsHandler fetches current LPS teams for the selected players and
+// returns the team-selection fragment so users can include/exclude teams before
+// fetching schedules.
+func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
+	if !parseScheduleRequest(w, r) {
+		return
+	}
+
+	rawPlayerIDs := r.Form["player_ids"]
+	playerIDs := parsePlayerIDs(rawPlayerIDs)
+	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
+		h.setHTMLContentType(w)
+		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
+			Message: invalidPlayersMessage,
+			Hint:    invalidPlayersHint,
+		}).Render(r.Context(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	session, _ := h.LoadSession(w, r)
+	if len(playerIDs) == 0 || session == nil {
+		h.setHTMLContentType(w)
+		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
+			Message: "Import a bearer JWT to discover teams.",
+			Hint:    "Choose at least one player after importing.",
+		}).Render(r.Context(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	knownTeamIDs := make(map[int]struct{}, len(session.KnownTeams))
+	for _, t := range session.KnownTeams {
+		knownTeamIDs[t.TeamID] = struct{}{}
+	}
+
+	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
+	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
+	for _, p := range session.Players {
+		playerMap[p.UPlayerID] = p
+	}
+
+	var groups []types.PlayerTeamGroup
+	for _, playerID := range playerIDs {
+		player, ok := playerMap[playerID]
+		if !ok {
+			continue
+		}
+		rawTeams, err := resolver.FetchPlayerTeams(r.Context(), playerID)
+		if err != nil {
+			continue
+		}
+		var teams []types.LPSTeam
+		for _, t := range rawTeams {
+			if t.UTeamID <= 0 {
+				continue
+			}
+			_, isKnown := knownTeamIDs[t.UTeamID]
+			teams = append(teams, types.LPSTeam{
+				TeamID:    t.UTeamID,
+				TeamName:  t.TeamName,
+				Season:    t.Season,
+				PlayerID:  playerID,
+				IsSubTeam: !isKnown,
+			})
+		}
+		if len(teams) > 0 {
+			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
+		}
+	}
+
+	h.setHTMLContentType(w)
+	if err := partials.SoccerTeamSelect(partials.SoccerTeamSelectProps{
+		PlayerGroups: groups,
+		PlayerIDs:    playerIDs,
+	}).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func joinIntSlice(ids []int) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(id)
+	}
+	return strings.Join(parts, ",")
 }
