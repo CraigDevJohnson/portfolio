@@ -681,6 +681,7 @@ body.soccer-modal-open {
 
 .games-table {
   width: 100%;
+  min-width: 62rem;
   border-collapse: collapse;
 }
 
@@ -697,6 +698,7 @@ body.soccer-modal-open {
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
   background: rgb(var(--accent-primary-rgb), 0.1);
   position: sticky;
   top: 0;
@@ -737,8 +739,10 @@ body.soccer-modal-open {
   white-space: nowrap;
 }
 
-.col-field {
-  width: 80px;
+.col-field,
+.col-season {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .field-badge {
@@ -751,6 +755,7 @@ body.soccer-modal-open {
   color: white;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
+  white-space: nowrap;
   border-radius: var(--radius-sm);
   border: 1px solid rgb(255 255 255 / 10%);
   box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
@@ -764,15 +769,12 @@ body.soccer-modal-open {
   font-weight: var(--font-semibold);
 }
 
-.col-season {
-  width: 80px;
-}
-
 .season-badge {
   display: inline-flex;
   padding: var(--space-xs) var(--space-sm);
   background: rgb(var(--accent-primary-rgb), 0.12);
   font-size: var(--text-sm);
+  white-space: nowrap;
   border-radius: var(--radius-sm);
   border: 1px solid rgb(var(--accent-primary-rgb), 0.2);
 }
