@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,13 +36,14 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	props := partials.SoccerTableFragmentProps{
-		TeamCodes: teamCodes,
-		PlayerIDs: input.PlayerIDs,
+		TeamCodes:       teamCodes,
+		PlayerIDs:       input.PlayerIDs,
+		GoogleAvailable: h.Config.GoogleEnabled(),
 	}
 	if h.googleHooks != nil {
 		props.GoogleConnected = h.googleHooks.GoogleConnected(r.Context(), w, r)
 	}
-	if h.resolveScheduleData(r.Context(), session, input, &props) {
+	if h.resolveScheduleData(r.Context(), session, &input, &props) {
 		h.clearSession(w, r)
 		swapAuthState = true
 	}
@@ -107,7 +109,7 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input scheduleFormInput, props *partials.SoccerTableFragmentProps) bool {
+func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input *scheduleFormInput, props *partials.SoccerTableFragmentProps) bool {
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
 		props.Message = invalidPlayersMessage
 		props.Hint = invalidPlayersHint
@@ -119,7 +121,7 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	if len(input.TeamIDs) > 0 {
 		games, err := lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, input.TeamIDs)
 		if err == nil {
-			props.Games = games
+			setTableFragmentGames(props, games)
 			return false
 		}
 		if applyScheduleSelectionError(props, err) {
@@ -137,7 +139,7 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		games, err = h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
 	}
 	if err == nil {
-		props.Games = games
+		setTableFragmentGames(props, games)
 		return false
 	}
 	if applyScheduleSelectionError(props, err) {
@@ -145,6 +147,14 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	}
 
 	return applyScheduleFetchError(props, err)
+}
+
+func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {
+	props.Games = games
+	props.UpcomingGames = schedule.UpcomingScheduleGames(games)
+	pastGames := schedule.PastGamesWithResults(games)
+	slices.Reverse(pastGames)
+	props.PastGames = pastGames
 }
 
 func (h *Handler) resolveScheduleGames(ctx context.Context, session *types.SessionData, playerIDs, teamIDs []int) ([]types.Game, error) {

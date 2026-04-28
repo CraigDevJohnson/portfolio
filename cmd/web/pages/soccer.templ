@@ -6,6 +6,7 @@ import "portfolio/cmd/web/partials"
 type SoccerProps struct {
 	GoogleMessage     string
 	GoogleMessageKind string
+	AuthState         partials.SoccerLoginStateProps
 }
 
 templ Soccer(props SoccerProps) {
@@ -17,108 +18,88 @@ templ Soccer(props SoccerProps) {
 			<div class="hero-header soccer-hero-header">
 				<h1>Soccer Schedule Download</h1>
 				<p class="lead">
-					Never miss a game again. Pull live schedules from
+					Pull live schedules from
 					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
-						Let's Play Soccer
+						Let&apos;s Play Soccer
 					</a>
-					and export them to your favorite calendar app or add them directly to Google Calendar in seconds.
+					with the path that fits your night best: start with manual team IDs for the quickest lookup, or import access when you want player discovery before choosing teams and loading schedules.
 				</p>
 				<ul class="soccer-hero-highlights" aria-label="Soccer schedule tool highlights">
-					<li>Manual team ID lookup</li>
-					<li>Direct Google Calendar adds</li>
+					<li>Quick manual team lookups</li>
 					<li>JWT-based player discovery</li>
+					<li>ICS downloads or Google Calendar adds</li>
 				</ul>
 			</div>
 		</section>
-		<!-- How It Works -->
-		<section class="soccer-how-it-works">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>How It Works</span>
-			</div>
-			<h2 class="sr-only">How It Works</h2>
-			<div class="how-it-works-grid">
-				<div class="card stagger-enter step-card">
-					<div class="soccer-icon-wrap">
-						<span class="step-icon">#️⃣</span>
-					</div>
-					<span class="step-number">Step 1</span>
-					<h3 class="step-title">Start With Team IDs</h3>
-					<p class="step-desc">Use manual team IDs first for the fastest lookup when you already know which Let&apos;s Play Soccer teams you want.</p>
-				</div>
-				<div class="card stagger-enter step-card">
-					<div class="soccer-icon-wrap">
-						<span class="step-icon">🗓️</span>
-					</div>
-					<span class="step-number">Step 2</span>
-					<h3 class="step-title">Choose Your Calendar Path</h3>
-					<p class="step-desc">Connect Google Calendar when you want one-click adds, or keep the universal ICS download for Apple Calendar, Outlook, and more.</p>
-				</div>
-				<div class="card stagger-enter step-card">
-					<div class="soccer-icon-wrap">
-						<span class="step-icon">🔐</span>
-					</div>
-					<span class="step-number">Step 3</span>
-					<h3 class="step-title">Import Access For Player Discovery</h3>
-					<p class="step-desc">Paste a bearer JWT only when you want the app to discover linked players automatically and fetch player-based schedules without manual team IDs.</p>
-				</div>
-			</div>
-		</section>
-		<!-- Features -->
-		<section class="soccer-features">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Built For Players</span>
-			</div>
-			<h2 class="sr-only">Built For Players</h2>
-			<div class="features-grid">
-				<div class="card stagger-enter feature-card">
-					<div class="soccer-icon-wrap">
-						<span class="feature-icon">🎯</span>
-					</div>
-					<h3 class="feature-title">Automatic Player Discovery</h3>
-					<p class="feature-desc">Import your bearer JWT and the app will discover the linked players available in that authenticated LPS session</p>
-				</div>
-				<div class="card stagger-enter feature-card">
-					<div class="soccer-icon-wrap">
-						<span class="feature-icon">🔄</span>
-					</div>
-					<h3 class="feature-title">Session-Only Import</h3>
-					<p class="feature-desc">Your imported JWT stays in an encrypted HttpOnly cookie for the current browser session only</p>
-				</div>
-				<div class="card stagger-enter feature-card">
-					<div class="soccer-icon-wrap">
-						<span class="feature-icon">📱</span>
-					</div>
-					<h3 class="feature-title">Google Or Universal Calendar</h3>
-					<p class="feature-desc">Add selected games directly to Google Calendar or keep using ICS with Apple Calendar, Outlook, and more</p>
-				</div>
-			</div>
-		</section>
-		<!-- Schedule Tool -->
 		<section class="soccer-content">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
-				<span>Fetch Schedules</span>
+				<span>Schedule tool</span>
 			</div>
-			<h2 class="sr-only">Fetch Schedules</h2>
+			<h2 class="soccer-section-heading">Get your schedule</h2>
 			<div class="card card--compact soccer-unified-card">
 				if props.GoogleMessage != "" {
 					<div class={ "soccer-login-message soccer-login-message-" + props.GoogleMessageKind } role="status">
 						{ props.GoogleMessage }
 					</div>
 				}
-				<div class="unified-header">
-					<div class="unified-form-section">
+				<div class="info-inline soccer-support-card">
+					<div class="soccer-support-card-header">
+            <h3>Choose your workflow</h3>
+						<p class="info-inline-intro">
+              Manual team IDs get you to the schedule quickest. Import access helps you discover current teams from your signed-in account,
+              and Google Calendar is ready when you want direct adds after the schedule loads rather than downloading the .ics file.
+            </p>
+					</div>
+					<div class="soccer-support-grid" role="list" aria-label="Soccer schedule workflow overview">
+						<div class="soccer-support-step-fetch" role="listitem">
+							<span class="soccer-support-step-number-fetch" aria-hidden="true">1A</span>
+							<div>
+								<h4>Fetch by team ID</h4>
+								<p>Use manual lookup when you already know the numeric team IDs and want the schedule right away or don't want to allow JWT import access.</p>
+							</div>
+						</div>
+						<div class="soccer-support-step-fetch" role="listitem">
+							<span class="soccer-support-step-number-fetch" aria-hidden="true">1B</span>
+							<div>
+								<h4>Import access for player discovery</h4>
+								<p>Import a JWT only when you want the app to find linked players before you choose teams.</p>
+							</div>
+						</div>
+						<div class="soccer-support-step-cal" role="listitem">
+							<span class="soccer-support-step-number-cal" aria-hidden="true">2</span>
+							<div>
+								<h4>Download or sync after the schedule loads</h4>
+								<p>Pick the matches you want, then download an .ics file or add them directly to Google Calendar.</p>
+							</div>
+						</div>
+					</div>
+          <div class="soccer-support-tip-block">
+					<p class="soccer-support-tip">
+						<strong>Need player discovery?</strong>
+						Sign in on
+						<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+							Let&apos;s Play Soccer
+						</a>
+						in another tab, then copy a JWT from an authenticated request in DevTools before importing access.
+          </p>
+          </div>
+				</div>
+				<div class="unified-form-section">
+					<div class="soccer-option-group soccer-option-group--fetch-primary">
+						<div class="soccer-option-group-header">
+							<p class="soccer-option-group-label">Quickest fetch path</p>
+							<p class="soccer-option-group-copy">Load schedules right away when you already know the numeric team IDs you want.</p>
+						</div>
 						<div class="soccer-manual-entry soccer-input-section soccer-input-manual">
 							<div class="soccer-section-header">
-								<span class="soccer-section-step" aria-hidden="true">1</span>
+								<span class="soccer-section-step" aria-hidden="true">1A</span>
 								<div>
-									<p class="soccer-section-eyebrow">Fastest option</p>
-									<h3>Manual team IDs</h3>
+									// <p class="soccer-section-eyebrow">Quickest option</p>
+									<h3>Manual Team IDs</h3>
 								</div>
 							</div>
-							<p class="soccer-section-intro">Start here when you already know the numeric Let&apos;s Play Soccer team IDs you want to load.</p>
+							<p class="soccer-section-intro">Start here when you already know which numeric Let&apos;s Play Soccer team IDs you want to load.</p>
 							<form
 								id="fetch-form"
 								class="fetch-form"
@@ -149,68 +130,18 @@ templ Soccer(props SoccerProps) {
 									</div>
 									<div id="team-codes-hint" class="form-hint">
 										Supports
-										<em>Let&apos;s Play Soccer</em>
+										<em>
+                      <a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+                        Let&apos;s Play Soccer
+                      </a>
+                    </em>
 										teams only. Enter numeric team IDs separated by commas.
 									</div>
 								</div>
 							</form>
 						</div>
-						<div
-							id="soccer-auth-panel"
-							class="soccer-auth-panel soccer-auth-panel-loading"
-							hx-get="/soccer/session"
-							hx-trigger="load"
-							hx-swap="outerHTML"
-						>
-							<div class="soccer-google-shell soccer-input-section soccer-input-google">
-								<div class="soccer-google-copy">
-									<div class="soccer-section-header">
-										<span class="soccer-section-step" aria-hidden="true">2</span>
-										<div>
-											<p class="soccer-section-eyebrow">Optional direct add</p>
-											<h3>Google Calendar connection</h3>
-										</div>
-									</div>
-									<p class="soccer-section-intro">Connect once to save a destination calendar and add selected matches without downloading an .ics file.</p>
-								</div>
-								<p class="soccer-panel-loading-state">Loading Google Calendar connection...</p>
-							</div>
-							<div class="soccer-auth-shell soccer-input-section soccer-input-import">
-								<div class="soccer-auth-copy">
-									<div class="soccer-section-header">
-										<span class="soccer-section-step" aria-hidden="true">3</span>
-										<div>
-											<p class="soccer-section-eyebrow">Player discovery</p>
-											<h3>JWT import access</h3>
-										</div>
-									</div>
-									<p class="soccer-section-intro">Paste a bearer JWT from your signed-in Let&apos;s Play Soccer browser session to discover linked players automatically and refresh stale player access when needed.</p>
-								</div>
-								<p class="soccer-panel-loading-state">Loading import options...</p>
-							</div>
-						</div>
 					</div>
-					<div>
-						<div class="info-inline">
-							<h3>How to Import Access</h3>
-							<p class="info-inline-intro">Use the import tools when you want player-based schedules instead of entering team IDs manually.</p>
-							<ol>
-								<li>
-									Visit
-									<a
-										href="https://www.letsplaysoccer.com/4?lang=en"
-										target="_blank"
-										rel="noopener noreferrer"
-									>
-										Let's Play Soccer
-									</a>
-								</li>
-								<li>Sign in there first, then open browser DevTools and inspect an authenticated network request</li>
-								<li>Copy the bearer JWT from the Authorization header or response data you can already see</li>
-									<li>Paste the JWT into the import dialog and click Import. If the discovered player list looks stale, clear import and import again with a fresh JWT.</li>
-							</ol>
-						</div>
-					</div>
+					@partials.SoccerLoginState(props.AuthState)
 				</div>
 				<div id="loading-indicator" class="loading-indicator htmx-indicator">
 					<div class="spinner"></div>
@@ -220,11 +151,11 @@ templ Soccer(props SoccerProps) {
 					<div class="empty-state">
 						<div class="empty-state-icon" aria-hidden="true">⚽</div>
 						<h3>Your next matchday starts here</h3>
-						<p>Begin with manual team IDs for the fastest lookup, then download an .ics file or add selected games directly to Google Calendar.</p>
+							<p>Start with manual team IDs for the quickest lookup, or import access when you want to choose players and teams before loading schedules.</p>
 						<ul class="empty-state-list">
-							<li class="empty-state-item">Manual team IDs for quick team schedule pulls</li>
-							<li class="empty-state-item">Google Calendar for direct adds after you connect once</li>
-							<li class="empty-state-item">JWT import when you want automatic player discovery</li>
+								<li class="empty-state-item">Enter team IDs for a direct schedule lookup</li>
+								<li class="empty-state-item">Import access if you want linked-player discovery</li>
+								<li class="empty-state-item">Download ICS or connect Google after the schedule loads</li>
 						</ul>
 					</div>
 				</div>

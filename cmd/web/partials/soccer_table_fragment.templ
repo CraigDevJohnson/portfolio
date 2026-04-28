@@ -9,11 +9,18 @@ import (
 
 type SoccerTableFragmentProps struct {
 	Games           []types.Game
+	UpcomingGames   []types.Game
+	PastGames       []types.Game
 	TeamCodes       string
 	PlayerIDs       []int
 	Message         string
 	Hint            string
+	GoogleAvailable bool
 	GoogleConnected bool
+}
+
+func visibleGamesCount(props SoccerTableFragmentProps) int {
+	return len(props.UpcomingGames) + len(props.PastGames)
 }
 
 func resultBadgeClass(outcome string) string {
@@ -33,8 +40,78 @@ func resultBadgeClass(outcome string) string {
 	}
 }
 
+templ SoccerGameRows(sectionKey string, games []types.Game) {
+	for _, game := range games {
+		{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
+		{{ isPast := strings.TrimSpace(game.Result) != "" }}
+		<tr
+			class="game-row"
+			if isPast {
+				data-past-game
+			}
+		>
+			<td class="col-check">
+				<input
+					class="game-checkbox"
+					type="checkbox"
+					name="selected"
+					value={ game.ID }
+					checked
+					aria-label={ "Select " + game.Home + " versus " + game.Away }
+					data-game-checkbox
+					data-game-group={ sectionKey }
+				/>
+			</td>
+			<td class="col-datetime">{ game.DateTime }</td>
+			<td class="col-field">
+				<span class="field-badge">{ game.Field }</span>
+			</td>
+			<td class="col-team home-team">{ game.Home }</td>
+			<td class="col-team">{ game.Away }</td>
+			<td class="col-season">
+				<span class="season-badge">{ game.Season }</span>
+			</td>
+			<td class="col-result">
+				if outcome.Parsed {
+					<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
+				} else if outcome.Raw != "" {
+					<span class="result-badge">{ outcome.Raw }</span>
+				}
+			</td>
+		</tr>
+	}
+}
+
+templ SoccerScheduleHiddenInputs(props SoccerTableFragmentProps) {
+	<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
+	for _, playerID := range props.PlayerIDs {
+		<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
+	}
+}
+
+templ SoccerGamesTable(sectionID string, games []types.Game) {
+	<div class="table-wrapper" role="region" aria-labelledby={ sectionID + "-heading" } tabindex="0">
+		<table class="games-table">
+			<thead>
+				<tr>
+					<th scope="col" class="col-check" aria-label="Select"></th>
+					<th scope="col" class="col-datetime">Date / Time</th>
+					<th scope="col" class="col-field">Field</th>
+					<th scope="col" class="col-team">Home</th>
+					<th scope="col" class="col-team">Away</th>
+					<th scope="col" class="col-season">Season</th>
+					<th scope="col" class="col-result">Result</th>
+				</tr>
+			</thead>
+			<tbody>
+				@SoccerGameRows(sectionID, games)
+			</tbody>
+		</table>
+	</div>
+}
+
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
-	if len(props.Games) == 0 {
+	if visibleGamesCount(props) == 0 {
 		<div class="no-results">
 			<div class="no-results-icon" aria-hidden="true">🗓️</div>
 			<h3>No games found yet</h3>
@@ -48,137 +125,146 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			} else {
 				<p class="hint">Check your team IDs or choose at least one linked player.</p>
 			}
+			<p class="no-results-next-step">If you already know the team IDs, try manual lookup again. If you imported access, confirm that your player and team selections are still current.</p>
 		</div>
 	} else {
-		<form
-			id="download-form"
-			action="/soccer/download"
-			method="post"
-			class="games-form"
-			data-soccer-form
-		>
-			<input type="hidden" name="team_codes" value={ props.TeamCodes }/>
-			for _, playerID := range props.PlayerIDs {
-				<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
-			}
-			<div class="table-header">
-				<div class="table-actions">
-					<div class="table-summary">
-						<span class="table-eyebrow">Schedule ready</span>
-						<div class="table-selection-row">
-							<label class="select-all-label">
-								<input id="select-all" type="checkbox" checked aria-label="Select all games" data-select-all/>
-								<span>Select all games</span>
-							</label>
-							<span class="games-count">{ fmt.Sprintf("%d game(s) found", len(props.Games)) }</span>
-						</div>
+		<div class="games-form" data-soccer-form>
+			<p class="table-scroll-hint">Tip: On smaller screens, scroll horizontally to review every schedule column.</p>
+			<div class="games-results-layout">
+				if len(props.UpcomingGames) > 0 {
+					<section class="games-results-item">
+						<form id="upcoming-games-form" action="/soccer/download" method="post">
+							@SoccerScheduleHiddenInputs(props)
+							<div class="games-table-section">
+								<div class="games-section-top">
+									<div class="games-section-header">
+										<div class="games-section-copy-block">
+											<h3 id="upcoming-games-heading" class="games-section-heading">
+                        Upcoming games
+                        <span class="games-total-count">{ fmt.Sprintf("%d game(s)", len(props.UpcomingGames)) }</span>
+											</h3>
+											<p class="games-section-copy">Pick the matches you want to download or add to Google Calendar.</p>
+										</div>
+									</div>
+									<div class="games-section-toolbar">
+										<div class="games-section-meta">
+											<label class="select-all-label">
+												<input
+													type="checkbox"
+													checked
+													aria-label="Select all upcoming games"
+													data-select-all
+													data-game-group="upcoming-games"
+												/>
+												<span>Select all upcoming games</span>
+											</label>
+											<span class="games-section-count">{ fmt.Sprintf("%d game(s) selected", len(props.UpcomingGames)) }</span>
+										</div>
+										<div class="games-section-cta-group">
+											if props.GoogleConnected {
+												<button
+													type="button"
+													class="btn soccer-secondary-btn games-section-action-btn btn-loading"
+													hx-post="/soccer/google/add"
+													hx-include="#upcoming-games-form"
+													hx-target="#google-calendar-feedback"
+													hx-swap="innerHTML"
+													hx-indicator=".soccer-google-add-indicator"
+													hx-disabled-elt="this"
+													data-loading-button
+												>
+													<span class="btn-text">Add Selected to Calendar</span>
+													<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
+												</button>
+											}
+											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn btn-loading" data-loading-button>
+												<span class="btn-text">Download Selected (.ics)</span>
+												<span class="btn-loading-indicator" aria-hidden="true"></span>
+											</button>
+										</div>
+									</div>
+								</div>
+								@SoccerGamesTable("upcoming-games", props.UpcomingGames)
+							</div>
+						</form>
+					</section>
+				} else if len(props.PastGames) > 0 {
+					<div class="games-empty-panel" role="status">
+						<h3>No upcoming games right now</h3>
+						<p>Past results are still available below if you want to review or sync them.</p>
 					</div>
-				</div>
-				<div class="input-row table-cta-group">
-					<button
-						type="button"
-						class="btn soccer-secondary-btn btn-loading"
-						if !props.GoogleConnected {
-							disabled
-						}
-						if props.GoogleConnected {
-							hx-post="/soccer/google/sync-results"
-							hx-include="#download-form"
-							hx-target="#google-calendar-feedback"
-							hx-swap="innerHTML"
-							hx-indicator=".soccer-google-sync-indicator"
-							hx-disabled-elt="this"
-						}
-						data-loading-button
-					>
-						<span class="btn-text">Sync Past Results</span>
-						<span class="btn-loading-indicator soccer-google-sync-indicator htmx-indicator" aria-hidden="true"></span>
-					</button>
-					<button
-						type="button"
-						class="btn soccer-secondary-btn btn-loading"
-						if !props.GoogleConnected {
-							disabled
-						}
-						if props.GoogleConnected {
-							hx-post="/soccer/google/add"
-							hx-include="#download-form"
-							hx-target="#google-calendar-feedback"
-							hx-swap="innerHTML"
-							hx-indicator=".soccer-google-add-indicator"
-							hx-disabled-elt="this"
-						}
-						data-loading-button
-					>
-						<span class="btn-text">Add Selected to Google Calendar</span>
-						<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
-					</button>
-					<button id="download-button" type="submit" class="btn btn-primary download-btn btn-loading" data-loading-button>
-						<span class="btn-text">Download Selected (.ics)</span>
-						<span class="btn-loading-indicator" aria-hidden="true"></span>
-					</button>
-				</div>
-			</div>
-			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
-				if !props.GoogleConnected {
-					<div class="soccer-login-message" role="status">Connect Google Calendar above to add selected games directly.</div>
+				}
+				if len(props.PastGames) > 0 {
+					<section class="games-results-item">
+						<form id="past-results-form" action="/soccer/google/sync-results" method="post">
+							@SoccerScheduleHiddenInputs(props)
+							<div class="games-table-section games-table-section--past">
+								<div class="games-section-top">
+									<div class="games-section-header">
+										<div class="games-section-copy-block">
+											<h3 id="past-results-heading" class="games-section-heading">
+                        Past results
+                        <span class="games-total-count">{ fmt.Sprintf("%d game(s)", len(props.PastGames)) }</span>
+                      </h3>
+											<p class="games-section-copy">Completed matches stay available here so you can review scores or sync them to Google Calendar.</p>
+										</div>
+									</div>
+									<div class="games-section-toolbar">
+										<div class="games-section-meta">
+											<label class="select-all-label">
+												<input
+													type="checkbox"
+													checked
+													aria-label="Select all past results"
+													data-select-all
+													data-game-group="past-results"
+												/>
+												<span>Select all past results</span>
+											</label>
+											<span class="games-section-count">{ fmt.Sprintf("%d game(s) selected", len(props.PastGames)) }</span>
+										</div>
+										if props.GoogleConnected {
+											<div class="games-section-cta-group">
+												<button
+													type="button"
+													class="btn soccer-secondary-btn games-section-action-btn btn-loading"
+													hx-post="/soccer/google/sync-results"
+													hx-include="#past-results-form"
+													hx-target="#google-calendar-feedback"
+													hx-swap="innerHTML"
+													hx-indicator=".soccer-google-sync-indicator"
+													hx-disabled-elt="this"
+													data-loading-button
+												>
+													<span class="btn-text">Sync Selected Results</span>
+													<span class="btn-loading-indicator soccer-google-sync-indicator htmx-indicator" aria-hidden="true"></span>
+												</button>
+											</div>
+										}
+									</div>
+								</div>
+								@SoccerGamesTable("past-results", props.PastGames)
+							</div>
+						</form>
+					</section>
 				}
 			</div>
-			<div class="table-wrapper" role="region" aria-label="Soccer games schedule" tabindex="0">
-				<table class="games-table">
-					<thead>
-						<tr>
-							<th scope="col" class="col-check" aria-label="Select"></th>
-							<th scope="col" class="col-datetime">Date / Time</th>
-							<th scope="col" class="col-field">Field</th>
-							<th scope="col" class="col-team">Home</th>
-							<th scope="col" class="col-team">Away</th>
-							<th scope="col" class="col-season">Season</th>
-							<th scope="col" class="col-result">Result</th>
-						</tr>
-					</thead>
-					<tbody>
-						for _, game := range props.Games {
-							{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
-							{{ isPast := strings.TrimSpace(game.Result) != "" }}
-							<tr
-								class="game-row"
-								if isPast {
-									data-past-game
-								}
-							>
-								<td class="col-check">
-									<input
-										class="game-checkbox"
-										type="checkbox"
-										name="selected"
-										value={ game.ID }
-										checked
-										aria-label={ "Select " + game.Home + " versus " + game.Away }
-										data-game-checkbox
-									/>
-								</td>
-								<td class="col-datetime">{ game.DateTime }</td>
-								<td class="col-field">
-									<span class="field-badge">{ game.Field }</span>
-								</td>
-								<td class="col-team home-team">{ game.Home }</td>
-								<td class="col-team">{ game.Away }</td>
-								<td class="col-season">
-									<span class="season-badge">{ game.Season }</span>
-								</td>
-								<td class="col-result">
-									if outcome.Parsed {
-										<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
-									} else if outcome.Raw != "" {
-										<span class="result-badge">{ outcome.Raw }</span>
-									}
-								</td>
-							</tr>
-						}
-					</tbody>
-				</table>
+			if props.GoogleAvailable && !props.GoogleConnected {
+				<div class="soccer-google-cta soccer-google-cta--inline">
+					<p class="table-helper-copy">Connect Google Calendar to add selected games directly or sync selected past results.</p>
+					<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link>
+						<span class="btn-text">Connect Google Calendar</span>
+						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+					</a>
+				</div>
+			}
+			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
+				if !props.GoogleAvailable {
+					<div class="soccer-login-message" role="status">Google Calendar add is unavailable in this environment.</div>
+				} else if !props.GoogleConnected {
+					<div class="soccer-login-message" role="status">Connect Google Calendar to add selected games directly or sync selected past results.</div>
+				}
 			</div>
-		</form>
+		</div>
 	}
 }

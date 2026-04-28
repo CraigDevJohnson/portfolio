@@ -30,7 +30,7 @@
   display: block;
   font-size: 2.5rem;
   font-weight: var(--font-bold);
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   -webkit-text-fill-color: transparent;
   background-clip: text;
   line-height: 1.2;

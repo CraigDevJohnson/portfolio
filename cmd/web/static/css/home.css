@@ -70,7 +70,7 @@
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   opacity: 0.6;
   z-index: 1;
   animation: pulse 3s ease-in-out infinite;
@@ -128,7 +128,7 @@
 .name {
   font-size: var(--text-5xl);
   font-weight: var(--font-extrabold);
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   -webkit-text-fill-color: transparent;
   background-clip: text;
   line-height: 1.1;
@@ -198,7 +198,7 @@
 .stat-value {
   font-size: var(--text-3xl);
   font-weight: var(--font-extrabold);
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
@@ -334,7 +334,7 @@
 }
 
 .quick-link-card:hover .ql-arrow {
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   color: white;
   transform: translateX(4px);
 }

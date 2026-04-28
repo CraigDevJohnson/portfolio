@@ -88,7 +88,8 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.persistSessionRecord(sessionID, &session)
+	persistCtx := context.WithoutCancel(r.Context())
+	go h.persistSessionRecord(persistCtx, sessionID, &session)
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(r.Context(), w); err != nil {
@@ -184,8 +185,8 @@ func fetchKnownTeams(ctx context.Context, resolver *lps.ScheduleResolver, player
 	return known
 }
 
-func (h *Handler) persistSessionRecord(sessionID string, session *types.SessionData) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID string, session *types.SessionData) {
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
 	defer cancel()
 
 	playersJSON, err := marshalPlayersJSON(session.Players)

@@ -15,9 +15,11 @@ import (
 // SoccerPage renders the full soccer page.
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"))
+	session, _ := h.LoadSession(w, r)
 	props := pages.SoccerProps{
 		GoogleMessage:     googleMessage,
 		GoogleMessageKind: googleMessageKind,
+		AuthState:         h.LoginStateProps(w, r, session, false),
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer page render failed", slog.Any("error", err))
@@ -113,6 +115,11 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool) {
+	selectedIDs := parseSelectedIDs(r.Form)
+	if len(selectedIDs) == 0 {
+		return nil, nil, "Select at least one past result to sync.", false
+	}
+
 	input := parseScheduleFormInput(r.Form)
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
 		return nil, nil, invalidPlayersMessage + " " + invalidPlayersHint, false
@@ -124,5 +131,10 @@ func (h *Handler) ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request
 		return nil, nil, googleAddScheduleErrorMessage(err), false
 	}
 
-	return session, schedule.PastGamesWithResults(games), "", true
+	filteredGames := selectedScheduleGames(schedule.PastGamesWithResults(games), selectedIDs)
+	if len(filteredGames) == 0 {
+		return nil, nil, "No selected past results were found to sync.", false
+	}
+
+	return session, filteredGames, "", true
 }

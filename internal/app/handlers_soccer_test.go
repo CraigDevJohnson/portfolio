@@ -14,6 +14,61 @@ import (
 	"portfolio/types"
 )
 
+func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, `id="soccer-auth-panel"`) {
+		t.Fatalf("expected soccer auth panel in initial page render, got %q", body)
+	}
+	if strings.Contains(body, `hx-get="/soccer/session"`) {
+		t.Fatalf("expected initial soccer page render to avoid HTMX auth bootstrap, got %q", body)
+	}
+	if strings.Contains(body, "Loading Google Calendar connection") || strings.Contains(body, "Loading import options") {
+		t.Fatalf("expected initial soccer page render to avoid loading placeholders, got %q", body)
+	}
+	if !strings.Contains(body, "Import access") {
+		t.Fatalf("expected initial soccer page render to include import controls, got %q", body)
+	}
+}
+
+func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		UserName: "Craig Johnson",
+		Players: []types.LPSPlayer{{
+			UPlayerID:    1001,
+			FirstName:    "Craig",
+			LastName:     "Johnson",
+			IsMainPlayer: true,
+		}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, "Choose players to continue") {
+		t.Fatalf("expected imported player selection in initial page render, got %q", body)
+	}
+	if !strings.Contains(body, "Craig Johnson") {
+		t.Fatalf("expected imported player name in initial page render, got %q", body)
+	}
+}
+
 func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	app := newTestApp(t)
 	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))

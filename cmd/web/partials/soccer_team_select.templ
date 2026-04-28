@@ -13,7 +13,7 @@ type SoccerTeamSelectProps struct {
 templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 	<form
 		id="soccer-team-select-form"
-		class="soccer-team-select-form"
+		class="soccer-team-select-form soccer-flow-form"
 		hx-post="/soccer/fetch"
 		hx-target="#games-container"
 		hx-swap="innerHTML"
@@ -23,10 +23,11 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 		for _, playerID := range props.PlayerIDs {
 			<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
 		}
+		<p class="soccer-flow-step">Final selection</p>
 		<fieldset class="soccer-team-fieldset">
 			<legend>Select teams to include</legend>
 			<p class="soccer-team-hint">
-				Choose which teams to fetch schedules for. Teams marked <span class="team-badge team-badge--sub" aria-label="Sub">Sub</span> were not on your account at session start.
+				Choose which teams to include in this fetch. Teams linked when you imported access are selected by default. Teams marked <span class="team-badge team-badge--sub" aria-label="Sub">Sub</span> were not on your account at session start.
 			</p>
 			for _, group := range props.PlayerGroups {
 				<div class="soccer-team-player-group">
@@ -48,6 +49,7 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 								/>
 								<span class="soccer-team-option-copy">
 									<span class="soccer-team-name">{ team.TeamName }</span>
+									<span class="soccer-team-meta">{ fmt.Sprintf("Season %d", team.Season) }</span>
 									if team.IsSubTeam {
 										<span class="team-badge team-badge--sub" aria-label="Sub team">Sub</span>
 									}
@@ -58,7 +60,7 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 				</div>
 			}
 			<button type="submit" class="btn btn-primary soccer-team-submit btn-loading" data-loading-button>
-				<span class="btn-text">Fetch Schedules</span>
+				<span class="btn-text">Fetch selected schedules</span>
 				<span class="btn-loading-indicator soccer-team-submit-indicator htmx-indicator" aria-hidden="true"></span>
 			</button>
 		</fieldset>

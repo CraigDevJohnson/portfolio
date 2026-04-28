@@ -18,12 +18,12 @@ templ SoccerLoginModal() {
 				</button>
 			</div>
 			<p id="soccer-login-description" class="soccer-login-description">
-				Paste the bearer JWT from your signed-in Let&apos;s Play Soccer browser session. Your linked players will be discovered automatically.
+				Paste the JWT from your signed-in Let&apos;s Play Soccer browser session. After import, you&apos;ll choose players and then confirm which teams to include.
 			</p>
 			<ol class="soccer-login-instructions">
 				<li>Sign in on letsplaysoccer.com in another tab.</li>
-				<li>Open browser DevTools, inspect an authenticated request, and copy the bearer JWT.</li>
-				<li>Click Import access and your linked players will be loaded automatically.</li>
+				<li>Open browser DevTools, inspect an authenticated request, and copy the JWT.</li>
+				<li>Click Import access to load your players, then continue to team selection.</li>
 			</ol>
 			<form
 				id="soccer-login-form"
@@ -35,7 +35,7 @@ templ SoccerLoginModal() {
 				hx-disabled-elt="find button[type='submit']"
 			>
 				<div class="form-group">
-					<label for="soccer-import-jwt" class="form-label">Bearer JWT</label>
+					<label for="soccer-import-jwt" class="form-label">JWT</label>
 					<textarea
 						id="soccer-import-jwt"
 						name="jwt"
@@ -52,6 +52,12 @@ templ SoccerLoginModal() {
 				<p class="soccer-login-note">
 					This server stores the imported JWT only in an encrypted HttpOnly cookie for the current browser session and clears it when you choose Clear import.
 				</p>
+        <div class="jwt-import-warning" role="alert">
+          <p>
+            Player Discovery uses the JWT (<a href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">JSON web token</a>)
+            from your signed-in <u><em>Let&apos;s Play Soccer</em></u> account, which gives full access to your account (only used to query players/teams/schedules/results).
+          </p>
+        </div>
 				<div id="soccer-login-feedback" class="soccer-login-feedback" aria-live="polite"></div>
 				<div class="soccer-login-actions">
 					<button type="button" class="btn soccer-secondary-btn" data-close-login-modal>

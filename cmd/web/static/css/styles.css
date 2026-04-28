@@ -18,8 +18,10 @@
   --accent-secondary: #0d9488;
   --accent-primary-rgb: 234, 88, 12;
   --accent-secondary-rgb: 13, 148, 136;
-  --accent-gradient: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
-  --accent-gradient-hover: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%);
+  --accent-primary-gradient: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
+  --accent-primary-gradient-hover: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%);
+  --accent-secondary-gradient: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
+  --accent-secondary-gradient-hover: linear-gradient(135deg, #0a7c74 0%, #0d9488 50%, #14b8a6 100%);
   --field-badge-gradient: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #b45309 100%);
 
   /* Success / Error */
@@ -581,7 +583,7 @@ body.mobile-nav-open {
 }
 
 .btn-primary {
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   color: white;
   box-shadow:
     var(--shadow-sm),
@@ -589,7 +591,7 @@ body.mobile-nav-open {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-gradient-hover);
+  background: var(--accent-primary-gradient-hover);
   color: white;
   transform: translateY(-2px);
   box-shadow:
@@ -966,7 +968,7 @@ a.btn-loading[aria-disabled='true'] {
 .label-line {
   width: 32px;
   height: 2px;
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   border-radius: var(--radius-full);
 }
 
@@ -1132,7 +1134,7 @@ a.btn-loading[aria-disabled='true'] {
   font-weight: var(--font-bold);
   margin-bottom: var(--space-md);
   color: var(--fg-primary);
-  background: var(--accent-gradient);
+  background: var(--accent-primary-gradient);
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-wrap: balance;

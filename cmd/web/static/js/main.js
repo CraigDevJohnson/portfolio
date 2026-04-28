@@ -102,27 +102,50 @@
 
   // Soccer page functionality - using data attributes for flexibility
   function setupSoccerSelectAll() {
-    const selectAll = document.querySelector('[data-select-all]')
-    const gameCheckboxes = document.querySelectorAll('[data-game-checkbox]')
+    const sectionSelectAllControls = document.querySelectorAll('[data-select-all][data-game-group]')
 
-    if (selectAll && gameCheckboxes.length > 0) {
-      // Select all toggle
+    sectionSelectAllControls.forEach(selectAll => {
+      if (selectAll.dataset.bound === 'true') {
+        return
+      }
+
+      const gameGroup = selectAll.dataset.gameGroup
+      if (!gameGroup) {
+        return
+      }
+
+      const getGroupCheckboxes = () =>
+        Array.from(document.querySelectorAll(`[data-game-checkbox][data-game-group="${gameGroup}"]`))
+
+      const syncSelectAllState = () => {
+        const gameCheckboxes = getGroupCheckboxes()
+        if (gameCheckboxes.length === 0) {
+          selectAll.checked = false
+          return
+        }
+
+        selectAll.checked = gameCheckboxes.every(checkbox => checkbox.checked)
+      }
+
+      selectAll.dataset.bound = 'true'
+
       selectAll.addEventListener('change', function () {
-        gameCheckboxes.forEach(cb => {
-          cb.checked = selectAll.checked
+        getGroupCheckboxes().forEach(checkbox => {
+          checkbox.checked = selectAll.checked
         })
       })
 
-      // Update select all state based on individual checkboxes
-      gameCheckboxes.forEach(cb => {
-        cb.addEventListener('change', function () {
-          const allChecked =
-            document.querySelectorAll('[data-game-checkbox]:checked').length ===
-            gameCheckboxes.length
-          selectAll.checked = allChecked
-        })
+      getGroupCheckboxes().forEach(checkbox => {
+        if (checkbox.dataset.selectBound === 'true') {
+          return
+        }
+
+        checkbox.dataset.selectBound = 'true'
+        checkbox.addEventListener('change', syncSelectAllState)
       })
-    }
+
+      syncSelectAllState()
+    })
   }
 
   function animateCounter(counter, duration) {
