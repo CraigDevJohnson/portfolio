@@ -9,7 +9,6 @@
 
 @import "./theme.css";
 @import "./shared.css" layer(components);
-@import "./experience.css" layer(components);
 @import "./soccer.css" layer(components);
 @import "./base.css";
 @import "./components.css";

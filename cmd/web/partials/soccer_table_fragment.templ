@@ -26,15 +26,15 @@ func visibleGamesCount(props SoccerTableFragmentProps) int {
 func resultBadgeClass(outcome string) string {
 	switch outcome {
 	case schedule.OutcomeWin:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-strong-cyan-500/30 bg-strong-cyan-500/14 px-2 py-0.5 text-sm font-semibold text-strong-cyan-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 text-sm font-semibold text-primary-100"
 	case schedule.OutcomeLoss:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-inferno-500/26 bg-inferno-500/14 px-2 py-0.5 text-sm font-semibold text-inferno-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 text-sm font-semibold text-secondary-100"
 	case schedule.OutcomeDraw:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-old-gold-500/26 bg-old-gold-500/14 px-2 py-0.5 text-sm font-semibold text-old-gold-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 text-sm font-semibold text-secondary-100"
 	case schedule.OutcomeCanceled:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-700/40 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-800/55 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
 	case schedule.OutcomeFinal:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-700/40 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-800/55 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
 	default:
 		return "inline-flex items-center whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-sm font-semibold text-copy-secondary"
 	}

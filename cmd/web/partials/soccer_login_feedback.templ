@@ -15,10 +15,10 @@ func feedbackRole(kind string) string {
 func feedbackClasses(kind string) string {
 	base := "rounded-xl border px-4 py-3 text-sm"
 	if kind == "error" {
-		return base + " border-inferno-500/26 bg-inferno-500/14 text-inferno-100"
+		return base + " border-secondary-500/26 bg-secondary-500/14 text-secondary-100"
 	}
 	if kind == "success" {
-		return base + " border-strong-cyan-500/28 bg-strong-cyan-500/14 text-strong-cyan-100"
+		return base + " border-primary-500/28 bg-primary-500/14 text-primary-100"
 	}
 	return base + " border-white/10 bg-white/5 text-copy-secondary"
 }

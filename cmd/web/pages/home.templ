@@ -24,7 +24,7 @@ templ Home(props HomeProps) {
 			class="relative isolate min-h-[calc(100vh-var(--header-height))] overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-10 shadow-panel-strong sm:px-8 lg:px-12 lg:py-16"
 			style="background-image: url('/static/images/backgrounds/home-hero.jpg')"
 		>
-			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-prussian-blue-950/70"></div>
+			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/70"></div>
 			<div class="relative z-10 grid gap-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center">
 				<div class="flex justify-center lg:justify-start">
 					<a
@@ -35,7 +35,7 @@ templ Home(props HomeProps) {
 						aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"
 					>
 						<span class="absolute inset-[-0.5rem] rounded-full bg-[image:var(--accent-primary-gradient)] opacity-70 blur-[1px] transition duration-300 group-hover:scale-[1.02]" aria-hidden="true"></span>
-						<span class="absolute inset-[-2rem] rounded-full bg-radial from-old-gold-400/25 via-old-gold-300/10 to-transparent" aria-hidden="true"></span>
+						<span class="absolute inset-[-2rem] rounded-full bg-radial from-accent-400/25 via-accent-300/10 to-transparent" aria-hidden="true"></span>
 						<img
 							src={ props.AvatarURL }
 							alt={ props.Name }
@@ -47,8 +47,8 @@ templ Home(props HomeProps) {
 					</a>
 				</div>
 				<div class="flex flex-col gap-6">
-					<div class="inline-flex w-fit items-center gap-3 rounded-full border border-strong-cyan-700 bg-strong-cyan-950/70 px-4 py-2 text-sm font-semibold text-strong-cyan-100 shadow-panel">
-						<span class="h-2.5 w-2.5 rounded-full bg-old-gold-400 motion-safe:animate-pulse" aria-hidden="true"></span>
+					<div class="inline-flex w-fit items-center gap-3 rounded-full border border-primary-700 bg-primary-950/70 px-4 py-2 text-sm font-semibold text-primary-100 shadow-panel">
+						<span class="h-2.5 w-2.5 rounded-full bg-accent-400 motion-safe:animate-pulse" aria-hidden="true"></span>
 						Available for opportunities
 					</div>
 					<h1 class="flex flex-col gap-2">
@@ -65,7 +65,7 @@ templ Home(props HomeProps) {
 						<a href="/projects" class="btn btn-secondary">
 							<span>See Projects</span>
 						</a>
-						<a href="/contact" class="focus-ring inline-flex items-center rounded-xl border border-carbon-black-700 px-4 py-3 text-sm font-semibold text-copy-secondary transition duration-200 hover:border-strong-cyan-400 hover:bg-strong-cyan-950/40 hover:text-copy-primary">
+						<a href="/contact" class="focus-ring inline-flex items-center rounded-xl border border-carbon-black-700 px-4 py-3 text-sm font-semibold text-copy-secondary transition duration-200 hover:border-primary-400 hover:bg-primary-950/40 hover:text-copy-primary">
 							Get in Touch
 						</a>
 					</div>
@@ -113,28 +113,28 @@ templ Home(props HomeProps) {
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Building the future of infrastructure</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<article class="surface-card stagger-enter p-6 text-center">
-					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">☁️</span>
 					</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Designing and implementing scalable, secure cloud infrastructure on AWS and Azure.</p>
 				</article>
 				<article class="surface-card stagger-enter p-6 text-center">
-					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/60 text-3xl shadow-panel">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-700/70 bg-primary-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">⚙️</span>
 					</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Infrastructure as Code</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments.</p>
 				</article>
 				<article class="surface-card stagger-enter p-6 text-center">
-					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/70 text-3xl shadow-panel">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/70 text-3xl shadow-panel">
 						<span aria-hidden="true">🔄</span>
 					</div>
 					<h3 class="text-lg font-semibold text-copy-primary">CI/CD &amp; DevOps</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Building pipelines with GitHub Actions and implementing GitOps for continuous delivery.</p>
 				</article>
 				<article class="surface-card stagger-enter p-6 text-center">
-					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-inferno-700/60 bg-inferno-950/60 text-3xl shadow-panel">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/60 bg-secondary-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">🔒</span>
 					</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Security &amp; Compliance</h3>
@@ -150,29 +150,29 @@ templ Home(props HomeProps) {
 			</div>
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Dive deeper</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<a href="/experience" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-old-gold-400 hover:shadow-panel-strong">
+				<a href="/experience" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong">
 					<span class="mb-4 block text-3xl" aria-hidden="true">💼</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Experience</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">View my professional journey through cloud engineering and IT.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-old-gold-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-accent-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/skills" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-strong-cyan-400 hover:shadow-panel-strong">
+				<a href="/skills" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400 hover:shadow-panel-strong">
 					<span class="mb-4 block text-3xl" aria-hidden="true">🛠️</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Skills</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">The tools and technologies I use to build, automate, and ship reliably.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-strong-cyan-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-primary-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/projects" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-prussian-blue-400 hover:shadow-panel-strong">
+				<a href="/projects" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-secondary-400 hover:shadow-panel-strong">
 					<span class="mb-4 block text-3xl" aria-hidden="true">🚀</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Projects</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Real-world applications, automation, and infrastructure tools I&apos;ve built.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-prussian-blue-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-secondary-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/soccer" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-old-gold-400 hover:shadow-panel-strong">
+				<a href="/soccer" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong">
 					<span class="mb-4 block text-3xl" aria-hidden="true">⚽</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Soccer Tool</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">A schedule download utility built to streamline match-day planning.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-old-gold-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-accent-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
 			</div>
 		</section>

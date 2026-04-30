@@ -27,7 +27,7 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 		<fieldset class="soccer-team-fieldset">
 			<legend>Select teams to include</legend>
 			<p class="soccer-team-hint">
-				Choose which teams to include in this fetch. Teams linked when you imported access are selected by default. Teams marked <span class="inline-flex items-center whitespace-nowrap rounded-md border border-old-gold-500/30 bg-old-gold-500/15 px-1.5 py-0.5 text-xs font-semibold text-old-gold-200" aria-label="Sub">Sub</span> were not on your account at session start.
+				Choose which teams to include in this fetch. Teams linked when you imported access are selected by default. Teams marked <span class="inline-flex items-center whitespace-nowrap rounded-md border border-accent-500/30 bg-accent-500/15 px-1.5 py-0.5 text-xs font-semibold text-accent-200" aria-label="Sub">Sub</span> were not on your account at session start.
 			</p>
 			for _, group := range props.PlayerGroups {
 				<div class="soccer-team-player-group">
@@ -51,7 +51,7 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 									<span class="soccer-team-name">{ team.TeamName }</span>
 									<span class="soccer-team-meta">{ fmt.Sprintf("Season %d", team.Season) }</span>
 									if team.IsSubTeam {
-											<span class="inline-flex items-center whitespace-nowrap rounded-md border border-old-gold-500/30 bg-old-gold-500/15 px-1.5 py-0.5 text-xs font-semibold text-old-gold-200" aria-label="Sub team">Sub</span>
+											<span class="inline-flex items-center whitespace-nowrap rounded-md border border-accent-500/30 bg-accent-500/15 px-1.5 py-0.5 text-xs font-semibold text-accent-200" aria-label="Sub team">Sub</span>
 									}
 								</span>
 							</label>

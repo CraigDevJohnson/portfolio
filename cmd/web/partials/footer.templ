@@ -3,7 +3,7 @@ package partials
 import "time"
 
 templ Footer() {
-	<footer class="site-footer mt-auto border-t border-white/8 bg-[linear-gradient(180deg,rgba(7,41,95,0.18)_0%,rgba(21,18,15,0.98)_100%)]">
+	<footer class="site-footer mt-auto border-t border-white/8 bg-[linear-gradient(180deg,rgba(0,60,102,0.18)_0%,rgba(36,0,14,0.96)_100%)]">
 		<div class="footer-content mx-auto max-w-[var(--container-max)] px-6 pb-6 pt-12 max-[768px]:pb-5 max-[480px]:px-4">
 			<div class="footer-main grid gap-12 border-b border-white/8 pb-8 max-[1024px]:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
 				<div class="footer-brand flex flex-col gap-2">
@@ -15,7 +15,7 @@ templ Footer() {
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Pages</h3>
 						for i, item := range navItems() {
 							if i < 4 {
-								<a class="text-sm text-copy-secondary transition hover:text-strong-cyan-100" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+								<a class="text-sm text-copy-secondary transition hover:text-primary-100" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
 							}
 						}
 					</div>
@@ -23,22 +23,22 @@ templ Footer() {
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">More</h3>
 						for i, item := range navItems() {
 							if i >= 4 {
-								<a class="text-sm text-copy-secondary transition hover:text-strong-cyan-100" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+								<a class="text-sm text-copy-secondary transition hover:text-primary-100" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
 							}
 						}
 					</div>
 					<div class="footer-nav-section flex flex-col gap-1.5">
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Connect</h3>
-						<a class="text-sm text-copy-secondary transition hover:text-strong-cyan-100" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub</a>
+						<a class="text-sm text-copy-secondary transition hover:text-primary-100" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub</a>
 						<a
-							class="text-sm text-copy-secondary transition hover:text-strong-cyan-100"
+							class="text-sm text-copy-secondary transition hover:text-primary-100"
 							href="https://linkedin.com/in/craigdevjohnson"
 							target="_blank"
 							rel="noopener noreferrer"
 						>
 							LinkedIn
 						</a>
-						<a class="text-sm text-copy-secondary transition hover:text-strong-cyan-100" href="mailto:opportunity@craigdevjohnson.com">Email</a>
+						<a class="text-sm text-copy-secondary transition hover:text-primary-100" href="mailto:opportunity@craigdevjohnson.com">Email</a>
 					</div>
 				</nav>
 			</div>

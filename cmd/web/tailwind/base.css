@@ -13,54 +13,54 @@
 
     --accent-primary: var(--color-brand-primary);
     --accent-secondary: var(--color-brand-secondary);
-    --accent-primary-rgb: 214, 191, 41;
-    --accent-secondary-rgb: 62, 193, 190;
+    --accent-primary-rgb: 255, 166, 0;
+    --accent-secondary-rgb: 0, 149, 255;
     --accent-primary-gradient: linear-gradient(
       135deg,
-      var(--color-old-gold-600) 0%,
-      var(--color-old-gold-500) 50%,
-      var(--color-old-gold-300) 100%
+      var(--color-secondary-600) 0%,
+      var(--color-secondary-500) 50%,
+      var(--color-secondary-300) 100%
     );
     --accent-primary-gradient-hover: linear-gradient(
       135deg,
-      var(--color-old-gold-700) 0%,
-      var(--color-old-gold-600) 50%,
-      var(--color-old-gold-400) 100%
+      var(--color-secondary-700) 0%,
+      var(--color-secondary-600) 50%,
+      var(--color-secondary-400) 100%
     );
     --accent-secondary-gradient: linear-gradient(
       135deg,
-      var(--color-prussian-blue-800) 0%,
-      var(--color-prussian-blue-600) 45%,
-      var(--color-strong-cyan-400) 100%
+      var(--color-primary-800) 0%,
+      var(--color-primary-600) 48%,
+      var(--color-secondary-400) 100%
     );
     --accent-secondary-gradient-hover: linear-gradient(
       135deg,
-      var(--color-strong-cyan-800) 0%,
-      var(--color-strong-cyan-700) 50%,
-      var(--color-strong-cyan-400) 100%
+      var(--color-primary-900) 0%,
+      var(--color-primary-700) 50%,
+      var(--color-secondary-500) 100%
     );
     --field-badge-gradient: linear-gradient(
       135deg,
-      var(--color-prussian-blue-900) 0%,
-      var(--color-prussian-blue-800) 50%,
-      var(--color-prussian-blue-700) 100%
+      var(--color-primary-950) 0%,
+      var(--color-primary-800) 50%,
+      var(--color-secondary-700) 100%
     );
 
-    --success-bg: rgb(62 193 190 / 14%);
-    --success-fg: var(--color-strong-cyan-300);
-    --success-border: rgb(62 193 190 / 28%);
-    --error-bg: rgb(254 1 5 / 14%);
-    --error-fg: var(--color-inferno-300);
-    --error-border: rgb(254 1 5 / 26%);
-    --warning-bg: rgb(214 191 41 / 14%);
-    --warning-fg: var(--color-old-gold-300);
-    --warning-border: rgb(214 191 41 / 26%);
+    --success-bg: rgb(0 149 255 / 14%);
+    --success-fg: var(--color-primary-200);
+    --success-border: rgb(0 149 255 / 28%);
+    --error-bg: rgb(255 0 98 / 14%);
+    --error-fg: var(--color-secondary-200);
+    --error-border: rgb(255 0 98 / 26%);
+    --warning-bg: rgb(255 166 0 / 14%);
+    --warning-fg: var(--color-secondary-300);
+    --warning-border: rgb(255 166 0 / 26%);
 
     --shadow-xs: 0 1px 2px rgb(0 0 0 / 30%);
     --shadow-sm: 0 2px 8px rgb(0 0 0 / 38%);
     --shadow-md: 0 4px 18px rgb(0 0 0 / 48%);
-    --shadow-lg: 0 10px 36px rgb(0 0 0 / 56%);
-    --shadow-xl: 0 18px 56px rgb(0 0 0 / 64%);
+    --shadow-lg: 0 10px 36px rgb(0 21 36 / 56%);
+    --shadow-xl: 0 18px 56px rgb(0 21 36 / 64%);
   }
 
   *,

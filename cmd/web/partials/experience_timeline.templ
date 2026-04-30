@@ -1,45 +1,63 @@
 package partials
 
-import "fmt"
-import "portfolio/types"
+import (
+	"fmt"
+	"portfolio/types"
+	"strings"
+)
 
 type ExperienceTimelineProps struct {
 	Experiences []types.Experience
 }
 
+func experienceCardClasses(current bool) string {
+	base := "career-card group relative flex min-h-[17.5rem] flex-col rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(0,21,36,0.92)_0%,rgba(0,60,102,0.22)_52%,rgba(255,0,98,0.08)_100%)] p-6 shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong animate-[card-fade-in_0.45s_ease-out_both]"
+	if current {
+		return base + " border-secondary-400/40 bg-[linear-gradient(135deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.22)_42%,rgba(255,166,0,0.12)_100%)]"
+	}
+	return base
+}
+
+func experienceTechPillClasses() string {
+	return "inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-copy-secondary transition duration-150 ease-out group-hover:border-primary-400/25 group-hover:text-copy-primary"
+}
+
 templ ExperienceTimeline(props ExperienceTimelineProps) {
-	<div class="career-grid" id="career-grid">
+	<div class="grid gap-6 md:grid-cols-2" id="career-grid">
 		for index, exp := range props.Experiences {
 			<article
-				class={ "card career-card", templ.KV("current", index == 0) }
+				class={ experienceCardClasses(index == 0) }
+				data-position={ exp.Position }
+				data-technologies={ strings.Join(exp.Technologies, ",") }
+				data-skills={ exp.SkillAreas }
 				style={ fmt.Sprintf("animation-delay: %dms;", index*80) }
 			>
 				if index == 0 {
-					<div class="card-status current-badge">
-						<span class="status-dot"></span>
+					<div class="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-secondary-400/30 bg-secondary-500/14 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-secondary-100">
+						<span class="h-2 w-2 rounded-full bg-secondary-300 shadow-[0_0_10px_rgba(255,166,0,0.45)]" aria-hidden="true"></span>
 						Current Role
 					</div>
 				}
-				<header class="card-header">
-					<h3 class="position">{ exp.Position }</h3>
-					<span class="company">{ exp.Company }</span>
-					<span class="duration">{ exp.Duration }</span>
-				</header>
-				<div class="card-body">
-					<p class="responsibilities">{ exp.Responsibilities }</p>
-				</div>
-				<footer class="card-footer">
-					<div class="tech-stack">
-						for _, tech := range exp.Technologies {
-							<span class="tech-pill" data-tech={ tech }>{ tech }</span>
-						}
+				<header class="mb-5 flex items-start justify-between gap-4">
+					<div class="min-w-0">
+						<h3 class="text-lg font-bold leading-snug text-copy-primary">{ exp.Position }</h3>
+						<p class="mt-1 text-sm font-medium text-primary-200">{ exp.Company }</p>
 					</div>
+					<span class="shrink-0 rounded-full border border-white/10 bg-black/15 px-3 py-1 text-[0.68rem] font-medium uppercase tracking-[0.06em] text-copy-muted">{ exp.Duration }</span>
+				</header>
+				<div class="mb-5 flex-1">
+					<p class="text-sm leading-relaxed text-copy-secondary">{ exp.Responsibilities }</p>
+				</div>
+				<footer class="mt-auto flex flex-wrap gap-2">
+					for _, tech := range exp.Technologies {
+						<span class={ experienceTechPillClasses() } data-tech={ tech }>{ tech }</span>
+					}
 				</footer>
 			</article>
 		}
 	</div>
-	<div class="no-results" id="no-results" style="display: none;">
-		<h3>No matching positions found</h3>
-		<p>Try adjusting your filters to see more results.</p>
+	<div id="no-results" class="no-results hidden rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-8 text-center shadow-panel">
+		<h3 class="text-lg font-semibold text-copy-primary">No matching positions found</h3>
+		<p class="mt-2 text-sm text-copy-secondary">Try adjusting your filters to see more results.</p>
 	</div>
 }
