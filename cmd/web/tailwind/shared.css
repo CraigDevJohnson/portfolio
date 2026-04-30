@@ -318,7 +318,7 @@ code {
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 0.14) 0%, rgb(7 41 95 / 28%) 100%);
+  background: linear-gradient(135deg, rgb(var(--accent-secondary-rgb), 0.14) 0%, rgb(255 255 255 / 3%) 100%);
   color: var(--fg-primary);
   border: 1px solid rgb(var(--accent-secondary-rgb), 0.24);
 }
@@ -327,7 +327,7 @@ code {
   background: linear-gradient(
     135deg,
     rgb(var(--accent-secondary-rgb), 0.2) 0%,
-    rgb(7 41 95 / 42%) 100%
+    rgb(var(--accent-primary-rgb), 0.12) 100%
   );
   border-color: rgb(var(--accent-secondary-rgb), 0.42);
   transform: translateY(-2px);

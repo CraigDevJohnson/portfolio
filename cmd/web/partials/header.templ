@@ -1,19 +1,19 @@
 package partials
 
 templ Header(page string) {
-	<header class="site-header fixed inset-x-0 top-0 z-[100] h-[var(--header-height)] border-b border-white/8 bg-[linear-gradient(180deg,rgba(0,21,36,0.94)_0%,rgba(36,0,14,0.82)_100%)] backdrop-blur-xl backdrop-saturate-150">
+	<header class="site-header fixed inset-x-0 top-0 z-[100] h-[var(--header-height)] border-b border-white/8 bg-[linear-gradient(180deg,rgba(0,21,36,0.96)_0%,rgba(11,16,24,0.92)_100%)] backdrop-blur-xl backdrop-saturate-150">
 		<div class="header-content mx-auto flex h-full max-w-[var(--container-max)] items-center justify-between gap-6 px-6 max-[480px]:px-4">
 			<a href="/" class="logo text-lg font-extrabold tracking-[-0.02em] text-copy-primary transition duration-150 ease-out hover:scale-[1.02] hover:text-copy-primary focus-ring">
 				<span class="logo-text">Craig Johnson</span>
 			</a>
 			@Nav(page)
 			<div class="header-actions flex items-center gap-2">
-				<button id="mobile-menu-btn" class="mobile-menu-btn relative hidden h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(0,60,102,0.58)_0%,rgba(36,0,14,0.92)_100%)] text-copy-primary max-[1120px]:inline-flex" aria-label="Toggle menu" aria-controls="mobile-nav" aria-expanded="false">
+				<button id="mobile-menu-btn" class="mobile-menu-btn relative hidden h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,rgba(0,60,102,0.58)_0%,rgba(11,16,24,0.92)_100%)] text-copy-primary max-[1120px]:inline-flex" aria-label="Toggle menu" aria-controls="mobile-nav" aria-expanded="false">
 					<span class="hamburger"></span>
 				</button>
 			</div>
 		</div>
-		<nav id="mobile-nav" class="mobile-nav absolute left-0 right-0 top-[var(--header-height)] hidden max-h-[calc(100dvh-var(--header-height))] min-h-[calc(100dvh-var(--header-height))] flex-col gap-1 overflow-y-auto overscroll-contain border-b border-white/8 bg-[linear-gradient(180deg,rgba(0,21,36,0.96)_0%,rgba(36,0,14,0.98)_100%)] px-6 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl max-[480px]:px-4" aria-label="Mobile navigation" aria-hidden="true">
+		<nav id="mobile-nav" class="mobile-nav absolute left-0 right-0 top-[var(--header-height)] hidden max-h-[calc(100dvh-var(--header-height))] min-h-[calc(100dvh-var(--header-height))] flex-col gap-1 overflow-y-auto overscroll-contain border-b border-white/8 bg-[linear-gradient(180deg,rgba(0,21,36,0.98)_0%,rgba(11,16,24,0.99)_100%)] px-6 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl max-[480px]:px-4" aria-label="Mobile navigation" aria-hidden="true">
 			@NavLinks(page)
 		</nav>
 	</header>

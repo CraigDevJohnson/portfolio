@@ -25,17 +25,17 @@
   --color-secondary-900: #330014;
   --color-secondary-950: #24000e;
 
-  --color-accent-50: #fcf5e9;
-  --color-accent-100: #f9ecd2;
-  --color-accent-200: #f3d9a5;
-  --color-accent-300: #edc678;
-  --color-accent-400: #e7b34b;
-  --color-accent-500: #e0a01f;
-  --color-accent-600: #b48018;
-  --color-accent-700: #876012;
-  --color-accent-800: #5a400c;
-  --color-accent-900: #2d2006;
-  --color-accent-950: #1f1604;
+  --color-accent-50: #fff6e5;
+  --color-accent-100: #ffedcc;
+  --color-accent-200: #ffdb99;
+  --color-accent-300: #ffc966;
+  --color-accent-400: #ffb833;
+  --color-accent-500: #ffa600;
+  --color-accent-600: #cc8500;
+  --color-accent-700: #996300;
+  --color-accent-800: #664200;
+  --color-accent-900: #332100;
+  --color-accent-950: #241700;
 
   --color-carbon-black-50: #eef4fa;
   --color-carbon-black-100: #d7e2ef;
@@ -55,8 +55,8 @@
   --color-copy-primary: var(--color-primary-50);
   --color-copy-secondary: var(--color-carbon-black-100);
   --color-copy-muted: var(--color-carbon-black-200);
-  --color-brand-primary: var(--color-secondary-500);
-  --color-brand-primary-hover: var(--color-secondary-400);
+  --color-brand-primary: var(--color-accent-500);
+  --color-brand-primary-hover: var(--color-accent-400);
   --color-brand-primary-foreground: var(--color-primary-950);
   --color-brand-secondary: var(--color-primary-500);
   --color-brand-secondary-hover: var(--color-primary-400);

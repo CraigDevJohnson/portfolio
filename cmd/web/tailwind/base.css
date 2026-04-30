@@ -17,33 +17,33 @@
     --accent-secondary-rgb: 0, 149, 255;
     --accent-primary-gradient: linear-gradient(
       135deg,
-      var(--color-secondary-600) 0%,
-      var(--color-secondary-500) 50%,
-      var(--color-secondary-300) 100%
+      var(--color-accent-700) 0%,
+      var(--color-accent-500) 52%,
+      var(--color-accent-300) 100%
     );
     --accent-primary-gradient-hover: linear-gradient(
       135deg,
-      var(--color-secondary-700) 0%,
-      var(--color-secondary-600) 50%,
-      var(--color-secondary-400) 100%
+      var(--color-accent-800) 0%,
+      var(--color-accent-600) 52%,
+      var(--color-accent-400) 100%
     );
     --accent-secondary-gradient: linear-gradient(
       135deg,
       var(--color-primary-800) 0%,
-      var(--color-primary-600) 48%,
-      var(--color-secondary-400) 100%
+      var(--color-primary-600) 52%,
+      var(--color-primary-400) 100%
     );
     --accent-secondary-gradient-hover: linear-gradient(
       135deg,
       var(--color-primary-900) 0%,
-      var(--color-primary-700) 50%,
-      var(--color-secondary-500) 100%
+      var(--color-primary-700) 52%,
+      var(--color-primary-500) 100%
     );
     --field-badge-gradient: linear-gradient(
       135deg,
       var(--color-primary-950) 0%,
       var(--color-primary-800) 50%,
-      var(--color-secondary-700) 100%
+      var(--color-accent-700) 100%
     );
 
     --success-bg: rgb(0 149 255 / 14%);
@@ -53,7 +53,7 @@
     --error-fg: var(--color-secondary-200);
     --error-border: rgb(255 0 98 / 26%);
     --warning-bg: rgb(255 166 0 / 14%);
-    --warning-fg: var(--color-secondary-300);
+    --warning-fg: var(--color-accent-200);
     --warning-border: rgb(255 166 0 / 26%);
 
     --shadow-xs: 0 1px 2px rgb(0 0 0 / 30%);
