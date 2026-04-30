@@ -1,4 +1,0 @@
-Total messages: 2 (Errors: 2, Warnings: 0)
-
-[ERROR] Refused to apply style from 'http://127.0.0.1:8080/static/css/home.css?v=20260423a' because its MIME type ('text/plain') is not a supported stylesheet MIME type, and strict MIME checking is enabled. @ http://127.0.0.1:8080/:0
-[ERROR] Refused to apply style from 'http://127.0.0.1:8080/static/css/styles.css?v=20260423a' because its MIME type ('text/plain') is not a supported stylesheet MIME type, and strict MIME checking is enabled. @ http://127.0.0.1:8080/:0
