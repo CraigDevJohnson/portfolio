@@ -7,75 +7,80 @@ templ Projects() {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
-		<section class="page-hero projects-hero">
-			<div class="hero-header">
-				<h1>Projects</h1>
-        <p class="lead">
-          A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
+		<section
+			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
+			style="background-image: url('/static/images/backgrounds/projects-hero.jpg')"
+		>
+			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/76 to-prussian-blue-950/70"></div>
+			<div class="relative max-w-4xl space-y-5">
+				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">Projects</h1>
+				<p class="max-w-4xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
+					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
 			</div>
 		</section>
-		<section class="projects-stats">
-			<div class="stats-grid">
-				<div class="card card--compact stagger-enter proj-stat-card">
-					<div class="proj-icon-wrap">
-						<span class="proj-icon" aria-hidden="true">🛠️</span>
+		<section class="projects-stats py-10 sm:py-12">
+			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				<div class="surface-card stagger-enter px-5 py-6 text-center">
+					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">🛠️</span>
 					</div>
-					<span class="proj-stat-value" data-counter data-target="3" aria-label="3 projects">0</span>
-					<span class="proj-stat-label">Projects</span>
+					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target="3" aria-label="3 projects">0</span>
+					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Projects</span>
 				</div>
-				<div class="card card--compact stagger-enter proj-stat-card">
-					<div class="proj-icon-wrap">
-						<span class="proj-icon" aria-hidden="true">💻</span>
+				<div class="surface-card stagger-enter px-5 py-6 text-center">
+					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">💻</span>
 					</div>
-					<span class="proj-stat-value" data-counter data-target="12" aria-label="12 technologies">0</span>
-					<span class="proj-stat-label">Technologies</span>
+					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target="12" aria-label="12 technologies">0</span>
+					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Technologies</span>
 				</div>
-				<div class="card card--compact stagger-enter proj-stat-card">
-					<div class="proj-icon-wrap">
-						<span class="proj-icon" aria-hidden="true">🏷️</span>
+				<div class="surface-card stagger-enter px-5 py-6 text-center">
+					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/70 text-3xl shadow-panel">
+						<span aria-hidden="true">🏷️</span>
 					</div>
-					<span class="proj-stat-value" data-counter data-target="3" aria-label="3 categories">0</span>
-					<span class="proj-stat-label">Categories</span>
+					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target="3" aria-label="3 categories">0</span>
+					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Categories</span>
 				</div>
-				<div class="card card--compact stagger-enter proj-stat-card">
-					<div class="proj-icon-wrap">
-						<span class="proj-icon" aria-hidden="true">⭐</span>
+				<div class="surface-card stagger-enter px-5 py-6 text-center">
+					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">⭐</span>
 					</div>
-					<span class="proj-stat-value" data-counter data-target="100" data-suffix="%" aria-label="100 percent open source">0</span>
-					<span class="proj-stat-label">Open Source</span>
+					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target="100" data-suffix="%" aria-label="100 percent open source">0</span>
+					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Open Source</span>
 				</div>
 			</div>
 		</section>
-		<section class="projects-intro">
+		<section class="space-y-4 py-10 sm:py-12">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>What I Build</span>
 			</div>
-			<p class="proj-intro-text">
+			<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
 			</p>
 		</section>
-		<div class="proj-category-filters" role="toolbar" aria-label="Project category filters">
-			<button type="button" class="proj-category-pill active" aria-pressed="true" data-category="all">All</button>
-			<button type="button" class="proj-category-pill" aria-pressed="false" data-category="web">Web</button>
-			<button type="button" class="proj-category-pill" aria-pressed="false" data-category="automation">Automation</button>
+		<div class="proj-category-filters flex flex-wrap gap-2" role="toolbar" aria-label="Project category filters">
+			<button type="button" class="proj-category-pill active inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-old-gold-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-old-gold-500 [&.active]:bg-old-gold-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="true" data-category="all">All</button>
+			<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-old-gold-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-old-gold-500 [&.active]:bg-old-gold-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="web">Web</button>
+			<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-old-gold-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-old-gold-500 [&.active]:bg-old-gold-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="automation">Automation</button>
 		</div>
-		<section class="projects-grid-wrapper">
+		<section class="space-y-6 pb-12 pt-8 sm:pb-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Project Showcase</span>
 			</div>
-			<section class="projects-section" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
-				<div class="projects-grid">
+			<section class="projects-section py-2" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
+				<div class="projects-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 					for i := 1; i <= 3; i++ {
-						<div class="card project-card skeleton-project">
-							<div class="skeleton skeleton-image"></div>
-							<div class="project-content">
-								<div class="skeleton skeleton-title"></div>
-								<div class="skeleton skeleton-text"></div>
-								<div class="skeleton skeleton-text short"></div>
-								<div class="skeleton-pills">
+						<div class="surface-card project-card min-h-[26rem] overflow-hidden">
+							<div class="skeleton aspect-video w-full"></div>
+							<div class="flex flex-col gap-4 p-6">
+								<div class="skeleton h-7 w-2/3 rounded-lg"></div>
+								<div class="skeleton h-4 w-1/2 rounded-lg"></div>
+								<div class="skeleton h-4 w-full rounded-lg"></div>
+								<div class="skeleton h-4 w-4/5 rounded-lg"></div>
+								<div class="flex flex-wrap gap-2">
 									<div class="skeleton skeleton-pill"></div>
 									<div class="skeleton skeleton-pill"></div>
 									<div class="skeleton skeleton-pill"></div>

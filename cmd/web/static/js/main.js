@@ -26,17 +26,20 @@
       const nextState = Boolean(isOpen) && mobileNavBreakpoint.matches
 
       mobileMenuBtn.setAttribute('aria-expanded', String(nextState))
-      mobileNav.classList.toggle('open', nextState)
+      mobileNav.classList.toggle('hidden', !nextState)
+      mobileNav.classList.toggle('flex', nextState)
       mobileNav.setAttribute('aria-hidden', String(!nextState))
-      document.documentElement.classList.toggle('mobile-nav-open', nextState)
-      document.body.classList.toggle('mobile-nav-open', nextState)
+      document.documentElement.classList.toggle('overflow-hidden', nextState)
+      document.documentElement.classList.toggle('overscroll-none', nextState)
+      document.body.classList.toggle('overflow-hidden', nextState)
+      document.body.classList.toggle('overscroll-none', nextState)
 
       if (nextState) {
         mobileNav.scrollTop = 0
       }
     }
 
-    const isMobileNavOpen = () => mobileNav.classList.contains('open')
+    const isMobileNavOpen = () => mobileNav.classList.contains('flex') && !mobileNav.classList.contains('hidden')
 
     const closeMobileNav = () => {
       setMobileNavState(false)

@@ -39,9 +39,7 @@ templ Soccer(props SoccerProps) {
 			<h2 class="soccer-section-heading">Get your schedule</h2>
 			<div class="card card--compact soccer-unified-card">
 				if props.GoogleMessage != "" {
-					<div class={ "soccer-login-message soccer-login-message-" + props.GoogleMessageKind } role="status">
-						{ props.GoogleMessage }
-					</div>
+					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
 				}
 				<div class="info-inline soccer-support-card">
 					<div class="soccer-support-card-header">

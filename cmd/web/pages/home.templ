@@ -20,40 +20,44 @@ templ Home(props HomeProps) {
 		Title: "Craig Johnson - Cloud Engineer Principal",
 		Page:  "home",
 	}) {
-		<section class="hero">
-			<div class="hero-content">
-				<div class="hero-avatar">
+		<section
+			class="relative isolate min-h-[calc(100vh-var(--header-height))] overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-10 shadow-panel-strong sm:px-8 lg:px-12 lg:py-16"
+			style="background-image: url('/static/images/backgrounds/home-hero.jpg')"
+		>
+			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-prussian-blue-950/70"></div>
+			<div class="relative z-10 grid gap-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center">
+				<div class="flex justify-center lg:justify-start">
 					<a
 						href="https://gravatar.com/craigdevjohnson1"
 						target="_blank"
 						rel="noopener noreferrer"
-						class="avatar-link"
+						class="focus-ring group relative inline-flex rounded-full"
 						aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"
 					>
+						<span class="absolute inset-[-0.5rem] rounded-full bg-[image:var(--accent-primary-gradient)] opacity-70 blur-[1px] transition duration-300 group-hover:scale-[1.02]" aria-hidden="true"></span>
+						<span class="absolute inset-[-2rem] rounded-full bg-radial from-old-gold-400/25 via-old-gold-300/10 to-transparent" aria-hidden="true"></span>
 						<img
 							src={ props.AvatarURL }
 							alt={ props.Name }
-							class="avatar-image"
+							class="relative h-[16rem] w-[16rem] rounded-full border-4 border-carbon-black-950 object-cover shadow-panel-strong transition duration-300 group-hover:scale-[1.02] sm:h-[17.25rem] sm:w-[17.25rem]"
 							width="275"
 							height="275"
 							loading="eager"
 						/>
-						<div class="avatar-ring" aria-hidden="true"></div>
-						<div class="avatar-glow" aria-hidden="true"></div>
 					</a>
 				</div>
-				<div class="hero-text">
-					<div class="hero-badge">
-						<span class="badge-dot" aria-hidden="true"></span>
+				<div class="flex flex-col gap-6">
+					<div class="inline-flex w-fit items-center gap-3 rounded-full border border-strong-cyan-700 bg-strong-cyan-950/70 px-4 py-2 text-sm font-semibold text-strong-cyan-100 shadow-panel">
+						<span class="h-2.5 w-2.5 rounded-full bg-old-gold-400 motion-safe:animate-pulse" aria-hidden="true"></span>
 						Available for opportunities
 					</div>
-					<h1 class="hero-title">
-						<span class="greeting">Hi, I'm</span>
-						<span class="name">{ props.Name }</span>
+					<h1 class="flex flex-col gap-2">
+						<span class="text-xl font-medium text-copy-muted sm:text-2xl">Hi, I'm</span>
+						<span class="text-gradient-brand text-5xl font-extrabold leading-none sm:text-6xl lg:text-7xl">{ props.Name }</span>
 					</h1>
-					<h2 class="hero-subtitle">{ props.Role }</h2>
-					<p class="hero-description">{ props.Description }</p>
-					<div class="hero-actions">
+					<h2 class="text-2xl font-semibold text-copy-secondary sm:text-3xl">{ props.Role }</h2>
+					<p class="max-w-2xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">{ props.Description }</p>
+					<div class="flex flex-wrap items-center gap-3">
 						<a href="/experience" class="btn btn-primary">
 							<span>View Experience</span>
 							<span class="btn-icon" aria-hidden="true">→</span>
@@ -61,112 +65,114 @@ templ Home(props HomeProps) {
 						<a href="/projects" class="btn btn-secondary">
 							<span>See Projects</span>
 						</a>
-						<a href="/contact" class="hero-contact-link">Get in Touch</a>
+						<a href="/contact" class="focus-ring inline-flex items-center rounded-xl border border-carbon-black-700 px-4 py-3 text-sm font-semibold text-copy-secondary transition duration-200 hover:border-strong-cyan-400 hover:bg-strong-cyan-950/40 hover:text-copy-primary">
+							Get in Touch
+						</a>
 					</div>
-					<div class="hero-stats">
-						<div class="stat">
+					<div class="hero-stats grid gap-4 border-t border-carbon-black-700 pt-6 sm:grid-cols-3">
+						<div class="surface-card px-4 py-5 text-center">
 							<span
-								class="home-stat-value"
+								class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
 								data-counter
 								data-target={ fmt.Sprintf("%d", props.YearsInTech) }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%d plus years experience", props.YearsInTech) }
 							>0</span>
-							<span class="stat-label">Years Experience</span>
+							<span class="mt-2 block text-sm font-medium text-copy-muted">Years Experience</span>
 						</div>
-						<div class="stat">
+						<div class="surface-card px-4 py-5 text-center">
 							<span
-								class="home-stat-value"
+								class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
 								data-counter
 								data-target={ fmt.Sprintf("%d", props.Certifications) }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%d plus certifications", props.Certifications) }
 							>0</span>
-							<span class="stat-label">Certifications</span>
+							<span class="mt-2 block text-sm font-medium text-copy-muted">Certifications</span>
 						</div>
-						<div class="stat">
+						<div class="surface-card px-4 py-5 text-center">
 							<span
-								class="home-stat-value"
+								class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
 								data-counter
 								data-target={ props.AutomationProjects }
 								data-suffix="+"
 								aria-label={ fmt.Sprintf("%s plus automation projects", props.AutomationProjects) }
 							>0</span>
-							<span class="stat-label">Automation Projects</span>
+							<span class="mt-2 block text-sm font-medium text-copy-muted">Automation Projects</span>
 						</div>
 					</div>
 				</div>
 			</div>
 		</section>
 		<!-- What I Do -->
-		<section class="home-what-i-do">
+		<section class="space-y-6 py-12 sm:py-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>What I Do</span>
 			</div>
-			<h2 class="section-heading">Building the Future of Infrastructure</h2>
-			<div class="what-i-do-grid">
-				<article class="card stagger-enter what-i-do-card">
-					<div class="wid-icon-wrap">
-						<span class="wid-icon" aria-hidden="true">☁️</span>
+			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Building the future of infrastructure</h2>
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<article class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">☁️</span>
 					</div>
-					<h3>Cloud Architecture</h3>
-					<p>Designing and implementing scalable, secure cloud infrastructure on AWS and Azure</p>
+					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Designing and implementing scalable, secure cloud infrastructure on AWS and Azure.</p>
 				</article>
-				<article class="card stagger-enter what-i-do-card">
-					<div class="wid-icon-wrap">
-						<span class="wid-icon" aria-hidden="true">⚙️</span>
+				<article class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">⚙️</span>
 					</div>
-					<h3>Infrastructure as Code</h3>
-					<p>Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments</p>
+					<h3 class="text-lg font-semibold text-copy-primary">Infrastructure as Code</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments.</p>
 				</article>
-				<article class="card stagger-enter what-i-do-card">
-					<div class="wid-icon-wrap">
-						<span class="wid-icon" aria-hidden="true">🔄</span>
+				<article class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/70 text-3xl shadow-panel">
+						<span aria-hidden="true">🔄</span>
 					</div>
-					<h3>CI/CD & DevOps</h3>
-					<p>Building pipelines with GitHub Actions and implementing GitOps for continuous delivery</p>
+					<h3 class="text-lg font-semibold text-copy-primary">CI/CD &amp; DevOps</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Building pipelines with GitHub Actions and implementing GitOps for continuous delivery.</p>
 				</article>
-				<article class="card stagger-enter what-i-do-card">
-					<div class="wid-icon-wrap">
-						<span class="wid-icon" aria-hidden="true">🔒</span>
+				<article class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-inferno-700/60 bg-inferno-950/60 text-3xl shadow-panel">
+						<span aria-hidden="true">🔒</span>
 					</div>
-					<h3>Security & Compliance</h3>
-					<p>Implementing zero-trust architecture, IAM policies, and security automation</p>
+					<h3 class="text-lg font-semibold text-copy-primary">Security &amp; Compliance</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Implementing zero-trust architecture, IAM policies, and security automation.</p>
 				</article>
 			</div>
 		</section>
 		<!-- Explore -->
-		<section class="home-explore">
+		<section class="space-y-6 py-12 sm:py-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Explore</span>
 			</div>
-			<h2 class="section-heading">Dive Deeper</h2>
-			<div class="links-grid">
-				<a href="/experience" class="card stagger-enter quick-link-card">
-					<span class="ql-icon">💼</span>
-					<h3>Experience</h3>
-					<p>View my professional journey through cloud engineering and IT</p>
-					<span class="ql-arrow">→</span>
+			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Dive deeper</h2>
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<a href="/experience" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-old-gold-400 hover:shadow-panel-strong">
+					<span class="mb-4 block text-3xl" aria-hidden="true">💼</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Experience</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">View my professional journey through cloud engineering and IT.</p>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-old-gold-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/skills" class="card stagger-enter quick-link-card">
-					<span class="ql-icon">🛠️</span>
-					<h3>Skills</h3>
-					<p>60+ tools and technologies I use to build and automate</p>
-					<span class="ql-arrow">→</span>
+				<a href="/skills" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-strong-cyan-400 hover:shadow-panel-strong">
+					<span class="mb-4 block text-3xl" aria-hidden="true">🛠️</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Skills</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">The tools and technologies I use to build, automate, and ship reliably.</p>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-strong-cyan-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/projects" class="card stagger-enter quick-link-card">
-					<span class="ql-icon">🚀</span>
-					<h3>Projects</h3>
-					<p>Real-world applications and automation I've built</p>
-					<span class="ql-arrow">→</span>
+				<a href="/projects" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-prussian-blue-400 hover:shadow-panel-strong">
+					<span class="mb-4 block text-3xl" aria-hidden="true">🚀</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Projects</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Real-world applications, automation, and infrastructure tools I&apos;ve built.</p>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-prussian-blue-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
-				<a href="/soccer" class="card stagger-enter quick-link-card">
-					<span class="ql-icon">⚽</span>
-					<h3>Soccer Tool</h3>
-					<p>A schedule download utility built with Python and AWS Lambda</p>
-					<span class="ql-arrow">→</span>
+				<a href="/soccer" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-old-gold-400 hover:shadow-panel-strong">
+					<span class="mb-4 block text-3xl" aria-hidden="true">⚽</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Soccer Tool</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">A schedule download utility built to streamline match-day planning.</p>
+					<span class="mt-5 inline-flex items-center text-sm font-semibold text-old-gold-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
 				</a>
 			</div>
 		</section>

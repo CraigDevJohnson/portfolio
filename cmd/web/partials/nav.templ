@@ -22,12 +22,20 @@ func navItems() []navItem {
 	}
 }
 
+func navLinkClasses(active bool) string {
+	base := "nav-link inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition duration-150 ease-out focus-ring max-[1120px]:min-h-11 max-[1120px]:w-full max-[1120px]:justify-start max-[1120px]:px-5 max-[1120px]:py-3"
+	if active {
+		return base + " bg-[linear-gradient(135deg,rgba(62,193,190,0.18)_0%,rgba(7,41,95,0.34)_100%)] text-strong-cyan-100 shadow-[inset_0_0_0_1px_rgba(62,193,190,0.18)]"
+	}
+	return base + " text-copy-muted hover:bg-white/6 hover:text-copy-primary"
+}
+
 // NavLinks renders the shared set of nav link elements.
 templ NavLinks(page string) {
 	for _, item := range navItems() {
 		<a
 			href={ templ.SafeURL(item.Href) }
-			class={ "nav-link", templ.KV("active", page == item.Page) }
+			class={ navLinkClasses(page == item.Page) }
 			if page == item.Page {
 				aria-current="page"
 			}
@@ -36,7 +44,7 @@ templ NavLinks(page string) {
 }
 
 templ Nav(page string) {
-	<nav class="main-nav" aria-label="Main navigation">
+	<nav class="main-nav flex items-center gap-1 max-[1120px]:hidden" aria-label="Main navigation">
 		@NavLinks(page)
 	</nav>
 }

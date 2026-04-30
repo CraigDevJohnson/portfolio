@@ -1,0 +1,64 @@
+@layer components {
+  :root {
+    --bg-primary: var(--color-surface-canvas);
+    --bg-secondary: color-mix(in srgb, var(--color-carbon-black-950) 68%, var(--color-prussian-blue-950));
+    --bg-tertiary: color-mix(in srgb, var(--color-carbon-black-900) 64%, var(--color-prussian-blue-900));
+    --fg-primary: var(--color-copy-primary);
+    --fg-secondary: var(--color-copy-secondary);
+    --fg-muted: var(--color-copy-muted);
+    --fg-accent: var(--color-strong-cyan-100);
+    --border-color: rgb(255 255 255 / 8%);
+    --border-color-strong: rgb(255 255 255 / 16%);
+    --accent-primary: var(--color-brand-primary);
+    --accent-secondary: var(--color-brand-secondary);
+    --accent-primary-rgb: 214, 191, 41;
+    --accent-secondary-rgb: 62, 193, 190;
+    --accent-primary-gradient: linear-gradient(135deg, var(--color-old-gold-600) 0%, var(--color-old-gold-500) 50%, var(--color-old-gold-300) 100%);
+    --accent-primary-gradient-hover: linear-gradient(135deg, var(--color-old-gold-700) 0%, var(--color-old-gold-600) 50%, var(--color-old-gold-400) 100%);
+    --accent-secondary-gradient: linear-gradient(135deg, var(--color-strong-cyan-700) 0%, var(--color-strong-cyan-500) 50%, var(--color-strong-cyan-300) 100%);
+    --accent-secondary-gradient-hover: linear-gradient(135deg, var(--color-strong-cyan-800) 0%, var(--color-strong-cyan-700) 50%, var(--color-strong-cyan-400) 100%);
+    --field-badge-gradient: linear-gradient(135deg, var(--color-prussian-blue-950) 0%, var(--color-prussian-blue-800) 45%, var(--color-strong-cyan-700) 100%);
+    --success-bg: rgb(62 193 190 / 14%);
+    --success-fg: var(--color-strong-cyan-300);
+    --success-border: rgb(62 193 190 / 28%);
+    --error-bg: rgb(254 1 5 / 14%);
+    --error-fg: var(--color-inferno-300);
+    --error-border: rgb(254 1 5 / 26%);
+    --warning-bg: rgb(214 191 41 / 14%);
+    --warning-fg: var(--color-old-gold-300);
+    --warning-border: rgb(214 191 41 / 26%);
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-sm: 0 2px 8px rgb(0 0 0 / 38%);
+    --shadow-md: 0 4px 18px rgb(0 0 0 / 48%);
+    --shadow-lg: 0 10px 36px rgb(0 0 0 / 56%);
+    --shadow-xl: 0 18px 56px rgb(0 0 0 / 64%);
+  }
+
+  .surface-card {
+    @apply rounded-2xl border border-white/8 bg-carbon-black-900 shadow-panel;
+  }
+
+  .surface-card-strong {
+    @apply rounded-3xl border border-white/10 bg-carbon-black-800 shadow-panel-strong;
+  }
+
+  .focus-ring:focus-visible {
+    @apply outline-2 outline-offset-2 outline-focus-ring;
+  }
+
+  .text-gradient-brand {
+    background: var(--accent-primary-gradient);
+    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .proj-category-pill.active {
+    @apply border-old-gold-500 bg-old-gold-500 text-carbon-black-950 shadow-panel;
+  }
+
+  .proj-category-pill.active:hover {
+    @apply border-strong-cyan-400 bg-strong-cyan-400 text-carbon-black-950;
+  }
+}

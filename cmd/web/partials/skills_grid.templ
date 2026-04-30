@@ -35,13 +35,164 @@ func buildFilterURL(category, proficiency string) string {
 	return "/skills/filtered?" + q
 }
 
-// catSlug converts a category name to a CSS-friendly slug
+// catSlug normalizes a category name for visual variant mapping.
 func catSlug(name string) string {
 	s := strings.ToLower(name)
 	s = strings.ReplaceAll(s, " & ", "-")
 	s = strings.ReplaceAll(s, "/", "")
 	s = strings.ReplaceAll(s, " ", "-")
 	return s
+}
+
+func categoryTagClasses(category string) string {
+	base := "inline-flex rounded-full border px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.06em]"
+	switch catSlug(category) {
+	case "languages-scripting":
+		return base + " border-old-gold-500/25 bg-old-gold-500/12 text-old-gold-200"
+	case "cloud-platforms":
+		return base + " border-prussian-blue-500/26 bg-prussian-blue-500/12 text-prussian-blue-100"
+	case "security-identity":
+		return base + " border-inferno-500/24 bg-inferno-500/12 text-inferno-100"
+	case "containers-orchestration":
+		return base + " border-strong-cyan-500/25 bg-strong-cyan-500/12 text-strong-cyan-100"
+	case "cicd-automation":
+		return base + " border-prussian-blue-500/22 bg-prussian-blue-900/60 text-prussian-blue-100"
+	case "infrastructure-as-code":
+		return base + " border-old-gold-500/24 bg-old-gold-500/10 text-old-gold-100"
+	case "development-tools":
+		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
+	case "operating-systems":
+		return base + " border-strong-cyan-500/20 bg-strong-cyan-950 text-strong-cyan-100"
+	default:
+		return base + " border-white/10 bg-white/5 text-copy-secondary"
+	}
+}
+
+func filterTabClasses(active bool) string {
+	base := "inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium tracking-[0.02em] transition duration-150 ease-out focus-ring"
+	if active {
+		return base + " border-old-gold-400/55 bg-old-gold-500 text-carbon-black-950 shadow-[0_10px_30px_rgba(214,191,41,0.16)]"
+	}
+	return base + " border-white/10 bg-white/[0.03] text-copy-secondary hover:border-strong-cyan-400/35 hover:bg-strong-cyan-500/10 hover:text-copy-primary"
+}
+
+func proficiencyBadgeClasses(proficiency string, compact bool) string {
+	base := "inline-flex items-center rounded-full border uppercase tracking-[0.05em]"
+	if compact {
+		base += " px-2 py-0.5 text-[0.6rem] font-medium"
+	} else {
+		base += " px-2.5 py-1 text-xs font-medium"
+	}
+
+	switch proficiency {
+	case "expert":
+		return base + " border-strong-cyan-500/30 bg-strong-cyan-500/15 text-strong-cyan-100"
+	case "advanced":
+		return base + " border-prussian-blue-500/28 bg-prussian-blue-500/15 text-prussian-blue-100"
+	case "intermediate":
+		return base + " border-old-gold-500/28 bg-old-gold-500/14 text-old-gold-100"
+	case "familiar":
+		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
+	default:
+		return base + " border-white/10 bg-white/5 text-copy-secondary"
+	}
+}
+
+func shouldInvertSkillIcon(name string) bool {
+	switch name {
+	case "GitHub", "GitHub Codespaces", "Bash", "Markdown", "SSH", "Splunk", "SQL Server", "CircleCI", "Flask", "Jenkins", "npm", "Node.js":
+		return true
+	default:
+		return false
+	}
+}
+
+func skillImageClasses(name, size string) string {
+	base := size + " object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.28)]"
+	if shouldInvertSkillIcon(name) {
+		return base + " invert"
+	}
+	return base
+}
+
+func skillCardClasses(proficiency string) string {
+	base := "group flex min-h-36 w-full flex-col rounded-2xl border p-4 text-left transition duration-200 ease-out hover:-translate-y-1 hover:shadow-panel focus-ring"
+	switch proficiency {
+	case "expert":
+		return base + " border-strong-cyan-500/28 bg-[linear-gradient(160deg,rgba(9,27,27,0.96)_0%,rgba(12,39,38,0.9)_48%,rgba(62,193,190,0.12)_100%)] hover:border-strong-cyan-400/50"
+	case "advanced":
+		return base + " border-prussian-blue-500/26 bg-[linear-gradient(160deg,rgba(2,14,33,0.96)_0%,rgba(7,41,95,0.88)_50%,rgba(17,102,238,0.12)_100%)] hover:border-prussian-blue-400/48"
+	case "intermediate":
+		return base + " border-old-gold-500/24 bg-[linear-gradient(160deg,rgba(21,18,15,0.96)_0%,rgba(43,38,8,0.88)_52%,rgba(214,191,41,0.12)_100%)] hover:border-old-gold-400/46"
+	case "familiar":
+		return base + " border-white/10 bg-[linear-gradient(160deg,rgba(21,18,15,0.98)_0%,rgba(30,26,21,0.92)_56%,rgba(192,180,165,0.08)_100%)] hover:border-carbon-black-300/32"
+	default:
+		return base + " border-white/10 bg-[linear-gradient(160deg,rgba(21,18,15,0.96)_0%,rgba(12,39,38,0.12)_100%)] hover:border-strong-cyan-400/35"
+	}
+}
+
+func skillIconFrameClasses(proficiency string) string {
+	base := "mb-3 flex h-12 w-12 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+	switch proficiency {
+	case "expert":
+		return base + " border-strong-cyan-400/30 bg-strong-cyan-500/12 text-strong-cyan-50"
+	case "advanced":
+		return base + " border-prussian-blue-400/28 bg-prussian-blue-500/12 text-prussian-blue-50"
+	case "intermediate":
+		return base + " border-old-gold-400/28 bg-old-gold-500/12 text-old-gold-50"
+	case "familiar":
+		return base + " border-carbon-black-300/22 bg-carbon-black-700/55 text-carbon-black-50"
+	default:
+		return base + " border-white/10 bg-white/5 text-copy-primary"
+	}
+}
+
+func proficiencyFilterDotClasses(proficiency string) string {
+	base := "inline-block h-2 w-2 shrink-0 rounded-full"
+	switch proficiency {
+	case "expert":
+		return base + " bg-strong-cyan-400"
+	case "advanced":
+		return base + " bg-prussian-blue-400"
+	case "intermediate":
+		return base + " bg-old-gold-400"
+	case "familiar":
+		return base + " bg-carbon-black-300"
+	default:
+		return base + " bg-white/40"
+	}
+}
+
+func skillLevelDotClasses(proficiency string) string {
+	base := "pointer-events-none absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full border-2 border-carbon-black-950/80"
+	switch proficiency {
+	case "expert":
+		return base + " bg-strong-cyan-400 shadow-[0_0_8px_rgba(62,193,190,0.5)]"
+	case "advanced":
+		return base + " bg-prussian-blue-400 shadow-[0_0_8px_rgba(17,102,238,0.45)]"
+	case "intermediate":
+		return base + " bg-old-gold-400 shadow-[0_0_8px_rgba(214,191,41,0.4)]"
+	case "familiar":
+		return base + " bg-carbon-black-300 shadow-[0_0_8px_rgba(171,155,135,0.32)]"
+	default:
+		return base + " bg-white/40"
+	}
+}
+
+func proficiencyFillClasses(proficiency string) string {
+	base := "h-full rounded-[3px] transition-[width] duration-300 ease-out"
+	switch proficiency {
+	case "expert":
+		return base + " w-full bg-strong-cyan-400"
+	case "advanced":
+		return base + " w-3/4 bg-prussian-blue-400"
+	case "intermediate":
+		return base + " w-1/2 bg-old-gold-400"
+	case "familiar":
+		return base + " w-1/4 bg-carbon-black-300"
+	default:
+		return base + " w-1/3 bg-white/40"
+	}
 }
 
 func countCategorySkills(skills []types.Skill, proficiency string) int {
@@ -77,65 +228,61 @@ func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activePr
 	return false
 }
 
-templ skillAsset(skill types.Skill, altText string) {
+templ skillAsset(skill types.Skill, altText string, wrapperClass string, imageClass string) {
+	<span class={ wrapperClass }>
 	if skill.IconPath != "" {
-		<img src={ skill.IconPath } alt={ altText } loading="lazy" width="56" height="56"/>
+		<img class={ skillImageClasses(skill.Name, imageClass) } src={ skill.IconPath } alt={ altText } loading="lazy" width="56" height="56"/>
 	} else if skill.Icon != "" {
-		@templ.Raw(skill.Icon)
+		<span class={ imageClass + " flex items-center justify-center [&>svg]:h-full [&>svg]:w-full" }>
+			@templ.Raw(skill.Icon)
+		</span>
 	}
+	</span>
 }
 
 templ featuredSkillCardContent(skill types.Skill) {
-	<div class="skill-card-icon">
-		@skillAsset(skill, skill.Name)
-	</div>
-	<div class="skill-card-content">
-		<h3 class="skill-card-name">{ skill.Name }</h3>
+	@skillAsset(skill, skill.Name, "mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5", "h-10 w-10")
+	<div class="flex w-full flex-1 flex-col items-center gap-2 text-center">
+		<h3 class="text-base font-semibold text-copy-primary">{ skill.Name }</h3>
 		if skill.Category != "" {
-			<span class={ "category-tag", fmt.Sprintf("category-tag-%s", catSlug(skill.Category)) }>{ skill.Category }</span>
+			<span class={ categoryTagClasses(skill.Category) }>{ skill.Category }</span>
 		}
 		if skill.Description != "" {
-			<p class="skill-card-desc">{ skill.Description }</p>
+			<p class="text-xs leading-relaxed text-copy-muted">{ skill.Description }</p>
 		}
-		<div class="skill-proficiency">
-			<div class={ fmt.Sprintf("proficiency-badge proficiency-%s", skill.Proficiency) }>
-				{ skill.Proficiency }
-			</div>
-		</div>
+		<div class={ proficiencyBadgeClasses(skill.Proficiency, false) }>{ skill.Proficiency }</div>
 	</div>
 }
 
 templ conceptCardContent(skill types.Skill) {
-	<div class="concept-icon">
-		@skillAsset(skill, "")
-	</div>
-	<div class="concept-info">
-		<span class="concept-name">{ skill.Name }</span>
-		<div class={ fmt.Sprintf("proficiency-badge proficiency-sm proficiency-%s", skill.Proficiency) }>
+	@skillAsset(skill, "", "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5", "h-7 w-7")
+	<div class="min-w-0 flex-1">
+		<span class="block text-sm font-semibold leading-snug text-copy-primary">{ skill.Name }</span>
+		<div class={ proficiencyBadgeClasses(skill.Proficiency, true) }>
 			{ skill.Proficiency }
 		</div>
 	</div>
 }
 
 templ SkillsGrid(props SkillsGridProps) {
-	<div class="skills-container">
+	<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
 		<!-- Core Competencies -->
 		if len(props.FeaturedSkills) > 0 {
-			<div class="featured-skills-section">
-				<div class="featured-header">
-					<h2 class="featured-title">Core Competencies</h2>
-					<p class="featured-subtitle">My strongest areas of expertise</p>
+			<div class="rounded-[1.75rem] border border-strong-cyan-500/18 bg-[linear-gradient(145deg,rgba(2,14,33,0.96)_0%,rgba(7,41,95,0.78)_48%,rgba(62,193,190,0.1)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+				<div class="mb-8 text-center">
+					<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-strong-cyan-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#65cdcb_0%,#decc54_100%)]">Core Competencies</h2>
+					<p class="mt-4 text-base font-medium text-copy-muted">My strongest areas of expertise</p>
 				</div>
-				<div class="featured-skills-grid">
+				<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 					for i, skill := range props.FeaturedSkills {
-						<div class="featured-skill-card" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
+						<div class="animate-[card-fade-in_0.4s_ease-out_both]" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
 							if skill.Link != "" {
-								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="card skill-card-link">
+								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="group relative flex h-full min-h-0 flex-col items-center rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(2,14,33,0.7)_0%,rgba(7,41,95,0.3)_40%,rgba(255,255,255,0.03)_100%)] px-5 py-6 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-strong-cyan-400/40 hover:bg-[linear-gradient(155deg,rgba(2,14,33,0.82)_0%,rgba(12,39,38,0.48)_45%,rgba(214,191,41,0.08)_100%)] hover:shadow-panel focus-ring">
 									@featuredSkillCardContent(skill)
-									<div class="external-link-icon" aria-hidden="true">↗</div>
+									<div class="absolute right-4 top-4 text-sm text-copy-muted opacity-0 transition group-hover:opacity-100" aria-hidden="true">↗</div>
 								</a>
 							} else {
-								<div class="card skill-card-link skill-card-static">
+								<div class="flex h-full min-h-0 flex-col items-center rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(2,14,33,0.72)_0%,rgba(7,41,95,0.28)_40%,rgba(255,255,255,0.03)_100%)] px-5 py-6 opacity-95">
 									@featuredSkillCardContent(skill)
 								</div>
 							}
@@ -147,27 +294,27 @@ templ SkillsGrid(props SkillsGridProps) {
 		<!-- Concepts & Practices (elevated position) -->
 		for _, cat := range props.Categories {
 			if cat.Name == conceptsCategoryName {
-				<div class="concepts-section">
-					<div class="concepts-header">
-						<h2 class="concepts-title">Concepts &amp; Practices</h2>
-						<p class="concepts-subtitle">Engineering principles that guide my approach</p>
+				<div class="rounded-[1.75rem] border border-prussian-blue-500/18 bg-[linear-gradient(145deg,rgba(2,14,33,0.94)_0%,rgba(7,41,95,0.64)_52%,rgba(62,193,190,0.08)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+					<div class="mb-8 text-center">
+						<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-strong-cyan-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#4084f2_0%,#65cdcb_100%)]">Concepts &amp; Practices</h2>
+						<p class="mt-4 text-base font-medium text-copy-muted">Engineering principles that guide my approach</p>
 					</div>
-					<div class="concepts-grid">
+					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
 						for i, skill := range cat.Skills {
 							if skill.Link != "" {
 								<a
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="card card--teal concept-card"
+									class="group grid min-h-[5.5rem] grid-cols-[auto_1fr_auto] items-center gap-4 rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(7,41,95,0.24)_0%,rgba(62,193,190,0.08)_100%)] px-4 py-4 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-strong-cyan-400/34 hover:shadow-panel focus-ring"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									@conceptCardContent(skill)
-									<span class="concept-arrow" aria-hidden="true">↗</span>
+									<span class="text-sm text-copy-muted opacity-0 transition group-hover:opacity-100" aria-hidden="true">↗</span>
 								</a>
 							} else {
 								<div
-									class="card card--teal concept-card"
+									class="grid min-h-[5.5rem] grid-cols-[auto_1fr] items-center gap-4 rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(7,41,95,0.24)_0%,rgba(62,193,190,0.08)_100%)] px-4 py-4"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									@conceptCardContent(skill)
@@ -188,20 +335,21 @@ templ SkillsGrid(props SkillsGridProps) {
 }
 
 templ SkillsFilterableSection(props SkillsFilterableProps) {
-	<div id="skills-filterable" class="all-skills-section">
+	<div id="skills-filterable" class="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(2,14,33,0.96)_0%,rgba(7,41,95,0.32)_42%,rgba(21,18,15,0.98)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
     <!-- Section Heading -->
-		<div class="all-skills-header">
-			<h2 class="all-skills-title">All Technical Skills</h2>
-      <p class="all-skills-subtitle">A filterable list of my technical toolkit</p>
+		<div class="mb-8 text-center">
+			<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-strong-cyan-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#65cdcb_0%,#decc54_100%)]">All Technical Skills</h2>
+      <p class="mt-4 text-base font-medium text-copy-muted">A filterable list of my technical toolkit</p>
 		</div>
 		<!-- Filter Bar -->
-		<div class="skills-filter-bar">
-			<div class="filter-group">
-				<span class="filter-label">Category</span>
-				<div class="filter-tabs category-filter-tabs" role="group" aria-label="Filter by category">
+		<div class="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
+			<div class="flex flex-col gap-6">
+				<div class="flex flex-col gap-3 lg:flex-row lg:items-start">
+					<span class="min-w-20 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Category</span>
+					<div class="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveCategory == "") }
+							class={ filterTabClasses(props.ActiveCategory == "") }
 						hx-get={ buildFilterURL("", props.ActiveProficiency) }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -213,7 +361,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						if cat.Name != conceptsCategoryName {
 							<button
 								type="button"
-								class={ "filter-tab", templ.KV("active", props.ActiveCategory == cat.Name) }
+									class={ filterTabClasses(props.ActiveCategory == cat.Name) }
 								hx-get={ buildFilterURL(cat.Name, props.ActiveProficiency) }
 								hx-target="#skills-filterable"
 								hx-swap="outerHTML"
@@ -225,12 +373,12 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					}
 				</div>
 			</div>
-			<div class="filter-group">
-				<span class="filter-label">Proficiency</span>
-				<div class="filter-tabs proficiency-filter-tabs" role="group" aria-label="Filter by proficiency">
+				<div class="flex flex-col gap-3 lg:flex-row lg:items-start">
+					<span class="min-w-20 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Proficiency</span>
+					<div class="flex flex-wrap gap-2" role="group" aria-label="Filter by proficiency">
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "") }
+						class={ filterTabClasses(props.ActiveProficiency == "") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -240,65 +388,65 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					</button>
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "expert") }
+						class={ filterTabClasses(props.ActiveProficiency == "expert") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "expert") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "expert") }
 					>
-						<span class="filter-dot level-expert" aria-hidden="true"></span> Expert
+						<span class={ proficiencyFilterDotClasses("expert") } aria-hidden="true"></span> Expert
 					</button>
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "advanced") }
+						class={ filterTabClasses(props.ActiveProficiency == "advanced") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "advanced") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "advanced") }
 					>
-						<span class="filter-dot level-advanced" aria-hidden="true"></span> Advanced
+						<span class={ proficiencyFilterDotClasses("advanced") } aria-hidden="true"></span> Advanced
 					</button>
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "intermediate") }
+						class={ filterTabClasses(props.ActiveProficiency == "intermediate") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "intermediate") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "intermediate") }
 					>
-						<span class="filter-dot level-intermediate" aria-hidden="true"></span> Intermediate
+						<span class={ proficiencyFilterDotClasses("intermediate") } aria-hidden="true"></span> Intermediate
 					</button>
 					<button
 						type="button"
-						class={ "filter-tab", templ.KV("active", props.ActiveProficiency == "familiar") }
+						class={ filterTabClasses(props.ActiveProficiency == "familiar") }
 						hx-get={ buildFilterURL(props.ActiveCategory, "familiar") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
 						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "familiar") }
 					>
-						<span class="filter-dot level-familiar" aria-hidden="true"></span> Familiar
+						<span class={ proficiencyFilterDotClasses("familiar") } aria-hidden="true"></span> Familiar
 					</button>
 				</div>
 			</div>
+			</div>
 		</div>
 		<!-- Skills Grid -->
-		<div class="all-skills-section">
+		<div class="space-y-8">
 			if hasVisibleSkills(props.Categories, props.ActiveCategory, props.ActiveProficiency) {
 				for catIndex, cat := range props.Categories {
 					if cat.Name != conceptsCategoryName && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
 						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
-							<div class="skill-category" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
-								<h3 class="category-title">
+							<div class="animate-[card-fade-in_0.45s_ease-out_both] rounded-2xl border border-white/8 bg-black/10 p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
+								<h3 class="mb-4 flex items-center gap-3 border-l-4 border-l-strong-cyan-400 pl-3 text-base font-semibold uppercase tracking-[0.05em] text-copy-primary sm:text-lg">
 									{ cat.Name }
 
 								</h3>
-								<div class="skills-grid">
+								<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
 									for skillIndex, skill := range cat.Skills {
 										if shouldShowSkill(skill, props.ActiveProficiency) {
 											<button
 												type="button"
-												class="skill-icon-btn"
-												data-tooltip={ skill.Name }
+												class={ skillCardClasses(skill.Proficiency) }
 												data-proficiency={ skill.Proficiency }
 												data-skill-id={ fmt.Sprintf("%d", skill.ID) }
 												hx-get={ fmt.Sprintf("/skills/detail?id=%d", skill.ID) }
@@ -309,20 +457,27 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 												aria-expanded="false"
 												aria-controls={ fmt.Sprintf("detail-slot-%d", catIndex) }
 											>
-												@skillAsset(skill, skill.Name)
-												<span class={ fmt.Sprintf("skill-level-dot level-%s", skill.Proficiency) } aria-hidden="true"></span>
+												@skillAsset(skill, skill.Name, skillIconFrameClasses(skill.Proficiency), "h-8 w-8")
+												<span class="text-sm font-semibold leading-snug text-copy-primary">{ skill.Name }</span>
+												<div class="mt-auto flex w-full items-center justify-between gap-2 pt-3">
+													<span class={ proficiencyBadgeClasses(skill.Proficiency, true) }>{ skill.Proficiency }</span>
+													<span class="inline-flex items-center gap-1 text-[0.68rem] font-medium uppercase tracking-[0.05em] text-copy-muted transition group-hover:text-copy-primary">
+														Details
+														<span class="transition group-hover:translate-x-0.5" aria-hidden="true">→</span>
+													</span>
+												</div>
 											</button>
 										}
 									}
 								</div>
-								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="skill-detail-slot"></div>
+								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="mt-4 overflow-hidden"></div>
 							</div>
 						}
 					}
 				}
 			} else {
-				<div class="no-results">
-					<p>No skills match the selected filters.</p>
+				<div class="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-6 text-center">
+					<p class="text-sm text-copy-secondary">No skills match the selected filters.</p>
 					<button
 						type="button"
 						class="btn btn-secondary btn-sm"

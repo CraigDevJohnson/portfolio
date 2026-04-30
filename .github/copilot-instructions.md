@@ -37,13 +37,15 @@ Dependencies flow downward from `internal/app` through domain packages to `types
 ## Daily Commands
 
 - `just generate` regenerates Templ output.
+- `just tailwind-build` compiles `cmd/web/tailwind/app.css` to `/static/css/tailwind.css` using the pinned standalone Tailwind CLI.
 - `just build` regenerates Templ and builds `portfolio-server`.
 - `just run` builds and runs locally.
 - `just dev` runs `air` for hot reload.
+- `just tailwind-watch` rebuilds the generated Tailwind stylesheet while you edit Tailwind source files.
 - `just test` runs `go test -v ./...`.
 - `just vet` runs `go vet ./...`.
 - `just fmt` runs `golangci-lint fmt --config .golangci.toml`.
-- `just lint` runs Go lint autofixes and CSS stylelint autofixes.
+- `just lint` runs Go lint autofixes.
 
 Prefer the `just` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 
@@ -51,7 +53,8 @@ Prefer the `just` recipes over ad hoc commands. `go fmt ./...` is not this repo'
 
 - Edit `.templ` source files, not generated `*_templ.go` files.
 - Run `just generate` after any `.templ` change unless another command already does it.
-- Per-page CSS follows `cmd/web/static/css/{page}.css` and is wired through the base layout's `Page` prop.
+- Tailwind source lives under `cmd/web/tailwind/`; compile it with `just tailwind-build` or `just tailwind-watch`.
+- CSS-first legacy component/page rules now compile through `cmd/web/tailwind/legacy/` into the generated Tailwind output.
 - Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
 Useful exemplars:

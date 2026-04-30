@@ -7,46 +7,46 @@ templ Skills() {
 		Title: "Technical Proficiencies - Craig Johnson",
 		Page:  "skills",
 	}) {
-		<section class="page-hero skills-hero">
-			<div class="hero-header">
+		<section class="page-hero relative isolate overflow-hidden [--page-hero-overlay-start:rgb(2_14_33_/_0.46)] [--page-hero-overlay-end:rgb(21_18_15_/_0.88)]" style="background-image:url('/static/images/backgrounds/skills-hero.jpg');">
+			<div class="hero-header text-center">
 				<h1>Technical Proficiencies</h1>
-				<p class="lead">A comprehensive toolkit for cloud infrastructure, automation, and security</p>
+				<p class="lead">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
 			</div>
 		</section>
-		<section class="skills-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
-			<div class="skills-container">
+		<section class="mt-8" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
+			<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
 				<!-- Featured skeleton -->
-				<div class="featured-skills-section skeleton-section">
-					<div class="featured-header">
-						<div class="skeleton skeleton-featured-title"></div>
-						<div class="skeleton skeleton-featured-subtitle"></div>
+				<div class="pointer-events-none rounded-[1.75rem] border border-strong-cyan-500/18 bg-[linear-gradient(145deg,rgba(2,14,33,0.96)_0%,rgba(7,41,95,0.78)_48%,rgba(62,193,190,0.1)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+					<div class="mb-8 text-center">
+						<div class="skeleton mx-auto mb-3 h-7 w-56"></div>
+						<div class="skeleton mx-auto h-4 w-72 max-w-full"></div>
 					</div>
-					<div class="featured-skills-grid">
+					<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 						for j := 1; j <= 8; j++ {
-							<div class="skeleton skeleton-featured-card"></div>
+							<div class="skeleton h-56 rounded-2xl"></div>
 						}
 					</div>
 				</div>
 				<!-- Concepts skeleton -->
-				<div class="concepts-section skeleton-section">
-					<div class="concepts-header">
-						<div class="skeleton skeleton-concepts-title"></div>
+				<div class="pointer-events-none rounded-[1.75rem] border border-prussian-blue-500/18 bg-[linear-gradient(145deg,rgba(2,14,33,0.94)_0%,rgba(7,41,95,0.64)_52%,rgba(62,193,190,0.08)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+					<div class="mb-8 text-center">
+						<div class="skeleton mx-auto h-7 w-52"></div>
 					</div>
-					<div class="concepts-grid">
+					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
 						for j := 1; j <= 6; j++ {
-							<div class="skeleton skeleton-concept-card"></div>
+							<div class="skeleton h-[5.5rem] rounded-2xl"></div>
 						}
 					</div>
 				</div>
 				<!-- All skills bar skeleton -->
-				<div class="skeleton skeleton-all-skills-bar"></div>
+				<div class="skeleton h-28 rounded-2xl"></div>
 				<!-- Category skeletons -->
 				for i := 1; i <= 3; i++ {
-					<div class="skill-category skeleton-category">
-						<div class="skeleton skeleton-category-title"></div>
-						<div class="skills-grid">
+					<div class="pointer-events-none rounded-2xl border border-white/8 bg-black/10 p-4 sm:p-5">
+						<div class="skeleton mb-4 h-5 w-44"></div>
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
 							for j := 1; j <= 8; j++ {
-								<div class="skeleton skeleton-badge"></div>
+								<div class="skeleton h-36 rounded-2xl"></div>
 							}
 						</div>
 					</div>

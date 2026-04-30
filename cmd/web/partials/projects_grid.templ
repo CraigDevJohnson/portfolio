@@ -9,29 +9,30 @@ type ProjectsGridProps struct {
 }
 
 templ ProjectsGrid(props ProjectsGridProps) {
-	<div class="projects-grid">
+	<div class="projects-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 		for index, project := range props.Projects {
-			<article class="card project-card" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
-				<div class="project-image">
+			<article class="surface-card project-card group flex h-full flex-col overflow-hidden text-copy-primary" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
+				<div class="project-image relative aspect-video overflow-hidden bg-carbon-black-900">
 					if project.Image != "" {
-						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225"/>
+						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225" class="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-[1.05]"/>
 					} else {
-						<div class="project-placeholder">
+						<div class="project-placeholder flex h-full w-full items-center justify-center bg-linear-to-br from-old-gold-500/10 to-carbon-black-900 text-xs font-semibold uppercase tracking-[0.3em] text-copy-muted">
 							<span>Project</span>
 						</div>
 					}
-					<div class="project-category">{ project.Category }</div>
+					<div class="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-carbon-black-950/80 to-transparent"></div>
+					<div class="project-category absolute right-4 top-4 inline-flex rounded-full border border-old-gold-700/70 bg-old-gold-950/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-old-gold-200 shadow-panel">{ project.Category }</div>
 				</div>
-				<div class="project-content">
-					<h3 class="project-title">{ project.Name }</h3>
-					<p class="project-intro">{ project.Intro }</p>
-					<p class="project-description">{ project.Description }</p>
-					<div class="project-tech">
+				<div class="project-content flex flex-1 flex-col gap-4 p-6">
+					<h3 class="project-title text-xl font-semibold text-copy-primary">{ project.Name }</h3>
+					<p class="project-intro text-sm font-medium text-strong-cyan-200">{ project.Intro }</p>
+					<p class="project-description flex-1 text-sm leading-6 text-copy-secondary">{ project.Description }</p>
+					<div class="project-tech flex flex-wrap gap-2">
 						for _, tech := range project.Technologies {
 							<span class="tech-pill">{ tech }</span>
 						}
 					</div>
-					<div class="project-actions">
+					<div class="project-actions mt-auto flex flex-wrap gap-3">
 						if project.GitHubURL != "" {
 							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
 								GitHub

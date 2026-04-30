@@ -8,6 +8,11 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 BINARY := if os() == "windows" { "portfolio-server.exe" } else { "portfolio-server" }
 GO := "go"
 GOFLAGS := ""
+TAILWIND_VERSION := "v4.2.4"
+TAILWIND_DIR := ".tools/tailwind"
+TAILWIND_BIN := if os() == "windows" { TAILWIND_DIR + "/tailwindcss.exe" } else { TAILWIND_DIR + "/tailwindcss" }
+TAILWIND_INPUT := "cmd/web/tailwind/app.css"
+TAILWIND_OUTPUT := "cmd/web/static/css/tailwind.css"
 
 # Default recipe (runs when you just run 'just')
 default: build
@@ -19,12 +24,23 @@ generate: templ
 # Low-level Templ generation command used by `generate`
 [group('build')]
 templ:
-  {{ GO }} tool templ generate
+    {{ GO }} tool templ generate
+
+# Build Tailwind CSS from the CSS-first source files using the standalone CLI.
+[group('build')]
+tailwind-build:
+    #!/usr/bin/env sh
+    set -eu
+    if [ ! -x "{{ TAILWIND_BIN }}" ]; then
+      echo "Tailwind CLI not found -- please run 'just install-tailwind' to install it"
+      exit 1
+    fi
+    "{{ TAILWIND_BIN }}" -i "{{ TAILWIND_INPUT }}" -o "{{ TAILWIND_OUTPUT }}"
 
 # Build the binary
 [group('build')]
-build: generate
-  {{ GO }} build {{ GOFLAGS }} -o {{ BINARY }} ./cmd/server
+build: generate tailwind-build
+    {{ GO }} build {{ GOFLAGS }} -o {{ BINARY }} ./cmd/server
 
 # Build and run the server
 [group('run')]
@@ -52,7 +68,7 @@ fmt:
 vet:
     {{ GO }} vet ./...
 
-# Lint Go source files and CSS files
+# Lint Go source files
 [group('quality')]
 lint:
     #!/usr/bin/env sh
@@ -62,11 +78,6 @@ lint:
       exit 1
     fi
     golangci-lint run --config .golangci.toml --fix
-    if ! npm list stylelint --depth=0 >/dev/null 2>&1; then
-      echo "stylelint not found -- please run 'just install-lint' to install it"
-      exit 1
-    fi
-    npx stylelint "cmd/web/static/css/**/*.css" --fix
 
 # Check quality, run tests and build the binary
 [group('quality')]
@@ -76,6 +87,17 @@ ci: fmt vet lint test build
 [group('run')]
 dev:
     air
+
+# Watch Tailwind CSS source files and rebuild the generated stylesheet.
+[group('run')]
+tailwind-watch:
+    #!/usr/bin/env sh
+    set -eu
+    if [ ! -x "{{ TAILWIND_BIN }}" ]; then
+      echo "Tailwind CLI not found -- please run 'just install-tailwind' to install it"
+      exit 1
+    fi
+    "{{ TAILWIND_BIN }}" -i "{{ TAILWIND_INPUT }}" -o "{{ TAILWIND_OUTPUT }}" --watch
 
 # Install air for hot-reload development
 [group('tools')]
@@ -95,31 +117,38 @@ install-lint:
       curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
     fi
     echo "golangci-lint is installed and up to date!"
-    echo "Checking stylelint..."
-    if ! command -v npx >/dev/null 2>&1; then
-      echo "npx not found -- please install Node.js and npm"
-      exit 1
-    fi
-    if [ ! -d node_modules/stylelint ] || [ ! -d node_modules/stylelint-config-standard ]; then
-      echo "stylelint dependencies not installed -- running npm ci..."
-      npm ci
-    fi
-    echo "stylelint is installed and ready to use!"
+
+# Install the pinned Tailwind standalone CLI used by local builds, CI, and Docker.
+[group('tools')]
+install-tailwind:
+    #!/usr/bin/env sh
+    set -eu
+    os=$(uname -s)
+    arch=$(uname -m)
+    case "$os/$arch" in
+      Darwin/arm64) asset="tailwindcss-macos-arm64" ;;
+      Darwin/x86_64) asset="tailwindcss-macos-x64" ;;
+      Linux/x86_64|Linux/amd64) asset="tailwindcss-linux-x64" ;;
+      Linux/aarch64|Linux/arm64) asset="tailwindcss-linux-arm64" ;;
+      *)
+        echo "Unsupported platform for Tailwind CLI: $os/$arch"
+        exit 1
+        ;;
+    esac
+    mkdir -p "{{ TAILWIND_DIR }}"
+    curl -fsSL -o "{{ TAILWIND_BIN }}" "https://github.com/tailwindlabs/tailwindcss/releases/download/{{ TAILWIND_VERSION }}/$asset"
+    chmod +x "{{ TAILWIND_BIN }}"
+    echo "Tailwind CLI {{ TAILWIND_VERSION }} installed to {{ TAILWIND_BIN }}"
 
 # Install all development tools
 [group('tools')]
-install-tools: install-air install-lint
+install-tools: install-air install-lint install-tailwind
     @echo "All development tools installed successfully!"
 
 # Run tests
 [group('test')]
 test:
     {{ GO }} test -v ./...
-
-# Run Lighthouse audit against local server (accessibility, best-practices, SEO)
-[group('quality')]
-lighthouse url="http://localhost:8080":
-    npx lighthouse {{ url }} --only-categories=accessibility,best-practices,seo --output=html --view
 
 # Show this help message
 [group('help')]
@@ -199,6 +228,6 @@ logs:
 # Output logs from Docker container running from docker compose. Useful for local development with `just compose`.
 [group('troubleshoot')]
 local-logs:
-	#!/usr/bin/env sh
-	set -eu
-	docker compose -f docker-compose.yml logs --tail=200 -f portfolio
+    #!/usr/bin/env sh
+    set -eu
+    docker compose -f docker-compose.yml logs --tail=200 -f portfolio

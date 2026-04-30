@@ -1,0 +1,16 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+
+@source "../layouts";
+@source "../pages";
+@source "../partials";
+@source "../static/js";
+
+@import "./theme.css";
+@import "./shared.css" layer(components);
+@import "./experience.css" layer(components);
+@import "./soccer.css" layer(components);
+@import "./base.css";
+@import "./components.css";
+@import "tailwindcss/utilities.css" layer(utilities);

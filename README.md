@@ -35,7 +35,7 @@ A server-rendered Go application using Templ for type-safe component-based templ
 - **Backend**: Go 1.26.1
 - **Templating**: [Templ](https://templ.guide/) - Type-safe Go templating engine
 - **Frontend Interactivity**: HTMX 1.9
-- **Styling**: Custom CSS with CSS Variables
+- **Styling**: Tailwind CSS v4 standalone CLI with CSS-first theme and component layers
 - **Fonts**: Inter (Google Fonts)
 
 ## Getting Started
@@ -44,12 +44,16 @@ A server-rendered Go application using Templ for type-safe component-based templ
 
 - Go 1.26.1
 - Just command runner
+- `curl` (used by `just install-tailwind` to download the pinned standalone Tailwind CLI)
 
 ### Installation
 
 ```bash
 # Install dependencies
 go mod download
+
+# Install the pinned Tailwind standalone CLI
+just install-tailwind
 
 # Build the project (generates Templ components and compiles)
 just build
@@ -77,15 +81,25 @@ The server will start at `http://localhost:8080`
 For development with hot reload, use `just dev` which requires [air](https://github.com/air-verse/air):
 
 ```bash
-# Install air
-just install-air
+# Install air and the pinned Tailwind standalone CLI
+just install-tools
 
-# Start development server with hot reload
+# In one terminal, rebuild Tailwind CSS while you edit Tailwind source files
+just tailwind-watch
+
+# In another terminal, start the Go hot-reload loop
 just dev
 ```
 
 **Note**: When you edit `.templ` files, run `just generate` separately.
 The `air` hot-reload loop started by `just dev` does not regenerate Templ output.
+
+Tailwind source files live under `cmd/web/tailwind/`. The generated output is
+written to `cmd/web/static/css/tailwind.css` and is not committed.
+
+The remaining shared and page styles are compiled through the Tailwind pipeline
+from `cmd/web/tailwind/legacy/`, so the app only serves the generated
+`tailwind.css` at runtime.
 
 ### Validation
 
@@ -221,11 +235,11 @@ For more information on Templ syntax, see the [Templ documentation](https://temp
 
 ### Styling
 
-Shared design tokens and reusable UI primitives live in
-`cmd/web/static/css/styles.css`, while page-specific CSS files only layer on
-the styles unique to each route. The shared stylesheet owns:
+Shared design tokens, reusable UI primitives, and the remaining CSS-first
+legacy rules live under `cmd/web/tailwind/`, and compile into the generated
+`cmd/web/static/css/tailwind.css`. The shared styling system owns:
 
-- Colors (light and dark themes)
+- Colors for the dark-first Tailwind theme
 - Spacing
 - Typography
 - Shadows

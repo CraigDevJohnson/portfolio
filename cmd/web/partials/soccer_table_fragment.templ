@@ -26,17 +26,17 @@ func visibleGamesCount(props SoccerTableFragmentProps) int {
 func resultBadgeClass(outcome string) string {
 	switch outcome {
 	case schedule.OutcomeWin:
-		return "result-badge result-badge--win"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-strong-cyan-500/30 bg-strong-cyan-500/14 px-2 py-0.5 text-sm font-semibold text-strong-cyan-100"
 	case schedule.OutcomeLoss:
-		return "result-badge result-badge--loss"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-inferno-500/26 bg-inferno-500/14 px-2 py-0.5 text-sm font-semibold text-inferno-100"
 	case schedule.OutcomeDraw:
-		return "result-badge result-badge--draw"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-old-gold-500/26 bg-old-gold-500/14 px-2 py-0.5 text-sm font-semibold text-old-gold-100"
 	case schedule.OutcomeCanceled:
-		return "result-badge result-badge--canceled"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-700/40 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
 	case schedule.OutcomeFinal:
-		return "result-badge result-badge--final"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-700/40 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
 	default:
-		return "result-badge"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-sm font-semibold text-copy-secondary"
 	}
 }
 
@@ -75,7 +75,7 @@ templ SoccerGameRows(sectionKey string, games []types.Game) {
 				if outcome.Parsed {
 					<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
 				} else if outcome.Raw != "" {
-					<span class="result-badge">{ outcome.Raw }</span>
+					<span class={ resultBadgeClass("") }>{ outcome.Raw }</span>
 				}
 			</td>
 		</tr>
@@ -260,9 +260,9 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			}
 			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
 				if !props.GoogleAvailable {
-					<div class="soccer-login-message" role="status">Google Calendar add is unavailable in this environment.</div>
+					@SoccerLoginFeedback(SoccerLoginFeedbackProps{Kind: "", Message: "Google Calendar add is unavailable in this environment."})
 				} else if !props.GoogleConnected {
-					<div class="soccer-login-message" role="status">Connect Google Calendar to add selected games directly or sync selected past results.</div>
+					@SoccerLoginFeedback(SoccerLoginFeedbackProps{Kind: "", Message: "Connect Google Calendar to add selected games directly or sync selected past results."})
 				}
 			</div>
 		</div>

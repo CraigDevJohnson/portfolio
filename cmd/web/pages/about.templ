@@ -17,48 +17,51 @@ templ About(props AboutProps) {
 		Title: "About Me - Craig Johnson",
 		Page:  "about",
 	}) {
-		<section class="page-hero about-hero">
-			<div class="hero-header">
-				<h1>About Me</h1>
-				<p class="lead">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale</p>
+		<section class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20" style="background-image: url('/static/images/backgrounds/about-hero.jpg')">
+			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-prussian-blue-950/68"></div>
+			<div class="relative max-w-3xl space-y-5">
+				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">About Me</h1>
+				<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
 			</div>
 		</section>
-		<section class="about-stats">
-			<div class="stats-grid">
-				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
-					<span class="about-stat-label">Years in Tech</span>
+
+		<section class="about-stats py-10 sm:py-12">
+			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
+					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
+					<span class="mt-2 block text-sm font-medium text-copy-muted">Years in Tech</span>
 				</div>
-				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
-					<span class="about-stat-label">Certifications</span>
+				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
+					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
+					<span class="mt-2 block text-sm font-medium text-copy-muted">Certifications</span>
 				</div>
-				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-counter data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
-					<span class="about-stat-label">Technologies</span>
+				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
+					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
+					<span class="mt-2 block text-sm font-medium text-copy-muted">Technologies</span>
 				</div>
-				<div class="card card--compact stagger-enter about-stat-card">
-					<span class="about-stat-value" data-counter data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
-					<span class="about-stat-label">Cups of Coffee</span>
-					<span class="about-stat-icon" aria-hidden="true">☕</span>
+				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
+					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
+					<span class="mt-2 block text-sm font-medium text-copy-muted">Cups of Coffee</span>
+					<span class="absolute right-4 top-4 text-2xl opacity-50" aria-hidden="true">☕</span>
 				</div>
 			</div>
 		</section>
-		<section class="about-story">
-			<div class="story-content">
-				<div class="story-main">
+
+		<section class="py-12 sm:py-14">
+			<div class="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
+				<div class="space-y-6">
 					<div class="section-label">
 						<span class="label-line" aria-hidden="true"></span>
 						<span>My Story</span>
 					</div>
-					<h2 class="story-title">From the Last Frontier to the Cloud</h2>
-					<div class="story-text">
+					<h2 class="text-3xl font-bold tracking-tight text-copy-primary">From the Last Frontier to the Cloud</h2>
+					<div class="space-y-5 text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 						<p>
 							I'm a passionate tech enthusiast who has journeyed from the frosty expanses of Alaska to
-							embrace new opportunities and challenges. I'm happily married with two wonderful kids, and
-							our family is rounded out by our two beloved dogs.
+							embrace new opportunities and challenges. I'm happily married with two wonderful kids,
+							and our family is rounded out by our two beloved dogs.
 						</p>
-						<blockquote class="story-quote">
+						<blockquote class="rounded-r-2xl border-l-4 border-old-gold-400/80 bg-linear-to-br from-old-gold-500/10 to-strong-cyan-500/5 px-6 py-5 text-lg italic text-copy-primary shadow-panel">
 							"The decision to move out of Alaska was driven by a desire for greater opportunities and the chance to expand my horizons."
 						</blockquote>
 						<p>
@@ -74,160 +77,142 @@ templ About(props AboutProps) {
 						</p>
 					</div>
 				</div>
-				<div class="story-sidebar">
-					<div class="quick-facts-card">
-						<h3>Quick Facts</h3>
-						<div class="facts-grid">
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">📍</span>
-								<span class="fact-text">Originally from Alaska</span>
-							</div>
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">👨‍👩‍👧‍👦</span>
-								<span class="fact-text">Family of 4 + 1 dog</span>
-							</div>
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">⚽</span>
-								<span class="fact-text">Lifelong soccer enthusiast</span>
-							</div>
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">🎓</span>
-								<span class="fact-text">BS in Cloud Computing</span>
-							</div>
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">☁️</span>
-								<span class="fact-text">Cloud & automation specialist</span>
-							</div>
-							<div class="fact-item">
-								<span class="fact-icon" aria-hidden="true">📚</span>
-								<span class="fact-text">Continuous learner</span>
-							</div>
+
+				<div class="surface-card-strong p-6 xl:sticky xl:top-[calc(var(--header-height)+1.5rem)]">
+					<h3 class="text-gradient-brand text-xl font-semibold">Quick Facts</h3>
+					<div class="mt-5 grid gap-3">
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">📍</span>
+							<span>Originally from Alaska</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">👨‍👩‍👧‍👦</span>
+							<span>Family of 4 + 1 dog</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">⚽</span>
+							<span>Lifelong soccer enthusiast</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">🎓</span>
+							<span>BS in Cloud Computing</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">☁️</span>
+							<span>Cloud &amp; automation specialist</span>
+						</div>
+						<div class="flex items-center gap-3 rounded-xl bg-carbon-black-950/55 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:bg-old-gold-500/10 hover:text-copy-primary">
+							<span class="text-xl" aria-hidden="true">📚</span>
+							<span>Continuous learner</span>
 						</div>
 					</div>
 				</div>
 			</div>
 		</section>
-		<section class="about-journey">
+
+		<section class="space-y-6 py-12 sm:py-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Career Timeline</span>
 			</div>
-			<h2 class="journey-title">The Journey So Far</h2>
-			<div class="journey-timeline">
-				<div class="timeline-track"></div>
-				<div class="timeline-item">
-					<div class="timeline-marker"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">2012</span>
-						<h3>Started in Tech</h3>
-						<p>Service Desk Student Analyst — first steps into IT support and troubleshooting</p>
-					</div>
+			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">The Journey So Far</h2>
+			<div class="relative pl-7">
+				<div class="absolute bottom-0 left-2 top-0 w-px bg-linear-to-b from-old-gold-400 to-old-gold-400/20"></div>
+				<div class="relative pb-8 pl-6">
+					<div class="absolute left-[-1.15rem] top-1 h-4 w-4 rounded-full border-2 border-old-gold-400 bg-carbon-black-950 shadow-[0_0_0_4px_rgba(214,191,41,0.12)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">2012</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">Started in Tech</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Service Desk Student Analyst — first steps into IT support and troubleshooting.</p>
 				</div>
-				<div class="timeline-item">
-					<div class="timeline-marker"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">2016</span>
-						<h3>Healthcare IT</h3>
-						<p>Moved into healthcare technology — ensuring systems enhance patient care</p>
-					</div>
+				<div class="relative pb-8 pl-6">
+					<div class="absolute left-[-1.15rem] top-1 h-4 w-4 rounded-full border-2 border-old-gold-400 bg-carbon-black-950 shadow-[0_0_0_4px_rgba(214,191,41,0.12)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">2016</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">Healthcare IT</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Moved into healthcare technology — ensuring systems enhance patient care.</p>
 				</div>
-				<div class="timeline-item">
-					<div class="timeline-marker"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">2018</span>
-						<h3>Microsoft Certified</h3>
-						<p>Earned MCSA & MCSE certifications — deep dive into enterprise infrastructure</p>
-					</div>
+				<div class="relative pb-8 pl-6">
+					<div class="absolute left-[-1.15rem] top-1 h-4 w-4 rounded-full border-2 border-old-gold-400 bg-carbon-black-950 shadow-[0_0_0_4px_rgba(214,191,41,0.12)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">2018</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">Microsoft Certified</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Earned MCSA and MCSE certifications — a deep dive into enterprise infrastructure.</p>
 				</div>
-				<div class="timeline-item">
-					<div class="timeline-marker"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">2021</span>
-						<h3>Cloud Transition</h3>
-						<p>Pivoted to cloud engineering — AWS, Azure, and infrastructure as code</p>
-					</div>
+				<div class="relative pb-8 pl-6">
+					<div class="absolute left-[-1.15rem] top-1 h-4 w-4 rounded-full border-2 border-old-gold-400 bg-carbon-black-950 shadow-[0_0_0_4px_rgba(214,191,41,0.12)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">2021</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">Cloud Transition</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Pivoted to cloud engineering — AWS, Azure, and infrastructure as code.</p>
 				</div>
-				<div class="timeline-item">
-					<div class="timeline-marker"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">2023</span>
-						<h3>BS in Cloud Computing</h3>
-						<p>Completed degree at Western Governors University with multiple cloud certifications</p>
-					</div>
+				<div class="relative pb-8 pl-6">
+					<div class="absolute left-[-1.15rem] top-1 h-4 w-4 rounded-full border-2 border-old-gold-400 bg-carbon-black-950 shadow-[0_0_0_4px_rgba(214,191,41,0.12)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">2023</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">BS in Cloud Computing</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Completed the degree at Western Governors University with multiple cloud certifications.</p>
 				</div>
-				<div class="timeline-item">
-					<div class="timeline-marker active"></div>
-					<div class="timeline-content">
-						<span class="timeline-year">Now</span>
-						<h3>Cloud Engineer Principal</h3>
-						<p>Leading cloud infrastructure, automation, and DevOps practices</p>
-					</div>
+				<div class="relative pl-6">
+					<div class="absolute left-[-1.2rem] top-1 h-5 w-5 rounded-full border-2 border-strong-cyan-300 bg-strong-cyan-500 shadow-[0_0_0_4px_rgba(62,193,190,0.18)]"></div>
+					<span class="text-sm font-semibold uppercase tracking-[0.2em] text-strong-cyan-200">Now</span>
+					<h3 class="mt-2 text-xl font-semibold text-copy-primary">Cloud Engineer Principal</h3>
+					<p class="mt-2 text-base leading-7 text-copy-secondary">Leading cloud infrastructure, automation, and DevOps practices.</p>
 				</div>
 			</div>
 		</section>
-		<section class="about-interests">
+
+		<section class="space-y-6 py-12 sm:py-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Beyond the Code</span>
 			</div>
-			<h2 class="interests-title">When I'm Not in the Terminal</h2>
-			<div class="interests-grid">
-				<div class="card stagger-enter interest-card">
-					<span class="interest-icon">⚽</span>
-					<h3>Soccer</h3>
-					<p>Playing and coaching — built a schedule tool to manage team calendars</p>
+			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">When I'm Not in the Terminal</h2>
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="surface-card stagger-enter p-6 text-center">
+					<span class="mb-4 block text-3xl">⚽</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Soccer</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Playing and coaching — plus building tools to manage match schedules.</p>
 				</div>
-				<div class="card stagger-enter interest-card">
-					<span class="interest-icon">🏔️</span>
-					<h3>Outdoors</h3>
-					<p>Alaska roots means a love for hiking, fishing, and exploring nature</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<span class="mb-4 block text-3xl">🏔️</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Outdoors</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Alaska roots mean a love for hiking, fishing, and exploring nature.</p>
 				</div>
-				<div class="card stagger-enter interest-card">
-					<span class="interest-icon">🎮</span>
-					<h3>Gaming</h3>
-					<p>Strategy and building games — same problem-solving muscles as engineering</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<span class="mb-4 block text-3xl">🎮</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Gaming</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Strategy and building games exercise the same problem-solving muscles as engineering.</p>
 				</div>
-				<div class="card stagger-enter interest-card">
-					<span class="interest-icon">🐕</span>
-					<h3>Dog Dad</h3>
-					<p>Two furry coworkers who keep the home office lively</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<span class="mb-4 block text-3xl">🐕</span>
+					<h3 class="text-lg font-semibold text-copy-primary">Dog Dad</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.</p>
 				</div>
 			</div>
 		</section>
-		<section class="about-values">
+
+		<section class="space-y-6 py-12 sm:py-14">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>What Drives Me</span>
 			</div>
-			<h2 class="values-title">Core Values</h2>
-			<div class="values-grid">
-				<div class="card stagger-enter value-card">
-					<div class="icon-wrap">
-						<span class="value-icon">🔄</span>
-					</div>
-					<h3>Continuous Improvement</h3>
-					<p>Always iterating, always learning — there's always a better way to build</p>
+			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Core Values</h2>
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">🔄</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Continuous Improvement</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Always iterating, always learning — there&apos;s always a better way to build.</p>
 				</div>
-				<div class="card stagger-enter value-card">
-					<div class="icon-wrap">
-						<span class="value-icon">🤝</span>
-					</div>
-					<h3>Collaboration</h3>
-					<p>The best solutions come from diverse perspectives working together</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/60 text-3xl shadow-panel">🤝</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Collaboration</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">The best solutions come from diverse perspectives working together.</p>
 				</div>
-				<div class="card stagger-enter value-card">
-					<div class="icon-wrap">
-						<span class="value-icon">🧩</span>
-					</div>
-					<h3>Problem Solving</h3>
-					<p>Breaking down complex challenges into elegant, maintainable solutions</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/70 text-3xl shadow-panel">🧩</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Problem Solving</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Breaking down complex challenges into elegant, maintainable solutions.</p>
 				</div>
-				<div class="card stagger-enter value-card">
-					<div class="icon-wrap">
-						<span class="value-icon">📝</span>
-					</div>
-					<h3>Documentation</h3>
-					<p>If it isn't documented, it doesn't exist — clear docs enable great teams</p>
+				<div class="surface-card stagger-enter p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/60 text-3xl shadow-panel">📝</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Documentation</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">If it isn&apos;t documented, it doesn&apos;t exist — clear docs enable great teams.</p>
 				</div>
 			</div>
 		</section>

@@ -1,0 +1,91 @@
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --color-old-gold-50: #fbf9ea;
+  --color-old-gold-100: #f7f2d4;
+  --color-old-gold-200: #efe5a9;
+  --color-old-gold-300: #e7d97e;
+  --color-old-gold-400: #decc54;
+  --color-old-gold-500: #d6bf29;
+  --color-old-gold-600: #ab9921;
+  --color-old-gold-700: #817318;
+  --color-old-gold-800: #564c10;
+  --color-old-gold-900: #2b2608;
+  --color-old-gold-950: #1e1b06;
+
+  --color-strong-cyan-50: #ecf9f9;
+  --color-strong-cyan-100: #d8f3f2;
+  --color-strong-cyan-200: #b2e6e5;
+  --color-strong-cyan-300: #8bdad8;
+  --color-strong-cyan-400: #65cdcb;
+  --color-strong-cyan-500: #3ec1be;
+  --color-strong-cyan-600: #329a98;
+  --color-strong-cyan-700: #257472;
+  --color-strong-cyan-800: #194d4c;
+  --color-strong-cyan-900: #0c2726;
+  --color-strong-cyan-950: #091b1b;
+
+  --color-prussian-blue-50: #e7f0fd;
+  --color-prussian-blue-100: #cfe0fc;
+  --color-prussian-blue-200: #a0c2f8;
+  --color-prussian-blue-300: #70a3f5;
+  --color-prussian-blue-400: #4084f2;
+  --color-prussian-blue-500: #1166ee;
+  --color-prussian-blue-600: #0d51bf;
+  --color-prussian-blue-700: #0a3d8f;
+  --color-prussian-blue-800: #07295f;
+  --color-prussian-blue-900: #031430;
+  --color-prussian-blue-950: #020e21;
+
+  --color-inferno-50: #ffe6e6;
+  --color-inferno-100: #ffcccd;
+  --color-inferno-200: #fe9a9b;
+  --color-inferno-300: #fe6769;
+  --color-inferno-400: #fe3437;
+  --color-inferno-500: #fe0105;
+  --color-inferno-600: #cb0104;
+  --color-inferno-700: #980103;
+  --color-inferno-800: #650102;
+  --color-inferno-900: #330001;
+  --color-inferno-950: #240001;
+
+  --color-carbon-black-50: #f5f2f0;
+  --color-carbon-black-100: #eae6e1;
+  --color-carbon-black-200: #d5cdc3;
+  --color-carbon-black-300: #c0b4a5;
+  --color-carbon-black-400: #ab9b87;
+  --color-carbon-black-500: #968269;
+  --color-carbon-black-600: #786854;
+  --color-carbon-black-700: #5a4e3f;
+  --color-carbon-black-800: #3c342a;
+  --color-carbon-black-900: #1e1a15;
+  --color-carbon-black-950: #15120f;
+
+  --color-surface-canvas: var(--color-carbon-black-950);
+  --color-surface-panel: var(--color-carbon-black-900);
+  --color-surface-raised: var(--color-carbon-black-800);
+  --color-copy-primary: var(--color-carbon-black-50);
+  --color-copy-secondary: var(--color-carbon-black-200);
+  --color-copy-muted: var(--color-carbon-black-300);
+  --color-brand-primary: var(--color-old-gold-500);
+  --color-brand-primary-hover: var(--color-old-gold-400);
+  --color-brand-primary-foreground: var(--color-carbon-black-950);
+  --color-brand-secondary: var(--color-strong-cyan-500);
+  --color-brand-secondary-hover: var(--color-strong-cyan-400);
+  --color-brand-link: var(--color-strong-cyan-200);
+  --color-brand-link-hover: var(--color-strong-cyan-100);
+  --color-focus-ring: var(--color-strong-cyan-300);
+  --color-info-surface: var(--color-prussian-blue-900);
+  --color-info-border: var(--color-prussian-blue-700);
+  --color-danger-surface: var(--color-inferno-950);
+  --color-danger-border: var(--color-inferno-700);
+  --color-success-surface: var(--color-strong-cyan-950);
+  --color-success-border: var(--color-strong-cyan-700);
+
+  --shadow-panel: 0 18px 40px rgb(21 18 15 / 0.35);
+  --shadow-panel-strong: 0 24px 55px rgb(21 18 15 / 0.45);
+
+  --breakpoint-xs: 30rem;
+  --container-site: 75rem;
+  --container-reading: 48rem;
+}

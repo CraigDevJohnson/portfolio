@@ -39,10 +39,7 @@ templ Base(props BaseProps) {
 				rel="stylesheet"
 			/>
 			<!-- Styles -->
-			<link rel="stylesheet" href="/static/css/styles.css?v=20260424a"/>
-			if props.Page != "" {
-				<link rel="stylesheet" href={ "/static/css/" + props.Page + ".css?v=20260424a" }/>
-			}
+			<link rel="stylesheet" href="/static/css/tailwind.css?v=20260428a"/>
 			<!-- HTMX with integrity check -->
 			<script
 				src="https://unpkg.com/htmx.org@1.9.10"
@@ -56,10 +53,10 @@ templ Base(props BaseProps) {
 				class="soccer-theme"
 			}
 		>
-			<a href="#maincontent" class="skip-link">Skip to main content</a>
+			<a href="#maincontent" class="skip-link sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[300] focus:rounded-lg focus:border focus:border-white/15 focus:bg-carbon-black-900 focus:px-4 focus:py-2 focus:text-copy-primary">Skip to main content</a>
 			@partials.Header(props.Page)
-			<main id="maincontent" class="main-content" tabindex="-1">
-				<div class="container">
+			<main id="maincontent" class="main-content flex-1 pt-[var(--header-height)]" tabindex="-1">
+				<div class="container mx-auto w-full max-w-[var(--container-max)] px-6 max-[480px]:px-4">
 					{ children... }
 				</div>
 			</main>

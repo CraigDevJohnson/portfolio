@@ -1,148 +1,8 @@
-/* ================================
-  Experience Page Styles - Card Gallery
-================================ */
-
-/* Hero Section */
-.experience-hero {
-  background-image: url('/static/images/backgrounds/experience-hero.jpg');
-}
-
-/* Summary Section */
-.experience-summary {
-  padding: 0 0 var(--space-3xl);
-}
-
-/* Icon wraps for stat cards and highlight cards */
-.summary-card:hover .icon-wrap,
-.highlight-card:hover .icon-wrap {
-  transform: scale(1.1);
-  box-shadow: 0 0 24px rgb(234 88 12 / 30%);
-}
-
-.exp-icon {
-  font-size: var(--text-2xl);
-}
-
-/* Lead subtitle */
-.lead-sub {
-  font-size: var(--text-base);
-  color: var(--fg-muted);
-  margin-top: var(--space-sm);
-  max-width: 540px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-lg);
-}
-
-.summary-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.summary-value {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-extrabold);
-  background: var(--accent-primary-gradient);
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: var(--space-xs);
-}
-
-.summary-label {
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-}
+/* Experience page component-layer styles */
 
 /* Career Section Wrapper */
 .career-section-wrapper {
   margin-bottom: var(--space-2xl);
-}
-
-/* ================================
-   Career Highlights Section
-================================ */
-
-.career-highlights {
-  padding: 0 0 var(--space-2xl);
-}
-
-.highlight-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-lg);
-}
-
-.highlight-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: var(--space-xl);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  transition: all var(--duration-normal) var(--ease-out);
-  position: relative;
-  overflow: hidden;
-  animation: card-fade-in var(--duration-slow) var(--ease-out) both;
-}
-
-.highlight-card:nth-child(1) { animation-delay: 0.1s; }
-.highlight-card:nth-child(2) { animation-delay: 0.2s; }
-.highlight-card:nth-child(3) { animation-delay: 0.3s; }
-.highlight-card:nth-child(4) { animation-delay: 0.4s; }
-
-.highlight-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgb(234 88 12 / 8%) 0%,
-    transparent 50%,
-    rgb(13 148 136 / 8%) 100%
-  );
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.highlight-card:hover::before {
-  opacity: 1;
-}
-
-.highlight-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.highlight-card:hover {
-  transform: translateY(-6px);
-  border-color: rgb(234 88 12 / 30%);
-  box-shadow:
-    var(--shadow-lg),
-    0 0 32px rgb(234 88 12 / 15%);
-}
-
-.highlight-title {
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-  color: var(--fg-primary);
-  margin-bottom: var(--space-xs);
-}
-
-.highlight-desc {
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-  line-height: var(--leading-relaxed);
 }
 
 /* Filter intro text */
@@ -159,7 +19,7 @@
 
 .experience-filters {
   padding: var(--space-xl) 0 var(--space-2xl);
-  background: var(--bg-secondary);
+  background: linear-gradient(135deg, rgb(7 41 95 / 18%) 0%, rgb(12 39 38 / 12%) 100%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-2xl);
@@ -202,13 +62,14 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+  -webkit-user-select: none;
   user-select: none;
   padding: var(--space-sm) 0;
   transition: color var(--duration-fast);
 }
 
 .collapsible-button:hover {
-  color: var(--accent-primary);
+  color: var(--fg-accent);
 }
 
 .collapsible-button:focus {
@@ -238,7 +99,7 @@
 .filter-count {
   font-size: var(--text-sm);
   font-weight: var(--font-bold);
-  color: var(--accent-primary);
+  color: var(--fg-accent);
   margin-left: var(--space-xs);
 }
 
@@ -261,7 +122,7 @@
   padding: var(--space-xs) var(--space-md);
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  background: var(--bg-tertiary);
+  background: linear-gradient(135deg, rgb(7 41 95 / 18%) 0%, rgb(12 39 38 / 12%) 100%);
   color: var(--fg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
@@ -271,22 +132,22 @@
 }
 
 .filter-pill:hover {
-  background: var(--bg-primary);
-  border-color: var(--accent-primary);
+  background: rgb(255 255 255 / 6%);
+  border-color: var(--fg-accent);
   color: var(--fg-primary);
   transform: translateY(-1px);
 }
 
 .filter-pill.active {
   background: var(--accent-primary);
-  color: white;
+  color: var(--color-brand-primary-foreground);
   border-color: var(--accent-primary);
   box-shadow: 0 2px 8px rgb(var(--accent-primary-rgb), 0.3);
 }
 
 .filter-pill.active:hover {
   background: var(--accent-secondary);
-  color: white;
+  color: var(--color-brand-primary-foreground);
   border-color: var(--accent-secondary);
 }
 
@@ -319,7 +180,7 @@
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
   background: var(--accent-primary-gradient);
-  color: white;
+  color: var(--color-brand-primary-foreground);
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
   border-radius: var(--radius-full);
@@ -391,9 +252,9 @@
 .career-card {
   background: linear-gradient(
     135deg,
-    rgb(234 88 12 / 8%) 0%,
-    rgb(255 255 255 / 3%) 50%,
-    rgb(234 88 12 / 5%) 100%
+    rgb(7 41 95 / 22%) 0%,
+    rgb(12 39 38 / 16%) 45%,
+    rgb(var(--accent-primary-rgb), 0.04) 100%
   );
   animation: card-fade-in var(--duration-slow) var(--ease-out) both;
   display: flex;
@@ -404,9 +265,9 @@
 .career-card:hover {
   background: linear-gradient(
     135deg,
-    rgb(234 88 12 / 12%) 0%,
-    rgb(255 255 255 / 6%) 50%,
-    rgb(234 88 12 / 8%) 100%
+    rgb(7 41 95 / 28%) 0%,
+    rgb(var(--accent-secondary-rgb), 0.14) 45%,
+    rgb(var(--accent-primary-rgb), 0.08) 100%
   );
 }
 
@@ -414,7 +275,7 @@
 .career-card.highlighted {
   border-color: var(--accent-primary);
   border-width: 2px;
-  box-shadow: 0 0 20px rgb(79 70 229 / 15%);
+  box-shadow: 0 0 20px rgb(var(--accent-secondary-rgb), 0.18);
 }
 
 .career-card.highlighted .tech-pill[data-tech] {
@@ -441,9 +302,9 @@
   border-width: 2px;
   background: linear-gradient(
     135deg,
-    rgb(79 70 229 / 10%) 0%,
-    rgb(255 255 255 / 4%) 45%,
-    rgb(234 88 12 / 8%) 100%
+    rgb(7 41 95 / 32%) 0%,
+    rgb(var(--accent-secondary-rgb), 0.14) 45%,
+    rgb(var(--accent-primary-rgb), 0.08) 100%
   );
 }
 
@@ -462,7 +323,7 @@
   gap: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
   background: var(--accent-primary-gradient);
-  color: white;
+  color: var(--color-brand-primary-foreground);
   border-radius: var(--radius-full);
   font-size: 11px;
 }
@@ -492,7 +353,7 @@
 .career-card .company {
   display: block;
   font-size: var(--text-base);
-  color: var(--fg-accent);
+  color: var(--color-strong-cyan-200);
   font-weight: var(--font-medium);
   margin-bottom: var(--space-xs);
 }
@@ -502,7 +363,7 @@
   font-size: var(--text-xs);
   color: var(--fg-muted);
   padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-tertiary);
+  background: linear-gradient(135deg, rgb(7 41 95 / 22%) 0%, rgb(12 39 38 / 16%) 100%);
   border-radius: var(--radius-sm);
   font-weight: var(--font-medium);
 }
@@ -538,7 +399,7 @@
 .tech-pill {
   font-size: var(--text-xs);
   padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-tertiary);
+  background: linear-gradient(135deg, rgb(7 41 95 / 24%) 0%, rgb(12 39 38 / 16%) 100%);
   color: var(--fg-secondary);
   border-radius: var(--radius-full);
   font-weight: var(--font-medium);
@@ -548,7 +409,7 @@
 
 .tech-pill:hover {
   background: var(--accent-primary);
-  color: white;
+  color: var(--color-brand-primary-foreground);
 }
 
 /* Skeleton Loading States */
@@ -600,14 +461,6 @@
 }
 
 @media (width <= 1024px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .highlight-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .filter-pills {
     gap: var(--space-xs);
   }
@@ -619,12 +472,8 @@
     gap: var(--space-lg);
   }
 
-  .highlight-grid {
-    grid-template-columns: 1fr;
-  }
-
   .career-card {
-    min-height: auto;
+    min-height: unset;
     padding: var(--space-lg);
   }
 
@@ -667,16 +516,4 @@
 }
 
 @media (width <= 480px) {
-  .summary-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-md);
-  }
-
-  .summary-card {
-    padding: var(--space-md);
-  }
-
-  .summary-value {
-    font-size: var(--text-xl);
-  }
 }

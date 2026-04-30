@@ -21,11 +21,17 @@ Thumbs.db
 # Node dependencies
 node_modules/
 
+# Local tool downloads
+.tools/
+
 # Test coverage
 coverage.out
 
 # Templ generated files
 *_templ.go
+
+# Generated Tailwind output
+cmd/web/static/css/tailwind.css
 
 # OpenTofu / Terraform
 infra/.terraform/

@@ -38,11 +38,8 @@ jobs:
       - name: Install golangci-lint
         run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: lts/*
-          cache: npm
+      - name: Install Tailwind CLI
+        run: just install-tailwind
 
-      - name: Install npm dev dependencies
-        run: npm ci
+      - name: Build Tailwind CSS
+        run: just tailwind-build

@@ -7,120 +7,130 @@ templ Contact() {
 		Title: "Get in Touch - Craig Johnson",
 		Page:  "contact",
 	}) {
-		<section class="page-hero contact-hero">
-			<div class="hero-header">
-				<div class="hero-badge">
-					<span class="hero-badge-dot" aria-hidden="true"></span>
-					Open to Opportunities
+		<section
+			class="relative overflow-hidden rounded-3xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
+			style="background-image: url('/static/images/backgrounds/contact-hero.jpg')"
+		>
+			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/95 via-carbon-black-950/85 to-prussian-blue-950/80"></div>
+			<div class="relative mx-auto flex max-w-3xl flex-col gap-5">
+				<div class="inline-flex w-fit items-center gap-3 rounded-full border border-strong-cyan-700 bg-strong-cyan-950/80 px-4 py-2 text-sm font-medium text-strong-cyan-100 shadow-panel">
+					<span class="h-2.5 w-2.5 rounded-full bg-old-gold-400" aria-hidden="true"></span>
+					Open to opportunities
 				</div>
-				<h1>Get in Touch</h1>
-				<p class="lead">
-					Whether it's cloud architecture, DevOps strategy, or your next big idea — let's connect and build something amazing together.
+				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">Get in Touch</h1>
+				<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
+					Whether it&apos;s cloud architecture, DevOps strategy, or your next big idea — let&apos;s connect and build something meaningful together.
 				</p>
 			</div>
 		</section>
-		<section class="contact-connect">
+		<section class="space-y-6 py-10 sm:py-12">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Ways to Connect</span>
 			</div>
-			<h2 class="sr-only">Ways to Connect</h2>
-			<div class="contact-methods-grid">
-				<a href="mailto:opportunity@craigdevjohnson.com" class="card stagger-enter contact-method-card" aria-label="Email opportunity@craigdevjohnson.com">
-					<div class="icon-wrap">
-						<span class="cm-icon" aria-hidden="true">✉️</span>
+			<h2 class="text-2xl font-semibold tracking-tight text-copy-primary sm:text-3xl">Choose the easiest way to reach me</h2>
+			<div class="grid gap-4">
+				<a
+					href="mailto:opportunity@craigdevjohnson.com"
+					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-old-gold-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					aria-label="Email opportunity@craigdevjohnson.com"
+				>
+					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/70 text-3xl shadow-panel">
+						<span aria-hidden="true">✉️</span>
 					</div>
-					<div class="cm-info">
-						<h3>Email</h3>
-						<p class="cm-value">opportunity@craigdevjohnson.com</p>
-						<p class="cm-desc">Best for professional inquiries & opportunities</p>
+					<div class="min-w-0 flex-1 space-y-1">
+						<h3 class="text-lg font-semibold text-copy-primary">Email</h3>
+						<p class="break-words text-sm font-medium text-old-gold-300">opportunity@craigdevjohnson.com</p>
+						<p class="text-sm leading-6 text-copy-secondary">Best for professional inquiries and new opportunities.</p>
 					</div>
-					<span class="cm-arrow" aria-hidden="true">↗</span>
+					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-old-gold-300" aria-hidden="true">↗</span>
 				</a>
 				<a
 					href="https://linkedin.com/in/craigdevjohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="card stagger-enter contact-method-card" aria-label="LinkedIn profile for Craig Johnson"
+					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-strong-cyan-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					aria-label="LinkedIn profile for Craig Johnson"
 				>
-					<div class="icon-wrap">
-						<span class="cm-icon" aria-hidden="true">💼</span>
+					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/70 text-3xl shadow-panel">
+						<span aria-hidden="true">💼</span>
 					</div>
-					<div class="cm-info">
-						<h3>LinkedIn</h3>
-						<p class="cm-value">linkedin.com/in/craigdevjohnson</p>
-						<p class="cm-desc">Connect for networking & career discussions</p>
+					<div class="min-w-0 flex-1 space-y-1">
+						<h3 class="text-lg font-semibold text-copy-primary">LinkedIn</h3>
+						<p class="break-words text-sm font-medium text-strong-cyan-200">linkedin.com/in/craigdevjohnson</p>
+						<p class="text-sm leading-6 text-copy-secondary">Connect for networking, platform engineering, and career conversations.</p>
 					</div>
-					<span class="cm-arrow" aria-hidden="true">↗</span>
+					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-strong-cyan-200" aria-hidden="true">↗</span>
 				</a>
 				<a
 					href="https://github.com/CraigDevJohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="card stagger-enter contact-method-card" aria-label="GitHub profile for Craig Johnson"
+					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-prussian-blue-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					aria-label="GitHub profile for Craig Johnson"
 				>
-					<div class="icon-wrap">
-						<span class="cm-icon" aria-hidden="true">🛠️</span>
+					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/80 text-3xl shadow-panel">
+						<span aria-hidden="true">🛠️</span>
 					</div>
-					<div class="cm-info">
-						<h3>GitHub</h3>
-						<p class="cm-value">github.com/CraigDevJohnson</p>
-						<p class="cm-desc">Technical collaborations & open source</p>
+					<div class="min-w-0 flex-1 space-y-1">
+						<h3 class="text-lg font-semibold text-copy-primary">GitHub</h3>
+						<p class="break-words text-sm font-medium text-prussian-blue-200">github.com/CraigDevJohnson</p>
+						<p class="text-sm leading-6 text-copy-secondary">Explore technical collaborations, experiments, and open-source work.</p>
 					</div>
-					<span class="cm-arrow" aria-hidden="true">↗</span>
+					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-prussian-blue-200" aria-hidden="true">↗</span>
 				</a>
 			</div>
 		</section>
-		<section class="contact-bring">
+		<section class="space-y-6 py-10 sm:py-12">
 			<div class="section-label">
 				<span class="label-line" aria-hidden="true"></span>
 				<span>What I Bring</span>
 			</div>
-			<h2 class="contact-section-title">Expertise That Delivers</h2>
-			<div class="bring-grid">
-				<div class="card stagger-enter bring-card">
-					<div class="bring-icon-wrap">☁️</div>
-					<h3>Cloud Architecture</h3>
-					<p>Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
+			<h2 class="text-2xl font-semibold tracking-tight text-copy-primary sm:text-3xl">Expertise that delivers</h2>
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="surface-card p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-old-gold-700/70 bg-old-gold-950/70 text-3xl shadow-panel">☁️</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
 				</div>
-				<div class="card stagger-enter bring-card">
-					<div class="bring-icon-wrap">🔄</div>
-					<h3>CI/CD Pipelines</h3>
-					<p>Build automated deployment workflows that ship reliable code faster and more safely.</p>
+				<div class="surface-card p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-strong-cyan-700/70 bg-strong-cyan-950/70 text-3xl shadow-panel">🔄</div>
+					<h3 class="text-lg font-semibold text-copy-primary">CI/CD Pipelines</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Build automated deployment workflows that ship reliable code faster and more safely.</p>
 				</div>
-				<div class="card stagger-enter bring-card">
-					<div class="bring-icon-wrap">🔒</div>
-					<h3>Security First</h3>
-					<p>Embed security into every layer — from IAM policies to compliance automation.</p>
+				<div class="surface-card p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-inferno-700/70 bg-inferno-950/70 text-3xl shadow-panel">🔒</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Security First</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Embed security into every layer — from IAM policies to compliance automation.</p>
 				</div>
-				<div class="card stagger-enter bring-card">
-					<div class="bring-icon-wrap">📈</div>
-					<h3>Growth Mindset</h3>
-					<p>Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
+				<div class="surface-card p-6 text-center">
+					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-prussian-blue-700/70 bg-prussian-blue-950/80 text-3xl shadow-panel">📈</div>
+					<h3 class="text-lg font-semibold text-copy-primary">Growth Mindset</h3>
+					<p class="mt-3 text-sm leading-6 text-copy-secondary">Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
 				</div>
 			</div>
 		</section>
-		<section class="contact-availability">
-			<div class="avail-card">
-				<div class="avail-header">
-					<div class="avail-status">
-						<span class="avail-dot"></span>
-						<span class="avail-label">Currently Available</span>
+		<section class="py-10 sm:py-12">
+			<div class="surface-card-strong overflow-hidden p-6 sm:p-8">
+				<div class="flex flex-col gap-4 border-b border-carbon-black-700/80 pb-6 sm:flex-row sm:items-center sm:justify-between">
+					<div class="flex items-center gap-3">
+						<span class="h-3 w-3 rounded-full bg-old-gold-400 motion-safe:animate-pulse" aria-hidden="true"></span>
+						<span class="text-base font-semibold text-old-gold-300 sm:text-lg">Currently available</span>
 					</div>
-					<span class="avail-time">⏱ Response within 24-48 hours</span>
+					<span class="text-sm text-copy-secondary">⏱ Response within 24-48 hours</span>
 				</div>
-				<div class="avail-details">
-					<div class="avail-detail">
-						<span class="avail-detail-label">Looking For</span>
-						<span class="avail-detail-value">Full-time & Contract Roles</span>
+				<div class="grid gap-5 pt-6 md:grid-cols-3">
+					<div class="space-y-1">
+						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Looking for</span>
+						<span class="block text-base font-semibold text-copy-primary">Full-time &amp; contract roles</span>
 					</div>
-					<div class="avail-detail">
-						<span class="avail-detail-label">Location</span>
-						<span class="avail-detail-value">Remote / Hybrid</span>
+					<div class="space-y-1">
+						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Location</span>
+						<span class="block text-base font-semibold text-copy-primary">Remote / Hybrid</span>
 					</div>
-					<div class="avail-detail">
-						<span class="avail-detail-label">Focus Areas</span>
-						<span class="avail-detail-value">Cloud, DevOps, Platform Engineering</span>
+					<div class="space-y-1">
+						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Focus areas</span>
+						<span class="block text-base font-semibold text-copy-primary">Cloud, DevOps, Platform Engineering</span>
 					</div>
 				</div>
 			</div>

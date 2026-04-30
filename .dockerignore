@@ -26,7 +26,4 @@ portfolio-server
 *.log
 *.tmp
 node_modules/
-package-lock.json
-package.json
-stylelint.config.mjs
 tmp/

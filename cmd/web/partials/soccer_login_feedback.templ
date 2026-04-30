@@ -12,8 +12,19 @@ func feedbackRole(kind string) string {
 	return "status"
 }
 
+func feedbackClasses(kind string) string {
+	base := "rounded-xl border px-4 py-3 text-sm"
+	if kind == "error" {
+		return base + " border-inferno-500/26 bg-inferno-500/14 text-inferno-100"
+	}
+	if kind == "success" {
+		return base + " border-strong-cyan-500/28 bg-strong-cyan-500/14 text-strong-cyan-100"
+	}
+	return base + " border-white/10 bg-white/5 text-copy-secondary"
+}
+
 templ SoccerLoginFeedback(props SoccerLoginFeedbackProps) {
-	<div class={ "soccer-login-message soccer-login-message-" + props.Kind } role={ feedbackRole(props.Kind) }>
+	<div class={ feedbackClasses(props.Kind) } role={ feedbackRole(props.Kind) }>
 		{ props.Message }
 	</div>
 }
