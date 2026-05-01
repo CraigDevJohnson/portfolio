@@ -43,8 +43,8 @@ A server-rendered Go application using Templ for type-safe component-based templ
 ### Prerequisites
 
 - Go 1.26.1
-- Just command runner
-- `curl` (used by `just install-tailwind` to download the pinned standalone Tailwind CLI)
+- `task` command runner
+- `curl` (used by `task install-tailwind` to download the pinned standalone Tailwind CLI)
 
 ### Installation
 
@@ -53,15 +53,15 @@ A server-rendered Go application using Templ for type-safe component-based templ
 go mod download
 
 # Install the pinned Tailwind standalone CLI
-just install-tailwind
+task install-tailwind
 
 # Build the project (generates Templ components and compiles)
-just build
+task build
 ```
 
-`just build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
+`task build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
 
-When you edit Templ files (`*.templ`), run `just generate` before building unless
+When you edit Templ files (`*.templ`), run `task generate` before building unless
 another command already does it for you.
 
 ### Running
@@ -70,29 +70,29 @@ another command already does it for you.
 # Run the server
 ./portfolio-server
 
-# Or use just
-just run
+# Or use task
+task run
 ```
 
 The server will start at `http://localhost:8080`
 
 ### Development
 
-For development with hot reload, use `just dev` which requires [air](https://github.com/air-verse/air):
+For development with hot reload, use `task dev` which requires [air](https://github.com/air-verse/air):
 
 ```bash
 # Install air and the pinned Tailwind standalone CLI
-just install-tools
+task install-tools
 
 # In one terminal, rebuild Tailwind CSS while you edit Tailwind source files
-just tailwind-watch
+task tailwind-watch
 
 # In another terminal, start the Go hot-reload loop
-just dev
+task dev
 ```
 
-**Note**: When you edit `.templ` files, run `just generate` separately.
-The `air` hot-reload loop started by `just dev` does not regenerate Templ output.
+**Note**: When you edit `.templ` files, run `task generate` separately.
+The `air` hot-reload loop started by `task dev` does not regenerate Templ output.
 
 Tailwind source files live under `cmd/web/tailwind/`. The generated output is
 written to `cmd/web/static/css/tailwind.css` and is not committed.
@@ -103,24 +103,24 @@ from `cmd/web/tailwind/legacy/`, so the app only serves the generated
 
 ### Validation
 
-Use the existing `just` recipes for verification. See `justfile` for the full
+Use the existing `task` commands for verification. See `Taskfile.yml` for the full task
 command list, including:
 
 ```bash
 # Format and lint
-just fmt
-just lint
+task fmt
+task lint
 
 # Fast checks during development
-just vet
-just test
-just build
+task vet
+task test
+task build
 
 # Full project gate
-just ci
+task ci
 ```
 
-`just build` regenerates Templ output before compiling, and `just ci` is the
+`task build` regenerates Templ output before compiling, and `task ci` is the
 final validation gate for formatting, vet, generation, build, and tests.
 
 ### Optional Google Calendar Integration
@@ -228,8 +228,8 @@ The education page content is currently maintained directly in
 Templates are written in Templ (`.templ` files):
 
 1. Edit the `.templ` files in `cmd/web/`
-2. Run `just generate` to regenerate Go code
-3. Build and run: `just build && ./portfolio-server`
+2. Run `task generate` to regenerate Go code
+3. Build and run: `task build && ./portfolio-server`
 
 For more information on Templ syntax, see the [Templ documentation](https://templ.guide/).
 
@@ -314,7 +314,7 @@ as the source of truth instead of older inline manifest examples.
 
 - Runtime image uses distroless and runs as a non-root user.
 - Static assets are copied into the image at build time.
-- Regenerate Templ output (`just generate`) before building if `.templ` files were changed.
+- Regenerate Templ output (`task generate`) before building if `.templ` files were changed.
 - Templ source files are compiled into the binary, so they are not needed in the runtime image.
 
 ## License
