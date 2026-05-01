@@ -49,10 +49,10 @@ After this refactor:
 ## Success Criteria
 
 - [x] All tasks complete
-- [x] All tests passing (`just test`)
-- [x] Lint passing (`just lint`)
-- [x] Build succeeds (`just build`)
-- [x] `just ci` passes (fmt -> vet -> lint -> test -> build)
+- [x] All tests passing (`task test`)
+- [x] Lint passing (`task lint`)
+- [x] Build succeeds (`task build`)
+- [x] `task ci` passes (fmt -> vet -> lint -> test -> build)
 - [x] `internal/app` contains only route registration, `App` struct, `Run()` (~200 lines)
 - [x] Every `internal/*` package has a clear single-domain purpose
 - [x] No thin 1:1 wrapper files remain (schedule.go, lps_client.go, etc. eliminated)
@@ -90,12 +90,12 @@ After this refactor:
 - [ ] Type aliases (`Game`, `LPSPlayer`, `SessionData`) either moved to consuming packages or removed; callers use `types.*` directly
 - [ ] Package-level `var configData` in `internal/app` replaced with a `Config` value passed through the `App` struct (Task-002 will wire this)
 - [ ] Sentinel errors (`errSessionExpired`, `errPlayerSessionRequired`, `errInvalidTeamSelection`, `errScheduleSelection`) move to the package that owns the behavior (session errors -> `internal/session`, LPS errors -> `internal/lps`, schedule selection -> `internal/soccer`)
-- [ ] `just test && just build` pass
+- [ ] `task test && task build` pass
 
 **Verification**:
 
 ```bash
-just test && just build
+task test && task build
 ```
 
 ### Task-002: Introduce `App` struct in `internal/app`
@@ -120,12 +120,12 @@ just test && just build
   - `googleConnections` -> `app.GoogleStore`
 - [ ] Google OAuth/Calendar URLs become constants (they never change at runtime)
 - [ ] All 80 tests still pass (tests may need to construct `App` in setup)
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 ```
 
 ### Task-003: Eliminate portfolio wrapper files
@@ -141,12 +141,12 @@ just ci
 - [ ] `internal/app/data_portfolio.go` deleted
 - [ ] Route registration calls `portfolio.HomeHandler`, `portfolio.AboutHandler`, etc. directly (via closures that inject `careerStartYear`)
 - [ ] `internal/portfolio/handlers.go` signatures are reviewed: if the only injected value is `careerStartYear`, pass it as a parameter; no need for a full dependency struct
-- [ ] `just test && just build` pass
+- [ ] `task test && task build` pass
 
 **Verification**:
 
 ```bash
-just test && just build
+task test && task build
 ```
 
 ### Task-004: Eliminate schedule/time/ICS wrapper files
@@ -165,12 +165,12 @@ just test && just build
 - [ ] `formattedGameEvent` type alias removed; callers use `schedule.FormattedGameEvent`
 - [ ] `fieldLocationPrefix` constant reference replaced with `schedule.FieldLocationPrefix`
 - [ ] `mountainTimeLocation` initialization uses `schedule.MountainTimeLocation` directly
-- [ ] `just test && just build` pass
+- [ ] `task test && task build` pass
 
 **Verification**:
 
 ```bash
-just test && just build
+task test && task build
 ```
 
 ### Task-005: Eliminate LPS client and helpers wrapper files
@@ -191,12 +191,12 @@ just test && just build
   - `parseSelectedIDs()`, `parsePlayerIDs()`, `parseTeamIDs()`, `splitDelimitedValues()` -> `internal/soccer` (form parsing)
   - `firstNonEmptyString()`, `firstPositiveInt()`, `intString()`, `stringPointerValue()`, `sortedUniqueIDs()`, `nonEmptyStrings()` -> `internal/lps` or a shared `internal/stringutil` if needed by multiple packages
 - [ ] `internal/app/helpers.go` deleted or contains zero functions
-- [ ] `just test && just build` pass
+- [ ] `task test && task build` pass
 
 **Verification**:
 
 ```bash
-just test && just build
+task test && task build
 ```
 
 ### Task-006: Expand `internal/lps` with schedule resolver and decode
@@ -218,12 +218,12 @@ just test && just build
 - [ ] `internal/app/lps_schedule.go` deleted
 - [ ] `internal/app/lps_decode.go` deleted
 - [ ] `internal/app/schedule_errors.go` deleted
-- [ ] `just test && just build` pass
+- [ ] `task test && task build` pass
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 ```
 
 ### Task-007: Extract `internal/soccer` handlers
@@ -246,12 +246,12 @@ just ci
 - [ ] `internal/app/session.go` deleted (session crypto stays in `internal/session`; soccer session cookie ops move to `internal/soccer`)
 - [ ] `internal/app/cookies.go` split: soccer cookie ops -> `internal/soccer`, Google cookie ops -> `internal/google`
 - [ ] Route registration in `app.go` uses `soccer.NewHandler(...).SoccerPage` etc.
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 ```
 
 ### Task-008: Extract `internal/google`
@@ -287,12 +287,12 @@ just ci
 - [ ] `internal/app/google_oauth.go` deleted
 - [ ] `internal/app/google_calendar.go` deleted
 - [ ] Google handlers receive dependencies via a struct (config, session key, HTTP client, store)
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 ```
 
 ### Task-009: Migrate tests to domain packages
@@ -319,12 +319,12 @@ just ci
 - [ ] `internal/app/helpers_test.go` tests redistributed to packages where the functions moved
 - [ ] `internal/app/test_helpers_test.go` shared helpers (`testJWT()`, `testMislabelledLPSZuluTime()`, `configureGoogleTestRuntime()`, `unfoldICS()`) extracted to an `internal/testutil` package or duplicated in consuming test packages
 - [ ] All 80 tests still pass
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 ```
 
 ### Task-010: Clean up `internal/app` to routing-only
@@ -343,12 +343,12 @@ just ci
 - [ ] No wrapper functions remain -- every route handler comes from a domain package
 - [ ] `internal/app` imports: `config`, `soccer`, `google`, `portfolio`, `session`, `schedule` -- never the reverse
 - [ ] Total line count for `internal/app` <= 250 lines
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 
 **Verification**:
 
 ```bash
-just ci
+task ci
 wc -l internal/app/*.go
 ```
 
@@ -365,7 +365,7 @@ wc -l internal/app/*.go
 - [ ] `.github/copilot-instructions.md` architecture section reflects new structure
 - [ ] No stale file references in documentation
 - [ ] Each `internal/*` package has a doc comment on its primary file
-- [ ] `just ci` passes
+- [ ] `task ci` passes
 - [ ] Final structure matches target:
 
 ```text
@@ -387,7 +387,7 @@ cmd/web/                      -- Templ templates, static assets
 **Verification**:
 
 ```bash
-just ci
+task ci
 find internal -name '*.go' -not -name '*_test.go' | sort
 wc -l internal/app/*.go
 ```
@@ -396,11 +396,11 @@ wc -l internal/app/*.go
 
 - Language: Go 1.26.1
 - Framework: Standard `net/http` with Templ/HTMX
-- Testing: Go `testing` package via `just test`
-- Quality: `just ci` (fmt -> vet -> lint -> test -> build)
-- Style: `just fmt` and `just lint`; follow existing Go idioms
-- Templ: Run `just generate` before build if any `.templ` changes (this refactor should not touch `.templ` files)
-- Build: `just build` compiles `./cmd/server`
+- Testing: Go `testing` package via `task test`
+- Quality: `task ci` (fmt -> vet -> lint -> test -> build)
+- Style: `task fmt` and `task lint`; follow existing Go idioms
+- Templ: Run `task generate` before build if any `.templ` changes (this refactor should not touch `.templ` files)
+- Build: `task build` compiles `./cmd/server`
 
 ## Architecture Notes
 
@@ -490,7 +490,7 @@ Task-005 (lps/helpers wrappers) ------------------+
 | --- | --- | --- |
 | Circular import between soccer and google | Build failure | Google package exposes interfaces; soccer depends on google, not the reverse. Google handlers that need session data receive it as parameters, not by importing soccer |
 | Package-level state removal breaks test setup | Test failures | Introduce test constructors (`NewTestApp()`, `NewTestHandler()`) that wire dependencies with test defaults |
-| Handler signature changes cascade widely | Large diffs | Convert one handler group at a time; keep `just ci` green after each task |
+| Handler signature changes cascade widely | Large diffs | Convert one handler group at a time; keep `task ci` green after each task |
 | LPS schedule resolver has deep coupling to config | Extraction difficulty | Pass `baseURL` and `*http.Client` as constructor parameters; resolver does not import config directly |
 | Test helpers shared across packages | Test compilation errors | Create `internal/testutil` package with shared JWT generation, time helpers, ICS unfold |
 | Google DynamoDB store init is async | Race conditions | Store is initialized in a goroutine and set behind a mutex; this pattern is preserved as-is |
