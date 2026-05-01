@@ -7,7 +7,7 @@ Always use Context7 MCP when you need library or API documentation, code generat
 Use these files in this order when instructions conflict:
 
 1. `PROGRESS.md` for current soccer product behavior and recent task completion.
-2. `justfile` for build, test, formatting, lint, and dev commands.
+2. `Taskfile.yaml` for build, test, formatting, lint, and dev commands.
 3. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
 4. `README.md` for high-level architecture and local usage.
 5. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
@@ -36,24 +36,24 @@ Dependencies flow downward from `internal/app` through domain packages to `types
 
 ## Daily Commands
 
-- `just generate` regenerates Templ output.
-- `just tailwind-build` compiles `cmd/web/tailwind/app.css` to `/static/css/tailwind.css` using the pinned standalone Tailwind CLI.
-- `just build` regenerates Templ and builds `portfolio-server`.
-- `just run` builds and runs locally.
-- `just dev` runs `air` for hot reload.
-- `just tailwind-watch` rebuilds the generated Tailwind stylesheet while you edit Tailwind source files.
-- `just test` runs `go test -v ./...`.
-- `just vet` runs `go vet ./...`.
-- `just fmt` runs `golangci-lint fmt --config .golangci.toml`.
-- `just lint` runs Go lint autofixes.
+- `task generate` regenerates Templ output.
+- `task tailwind-build` compiles `cmd/web/tailwind/app.css` to `/static/css/tailwind.css` using the pinned standalone Tailwind CLI.
+- `task build` regenerates Templ and builds `portfolio-server`.
+- `task run` builds and runs locally.
+- `task dev` runs `air` for hot reload.
+- `task tailwind-watch` rebuilds the generated Tailwind stylesheet while you edit Tailwind source files.
+- `task test` runs `go test -v ./...`.
+- `task vet` runs `go vet ./...`.
+- `task fmt` runs `golangci-lint fmt --config .golangci.toml`.
+- `task lint` runs Go lint autofixes.
 
-Prefer the `just` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
+Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 
 ## Templ Workflow
 
 - Edit `.templ` source files, not generated `*_templ.go` files.
-- Run `just generate` after any `.templ` change unless another command already does it.
-- Tailwind source lives under `cmd/web/tailwind/`; compile it with `just tailwind-build` or `just tailwind-watch`.
+- Run `task generate` after any `.templ` change unless another command already does it.
+- Tailwind source lives under `cmd/web/tailwind/`; compile it with `task tailwind-build` or `task tailwind-watch`.
 - CSS-first legacy component/page rules now compile through `cmd/web/tailwind/legacy/` into the generated Tailwind output.
 - Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
@@ -96,12 +96,12 @@ Relevant handlers and components:
 ## Known Drift To Avoid
 
 - Older docs still mention manual player-ID import. Ignore that and follow the current code and `PROGRESS.md`.
-- Some docs still describe Go 1.23+ and older formatter guidance. The repo is on Go 1.26.1 and uses `just fmt`.
-- Historical workspace tasks may reference generated Templ files or old commit flows. Follow `justfile`, not old one-off tasks, unless the user explicitly asks otherwise.
+- Some docs still describe Go 1.23+ and older formatter guidance. The repo is on Go 1.26.1 and uses `task fmt`.
+- Historical workspace tasks may reference generated Templ files or old commit flows. Follow `taskfile`, not old one-off tasks, unless the user explicitly asks otherwise.
 
 ## When Updating This Repo
 
 - Keep changes focused and minimal.
 - Reuse the existing structs in `types/types.go` before adding new ones.
 - Preserve server-rendered and HTMX-first patterns instead of introducing SPA-style client state.
-- Validate the smallest relevant surface after changes: `just generate` for Templ edits, `just test` for behavior changes, `just build` before finishing when practical.
+- Validate the smallest relevant surface after changes: `task generate` for Templ edits, `task test` for behavior changes, `task build` before finishing when practical.

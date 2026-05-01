@@ -43,7 +43,7 @@ A server-rendered Go application using Templ for type-safe component-based templ
 ### Prerequisites
 
 - Go 1.26.1
-- `task` command runner
+- `task` command runner (installed via `go install github.com/go-task/task/v3/cmd/task`)
 - `curl` (used by `task install-tailwind` to download the pinned standalone Tailwind CLI)
 
 ### Installation
@@ -55,11 +55,12 @@ go mod download
 # Install the pinned Tailwind standalone CLI
 task install-tailwind
 
+# Install templ
+task install-templ
+
 # Build the project (generates Templ components and compiles)
 task build
 ```
-
-`task build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
 
 When you edit Templ files (`*.templ`), run `task generate` before building unless
 another command already does it for you.

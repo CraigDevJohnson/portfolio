@@ -31,15 +31,15 @@ jobs:
       - name: Add Go bin to PATH
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Install just
-        uses: extractions/setup-just@v3
+      - name: Install Task
+        uses: go-task/setup-task@v1
 
       # Match the repo's `just install-lint` behavior by installing the latest v2+ release.
       - name: Install golangci-lint
         run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
 
       - name: Install Tailwind CLI
-        run: just install-tailwind
+        run: task install-tailwind
 
       - name: Build Tailwind CSS
-        run: just tailwind-build
+        run: task tailwind-build
