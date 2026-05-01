@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"portfolio/types"
@@ -25,6 +26,13 @@ var (
 	projectsDataOnce   sync.Once
 	projectsData       []types.Project
 )
+
+type projectStatsSummary struct {
+	TotalProjects         int
+	UniqueTechnologies    int
+	CategoryCount         int
+	PublicRepositoryCount int
+}
 
 func mustUnmarshal[T any](data []byte, name string) T {
 	var result T
@@ -58,4 +66,39 @@ func ProjectsData() []types.Project {
 		projectsData = mustUnmarshal[[]types.Project](projectsJSON, "projects.json")
 	})
 	return append([]types.Project(nil), projectsData...)
+}
+
+func projectStats(projects []types.Project) projectStatsSummary {
+	technologies := make(map[string]struct{})
+	categories := make(map[string]struct{})
+	publicRepositoryCount := 0
+
+	for i := range projects {
+		project := &projects[i]
+
+		if strings.TrimSpace(project.GitHubURL) != "" {
+			publicRepositoryCount++
+		}
+
+		category := strings.TrimSpace(project.Category)
+		if category != "" {
+			categories[strings.ToLower(category)] = struct{}{}
+		}
+
+		for _, technology := range project.Technologies {
+			technology = strings.TrimSpace(technology)
+			if technology == "" {
+				continue
+			}
+
+			technologies[strings.ToLower(technology)] = struct{}{}
+		}
+	}
+
+	return projectStatsSummary{
+		TotalProjects:         len(projects),
+		UniqueTechnologies:    len(technologies),
+		CategoryCount:         len(categories),
+		PublicRepositoryCount: publicRepositoryCount,
+	}
 }

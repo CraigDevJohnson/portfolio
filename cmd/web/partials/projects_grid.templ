@@ -34,17 +34,17 @@ templ ProjectsGrid(props ProjectsGridProps) {
 					</div>
 					<div class="project-actions mt-auto flex flex-wrap gap-3">
 						if project.GitHubURL != "" {
-							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary" aria-label={ fmt.Sprintf("GitHub repository for %s", project.Name) }>
 								GitHub
 							</a>
 						}
 						if project.DemoURL != "" {
 							if strings.HasPrefix(project.DemoURL, "/") {
-								<a href={ templ.SafeURL(project.DemoURL) } class="btn btn-sm btn-primary">
+								<a href={ templ.SafeURL(project.DemoURL) } class="btn btn-sm btn-primary" aria-label={ fmt.Sprintf("Live demo for %s", project.Name) }>
 									Live Demo
 								</a>
 							} else {
-								<a href={ templ.SafeURL(project.DemoURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+								<a href={ templ.SafeURL(project.DemoURL) } target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary" aria-label={ fmt.Sprintf("Live demo for %s", project.Name) }>
 									Live Demo
 								</a>
 							}

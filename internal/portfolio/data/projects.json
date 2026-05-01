@@ -2,18 +2,11 @@
   {
     "id": 1,
     "name": "Personal Portfolio Website",
-    "intro": "A modern, responsive portfolio built with Go and HTMX",
-    "description": "Showcases my projects, skills, and certifications with a focus on cloud and web technologies.",
-    "technologies": [
-      "Go",
-      "HTMX",
-      "CSS",
-      "HTML",
-      "GitHub",
-      "AWS"
-    ],
+    "intro": "A server-rendered portfolio built with Go, Templ, HTMX, and Tailwind CSS.",
+    "description": "Showcases my projects, skills, certifications, and the soccer schedule tool with a fast server-rendered architecture focused on accessibility and maintainability.",
+    "technologies": ["Go", "Templ", "HTMX", "Tailwind CSS", "AWS", "GitHub Actions"],
     "image": "/static/images/projects/portfolio.webp",
-    "github_url": "https://github.com/CraigDevJohnson/craig-johnson-portfolio-vue",
+    "github_url": "https://github.com/CraigDevJohnson/portfolio",
     "demo_url": "https://craigdevjohnson.com",
     "category": "Web"
   },
@@ -22,13 +15,7 @@
     "name": "New User Account Provisioning",
     "intro": "PowerShell scripts to fully automate user account creation and configuration.",
     "description": "Completely automated new user account creation and configuration based on database push of new user information. This automation included creating the new user's active directory account, email account in O365/Exchange, and role based group memberships.",
-    "technologies": [
-      "PowerShell",
-      "Git",
-      "APIs",
-      "AD DS",
-      "O365/Exchange"
-    ],
+    "technologies": ["PowerShell", "Git", "APIs", "AD DS", "O365/Exchange"],
     "image": "/static/images/projects/provisioning.webp",
     "category": "Automation"
   },
@@ -36,13 +23,8 @@
     "id": 3,
     "name": "Soccer Schedule Scraper",
     "intro": "A web scraper to pull and parse team schedules and download as ICS file.",
-    "description": "A multi function Python script deployed as an AWS Lambda function to scrape and parse soccer team schedules and return them in ICS file format for broadly supported calendar importing.",
-    "technologies": [
-      "Python",
-      "AWS Lambda",
-      "GitHub",
-      "API"
-    ],
+    "description": "A multi-function Python script deployed on AWS Lambda to scrape soccer team schedules and return ICS files for broadly supported calendar importing.",
+    "technologies": ["Python", "AWS Lambda", "GitHub", "APIs"],
     "image": "/static/images/projects/scraper.webp",
     "github_url": "https://github.com/CraigDevJohnson/soccer-scraper",
     "demo_url": "/soccer",

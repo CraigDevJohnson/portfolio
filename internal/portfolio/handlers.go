@@ -163,7 +163,15 @@ func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 // ProjectsHandler renders the projects page shell.
 func ProjectsHandler(w http.ResponseWriter, r *http.Request) {
-	renderComponent(w, r, pages.Projects())
+	projects := ProjectsData()
+	stats := projectStats(projects)
+
+	renderComponent(w, r, pages.Projects(pages.ProjectsProps{
+		TotalProjects:         stats.TotalProjects,
+		UniqueTechnologies:    stats.UniqueTechnologies,
+		CategoryCount:         stats.CategoryCount,
+		PublicRepositoryCount: stats.PublicRepositoryCount,
+	}))
 }
 
 // ProjectsGridHandler renders the projects grid fragment.
