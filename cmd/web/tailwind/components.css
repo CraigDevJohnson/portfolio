@@ -1,4 +1,60 @@
 @layer components {
+  .page-hero-standard {
+    @apply relative isolate overflow-hidden rounded-4xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-12 shadow-panel-strong sm:px-8 sm:py-14 lg:px-12 lg:py-16;
+  }
+
+  .page-hero-centered {
+    @apply relative isolate mb-8 grid min-h-[clamp(16rem,38vw,24rem)] place-items-center overflow-hidden rounded-4xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-position-[center_30%] px-6 py-10 text-center shadow-panel-strong sm:px-8 sm:py-12 lg:px-12 lg:py-16;
+  }
+
+  .page-hero-overlay-standard {
+    @apply absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/70;
+  }
+
+  .page-hero-overlay-strong {
+    @apply absolute inset-0 bg-linear-to-b from-primary-950/48 to-secondary-950/84;
+  }
+
+  .page-hero-content {
+    @apply relative z-10 flex flex-col gap-5;
+  }
+
+  .page-hero-content-centered {
+    @apply relative z-10 mx-auto flex w-[min(46rem,100%)] flex-col gap-4 text-center;
+  }
+
+  .page-hero-title {
+    @apply text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl;
+  }
+
+  .page-hero-description {
+    @apply max-w-4xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8;
+  }
+
+  .page-hero-description-centered {
+    @apply mx-auto max-w-176 text-base leading-7 text-copy-muted sm:text-lg sm:leading-8;
+  }
+
+  .page-stats-section {
+    @apply py-8 sm:py-10;
+  }
+
+  .page-section {
+    @apply space-y-6 py-12 sm:py-14;
+  }
+
+  .page-section-tight {
+    @apply space-y-6 py-10 sm:py-12;
+  }
+
+  .page-section-title {
+    @apply text-3xl font-bold tracking-tight text-copy-primary;
+  }
+
+  .page-section-subtitle {
+    @apply max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8;
+  }
+
   .surface-card {
     @apply rounded-2xl border border-white/8 bg-carbon-black-900 shadow-panel;
   }
@@ -125,7 +181,7 @@
   }
 
   .skeleton {
-    @apply animate-[shimmer_1.4s_ease_infinite] rounded-xl bg-[linear-gradient(110deg,var(--bg-tertiary)_25%,var(--border-color-strong)_37%,var(--bg-tertiary)_63%)] bg-[length:400%_100%];
+    @apply animate-[shimmer_1.4s_ease_infinite] rounded-xl bg-[linear-gradient(110deg,var(--bg-tertiary)_25%,var(--border-color-strong)_37%,var(--bg-tertiary)_63%)] bg-size-[400%_100%];
   }
 
   .htmx-indicator {

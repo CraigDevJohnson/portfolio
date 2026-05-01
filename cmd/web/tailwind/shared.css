@@ -203,6 +203,7 @@ code {
   }
 
   /* Gradient text becomes invisible in forced-colors; reset to system text */
+  .text-gradient-brand,
   .about-stat-value,
   .quick-facts-card h3,
   .edu-stat-value,

@@ -22,11 +22,11 @@ templ Soccer(props SoccerProps) {
 		Title: "Soccer Schedule Download - Craig Johnson",
 		Page:  "soccer",
 	}) {
-		<section class="soccer-hero relative isolate mb-6 grid min-h-[clamp(18rem,42vw,28rem)] place-items-center overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/soccer-hero.jpg')] bg-cover bg-[center_30%] px-6 pb-12 pt-[calc(var(--header-height)+3rem)] text-center shadow-panel-strong sm:px-8 lg:px-12 lg:pt-[calc(var(--header-height)+4rem)]">
-			<div class="absolute inset-0 z-0 bg-linear-to-b from-primary-950/50 to-secondary-950/85"></div>
-			<div class="relative z-10 mx-auto w-[min(48rem,100%)]">
-				<h1 class="mb-4 bg-[linear-gradient(135deg,var(--color-primary-100)_0%,var(--color-primary-300)_40%,var(--color-accent-300)_100%)] bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">Soccer Schedule Download</h1>
-				<p class="mx-auto max-w-[44rem] text-base leading-7 text-copy-muted sm:text-lg sm:leading-8">
+		<section class="soccer-hero page-hero-centered bg-[url('/static/images/backgrounds/soccer-hero.jpg')]">
+			<div class="page-hero-overlay-strong absolute inset-0 z-0"></div>
+			<div class="page-hero-content-centered w-[min(48rem,100%)]">
+				<h1 class="page-hero-title text-gradient-brand">Soccer Schedule Download</h1>
+				<p class="page-hero-description-centered max-w-[44rem]">
 					Start with manual team IDs for the quickest lookup.
 					if soccerSupportsDiscovery(props.AuthState) {
 						Import access is also available when you want player discovery from your signed-in
@@ -56,7 +56,7 @@ templ Soccer(props SoccerProps) {
 				</ul>
 			</div>
 		</section>
-		<section class="animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] py-16 [animation-delay:0.1s]">
+		<section class="animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] py-14 sm:py-16 [animation-delay:0.1s]">
 			@partials.SectionLabel("Schedule tool")
 			<h2 class="mb-4 text-2xl font-bold leading-tight text-copy-primary sm:text-3xl">Get your schedule</h2>
 			<div class="soccer-unified-card relative flex flex-col gap-8 overflow-hidden rounded-2xl border border-white/8 bg-[linear-gradient(135deg,rgba(0,60,102,0.22)_0%,rgba(0,21,36,0.56)_42%,rgba(255,255,255,0.02)_100%)] p-6 shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong max-sm:gap-4 max-sm:p-4 sm:max-md:gap-6 sm:max-md:p-6">

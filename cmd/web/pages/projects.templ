@@ -20,18 +20,16 @@ templ Projects(props ProjectsProps) {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
-		<section
-			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/projects-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
-		>
-			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/76 to-secondary-950/70"></div>
-			<div class="relative max-w-4xl space-y-5">
-				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">Projects</h1>
-				<p class="max-w-4xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
+		<section class="page-hero-standard bg-[url('/static/images/backgrounds/projects-hero.jpg')]">
+			<div class="page-hero-overlay-standard"></div>
+			<div class="page-hero-content max-w-4xl">
+				<h1 class="page-hero-title">Projects</h1>
+				<p class="page-hero-description max-w-4xl">
 					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
 			</div>
 		</section>
-		<section class="projects-stats py-10 sm:py-12">
+		<section class="projects-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter px-5 py-6 text-center">
 					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">
@@ -63,18 +61,19 @@ templ Projects(props ProjectsProps) {
 				</div>
 			</div>
 		</section>
-		<section class="space-y-4 py-10 sm:py-12">
+		<section class="page-section-tight">
 			@partials.SectionLabel("What I Build")
-			<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
+			<h2 class="page-section-title">Practical builds across cloud, automation, and the web</h2>
+			<p class="page-section-subtitle">
 				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
 			</p>
+			<div class="proj-category-filters flex flex-wrap gap-2 pt-1" role="toolbar" aria-label="Project category filters">
+				<button type="button" class="proj-category-pill active inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="true" data-category="all">All</button>
+				<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="web">Web</button>
+				<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="automation">Automation</button>
+			</div>
 		</section>
-		<div class="proj-category-filters flex flex-wrap gap-2" role="toolbar" aria-label="Project category filters">
-			<button type="button" class="proj-category-pill active inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="true" data-category="all">All</button>
-			<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="web">Web</button>
-			<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="automation">Automation</button>
-		</div>
-		<section class="space-y-6 pb-12 pt-8 sm:pb-14">
+		<section class="page-section pt-2 sm:pb-14">
 			@partials.SectionLabel("Project Showcase")
 			<section class="projects-section py-2">
 				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})

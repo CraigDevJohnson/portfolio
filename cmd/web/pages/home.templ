@@ -22,10 +22,10 @@ templ Home(props HomeProps) {
 		Page:  "home",
 	}) {
 		<section
-			class="relative isolate min-h-[calc(100vh-var(--header-height))] overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/home-hero.jpg')] bg-cover bg-center px-6 py-10 shadow-panel-strong sm:px-8 lg:px-12 lg:py-16"
+			class="relative isolate min-h-[34rem] overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/home-hero.jpg')] bg-cover bg-center px-5 py-8 shadow-panel-strong sm:px-8 sm:py-10 lg:min-h-[calc(100vh-var(--header-height))] lg:px-12 lg:py-16"
 		>
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/70"></div>
-			<div class="relative z-10 grid gap-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center">
+			<div class="relative z-10 grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center lg:gap-10">
 				<div class="flex justify-center lg:justify-start">
 					<a
 						href="https://gravatar.com/craigdevjohnson1"
@@ -39,7 +39,7 @@ templ Home(props HomeProps) {
 						<img
 							src={ props.AvatarURL }
 							alt={ props.Name }
-							class="relative h-[16rem] w-[16rem] rounded-full border-4 border-carbon-black-950 object-cover shadow-panel-strong transition duration-300 group-hover:scale-[1.02] sm:h-[17.25rem] sm:w-[17.25rem]"
+							class="relative h-[13rem] w-[13rem] rounded-full border-4 border-carbon-black-950 object-cover shadow-panel-strong transition duration-300 group-hover:scale-[1.02] sm:h-[15rem] sm:w-[15rem] lg:h-[17.25rem] lg:w-[17.25rem]"
 							width="275"
 							height="275"
 							loading="eager"
@@ -56,20 +56,20 @@ templ Home(props HomeProps) {
 						<span class="text-gradient-brand text-5xl font-extrabold leading-none sm:text-6xl lg:text-7xl">{ props.Name }</span>
 					</h1>
 					<h2 class="text-2xl font-semibold text-copy-secondary sm:text-3xl">{ props.Role }</h2>
-					<p class="max-w-2xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">{ props.Description }</p>
-					<div class="flex flex-wrap items-center gap-3">
-						<a href="/experience" class="btn btn-primary">
+					<p class="max-w-2xl text-sm leading-7 text-copy-secondary sm:text-lg sm:leading-8">{ props.Description }</p>
+					<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+						<a href="/experience" class="btn btn-primary w-full justify-center sm:w-auto">
 							<span>View Experience</span>
 							<span class="btn-icon" aria-hidden="true">→</span>
 						</a>
-						<a href="/projects" class="btn btn-secondary">
+						<a href="/projects" class="btn btn-secondary w-full justify-center sm:w-auto">
 							<span>See Projects</span>
 						</a>
-						<a href="/contact" class="focus-ring inline-flex items-center rounded-xl border border-carbon-black-700 px-4 py-3 text-sm font-semibold text-copy-secondary transition duration-200 hover:border-primary-400 hover:bg-primary-950/40 hover:text-copy-primary">
+						<a href="/contact" class="focus-ring inline-flex w-full items-center justify-center rounded-xl border border-carbon-black-700 px-4 py-3 text-sm font-semibold text-copy-secondary transition duration-200 hover:border-primary-400 hover:bg-primary-950/40 hover:text-copy-primary sm:w-auto">
 							Get in Touch
 						</a>
 					</div>
-					<div class="hero-stats grid gap-4 border-t border-carbon-black-700 pt-6 sm:grid-cols-3">
+					<div class="hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6">
 						<div class="surface-card px-4 py-5 text-center">
 							<span
 								class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
@@ -105,9 +105,9 @@ templ Home(props HomeProps) {
 			</div>
 		</section>
 		<!-- What I Do -->
-		<section class="space-y-6 py-12 sm:py-14">
+		<section class="page-section">
 			@partials.SectionLabel("What I Do")
-			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Building the future of infrastructure</h2>
+			<h2 class="page-section-title">Building the future of infrastructure</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<article class="surface-card stagger-enter p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">
@@ -140,9 +140,9 @@ templ Home(props HomeProps) {
 			</div>
 		</section>
 		<!-- Explore -->
-		<section class="space-y-6 py-12 sm:py-14">
+		<section class="page-section">
 			@partials.SectionLabel("Explore")
-			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Dive deeper</h2>
+			<h2 class="page-section-title">Dive deeper</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<a href="/experience" class="surface-card stagger-enter group block p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong">
 					<span class="mb-4 block text-3xl" aria-hidden="true">💼</span>

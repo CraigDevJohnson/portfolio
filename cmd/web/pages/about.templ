@@ -18,14 +18,14 @@ templ About(props AboutProps) {
 		Title: "About Me - Craig Johnson",
 		Page:  "about",
 	}) {
-		<section class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/about-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20">
-			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/68"></div>
-			<div class="relative max-w-3xl space-y-5">
-				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">About Me</h1>
-				<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
+		<section class="page-hero-standard bg-[url('/static/images/backgrounds/about-hero.jpg')]">
+			<div class="page-hero-overlay-standard"></div>
+			<div class="page-hero-content max-w-3xl">
+				<h1 class="page-hero-title">About Me</h1>
+				<p class="page-hero-description max-w-3xl">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
 			</div>
 		</section>
-		<section class="about-stats py-10 sm:py-12">
+		<section class="about-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
 					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
@@ -46,11 +46,11 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-		<section class="py-12 sm:py-14">
+		<section class="page-section">
 			<div class="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
 				<div class="space-y-6">
 					@partials.SectionLabel("My Story")
-					<h2 class="text-3xl font-bold tracking-tight text-copy-primary">From the Last Frontier to the Cloud</h2>
+					<h2 class="page-section-title">From the Last Frontier to the Cloud</h2>
 					<div class="space-y-5 text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 						<p>
 							I'm a passionate tech enthusiast who has journeyed from the frosty expanses of Alaska to
@@ -104,9 +104,9 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-		<section class="space-y-6 py-12 sm:py-14">
+		<section class="page-section">
 			@partials.SectionLabel("Career Timeline")
-			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">The Journey So Far</h2>
+			<h2 class="page-section-title">The Journey So Far</h2>
 			<div class="relative pl-7">
 				<div class="absolute bottom-0 left-2 top-0 w-px bg-linear-to-b from-accent-400 to-accent-400/20"></div>
 				<div class="relative pb-8 pl-6">
@@ -147,9 +147,9 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-		<section class="space-y-6 py-12 sm:py-14">
+		<section class="page-section">
 			@partials.SectionLabel("Beyond the Code")
-			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">When I'm Not in the Terminal</h2>
+			<h2 class="page-section-title">When I'm Not in the Terminal</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter p-6 text-center">
 					<span class="mb-4 block text-3xl">⚽</span>
@@ -173,9 +173,9 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-		<section class="space-y-6 py-12 sm:py-14">
+		<section class="page-section">
 			@partials.SectionLabel("What Drives Me")
-			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Core Values</h2>
+			<h2 class="page-section-title">Core Values</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">🔄</div>

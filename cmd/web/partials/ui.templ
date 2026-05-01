@@ -14,15 +14,15 @@ templ SectionLabel(label string) {
 }
 
 templ PageCTA(title string, subtitle string, primary CTALink, secondary CTALink) {
-	<section class="relative mb-12 overflow-hidden rounded-3xl border border-primary-500/20 bg-[linear-gradient(135deg,rgba(0,60,102,0.34)_0%,rgba(0,21,36,0.72)_54%,rgba(255,166,0,0.08)_100%)] px-6 py-12 text-center shadow-panel sm:px-8 sm:py-14">
-		<div class="pointer-events-none absolute left-1/2 top-1/2 h-[18rem] w-[min(31rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-radial from-primary-400/18 to-transparent" aria-hidden="true"></div>
-		<div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-4">
+	<section class="relative mb-12 overflow-hidden rounded-3xl border border-primary-500/20 bg-[linear-gradient(135deg,rgba(0,60,102,0.34)_0%,rgba(0,21,36,0.76)_54%,rgba(255,166,0,0.08)_100%)] px-5 py-8 text-center shadow-panel sm:px-8 sm:py-10 lg:py-12">
+		<div class="pointer-events-none absolute left-1/2 top-1/2 h-[15rem] w-[min(28rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-radial from-primary-400/18 to-transparent" aria-hidden="true"></div>
+		<div class="relative z-10 mx-auto flex max-w-[38rem] flex-col items-center gap-3 sm:gap-4">
 			<h2 class="text-2xl font-bold tracking-tight text-copy-primary sm:text-3xl">{ title }</h2>
 			<p class="text-base leading-7 text-copy-muted">{ subtitle }</p>
-			<div class="mt-2 flex flex-wrap justify-center gap-3">
+			<div class="mt-2 flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
 				<a
 					href={ templ.SafeURL(primary.Href) }
-					class="btn btn-primary"
+					class="btn btn-primary w-full justify-center sm:w-auto sm:min-w-[11rem]"
 					if primary.External {
 						target="_blank"
 						rel="noopener noreferrer"
@@ -33,7 +33,7 @@ templ PageCTA(title string, subtitle string, primary CTALink, secondary CTALink)
 				</a>
 				<a
 					href={ templ.SafeURL(secondary.Href) }
-					class="btn btn-secondary"
+					class="btn btn-secondary w-full justify-center sm:w-auto sm:min-w-[11rem]"
 					if secondary.External {
 						target="_blank"
 						rel="noopener noreferrer"

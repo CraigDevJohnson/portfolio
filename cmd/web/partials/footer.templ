@@ -5,12 +5,12 @@ import "time"
 templ Footer() {
 	<footer class="site-footer mt-auto border-t border-white/8 bg-[linear-gradient(180deg,rgba(0,60,102,0.14)_0%,rgba(11,16,24,0.98)_100%)]">
 		<div class="footer-content mx-auto max-w-[var(--container-max)] px-6 pb-6 pt-12 max-[768px]:pb-5 max-[480px]:px-4">
-			<div class="footer-main grid gap-12 border-b border-white/8 pb-8 max-[1024px]:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+			<div class="footer-main grid gap-10 border-b border-white/8 pb-8 max-[1024px]:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
 				<div class="footer-brand flex flex-col gap-2">
 					<span class="footer-logo text-xl font-extrabold text-copy-primary">Craig Johnson</span>
 					<p class="footer-tagline text-sm text-copy-muted">Cloud Engineer Principal</p>
 				</div>
-				<nav class="footer-nav grid gap-8 max-[768px]:grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" aria-label="Footer navigation">
+				<nav class="footer-nav grid gap-6 max-[560px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Footer navigation">
 					<div class="footer-nav-section flex flex-col gap-1.5">
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Pages</h3>
 						for i, item := range navItems() {
@@ -27,7 +27,7 @@ templ Footer() {
 							}
 						}
 					</div>
-					<div class="footer-nav-section flex flex-col gap-1.5">
+					<div class="footer-nav-section flex flex-col gap-1.5 max-[560px]:col-span-2 max-[560px]:pt-2">
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Connect</h3>
 						<a class="text-sm text-copy-secondary transition hover:text-primary-100" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub</a>
 						<a
@@ -42,18 +42,17 @@ templ Footer() {
 					</div>
 				</nav>
 			</div>
-			<div class="footer-bottom flex items-center justify-between gap-4 pt-6 text-sm text-copy-muted max-[768px]:flex-col max-[768px]:text-center">
+			<div class="footer-bottom flex items-start justify-between gap-5 pt-6 text-sm text-copy-muted max-[768px]:flex-col max-[768px]:text-left">
 				<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
-				<p class="tech-stack flex flex-wrap items-center justify-center gap-2">
-					Built with
-					<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go</a>
-					+
-					<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ</a>
-					+
-					<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX</a>
-					+
-					<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot</a>
-				</p>
+				<div class="tech-stack flex max-w-full flex-col gap-3 max-[768px]:w-full sm:items-end">
+					<span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Built with</span>
+					<div class="flex flex-wrap gap-2 max-[768px]:justify-start sm:justify-end">
+						<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go</a>
+						<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ</a>
+						<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX</a>
+						<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot</a>
+					</div>
+				</div>
 			</div>
 		</div>
 	</footer>
