@@ -1,8 +1,16 @@
 package pages
 
-import "portfolio/cmd/web/layouts"
+import (
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+	"portfolio/types"
+)
 
-templ Experience() {
+type ExperienceProps struct {
+	Experiences []types.Experience
+}
+
+templ Experience(props ExperienceProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Career Journey - Craig Johnson",
 		Page:  "experience",
@@ -201,29 +209,8 @@ templ Experience() {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Career Timeline</span>
 			</div>
-			<section
-				class="career-section"
-				hx-get="/experience/timeline"
-				hx-trigger="revealed"
-				hx-swap="innerHTML"
-			>
-        <div class="grid gap-6 md:grid-cols-2">
-					for i := 1; i <= 7; i++ {
-            <div class="career-card skeleton-card pointer-events-none flex min-h-[17.5rem] flex-col rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(0,21,36,0.92)_0%,rgba(0,60,102,0.18)_52%,rgba(255,0,98,0.06)_100%)] p-6 shadow-panel">
-              <div class="mb-4 flex items-center justify-between gap-4">
-                <div class="skeleton h-5 w-2/3 rounded-full"></div>
-                <div class="skeleton h-7 w-24 rounded-full"></div>
-              </div>
-              <div class="skeleton mb-2 h-4 w-1/2 rounded-full"></div>
-              <div class="skeleton mb-3 h-20 w-full rounded-2xl"></div>
-              <div class="mt-auto flex flex-wrap gap-2">
-                <div class="skeleton h-7 w-20 rounded-full"></div>
-                <div class="skeleton h-7 w-24 rounded-full"></div>
-                <div class="skeleton h-7 w-16 rounded-full"></div>
-							</div>
-						</div>
-					}
-				</div>
+			<section class="career-section">
+				@partials.ExperienceTimeline(partials.ExperienceTimelineProps{Experiences: props.Experiences})
 			</section>
 		</section>
 		<section class="page-cta-section">
@@ -379,7 +366,7 @@ templ Experience() {
     }
 
     function applyFilters() {
-      const cards = document.querySelectorAll('.career-card:not(.skeleton-card)')
+      const cards = document.querySelectorAll('.career-card')
       const noResults = document.getElementById('no-results')
       const hasPositionFilters = activeFilters.position.length > 0
       const hasTechFilters = activeFilters.tech.length > 0
@@ -449,7 +436,7 @@ templ Experience() {
 
       // Animate visible cards
       requestAnimationFrame(() => {
-        const visibleCards = document.querySelectorAll('.career-card:not(.skeleton-card):not(.hidden)')
+        const visibleCards = document.querySelectorAll('.career-card:not(.hidden)')
         visibleCards.forEach((card, index) => {
           card.style.animationDelay = `${index * 50}ms`
         })
@@ -535,16 +522,6 @@ templ Experience() {
           activeFilters.skill.length > 0 ? `(${activeFilters.skill.length})` : ''
       }
     }
-
-    // Listen for HTMX content swap to re-apply filters
-    document.body.addEventListener('htmx:afterSwap', function (event) {
-      if (event.target.classList.contains('career-section')) {
-        // Slight delay to allow DOM to update
-        setTimeout(() => {
-          applyFilters()
-        }, 100)
-      }
-    })
 
     // Hide active filters section initially (no filters selected)
     if (activeFiltersSection) {

@@ -89,13 +89,11 @@ func Run() error {
 		portfolio.AboutHandler(w, r, config.CareerStartYear)
 	})
 	mux.HandleFunc("GET /experience", portfolio.ExperienceHandler)
-	mux.HandleFunc("GET /experience/timeline", portfolio.ExperienceTimelineHandler)
 	mux.HandleFunc("GET /skills", portfolio.SkillsHandler)
 	mux.HandleFunc("GET /skills/grid", portfolio.SkillsGridHandler)
 	mux.HandleFunc("GET /skills/filtered", portfolio.SkillsFilteredHandler)
 	mux.HandleFunc("GET /skills/detail", portfolio.SkillsDetailHandler)
 	mux.HandleFunc("GET /projects", portfolio.ProjectsHandler)
-	mux.HandleFunc("GET /projects/grid", portfolio.ProjectsGridHandler)
 	mux.HandleFunc("GET /education", portfolio.EducationHandler)
 	mux.HandleFunc("GET /contact", portfolio.ContactHandler)
 

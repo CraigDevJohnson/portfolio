@@ -14,6 +14,14 @@ type SoccerLoginStateProps struct {
 	SwapOOB                 bool
 }
 
+func showSoccerDiscoverySection(props SoccerLoginStateProps) bool {
+	return props.Authenticated || props.LoginAvailable
+}
+
+func showSoccerGoogleSection(props SoccerLoginStateProps) bool {
+	return props.GoogleConnected || props.GoogleAvailable || len(props.GoogleCalendars) > 0 || props.SelectedGoogleCalendarID != ""
+}
+
 templ SoccerLoginState(props SoccerLoginStateProps) {
 	<div
 		id="soccer-auth-panel"
@@ -22,7 +30,8 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			hx-swap-oob="outerHTML"
 		}
 	>
-		<div class="soccer-option-group soccer-option-group--fetch-secondary">
+		if showSoccerDiscoverySection(props) {
+			<div class="soccer-option-group soccer-option-group--fetch-secondary">
 			<div class="soccer-option-group-header">
 				<p class="soccer-option-group-label">Discovery fetch path</p>
 				<p class="soccer-option-group-copy">Use import access only when you want player discovery before you confirm teams and load the schedule.</p>
@@ -32,7 +41,6 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 					<div class="soccer-section-header">
 						<span class="soccer-section-step" aria-hidden="true">1B</span>
 						<div>
-							// <p class="soccer-section-eyebrow">Player discovery</p>
 							<h3>Player Discovery</h3>
 						</div>
 					</div>
@@ -41,7 +49,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							Let&apos;s Play Soccer
 						</a> browser session when you want to discover linked players first, then choose which teams to include.
           </p>
-          <div class="jwt-import-warning" role="alert">
+          <div class="jwt-import-warning">
             <p>
               Player Discovery uses the JWT (<a href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">JSON web token</a>)
               from your signed-in <u><em>Let&apos;s Play Soccer</em></u> account, which gives full access to your account (only used to query players/teams/schedules/results).
@@ -66,7 +74,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							<span class="btn-text">Clear import</span>
 							<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 						</button>
-					} else if props.LoginAvailable {
+					} else {
 						<div>
 							<p class="soccer-auth-status">No import active</p>
 							<p class="soccer-auth-user">Import a JWT when you want the app to discover linked players. You&apos;ll choose players first, then confirm teams before schedules load.</p>
@@ -74,18 +82,16 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 						<button type="button" class="btn btn-primary" data-open-login-modal>
 							Import access
 						</button>
-					} else {
-						<div class="soccer-auth-unavailable" role="status">
-							<p>JWT import is unavailable until the session encryption key is configured on the server.</p>
-						</div>
 					}
 				</div>
 				if props.Authenticated {
 					@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players})
 				}
 			</div>
-		</div>
-		<div class="soccer-option-group soccer-option-group--follow-up">
+			</div>
+		}
+		if showSoccerGoogleSection(props) {
+			<div class="soccer-option-group soccer-option-group--follow-up">
 			<div class="soccer-option-group-header">
 				<p class="soccer-option-group-label">Download or sync after fetch</p>
 				<p class="soccer-option-group-copy">Once the schedule loads, save it as an .ics file or connect Google Calendar for direct adds and result sync.</p>
@@ -95,13 +101,11 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 					<div class="soccer-section-header">
 						<span class="soccer-section-step" aria-hidden="true">2</span>
 						<div>
-							// <p class="soccer-section-eyebrow">Optional direct add</p>
 							<h3>Google Calendar Connection</h3>
 						</div>
 					</div>
 					<p class="soccer-section-intro">Connect once to save a destination calendar and add selected matches without downloading an .ics file.</p>
 				</div>
-				if props.GoogleAvailable {
 					<div class="soccer-auth-summary">
 						if props.GoogleConnected {
 							<div>
@@ -141,7 +145,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							</a>
 						}
 					</div>
-					if props.GoogleConnected && len(props.GoogleCalendars) > 0 {
+				if props.GoogleConnected && len(props.GoogleCalendars) > 0 {
 						<form
 							class="fetch-form"
 							hx-post="/soccer/google/calendar"
@@ -172,12 +176,13 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							</div>
 						</form>
 					}
-				} else {
-					<div class="soccer-auth-unavailable" role="status">
-						<p>Google Calendar add is unavailable until Google OAuth and server-side connection storage are configured.</p>
-					</div>
-				}
 			</div>
-		</div>
+			</div>
+		}
+		if !showSoccerDiscoverySection(props) && !showSoccerGoogleSection(props) {
+			<div class="soccer-auth-unavailable" role="status">
+				<p>Manual team lookup and ICS download are ready now. Player discovery and direct Google Calendar adds will appear automatically when those integrations are configured on the server.</p>
+			</div>
+		}
 	</div>
 }

@@ -78,13 +78,9 @@ func AboutHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 
 // ExperienceHandler renders the experience page shell.
 func ExperienceHandler(w http.ResponseWriter, r *http.Request) {
-	renderComponent(w, r, pages.Experience())
-}
-
-// ExperienceTimelineHandler renders the experience timeline fragment.
-func ExperienceTimelineHandler(w http.ResponseWriter, r *http.Request) {
-	props := partials.ExperienceTimelineProps{Experiences: ExperienceData()}
-	renderComponent(w, r, partials.ExperienceTimeline(props))
+	renderComponent(w, r, pages.Experience(pages.ExperienceProps{
+		Experiences: ExperienceData(),
+	}))
 }
 
 // featuredSkills returns the featured skills with category names attached.
@@ -171,13 +167,8 @@ func ProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		UniqueTechnologies:    stats.UniqueTechnologies,
 		CategoryCount:         stats.CategoryCount,
 		PublicRepositoryCount: stats.PublicRepositoryCount,
+		Projects:              projects,
 	}))
-}
-
-// ProjectsGridHandler renders the projects grid fragment.
-func ProjectsGridHandler(w http.ResponseWriter, r *http.Request) {
-	props := partials.ProjectsGridProps{Projects: ProjectsData()}
-	renderComponent(w, r, partials.ProjectsGrid(props))
 }
 
 // EducationHandler renders the education page.

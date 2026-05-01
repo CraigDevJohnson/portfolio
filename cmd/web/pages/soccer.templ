@@ -3,6 +3,14 @@ package pages
 import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
 
+func soccerSupportsDiscovery(state partials.SoccerLoginStateProps) bool {
+	return state.Authenticated || state.LoginAvailable
+}
+
+func soccerSupportsGoogle(state partials.SoccerLoginStateProps) bool {
+	return state.GoogleConnected || state.GoogleAvailable || len(state.GoogleCalendars) > 0 || state.SelectedGoogleCalendarID != ""
+}
+
 type SoccerProps struct {
 	GoogleMessage     string
 	GoogleMessageKind string
@@ -18,16 +26,32 @@ templ Soccer(props SoccerProps) {
 			<div class="hero-header soccer-hero-header">
 				<h1>Soccer Schedule Download</h1>
 				<p class="lead">
-					Pull live schedules from
-					<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
-						Let&apos;s Play Soccer
-					</a>
-					with the path that fits your night best: start with manual team IDs for the quickest lookup, or import access when you want player discovery before choosing teams and loading schedules.
+					Start with manual team IDs for the quickest lookup.
+					if soccerSupportsDiscovery(props.AuthState) {
+						Import access is also available when you want player discovery from your signed-in
+						<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+							Let&apos;s Play Soccer
+						</a>
+						account before choosing teams.
+					} else {
+						Manual lookup is the active path on this server right now.
+					}
+					if soccerSupportsGoogle(props.AuthState) {
+						After the schedule loads, you can download an .ics file or add games directly to Google Calendar.
+					} else {
+						After the schedule loads, download an .ics file to add games to your calendar.
+					}
 				</p>
 				<ul class="soccer-hero-highlights" aria-label="Soccer schedule tool highlights">
 					<li>Quick manual team lookups</li>
-					<li>JWT-based player discovery</li>
-					<li>ICS downloads or Google Calendar adds</li>
+					if soccerSupportsDiscovery(props.AuthState) {
+						<li>JWT-based player discovery</li>
+					}
+					if soccerSupportsGoogle(props.AuthState) {
+						<li>ICS downloads or Google Calendar adds</li>
+					} else {
+						<li>ICS downloads after the schedule loads</li>
+					}
 				</ul>
 			</div>
 		</section>
@@ -45,8 +69,15 @@ templ Soccer(props SoccerProps) {
 					<div class="soccer-support-card-header">
             <h3>Choose your workflow</h3>
 						<p class="info-inline-intro">
-              Manual team IDs get you to the schedule quickest. Import access helps you discover current teams from your signed-in account,
-              and Google Calendar is ready when you want direct adds after the schedule loads rather than downloading the .ics file.
+              Manual team IDs get you to the schedule quickest.
+              if soccerSupportsDiscovery(props.AuthState) {
+                Import access helps you discover current teams from your signed-in account before you choose what to fetch.
+              }
+              if soccerSupportsGoogle(props.AuthState) {
+                Google Calendar is ready when you want direct adds after the schedule loads rather than downloading the .ics file.
+              } else {
+                Downloading an .ics file is the calendar path available on this server today.
+              }
             </p>
 					</div>
 					<div class="soccer-support-grid" role="list" aria-label="Soccer schedule workflow overview">
@@ -57,30 +88,44 @@ templ Soccer(props SoccerProps) {
 								<p>Use manual lookup when you already know the numeric team IDs and want the schedule right away or don't want to allow JWT import access.</p>
 							</div>
 						</div>
-						<div class="soccer-support-step-fetch" role="listitem">
-							<span class="soccer-support-step-number-fetch" aria-hidden="true">1B</span>
-							<div>
-								<h4>Import access for player discovery</h4>
-								<p>Import a JWT only when you want the app to find linked players before you choose teams.</p>
+						if soccerSupportsDiscovery(props.AuthState) {
+							<div class="soccer-support-step-fetch" role="listitem">
+								<span class="soccer-support-step-number-fetch" aria-hidden="true">1B</span>
+								<div>
+									<h4>Import access for player discovery</h4>
+									<p>Import a JWT only when you want the app to find linked players before you choose teams.</p>
+								</div>
 							</div>
-						</div>
+						}
 						<div class="soccer-support-step-cal" role="listitem">
 							<span class="soccer-support-step-number-cal" aria-hidden="true">2</span>
 							<div>
-								<h4>Download or sync after the schedule loads</h4>
-								<p>Pick the matches you want, then download an .ics file or add them directly to Google Calendar.</p>
+								if soccerSupportsGoogle(props.AuthState) {
+									<h4>Download or sync after the schedule loads</h4>
+									<p>Pick the matches you want, then download an .ics file or add them directly to Google Calendar.</p>
+								} else {
+									<h4>Download after the schedule loads</h4>
+									<p>Pick the matches you want, then export an .ics file for your calendar app.</p>
+								}
 							</div>
 						</div>
 					</div>
           <div class="soccer-support-tip-block">
-					<p class="soccer-support-tip">
-						<strong>Need player discovery?</strong>
-						Sign in on
-						<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
-							Let&apos;s Play Soccer
-						</a>
-						in another tab, then copy a JWT from an authenticated request in DevTools before importing access.
-          </p>
+						if soccerSupportsDiscovery(props.AuthState) {
+							<p class="soccer-support-tip">
+								<strong>Need player discovery?</strong>
+								Sign in on
+								<a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+									Let&apos;s Play Soccer
+								</a>
+								in another tab, then copy a JWT from an authenticated request in DevTools before importing access.
+          				</p>
+						} else {
+							<p class="soccer-support-tip">
+								<strong>Heads up:</strong>
+								Optional player discovery and direct Google Calendar sync appear automatically when those server-side integrations are configured.
+							</p>
+						}
           </div>
 				</div>
 				<div class="unified-form-section">
@@ -149,11 +194,21 @@ templ Soccer(props SoccerProps) {
 					<div class="empty-state">
 						<div class="empty-state-icon" aria-hidden="true">⚽</div>
 						<h3>Your next matchday starts here</h3>
+						if soccerSupportsDiscovery(props.AuthState) {
 							<p>Start with manual team IDs for the quickest lookup, or import access when you want to choose players and teams before loading schedules.</p>
+						} else {
+							<p>Enter manual team IDs to look up your schedule directly.</p>
+						}
 						<ul class="empty-state-list">
 								<li class="empty-state-item">Enter team IDs for a direct schedule lookup</li>
-								<li class="empty-state-item">Import access if you want linked-player discovery</li>
-								<li class="empty-state-item">Download ICS or connect Google after the schedule loads</li>
+								if soccerSupportsDiscovery(props.AuthState) {
+									<li class="empty-state-item">Import access if you want linked-player discovery</li>
+								}
+								if soccerSupportsGoogle(props.AuthState) {
+									<li class="empty-state-item">Download ICS or connect Google after the schedule loads</li>
+								} else {
+									<li class="empty-state-item">Download an ICS file after the schedule loads</li>
+								}
 						</ul>
 					</div>
 				</div>

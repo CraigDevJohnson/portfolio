@@ -3,6 +3,8 @@ package pages
 import (
 	"fmt"
 	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+	"portfolio/types"
 )
 
 type ProjectsProps struct {
@@ -10,6 +12,7 @@ type ProjectsProps struct {
 	UniqueTechnologies    int
 	CategoryCount         int
 	PublicRepositoryCount int
+	Projects              []types.Project
 }
 
 templ Projects(props ProjectsProps) {
@@ -80,25 +83,8 @@ templ Projects(props ProjectsProps) {
 				<span class="label-line" aria-hidden="true"></span>
 				<span>Project Showcase</span>
 			</div>
-			<section class="projects-section py-2" hx-get="/projects/grid" hx-trigger="revealed" hx-swap="innerHTML">
-				<div class="projects-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-					for i := 1; i <= 3; i++ {
-						<div class="surface-card project-card min-h-[26rem] overflow-hidden">
-							<div class="skeleton aspect-video w-full"></div>
-							<div class="flex flex-col gap-4 p-6">
-								<div class="skeleton h-7 w-2/3 rounded-lg"></div>
-								<div class="skeleton h-4 w-1/2 rounded-lg"></div>
-								<div class="skeleton h-4 w-full rounded-lg"></div>
-								<div class="skeleton h-4 w-4/5 rounded-lg"></div>
-								<div class="flex flex-wrap gap-2">
-									<div class="skeleton skeleton-pill"></div>
-									<div class="skeleton skeleton-pill"></div>
-									<div class="skeleton skeleton-pill"></div>
-								</div>
-							</div>
-						</div>
-					}
-				</div>
+			<section class="projects-section py-2">
+				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
 			</section>
 		</section>
 		<section class="page-cta-section">
