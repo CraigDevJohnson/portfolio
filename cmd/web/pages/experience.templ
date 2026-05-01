@@ -15,216 +15,202 @@ templ Experience(props ExperienceProps) {
 		Title: "Career Journey - Craig Johnson",
 		Page:  "experience",
 	}) {
-      <section class="page-hero relative isolate overflow-hidden [--page-hero-overlay-start:rgb(0_21_36_/_0.44)] [--page-hero-overlay-end:rgb(36_0_14_/_0.84)]" style="background-image:url('/static/images/backgrounds/experience-hero.jpg');">
-      <div class="hero-header text-center">
-				<h1>Career Journey</h1>
-				<p class="lead">A decade of growth in system engineering, automation, and cloud technologies</p>
-        <p class="mx-auto mt-2 max-w-[34rem] text-base leading-relaxed text-copy-muted">From service desk to principal cloud engineer — building, automating, and scaling enterprise infrastructure.</p>
+		<section class="relative isolate mb-6 grid min-h-[clamp(18rem,42vw,28rem)] place-items-center overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/experience-hero.jpg')] bg-cover bg-[center_30%] px-6 pb-12 pt-[calc(var(--header-height)+3rem)] text-center shadow-panel-strong sm:px-8 lg:px-12 lg:pt-[calc(var(--header-height)+4rem)]">
+			<div class="absolute inset-0 bg-linear-to-b from-primary-950/45 to-secondary-950/85"></div>
+			<div class="relative z-10 mx-auto w-[min(44rem,100%)]">
+				<h1 class="mb-4 bg-[linear-gradient(135deg,var(--color-primary-100)_0%,var(--color-primary-300)_40%,var(--color-accent-300)_100%)] bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">Career Journey</h1>
+				<p class="mx-auto max-w-[38rem] text-base leading-7 text-copy-muted sm:text-xl sm:leading-8">A decade of growth in system engineering, automation, and cloud technologies</p>
+				<p class="mx-auto mt-2 max-w-[34rem] text-base leading-relaxed text-copy-muted">From service desk to principal cloud engineer — building, automating, and scaling enterprise infrastructure.</p>
 			</div>
 		</section>
-    <section class="experience-summary pb-12">
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
-            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,166,0,0.18)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(255,166,0,0.3)]">
-            <span class="exp-icon" aria-hidden="true">🚀</span>
+		<section class="experience-summary pb-12">
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
+					<div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,166,0,0.18)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(255,166,0,0.3)]">
+						<span class="exp-icon" aria-hidden="true">🚀</span>
 					</div>
-            <span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target-year="2012">0</span>
-          <span class="text-sm text-copy-muted">Years in Tech</span>
+					<span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target-year="2012">0</span>
+					<span class="text-sm text-copy-muted">Years in Tech</span>
 				</div>
-          <div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
-            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,149,255,0.28)]">
-            <span class="exp-icon" aria-hidden="true">🏢</span>
+				<div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
+					<div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,149,255,0.28)]">
+						<span class="exp-icon" aria-hidden="true">🏢</span>
 					</div>
-            <span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="4">0</span>
-          <span class="text-sm text-copy-muted">Companies</span>
+					<span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="4">0</span>
+					<span class="text-sm text-copy-muted">Companies</span>
 				</div>
-          <div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
-            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,0,98,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(255,0,98,0.28)]">
-            <span class="exp-icon" aria-hidden="true">📋</span>
+				<div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
+					<div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,0,98,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(255,0,98,0.28)]">
+						<span class="exp-icon" aria-hidden="true">📋</span>
 					</div>
-            <span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="7">0</span>
-          <span class="text-sm text-copy-muted">Positions Held</span>
+					<span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="7">0</span>
+					<span class="text-sm text-copy-muted">Positions Held</span>
 				</div>
-          <div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
-            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,149,255,0.28)]">
-            <span class="exp-icon" aria-hidden="true">☁️</span>
+				<div class="group flex flex-col items-center rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.24)_42%,rgba(255,0,98,0.08)_100%)] p-5 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/30 hover:shadow-panel-strong">
+					<div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105 group-hover:shadow-[0_0_28px_rgba(0,149,255,0.28)]">
+						<span class="exp-icon" aria-hidden="true">☁️</span>
 					</div>
-            <span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="3">0</span>
-          <span class="text-sm text-copy-muted">Cloud Platforms</span>
-				</div>
-			</div>
-		</section>
-    <section class="pb-10">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Career Highlights</span>
-			</div>
-      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
-            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,166,0,0.16)] transition duration-200 group-hover:scale-105">
-            <span class="exp-icon" aria-hidden="true">🔧</span>
-					</div>
-          <h3 class="mb-2 text-base font-semibold text-copy-primary">Automation Pioneer</h3>
-          <p class="text-sm leading-relaxed text-copy-muted">Built enterprise automation reducing manual work by 80% through PowerShell, Ansible, and Terraform.</p>
-				</div>
-          <div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
-            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105">
-            <span class="exp-icon" aria-hidden="true">☁️</span>
-					</div>
-          <h3 class="mb-2 text-base font-semibold text-copy-primary">Cloud Migration Lead</h3>
-          <p class="text-sm leading-relaxed text-copy-muted">Led infrastructure migrations across AWS and Azure, modernizing legacy systems for the cloud.</p>
-				</div>
-          <div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
-            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,0,98,0.16)] transition duration-200 group-hover:scale-105">
-            <span class="exp-icon" aria-hidden="true">🛡️</span>
-					</div>
-          <h3 class="mb-2 text-base font-semibold text-copy-primary">Security Champion</h3>
-          <p class="text-sm leading-relaxed text-copy-muted">Implemented compliance and security frameworks including zero-trust architecture and IAM policies.</p>
-				</div>
-          <div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
-            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105">
-            <span class="exp-icon" aria-hidden="true">📈</span>
-					</div>
-          <h3 class="mb-2 text-base font-semibold text-copy-primary">Scale Builder</h3>
-          <p class="text-sm leading-relaxed text-copy-muted">Managed infrastructure supporting thousands of users with high availability and reliability.</p>
+					<span class="exp-stat-value mb-1 bg-[linear-gradient(135deg,#cceaff_0%,#33aaff_48%,#ffb833_100%)] bg-clip-text text-2xl font-extrabold text-transparent" data-counter data-target="3">0</span>
+					<span class="text-sm text-copy-muted">Cloud Platforms</span>
 				</div>
 			</div>
 		</section>
-    <section class="mb-12 rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.22)_52%,rgba(36,0,14,0.34)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Refine Results</span>
+		<section class="pb-10">
+			@partials.SectionLabel("Career Highlights")
+			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+				<div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
+					<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,166,0,0.16)] transition duration-200 group-hover:scale-105">
+						<span class="exp-icon" aria-hidden="true">🔧</span>
+					</div>
+					<h3 class="mb-2 text-base font-semibold text-copy-primary">Automation Pioneer</h3>
+					<p class="text-sm leading-relaxed text-copy-muted">Built enterprise automation reducing manual work by 80% through PowerShell, Ansible, and Terraform.</p>
+				</div>
+				<div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
+					<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105">
+						<span class="exp-icon" aria-hidden="true">☁️</span>
+					</div>
+					<h3 class="mb-2 text-base font-semibold text-copy-primary">Cloud Migration Lead</h3>
+					<p class="text-sm leading-relaxed text-copy-muted">Led infrastructure migrations across AWS and Azure, modernizing legacy systems for the cloud.</p>
+				</div>
+				<div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
+					<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-400/22 bg-secondary-500/10 text-2xl shadow-[0_0_24px_rgba(255,0,98,0.16)] transition duration-200 group-hover:scale-105">
+						<span class="exp-icon" aria-hidden="true">🛡️</span>
+					</div>
+					<h3 class="mb-2 text-base font-semibold text-copy-primary">Security Champion</h3>
+					<p class="text-sm leading-relaxed text-copy-muted">Implemented compliance and security frameworks including zero-trust architecture and IAM policies.</p>
+				</div>
+				<div class="group rounded-2xl border border-white/8 bg-[linear-gradient(155deg,rgba(0,21,36,0.94)_0%,rgba(0,60,102,0.18)_48%,rgba(255,0,98,0.08)_100%)] p-6 text-center shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/28 hover:shadow-panel-strong">
+					<div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-400/22 bg-primary-500/10 text-2xl shadow-[0_0_24px_rgba(0,149,255,0.16)] transition duration-200 group-hover:scale-105">
+						<span class="exp-icon" aria-hidden="true">📈</span>
+					</div>
+					<h3 class="mb-2 text-base font-semibold text-copy-primary">Scale Builder</h3>
+					<p class="text-sm leading-relaxed text-copy-muted">Managed infrastructure supporting thousands of users with high availability and reliability.</p>
+				</div>
 			</div>
+		</section>
+		<section class="mb-12 rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.22)_52%,rgba(36,0,14,0.34)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+			@partials.SectionLabel("Refine Results")
 			<h2 class="sr-only">Refine Results</h2>
-      <p class="max-w-[52rem] text-sm leading-relaxed text-copy-muted sm:text-base">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
-      <div class="filter-section mt-6 border-b border-white/10 pb-4" id="position-section">
-        <h3 class="text-base font-semibold text-copy-primary">
+			<p class="max-w-[52rem] text-sm leading-relaxed text-copy-muted sm:text-base">Use the filters below to explore positions by role, technology, or skill area. Select multiple options to narrow your results.</p>
+			<div class="filter-section mt-6 border-b border-white/10 pb-4" id="position-section">
+				<h3 class="text-base font-semibold text-copy-primary">
 					<button
 						type="button"
-            class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
+						class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
 						aria-expanded="false"
 						aria-controls="position-filters"
 					>
 						Filter by Position
-            <span class="filter-count text-xs font-semibold text-secondary-300" id="position-count"></span>
-            <span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
+						<span class="filter-count text-xs font-semibold text-secondary-300" id="position-count"></span>
+						<span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
 					</button>
 				</h3>
-        <div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="position-filters">
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="Cloud Engineer Principal" type="button">
+				<div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="position-filters">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="Cloud Engineer Principal" type="button">
 						Cloud Engineer Principal
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="System Administrator" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="System Administrator" type="button">
 						System Administrator
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer Sr" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer Sr" type="button">
 						IT Systems Engineer Sr
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Systems Engineer" type="button">
 						IT Systems Engineer
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Desktop Engineer" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Desktop Engineer" type="button">
 						IT Desktop Engineer
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Service Desk Associate" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="IT Service Desk Associate" type="button">
 						IT Service Desk Associate
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="Service Desk Student Analyst" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="position" data-value="Service Desk Student Analyst" type="button">
 						Service Desk Student Analyst
 					</button>
 				</div>
 			</div>
-      <div class="filter-section border-b border-white/10 py-4" id="tech-section">
-        <h3 class="text-base font-semibold text-copy-primary">
+			<div class="filter-section border-b border-white/10 py-4" id="tech-section">
+				<h3 class="text-base font-semibold text-copy-primary">
 					<button
 						type="button"
-            class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
+						class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
 						aria-expanded="false"
 						aria-controls="tech-filters"
 					>
 						Filter by Technology
-            <span class="filter-count text-xs font-semibold text-secondary-300" id="tech-count"></span>
-            <span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
+						<span class="filter-count text-xs font-semibold text-secondary-300" id="tech-count"></span>
+						<span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
 					</button>
 				</h3>
-        <div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="tech-filters">
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="PowerShell" type="button">PowerShell</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Ansible" type="button">Ansible</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Terraform" type="button">Terraform</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="AWS" type="button">AWS</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Azure" type="button">Azure</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="AD DS" type="button">AD DS</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="RHEL" type="button">RHEL</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Bash" type="button">Bash</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Python" type="button">Python</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="O365/Exchange" type="button">
+				<div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="tech-filters">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="PowerShell" type="button">PowerShell</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Ansible" type="button">Ansible</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Terraform" type="button">Terraform</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="AWS" type="button">AWS</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Azure" type="button">Azure</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="AD DS" type="button">AD DS</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="RHEL" type="button">RHEL</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Bash" type="button">Bash</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Python" type="button">Python</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="O365/Exchange" type="button">
 						O365/Exchange
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Docker" type="button">Docker</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="SCCM" type="button">SCCM</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Intune" type="button">Intune</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="ServiceNow" type="button">ServiceNow</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Docker" type="button">Docker</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="SCCM" type="button">SCCM</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="Intune" type="button">Intune</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="tech" data-value="ServiceNow" type="button">ServiceNow</button>
 				</div>
 			</div>
-      <div class="filter-section pt-4" id="skill-section">
-        <h3 class="text-base font-semibold text-copy-primary">
+			<div class="filter-section pt-4" id="skill-section">
+				<h3 class="text-base font-semibold text-copy-primary">
 					<button
 						type="button"
-            class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
+						class="collapsible-button flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition duration-150 ease-out hover:text-primary-100 focus-ring"
 						aria-expanded="false"
 						aria-controls="skill-filters"
 					>
 						Filter by Skill Area
-            <span class="filter-count text-xs font-semibold text-secondary-300" id="skill-count"></span>
-            <span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
+						<span class="filter-count text-xs font-semibold text-secondary-300" id="skill-count"></span>
+						<span class="collapse-icon ml-auto -rotate-90 text-xs text-copy-muted transition-transform duration-150 ease-out" aria-hidden="true">▼</span>
 					</button>
 				</h3>
-        <div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="skill-filters">
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="cloud" type="button">
+				<div class="filter-pills hidden flex-wrap gap-2 px-2 pt-3" id="skill-filters">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="cloud" type="button">
 						Cloud Infrastructure
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="automation" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="automation" type="button">
 						Automation & IaC
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="systems" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="systems" type="button">
 						Systems Administration
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="security" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="security" type="button">
 						Security & Compliance
 					</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="devops" type="button">DevOps & CI/CD</button>
-          <button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="scripting" type="button">
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="devops" type="button">DevOps & CI/CD</button>
+					<button class="filter-pill inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs font-medium tracking-[0.02em] text-copy-secondary transition duration-150 ease-out hover:-translate-y-0.5 hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-pressed="false" data-filter="skill" data-value="scripting" type="button">
 						Scripting & Programming
 					</button>
 				</div>
 			</div>
-      <div class="active-filters hidden flex-wrap items-center gap-3 border-t border-white/10 pt-5" id="active-filters">
-        <span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Active Filters</span>
-        <span class="active-filter-tags flex flex-wrap gap-2" id="active-filter-tags"></span>
-        <button class="clear-filters-btn ml-auto inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-copy-secondary transition duration-150 ease-out hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" id="clear-filters" type="button">Clear All</button>
+			<div class="active-filters hidden flex-wrap items-center gap-3 border-t border-white/10 pt-5" id="active-filters">
+				<span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Active Filters</span>
+				<span class="active-filter-tags flex flex-wrap gap-2" id="active-filter-tags"></span>
+				<button class="clear-filters-btn ml-auto inline-flex min-h-10 items-center rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-copy-secondary transition duration-150 ease-out hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" id="clear-filters" type="button">Clear All</button>
 			</div>
 		</section>
-    <section class="pb-12">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Career Timeline</span>
-			</div>
+		<section class="pb-12">
+			@partials.SectionLabel("Career Timeline")
 			<section class="career-section">
 				@partials.ExperienceTimeline(partials.ExperienceTimelineProps{Experiences: props.Experiences})
 			</section>
 		</section>
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-			<h2>Want to see what I've built?</h2>
-			<p class="cta-subtitle">Check out my projects or view my technical skills in detail</p>
-			<div class="cta-buttons">
-				<a href="/projects" class="btn btn-primary">
-					<span>View Projects</span>
-					<span class="btn-icon" aria-hidden="true">→</span>
-				</a>
-				<a href="/skills" class="btn btn-secondary">See Skills</a>
-			</div>
-		</section>
+		@partials.PageCTA(
+			"Want to see what I've built?",
+			"Check out my projects or view my technical skills in detail",
+			partials.CTALink{Href: "/projects", Label: "View Projects"},
+			partials.CTALink{Href: "/skills", Label: "See Skills"},
+		)
 		<script>
   // Filter functionality with collapsible sections and multi-select
   document.addEventListener('DOMContentLoaded', function () {

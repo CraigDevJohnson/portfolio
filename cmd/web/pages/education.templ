@@ -1,13 +1,14 @@
 package pages
 
 import (
-	"portfolio/cmd/web/layouts"
 	"fmt"
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
 )
 
 type EducationProps struct {
-	TotalCerts    int
-	Providers     int
+	TotalCerts      int
+	Providers       int
 	YearsCertifying int
 }
 
@@ -17,8 +18,7 @@ templ Education(props EducationProps) {
 		Page:  "education",
 	}) {
 		<section
-			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
-			style="background-image: url('/static/images/backgrounds/education-hero.jpg')"
+			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/education-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
 		>
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/76 to-secondary-950/70"></div>
 			<div class="relative max-w-3xl space-y-5">
@@ -51,10 +51,7 @@ templ Education(props EducationProps) {
 		</section>
 		<!-- Featured Degree -->
 		<section class="space-y-6 py-12 sm:py-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Academic Foundation</span>
-			</div>
+			@partials.SectionLabel("Academic Foundation")
 			<a
 				href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
 				target="_blank"
@@ -86,10 +83,7 @@ templ Education(props EducationProps) {
 		</section>
 		<!-- Certifications Grid -->
 		<section class="space-y-6 py-12 sm:py-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Professional Certifications</span>
-			</div>
+			@partials.SectionLabel("Professional Certifications")
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Industry Recognized Credentials</h2>
 			<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<a
@@ -314,18 +308,11 @@ templ Education(props EducationProps) {
 				</a>
 			</div>
 		</section>
-		<!-- CTA -->
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-			<h2>See how education translates to experience</h2>
-			<p class="cta-subtitle">Explore how these credentials are applied in real-world cloud engineering</p>
-			<div class="cta-buttons">
-				<a href="/experience" class="btn btn-primary">
-					<span>View Experience</span>
-					<span class="btn-icon" aria-hidden="true">→</span>
-				</a>
-				<a href="/skills" class="btn btn-secondary">View Skills</a>
-			</div>
-		</section>
+		@partials.PageCTA(
+			"See how education translates to experience",
+			"Explore how these credentials are applied in real-world cloud engineering",
+			partials.CTALink{Href: "/experience", Label: "View Experience"},
+			partials.CTALink{Href: "/skills", Label: "View Skills"},
+		)
 	}
 }

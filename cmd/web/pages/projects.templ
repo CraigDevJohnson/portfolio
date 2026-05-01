@@ -21,8 +21,7 @@ templ Projects(props ProjectsProps) {
 		Page:  "projects",
 	}) {
 		<section
-			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
-			style="background-image: url('/static/images/backgrounds/projects-hero.jpg')"
+			class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/projects-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
 		>
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/76 to-secondary-950/70"></div>
 			<div class="relative max-w-4xl space-y-5">
@@ -65,10 +64,7 @@ templ Projects(props ProjectsProps) {
 			</div>
 		</section>
 		<section class="space-y-4 py-10 sm:py-12">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>What I Build</span>
-			</div>
+			@partials.SectionLabel("What I Build")
 			<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
 			</p>
@@ -79,30 +75,16 @@ templ Projects(props ProjectsProps) {
 			<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="automation">Automation</button>
 		</div>
 		<section class="space-y-6 pb-12 pt-8 sm:pb-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Project Showcase</span>
-			</div>
+			@partials.SectionLabel("Project Showcase")
 			<section class="projects-section py-2">
 				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
 			</section>
 		</section>
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-			<h2>Looking for more?</h2>
-			<p class="cta-subtitle">Check out my GitHub profile for additional projects and contributions</p>
-			<div class="cta-buttons">
-				<a
-					href="https://github.com/CraigDevJohnson"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="btn btn-primary"
-				>
-					<span>View GitHub Profile</span>
-					<span class="btn-icon" aria-hidden="true">→</span>
-				</a>
-				<a href="/experience" class="btn btn-secondary">See Experience</a>
-			</div>
-		</section>
+		@partials.PageCTA(
+			"Looking for more?",
+			"Check out my GitHub profile for additional projects and contributions",
+			partials.CTALink{Href: "https://github.com/CraigDevJohnson", Label: "View GitHub Profile", External: true},
+			partials.CTALink{Href: "/experience", Label: "See Experience"},
+		)
 	}
 }

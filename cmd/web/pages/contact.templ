@@ -1,6 +1,7 @@
 package pages
 
 import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
 
 templ Contact() {
 	@layouts.Base(layouts.BaseProps{
@@ -8,8 +9,7 @@ templ Contact() {
 		Page:  "contact",
 	}) {
 		<section
-			class="relative overflow-hidden rounded-3xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
-			style="background-image: url('/static/images/backgrounds/contact-hero.jpg')"
+			class="relative overflow-hidden rounded-3xl border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/contact-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20"
 		>
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/95 via-carbon-black-950/85 to-secondary-950/80"></div>
 			<div class="relative mx-auto flex max-w-3xl flex-col gap-5">
@@ -24,10 +24,7 @@ templ Contact() {
 			</div>
 		</section>
 		<section class="space-y-6 py-10 sm:py-12">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Ways to Connect</span>
-			</div>
+			@partials.SectionLabel("Ways to Connect")
 			<h2 class="text-2xl font-semibold tracking-tight text-copy-primary sm:text-3xl">Choose the easiest way to reach me</h2>
 			<div class="grid gap-4">
 				<a
@@ -82,10 +79,7 @@ templ Contact() {
 			</div>
 		</section>
 		<section class="space-y-6 py-10 sm:py-12">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>What I Bring</span>
-			</div>
+			@partials.SectionLabel("What I Bring")
 			<h2 class="text-2xl font-semibold tracking-tight text-copy-primary sm:text-3xl">Expertise that delivers</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card p-6 text-center">
@@ -135,17 +129,11 @@ templ Contact() {
 				</div>
 			</div>
 		</section>
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-			<h2>Want to see my work first?</h2>
-			<p class="cta-subtitle">Explore my projects and experience before reaching out</p>
-			<div class="cta-buttons">
-				<a href="/projects" class="btn btn-primary">
-					<span>View Projects</span>
-					<span class="btn-icon" aria-hidden="true">→</span>
-				</a>
-				<a href="/experience" class="btn btn-secondary">See Experience</a>
-			</div>
-		</section>
+		@partials.PageCTA(
+			"Want to see my work first?",
+			"Explore my projects and experience before reaching out",
+			partials.CTALink{Href: "/projects", Label: "View Projects"},
+			partials.CTALink{Href: "/experience", Label: "See Experience"},
+		)
 	}
 }

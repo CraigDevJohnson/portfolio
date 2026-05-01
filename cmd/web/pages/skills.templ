@@ -1,16 +1,18 @@
 package pages
 
 import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
 
 templ Skills() {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Technical Proficiencies - Craig Johnson",
 		Page:  "skills",
 	}) {
-		<section class="page-hero relative isolate overflow-hidden [--page-hero-overlay-start:rgb(0_21_36_/_0.48)] [--page-hero-overlay-end:rgb(36_0_14_/_0.86)]" style="background-image:url('/static/images/backgrounds/skills-hero.jpg');">
-			<div class="hero-header text-center">
-				<h1>Technical Proficiencies</h1>
-				<p class="lead">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
+		<section class="relative isolate mb-6 grid min-h-[clamp(18rem,42vw,28rem)] place-items-center overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/skills-hero.jpg')] bg-cover bg-[center_30%] px-6 pb-12 pt-[calc(var(--header-height)+3rem)] text-center shadow-panel-strong sm:px-8 lg:px-12 lg:pt-[calc(var(--header-height)+4rem)]">
+			<div class="absolute inset-0 bg-linear-to-b from-primary-950/50 to-secondary-950/85"></div>
+			<div class="relative z-10 mx-auto w-[min(44rem,100%)]">
+				<h1 class="mb-4 bg-[linear-gradient(135deg,var(--color-primary-100)_0%,var(--color-primary-300)_40%,var(--color-accent-300)_100%)] bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">Technical Proficiencies</h1>
+				<p class="mx-auto max-w-[38rem] text-base leading-7 text-copy-muted sm:text-xl sm:leading-8">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
 			</div>
 		</section>
 		<section class="mt-8" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
@@ -53,18 +55,11 @@ templ Skills() {
 				}
 			</div>
 		</section>
-    <!-- CTA -->
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-      <h2>Interested in my expertise?</h2>
-      <p class="cta-subtitle">View my projects or get in touch to discuss how I can help with your infrastructure needs.</p>
-      <div class="cta-buttons">
-        <a href="/projects" class="btn btn-primary">
-          <span>View Projects</span>
-          <span class="btn-icon" aria-hidden="true">→</span>
-        </a>
-        <a href="/contact" class="btn btn-secondary">Contact Me</a>
-      </div>
-		</section>
+		@partials.PageCTA(
+			"Interested in my expertise?",
+			"View my projects or get in touch to discuss how I can help with your infrastructure needs.",
+			partials.CTALink{Href: "/projects", Label: "View Projects"},
+			partials.CTALink{Href: "/contact", Label: "Contact Me"},
+		)
 	}
 }

@@ -1,8 +1,9 @@
 package pages
 
 import (
-	"portfolio/cmd/web/layouts"
 	"fmt"
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
 )
 
 type AboutProps struct {
@@ -17,14 +18,13 @@ templ About(props AboutProps) {
 		Title: "About Me - Craig Johnson",
 		Page:  "about",
 	}) {
-		<section class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20" style="background-image: url('/static/images/backgrounds/about-hero.jpg')">
+		<section class="relative isolate overflow-hidden rounded-[2rem] border border-carbon-black-800 bg-carbon-black-950 bg-[url('/static/images/backgrounds/about-hero.jpg')] bg-cover bg-center px-6 py-14 shadow-panel-strong sm:px-8 lg:px-12 lg:py-20">
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/68"></div>
 			<div class="relative max-w-3xl space-y-5">
 				<h1 class="text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl">About Me</h1>
 				<p class="max-w-3xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
 			</div>
 		</section>
-
 		<section class="about-stats py-10 sm:py-12">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter relative px-5 py-6 text-center">
@@ -46,14 +46,10 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-
 		<section class="py-12 sm:py-14">
 			<div class="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
 				<div class="space-y-6">
-					<div class="section-label">
-						<span class="label-line" aria-hidden="true"></span>
-						<span>My Story</span>
-					</div>
+					@partials.SectionLabel("My Story")
 					<h2 class="text-3xl font-bold tracking-tight text-copy-primary">From the Last Frontier to the Cloud</h2>
 					<div class="space-y-5 text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 						<p>
@@ -77,7 +73,6 @@ templ About(props AboutProps) {
 						</p>
 					</div>
 				</div>
-
 				<div class="surface-card-strong p-6 xl:sticky xl:top-[calc(var(--header-height)+1.5rem)]">
 					<h3 class="text-gradient-brand text-xl font-semibold">Quick Facts</h3>
 					<div class="mt-5 grid gap-3">
@@ -109,12 +104,8 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-
 		<section class="space-y-6 py-12 sm:py-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Career Timeline</span>
-			</div>
+			@partials.SectionLabel("Career Timeline")
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">The Journey So Far</h2>
 			<div class="relative pl-7">
 				<div class="absolute bottom-0 left-2 top-0 w-px bg-linear-to-b from-accent-400 to-accent-400/20"></div>
@@ -156,12 +147,8 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-
 		<section class="space-y-6 py-12 sm:py-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>Beyond the Code</span>
-			</div>
+			@partials.SectionLabel("Beyond the Code")
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">When I'm Not in the Terminal</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter p-6 text-center">
@@ -186,12 +173,8 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-
 		<section class="space-y-6 py-12 sm:py-14">
-			<div class="section-label">
-				<span class="label-line" aria-hidden="true"></span>
-				<span>What Drives Me</span>
-			</div>
+			@partials.SectionLabel("What Drives Me")
 			<h2 class="text-3xl font-bold tracking-tight text-copy-primary">Core Values</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="surface-card stagger-enter p-6 text-center">
@@ -216,17 +199,11 @@ templ About(props AboutProps) {
 				</div>
 			</div>
 		</section>
-		<section class="page-cta-section">
-			<div class="cta-glow" aria-hidden="true"></div>
-			<h2>Want to know more?</h2>
-			<p class="cta-subtitle">Check out my experience or reach out directly</p>
-			<div class="cta-buttons">
-				<a href="/experience" class="btn btn-primary">
-					<span>View My Experience</span>
-					<span class="btn-icon" aria-hidden="true">→</span>
-				</a>
-				<a href="/contact" class="btn btn-secondary">Get in Touch</a>
-			</div>
-		</section>
+		@partials.PageCTA(
+			"Want to know more?",
+			"Check out my experience or reach out directly",
+			partials.CTALink{Href: "/experience", Label: "View My Experience"},
+			partials.CTALink{Href: "/contact", Label: "Get in Touch"},
+		)
 	}
 }

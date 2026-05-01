@@ -1,0 +1,45 @@
+package partials
+
+type CTALink struct {
+	Href     string
+	Label    string
+	External bool
+}
+
+templ SectionLabel(label string) {
+	<div class="mb-4 flex items-center gap-4 text-sm font-semibold uppercase tracking-[0.1em] text-primary-200">
+		<span class="h-0.5 w-8 rounded-full bg-linear-to-r from-primary-400 to-accent-400" aria-hidden="true"></span>
+		<span>{ label }</span>
+	</div>
+}
+
+templ PageCTA(title string, subtitle string, primary CTALink, secondary CTALink) {
+	<section class="relative mb-12 overflow-hidden rounded-3xl border border-primary-500/20 bg-[linear-gradient(135deg,rgba(0,60,102,0.34)_0%,rgba(0,21,36,0.72)_54%,rgba(255,166,0,0.08)_100%)] px-6 py-12 text-center shadow-panel sm:px-8 sm:py-14">
+		<div class="pointer-events-none absolute left-1/2 top-1/2 h-[18rem] w-[min(31rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-radial from-primary-400/18 to-transparent" aria-hidden="true"></div>
+		<div class="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-4">
+			<h2 class="text-2xl font-bold tracking-tight text-copy-primary sm:text-3xl">{ title }</h2>
+			<p class="text-base leading-7 text-copy-muted">{ subtitle }</p>
+			<div class="mt-2 flex flex-wrap justify-center gap-3">
+				<a
+					href={ templ.SafeURL(primary.Href) }
+					class="btn btn-primary"
+					if primary.External {
+						target="_blank"
+						rel="noopener noreferrer"
+					}
+				>
+					<span>{ primary.Label }</span>
+					<span class="btn-icon" aria-hidden="true">→</span>
+				</a>
+				<a
+					href={ templ.SafeURL(secondary.Href) }
+					class="btn btn-secondary"
+					if secondary.External {
+						target="_blank"
+						rel="noopener noreferrer"
+					}
+				>{ secondary.Label }</a>
+			</div>
+		</div>
+	</section>
+}

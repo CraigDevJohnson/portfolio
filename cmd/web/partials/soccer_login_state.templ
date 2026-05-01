@@ -25,42 +25,42 @@ func showSoccerGoogleSection(props SoccerLoginStateProps) bool {
 templ SoccerLoginState(props SoccerLoginStateProps) {
 	<div
 		id="soccer-auth-panel"
-		class="soccer-auth-panel"
+		class="flex min-w-0 flex-col gap-4"
 		if props.SwapOOB {
 			hx-swap-oob="outerHTML"
 		}
 	>
 		if showSoccerDiscoverySection(props) {
-			<div class="soccer-option-group soccer-option-group--fetch-secondary">
-			<div class="soccer-option-group-header">
-				<p class="soccer-option-group-label">Discovery fetch path</p>
-				<p class="soccer-option-group-copy">Use import access only when you want player discovery before you confirm teams and load the schedule.</p>
+			<div class="flex flex-col gap-4">
+			<div class="flex flex-col gap-1">
+				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Discovery fetch path</p>
+				<p class="m-0 text-sm leading-relaxed text-copy-muted">Use import access only when you want player discovery before you confirm teams and load the schedule.</p>
 			</div>
-			<div class="soccer-auth-shell soccer-input-section soccer-input-import">
+			<div class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary-500/25 bg-[linear-gradient(135deg,rgba(0,149,255,0.10)_0%,rgba(15,23,42,0.14)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
 				<div class="soccer-auth-copy">
-					<div class="soccer-section-header">
-						<span class="soccer-section-step" aria-hidden="true">1B</span>
+					<div class="flex items-center gap-4 max-md:items-start">
+						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(0,149,255,0.14)]" aria-hidden="true">1B</span>
 						<div>
-							<h3>Player Discovery</h3>
+							<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Player Discovery</h3>
 						</div>
 					</div>
-					<p class="soccer-section-intro">Import the JWT from your signed-in
-            <a href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+					<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Import the JWT from your signed-in
+            <a class="font-medium text-primary-200 underline-offset-4 hover:text-primary-100 hover:underline" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
 						</a> browser session when you want to discover linked players first, then choose which teams to include.
           </p>
-          <div class="jwt-import-warning">
-            <p>
-              Player Discovery uses the JWT (<a href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">JSON web token</a>)
+          <div class="rounded-xl border border-accent-500/25 bg-accent-500/15 p-4">
+            <p class="m-0 text-sm font-medium leading-relaxed text-accent-200">
+              Player Discovery uses the JWT (<a class="font-medium text-accent-100 underline-offset-4 hover:underline" href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">JSON web token</a>)
               from your signed-in <u><em>Let&apos;s Play Soccer</em></u> account, which gives full access to your account (only used to query players/teams/schedules/results).
             </p>
           </div>
 				</div>
-				<div class="soccer-auth-summary">
+				<div class="flex flex-wrap items-center justify-between gap-4 max-md:flex-col max-md:items-stretch">
 					if props.Authenticated {
 						<div>
-							<p class="soccer-auth-status">Imported</p>
-							<p class="soccer-auth-user">Access is saved for this browser session. Choose players below, then confirm which teams to include before fetching schedules. To refresh the player list, clear import and import again.</p>
+							<p class="text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Imported</p>
+							<p class="text-sm text-copy-secondary">Access is saved for this browser session. Choose players below, then confirm which teams to include before fetching schedules. To refresh the player list, clear import and import again.</p>
 						</div>
 						<button
 							type="button"
@@ -76,8 +76,8 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 						</button>
 					} else {
 						<div>
-							<p class="soccer-auth-status">No import active</p>
-							<p class="soccer-auth-user">Import a JWT when you want the app to discover linked players. You&apos;ll choose players first, then confirm teams before schedules load.</p>
+							<p class="text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">No import active</p>
+							<p class="text-sm text-copy-secondary">Import a JWT when you want the app to discover linked players. You&apos;ll choose players first, then confirm teams before schedules load.</p>
 						</div>
 						<button type="button" class="btn btn-primary" data-open-login-modal>
 							Import access
@@ -91,32 +91,32 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			</div>
 		}
 		if showSoccerGoogleSection(props) {
-			<div class="soccer-option-group soccer-option-group--follow-up">
-			<div class="soccer-option-group-header">
-				<p class="soccer-option-group-label">Download or sync after fetch</p>
-				<p class="soccer-option-group-copy">Once the schedule loads, save it as an .ics file or connect Google Calendar for direct adds and result sync.</p>
+			<div class="flex flex-col gap-4 border-t border-white/10 pt-6">
+			<div class="flex flex-col gap-1">
+				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Download or sync after fetch</p>
+				<p class="m-0 text-sm leading-relaxed text-copy-muted">Once the schedule loads, save it as an .ics file or connect Google Calendar for direct adds and result sync.</p>
 			</div>
-			<div class="soccer-google-shell soccer-input-section soccer-input-google">
+			<div class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-secondary-500/25 bg-[linear-gradient(135deg,rgba(255,0,98,0.12)_0%,rgba(15,23,42,0.16)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(255,0,98,0.94)_0%,rgba(0,149,255,0.78)_100%)] before:content-[''] max-sm:p-4">
 				<div class="soccer-google-copy">
-					<div class="soccer-section-header">
-						<span class="soccer-section-step" aria-hidden="true">2</span>
+					<div class="flex items-center gap-4 max-md:items-start">
+						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(255,0,98,1)_0%,rgba(0,149,255,0.85)_100%)] text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(255,0,98,0.14)]" aria-hidden="true">2</span>
 						<div>
-							<h3>Google Calendar Connection</h3>
+							<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Google Calendar Connection</h3>
 						</div>
 					</div>
-					<p class="soccer-section-intro">Connect once to save a destination calendar and add selected matches without downloading an .ics file.</p>
+					<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Connect once to save a destination calendar and add selected matches without downloading an .ics file.</p>
 				</div>
-					<div class="soccer-auth-summary">
+					<div class="flex flex-wrap items-center justify-between gap-4 max-md:flex-col max-md:items-stretch">
 						if props.GoogleConnected {
 							<div>
-								<p class="soccer-auth-status">Google Calendar connected</p>
+								<p class="text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Google Calendar connected</p>
 								if props.GoogleCalendarSummary != "" {
-									<p class="soccer-auth-user">Selected calendar: { props.GoogleCalendarSummary }</p>
+									<p class="text-sm text-copy-secondary">Selected calendar: { props.GoogleCalendarSummary }</p>
 								} else {
-									<p class="soccer-auth-user">Your Google Calendar connection is ready. Choose a destination calendar below.</p>
+									<p class="text-sm text-copy-secondary">Your Google Calendar connection is ready. Choose a destination calendar below.</p>
 								}
 							</div>
-							<div class="input-row">
+							<div class="flex gap-4 max-md:flex-col">
 								<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link>
 									<span class="btn-text">Reconnect Google</span>
 									<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
@@ -136,8 +136,8 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							</div>
 						} else {
 							<div>
-								<p class="soccer-auth-status">Google Calendar not connected</p>
-								<p class="soccer-auth-user">Connect Google Calendar once to add selected games directly without downloading an .ics file.</p>
+								<p class="text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Google Calendar not connected</p>
+								<p class="text-sm text-copy-secondary">Connect Google Calendar once to add selected games directly without downloading an .ics file.</p>
 							</div>
 							<a href="/soccer/google/connect" class="btn btn-primary btn-loading" data-loading-link>
 								<span class="btn-text">Connect Google Calendar</span>
@@ -154,10 +154,10 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							hx-indicator=".soccer-google-save-indicator"
 							hx-disabled-elt="find select, find button[type='submit']"
 						>
-							<div class="form-group">
+							<div class="flex flex-col">
 								<label for="soccer-google-calendar" class="form-label">Google Calendar</label>
-								<div class="input-row">
-									<select id="soccer-google-calendar" name="calendar_id" class="text-input">
+								<div class="flex gap-4 max-md:flex-col">
+									<select id="soccer-google-calendar" name="calendar_id" class="text-input flex-1">
 										for _, calendar := range props.GoogleCalendars {
 											<option value={ calendar.ID } if calendar.ID == props.SelectedGoogleCalendarID { selected }>
 												if calendar.Primary {
@@ -168,7 +168,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 											</option>
 										}
 									</select>
-									<button type="submit" class="btn soccer-secondary-btn btn-loading" data-loading-button>
+									<button type="submit" class="btn soccer-secondary-btn btn-loading max-md:w-full" data-loading-button>
 										<span class="btn-text">Save calendar</span>
 										<span class="btn-loading-indicator soccer-google-save-indicator htmx-indicator" aria-hidden="true"></span>
 									</button>
@@ -180,7 +180,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			</div>
 		}
 		if !showSoccerDiscoverySection(props) && !showSoccerGoogleSection(props) {
-			<div class="soccer-auth-unavailable" role="status">
+			<div class="rounded-xl border border-accent-500/25 bg-accent-500/15 p-4" role="status">
 				<p>Manual team lookup and ICS download are ready now. Player discovery and direct Google Calendar adds will appear automatically when those integrations are configured on the server.</p>
 			</div>
 		}
