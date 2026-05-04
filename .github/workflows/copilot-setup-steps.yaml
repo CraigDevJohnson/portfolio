@@ -34,7 +34,7 @@ jobs:
       - name: Install Task
         uses: go-task/setup-task@v1
 
-      # Match the repo's `just install-lint` behavior by installing the latest v2+ release.
+      # Match the repo's `task install-lint` behavior by installing the latest v2+ release.
       - name: Install golangci-lint
         run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" latest
 
