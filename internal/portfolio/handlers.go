@@ -76,7 +76,7 @@ func AboutHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	renderComponent(w, r, pages.About(props))
 }
 
-// ExperienceHandler renders the experience page shell.
+// ExperienceHandler renders the experience page with default or selected kit.
 func ExperienceHandler(w http.ResponseWriter, r *http.Request) {
 	renderComponent(w, r, pages.Experience(pages.ExperienceProps{
 		Experiences: ExperienceData(),

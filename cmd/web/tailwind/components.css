@@ -240,4 +240,109 @@
   .proj-category-pill.active:hover {
     @apply border-accent-400 bg-accent-400 text-primary-950;
   }
+
+  .experience-kit-shell {
+    @apply relative isolate rounded-4xl border shadow-panel-strong;
+    background-color: var(--experience-bg);
+    border-color: var(--experience-border);
+    color: var(--experience-text);
+  }
+
+  .experience-kit-panel {
+    @apply rounded-3xl border p-5 sm:p-6;
+    background-color: var(--experience-surface);
+    border-color: var(--experience-border);
+    color: var(--experience-text);
+  }
+
+  .experience-kit-panel-strong {
+    @apply rounded-3xl border p-5 sm:p-6;
+    background: linear-gradient(135deg, var(--experience-surface-strong), var(--experience-surface));
+    border-color: var(--experience-border-strong);
+    color: var(--experience-text);
+  }
+
+  .experience-kit-eyebrow {
+    @apply text-xs font-extrabold uppercase tracking-[0.18em];
+    color: var(--experience-accent);
+  }
+
+  .experience-kit-title {
+    @apply text-4xl font-bold tracking-tight sm:text-5xl;
+    color: var(--experience-text);
+  }
+
+  .experience-kit-copy {
+    @apply text-base leading-7 sm:text-lg sm:leading-8;
+    color: var(--experience-muted);
+  }
+
+  .experience-kit-chip {
+    @apply inline-flex min-h-10 items-center rounded-full border px-3 py-1 text-xs font-semibold wrap-anywhere;
+    background-color: var(--experience-chip-bg);
+    border-color: var(--experience-border-strong);
+    color: var(--experience-accent-strong);
+  }
+
+  .experience-kit-action {
+    @apply inline-flex min-h-11 items-center justify-center rounded-full border px-5 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    background-color: var(--experience-action-bg);
+    border-color: var(--experience-border-strong);
+    color: var(--experience-action-text);
+  }
+
+  .experience-kit-action:hover {
+    transform: translateY(-1px);
+    background-color: var(--experience-accent);
+    border-color: var(--experience-accent);
+    color: var(--experience-action-hover-text);
+  }
+
+  .experience-kit-action:focus-visible {
+    outline: 2px solid var(--experience-accent);
+    outline-offset: 3px;
+  }
+
+  .experience-kit-stages {
+    --experience-bg: #21162d;
+    --experience-surface: #312240;
+    --experience-surface-strong: #44305b;
+    --experience-text: #f7efff;
+    --experience-muted: #cdbfe0;
+    --experience-border: #674d80;
+    --experience-border-strong: #c88e52;
+    --experience-accent: #7be0cf;
+    --experience-accent-strong: #ffd0a4;
+    --experience-accent-soft: rgb(123 224 207 / 0.25);
+    --experience-chip-bg: #3f2d53;
+    --experience-action-bg: #322147;
+    --experience-action-text: #f7efff;
+    --experience-action-hover-text: #21162d;
+  }
+
+  @media (forced-colors: active) {
+    .experience-kit-stages {
+      --experience-bg: Canvas;
+      --experience-surface: Canvas;
+      --experience-surface-strong: Canvas;
+      --experience-text: CanvasText;
+      --experience-muted: CanvasText;
+      --experience-border: ButtonBorder;
+      --experience-border-strong: ButtonBorder;
+      --experience-accent: LinkText;
+      --experience-accent-strong: LinkText;
+      --experience-accent-soft: transparent;
+      --experience-chip-bg: Canvas;
+      --experience-action-bg: ButtonFace;
+      --experience-action-text: ButtonText;
+      --experience-action-hover-text: ButtonText;
+    }
+
+    .experience-kit-shell,
+    .experience-kit-panel,
+    .experience-kit-panel-strong,
+    .experience-kit-action {
+      box-shadow: none;
+    }
+  }
 }
