@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -161,6 +162,8 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testing.T) {
 	app := newTestApp(t)
 	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
+	firstGameAt := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	secondGameAt := time.Now().Add(8 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	requestCounts := map[string]int{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCounts[r.URL.Path]++
@@ -217,11 +220,11 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 				}
 			]`))
 		case "/teams/479393":
-			_, _ = w.Write([]byte(`{
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
 					{
 						"UGameID": 9001,
-						"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+						"SchedGameDateTime": %q,
 						"field_name": "Arena 1",
 						"facilityName": "North Campus",
 						"FacilityID": 4,
@@ -232,13 +235,13 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 					}
 				],
 				"team": {"UTeamID": 479393, "team_name": "Craig FC", "division_name": "Coed One", "FacilityID": 4, "facility_name": "North Campus", "Season": 77}
-			}`))
+			}`, firstGameAt)))
 		case "/teams/479400":
-			_, _ = w.Write([]byte(`{
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
 					{
 						"UGameID": 9002,
-						"SchedGameDateTime": "2026-05-08T20:15:00-06:00",
+						"SchedGameDateTime": %q,
 						"field_name": "Arena 2",
 						"facilityName": "South Campus",
 						"FacilityID": 8,
@@ -249,7 +252,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 					}
 				],
 				"team": {"UTeamID": 479400, "team_name": "Taylor FC", "division_name": "Coed Two", "FacilityID": 8, "facility_name": "South Campus", "Season": 77}
-			}`))
+			}`, secondGameAt)))
 		case "/facilities/4":
 			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "North Campus", "Address": "1 North Rd", "City": "Boise", "State": "ID", "ZIP": "83701"}`))
 		case "/facilities/8":
