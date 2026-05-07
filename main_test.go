@@ -1931,6 +1931,7 @@ func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	if event.Status != "confirmed" {
 		t.Fatalf("unexpected google event status: %q", event.Status)
 	}
+	assertGoogleEventHasFortyMinuteReminder(t, event)
 	if got := event.ExtendedProperties.Private["game_id"]; got != "3037322" {
 		t.Fatalf("unexpected google private game id: %q", got)
 	}
@@ -1980,8 +1981,49 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 	if event.Status != "canceled" {
 		t.Fatalf("unexpected google event status: %q", event.Status)
 	}
+	assertGoogleEventHasFortyMinuteReminder(t, event)
 	if got := event.ExtendedProperties.Private["game_id"]; got != "3042954" {
 		t.Fatalf("unexpected google private game id: %q", got)
+	}
+}
+
+func assertGoogleEventHasFortyMinuteReminder(t *testing.T, event googleEvent) {
+	t.Helper()
+
+	if event.Reminders == nil || event.Reminders.UseDefault {
+		t.Fatalf("expected custom reminders, got %#v", event.Reminders)
+	}
+	if len(event.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one reminder override, got %#v", event.Reminders.Overrides)
+	}
+	if event.Reminders.Overrides[0].Method != "popup" || event.Reminders.Overrides[0].Minutes != 40 {
+		t.Fatalf("unexpected reminder override: %#v", event.Reminders.Overrides[0])
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+	var decoded struct {
+		Reminders struct {
+			Overrides []struct {
+				Method  string `json:"method"`
+				Minutes int    `json:"minutes"`
+			} `json:"overrides"`
+			UseDefault bool `json:"useDefault"`
+		} `json:"reminders"`
+	}
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if decoded.Reminders.UseDefault {
+		t.Fatalf("expected serialized reminders.useDefault=false in payload: %s", string(payload))
+	}
+	if len(decoded.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one serialized reminder override, got %#v in payload: %s", decoded.Reminders.Overrides, string(payload))
+	}
+	if decoded.Reminders.Overrides[0].Method != "popup" || decoded.Reminders.Overrides[0].Minutes != 40 {
+		t.Fatalf("unexpected serialized reminder override: %#v in payload: %s", decoded.Reminders.Overrides[0], string(payload))
 	}
 }
 

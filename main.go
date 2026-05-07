@@ -126,18 +126,29 @@ type googleEventDateTime struct {
 	TimeZone string `json:"timeZone,omitempty"`
 }
 
+type googleEventReminderOverride struct {
+	Method  string `json:"method"`
+	Minutes int    `json:"minutes"`
+}
+
+type googleEventReminders struct {
+	Overrides  []googleEventReminderOverride `json:"overrides,omitempty"`
+	UseDefault bool                          `json:"useDefault"`
+}
+
 type googleEvent struct {
 	Description        string              `json:"description,omitempty"`
 	End                googleEventDateTime `json:"end"`
 	ExtendedProperties struct {
 		Private map[string]string `json:"private,omitempty"`
 	} `json:"extendedProperties"`
-	ID       string              `json:"id,omitempty"`
-	Location string              `json:"location,omitempty"`
-	Source   *googleEventSource  `json:"source,omitempty"`
-	Start    googleEventDateTime `json:"start"`
-	Status   string              `json:"status,omitempty"`
-	Summary  string              `json:"summary"`
+	ID        string                `json:"id,omitempty"`
+	Location  string                `json:"location,omitempty"`
+	Reminders *googleEventReminders `json:"reminders,omitempty"`
+	Source    *googleEventSource    `json:"source,omitempty"`
+	Start     googleEventDateTime   `json:"start"`
+	Status    string                `json:"status,omitempty"`
+	Summary   string                `json:"summary"`
 }
 
 type googleEventSource struct {
@@ -2563,6 +2574,12 @@ func googleEventPayload(r *http.Request, game *Game) (googleEvent, bool) {
 	event.Source = &googleEventSource{
 		Title: "Soccer Schedule",
 		URL:   requestBaseURL(r) + "/soccer",
+	}
+	event.Reminders = &googleEventReminders{
+		UseDefault: false,
+		Overrides: []googleEventReminderOverride{
+			{Method: "popup", Minutes: 40},
+		},
 	}
 	return event, true
 }
