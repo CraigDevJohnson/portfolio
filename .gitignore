@@ -37,3 +37,4 @@ tfplan
 
 static/screenshots/
 dev
+node_modules/
