@@ -108,6 +108,7 @@ tasks:
   ci:
     desc: Check quality, run tests and build the binary
     cmds:
+      - task: clean
       - task: fmt
       - task: vet
       - task: lint

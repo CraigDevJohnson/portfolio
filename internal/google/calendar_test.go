@@ -46,7 +46,7 @@ func TestEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T)
 		t.Fatalf("expected one reminder override, got %d", len(event.Reminders.Overrides))
 	}
 	override := event.Reminders.Overrides[0]
-	if override.Method != "notification" {
+	if override.Method != "popup" {
 		t.Fatalf("unexpected reminder method: %q", override.Method)
 	}
 	if override.Minutes != 40 {
@@ -113,7 +113,7 @@ func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
 		t.Fatalf("expected one reminder override, got %d", len(event.Reminders.Overrides))
 	}
 	override := event.Reminders.Overrides[0]
-	if override.Method != "notification" {
+	if override.Method != "popup" {
 		t.Fatalf("unexpected reminder method: %q", override.Method)
 	}
 	if override.Minutes != 40 {

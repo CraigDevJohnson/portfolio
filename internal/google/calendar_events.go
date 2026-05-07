@@ -220,7 +220,7 @@ func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 		Location: formatted.Location,
 		Reminders: &EventReminders{
 			Overrides: []EventReminder{{
-				Method:  "notification",
+				Method:  "popup",
 				Minutes: 40,
 			}},
 			UseDefault: false,
