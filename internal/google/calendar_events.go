@@ -218,6 +218,13 @@ func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 		},
 		ID:       formatted.ID,
 		Location: formatted.Location,
+		Reminders: &EventReminders{
+			Overrides: []EventReminder{{
+				Method:  "notification",
+				Minutes: 40,
+			}},
+			UseDefault: false,
+		},
 		Start: EventDateTime{
 			DateTime: formatted.Start.Format("2006-01-02T15:04:05"),
 			TimeZone: config.MountainTimeZoneID,

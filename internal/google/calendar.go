@@ -20,6 +20,18 @@ type EventDateTime struct {
 	TimeZone string `json:"timeZone,omitempty"`
 }
 
+// EventReminder configures a single Google Calendar reminder override.
+type EventReminder struct {
+	Method  string `json:"method"`
+	Minutes int    `json:"minutes"`
+}
+
+// EventReminders configures Google Calendar reminder behavior.
+type EventReminders struct {
+	Overrides  []EventReminder `json:"overrides,omitempty"`
+	UseDefault bool            `json:"useDefault"`
+}
+
 // Event represents a Google Calendar event payload.
 type Event struct {
 	Description        string        `json:"description,omitempty"`
@@ -27,12 +39,13 @@ type Event struct {
 	ExtendedProperties struct {
 		Private map[string]string `json:"private,omitempty"`
 	} `json:"extendedProperties"`
-	ID       string        `json:"id,omitempty"`
-	Location string        `json:"location,omitempty"`
-	Source   *EventSource  `json:"source,omitempty"`
-	Start    EventDateTime `json:"start"`
-	Status   string        `json:"status,omitempty"`
-	Summary  string        `json:"summary"`
+	ID        string          `json:"id,omitempty"`
+	Location  string          `json:"location,omitempty"`
+	Reminders *EventReminders `json:"reminders,omitempty"`
+	Source    *EventSource    `json:"source,omitempty"`
+	Start     EventDateTime   `json:"start"`
+	Status    string          `json:"status,omitempty"`
+	Summary   string          `json:"summary"`
 }
 
 // EventSource attributes an event to its originating site.

@@ -36,6 +36,22 @@ func TestEventPayloadTreatsMislabelledZuluTimestampsAsMountainTime(t *testing.T)
 	if event.End.TimeZone != config.MountainTimeZoneID {
 		t.Fatalf("unexpected end timezone: %q", event.End.TimeZone)
 	}
+	if event.Reminders == nil {
+		t.Fatal("expected reminders to be set")
+	}
+	if event.Reminders.UseDefault {
+		t.Fatal("expected default reminders to be disabled")
+	}
+	if len(event.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one reminder override, got %d", len(event.Reminders.Overrides))
+	}
+	override := event.Reminders.Overrides[0]
+	if override.Method != "notification" {
+		t.Fatalf("unexpected reminder method: %q", override.Method)
+	}
+	if override.Minutes != 40 {
+		t.Fatalf("unexpected reminder minutes: %d", override.Minutes)
+	}
 }
 
 func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
@@ -86,6 +102,22 @@ func TestEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	}
 	if _, exists := event.ExtendedProperties.Private["portfolio_game_id"]; exists {
 		t.Fatalf("legacy portfolio_game_id should not be set: %#v", event.ExtendedProperties.Private)
+	}
+	if event.Reminders == nil {
+		t.Fatal("expected reminders to be set")
+	}
+	if event.Reminders.UseDefault {
+		t.Fatal("expected default reminders to be disabled")
+	}
+	if len(event.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one reminder override, got %d", len(event.Reminders.Overrides))
+	}
+	override := event.Reminders.Overrides[0]
+	if override.Method != "notification" {
+		t.Fatalf("unexpected reminder method: %q", override.Method)
+	}
+	if override.Minutes != 40 {
+		t.Fatalf("unexpected reminder minutes: %d", override.Minutes)
 	}
 }
 
