@@ -1931,6 +1931,15 @@ func TestGoogleEventPayloadUsesCanonicalFormatter(t *testing.T) {
 	if event.Status != "confirmed" {
 		t.Fatalf("unexpected google event status: %q", event.Status)
 	}
+	if event.Reminders == nil || event.Reminders.UseDefault {
+		t.Fatalf("expected custom reminders, got %#v", event.Reminders)
+	}
+	if len(event.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one reminder override, got %#v", event.Reminders.Overrides)
+	}
+	if event.Reminders.Overrides[0].Method != "popup" || event.Reminders.Overrides[0].Minutes != 40 {
+		t.Fatalf("unexpected reminder override: %#v", event.Reminders.Overrides[0])
+	}
 	if got := event.ExtendedProperties.Private["game_id"]; got != "3037322" {
 		t.Fatalf("unexpected google private game id: %q", got)
 	}
@@ -1979,6 +1988,15 @@ func TestGoogleEventPayloadMirrorsCanonicalFormatterForCancelledGame(t *testing.
 	}
 	if event.Status != "canceled" {
 		t.Fatalf("unexpected google event status: %q", event.Status)
+	}
+	if event.Reminders == nil || event.Reminders.UseDefault {
+		t.Fatalf("expected custom reminders, got %#v", event.Reminders)
+	}
+	if len(event.Reminders.Overrides) != 1 {
+		t.Fatalf("expected one reminder override, got %#v", event.Reminders.Overrides)
+	}
+	if event.Reminders.Overrides[0].Method != "popup" || event.Reminders.Overrides[0].Minutes != 40 {
+		t.Fatalf("unexpected reminder override: %#v", event.Reminders.Overrides[0])
 	}
 	if got := event.ExtendedProperties.Private["game_id"]; got != "3042954" {
 		t.Fatalf("unexpected google private game id: %q", got)
