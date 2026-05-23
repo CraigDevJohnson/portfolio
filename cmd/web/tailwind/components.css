@@ -277,6 +277,43 @@
     color: var(--experience-muted);
   }
 
+  .experience-kit-heading {
+    @apply text-3xl font-bold tracking-tight;
+    color: var(--experience-text);
+  }
+
+  .experience-kit-stage-title {
+    @apply text-4xl font-bold tracking-tight;
+    color: var(--experience-text);
+  }
+
+  .experience-kit-role-title {
+    @apply text-2xl font-semibold tracking-tight;
+    color: var(--experience-text);
+  }
+
+  .experience-kit-counter {
+    @apply text-4xl font-bold;
+    color: var(--experience-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .experience-kit-text {
+    color: var(--experience-text);
+  }
+
+  .experience-kit-muted {
+    color: var(--experience-muted);
+  }
+
+  .experience-kit-accent-strong {
+    color: var(--experience-accent-strong);
+  }
+
+  .experience-kit-border {
+    border-color: var(--experience-border);
+  }
+
   .experience-kit-chip {
     @apply inline-flex min-h-10 items-center rounded-full border px-3 py-1 text-xs font-semibold wrap-anywhere;
     background-color: var(--experience-chip-bg);
