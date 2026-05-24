@@ -36,7 +36,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Discovery fetch path</p>
 				<p class="m-0 text-sm leading-relaxed text-copy-muted">Use import access only when you want player discovery before you confirm teams and load the schedule.</p>
 			</div>
-			<div class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary-500/25 bg-[linear-gradient(135deg,rgba(0,149,255,0.10)_0%,rgba(15,23,42,0.14)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
+			<div class="page-kit-panel-strong relative flex flex-col gap-4 overflow-hidden p-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
 				<div class="soccer-auth-copy">
 					<div class="flex items-center gap-4 max-md:items-start">
 						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(0,149,255,0.14)]" aria-hidden="true">1B</span>
@@ -44,12 +44,12 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 							<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Player Discovery</h3>
 						</div>
 					</div>
-					<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Import the JWT from your signed-in
+						<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Import the JWT from your signed-in
             <a class="font-medium text-primary-200 underline-offset-4 hover:text-primary-100 hover:underline" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
 						</a> browser session when you want to discover linked players first, then choose which teams to include.
           </p>
-          <div class="rounded-xl border border-accent-500/25 bg-accent-500/15 p-4">
+					<div class="page-kit-panel px-4 py-4">
             <p class="m-0 text-sm font-medium leading-relaxed text-accent-200">
               Player Discovery uses the JWT (<a class="font-medium text-accent-100 underline-offset-4 hover:underline" href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">JSON web token</a>)
               from your signed-in <u><em>Let&apos;s Play Soccer</em></u> account, which gives full access to your account (only used to query players/teams/schedules/results).
@@ -96,7 +96,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Download or sync after fetch</p>
 				<p class="m-0 text-sm leading-relaxed text-copy-muted">Once the schedule loads, save it as an .ics file or connect Google Calendar for direct adds and result sync.</p>
 			</div>
-			<div class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-secondary-500/25 bg-[linear-gradient(135deg,rgba(255,0,98,0.12)_0%,rgba(15,23,42,0.16)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(255,0,98,0.94)_0%,rgba(0,149,255,0.78)_100%)] before:content-[''] max-sm:p-4">
+			<div class="page-kit-panel-strong relative flex flex-col gap-4 overflow-hidden p-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(255,0,98,0.94)_0%,rgba(0,149,255,0.78)_100%)] before:content-[''] max-sm:p-4">
 				<div class="soccer-google-copy">
 					<div class="flex items-center gap-4 max-md:items-start">
 						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(255,0,98,1)_0%,rgba(0,149,255,0.85)_100%)] text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(255,0,98,0.14)]" aria-hidden="true">2</span>
@@ -180,7 +180,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			</div>
 		}
 		if !showSoccerDiscoverySection(props) && !showSoccerGoogleSection(props) {
-			<div class="rounded-xl border border-accent-500/25 bg-accent-500/15 p-4" role="status">
+			<div class="page-kit-panel p-4" role="status">
 				<p>Manual team lookup and ICS download are ready now. Player discovery and direct Google Calendar adds will appear automatically when those integrations are configured on the server.</p>
 			</div>
 		}

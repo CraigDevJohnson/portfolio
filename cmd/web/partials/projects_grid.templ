@@ -11,7 +11,7 @@ type ProjectsGridProps struct {
 templ ProjectsGrid(props ProjectsGridProps) {
 	<div class="projects-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
 		for index, project := range props.Projects {
-			<article class="surface-card project-card group flex h-full flex-col overflow-hidden text-copy-primary" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
+			<article class="page-kit-panel project-card group flex h-full flex-col overflow-hidden text-copy-primary transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
 				<div class="project-image relative aspect-video overflow-hidden bg-carbon-black-900">
 					if project.Image != "" {
 						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225" class="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-[1.05]"/>
@@ -21,7 +21,7 @@ templ ProjectsGrid(props ProjectsGridProps) {
 						</div>
 					}
 					<div class="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-carbon-black-950/80 to-transparent"></div>
-					<div class="project-category absolute right-4 top-4 inline-flex rounded-full border border-accent-700/70 bg-accent-950/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-accent-200 shadow-panel">{ project.Category }</div>
+					<div class="project-category page-kit-chip absolute right-4 top-4 px-3 py-1 uppercase tracking-[0.18em] shadow-panel">{ project.Category }</div>
 				</div>
 				<div class="project-content flex flex-1 flex-col gap-4 p-6">
 					<h3 class="project-title text-xl font-semibold text-copy-primary">{ project.Name }</h3>

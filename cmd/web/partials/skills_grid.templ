@@ -69,11 +69,11 @@ func categoryTagClasses(category string) string {
 }
 
 func filterTabClasses(active bool) string {
-	base := "inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium tracking-[0.02em] transition duration-150 ease-out focus-ring"
+	base := "page-kit-action min-h-10 gap-2 px-3.5 py-2 text-xs font-medium tracking-[0.02em]"
 	if active {
-		return base + " border-secondary-400/55 bg-secondary-500 text-primary-950 shadow-[0_10px_30px_rgba(255,166,0,0.16)]"
+		return base + " border-accent-500 bg-accent-500 text-primary-950 shadow-panel"
 	}
-	return base + " border-white/10 bg-white/[0.03] text-copy-secondary hover:border-primary-400/35 hover:bg-primary-500/10 hover:text-copy-primary"
+	return base + " bg-carbon-black-900 text-copy-secondary hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary"
 }
 
 func proficiencyBadgeClasses(proficiency string, compact bool) string {
@@ -116,18 +116,18 @@ func skillImageClasses(name, size string) string {
 }
 
 func skillCardClasses(proficiency string) string {
-	base := "group flex min-h-36 w-full flex-col rounded-2xl border p-4 text-left transition duration-200 ease-out hover:-translate-y-1 hover:shadow-panel focus-ring"
+	base := "page-kit-panel group flex min-h-36 w-full flex-col p-4 text-left transition duration-200 ease-out hover:-translate-y-1 hover:shadow-panel focus-ring"
 	switch proficiency {
 	case "expert":
-		return base + " border-primary-500/28 bg-[linear-gradient(160deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.88)_48%,rgba(0,149,255,0.14)_100%)] hover:border-primary-400/50"
+		return base + " border-primary-500/28 hover:border-primary-400/50"
 	case "advanced":
-		return base + " border-secondary-500/26 bg-[linear-gradient(160deg,rgba(11,16,24,0.96)_0%,rgba(36,0,14,0.9)_50%,rgba(255,0,98,0.14)_100%)] hover:border-secondary-400/48"
+		return base + " border-secondary-500/26 hover:border-secondary-400/48"
 	case "intermediate":
-		return base + " border-secondary-500/24 bg-[linear-gradient(160deg,rgba(11,16,24,0.96)_0%,rgba(36,23,0,0.9)_52%,rgba(255,166,0,0.14)_100%)] hover:border-secondary-400/46"
+		return base + " border-secondary-500/24 hover:border-secondary-400/46"
 	case "familiar":
-		return base + " border-white/10 bg-[linear-gradient(160deg,rgba(11,16,24,0.98)_0%,rgba(19,28,41,0.92)_56%,rgba(159,173,193,0.08)_100%)] hover:border-carbon-black-300/32"
+		return base + " border-white/10 hover:border-carbon-black-300/32"
 	default:
-		return base + " border-white/10 bg-[linear-gradient(160deg,rgba(11,16,24,0.96)_0%,rgba(0,60,102,0.14)_100%)] hover:border-primary-400/35"
+		return base + " border-white/10 hover:border-primary-400/35"
 	}
 }
 
@@ -268,7 +268,7 @@ templ SkillsGrid(props SkillsGridProps) {
 	<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
 		<!-- Core Competencies -->
 		if len(props.FeaturedSkills) > 0 {
-			<div class="rounded-[1.75rem] border border-primary-500/18 bg-[linear-gradient(145deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.74)_46%,rgba(255,0,98,0.16)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+			<div class="page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
 				<div class="mb-8 text-center">
 					<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ffa600_100%)]">Core Competencies</h2>
 					<p class="mt-4 text-base font-medium text-copy-muted">My strongest areas of expertise</p>
@@ -277,12 +277,12 @@ templ SkillsGrid(props SkillsGridProps) {
 					for i, skill := range props.FeaturedSkills {
 						<div class="animate-[card-fade-in_0.4s_ease-out_both]" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
 							if skill.Link != "" {
-								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="group relative flex h-full min-h-0 flex-col items-center rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(0,21,36,0.72)_0%,rgba(0,60,102,0.28)_40%,rgba(255,255,255,0.03)_100%)] px-5 py-6 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/40 hover:bg-[linear-gradient(155deg,rgba(0,21,36,0.82)_0%,rgba(0,60,102,0.44)_45%,rgba(255,0,98,0.14)_100%)] hover:shadow-panel focus-ring">
+								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="page-kit-panel-strong group relative flex h-full min-h-0 flex-col items-center px-5 py-6 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/40 hover:shadow-panel focus-ring">
 									@featuredSkillCardContent(skill)
 									<div class="absolute right-4 top-4 text-sm text-copy-muted opacity-0 transition group-hover:opacity-100" aria-hidden="true">↗</div>
 								</a>
 							} else {
-								<div class="flex h-full min-h-0 flex-col items-center rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(0,21,36,0.72)_0%,rgba(0,60,102,0.28)_40%,rgba(255,255,255,0.03)_100%)] px-5 py-6 opacity-95">
+								<div class="page-kit-panel flex h-full min-h-0 flex-col items-center px-5 py-6 opacity-95">
 									@featuredSkillCardContent(skill)
 								</div>
 							}
@@ -294,7 +294,7 @@ templ SkillsGrid(props SkillsGridProps) {
 		<!-- Concepts & Practices (elevated position) -->
 		for _, cat := range props.Categories {
 			if cat.Name == conceptsCategoryName {
-				<div class="rounded-[1.75rem] border border-secondary-500/18 bg-[linear-gradient(145deg,rgba(0,21,36,0.94)_0%,rgba(0,30,51,0.62)_44%,rgba(36,0,14,0.36)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+				<div class="page-kit-panel px-6 py-8 sm:px-8 sm:py-10">
 					<div class="mb-8 text-center">
 						<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ff0062_100%)]">Concepts &amp; Practices</h2>
 						<p class="mt-4 text-base font-medium text-copy-muted">Engineering principles that guide my approach</p>
@@ -306,7 +306,7 @@ templ SkillsGrid(props SkillsGridProps) {
 									href={ templ.SafeURL(skill.Link) }
 									target="_blank"
 									rel="noopener noreferrer"
-									class="group grid min-h-[5.5rem] grid-cols-[auto_1fr_auto] items-center gap-4 rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(0,30,51,0.26)_0%,rgba(255,0,98,0.08)_100%)] px-4 py-4 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/34 hover:shadow-panel focus-ring"
+									class="page-kit-panel group grid min-h-[5.5rem] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-4 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/34 hover:shadow-panel focus-ring"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									@conceptCardContent(skill)
@@ -314,7 +314,7 @@ templ SkillsGrid(props SkillsGridProps) {
 								</a>
 							} else {
 								<div
-									class="grid min-h-[5.5rem] grid-cols-[auto_1fr] items-center gap-4 rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(0,30,51,0.26)_0%,rgba(255,0,98,0.08)_100%)] px-4 py-4"
+									class="page-kit-panel grid min-h-[5.5rem] grid-cols-[auto_1fr] items-center gap-4 px-4 py-4"
 									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
 								>
 									@conceptCardContent(skill)
@@ -335,7 +335,7 @@ templ SkillsGrid(props SkillsGridProps) {
 }
 
 templ SkillsFilterableSection(props SkillsFilterableProps) {
-	<div id="skills-filterable" class="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(145deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.3)_42%,rgba(36,0,14,0.42)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+	<div id="skills-filterable" class="page-kit-shell px-6 py-8 shadow-panel sm:px-8 sm:py-10">
     <!-- Section Heading -->
 		<div class="mb-8 text-center">
 			<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ffa600_100%)]">All Technical Skills</h2>

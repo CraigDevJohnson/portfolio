@@ -20,6 +20,7 @@ templ Projects(props ProjectsProps) {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
+		<div class="page-kit-page">
 		<section class="page-hero-standard bg-[url('/static/images/backgrounds/projects-hero.jpg')]">
 			<div class="page-hero-overlay-standard"></div>
 			<div class="page-hero-content max-w-4xl">
@@ -31,28 +32,28 @@ templ Projects(props ProjectsProps) {
 		</section>
 		<section class="projects-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				<div class="surface-card stagger-enter px-5 py-6 text-center">
+				<div class="page-kit-panel stagger-enter px-5 py-6 text-center">
 					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">🛠️</span>
 					</div>
 					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.TotalProjects) } aria-label={ fmt.Sprintf("%d projects", props.TotalProjects) }>0</span>
 					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Projects</span>
 				</div>
-				<div class="surface-card stagger-enter px-5 py-6 text-center">
+				<div class="page-kit-panel stagger-enter px-5 py-6 text-center">
 					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-700/70 bg-primary-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">💻</span>
 					</div>
 					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.UniqueTechnologies) } aria-label={ fmt.Sprintf("%d technologies", props.UniqueTechnologies) }>0</span>
 					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Technologies</span>
 				</div>
-				<div class="surface-card stagger-enter px-5 py-6 text-center">
+				<div class="page-kit-panel stagger-enter px-5 py-6 text-center">
 					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/70 text-3xl shadow-panel">
 						<span aria-hidden="true">🏷️</span>
 					</div>
 					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.CategoryCount) } aria-label={ fmt.Sprintf("%d categories", props.CategoryCount) }>0</span>
 					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Categories</span>
 				</div>
-				<div class="surface-card stagger-enter px-5 py-6 text-center">
+				<div class="page-kit-panel stagger-enter px-5 py-6 text-center">
 					<div class="mb-3 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/60 text-3xl shadow-panel">
 						<span aria-hidden="true">📂</span>
 					</div>
@@ -67,10 +68,10 @@ templ Projects(props ProjectsProps) {
 			<p class="page-section-subtitle">
 				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
 			</p>
-			<div class="proj-category-filters flex flex-wrap gap-2 pt-1" role="toolbar" aria-label="Project category filters">
-				<button type="button" class="proj-category-pill active inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="true" data-category="all">All</button>
-				<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="web">Web</button>
-				<button type="button" class="proj-category-pill inline-flex items-center rounded-full border border-carbon-black-700 bg-carbon-black-900 px-4 py-2 text-sm font-medium text-copy-secondary transition duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary [&.active]:border-accent-500 [&.active]:bg-accent-500 [&.active]:text-carbon-black-950 [&.active]:shadow-panel" aria-pressed="false" data-category="automation">Automation</button>
+			<div class="proj-category-filters page-kit-panel flex flex-wrap gap-2 p-4 sm:p-5" role="toolbar" aria-label="Project category filters">
+				<button type="button" class="proj-category-pill page-kit-action active" aria-pressed="true" data-category="all">All</button>
+				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="web">Web</button>
+				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="automation">Automation</button>
 			</div>
 		</section>
 		<section class="page-section pt-2 sm:pb-14">
@@ -85,5 +86,6 @@ templ Projects(props ProjectsProps) {
 			partials.CTALink{Href: "https://github.com/CraigDevJohnson", Label: "View GitHub Profile", External: true},
 			partials.CTALink{Href: "/experience", Label: "See Experience"},
 		)
+		</div>
 	}
 }

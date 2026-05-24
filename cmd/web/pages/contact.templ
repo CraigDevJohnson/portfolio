@@ -8,11 +8,12 @@ templ Contact() {
 		Title: "Get in Touch - Craig Johnson",
 		Page:  "contact",
 	}) {
+		<div class="page-kit-page">
 		<section class="page-hero-standard bg-[url('/static/images/backgrounds/contact-hero.jpg')]">
 			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/95 via-carbon-black-950/85 to-secondary-950/80"></div>
 			<div class="page-hero-content mx-auto max-w-3xl">
-				<div class="inline-flex w-fit items-center gap-3 rounded-full border border-primary-700 bg-primary-950/80 px-4 py-2 text-sm font-medium text-primary-100 shadow-panel">
-					<span class="h-2.5 w-2.5 rounded-full bg-accent-400" aria-hidden="true"></span>
+				<div class="page-kit-status-pill">
+					<span class="page-kit-status-dot" aria-hidden="true"></span>
 					Open to opportunities
 				</div>
 				<h1 class="page-hero-title">Get in Touch</h1>
@@ -27,7 +28,7 @@ templ Contact() {
 			<div class="grid gap-4">
 				<a
 					href="mailto:opportunity@craigdevjohnson.com"
-					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					class="page-kit-panel focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
 					aria-label="Email opportunity@craigdevjohnson.com"
 				>
 					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/70 text-3xl shadow-panel">
@@ -44,7 +45,7 @@ templ Contact() {
 					href="https://linkedin.com/in/craigdevjohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					class="page-kit-panel focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
 					aria-label="LinkedIn profile for Craig Johnson"
 				>
 					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-700/70 bg-primary-950/70 text-3xl shadow-panel">
@@ -61,7 +62,7 @@ templ Contact() {
 					href="https://github.com/CraigDevJohnson"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="surface-card focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-secondary-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
+					class="page-kit-panel focus-ring group flex flex-col gap-4 p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-secondary-400 hover:shadow-panel-strong sm:flex-row sm:items-center"
 					aria-label="GitHub profile for Craig Johnson"
 				>
 					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/80 text-3xl shadow-panel">
@@ -80,22 +81,22 @@ templ Contact() {
 			@partials.SectionLabel("What I Bring")
 			<h2 class="page-section-title">Expertise that delivers</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<div class="surface-card p-6 text-center">
+				<div class="page-kit-panel p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/70 text-3xl shadow-panel">☁️</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
 				</div>
-				<div class="surface-card p-6 text-center">
+				<div class="page-kit-panel p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-700/70 bg-primary-950/70 text-3xl shadow-panel">🔄</div>
 					<h3 class="text-lg font-semibold text-copy-primary">CI/CD Pipelines</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Build automated deployment workflows that ship reliable code faster and more safely.</p>
 				</div>
-				<div class="surface-card p-6 text-center">
+				<div class="page-kit-panel p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/70 text-3xl shadow-panel">🔒</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Security First</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Embed security into every layer — from IAM policies to compliance automation.</p>
 				</div>
-				<div class="surface-card p-6 text-center">
+				<div class="page-kit-panel p-6 text-center">
 					<div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/80 text-3xl shadow-panel">📈</div>
 					<h3 class="text-lg font-semibold text-copy-primary">Growth Mindset</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
@@ -103,10 +104,10 @@ templ Contact() {
 			</div>
 		</section>
 		<section class="page-section-tight pt-0">
-			<div class="surface-card-strong overflow-hidden p-6 sm:p-8">
+			<div class="page-kit-panel-strong overflow-hidden p-6 sm:p-8">
 				<div class="flex flex-col gap-4 border-b border-carbon-black-700/80 pb-6 sm:flex-row sm:items-center sm:justify-between">
 					<div class="flex items-center gap-3">
-						<span class="h-3 w-3 rounded-full bg-accent-400 motion-safe:animate-pulse" aria-hidden="true"></span>
+						<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
 						<span class="text-base font-semibold text-accent-300 sm:text-lg">Currently available</span>
 					</div>
 					<span class="text-sm text-copy-secondary">⏱ Response within 24-48 hours</span>
@@ -133,5 +134,6 @@ templ Contact() {
 			partials.CTALink{Href: "/projects", Label: "View Projects"},
 			partials.CTALink{Href: "/experience", Label: "See Experience"},
 		)
+		</div>
 	}
 }

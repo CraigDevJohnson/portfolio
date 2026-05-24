@@ -22,6 +22,7 @@ templ Soccer(props SoccerProps) {
 		Title: "Soccer Schedule Download - Craig Johnson",
 		Page:  "soccer",
 	}) {
+		<div class="page-kit-page">
 		<section class="soccer-hero page-hero-centered bg-[url('/static/images/backgrounds/soccer-hero.jpg')]">
 			<div class="page-hero-overlay-strong absolute inset-0 z-0"></div>
 			<div class="page-hero-content-centered w-[min(48rem,100%)]">
@@ -44,14 +45,14 @@ templ Soccer(props SoccerProps) {
 					}
 				</p>
 				<ul class="mt-8 flex flex-wrap justify-center gap-2" aria-label="Soccer schedule tool highlights">
-					<li class="inline-flex items-center gap-2 rounded-full border border-primary-500/25 bg-[linear-gradient(135deg,rgba(15,23,42,0.66)_0%,rgba(0,149,255,0.12)_100%)] px-4 py-2 text-copy-primary shadow-panel before:text-accent-400 before:content-['•']">Quick manual team lookups</li>
+					<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">Quick manual team lookups</li>
 					if soccerSupportsDiscovery(props.AuthState) {
-						<li class="inline-flex items-center gap-2 rounded-full border border-primary-500/25 bg-[linear-gradient(135deg,rgba(15,23,42,0.66)_0%,rgba(0,149,255,0.12)_100%)] px-4 py-2 text-copy-primary shadow-panel before:text-accent-400 before:content-['•']">JWT-based player discovery</li>
+						<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">JWT-based player discovery</li>
 					}
 					if soccerSupportsGoogle(props.AuthState) {
-						<li class="inline-flex items-center gap-2 rounded-full border border-primary-500/25 bg-[linear-gradient(135deg,rgba(15,23,42,0.66)_0%,rgba(0,149,255,0.12)_100%)] px-4 py-2 text-copy-primary shadow-panel before:text-accent-400 before:content-['•']">ICS downloads or Google Calendar adds</li>
+						<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">ICS downloads or Google Calendar adds</li>
 					} else {
-						<li class="inline-flex items-center gap-2 rounded-full border border-primary-500/25 bg-[linear-gradient(135deg,rgba(15,23,42,0.66)_0%,rgba(0,149,255,0.12)_100%)] px-4 py-2 text-copy-primary shadow-panel before:text-accent-400 before:content-['•']">ICS downloads after the schedule loads</li>
+						<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">ICS downloads after the schedule loads</li>
 					}
 				</ul>
 			</div>
@@ -59,11 +60,11 @@ templ Soccer(props SoccerProps) {
 		<section class="animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] py-14 sm:py-16 [animation-delay:0.1s]">
 			@partials.SectionLabel("Schedule tool")
 			<h2 class="mb-4 text-2xl font-bold leading-tight text-copy-primary sm:text-3xl">Get your schedule</h2>
-			<div class="soccer-unified-card relative flex flex-col gap-8 overflow-hidden rounded-2xl border border-white/8 bg-[linear-gradient(135deg,rgba(0,60,102,0.22)_0%,rgba(0,21,36,0.56)_42%,rgba(255,255,255,0.02)_100%)] p-6 shadow-panel transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong max-sm:gap-4 max-sm:p-4 sm:max-md:gap-6 sm:max-md:p-6">
+			<div class="soccer-unified-card page-kit-shell relative flex flex-col gap-8 overflow-hidden p-6 transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong max-sm:gap-4 max-sm:p-4 sm:max-md:gap-6 sm:max-md:p-6">
 				if props.GoogleMessage != "" {
 					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
 				}
-				<div class="flex h-full flex-col gap-6 rounded-2xl border border-primary-500/20 bg-[linear-gradient(180deg,rgba(0,149,255,0.08)_0%,rgba(15,23,42,0.16)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] max-sm:p-4">
+				<div class="page-kit-panel flex h-full flex-col gap-6 p-6 max-sm:p-4">
 					<div class="flex flex-col gap-4 max-sm:text-center">
 						<h3 class="m-0 text-lg font-bold text-primary-100">Choose your workflow</h3>
 						<p class="m-0 text-sm leading-relaxed text-copy-secondary">
@@ -79,7 +80,7 @@ templ Soccer(props SoccerProps) {
 						</p>
 					</div>
 					<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4" role="list" aria-label="Soccer schedule workflow overview">
-						<div class="flex min-w-0 gap-4 rounded-xl border border-primary-500/25 bg-primary-500/10 px-4 py-2 text-copy-secondary" role="listitem">
+						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-secondary" role="listitem">
 							<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white" aria-hidden="true">1A</span>
 							<div>
 								<h4 class="mb-1 text-sm font-bold text-copy-primary">Fetch by team ID</h4>
@@ -87,7 +88,7 @@ templ Soccer(props SoccerProps) {
 							</div>
 						</div>
 						if soccerSupportsDiscovery(props.AuthState) {
-							<div class="flex min-w-0 gap-4 rounded-xl border border-primary-500/25 bg-primary-500/10 px-4 py-2 text-copy-secondary" role="listitem">
+							<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-secondary" role="listitem">
 								<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white" aria-hidden="true">1B</span>
 								<div>
 									<h4 class="mb-1 text-sm font-bold text-copy-primary">Import access for player discovery</h4>
@@ -95,7 +96,7 @@ templ Soccer(props SoccerProps) {
 								</div>
 							</div>
 						}
-						<div class="flex min-w-0 gap-4 rounded-xl border border-secondary-500/25 bg-secondary-500/10 px-4 py-2 text-copy-primary" role="listitem">
+						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-primary" role="listitem">
 							<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary-500 text-sm font-semibold text-white" aria-hidden="true">2</span>
 							<div>
 								if soccerSupportsGoogle(props.AuthState) {
@@ -108,7 +109,7 @@ templ Soccer(props SoccerProps) {
 							</div>
 						</div>
 					</div>
-					<div class="rounded-xl border border-primary-500/25 bg-primary-500/10 px-4 py-2 text-copy-secondary">
+					<div class="page-kit-panel px-4 py-2 text-copy-secondary">
 						if soccerSupportsDiscovery(props.AuthState) {
 							<p class="m-0 text-sm leading-relaxed text-copy-secondary">
 								<strong class="text-primary-100">Need player discovery?</strong>
@@ -132,7 +133,7 @@ templ Soccer(props SoccerProps) {
 							<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Quickest fetch path</p>
 							<p class="m-0 text-sm leading-relaxed text-copy-muted">Load schedules right away when you already know the numeric team IDs you want.</p>
 						</div>
-						<div class="relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-primary-500/20 bg-[linear-gradient(135deg,rgba(0,149,255,0.09)_0%,rgba(255,255,255,0.03)_100%)] p-6 shadow-[inset_0_1px_0_rgb(255_255_255_/_4%)] before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
+						<div class="page-kit-panel-strong relative flex flex-col gap-4 overflow-hidden p-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
 							<div class="flex items-center gap-4 max-md:items-start">
 								<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(0,149,255,0.14)]" aria-hidden="true">1A</span>
 								<div>
@@ -212,6 +213,7 @@ templ Soccer(props SoccerProps) {
 				</div>
 			</div>
 		</section>
+		</div>
 		@partials.SoccerLoginModal()
 	}
 }

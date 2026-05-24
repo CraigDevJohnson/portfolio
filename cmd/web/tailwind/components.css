@@ -241,25 +241,262 @@
     @apply border-accent-400 bg-accent-400 text-primary-950;
   }
 
+  .page-kit-page {
+    --page-kit-bg: #240000;
+    --page-kit-surface: #332500;
+    --page-kit-surface-strong: #330000;
+    --page-kit-text: #fff8e5;
+    --page-kit-muted: #ffe299;
+    --page-kit-border: #996e00;
+    --page-kit-border-strong: #ffb700;
+    --page-kit-accent: #ffd466;
+    --page-kit-accent-strong: #fff1cc;
+    --page-kit-chip-bg: #330000;
+    --page-kit-company: #89b7dc;
+    --page-kit-action-bg: #17364f;
+    --page-kit-action-text: #fff8e5;
+    --page-kit-action-hover-text: #021622;
+    --page-kit-hero-overlay: linear-gradient(
+        110deg,
+        rgb(36 0 0 / 0.92) 0%,
+        rgb(36 26 0 / 0.78) 46%,
+        rgb(8 19 27 / 0.7) 100%
+      ),
+      radial-gradient(circle at 16% 24%, rgb(255 183 0 / 0.16), transparent 28%),
+      radial-gradient(circle at 82% 18%, rgb(59 134 196 / 0.22), transparent 30%),
+      linear-gradient(180deg, rgb(8 19 27 / 0.08) 0%, rgb(8 19 27 / 0.26) 100%);
+
+    --color-surface-panel: var(--page-kit-surface);
+    --color-surface-raised: var(--page-kit-surface-strong);
+    --color-copy-primary: var(--page-kit-text);
+    --color-copy-secondary: var(--page-kit-muted);
+    --color-copy-muted: #f0dba5;
+    --color-brand-link: var(--page-kit-accent-strong);
+    --color-brand-link-hover: var(--page-kit-accent);
+    --color-focus-ring: var(--page-kit-accent);
+
+    --color-primary-100: #d6ebfa;
+    --color-primary-200: #b9ddf6;
+    --color-primary-300: #89b7dc;
+    --color-primary-400: #6aa4d1;
+    --color-primary-500: #3b86c4;
+    --color-primary-700: #17364f;
+    --color-primary-950: #021622;
+
+    --color-secondary-200: #f2c1cf;
+    --color-secondary-300: #e59fb5;
+    --color-secondary-400: #d17895;
+    --color-secondary-500: #b14e72;
+    --color-secondary-700: #6f233e;
+    --color-secondary-950: #330000;
+
+    --color-accent-200: #fff1cc;
+    --color-accent-300: #ffe299;
+    --color-accent-400: #ffd466;
+    --color-accent-500: #ffb700;
+    --color-accent-700: #996e00;
+    --color-accent-950: #332500;
+
+    --color-carbon-black-100: #fff1cc;
+    --color-carbon-black-200: #ffe299;
+    --color-carbon-black-400: #c89b4e;
+    --color-carbon-black-700: #4d3300;
+    --color-carbon-black-800: #332500;
+    --color-carbon-black-900: #330000;
+    --color-carbon-black-950: #240000;
+
+    @apply py-6 sm:py-8 lg:py-10;
+  }
+
+  .page-kit-section-label {
+    @apply mb-4 flex items-center gap-4;
+  }
+
+  .page-kit-section-label-line {
+    display: block;
+    width: 2rem;
+    height: 2px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      var(--page-kit-company, var(--experience-company, var(--color-primary-300))) 0%,
+      var(--page-kit-accent, var(--experience-accent, var(--color-accent-400))) 100%
+    );
+  }
+
+  .page-kit-status-pill {
+    @apply inline-flex w-fit items-center gap-3 rounded-full border px-4 py-2 text-sm font-semibold shadow-panel;
+    background-color: var(--page-kit-surface-strong, var(--experience-surface-strong, var(--color-carbon-black-900)));
+    border-color: var(--page-kit-border-strong, var(--experience-border-strong, var(--color-accent-500)));
+    color: var(--page-kit-accent-strong, var(--experience-accent-strong, var(--color-accent-200)));
+  }
+
+  .page-kit-status-dot {
+    @apply h-2.5 w-2.5 rounded-full;
+    background-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
+  }
+
+  .page-kit-hero-backdrop {
+    @apply absolute inset-0 overflow-hidden;
+    background-color: #021622;
+  }
+
+  .page-kit-hero-backdrop::before {
+    content: "";
+    position: absolute;
+    inset: -2%;
+    background-image: var(--page-kit-hero-image);
+    background-position: var(--page-kit-hero-position, center 36%);
+    background-size: cover;
+    filter: var(--page-kit-hero-filter, saturate(0.72) contrast(0.82) brightness(0.56) blur(1.25px));
+    transform: scale(1.04);
+    transform-origin: center;
+  }
+
+  .page-kit-hero-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--page-kit-hero-overlay, var(--page-kit-hero-overlay));
+    pointer-events: none;
+  }
+
+  .page-kit-hero-grid {
+    @apply absolute inset-y-0 right-0 hidden lg:block;
+    width: min(36%, 26rem);
+    background:
+      linear-gradient(180deg, rgb(59 134 196 / 0.12), transparent 100%),
+      radial-gradient(circle at top, rgb(255 212 102 / 0.22), transparent 62%);
+    border-left: 1px solid rgb(255 183 0 / 0.28);
+    clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .page-kit-hero-glow {
+    @apply absolute rounded-full blur-3xl;
+    pointer-events: none;
+  }
+
+  .page-kit-hero-glow-primary {
+    top: -8rem;
+    right: -5rem;
+    height: 20rem;
+    width: 20rem;
+    background: rgb(255 212 102 / 0.24);
+  }
+
+  .page-kit-hero-glow-secondary {
+    bottom: -9rem;
+    left: 42%;
+    height: 16rem;
+    width: 16rem;
+    transform: translateX(-50%);
+    background: rgb(59 134 196 / 0.18);
+  }
+
+  .page-kit-action-primary {
+    background-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
+    border-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
+    color: var(--page-kit-action-hover-text, var(--experience-action-hover-text, var(--color-primary-950)));
+  }
+
+  .page-kit-action-primary:hover {
+    background-color: var(--page-kit-accent-strong, var(--experience-accent-strong, var(--color-accent-200)));
+    border-color: var(--page-kit-accent-strong, var(--experience-accent-strong, var(--color-accent-200)));
+    color: var(--page-kit-action-hover-text, var(--experience-action-hover-text, var(--color-primary-950)));
+  }
+
+  .page-kit-page .page-hero-standard,
+  .page-kit-page .page-hero-centered {
+    border-color: var(--page-kit-border);
+    background-color: var(--page-kit-bg);
+    box-shadow: var(--shadow-panel-strong);
+  }
+
+  .page-kit-page .page-hero-overlay-standard,
+  .page-kit-page .page-hero-overlay-strong {
+    background: var(--page-kit-hero-overlay);
+  }
+
+  .page-kit-page .page-hero-title,
+  .page-kit-page .page-section-title {
+    color: var(--page-kit-text);
+  }
+
+  .page-kit-page .page-hero-description,
+  .page-kit-page .page-hero-description-centered,
+  .page-kit-page .page-section-subtitle {
+    color: var(--page-kit-muted);
+  }
+
+  .page-kit-page .surface-card {
+    border-color: var(--page-kit-border);
+    color: var(--page-kit-text);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .page-kit-page .surface-card-strong {
+    border-color: var(--page-kit-border-strong);
+    background: linear-gradient(135deg, var(--page-kit-surface-strong), var(--page-kit-surface));
+    color: var(--page-kit-text);
+    box-shadow: var(--shadow-panel-strong);
+  }
+
+  .page-kit-page .tech-pill {
+    border-color: var(--page-kit-border-strong);
+    background-color: var(--page-kit-chip-bg);
+    color: var(--page-kit-accent-strong);
+  }
+
+  .page-kit-page .btn-secondary {
+    background-color: var(--page-kit-action-bg);
+    border-color: var(--page-kit-border-strong);
+    color: var(--page-kit-action-text);
+  }
+
+  .page-kit-page .btn-secondary:hover:not(:disabled) {
+    background-color: var(--page-kit-accent);
+    border-color: var(--page-kit-accent);
+    color: var(--page-kit-action-hover-text);
+  }
+
+  .page-kit-page .proj-category-pill {
+    border-color: var(--page-kit-border);
+    background-color: var(--page-kit-surface);
+    color: var(--page-kit-muted);
+  }
+
+  .page-kit-page .proj-category-pill:hover {
+    border-color: var(--page-kit-accent);
+    background-color: var(--page-kit-surface-strong);
+    color: var(--page-kit-text);
+  }
+
+  .page-kit-shell,
   .experience-kit-shell {
     @apply relative isolate rounded-4xl border shadow-panel-strong;
-    background-color: var(--experience-bg);
-    border-color: var(--experience-border);
-    color: var(--experience-text);
+    background-color: var(--page-kit-bg, var(--experience-bg));
+    border-color: var(--page-kit-border, var(--experience-border));
+    color: var(--page-kit-text, var(--experience-text));
   }
 
+  .page-kit-panel,
   .experience-kit-panel {
     @apply rounded-3xl border p-5 sm:p-6;
-    background-color: var(--experience-surface);
-    border-color: var(--experience-border);
-    color: var(--experience-text);
+    background-color: var(--page-kit-surface, var(--experience-surface));
+    border-color: var(--page-kit-border, var(--experience-border));
+    color: var(--page-kit-text, var(--experience-text));
   }
 
+  .page-kit-panel-strong,
   .experience-kit-panel-strong {
     @apply rounded-3xl border p-5 sm:p-6;
-    background: linear-gradient(135deg, var(--experience-surface-strong), var(--experience-surface));
-    border-color: var(--experience-border-strong);
-    color: var(--experience-text);
+    background: linear-gradient(
+      135deg,
+      var(--page-kit-surface-strong, var(--experience-surface-strong)),
+      var(--page-kit-surface, var(--experience-surface))
+    );
+    border-color: var(--page-kit-border-strong, var(--experience-border-strong));
+    color: var(--page-kit-text, var(--experience-text));
   }
 
   .experience-kit-page {
@@ -365,24 +602,28 @@
     color: var(--experience-accent);
   }
 
+  .page-kit-eyebrow,
   .experience-kit-eyebrow {
     @apply text-xs font-extrabold uppercase tracking-[0.18em];
-    color: var(--experience-accent);
+    color: var(--page-kit-accent, var(--experience-accent));
   }
 
+  .page-kit-title,
   .experience-kit-title {
     @apply text-4xl font-bold tracking-tight sm:text-5xl;
-    color: var(--experience-text);
+    color: var(--page-kit-text, var(--experience-text));
   }
 
+  .page-kit-copy,
   .experience-kit-copy {
     @apply text-base leading-7 sm:text-lg sm:leading-8;
-    color: var(--experience-muted);
+    color: var(--page-kit-muted, var(--experience-muted));
   }
 
+  .page-kit-heading,
   .experience-kit-heading {
     @apply text-3xl font-bold tracking-tight;
-    color: var(--experience-text);
+    color: var(--page-kit-text, var(--experience-text));
   }
 
   .experience-kit-stage-title {
@@ -399,51 +640,60 @@
     color: var(--experience-company);
   }
 
+  .page-kit-counter,
   .experience-kit-counter {
     @apply text-4xl font-bold;
-    color: var(--experience-text);
+    color: var(--page-kit-text, var(--experience-text));
     font-variant-numeric: tabular-nums;
   }
 
+  .page-kit-text,
   .experience-kit-text {
-    color: var(--experience-text);
+    color: var(--page-kit-text, var(--experience-text));
   }
 
+  .page-kit-muted,
   .experience-kit-muted {
-    color: var(--experience-muted);
+    color: var(--page-kit-muted, var(--experience-muted));
   }
 
+  .page-kit-accent-strong,
   .experience-kit-accent-strong {
-    color: var(--experience-accent-strong);
+    color: var(--page-kit-accent-strong, var(--experience-accent-strong));
   }
 
+  .page-kit-border,
   .experience-kit-border {
-    border-color: var(--experience-border);
+    border-color: var(--page-kit-border, var(--experience-border));
   }
 
+  .page-kit-chip,
   .experience-kit-chip {
     @apply inline-flex min-h-10 items-center rounded-full border px-3 py-1 text-xs font-semibold wrap-anywhere;
-    background-color: var(--experience-chip-bg);
-    border-color: var(--experience-border-strong);
-    color: var(--experience-accent-strong);
+    background-color: var(--page-kit-chip-bg, var(--experience-chip-bg));
+    border-color: var(--page-kit-border-strong, var(--experience-border-strong));
+    color: var(--page-kit-accent-strong, var(--experience-accent-strong));
   }
 
+  .page-kit-action,
   .experience-kit-action {
     @apply inline-flex min-h-11 items-center justify-center rounded-full border px-5 py-2.5 text-sm font-semibold transition duration-150 ease-out;
-    background-color: var(--experience-action-bg);
-    border-color: var(--experience-border-strong);
-    color: var(--experience-action-text);
+    background-color: var(--page-kit-action-bg, var(--experience-action-bg));
+    border-color: var(--page-kit-border-strong, var(--experience-border-strong));
+    color: var(--page-kit-action-text, var(--experience-action-text));
   }
 
+  .page-kit-action:hover,
   .experience-kit-action:hover {
     transform: translateY(-1px);
-    background-color: var(--experience-accent);
-    border-color: var(--experience-accent);
-    color: var(--experience-action-hover-text);
+    background-color: var(--page-kit-accent, var(--experience-accent));
+    border-color: var(--page-kit-accent, var(--experience-accent));
+    color: var(--page-kit-action-hover-text, var(--experience-action-hover-text));
   }
 
+  .page-kit-action:focus-visible,
   .experience-kit-action:focus-visible {
-    outline: 2px solid var(--experience-accent);
+    outline: 2px solid var(--page-kit-accent, var(--experience-accent));
     outline-offset: 3px;
   }
 
@@ -466,6 +716,31 @@
   }
 
   @media (forced-colors: active) {
+    .page-kit-page {
+      --page-kit-bg: Canvas;
+      --page-kit-surface: Canvas;
+      --page-kit-surface-strong: Canvas;
+      --page-kit-text: CanvasText;
+      --page-kit-muted: CanvasText;
+      --page-kit-border: ButtonBorder;
+      --page-kit-border-strong: ButtonBorder;
+      --page-kit-accent: LinkText;
+      --page-kit-accent-strong: LinkText;
+      --page-kit-chip-bg: Canvas;
+      --page-kit-action-bg: ButtonFace;
+      --page-kit-action-text: ButtonText;
+      --page-kit-action-hover-text: ButtonText;
+
+      --color-surface-panel: Canvas;
+      --color-surface-raised: Canvas;
+      --color-copy-primary: CanvasText;
+      --color-copy-secondary: CanvasText;
+      --color-copy-muted: CanvasText;
+      --color-brand-link: LinkText;
+      --color-brand-link-hover: LinkText;
+      --color-focus-ring: LinkText;
+    }
+
     .experience-kit-stages {
       --experience-bg: Canvas;
       --experience-surface: Canvas;
@@ -483,6 +758,14 @@
       --experience-action-hover-text: ButtonText;
     }
 
+    .page-kit-shell,
+    .page-kit-panel,
+    .page-kit-panel-strong,
+    .page-kit-action,
+    .page-kit-page .page-hero-standard,
+    .page-kit-page .page-hero-centered,
+    .page-kit-page .surface-card,
+    .page-kit-page .surface-card-strong,
     .experience-kit-shell,
     .experience-kit-panel,
     .experience-kit-panel-strong,
@@ -490,8 +773,9 @@
       box-shadow: none;
     }
   }
-}
 
-    .experience-kit-footer-cta {
-      @apply mb-6 sm:mb-8 lg:mb-10;
-    }
+  .page-kit-footer-cta,
+  .experience-kit-footer-cta {
+    @apply mb-6 sm:mb-8 lg:mb-10;
+  }
+}

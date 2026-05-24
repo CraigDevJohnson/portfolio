@@ -8,6 +8,7 @@ templ Skills() {
 		Title: "Technical Proficiencies - Craig Johnson",
 		Page:  "skills",
 	}) {
+		<div class="page-kit-page">
 		<section class="page-hero-centered bg-[url('/static/images/backgrounds/skills-hero.jpg')]">
 			<div class="page-hero-overlay-strong"></div>
 			<div class="page-hero-content-centered">
@@ -18,7 +19,7 @@ templ Skills() {
 		<section class="page-section-tight pt-0" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
 			<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
 				<!-- Featured skeleton -->
-				<div class="pointer-events-none rounded-[1.75rem] border border-primary-500/18 bg-[linear-gradient(145deg,rgba(0,21,36,0.96)_0%,rgba(0,60,102,0.74)_46%,rgba(255,0,98,0.16)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+				<div class="pointer-events-none page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
 					<div class="mb-8 text-center">
 						<div class="skeleton mx-auto mb-3 h-7 w-56"></div>
 						<div class="skeleton mx-auto h-4 w-72 max-w-full"></div>
@@ -30,7 +31,7 @@ templ Skills() {
 					</div>
 				</div>
 				<!-- Concepts skeleton -->
-				<div class="pointer-events-none rounded-[1.75rem] border border-secondary-500/18 bg-[linear-gradient(145deg,rgba(0,21,36,0.94)_0%,rgba(0,30,51,0.62)_44%,rgba(36,0,14,0.36)_100%)] px-6 py-8 shadow-panel sm:px-8 sm:py-10">
+				<div class="pointer-events-none page-kit-panel px-6 py-8 sm:px-8 sm:py-10">
 					<div class="mb-8 text-center">
 						<div class="skeleton mx-auto h-7 w-52"></div>
 					</div>
@@ -41,10 +42,12 @@ templ Skills() {
 					</div>
 				</div>
 				<!-- All skills bar skeleton -->
-				<div class="skeleton h-28 rounded-2xl"></div>
+				<div class="pointer-events-none page-kit-panel p-4 sm:p-5">
+					<div class="skeleton h-20 rounded-2xl"></div>
+				</div>
 				<!-- Category skeletons -->
 				for i := 1; i <= 3; i++ {
-					<div class="pointer-events-none rounded-2xl border border-white/8 bg-black/10 p-4 sm:p-5">
+					<div class="pointer-events-none page-kit-panel p-4 sm:p-5">
 						<div class="skeleton mb-4 h-5 w-44"></div>
 						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
 							for j := 1; j <= 8; j++ {
@@ -61,5 +64,6 @@ templ Skills() {
 			partials.CTALink{Href: "/projects", Label: "View Projects"},
 			partials.CTALink{Href: "/contact", Label: "Contact Me"},
 		)
+		</div>
 	}
 }
