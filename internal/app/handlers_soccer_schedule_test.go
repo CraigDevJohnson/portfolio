@@ -88,6 +88,8 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 
 func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	app := newTestApp(t)
+	start := time.Now().Add(24 * time.Hour).Round(time.Second)
+	end := start.Add(90 * time.Minute)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); !strings.HasPrefix(got, "Bearer ") && strings.HasPrefix(r.URL.Path, "/players/") {
@@ -111,8 +113,8 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 				"games": [
 					{
 						"UGameID": 888,
-						"SchedGameDateTime": "2026-05-15T20:00:00-06:00",
-						"schedGameEndTime": "2026-05-15T21:30:00-06:00",
+						"SchedGameDateTime": "` + start.Format(time.RFC3339) + `",
+						"schedGameEndTime": "` + end.Format(time.RFC3339) + `",
 						"facilityName": "North Fieldhouse",
 						"field_name": "Pitch 2",
 						"FacilityID": 12,

@@ -262,6 +262,109 @@
     color: var(--experience-text);
   }
 
+  .experience-kit-page {
+    @apply py-6 sm:py-8 lg:py-10;
+  }
+
+  .experience-hero-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .experience-hero-link-item {
+    display: block;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .experience-hero-link-item::marker {
+    content: "";
+  }
+
+  .experience-kit-hero-backdrop {
+    @apply absolute inset-0 overflow-hidden;
+    background-color: #021622;
+  }
+
+  .experience-kit-hero-backdrop::before {
+    content: "";
+    position: absolute;
+    inset: -2%;
+    background-image: url('/static/images/backgrounds/experience-hero.jpg');
+    background-position: center 36%;
+    background-size: cover;
+    filter: saturate(0.72) contrast(0.82) brightness(0.56) blur(1.25px);
+    transform: scale(1.04);
+    transform-origin: center;
+  }
+
+  .experience-kit-hero-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(110deg, rgb(36 0 0 / 0.92) 0%, rgb(36 26 0 / 0.78) 46%, rgb(8 19 27 / 0.7) 100%),
+      radial-gradient(circle at 16% 24%, rgb(255 183 0 / 0.16), transparent 28%),
+      radial-gradient(circle at 82% 18%, rgb(59 134 196 / 0.22), transparent 30%),
+      linear-gradient(180deg, rgb(8 19 27 / 0.08) 0%, rgb(8 19 27 / 0.26) 100%);
+    pointer-events: none;
+  }
+
+  .experience-kit-hero-grid {
+    @apply absolute inset-y-0 right-0 hidden lg:block;
+    width: min(36%, 26rem);
+    background:
+      linear-gradient(180deg, rgb(59 134 196 / 0.12), transparent 100%),
+      radial-gradient(circle at top, rgb(255 212 102 / 0.22), transparent 62%);
+    border-left: 1px solid rgb(255 183 0 / 0.28);
+    clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .experience-kit-hero-glow {
+    @apply absolute rounded-full blur-3xl;
+    pointer-events: none;
+  }
+
+  .experience-kit-hero-glow-primary {
+    top: -8rem;
+    right: -5rem;
+    height: 20rem;
+    width: 20rem;
+    background: rgb(255 212 102 / 0.24);
+  }
+
+  .experience-kit-hero-glow-secondary {
+    bottom: -9rem;
+    left: 42%;
+    height: 16rem;
+    width: 16rem;
+    transform: translateX(-50%);
+    background: rgb(59 134 196 / 0.18);
+  }
+
+  .experience-hero-stats {
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    background: linear-gradient(135deg, rgb(36 0 0 / 0.88), rgb(8 19 27 / 0.78));
+  }
+
+  .experience-hero-stat-label {
+    display: inline-block;
+    margin-bottom: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.25;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--experience-accent);
+  }
+
   .experience-kit-eyebrow {
     @apply text-xs font-extrabold uppercase tracking-[0.18em];
     color: var(--experience-accent);
@@ -290,6 +393,10 @@
   .experience-kit-role-title {
     @apply text-2xl font-semibold tracking-tight;
     color: var(--experience-text);
+  }
+
+  .experience-kit-company {
+    color: var(--experience-company);
   }
 
   .experience-kit-counter {
@@ -341,20 +448,21 @@
   }
 
   .experience-kit-stages {
-    --experience-bg: #21162d;
-    --experience-surface: #312240;
-    --experience-surface-strong: #44305b;
-    --experience-text: #f7efff;
-    --experience-muted: #cdbfe0;
-    --experience-border: #674d80;
-    --experience-border-strong: #c88e52;
-    --experience-accent: #7be0cf;
-    --experience-accent-strong: #ffd0a4;
-    --experience-accent-soft: rgb(123 224 207 / 0.25);
-    --experience-chip-bg: #3f2d53;
-    --experience-action-bg: #322147;
-    --experience-action-text: #f7efff;
-    --experience-action-hover-text: #21162d;
+    --experience-bg: #240000;
+    --experience-surface: #332500;
+    --experience-surface-strong: #330000;
+    --experience-text: #fff8e5;
+    --experience-muted: #ffe299;
+    --experience-border: #996e00;
+    --experience-border-strong: #ffb700;
+    --experience-accent: #ffd466;
+    --experience-accent-strong: #fff1cc;
+    --experience-accent-soft: rgb(255 183 0 / 0.2);
+    --experience-chip-bg: #330000;
+    --experience-company: #89b7dc;
+    --experience-action-bg: #17364f;
+    --experience-action-text: #fff8e5;
+    --experience-action-hover-text: #021622;
   }
 
   @media (forced-colors: active) {
@@ -383,3 +491,7 @@
     }
   }
 }
+
+    .experience-kit-footer-cta {
+      @apply mb-6 sm:mb-8 lg:mb-10;
+    }

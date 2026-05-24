@@ -10,6 +10,7 @@
   const COUNTER_SECTIONS = [
     { section: '.hero-stats', duration: 2000 },
     { section: '.about-stats', duration: 2000 },
+    { section: '.experience-hero-stats', duration: 1500 },
     { section: '.experience-summary', duration: 1500 },
     { section: '.edu-stats', duration: 1500 },
     { section: '.projects-stats', duration: 1500 },
@@ -155,6 +156,7 @@
     const targetYear = counter.dataset.targetYear
     const targetValue = counter.dataset.target
     const suffix = counter.dataset.suffix || ''
+    const currentValue = Number.parseInt((counter.textContent || '').replace(/[^\d-]/g, ''), 10) || 0
     const finalValue = targetYear
       ? new Date().getFullYear() - Number.parseInt(targetYear, 10)
       : Number.parseInt(targetValue, 10) || 0
@@ -170,7 +172,7 @@
       const elapsed = now - start
       const progress = Math.min(elapsed / duration, 1)
       const ease = 1 - Math.pow(1 - progress, 3)
-      counter.textContent = Math.floor(finalValue * ease)
+      counter.textContent = Math.floor(currentValue + (finalValue - currentValue) * ease)
 
       if (progress < 1) {
         requestAnimationFrame(update)

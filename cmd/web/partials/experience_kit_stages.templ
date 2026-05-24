@@ -13,61 +13,63 @@ type ExperienceKitStagesProps struct {
 templ ExperienceKitStages(props ExperienceKitStagesProps) {
 	{{ overview := buildExperienceOverview(props.Experiences) }}
 	{{ stages := buildCareerStages(props.Experiences) }}
-	<div class="experience-kit-stages space-y-8 sm:space-y-10">
+	<div class="experience-kit-page experience-kit-stages space-y-8 sm:space-y-10">
 		<section class="experience-kit-shell overflow-hidden p-0">
-			<div class="relative overflow-hidden px-6 py-8 sm:p-10 lg:p-12">
-				<div class="absolute inset-0 bg-[url('/static/images/backgrounds/experience-hero.jpg')]" aria-hidden="true"></div>
+			<div class="relative overflow-hidden px-6 py-9 sm:p-10 lg:p-12">
+				<div class="experience-kit-hero-backdrop" aria-hidden="true">
+					<div class="experience-kit-hero-grid"></div>
+					<div class="experience-kit-hero-glow experience-kit-hero-glow-primary"></div>
+					<div class="experience-kit-hero-glow experience-kit-hero-glow-secondary"></div>
+				</div>
 				<div class="relative space-y-7 sm:space-y-8">
 					<p class="experience-kit-eyebrow">Experience</p>
-					<div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-end">
+					<div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-end">
 						<div class="space-y-4">
-							<h2 class="experience-kit-title max-w-4xl">The Three Eras</h2>
+							<h1 class="experience-kit-title max-w-4xl">Experience in Three Eras</h1>
 							<p class="experience-kit-copy max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
 						</div>
-						<div class="experience-kit-panel-strong grid gap-4 sm:grid-cols-3">
+						<div class="experience-kit-panel-strong experience-hero-stats grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 							<div>
-								<p class="experience-kit-eyebrow">Years active</p>
-								<p class="experience-kit-counter" data-counter data-target-year={ fmt.Sprintf("%d", overview.CareerStartYear) }>0</p>
+								<p class="experience-hero-stat-label">Years active</p>
+								<p class="experience-kit-counter" data-counter data-target={ fmt.Sprintf("%d", overview.CareerSpanYears) }>{ fmt.Sprintf("%d", overview.CareerSpanYears) }</p>
 							</div>
 							<div>
-								<p class="experience-kit-eyebrow">Roles</p>
-								<p class="experience-kit-counter" data-counter data-target={ fmt.Sprintf("%d", overview.TotalRoles) }>0</p>
+								<p class="experience-hero-stat-label">Roles</p>
+								<p class="experience-kit-counter" data-counter data-target={ fmt.Sprintf("%d", overview.TotalRoles) }>{ fmt.Sprintf("%d", overview.TotalRoles) }</p>
 							</div>
 							<div>
-								<p class="experience-kit-eyebrow">Technologies</p>
-								<p class="experience-kit-counter" data-counter data-target={ fmt.Sprintf("%d", overview.TotalTechnologies) }>0</p>
+								<p class="experience-hero-stat-label">Technologies</p>
+								<p class="experience-kit-counter" data-counter data-target={ fmt.Sprintf("%d", overview.TotalTechnologies) }>{ fmt.Sprintf("%d", overview.TotalTechnologies) }</p>
 							</div>
 						</div>
 					</div>
 					<nav aria-label="Jump to career stage">
-						<ul class="flex flex-wrap gap-3">
+						<div class="experience-hero-links">
 							for _, stage := range stages {
-								<li>
-									<a href={ templ.SafeURL("#" + stage.ID) } class="experience-kit-action">{ stage.Title }</a>
-								</li>
+								<a href={ templ.SafeURL("#" + stage.ID) } class="experience-kit-action">{ stage.Title }</a>
 							}
-						</ul>
+						</div>
 					</nav>
 				</div>
 			</div>
 		</section>
 
 		<section class="experience-summary grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
+			<h2 class="sr-only">Recurring technologies used across career stages</h2>
 			for _, technology := range overview.SpotlightTechnologies {
-				<article class="experience-kit-panel space-y-3">
-					<p class="experience-kit-eyebrow">Highlighted tool</p>
+				<article class="experience-kit-panel space-y-2">
+					<p class="experience-kit-eyebrow">Recurring technology</p>
 					<h3 class="experience-kit-heading">{ technology }</h3>
-					<p class="experience-kit-muted text-sm leading-6">Repeated often enough across the career to become part of the throughline for this page.</p>
 				</article>
 			}
 		</section>
 
 		for _, stage := range stages {
-			<section id={ stage.ID } class="experience-kit-shell overflow-hidden">
+			<section id={ stage.ID } class="experience-kit-shell scroll-mt-[calc(var(--header-height)+1.25rem)] overflow-hidden">
 				<div class="grid lg:grid-cols-[0.72fr_1.28fr]">
 					<div class="experience-kit-border space-y-5 border-b p-6 sm:p-8 lg:border-b-0 lg:border-r">
 						<p class="experience-kit-eyebrow">{ stage.Range }</p>
-						<h3 class="experience-kit-stage-title">{ stage.Title }</h3>
+						<h2 class="experience-kit-stage-title">{ stage.Title }</h2>
 						<p class="experience-kit-muted text-base leading-7">{ stage.Summary }</p>
 						<div class="flex flex-wrap gap-2">
 							for _, role := range stage.Experiences {
@@ -80,8 +82,8 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 							<article class="experience-kit-panel-strong space-y-4">
 								<div class="space-y-1">
 									<p class="experience-kit-eyebrow">{ role.Duration }</p>
-									<h4 class="experience-kit-role-title">{ role.Position }</h4>
-									<p class="experience-kit-accent-strong text-sm font-semibold uppercase tracking-[0.12em]">{ role.Company }</p>
+									<h3 class="experience-kit-role-title">{ role.Position }</h3>
+									<p class="experience-kit-company text-sm font-semibold uppercase tracking-[0.12em]">{ role.Company }</p>
 								</div>
 								<p class="experience-kit-muted text-sm leading-7">{ role.Responsibilities }</p>
 								<div class="flex flex-wrap gap-2">
