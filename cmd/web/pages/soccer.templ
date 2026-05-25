@@ -64,10 +64,10 @@ templ Soccer(props SoccerProps) {
 				if props.GoogleMessage != "" {
 					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
 				}
-				<div class="page-kit-panel flex h-full flex-col gap-6 p-6 max-sm:p-4">
-					<div class="flex flex-col gap-4 max-sm:text-center">
+				<div class="page-kit-panel flex h-full flex-col gap-6 p-6 max-sm:gap-5 max-sm:p-5">
+					<div class="flex flex-col gap-4 max-sm:gap-3">
 						<h3 class="m-0 text-lg font-bold text-primary-100">Choose your workflow</h3>
-						<p class="m-0 text-sm leading-relaxed text-copy-secondary">
+						<p class="m-0 text-sm leading-relaxed text-copy-secondary max-sm:text-[0.95rem] max-sm:leading-7">
 							Manual team IDs get you to the schedule quickest.
 							if soccerSupportsDiscovery(props.AuthState) {
 								Import access helps you discover current teams from your signed-in account before you choose what to fetch.
@@ -80,7 +80,7 @@ templ Soccer(props SoccerProps) {
 						</p>
 					</div>
 					<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4" role="list" aria-label="Soccer schedule workflow overview">
-						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-secondary" role="listitem">
+						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-secondary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
 							<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white" aria-hidden="true">1A</span>
 							<div>
 								<h4 class="mb-1 text-sm font-bold text-copy-primary">Fetch by team ID</h4>
@@ -88,7 +88,7 @@ templ Soccer(props SoccerProps) {
 							</div>
 						</div>
 						if soccerSupportsDiscovery(props.AuthState) {
-							<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-secondary" role="listitem">
+							<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-secondary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
 								<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white" aria-hidden="true">1B</span>
 								<div>
 									<h4 class="mb-1 text-sm font-bold text-copy-primary">Import access for player discovery</h4>
@@ -96,7 +96,7 @@ templ Soccer(props SoccerProps) {
 								</div>
 							</div>
 						}
-						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-2 text-copy-primary" role="listitem">
+						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-primary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
 							<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary-500 text-sm font-semibold text-white" aria-hidden="true">2</span>
 							<div>
 								if soccerSupportsGoogle(props.AuthState) {
@@ -109,7 +109,7 @@ templ Soccer(props SoccerProps) {
 							</div>
 						</div>
 					</div>
-					<div class="page-kit-panel px-4 py-2 text-copy-secondary">
+					<div class="page-kit-panel px-4 py-3 text-copy-secondary">
 						if soccerSupportsDiscovery(props.AuthState) {
 							<p class="m-0 text-sm leading-relaxed text-copy-secondary">
 								<strong class="text-primary-100">Need player discovery?</strong>

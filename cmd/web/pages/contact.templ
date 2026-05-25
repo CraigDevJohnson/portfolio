@@ -3,6 +3,23 @@ package pages
 import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
 
+func contactExpertiseCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "☁️", Title: "Cloud Architecture", Description: "Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.", Tone: "accent"},
+		{Icon: "🔄", Title: "CI/CD Pipelines", Description: "Build automated deployment workflows that ship reliable code faster and more safely.", Tone: "primary"},
+		{Icon: "🔒", Title: "Security First", Description: "Embed security into every layer — from IAM policies to compliance automation.", Tone: "secondary"},
+		{Icon: "📈", Title: "Growth Mindset", Description: "Continuous learner who stays current with evolving cloud and DevOps best practices.", Tone: "secondary"},
+	}
+}
+
+func contactMethodCards() []partials.LinkPanelRowProps {
+	return []partials.LinkPanelRowProps{
+		{Href: "mailto:opportunity@craigdevjohnson.com", Title: "Email", Label: "opportunity@craigdevjohnson.com", Description: "Best for professional inquiries and new opportunities.", Icon: "✉️", Tone: "accent", AriaLabel: "Email opportunity@craigdevjohnson.com"},
+		{Href: "https://linkedin.com/in/craigdevjohnson", Title: "LinkedIn", Label: "linkedin.com/in/craigdevjohnson", Description: "Connect for networking, platform engineering, and career conversations.", Icon: "💼", Tone: "primary", AriaLabel: "LinkedIn profile for Craig Johnson", External: true},
+		{Href: "https://github.com/CraigDevJohnson", Title: "GitHub", Label: "github.com/CraigDevJohnson", Description: "Explore technical collaborations, experiments, and open-source work.", Icon: "🛠️", Tone: "secondary", AriaLabel: "GitHub profile for Craig Johnson", External: true},
+	}
+}
+
 templ Contact() {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Get in Touch - Craig Johnson",
@@ -26,81 +43,18 @@ templ Contact() {
 			@partials.SectionLabel("Ways to Connect")
 			<h2 class="page-section-title">Choose the easiest way to reach me</h2>
 			<div class="grid gap-4">
-				<a
-					href="mailto:opportunity@craigdevjohnson.com"
-					class="page-kit-link-panel-row group hover:border-accent-400"
-					aria-label="Email opportunity@craigdevjohnson.com"
-				>
-					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-accent-700/70 bg-accent-950/70 text-3xl shadow-panel">
-						<span aria-hidden="true">✉️</span>
-					</div>
-					<div class="min-w-0 flex-1 space-y-1">
-						<h3 class="text-lg font-semibold text-copy-primary">Email</h3>
-						<p class="break-words text-sm font-medium text-accent-300">opportunity@craigdevjohnson.com</p>
-						<p class="text-sm leading-6 text-copy-secondary">Best for professional inquiries and new opportunities.</p>
-					</div>
-					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-accent-300" aria-hidden="true">↗</span>
-				</a>
-				<a
-					href="https://linkedin.com/in/craigdevjohnson"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="page-kit-link-panel-row group hover:border-primary-400"
-					aria-label="LinkedIn profile for Craig Johnson"
-				>
-					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary-700/70 bg-primary-950/70 text-3xl shadow-panel">
-						<span aria-hidden="true">💼</span>
-					</div>
-					<div class="min-w-0 flex-1 space-y-1">
-						<h3 class="text-lg font-semibold text-copy-primary">LinkedIn</h3>
-						<p class="break-words text-sm font-medium text-primary-200">linkedin.com/in/craigdevjohnson</p>
-						<p class="text-sm leading-6 text-copy-secondary">Connect for networking, platform engineering, and career conversations.</p>
-					</div>
-					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-primary-200" aria-hidden="true">↗</span>
-				</a>
-				<a
-					href="https://github.com/CraigDevJohnson"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="page-kit-link-panel-row group hover:border-secondary-400"
-					aria-label="GitHub profile for Craig Johnson"
-				>
-					<div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-secondary-700/70 bg-secondary-950/80 text-3xl shadow-panel">
-						<span aria-hidden="true">🛠️</span>
-					</div>
-					<div class="min-w-0 flex-1 space-y-1">
-						<h3 class="text-lg font-semibold text-copy-primary">GitHub</h3>
-						<p class="break-words text-sm font-medium text-secondary-200">github.com/CraigDevJohnson</p>
-						<p class="text-sm leading-6 text-copy-secondary">Explore technical collaborations, experiments, and open-source work.</p>
-					</div>
-					<span class="text-2xl text-copy-muted transition duration-200 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-1 group-hover:text-secondary-200" aria-hidden="true">↗</span>
-				</a>
+				for _, card := range contactMethodCards() {
+					@partials.LinkPanelRow(card)
+				}
 			</div>
 		</section>
 		<section class="page-section-tight">
 			@partials.SectionLabel("What I Bring")
 			<h2 class="page-section-title">Expertise that delivers</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-panel p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-accent-700/70 bg-accent-950/70">☁️</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.</p>
-				</div>
-				<div class="page-kit-panel p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-primary-700/70 bg-primary-950/70">🔄</div>
-					<h3 class="text-lg font-semibold text-copy-primary">CI/CD Pipelines</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Build automated deployment workflows that ship reliable code faster and more safely.</p>
-				</div>
-				<div class="page-kit-panel p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-secondary-700/70 bg-secondary-950/70">🔒</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Security First</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Embed security into every layer — from IAM policies to compliance automation.</p>
-				</div>
-				<div class="page-kit-panel p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-secondary-700/70 bg-secondary-950/80">📈</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Growth Mindset</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Continuous learner who stays current with evolving cloud and DevOps best practices.</p>
-				</div>
+				for _, card := range contactExpertiseCards() {
+					@partials.FeatureCard(card)
+				}
 			</div>
 		</section>
 		<section class="page-section-tight pt-0">

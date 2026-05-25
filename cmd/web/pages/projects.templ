@@ -15,6 +15,15 @@ type ProjectsProps struct {
 	Projects              []types.Project
 }
 
+func projectStatCards(props ProjectsProps) []partials.StatCardProps {
+	return []partials.StatCardProps{
+		{Value: fmt.Sprintf("%d", props.TotalProjects), Label: "Projects", AriaLabel: fmt.Sprintf("%d projects", props.TotalProjects), Icon: "🛠️", Tone: "accent", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
+		{Value: fmt.Sprintf("%d", props.UniqueTechnologies), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.UniqueTechnologies), Icon: "💻", Tone: "primary", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
+		{Value: fmt.Sprintf("%d", props.CategoryCount), Label: "Categories", AriaLabel: fmt.Sprintf("%d categories", props.CategoryCount), Icon: "🏷️", Tone: "secondary", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
+		{Value: fmt.Sprintf("%d", props.PublicRepositoryCount), Label: "Public Repos", AriaLabel: fmt.Sprintf("%d public repositories", props.PublicRepositoryCount), Icon: "📂", Tone: "accent", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
+	}
+}
+
 templ Projects(props ProjectsProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Projects - Craig Johnson",
@@ -32,34 +41,9 @@ templ Projects(props ProjectsProps) {
 		</section>
 		<section class="projects-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-stat-card stagger-enter px-5 py-6">
-					<div class="page-kit-icon-frame mb-3 border-accent-700/70 bg-accent-950/60">
-						<span aria-hidden="true">🛠️</span>
-					</div>
-					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.TotalProjects) } aria-label={ fmt.Sprintf("%d projects", props.TotalProjects) }>0</span>
-					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Projects</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter px-5 py-6">
-					<div class="page-kit-icon-frame mb-3 border-primary-700/70 bg-primary-950/60">
-						<span aria-hidden="true">💻</span>
-					</div>
-					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.UniqueTechnologies) } aria-label={ fmt.Sprintf("%d technologies", props.UniqueTechnologies) }>0</span>
-					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Technologies</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter px-5 py-6">
-					<div class="page-kit-icon-frame mb-3 border-secondary-700/70 bg-secondary-950/70">
-						<span aria-hidden="true">🏷️</span>
-					</div>
-					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.CategoryCount) } aria-label={ fmt.Sprintf("%d categories", props.CategoryCount) }>0</span>
-					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Categories</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter px-5 py-6">
-					<div class="page-kit-icon-frame mb-3 border-accent-700/70 bg-accent-950/60">
-						<span aria-hidden="true">📂</span>
-					</div>
-					<span class="text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.PublicRepositoryCount) } aria-label={ fmt.Sprintf("%d public repositories", props.PublicRepositoryCount) }>0</span>
-					<span class="mt-2 block text-sm font-medium uppercase tracking-[0.18em] text-copy-muted">Public Repos</span>
-				</div>
+				for _, card := range projectStatCards(props) {
+					@partials.StatCard(card)
+				}
 			</div>
 		</section>
 		<section class="page-section-tight">

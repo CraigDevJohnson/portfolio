@@ -13,6 +13,35 @@ type AboutProps struct {
 	CupsOfCoffee   string
 }
 
+func aboutCoreValueCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "🔄", Title: "Continuous Improvement", Description: "Always iterating, always learning — there&apos;s always a better way to build.", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Icon: "🤝", Title: "Collaboration", Description: "The best solutions come from diverse perspectives working together.", Tone: "primary", ExtraClass: "stagger-enter"},
+		{Icon: "🧩", Title: "Problem Solving", Description: "Breaking down complex challenges into elegant, maintainable solutions.", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{Icon: "📝", Title: "Documentation", Description: "If it isn&apos;t documented, it doesn&apos;t exist — clear docs enable great teams.", Tone: "accent", ExtraClass: "stagger-enter"},
+	}
+}
+
+func aboutStatCards(props AboutProps) []partials.StatCardProps {
+	return []partials.StatCardProps{
+		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years in Tech", AriaLabel: fmt.Sprintf("%d years in tech", props.YearsInTech), ExtraClass: "stagger-enter relative"},
+		{Value: fmt.Sprintf("%d", props.Certifications), Label: "Certifications", AriaLabel: fmt.Sprintf("%d certifications", props.Certifications), ExtraClass: "stagger-enter relative"},
+		{Value: fmt.Sprintf("%d", props.TechUsed), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.TechUsed), ExtraClass: "stagger-enter relative"},
+		{Value: props.CupsOfCoffee, Label: "Cups of Coffee", AriaLabel: fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee), CornerIcon: "☕", ExtraClass: "stagger-enter relative"},
+	}
+}
+
+func aboutQuickFacts() []partials.InfoRowProps {
+	return []partials.InfoRowProps{
+		{Icon: "📍", Text: "Originally from Alaska"},
+		{Icon: "👨‍👩‍👧‍👦", Text: "Family of 4 + 2 dogs"},
+		{Icon: "⚽", Text: "Lifelong soccer enthusiast"},
+		{Icon: "🎓", Text: "BS in Cloud Computing"},
+		{Icon: "☁️", Text: "Cloud & automation specialist"},
+		{Icon: "📚", Text: "Continuous learner"},
+	}
+}
+
 templ About(props AboutProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "About Me - Craig Johnson",
@@ -28,23 +57,9 @@ templ About(props AboutProps) {
 		</section>
 		<section class="about-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-stat-card stagger-enter relative px-5 py-6">
-					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.YearsInTech) } aria-label={ fmt.Sprintf("%d years in tech", props.YearsInTech) }>0</span>
-					<span class="mt-2 block text-sm font-medium text-copy-muted">Years in Tech</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter relative px-5 py-6">
-					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.Certifications) } aria-label={ fmt.Sprintf("%d certifications", props.Certifications) }>0</span>
-					<span class="mt-2 block text-sm font-medium text-copy-muted">Certifications</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter relative px-5 py-6">
-					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ fmt.Sprintf("%d", props.TechUsed) } aria-label={ fmt.Sprintf("%d technologies", props.TechUsed) }>0</span>
-					<span class="mt-2 block text-sm font-medium text-copy-muted">Technologies</span>
-				</div>
-				<div class="page-kit-stat-card stagger-enter relative px-5 py-6">
-					<span class="about-stat-value text-gradient-brand block text-4xl font-extrabold" data-counter data-target={ props.CupsOfCoffee } aria-label={ fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee) }>0</span>
-					<span class="mt-2 block text-sm font-medium text-copy-muted">Cups of Coffee</span>
-					<span class="absolute right-4 top-4 text-2xl opacity-50" aria-hidden="true">☕</span>
-				</div>
+				for _, card := range aboutStatCards(props) {
+					@partials.StatCard(card)
+				}
 			</div>
 		</section>
 		<section class="page-section">
@@ -77,30 +92,9 @@ templ About(props AboutProps) {
 				<div class="page-kit-panel-strong p-6 xl:sticky xl:top-[calc(var(--header-height)+1.5rem)]">
 					<h3 class="text-gradient-brand text-xl font-semibold">Quick Facts</h3>
 					<div class="mt-5 grid gap-3">
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">📍</span>
-							<span>Originally from Alaska</span>
-						</div>
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">👨‍👩‍👧‍👦</span>
-							<span>Family of 4 + 2 dogs</span>
-						</div>
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">⚽</span>
-							<span>Lifelong soccer enthusiast</span>
-						</div>
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">🎓</span>
-							<span>BS in Cloud Computing</span>
-						</div>
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">☁️</span>
-							<span>Cloud &amp; automation specialist</span>
-						</div>
-						<div class="page-kit-panel flex items-center gap-3 px-4 py-3 text-sm font-medium text-copy-secondary transition duration-200 hover:-translate-y-0.5 hover:border-accent-400 hover:text-copy-primary">
-							<span class="text-xl" aria-hidden="true">📚</span>
-							<span>Continuous learner</span>
-						</div>
+						for _, fact := range aboutQuickFacts() {
+							@partials.InfoRow(fact)
+						}
 					</div>
 				</div>
 			</div>
@@ -152,22 +146,22 @@ templ About(props AboutProps) {
 			@partials.SectionLabel("Beyond the Code")
 			<h2 class="page-section-title">When I'm Not in the Terminal</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-panel stagger-enter p-6 text-center">
+				<div class="page-kit-feature-card stagger-enter">
 					<span class="mb-4 block text-3xl">⚽</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Soccer</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Playing and coaching — plus building tools to manage match schedules.</p>
 				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
+				<div class="page-kit-feature-card stagger-enter">
 					<span class="mb-4 block text-3xl">🏔️</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Outdoors</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Alaska roots mean a love for hiking, fishing, and exploring nature.</p>
 				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
+				<div class="page-kit-feature-card stagger-enter">
 					<span class="mb-4 block text-3xl">🎮</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Gaming</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">Strategy and building games exercise the same problem-solving muscles as engineering.</p>
 				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
+				<div class="page-kit-feature-card stagger-enter">
 					<span class="mb-4 block text-3xl">🐕</span>
 					<h3 class="text-lg font-semibold text-copy-primary">Dog Dad</h3>
 					<p class="mt-3 text-sm leading-6 text-copy-secondary">A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.</p>
@@ -178,26 +172,9 @@ templ About(props AboutProps) {
 			@partials.SectionLabel("What Drives Me")
 			<h2 class="page-section-title">Core Values</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-accent-700/70 bg-accent-950/60">🔄</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Continuous Improvement</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Always iterating, always learning — there&apos;s always a better way to build.</p>
-				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-primary-700/70 bg-primary-950/60">🤝</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Collaboration</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">The best solutions come from diverse perspectives working together.</p>
-				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-secondary-700/70 bg-secondary-950/70">🧩</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Problem Solving</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Breaking down complex challenges into elegant, maintainable solutions.</p>
-				</div>
-				<div class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-accent-700/70 bg-accent-950/60">📝</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Documentation</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">If it isn&apos;t documented, it doesn&apos;t exist — clear docs enable great teams.</p>
-				</div>
+				for _, card := range aboutCoreValueCards() {
+					@partials.FeatureCard(card)
+				}
 			</div>
 		</section>
 		@partials.PageCTA(

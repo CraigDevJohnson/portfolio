@@ -518,6 +518,26 @@
     color: var(--page-kit-text, var(--experience-text));
   }
 
+  .page-kit-info-row {
+    @apply flex items-center gap-3 rounded-3xl border px-4 py-3 text-sm font-medium transition duration-200 ease-out;
+    background-color: var(--page-kit-surface, var(--experience-surface));
+    border-color: var(--page-kit-border, var(--experience-border));
+    color: var(--page-kit-muted, var(--experience-muted));
+  }
+
+  .page-kit-info-row:hover {
+    transform: translateY(-1px);
+    border-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
+    color: var(--page-kit-text, var(--experience-text, var(--color-copy-primary)));
+  }
+
+  .page-kit-feature-card {
+    @apply rounded-3xl border p-6 text-center;
+    background-color: var(--page-kit-surface, var(--experience-surface));
+    border-color: var(--page-kit-border, var(--experience-border));
+    color: var(--page-kit-text, var(--experience-text));
+  }
+
   .page-kit-section-heading {
     @apply inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100;
   }
@@ -607,6 +627,33 @@
 
   .page-kit-icon-frame {
     @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl border text-3xl shadow-panel;
+  }
+
+  .page-kit-icon-frame-accent {
+    border-color: rgb(153 110 0 / 0.7);
+    background-color: rgb(51 37 0 / 0.68);
+  }
+
+  .page-kit-icon-frame-primary {
+    border-color: rgb(23 54 79 / 0.7);
+    background-color: rgb(2 22 34 / 0.68);
+  }
+
+  .page-kit-icon-frame-secondary {
+    border-color: rgb(111 35 62 / 0.7);
+    background-color: rgb(51 0 0 / 0.72);
+  }
+
+  .page-kit-credential-art {
+    @apply flex h-44 w-full items-center justify-center rounded-3xl border p-4 shadow-panel;
+    background-color: var(--page-kit-surface, var(--experience-surface));
+    border-color: var(--page-kit-border, var(--experience-border));
+  }
+
+  .page-kit-credential-logo {
+    @apply h-32 w-32 rounded-2xl object-contain p-3;
+    background-color: rgb(255 248 229 / 0.98);
+    box-shadow: inset 0 0 0 1px rgb(51 37 0 / 0.12);
   }
 
   .page-kit-detail-card {
@@ -977,7 +1024,12 @@
     .page-kit-shell,
     .page-kit-panel,
     .page-kit-panel-strong,
+    .page-kit-feature-card,
+    .page-kit-info-row,
     .page-kit-step-card,
+    .page-kit-icon-frame,
+    .page-kit-credential-art,
+    .page-kit-credential-logo,
     .page-kit-action,
     .site-chrome-header,
     .site-chrome-mobile-nav,
@@ -999,8 +1051,13 @@
     .site-chrome-menu-button,
     .site-chrome-footer,
     .site-chrome-nav-link-active,
+    .page-kit-feature-card,
+    .page-kit-info-row,
     .page-kit-step-card,
     .page-kit-step-badge,
+    .page-kit-icon-frame,
+    .page-kit-credential-art,
+    .page-kit-credential-logo,
     .page-kit-timeline-dot,
     .page-kit-timeline-dot-current,
     .page-kit-icon-button {

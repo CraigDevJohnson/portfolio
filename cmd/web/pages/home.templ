@@ -16,6 +16,32 @@ type HomeProps struct {
 	AutomationProjects string
 }
 
+func homeFeatureCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "☁️", Title: "Cloud Architecture", Description: "Designing and implementing scalable, secure cloud infrastructure on AWS and Azure.", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Icon: "⚙️", Title: "Infrastructure as Code", Description: "Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments.", Tone: "primary", ExtraClass: "stagger-enter"},
+		{Icon: "🔄", Title: "CI/CD & DevOps", Description: "Building pipelines with GitHub Actions and implementing GitOps for continuous delivery.", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{Icon: "🔒", Title: "Security & Compliance", Description: "Implementing zero-trust architecture, IAM policies, and security automation.", Tone: "secondary", ExtraClass: "stagger-enter"},
+	}
+}
+
+func homeStatCards(props HomeProps) []partials.StatCardProps {
+	return []partials.StatCardProps{
+		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years Experience", AriaLabel: fmt.Sprintf("%d plus years experience", props.YearsInTech), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
+		{Value: fmt.Sprintf("%d", props.Certifications), Label: "Certifications", AriaLabel: fmt.Sprintf("%d plus certifications", props.Certifications), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
+		{Value: props.AutomationProjects, Label: "Automation Projects", AriaLabel: fmt.Sprintf("%s plus automation projects", props.AutomationProjects), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
+	}
+}
+
+func homeExploreCards() []partials.LinkPanelCardProps {
+	return []partials.LinkPanelCardProps{
+		{Href: "/experience", Icon: "💼", Title: "Experience", Description: "View my professional journey through cloud engineering and IT.", CTA: "Explore", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Href: "/skills", Icon: "🛠️", Title: "Skills", Description: "The tools and technologies I use to build, automate, and ship reliably.", CTA: "Explore", Tone: "primary", ExtraClass: "stagger-enter"},
+		{Href: "/projects", Icon: "🚀", Title: "Projects", Description: "Real-world applications, automation, and infrastructure tools I've built.", CTA: "Explore", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{Href: "/soccer", Icon: "⚽", Title: "Soccer Tool", Description: "A schedule download utility built to streamline match-day planning.", CTA: "Explore", Tone: "accent", ExtraClass: "stagger-enter"},
+	}
+}
+
 templ Home(props HomeProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Craig Johnson - Cloud Engineer Principal",
@@ -77,36 +103,9 @@ templ Home(props HomeProps) {
 								</a>
 							</div>
 							<div class="hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6">
-								<div class="page-kit-stat-card stagger-enter px-4 py-5">
-									<span
-										class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
-										data-counter
-										data-target={ fmt.Sprintf("%d", props.YearsInTech) }
-										data-suffix="+"
-										aria-label={ fmt.Sprintf("%d plus years experience", props.YearsInTech) }
-									>0</span>
-									<span class="mt-2 block text-sm font-medium text-copy-muted">Years Experience</span>
-								</div>
-								<div class="page-kit-stat-card stagger-enter px-4 py-5">
-									<span
-										class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
-										data-counter
-										data-target={ fmt.Sprintf("%d", props.Certifications) }
-										data-suffix="+"
-										aria-label={ fmt.Sprintf("%d plus certifications", props.Certifications) }
-									>0</span>
-									<span class="mt-2 block text-sm font-medium text-copy-muted">Certifications</span>
-								</div>
-								<div class="page-kit-stat-card stagger-enter px-4 py-5">
-									<span
-										class="text-gradient-brand block text-3xl font-extrabold sm:text-4xl"
-										data-counter
-										data-target={ props.AutomationProjects }
-										data-suffix="+"
-										aria-label={ fmt.Sprintf("%s plus automation projects", props.AutomationProjects) }
-									>0</span>
-									<span class="mt-2 block text-sm font-medium text-copy-muted">Automation Projects</span>
-								</div>
+								for _, card := range homeStatCards(props) {
+									@partials.StatCard(card)
+								}
 							</div>
 					</div>
 				</div>
@@ -117,34 +116,9 @@ templ Home(props HomeProps) {
 			@partials.SectionLabel("What I Do")
 			<h2 class="page-section-title">Building the future of infrastructure</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<article class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-accent-700/70 bg-accent-950/60">
-						<span aria-hidden="true">☁️</span>
-					</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Cloud Architecture</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Designing and implementing scalable, secure cloud infrastructure on AWS and Azure.</p>
-				</article>
-				<article class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-primary-700/70 bg-primary-950/60">
-						<span aria-hidden="true">⚙️</span>
-					</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Infrastructure as Code</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments.</p>
-				</article>
-				<article class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-secondary-700/70 bg-secondary-950/70">
-						<span aria-hidden="true">🔄</span>
-					</div>
-					<h3 class="text-lg font-semibold text-copy-primary">CI/CD &amp; DevOps</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Building pipelines with GitHub Actions and implementing GitOps for continuous delivery.</p>
-				</article>
-				<article class="page-kit-panel stagger-enter p-6 text-center">
-					<div class="page-kit-icon-frame mb-4 border-secondary-700/60 bg-secondary-950/60">
-						<span aria-hidden="true">🔒</span>
-					</div>
-					<h3 class="text-lg font-semibold text-copy-primary">Security &amp; Compliance</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Implementing zero-trust architecture, IAM policies, and security automation.</p>
-				</article>
+				for _, card := range homeFeatureCards() {
+					@partials.FeatureCard(card)
+				}
 			</div>
 		</section>
 		<!-- Explore -->
@@ -152,30 +126,9 @@ templ Home(props HomeProps) {
 			@partials.SectionLabel("Explore")
 			<h2 class="page-section-title">Dive deeper</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<a href="/experience" class="page-kit-link-panel-card group stagger-enter block p-6 hover:border-accent-400">
-					<span class="mb-4 block text-3xl" aria-hidden="true">💼</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Experience</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">View my professional journey through cloud engineering and IT.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-accent-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
-				</a>
-				<a href="/skills" class="page-kit-link-panel-card group stagger-enter block p-6 hover:border-primary-400">
-					<span class="mb-4 block text-3xl" aria-hidden="true">🛠️</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Skills</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">The tools and technologies I use to build, automate, and ship reliably.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-primary-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
-				</a>
-				<a href="/projects" class="page-kit-link-panel-card group stagger-enter block p-6 hover:border-secondary-400">
-					<span class="mb-4 block text-3xl" aria-hidden="true">🚀</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Projects</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Real-world applications, automation, and infrastructure tools I&apos;ve built.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-secondary-200 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
-				</a>
-				<a href="/soccer" class="page-kit-link-panel-card group stagger-enter block p-6 hover:border-accent-400">
-					<span class="mb-4 block text-3xl" aria-hidden="true">⚽</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Soccer Tool</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">A schedule download utility built to streamline match-day planning.</p>
-					<span class="mt-5 inline-flex items-center text-sm font-semibold text-accent-300 transition duration-200 group-hover:translate-x-1">Explore<span class="ml-2" aria-hidden="true">→</span></span>
-				</a>
+				for _, card := range homeExploreCards() {
+					@partials.LinkPanelCard(card)
+				}
 			</div>
 		</section>
 		</div>

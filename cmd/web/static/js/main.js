@@ -8,7 +8,7 @@
   const prefersReducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
   // Add new page-level stat sections here so their counters animate on reveal.
   const COUNTER_SECTIONS = [
-    { section: '.hero-stats', duration: 2000 },
+    { section: '.hero-stats', duration: 2000, threshold: 0.1 },
     { section: '.about-stats', duration: 2000 },
     { section: '.experience-hero-stats', duration: 1500 },
     { section: '.experience-summary', duration: 1500 },
@@ -185,7 +185,7 @@
     requestAnimationFrame(update)
   }
 
-  function observeCounterSection(sectionSelector, counterSelector, duration) {
+  function observeCounterSection(sectionSelector, counterSelector, duration, threshold = 0.3) {
     const section = document.querySelector(sectionSelector)
     if (!section || section.dataset.countersBound === 'true') {
       return
@@ -206,7 +206,7 @@
           observer.unobserve(entry.target)
         })
       },
-      { threshold: 0.3 }
+      { threshold }
     )
 
     observer.observe(section)
@@ -628,8 +628,8 @@
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   resetSoccerLoadingLinks()
-  COUNTER_SECTIONS.forEach(({ section, duration }) => {
-    observeCounterSection(section, '[data-counter]', duration)
+  COUNTER_SECTIONS.forEach(({ section, duration, threshold }) => {
+    observeCounterSection(section, '[data-counter]', duration, threshold)
   })
   setupProjectsCategoryFilter()
   setupSkillsFilterKeyboard()

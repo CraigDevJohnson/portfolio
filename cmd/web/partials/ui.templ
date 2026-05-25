@@ -6,11 +6,235 @@ type CTALink struct {
 	External bool
 }
 
+type FeatureCardProps struct {
+	Icon        string
+	Title       string
+	Description string
+	Tone        string
+	ExtraClass  string
+}
+
+type InfoRowProps struct {
+	Icon       string
+	Text       string
+	ExtraClass string
+}
+
+type LinkPanelCardProps struct {
+	Href        string
+	Icon        string
+	Title       string
+	Description string
+	CTA         string
+	Tone        string
+	External    bool
+	ExtraClass  string
+}
+
+type LinkPanelRowProps struct {
+	Href        string
+	Title       string
+	Label       string
+	Description string
+	Icon        string
+	Tone        string
+	AriaLabel   string
+	External    bool
+	ExtraClass  string
+}
+
+type StatCardProps struct {
+	Value      string
+	Label      string
+	AriaLabel  string
+	Suffix     string
+	Icon       string
+	Tone       string
+	CornerIcon string
+	ExtraClass string
+	ValueClass string
+	LabelClass string
+}
+
+type CredentialCardProps struct {
+	Href       string
+	ImageSrc   string
+	ImageAlt   string
+	Title      string
+	Provider   string
+	Year       string
+	Loading    string
+	External   bool
+	ExtraClass string
+}
+
+func mergeClasses(base, extra string) string {
+	if extra == "" {
+		return base
+	}
+	return base + " " + extra
+}
+
+func pageKitIconToneClass(tone string) string {
+	switch tone {
+	case "primary":
+		return "page-kit-icon-frame-primary"
+	case "secondary":
+		return "page-kit-icon-frame-secondary"
+	default:
+		return "page-kit-icon-frame-accent"
+	}
+}
+
+func pageKitToneTextClass(tone string) string {
+	switch tone {
+	case "primary":
+		return "text-primary-200"
+	case "secondary":
+		return "text-secondary-200"
+	default:
+		return "text-accent-300"
+	}
+}
+
+func pageKitToneHoverBorderClass(tone string) string {
+	switch tone {
+	case "primary":
+		return "hover:border-primary-400"
+	case "secondary":
+		return "hover:border-secondary-400"
+	default:
+		return "hover:border-accent-400"
+	}
+}
+
+func credentialLoadingValue(value string) string {
+	if value == "" {
+		return "lazy"
+	}
+	return value
+}
+
+func statCardValueClasses(extra string) string {
+	return mergeClasses("text-gradient-brand block text-4xl font-extrabold", extra)
+}
+
+func statCardLabelClasses(extra string) string {
+	return mergeClasses("mt-2 block text-sm font-medium text-copy-muted", extra)
+}
+
 templ SectionLabel(label string) {
 	<div class="page-kit-section-label">
 		<span class="page-kit-section-label-line" aria-hidden="true"></span>
 		<span class="page-kit-eyebrow">{ label }</span>
 	</div>
+}
+
+templ InfoRow(props InfoRowProps) {
+	<div class={ mergeClasses("page-kit-info-row", props.ExtraClass) }>
+		<span class="text-xl" aria-hidden="true">{ props.Icon }</span>
+		<span>{ props.Text }</span>
+	</div>
+}
+
+templ FeatureCard(props FeatureCardProps) {
+	<div class={ mergeClasses("page-kit-feature-card", props.ExtraClass) }>
+		<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) + " mb-4" } aria-hidden="true">{ props.Icon }</div>
+		<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+		<p class="mt-3 text-sm leading-6 text-copy-secondary">{ props.Description }</p>
+	</div>
+}
+
+templ LinkPanelCard(props LinkPanelCardProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		class={ mergeClasses(mergeClasses("page-kit-link-panel-card group", pageKitToneHoverBorderClass(props.Tone)), props.ExtraClass) }
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+	>
+		<span class="mb-4 block text-3xl" aria-hidden="true">{ props.Icon }</span>
+		<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+		<p class="mt-3 text-sm leading-6 text-copy-secondary">{ props.Description }</p>
+		<span class={ "mt-5 inline-flex items-center text-sm font-semibold transition duration-200 group-hover:translate-x-1 " + pageKitToneTextClass(props.Tone) }>
+			{ props.CTA }
+			<span class="ml-2" aria-hidden="true">→</span>
+		</span>
+	</a>
+}
+
+templ LinkPanelRow(props LinkPanelRowProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		class={ mergeClasses(mergeClasses("page-kit-link-panel-row", pageKitToneHoverBorderClass(props.Tone)), props.ExtraClass) }
+		if props.AriaLabel != "" {
+			aria-label={ props.AriaLabel }
+		}
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+	>
+		<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) + " shrink-0" }>
+			<span aria-hidden="true">{ props.Icon }</span>
+		</div>
+		<div class="min-w-0 flex-1 space-y-1">
+			<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+			<p class={ "break-words text-sm font-medium " + pageKitToneTextClass(props.Tone) }>{ props.Label }</p>
+			<p class="text-sm leading-6 text-copy-secondary">{ props.Description }</p>
+		</div>
+	</a>
+}
+
+templ StatCard(props StatCardProps) {
+	<div class={ mergeClasses("page-kit-stat-card", props.ExtraClass) }>
+		if props.Icon != "" {
+			<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) + " mb-3" }>
+				<span aria-hidden="true">{ props.Icon }</span>
+			</div>
+		}
+		<span
+			class={ statCardValueClasses(props.ValueClass) }
+			data-counter
+			data-target={ props.Value }
+			if props.Suffix != "" {
+				data-suffix={ props.Suffix }
+			}
+			aria-label={ props.AriaLabel }
+		>0</span>
+		<span class={ statCardLabelClasses(props.LabelClass) }>{ props.Label }</span>
+		if props.CornerIcon != "" {
+			<span class="absolute right-5 top-5 text-xl leading-none opacity-60 sm:text-2xl" aria-hidden="true">{ props.CornerIcon }</span>
+		}
+	</div>
+}
+
+templ CredentialCard(props CredentialCardProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		class={ mergeClasses("page-kit-link-panel-card group", props.ExtraClass) }
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+	>
+		<div class="page-kit-credential-art">
+			<img
+				src={ props.ImageSrc }
+				alt={ props.ImageAlt }
+				loading={ credentialLoadingValue(props.Loading) }
+				class="page-kit-credential-logo"
+				width="200"
+				height="200"
+			/>
+		</div>
+		<div class="flex flex-1 flex-col items-center gap-2">
+			<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+			<p class="text-sm font-medium text-copy-secondary">{ props.Provider }</p>
+			<span class="page-kit-chip mt-1 px-3 py-1 text-xs uppercase tracking-[0.18em]">{ props.Year }</span>
+		</div>
+	</a>
 }
 
 templ PageCTA(title string, subtitle string, primary CTALink, secondary CTALink) {
