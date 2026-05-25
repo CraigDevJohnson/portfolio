@@ -9,13 +9,17 @@ templ Skills() {
 		Page:  "skills",
 	}) {
 		<div class="page-kit-page">
-		<section class="page-hero-centered bg-[url('/static/images/backgrounds/skills-hero.jpg')]">
-			<div class="page-hero-overlay-strong"></div>
-			<div class="page-hero-content-centered">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:      "/static/images/backgrounds/skills-hero.jpg",
+			ImagePosition: "center 30%",
+			ExtraClass:    "min-h-[16rem] sm:min-h-[18rem]",
+			ContentClass:  "flex min-h-full flex-col items-center justify-center text-center",
+		}) {
+			<div class="mx-auto flex w-[min(46rem,100%)] flex-col gap-4 text-center">
 				<h1 class="page-hero-title text-gradient-brand">Technical Proficiencies</h1>
 				<p class="page-hero-description-centered sm:text-xl">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
 			</div>
-		</section>
+		}
 		<section class="page-section-tight pt-0" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
 			<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
 				<!-- Featured skeleton -->

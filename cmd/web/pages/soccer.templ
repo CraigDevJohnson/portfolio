@@ -23,9 +23,13 @@ templ Soccer(props SoccerProps) {
 		Page:  "soccer",
 	}) {
 		<div class="page-kit-page">
-		<section class="soccer-hero page-hero-centered bg-[url('/static/images/backgrounds/soccer-hero.jpg')]">
-			<div class="page-hero-overlay-strong absolute inset-0 z-0"></div>
-			<div class="page-hero-content-centered w-[min(48rem,100%)]">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:      "/static/images/backgrounds/soccer-hero.jpg",
+			ImagePosition: "center 30%",
+			ExtraClass:    "min-h-[20rem] sm:min-h-[22rem]",
+			ContentClass:  "flex min-h-full flex-col items-center justify-center text-center",
+		}) {
+			<div class="mx-auto flex w-[min(48rem,100%)] flex-col gap-4 text-center">
 				<h1 class="page-hero-title text-gradient-brand">Soccer Schedule Download</h1>
 				<p class="page-hero-description-centered max-w-[44rem]">
 					Start with manual team IDs for the quickest lookup.
@@ -44,7 +48,7 @@ templ Soccer(props SoccerProps) {
 						After the schedule loads, download an .ics file to add games to your calendar.
 					}
 				</p>
-				<ul class="mt-8 flex flex-wrap justify-center gap-2" aria-label="Soccer schedule tool highlights">
+				<ul class="mt-4 flex flex-wrap justify-center gap-2" aria-label="Soccer schedule tool highlights">
 					<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">Quick manual team lookups</li>
 					if soccerSupportsDiscovery(props.AuthState) {
 						<li class="page-kit-chip gap-2 px-4 py-2 shadow-panel before:text-accent-400 before:content-['•']">JWT-based player discovery</li>
@@ -56,7 +60,7 @@ templ Soccer(props SoccerProps) {
 					}
 				</ul>
 			</div>
-		</section>
+		}
 		<section class="animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] py-14 sm:py-16 [animation-delay:0.1s]">
 			@partials.SectionLabel("Schedule tool")
 			<h2 class="mb-4 text-2xl font-bold leading-tight text-copy-primary sm:text-3xl">Get your schedule</h2>

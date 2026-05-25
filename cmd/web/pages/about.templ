@@ -48,13 +48,16 @@ templ About(props AboutProps) {
 		Page:  "about",
 	}) {
 		<div class="page-kit-page">
-		<section class="page-hero-standard bg-[url('/static/images/backgrounds/about-hero.jpg')]">
-			<div class="page-hero-overlay-standard"></div>
-			<div class="page-hero-content max-w-3xl">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:     "/static/images/backgrounds/about-hero.jpg",
+			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
+			ContentClass: "flex min-h-full flex-col justify-center",
+		}) {
+			<div class="flex max-w-3xl flex-col gap-5">
 				<h1 class="page-hero-title">About Me</h1>
 				<p class="page-hero-description max-w-3xl">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
 			</div>
-		</section>
+		}
 		<section class="about-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				for _, card := range aboutStatCards(props) {

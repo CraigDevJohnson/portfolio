@@ -26,9 +26,12 @@ templ Contact() {
 		Page:  "contact",
 	}) {
 		<div class="page-kit-page">
-		<section class="page-hero-standard bg-[url('/static/images/backgrounds/contact-hero.jpg')]">
-			<div class="absolute inset-0 bg-linear-to-br from-carbon-black-950/95 via-carbon-black-950/85 to-secondary-950/80"></div>
-			<div class="page-hero-content mx-auto max-w-3xl">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:     "/static/images/backgrounds/contact-hero.jpg",
+			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
+			ContentClass: "flex min-h-full flex-col justify-center",
+		}) {
+			<div class="mx-auto flex max-w-3xl flex-col gap-5">
 				<div class="page-kit-status-pill">
 					<span class="page-kit-status-dot" aria-hidden="true"></span>
 					Open to opportunities
@@ -38,7 +41,7 @@ templ Contact() {
 					Whether it&apos;s cloud architecture, DevOps strategy, or your next big idea — let&apos;s connect and build something meaningful together.
 				</p>
 			</div>
-		</section>
+		}
 		<section class="page-section-tight">
 			@partials.SectionLabel("Ways to Connect")
 			<h2 class="page-section-title">Choose the easiest way to reach me</h2>

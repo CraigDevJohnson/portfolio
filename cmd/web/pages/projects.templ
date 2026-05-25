@@ -30,15 +30,18 @@ templ Projects(props ProjectsProps) {
 		Page:  "projects",
 	}) {
 		<div class="page-kit-page">
-		<section class="page-hero-standard bg-[url('/static/images/backgrounds/projects-hero.jpg')]">
-			<div class="page-hero-overlay-standard"></div>
-			<div class="page-hero-content max-w-4xl">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:     "/static/images/backgrounds/projects-hero.jpg",
+			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
+			ContentClass: "flex min-h-full flex-col justify-center",
+		}) {
+			<div class="flex max-w-4xl flex-col gap-5">
 				<h1 class="page-hero-title">Projects</h1>
 				<p class="page-hero-description max-w-4xl">
 					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
 			</div>
-		</section>
+		}
 		<section class="projects-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				for _, card := range projectStatCards(props) {

@@ -1,5 +1,7 @@
 package partials
 
+import "fmt"
+
 type CTALink struct {
 	Href     string
 	Label    string
@@ -68,11 +70,35 @@ type CredentialCardProps struct {
 	ExtraClass string
 }
 
+type PageHeroProps struct {
+	ImageURL      string
+	ImagePosition string
+	ImageFilter   string
+	ExtraClass    string
+	ContentClass  string
+}
+
 func mergeClasses(base, extra string) string {
 	if extra == "" {
 		return base
 	}
 	return base + " " + extra
+}
+
+func pageHeroBackdropStyle(props PageHeroProps) string {
+	if props.ImageURL == "" {
+		return ""
+	}
+
+	style := fmt.Sprintf("--page-kit-hero-image: url('%s');", props.ImageURL)
+	if props.ImagePosition != "" {
+		style += " --page-kit-hero-position: " + props.ImagePosition + ";"
+	}
+	if props.ImageFilter != "" {
+		style += " --page-kit-hero-filter: " + props.ImageFilter + ";"
+	}
+
+	return style
 }
 
 func pageKitIconToneClass(tone string) string {
@@ -121,6 +147,18 @@ func statCardValueClasses(extra string) string {
 
 func statCardLabelClasses(extra string) string {
 	return mergeClasses("mt-2 block text-sm font-medium text-copy-muted", extra)
+}
+
+templ PageHero(props PageHeroProps) {
+	<section class={ mergeClasses("page-kit-shell relative isolate overflow-hidden p-0", props.ExtraClass) }>
+		<div class="page-kit-hero-backdrop" style={ pageHeroBackdropStyle(props) } aria-hidden="true"></div>
+		<div class="page-kit-hero-grid" aria-hidden="true"></div>
+		<div class="page-kit-hero-glow page-kit-hero-glow-primary" aria-hidden="true"></div>
+		<div class="page-kit-hero-glow page-kit-hero-glow-secondary" aria-hidden="true"></div>
+		<div class={ mergeClasses("relative z-10 px-5 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12", props.ContentClass) }>
+			{ children... }
+		</div>
+	</section>
 }
 
 templ SectionLabel(label string) {

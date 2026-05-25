@@ -42,15 +42,18 @@ templ Education(props EducationProps) {
 		Page:  "education",
 	}) {
 		<div class="page-kit-page">
-		<section class="page-hero-standard bg-[url('/static/images/backgrounds/education-hero.jpg')]">
-			<div class="page-hero-overlay-standard"></div>
-			<div class="page-hero-content max-w-3xl">
+		@partials.PageHero(partials.PageHeroProps{
+			ImageURL:     "/static/images/backgrounds/education-hero.jpg",
+			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
+			ContentClass: "flex min-h-full flex-col justify-center",
+		}) {
+			<div class="flex max-w-3xl flex-col gap-5">
 				<h1 class="page-hero-title">Education &amp; Certifications</h1>
 				<p class="page-hero-description max-w-3xl">
 					Academic foundation and professional certifications powering a career in cloud technology
 				</p>
 			</div>
-		</section>
+		}
 		<!-- Stats -->
 		<section class="edu-stats page-stats-section">
 			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
