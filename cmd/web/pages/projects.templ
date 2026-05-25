@@ -43,11 +43,7 @@ templ Projects(props ProjectsProps) {
 			</div>
 		}
 		<section class="projects-stats page-stats-section">
-			<div class="stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-				for _, card := range projectStatCards(props) {
-					@partials.StatCard(card)
-				}
-			</div>
+			@partials.StatCardGrid(partials.StatCardGridProps{Cards: projectStatCards(props)})
 		</section>
 		<section class="page-section-tight">
 			@partials.SectionLabel("What I Build")

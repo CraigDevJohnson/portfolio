@@ -98,11 +98,10 @@ templ Home(props HomeProps) {
 									Get in Touch
 								</a>
 							</div>
-							<div class="hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6">
-								for _, card := range homeStatCards(props) {
-									@partials.StatCard(card)
-								}
-							</div>
+							@partials.StatCardGrid(partials.StatCardGridProps{
+								Cards:     homeStatCards(props),
+								GridClass: "hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6",
+							})
 						</div>
 					</div>
 			}

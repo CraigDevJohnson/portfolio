@@ -16,13 +16,6 @@ templ Experience(props ExperienceProps) {
 		Page:  "experience",
 		Description: "Craig Johnson's experience page, organized into career stages spanning foundational support, systems growth, and cloud leadership.",
 	}) {
-		// <section class="page-hero-standard bg-[url('/static/images/backgrounds/experience-hero.jpg')]">
-		// 	<div class="page-hero-overlay-standard"></div>
-		// 	<div class="page-hero-content max-w-4xl">
-		// 		<h1 class="page-hero-title">Experience</h1>
-		// 		<p class="page-hero-description max-w-4xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
-		// 	</div>
-		// </section>
 		@partials.ExperienceKitStages(partials.ExperienceKitStagesProps{Experiences: props.Experiences})
 	}
 }

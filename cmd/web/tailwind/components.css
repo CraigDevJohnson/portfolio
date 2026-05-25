@@ -1,28 +1,4 @@
 @layer components {
-  .page-hero-standard {
-    @apply relative isolate overflow-hidden rounded-4xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-center px-6 py-12 shadow-panel-strong sm:px-8 sm:py-14 lg:px-12 lg:py-16;
-  }
-
-  .page-hero-centered {
-    @apply relative isolate mb-8 grid min-h-[clamp(16rem,38vw,24rem)] place-items-center overflow-hidden rounded-4xl border border-carbon-black-800 bg-carbon-black-950 bg-cover bg-position-[center_30%] px-6 py-10 text-center shadow-panel-strong sm:px-8 sm:py-12 lg:px-12 lg:py-16;
-  }
-
-  .page-hero-overlay-standard {
-    @apply absolute inset-0 bg-linear-to-br from-carbon-black-950/92 via-carbon-black-950/78 to-secondary-950/70;
-  }
-
-  .page-hero-overlay-strong {
-    @apply absolute inset-0 bg-linear-to-b from-primary-950/48 to-secondary-950/84;
-  }
-
-  .page-hero-content {
-    @apply relative z-10 flex flex-col gap-5;
-  }
-
-  .page-hero-content-centered {
-    @apply relative z-10 mx-auto flex w-[min(46rem,100%)] flex-col gap-4 text-center;
-  }
-
   .page-hero-title {
     @apply text-4xl font-bold tracking-tight text-copy-primary sm:text-5xl;
   }
@@ -668,18 +644,6 @@
     border-left-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
   }
 
-  .page-kit-page .page-hero-standard,
-  .page-kit-page .page-hero-centered {
-    border-color: var(--page-kit-border);
-    background-color: var(--page-kit-bg);
-    box-shadow: var(--shadow-panel-strong);
-  }
-
-  .page-kit-page .page-hero-overlay-standard,
-  .page-kit-page .page-hero-overlay-strong {
-    background: var(--page-kit-hero-overlay);
-  }
-
   .page-kit-page .page-hero-title,
   .page-kit-page .page-section-title {
     color: var(--page-kit-text);
@@ -1035,8 +999,6 @@
     .site-chrome-mobile-nav,
     .site-chrome-menu-button,
     .site-chrome-footer,
-    .page-kit-page .page-hero-standard,
-    .page-kit-page .page-hero-centered,
     .page-kit-page .surface-card,
     .page-kit-page .surface-card-strong,
     .experience-kit-shell,

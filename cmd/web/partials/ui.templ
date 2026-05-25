@@ -58,6 +58,11 @@ type StatCardProps struct {
 	LabelClass string
 }
 
+type StatCardGridProps struct {
+	Cards     []StatCardProps
+	GridClass string
+}
+
 type CredentialCardProps struct {
 	Href       string
 	ImageSrc   string
@@ -147,6 +152,13 @@ func statCardValueClasses(extra string) string {
 
 func statCardLabelClasses(extra string) string {
 	return mergeClasses("mt-2 block text-sm font-medium text-copy-muted", extra)
+}
+
+func statCardGridClasses(extra string) string {
+	if extra != "" {
+		return extra
+	}
+	return "stats-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
 }
 
 templ PageHero(props PageHeroProps) {
@@ -244,6 +256,14 @@ templ StatCard(props StatCardProps) {
 		<span class={ statCardLabelClasses(props.LabelClass) }>{ props.Label }</span>
 		if props.CornerIcon != "" {
 			<span class="absolute right-5 top-5 text-xl leading-none opacity-60 sm:text-2xl" aria-hidden="true">{ props.CornerIcon }</span>
+		}
+	</div>
+}
+
+templ StatCardGrid(props StatCardGridProps) {
+	<div class={ statCardGridClasses(props.GridClass) }>
+		for _, card := range props.Cards {
+			@StatCard(card)
 		}
 	</div>
 }
