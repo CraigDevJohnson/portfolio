@@ -7,10 +7,10 @@ type SkillDetailProps struct {
 }
 
 templ SkillDetail(props SkillDetailProps) {
-	<div class="skill-detail-card relative mt-6 rounded-2xl border border-white/12 border-l-4 border-l-primary-400 bg-[linear-gradient(135deg,rgba(0,30,51,0.22)_0%,rgba(36,0,14,0.16)_52%,rgba(255,255,255,0.02)_100%)] px-6 py-5 shadow-panel animate-[card-fade-in_0.3s_ease-out]">
-		<button class="skill-detail-close absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-transparent text-lg leading-none text-copy-muted transition hover:border-primary-400/30 hover:bg-primary-500/10 hover:text-copy-primary focus-ring" aria-label="Close detail" type="button" data-close-detail>&times;</button>
+	<div class="page-kit-detail-card skill-detail-card">
+		<button class="page-kit-icon-button skill-detail-close absolute right-3 top-3 h-8 w-8 text-lg leading-none" aria-label="Close detail" type="button" data-close-detail>&times;</button>
 		<div class="skill-detail-content flex flex-col items-center gap-6 text-center md:flex-row md:items-start md:text-left">
-			<div class="skill-detail-icon flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+			<div class="skill-detail-icon page-kit-panel flex h-16 w-16 shrink-0 items-center justify-center p-0">
 				@skillAsset(props.Skill, props.Skill.Name, "flex h-full w-full items-center justify-center", "h-10 w-10")
 			</div>
 			<div class="skill-detail-info min-w-0 flex-1">
@@ -22,7 +22,7 @@ templ SkillDetail(props SkillDetailProps) {
 					<div class={ proficiencyBadgeClasses(props.Skill.Proficiency, false) }>
 						{ props.Skill.Proficiency }
 					</div>
-					<div class="proficiency-bar h-1.5 w-full max-w-[12.5rem] overflow-hidden rounded bg-white/8">
+					<div class="proficiency-bar h-1.5 w-full max-w-[12.5rem] overflow-hidden rounded bg-carbon-black-800">
 						<div class={ proficiencyFillClasses(props.Skill.Proficiency) }></div>
 					</div>
 				</div>
@@ -30,7 +30,7 @@ templ SkillDetail(props SkillDetailProps) {
 					<p class="skill-detail-desc mb-3 text-sm leading-relaxed text-copy-secondary">{ props.Skill.Description }</p>
 				}
 				if props.Skill.Link != "" {
-					<a href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link group inline-flex items-center gap-1 text-sm font-medium text-primary-100 transition hover:text-secondary-200">
+					<a href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link group inline-flex items-center gap-1 text-sm font-medium text-primary-100 transition hover:text-accent-200">
 						Learn More
 						<span class="link-arrow transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true">↗</span>
 					</a>

@@ -36,10 +36,10 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Discovery fetch path</p>
 				<p class="m-0 text-sm leading-relaxed text-copy-muted">Use import access only when you want player discovery before you confirm teams and load the schedule.</p>
 			</div>
-			<div class="page-kit-panel-strong relative flex flex-col gap-4 overflow-hidden p-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(0,149,255,0.92)_0%,rgba(255,0,98,0.92)_100%)] before:content-[''] max-sm:p-4">
+			<div class="page-kit-step-card page-kit-step-card-primary max-sm:p-4">
 				<div class="soccer-auth-copy">
 					<div class="flex items-center gap-4 max-md:items-start">
-						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(0,149,255,0.14)]" aria-hidden="true">1B</span>
+						<span class="page-kit-step-badge page-kit-step-badge-primary" aria-hidden="true">1B</span>
 						<div>
 							<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Player Discovery</h3>
 						</div>
@@ -91,15 +91,15 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			</div>
 		}
 		if showSoccerGoogleSection(props) {
-			<div class="flex flex-col gap-4 border-t border-white/10 pt-6">
+			<div class="flex flex-col gap-4 border-t page-kit-border pt-6">
 			<div class="flex flex-col gap-1">
 				<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Download or sync after fetch</p>
 				<p class="m-0 text-sm leading-relaxed text-copy-muted">Once the schedule loads, save it as an .ics file or connect Google Calendar for direct adds and result sync.</p>
 			</div>
-			<div class="page-kit-panel-strong relative flex flex-col gap-4 overflow-hidden p-6 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-[linear-gradient(180deg,rgba(255,0,98,0.94)_0%,rgba(0,149,255,0.78)_100%)] before:content-[''] max-sm:p-4">
+			<div class="page-kit-step-card page-kit-step-card-secondary max-sm:p-4">
 				<div class="soccer-google-copy">
 					<div class="flex items-center gap-4 max-md:items-start">
-						<span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(255,0,98,1)_0%,rgba(0,149,255,0.85)_100%)] text-sm font-semibold text-white shadow-[0_0_0_4px_rgba(255,0,98,0.14)]" aria-hidden="true">2</span>
+						<span class="page-kit-step-badge page-kit-step-badge-secondary" aria-hidden="true">2</span>
 						<div>
 							<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Google Calendar Connection</h3>
 						</div>

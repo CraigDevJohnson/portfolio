@@ -23,11 +23,11 @@ func navItems() []navItem {
 }
 
 func navLinkClasses(active bool) string {
-	base := "nav-link inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition duration-150 ease-out focus-ring max-[1120px]:min-h-11 max-[1120px]:w-full max-[1120px]:justify-start max-[1120px]:px-5 max-[1120px]:py-3"
+	base := "nav-link site-chrome-nav-link"
 	if active {
-		return base + " bg-[linear-gradient(135deg,rgba(0,149,255,0.18)_0%,rgba(255,166,0,0.14)_100%)] text-primary-100 shadow-[inset_0_0_0_1px_rgba(0,149,255,0.18)]"
+		return base + " site-chrome-nav-link-active"
 	}
-	return base + " text-copy-muted hover:bg-primary-500/10 hover:text-copy-primary"
+	return base
 }
 
 // NavLinks renders the shared set of nav link elements.

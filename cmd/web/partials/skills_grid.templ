@@ -64,7 +64,7 @@ func categoryTagClasses(category string) string {
 	case "operating-systems":
 		return base + " border-primary-500/20 bg-primary-950 text-primary-100"
 	default:
-		return base + " border-white/10 bg-white/5 text-copy-secondary"
+		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
 	}
 }
 
@@ -94,7 +94,7 @@ func proficiencyBadgeClasses(proficiency string, compact bool) string {
 	case "familiar":
 		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
 	default:
-		return base + " border-white/10 bg-white/5 text-copy-secondary"
+		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
 	}
 }
 
@@ -125,9 +125,9 @@ func skillCardClasses(proficiency string) string {
 	case "intermediate":
 		return base + " border-secondary-500/24 hover:border-secondary-400/46"
 	case "familiar":
-		return base + " border-white/10 hover:border-carbon-black-300/32"
+		return base + " border-carbon-black-400/24 hover:border-carbon-black-300/32"
 	default:
-		return base + " border-white/10 hover:border-primary-400/35"
+		return base + " border-carbon-black-400/24 hover:border-primary-400/35"
 	}
 }
 
@@ -143,7 +143,7 @@ func skillIconFrameClasses(proficiency string) string {
 	case "familiar":
 		return base + " border-carbon-black-300/22 bg-carbon-black-700/55 text-carbon-black-50"
 	default:
-		return base + " border-white/10 bg-white/5 text-copy-primary"
+		return base + " border-carbon-black-300/22 bg-carbon-black-700/55 text-copy-primary"
 	}
 }
 
@@ -159,7 +159,7 @@ func proficiencyFilterDotClasses(proficiency string) string {
 	case "familiar":
 		return base + " bg-carbon-black-300"
 	default:
-		return base + " bg-white/40"
+		return base + " bg-carbon-black-300"
 	}
 }
 
@@ -175,7 +175,7 @@ func skillLevelDotClasses(proficiency string) string {
 	case "familiar":
 		return base + " bg-carbon-black-300 shadow-[0_0_8px_rgba(171,155,135,0.32)]"
 	default:
-		return base + " bg-white/40"
+		return base + " bg-carbon-black-300 shadow-[0_0_8px_rgba(171,155,135,0.32)]"
 	}
 }
 
@@ -191,7 +191,7 @@ func proficiencyFillClasses(proficiency string) string {
 	case "familiar":
 		return base + " w-1/4 bg-carbon-black-300"
 	default:
-		return base + " w-1/3 bg-white/40"
+		return base + " w-1/3 bg-carbon-black-300"
 	}
 }
 
@@ -241,7 +241,7 @@ templ skillAsset(skill types.Skill, altText string, wrapperClass string, imageCl
 }
 
 templ featuredSkillCardContent(skill types.Skill) {
-	@skillAsset(skill, skill.Name, "mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5", "h-10 w-10")
+	@skillAsset(skill, skill.Name, "page-kit-icon-frame mb-4 h-16 w-16", "h-10 w-10")
 	<div class="flex w-full flex-1 flex-col items-center gap-2 text-center">
 		<h3 class="text-base font-semibold text-copy-primary">{ skill.Name }</h3>
 		if skill.Category != "" {
@@ -255,7 +255,7 @@ templ featuredSkillCardContent(skill types.Skill) {
 }
 
 templ conceptCardContent(skill types.Skill) {
-	@skillAsset(skill, "", "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5", "h-7 w-7")
+	@skillAsset(skill, "", "page-kit-icon-frame h-11 w-11 shrink-0 rounded-xl text-copy-primary", "h-7 w-7")
 	<div class="min-w-0 flex-1">
 		<span class="block text-sm font-semibold leading-snug text-copy-primary">{ skill.Name }</span>
 		<div class={ proficiencyBadgeClasses(skill.Proficiency, true) }>
@@ -270,7 +270,7 @@ templ SkillsGrid(props SkillsGridProps) {
 		if len(props.FeaturedSkills) > 0 {
 			<div class="page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
 				<div class="mb-8 text-center">
-					<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ffa600_100%)]">Core Competencies</h2>
+					<h2 class="page-kit-section-heading">Core Competencies</h2>
 					<p class="mt-4 text-base font-medium text-copy-muted">My strongest areas of expertise</p>
 				</div>
 				<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -296,7 +296,7 @@ templ SkillsGrid(props SkillsGridProps) {
 			if cat.Name == conceptsCategoryName {
 				<div class="page-kit-panel px-6 py-8 sm:px-8 sm:py-10">
 					<div class="mb-8 text-center">
-						<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ff0062_100%)]">Concepts &amp; Practices</h2>
+						<h2 class="page-kit-section-heading page-kit-section-heading-secondary">Concepts &amp; Practices</h2>
 						<p class="mt-4 text-base font-medium text-copy-muted">Engineering principles that guide my approach</p>
 					</div>
 					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
@@ -338,11 +338,11 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 	<div id="skills-filterable" class="page-kit-shell px-6 py-8 shadow-panel sm:px-8 sm:py-10">
     <!-- Section Heading -->
 		<div class="mb-8 text-center">
-			<h2 class="inline-block text-2xl font-bold uppercase tracking-[0.08em] text-primary-100 after:mx-auto after:mt-3 after:block after:h-[3px] after:w-16 after:rounded-full after:bg-[linear-gradient(135deg,#33aaff_0%,#ffa600_100%)]">All Technical Skills</h2>
+			<h2 class="page-kit-section-heading">All Technical Skills</h2>
       <p class="mt-4 text-base font-medium text-copy-muted">A filterable list of my technical toolkit</p>
 		</div>
 		<!-- Filter Bar -->
-		<div class="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
+		<div class="page-kit-panel mb-8 p-4 sm:p-5">
 			<div class="flex flex-col gap-6">
 				<div class="flex flex-col gap-3 lg:flex-row lg:items-start">
 					<span class="min-w-20 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Category</span>
@@ -436,7 +436,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 				for catIndex, cat := range props.Categories {
 					if cat.Name != conceptsCategoryName && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
 						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
-							<div class="animate-[card-fade-in_0.45s_ease-out_both] rounded-2xl border border-white/8 bg-black/10 p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
+							<div class="page-kit-panel animate-[card-fade-in_0.45s_ease-out_both] p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
 								<h3 class="mb-4 flex items-center gap-3 border-l-4 border-l-primary-400 pl-3 text-base font-semibold uppercase tracking-[0.05em] text-copy-primary sm:text-lg">
 									{ cat.Name }
 
@@ -476,7 +476,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					}
 				}
 			} else {
-				<div class="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-6 text-center">
+				<div class="page-kit-panel px-5 py-6 text-center">
 					<p class="text-sm text-copy-secondary">No skills match the selected filters.</p>
 					<button
 						type="button"
