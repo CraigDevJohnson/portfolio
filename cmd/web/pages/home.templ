@@ -74,20 +74,19 @@ templ Home(props HomeProps) {
 								/>
 							</a>
 						</div>
-						<div class="flex flex-col gap-6">
-							<div class="page-kit-status-pill">
-								<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
-								Available for opportunities
-							</div>
-							<div class="space-y-4">
-								<p class="page-kit-eyebrow">Hi, I&apos;m</p>
-								<h1 class="page-hero-title max-w-3xl text-gradient-brand sm:text-6xl lg:text-7xl">{ props.Name }</h1>
+							@partials.PageHeroIntro(partials.PageHeroIntroProps{
+								Eyebrow:        "Hi, I'm",
+								Title:          props.Name,
+								Status:         "Available for opportunities",
+								AnimatedStatus: true,
+								TitleClass:     "max-w-3xl text-gradient-brand sm:text-6xl lg:text-7xl",
+								MaxWidthClass:  "max-w-3xl",
+							}) {
 								<p class="page-hero-description max-w-2xl">
 									<span class="mb-3 block text-sm font-semibold uppercase tracking-[0.2em] text-primary-200 sm:text-base">{ props.Role }</span>
 									<span>{ props.Description }</span>
 								</p>
-							</div>
-							<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+								<div class="page-hero-actions">
 								<a href="/experience" class="page-kit-action page-kit-action-primary w-full gap-2 sm:w-auto sm:min-w-[11rem]">
 									<span>View Experience</span>
 									<span class="btn-icon" aria-hidden="true">→</span>
@@ -99,11 +98,11 @@ templ Home(props HomeProps) {
 									Get in Touch
 								</a>
 							</div>
-							@partials.StatCardGrid(partials.StatCardGridProps{
-								Cards:     homeStatCards(props),
-								GridClass: "hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6",
-							})
-						</div>
+								@partials.StatCardGrid(partials.StatCardGridProps{
+									Cards:     homeStatCards(props),
+									GridClass: "hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6",
+								})
+							}
 					</div>
 			}
 		<!-- What I Do -->

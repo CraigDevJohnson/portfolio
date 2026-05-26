@@ -44,16 +44,13 @@ templ Education(props EducationProps) {
 		<div class="page-kit-page">
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:     "/static/images/backgrounds/education-hero.jpg",
-			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-3xl flex-col gap-5">
-				<p class="page-kit-eyebrow">Education</p>
-				<h1 class="page-hero-title">Education &amp; Certifications</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications", MaxWidthClass: "max-w-3xl"}) {
 				<p class="page-hero-description max-w-3xl">
 					Academic foundation and professional certifications powering a career in cloud technology
 				</p>
-			</div>
+			}
 		}
 		<!-- Stats -->
 		<section class="page-stats-section">
@@ -95,7 +92,7 @@ templ Education(props EducationProps) {
 		<section class="page-section">
 			@partials.SectionLabel("Professional Certifications")
 			<h2 class="page-section-title">Industry Recognized Credentials</h2>
-			<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+			<div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
 				for _, credential := range educationCredentialCards() {
 					@partials.CredentialCard(credential)
 				}

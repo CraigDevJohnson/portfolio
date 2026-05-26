@@ -26,12 +26,9 @@ templ Soccer(props SoccerProps) {
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:      "/static/images/backgrounds/soccer-hero.jpg",
 			ImagePosition: "center 30%",
-			ExtraClass:    "min-h-[20rem] sm:min-h-[22rem]",
 			ContentClass:  "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-4xl flex-col gap-5">
-				<p class="page-kit-eyebrow">Soccer</p>
-				<h1 class="page-hero-title">Soccer Schedule Download</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Soccer", Title: "Soccer Schedule Download"}) {
 				if soccerSupportsGoogle(props.AuthState) {
 					<p class="page-hero-description max-w-[44rem]">
 						Fetch schedules from
@@ -49,7 +46,7 @@ templ Soccer(props SoccerProps) {
 						choose the matches you want to keep, then export an .ics file for your calendar app.
 					</p>
 				}
-			</div>
+			}
 		}
 		<section class="page-section animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] [animation-delay:0.1s]">
 			@partials.SectionLabel("Schedule tool")
@@ -58,51 +55,29 @@ templ Soccer(props SoccerProps) {
 				if props.GoogleMessage != "" {
 					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
 				}
-				<div class="page-kit-panel flex h-full flex-col gap-6 p-6 max-sm:gap-5 max-sm:p-5">
-					<div class="flex flex-col gap-4 max-sm:gap-3">
-						<h3 class="m-0 text-lg font-bold text-primary-100">Choose your workflow</h3>
-					</div>
-					<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4" role="list" aria-label="Soccer schedule workflow overview">
-						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-secondary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
-							<span class="page-kit-step-badge page-kit-step-badge-primary" aria-hidden="true">1A</span>
-							<div>
-								<h4 class="mb-1 text-sm font-bold text-copy-primary">Fetch by team ID</h4>
-								<p class="m-0 text-sm leading-relaxed text-copy-secondary">Use manual lookup when you already know the numeric team IDs and want the schedule right away or don't want to allow JWT import access.</p>
-							</div>
-						</div>
+				<div class="flex flex-col gap-8">
+					if soccerSupportsDiscovery(props.AuthState) {
+						@partials.SoccerLoginState(props.AuthState)
+					}
+					<div class="flex flex-col gap-4">
 						if soccerSupportsDiscovery(props.AuthState) {
-							<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-secondary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
-								<span class="page-kit-step-badge page-kit-step-badge-primary" aria-hidden="true">1B</span>
-								<div>
-									<h4 class="mb-1 text-sm font-bold text-copy-primary">Import access for player discovery</h4>
-									<p class="m-0 text-sm leading-relaxed text-copy-secondary">Import a JWT only when you want the app to find linked players before you choose teams.</p>
-								</div>
+							<div class="flex flex-col gap-1">
+								<p class="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-primary-100">Alternate fetch path</p>
+								<p class="m-0 text-sm leading-relaxed text-copy-muted">Already know the numeric team IDs? Use manual lookup as a fallback when you want to skip player discovery.</p>
 							</div>
 						}
-						<div class="page-kit-panel flex min-w-0 gap-4 px-4 py-3 text-copy-primary max-sm:flex-col max-sm:items-start max-sm:gap-3" role="listitem">
-							<span class="page-kit-step-badge page-kit-step-badge-secondary" aria-hidden="true">2</span>
-							<div>
-								if soccerSupportsGoogle(props.AuthState) {
-									<h4 class="mb-1 text-sm font-bold text-copy-primary">Download or sync after the schedule loads</h4>
-									<p class="m-0 text-sm leading-relaxed text-copy-secondary">Pick the matches you want, then download an .ics file or add them directly to Google Calendar.</p>
-								} else {
-									<h4 class="mb-1 text-sm font-bold text-copy-primary">Download after the schedule loads</h4>
-									<p class="m-0 text-sm leading-relaxed text-copy-secondary">Pick the matches you want, then export an .ics file for your calendar app.</p>
-								}
-							</div>
-						</div>
-					</div>
-				</div>
-				<div class="flex flex-col gap-8">
-					<div class="flex flex-col gap-4">
 						<div class="page-kit-step-card page-kit-step-card-primary max-sm:p-4">
 							<div class="flex items-center gap-4 max-md:items-start">
-								<span class="page-kit-step-badge page-kit-step-badge-primary" aria-hidden="true">1A</span>
+								if soccerSupportsDiscovery(props.AuthState) {
+									<span class="page-kit-step-badge page-kit-step-badge-secondary" aria-hidden="true">Alt</span>
+								} else {
+									<span class="page-kit-step-badge page-kit-step-badge-primary" aria-hidden="true">1</span>
+								}
 								<div>
 									<h3 class="m-0 text-base font-semibold uppercase tracking-[0.08em] text-primary-100">Manual Team IDs</h3>
 								</div>
 							</div>
-							<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Start here when you already know which numeric Let&apos;s Play Soccer team IDs you want to load.</p>
+							<p class="px-4 py-2 text-sm leading-relaxed text-copy-secondary">Use this fallback when you already know which numeric Let&apos;s Play Soccer team IDs you want to load directly.</p>
 							<form
 								id="fetch-form"
 								class="fetch-form"
@@ -144,7 +119,9 @@ templ Soccer(props SoccerProps) {
 							</form>
 						</div>
 					</div>
-					@partials.SoccerLoginState(props.AuthState)
+					if !soccerSupportsDiscovery(props.AuthState) {
+						@partials.SoccerLoginState(props.AuthState)
+					}
 				</div>
 				<div id="loading-indicator" class="loading-indicator htmx-indicator">
 					<div class="spinner"></div>

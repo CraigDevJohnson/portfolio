@@ -28,25 +28,23 @@ templ Contact() {
 		<div class="page-kit-page">
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:     "/static/images/backgrounds/contact-hero.jpg",
-			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-3xl flex-col gap-5">
-				<div class="page-kit-status-pill">
-					<span class="page-kit-status-dot" aria-hidden="true"></span>
-					Open to opportunities
-				</div>
-				<p class="page-kit-eyebrow">Contact</p>
-				<h1 class="page-hero-title">Get in Touch</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{
+				Eyebrow:       "Contact",
+				Title:         "Get in Touch",
+				Status:        "Open to opportunities",
+				MaxWidthClass: "max-w-3xl",
+			}) {
 				<p class="page-hero-description max-w-3xl">
 					Whether it&apos;s cloud architecture, DevOps strategy, or your next big idea — let&apos;s connect and build something meaningful together.
 				</p>
-			</div>
+			}
 		}
 		<section class="page-section">
 			@partials.SectionLabel("Ways to Connect")
 			<h2 class="page-section-title">Choose the easiest way to reach me</h2>
-			<div class="grid gap-4">
+			<div class="page-kit-link-panel-row-grid">
 				for _, card := range contactMethodCards() {
 					@partials.LinkPanelRow(card)
 				}

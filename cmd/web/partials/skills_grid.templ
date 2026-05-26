@@ -328,11 +328,23 @@ templ SkillsGrid(props SkillsGridProps) {
 			}
 		}
 		<!-- Filterable Skills Section -->
-		@SkillsFilterableSection(SkillsFilterableProps{
-			Categories:        props.Categories,
-			ActiveCategory:    "",
-			ActiveProficiency: "",
-		})
+		<details class="page-kit-disclosure">
+			<summary class="page-kit-disclosure-summary">
+				<div class="space-y-1 text-left">
+					<span class="page-kit-eyebrow">Browse skills</span>
+					<h2 class="text-lg font-semibold text-copy-primary sm:text-xl">Explore the full technical toolkit</h2>
+					<p class="text-sm leading-6 text-copy-secondary">Open the full catalog only when you want to filter by category or proficiency.</p>
+				</div>
+				<span class="page-kit-disclosure-chevron" aria-hidden="true">⌄</span>
+			</summary>
+			<div class="page-kit-disclosure-body">
+				@SkillsFilterableSection(SkillsFilterableProps{
+					Categories:        props.Categories,
+					ActiveCategory:    "",
+					ActiveProficiency: "",
+				})
+			</div>
+		</details>
 	</div>
 }
 

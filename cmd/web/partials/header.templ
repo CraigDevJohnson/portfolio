@@ -8,8 +8,9 @@ templ Header(page string) {
 			</a>
 			@Nav(page)
 			<div class="header-actions flex items-center gap-2">
-				<button id="mobile-menu-btn" class="mobile-menu-btn site-chrome-menu-button" aria-label="Toggle menu" aria-controls="mobile-nav" aria-expanded="false">
-					<span class="hamburger"></span>
+				<button id="mobile-menu-btn" class="mobile-menu-btn site-chrome-menu-button" aria-label="Open navigation menu" aria-controls="mobile-nav" aria-expanded="false">
+					<span class="hamburger" aria-hidden="true"></span>
+					<span class="site-chrome-menu-label" data-menu-label>Menu</span>
 				</button>
 			</div>
 		</div>

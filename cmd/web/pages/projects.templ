@@ -32,20 +32,14 @@ templ Projects(props ProjectsProps) {
 		<div class="page-kit-page">
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:     "/static/images/backgrounds/projects-hero.jpg",
-			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-4xl flex-col gap-5">
-				<p class="page-kit-eyebrow">Projects</p>
-				<h1 class="page-hero-title">Projects</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Projects", Title: "Projects"}) {
 				<p class="page-hero-description max-w-4xl">
 					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
-			</div>
+			}
 		}
-		<section class="page-stats-section">
-			@partials.StatCardGrid(partials.StatCardGridProps{Cards: projectStatCards(props)})
-		</section>
 		<section class="page-section-tight">
 			@partials.SectionLabel("What I Build")
 			<h2 class="page-section-title">Practical builds across cloud, automation, and the web</h2>

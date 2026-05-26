@@ -17,6 +17,7 @@
   // Mobile menu toggle
   const mobileMenuBtn = document.getElementById('mobile-menu-btn')
   const mobileNav = document.getElementById('mobile-nav')
+  const mobileMenuLabel = mobileMenuBtn?.querySelector('[data-menu-label]') || null
   const mobileNavBreakpoint = window.matchMedia('(max-width: 1120px)')
   let observer = null
 
@@ -25,6 +26,7 @@
       const nextState = Boolean(isOpen) && mobileNavBreakpoint.matches
 
       mobileMenuBtn.setAttribute('aria-expanded', String(nextState))
+      mobileMenuBtn.setAttribute('aria-label', nextState ? 'Close navigation menu' : 'Open navigation menu')
       mobileNav.classList.toggle('hidden', !nextState)
       mobileNav.classList.toggle('flex', nextState)
       mobileNav.setAttribute('aria-hidden', String(!nextState))
@@ -32,6 +34,10 @@
       document.documentElement.classList.toggle('overscroll-none', nextState)
       document.body.classList.toggle('overflow-hidden', nextState)
       document.body.classList.toggle('overscroll-none', nextState)
+
+      if (mobileMenuLabel) {
+	      mobileMenuLabel.textContent = nextState ? 'Close' : 'Menu'
+	    }
 
       if (nextState) {
         mobileNav.scrollTop = 0

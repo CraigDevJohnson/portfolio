@@ -83,11 +83,40 @@ type PageHeroProps struct {
 	ContentClass  string
 }
 
+type PageHeroIntroProps struct {
+	Eyebrow        string
+	Title          string
+	Status         string
+	MaxWidthClass  string
+	ExtraClass     string
+	TitleClass     string
+	AnimatedStatus bool
+}
+
 func mergeClasses(base, extra string) string {
 	if extra == "" {
 		return base
 	}
 	return base + " " + extra
+}
+
+func pageHeroIntroClasses(props PageHeroIntroProps) string {
+	base := "flex flex-col gap-5"
+	if props.MaxWidthClass != "" {
+		base += " " + props.MaxWidthClass
+	} else {
+		base += " max-w-4xl"
+	}
+
+	return mergeClasses(base, props.ExtraClass)
+}
+
+func pageHeroStatusDotClasses(animated bool) string {
+	if animated {
+		return "page-kit-status-dot motion-safe:animate-pulse"
+	}
+
+	return "page-kit-status-dot"
 }
 
 func pageHeroBackdropStyle(props PageHeroProps) string {
@@ -154,6 +183,14 @@ func statCardLabelClasses(extra string) string {
 	return mergeClasses("mt-2 block text-sm font-medium text-copy-muted", extra)
 }
 
+func statCardDisplayValue(value, suffix string) string {
+	if suffix == "" {
+		return value
+	}
+
+	return value + suffix
+}
+
 func statCardGridClasses(extra string) string {
 	if extra != "" {
 		return extra
@@ -162,7 +199,7 @@ func statCardGridClasses(extra string) string {
 }
 
 templ PageHero(props PageHeroProps) {
-	<section class={ mergeClasses("page-kit-shell relative isolate overflow-hidden p-0", props.ExtraClass) }>
+	<section class={ mergeClasses("page-kit-shell relative isolate min-h-[16rem] overflow-hidden p-0 sm:min-h-[18rem]", props.ExtraClass) }>
 		<div class="page-kit-hero-backdrop" style={ pageHeroBackdropStyle(props) } aria-hidden="true"></div>
 		<div class="page-kit-hero-grid" aria-hidden="true"></div>
 		<div class="page-kit-hero-glow page-kit-hero-glow-primary" aria-hidden="true"></div>
@@ -171,6 +208,20 @@ templ PageHero(props PageHeroProps) {
 			{ children... }
 		</div>
 	</section>
+}
+
+templ PageHeroIntro(props PageHeroIntroProps) {
+	<div class={ pageHeroIntroClasses(props) }>
+		if props.Status != "" {
+			<div class="page-kit-status-pill">
+				<span class={ pageHeroStatusDotClasses(props.AnimatedStatus) } aria-hidden="true"></span>
+				{ props.Status }
+			</div>
+		}
+		<p class="page-kit-eyebrow">{ props.Eyebrow }</p>
+		<h1 class={ mergeClasses("page-hero-title", props.TitleClass) }>{ props.Title }</h1>
+		{ children... }
+	</div>
 }
 
 templ SectionLabel(label string) {
@@ -252,7 +303,7 @@ templ StatCard(props StatCardProps) {
 				data-suffix={ props.Suffix }
 			}
 			aria-label={ props.AriaLabel }
-		>0</span>
+		>{ statCardDisplayValue(props.Value, props.Suffix) }</span>
 		<span class={ statCardLabelClasses(props.LabelClass) }>{ props.Label }</span>
 		if props.CornerIcon != "" {
 			<span class="absolute right-5 top-5 text-xl leading-none opacity-60 sm:text-2xl" aria-hidden="true">{ props.CornerIcon }</span>

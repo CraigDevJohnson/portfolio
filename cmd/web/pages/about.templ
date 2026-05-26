@@ -50,14 +50,11 @@ templ About(props AboutProps) {
 		<div class="page-kit-page">
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:     "/static/images/backgrounds/about-hero.jpg",
-			ExtraClass:   "min-h-[16rem] sm:min-h-[18rem]",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-3xl flex-col gap-5">
-				<p class="page-kit-eyebrow">About</p>
-				<h1 class="page-hero-title">About Me</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me", MaxWidthClass: "max-w-3xl"}) {
 				<p class="page-hero-description max-w-3xl">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
-			</div>
+			}
 		}
 		<section class="page-stats-section">
 			@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props)})
@@ -144,7 +141,7 @@ templ About(props AboutProps) {
 		</section>
 		<section class="page-section">
 			@partials.SectionLabel("Beyond the Code")
-			<h2 class="page-section-title">When I'm Not in the Terminal</h2>
+			<h2 class="page-section-title">Outside of work</h2>
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				<div class="page-kit-feature-card stagger-enter">
 					<span class="mb-4 block text-3xl">⚽</span>

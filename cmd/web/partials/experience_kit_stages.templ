@@ -15,15 +15,13 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 	{{ stages := buildCareerStages(props.Experiences) }}
 	<div class="page-kit-page experience-kit-page experience-kit-stages space-y-8 sm:space-y-10">
 		@PageHero(PageHeroProps{
-			ImageURL: "/static/images/backgrounds/experience-hero.jpg",
+			ImageURL:     "/static/images/backgrounds/experience-hero.jpg",
+			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="space-y-7 sm:space-y-8">
-					<p class="page-kit-eyebrow">Experience</p>
-					<div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-end">
-						<div class="space-y-4">
-							<h1 class="page-hero-title max-w-4xl">Experience in Three Eras</h1>
-							<p class="page-hero-description max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
-						</div>
+			<div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-end">
+					@PageHeroIntro(PageHeroIntroProps{Eyebrow: "Experience", Title: "Experience in Three Eras"}) {
+						<p class="page-hero-description max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
+					}
 						<div class="experience-kit-panel-strong experience-hero-stats grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 							<div>
 								<p class="experience-hero-stat-label">Years active</p>
@@ -39,15 +37,21 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 							</div>
 						</div>
 					</div>
-					<nav aria-label="Jump to career stage">
-						<div class="experience-hero-links">
-							for _, stage := range stages {
-								<a href={ templ.SafeURL("#" + stage.ID) } class="experience-kit-action">{ stage.Title }</a>
-							}
-						</div>
-					</nav>
-			</div>
 		}
+
+		<section class="page-stats-section">
+			<div class="page-kit-panel-strong space-y-4 sm:space-y-5">
+				@SectionLabel("Career stages")
+				<h2 class="page-section-title">Jump to an era</h2>
+				<nav aria-label="Jump to career stage">
+					<div class="experience-hero-links">
+						for _, stage := range stages {
+							<a href={ templ.SafeURL("#" + stage.ID) } class="experience-kit-action">{ stage.Title }</a>
+						}
+					</div>
+				</nav>
+			</div>
+		</section>
 
 		<section class="experience-summary grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-4">
 			<h2 class="sr-only">Recurring technologies used across career stages</h2>

@@ -12,14 +12,11 @@ templ Skills() {
 		@partials.PageHero(partials.PageHeroProps{
 			ImageURL:      "/static/images/backgrounds/skills-hero.jpg",
 			ImagePosition: "center 30%",
-			ExtraClass:    "min-h-[16rem] sm:min-h-[18rem]",
 			ContentClass:  "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="flex max-w-4xl flex-col gap-5">
-				<p class="page-kit-eyebrow">Skills</p>
-				<h1 class="page-hero-title">Technical Proficiencies</h1>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Skills", Title: "Technical Proficiencies"}) {
 				<p class="page-hero-description max-w-3xl">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
-			</div>
+			}
 		}
 		<section class="page-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
 			<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-8 sm:gap-10">
