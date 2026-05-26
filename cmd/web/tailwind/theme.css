@@ -1,53 +1,104 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
-  --color-primary-50: #e5f4ff;
-  --color-primary-100: #cceaff;
-  --color-primary-200: #99d5ff;
-  --color-primary-300: #66bfff;
-  --color-primary-400: #33aaff;
-  --color-primary-500: #0095ff;
-  --color-primary-600: #0077cc;
-  --color-primary-700: #005999;
-  --color-primary-800: #003c66;
-  --color-primary-900: #001e33;
-  --color-primary-950: #001524;
 
-  --color-secondary-50: #ffe5ef;
-  --color-secondary-100: #ffcce0;
-  --color-secondary-200: #ff99c0;
-  --color-secondary-300: #ff66a1;
-  --color-secondary-400: #ff3381;
-  --color-secondary-500: #ff0062;
-  --color-secondary-600: #cc004e;
-  --color-secondary-700: #99003b;
-  --color-secondary-800: #660027;
-  --color-secondary-900: #330014;
-  --color-secondary-950: #24000e;
+  --deep-walnut-50: #F9F2EB;
+  --deep-walnut-100: #EFD9C8;
+  --deep-walnut-200: #E5C1A4;
+  --deep-walnut-300: #DAA981;
+  --deep-walnut-400: #D0915D;
+  --deep-walnut-500: #C67839;
+  --deep-walnut-600: #A2632F;
+  --deep-walnut-700: #7E4D25;
+  --deep-walnut-800: #4F3017;
+  --deep-walnut-900: #372210;
+  --deep-walnut-950: #140C06;
 
-  --color-accent-50: #fff6e5;
-  --color-accent-100: #ffedcc;
-  --color-accent-200: #ffdb99;
-  --color-accent-300: #ffc966;
-  --color-accent-400: #ffb833;
-  --color-accent-500: #ffa600;
-  --color-accent-600: #cc8500;
-  --color-accent-700: #996300;
-  --color-accent-800: #664200;
-  --color-accent-900: #332100;
-  --color-accent-950: #241700;
+  --deep-space-blue-50: #EBF3F9;
+  --deep-space-blue-100: #C8DDEF;
+  --deep-space-blue-200: #A4C8E5;
+  --deep-space-blue-300: #81B2DA;
+  --deep-space-blue-400: #5D9CD0;
+  --deep-space-blue-500: #3987C6;
+  --deep-space-blue-600: #2F6EA2;
+  --deep-space-blue-700: #25567E;
+  --deep-space-blue-800: #17364F;
+  --deep-space-blue-900: #102637;
+  --deep-space-blue-950: #060D14;
 
-  --color-carbon-black-50: #eef4fa;
-  --color-carbon-black-100: #d7e2ef;
-  --color-carbon-black-200: #bac8d8;
-  --color-carbon-black-300: #9dadc1;
-  --color-carbon-black-400: #7f93ab;
-  --color-carbon-black-500: #637790;
-  --color-carbon-black-600: #4a5d73;
-  --color-carbon-black-700: #324151;
-  --color-carbon-black-800: #202b39;
-  --color-carbon-black-900: #131c29;
-  --color-carbon-black-950: #0b1018;
+  --dark-garnet-50: #FCE9E9;
+  --dark-garnet-100: #F6C0C0;
+  --dark-garnet-200: #F19898;
+  --dark-garnet-300: #EB6F6F;
+  --dark-garnet-400: #E64747;
+  --dark-garnet-500: #E01F1F;
+  --dark-garnet-600: #B81919;
+  --dark-garnet-700: #901414;
+  --dark-garnet-800: #6E0F0F;
+  --dark-garnet-900: #3F0909;
+  --dark-garnet-950: #160303;
+
+
+  --carbon-black-50: #F2F2F2;
+  --carbon-black-100: #DBDBDB;
+  --carbon-black-200: #C4C4C4;
+  --carbon-black-300: #ADADAD;
+  --carbon-black-400: #969696;
+  --carbon-black-500: #808080;
+  --carbon-black-600: #696969;
+  --carbon-black-700: #525252;
+  --carbon-black-800: #3B3B3B;
+  --carbon-black-900: #1B1B1B;
+  --carbon-black-950: #0D0D0D;
+
+
+  --color-primary-50: var(--deep-walnut-50);
+  --color-primary-100: var(--deep-walnut-100);
+  --color-primary-200: var(--deep-walnut-200);
+  --color-primary-300: var(--deep-walnut-300);
+  --color-primary-400: var(--deep-walnut-400);
+  --color-primary-500: var(--deep-walnut-500);
+  --color-primary-600: var(--deep-walnut-600);
+  --color-primary-700: var(--deep-walnut-700);
+  --color-primary-800: var(--deep-walnut-800);
+  --color-primary-900: var(--deep-walnut-900);
+  --color-primary-950: var(--deep-walnut-950);
+
+  --color-secondary-50: var(--deep-space-blue-50);
+  --color-secondary-100: var(--deep-space-blue-100);
+  --color-secondary-200: var(--deep-space-blue-200);
+  --color-secondary-300: var(--deep-space-blue-300);
+  --color-secondary-400: var(--deep-space-blue-400);
+  --color-secondary-500: var(--deep-space-blue-500);
+  --color-secondary-600: var(--deep-space-blue-600);
+  --color-secondary-700: var(--deep-space-blue-700);
+  --color-secondary-800: var(--deep-space-blue-800);
+  --color-secondary-900: var(--deep-space-blue-900);
+  --color-secondary-950: var(--deep-space-blue-950);
+
+  --color-accent-50: var(--dark-garnet-50);
+  --color-accent-100: var(--dark-garnet-100);
+  --color-accent-200: var(--dark-garnet-200);
+  --color-accent-300: var(--dark-garnet-300);
+  --color-accent-400: var(--dark-garnet-400);
+  --color-accent-500: var(--dark-garnet-500);
+  --color-accent-600: var(--dark-garnet-600);
+  --color-accent-700: var(--dark-garnet-700);
+  --color-accent-800: var(--dark-garnet-800);
+  --color-accent-900: var(--dark-garnet-900);
+  --color-accent-950: var(--dark-garnet-950);
+
+  --color-carbon-black-50: var(--carbon-black-50);
+  --color-carbon-black-100: var(--carbon-black-100);
+  --color-carbon-black-200: var(--carbon-black-200);
+  --color-carbon-black-300: var(--carbon-black-300);
+  --color-carbon-black-400: var(--carbon-black-400);
+  --color-carbon-black-500: var(--carbon-black-500);
+  --color-carbon-black-600: var(--carbon-black-600);
+  --color-carbon-black-700: var(--carbon-black-700);
+  --color-carbon-black-800: var(--carbon-black-800);
+  --color-carbon-black-900: var(--carbon-black-900);
+  --color-carbon-black-950: var(--carbon-black-950);
 
   --color-surface-canvas: color-mix(in srgb, var(--color-primary-950) 84%, var(--color-secondary-950) 16%);
   --color-surface-panel: color-mix(in srgb, var(--color-carbon-black-950) 74%, var(--color-primary-900) 26%);
