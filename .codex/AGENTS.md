@@ -6,18 +6,17 @@ Always use Context7 MCP when you need library or API documentation, code generat
 
 Use these files in this order when instructions conflict:
 
-1. `PROGRESS.md` for current soccer product behavior and recent task completion.
-2. `Taskfile.yml` for build, test, formatting, lint, and dev commands.
-3. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
-4. `README.md` for high-level architecture and local usage.
-5. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
-6. `PRD.md` (index) and `docs/archive/PRD-2026-internal-app-refactor.md` for historical refactor context.
+1. `Taskfile.yaml` for build, test, formatting, lint, and dev commands.
+2. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
+3. `README.md` for high-level architecture and local usage.
+4. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
+5. `docs/archive/PRD-2026-internal-app-refactor.md` for historical refactor context.
 
 Link to those docs instead of copying long procedures into new instructions or PR notes.
 
 ## Architecture
 
-- Go 1.26.1 server-rendered app with Templ and HTMX.
+- Go 1.26.3 server-rendered app with Templ and HTMX.
 - `cmd/server/main.go` is intentionally thin and delegates to `internal/app` for startup and route wiring.
 - `internal/app` is a thin routing and dependency-injection layer (~260 lines). It constructs the `App` struct, wires domain packages, registers routes, and starts the HTTP server. It does not contain any business logic.
 - `internal/config` holds env parsing, feature toggles (`LoginEnabled`, `GoogleEnabled`), and shared constants.
@@ -47,14 +46,14 @@ Dependencies flow downward from `internal/app` through domain packages to `types
 - `task fmt` runs `golangci-lint fmt --config .golangci.toml`.
 - `task lint` runs Go lint autofixes.
 
-Prefer the `task` commands over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
+Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 
 ## Templ Workflow
 
 - Edit `.templ` source files, not generated `*_templ.go` files.
 - Run `task generate` after any `.templ` change unless another command already does it.
 - Tailwind source lives under `cmd/web/tailwind/`; compile it with `task tailwind-build` or `task tailwind-watch`.
-- CSS-first legacy component/page rules now compile through `cmd/web/tailwind/legacy/` into the generated Tailwind output.
+- CSS-first component and page rules live in `cmd/web/tailwind/components.css` and `cmd/web/tailwind/soccer.css`; they are compiled into the generated Tailwind output.
 - Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
 Useful exemplars:
@@ -72,7 +71,7 @@ The current soccer flow is JWT import with server-side player discovery, not man
 - Users paste a bearer JWT from their signed-in Let's Play Soccer browser session.
 - The server calls `/users/check`, discovers linked players, filters deleted players, stores the session in an encrypted cookie, and renders the player selector.
 - Do not instruct users to manually copy or paste player IDs. That guidance is stale.
-- If you need current product intent or acceptance criteria for soccer, read `PROGRESS.md` and current code first.
+- If you need current product intent or acceptance criteria for soccer, read the current code first.
 
 Relevant handlers and components:
 
@@ -95,9 +94,11 @@ Relevant handlers and components:
 
 ## Known Drift To Avoid
 
-- Older docs still mention manual player-ID import. Ignore that and follow the current code and `PROGRESS.md`.
-- Some docs still describe Go 1.23+ and older formatter guidance. The repo is on Go 1.26.1 and uses `task fmt`.
-- Historical workspace tasks may reference generated Templ files or old commit flows. Follow `Taskfile.yml`, not old one-off tasks, unless the user explicitly asks otherwise.
+- Older docs still mention manual player-ID import. Ignore that and follow the current code.
+- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.3 and uses `task fmt` via golangci-lint.
+- References to `cmd/web/tailwind/legacy/` or `tailwindcss/legacy/` are stale — that directory no longer exists.
+- References to `PROGRESS.md` or `PRD.md` at the repo root are stale — those files do not exist.
+- Historical workspace tasks may reference generated Templ files or old commit flows. Follow `Taskfile.yaml`, not old one-off commands.
 
 ## When Updating This Repo
 
