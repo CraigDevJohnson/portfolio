@@ -22,6 +22,15 @@ func aboutCoreValueCards() []partials.FeatureCardProps {
 	}
 }
 
+func aboutHobbyCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "⚽", Title: "Soccer", Description: "Playing and coaching — plus building tools to manage match schedules.", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Icon: "🏔️", Title: "Outdoors", Description: "Alaska roots mean a love for hiking, fishing, and exploring nature.", Tone: "primary", ExtraClass: "stagger-enter"},
+		{Icon: "🎮", Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{Icon: "🐕", Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: "accent", ExtraClass: "stagger-enter"},
+	}
+}
+
 func aboutStatCards(props AboutProps) []partials.StatCardProps {
 	return []partials.StatCardProps{
 		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years in Tech", AriaLabel: fmt.Sprintf("%d years in tech", props.YearsInTech), ExtraClass: "stagger-enter relative"},
@@ -52,8 +61,8 @@ templ About(props AboutProps) {
 			ImageURL:     "/static/images/backgrounds/about-hero.jpg",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me", MaxWidthClass: "max-w-3xl"}) {
-				<p class="page-hero-description max-w-3xl">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me"}) {
+				<p class="page-hero-description">A journey from the frosty expanses of Alaska to building cloud infrastructure at scale.</p>
 			}
 		}
 		<section class="page-stats-section">
@@ -62,8 +71,10 @@ templ About(props AboutProps) {
 		<section class="page-section">
 			<div class="grid gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
 				<div class="space-y-6">
-					@partials.SectionLabel("My Story")
-					<h2 class="page-section-title">From the Last Frontier to the Cloud</h2>
+					@partials.SectionIntro(partials.SectionIntroProps{
+						Label: "My Story",
+						Title: "From the Last Frontier to the Cloud",
+					})
 					<div class="space-y-5 text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8">
 						<p>
 							I'm a passionate tech enthusiast who has journeyed from the frosty expanses of Alaska to
@@ -97,8 +108,10 @@ templ About(props AboutProps) {
 			</div>
 		</section>
 		<section class="page-section">
-			@partials.SectionLabel("Career Timeline")
-			<h2 class="page-section-title">The Journey So Far</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Career Timeline",
+				Title: "The journey so far",
+			})
 			<div class="page-kit-panel-strong relative pl-7">
 				<div class="absolute bottom-0 left-2 top-0 w-px bg-linear-to-b from-accent-400 to-accent-400/20"></div>
 				<div class="relative pb-8 pl-6">
@@ -140,34 +153,21 @@ templ About(props AboutProps) {
 			</div>
 		</section>
 		<section class="page-section">
-			@partials.SectionLabel("Beyond the Code")
-			<h2 class="page-section-title">Outside of work</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Beyond the Code",
+				Title: "Outside of work",
+			})
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				<div class="page-kit-feature-card stagger-enter">
-					<span class="mb-4 block text-3xl">⚽</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Soccer</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Playing and coaching — plus building tools to manage match schedules.</p>
-				</div>
-				<div class="page-kit-feature-card stagger-enter">
-					<span class="mb-4 block text-3xl">🏔️</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Outdoors</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Alaska roots mean a love for hiking, fishing, and exploring nature.</p>
-				</div>
-				<div class="page-kit-feature-card stagger-enter">
-					<span class="mb-4 block text-3xl">🎮</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Gaming</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">Strategy and building games exercise the same problem-solving muscles as engineering.</p>
-				</div>
-				<div class="page-kit-feature-card stagger-enter">
-					<span class="mb-4 block text-3xl">🐕</span>
-					<h3 class="text-lg font-semibold text-copy-primary">Dog Dad</h3>
-					<p class="mt-3 text-sm leading-6 text-copy-secondary">A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.</p>
-				</div>
+				for _, card := range aboutHobbyCards() {
+					@partials.FeatureCard(card)
+				}
 			</div>
 		</section>
 		<section class="page-section">
-			@partials.SectionLabel("What Drives Me")
-			<h2 class="page-section-title">Core Values</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "What Drives Me",
+				Title: "Core values",
+			})
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				for _, card := range aboutCoreValueCards() {
 					@partials.FeatureCard(card)

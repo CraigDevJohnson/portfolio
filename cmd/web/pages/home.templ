@@ -107,8 +107,10 @@ templ Home(props HomeProps) {
 			}
 		<!-- What I Do -->
 		<section class="page-section">
-			@partials.SectionLabel("What I Do")
-			<h2 class="page-section-title">Building the future of infrastructure</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "What I Do",
+				Title: "Building the future of infrastructure",
+			})
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				for _, card := range homeFeatureCards() {
 					@partials.FeatureCard(card)
@@ -117,8 +119,10 @@ templ Home(props HomeProps) {
 		</section>
 		<!-- Explore -->
 		<section class="page-section">
-			@partials.SectionLabel("Explore")
-			<h2 class="page-section-title">Dive deeper</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Explore",
+				Title: "Dive deeper",
+			})
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				for _, card := range homeExploreCards() {
 					@partials.LinkPanelCard(card)

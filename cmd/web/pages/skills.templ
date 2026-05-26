@@ -15,7 +15,7 @@ templ Skills() {
 			ContentClass:  "flex min-h-full flex-col justify-center",
 		}) {
 			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Skills", Title: "Technical Proficiencies"}) {
-				<p class="page-hero-description max-w-3xl">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
+				<p class="page-hero-description">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
 			}
 		}
 		<section class="page-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">

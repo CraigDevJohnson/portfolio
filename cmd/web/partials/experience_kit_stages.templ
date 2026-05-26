@@ -20,7 +20,7 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 		}) {
 			<div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-end">
 					@PageHeroIntro(PageHeroIntroProps{Eyebrow: "Experience", Title: "Experience in Three Eras"}) {
-						<p class="page-hero-description max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
+						<p class="page-hero-description">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
 					}
 						<div class="experience-kit-panel-strong experience-hero-stats grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 							<div>
@@ -41,8 +41,12 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 
 		<section class="page-stats-section">
 			<div class="page-kit-panel-strong space-y-4 sm:space-y-5">
-				@SectionLabel("Career stages")
-				<h2 class="page-section-title">Jump to an era</h2>
+				@SectionIntro(SectionIntroProps{
+					Label: "Career stages",
+					Title: "Jump to an era",
+					Description: "Navigate to the chapter of experience most relevant to your current needs.",
+					ExtraClass: "max-w-4xl",
+				})
 				<nav aria-label="Jump to career stage">
 					<div class="experience-hero-links">
 						for _, stage := range stages {

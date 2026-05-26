@@ -269,11 +269,12 @@ templ SkillsGrid(props SkillsGridProps) {
 		<!-- Core Competencies -->
 		if len(props.FeaturedSkills) > 0 {
 			<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
-				<div class="max-w-3xl space-y-3">
-					@SectionLabel("Featured skills")
-					<h2 class="page-section-title">Core competencies</h2>
-					<p class="page-section-subtitle max-w-2xl">My strongest areas of expertise</p>
-				</div>
+				@SectionIntro(SectionIntroProps{
+					Label: "Featured skills",
+					Title: "Core competencies",
+					Description: "My strongest areas of expertise.",
+					ExtraClass: "max-w-2xl",
+				})
 				<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 					for i, skill := range props.FeaturedSkills {
 						<div class="animate-[card-fade-in_0.4s_ease-out_both]" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
@@ -296,11 +297,12 @@ templ SkillsGrid(props SkillsGridProps) {
 		for _, cat := range props.Categories {
 			if cat.Name == conceptsCategoryName {
 				<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
-					<div class="max-w-3xl space-y-3">
-						@SectionLabel("Engineering approach")
-						<h2 class="page-section-title">Concepts &amp; Practices</h2>
-						<p class="page-section-subtitle max-w-2xl">Engineering principles that guide my approach</p>
-					</div>
+					@SectionIntro(SectionIntroProps{
+						Label: "Engineering approach",
+						Title: "Concepts &amp; Practices",
+						Description: "Engineering principles that guide my approach.",
+						ExtraClass: "max-w-2xl",
+					})
 					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
 						for i, skill := range cat.Skills {
 							if skill.Link != "" {
@@ -351,11 +353,11 @@ templ SkillsGrid(props SkillsGridProps) {
 templ SkillsFilterableSection(props SkillsFilterableProps) {
 	<div id="skills-filterable" class="skills-section space-y-6">
 		<!-- Section Heading -->
-		<div class="max-w-3xl space-y-3">
-			@SectionLabel("Browse skills")
-			<h2 class="page-section-title">All technical skills</h2>
-			<p class="page-section-subtitle">A filterable list of my technical toolkit.</p>
-		</div>
+		@SectionIntro(SectionIntroProps{
+			Label: "Browse skills",
+			Title: "All technical skills",
+			Description: "A filterable list of my technical toolkit.",
+		})
 		<!-- Filter Bar -->
 		<div class="page-kit-panel flex flex-col gap-5 p-5 sm:p-6">
 			<div class="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:gap-6">

@@ -35,17 +35,17 @@ templ Projects(props ProjectsProps) {
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
 			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Projects", Title: "Projects"}) {
-				<p class="page-hero-description max-w-4xl">
+				<p class="page-hero-description">
 					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
 				</p>
 			}
 		}
-		<section class="page-section-tight">
-			@partials.SectionLabel("What I Build")
-			<h2 class="page-section-title">Practical builds across cloud, automation, and the web</h2>
-			<p class="page-section-subtitle">
-				From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.
-			</p>
+		<section class="page-section">
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "What I Build",
+				Title: "Practical builds across cloud, automation, and the web",
+				Description: "From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.",
+			})
 			<div class="proj-category-filters page-kit-panel flex flex-wrap gap-2 p-4 sm:p-5" role="toolbar" aria-label="Project category filters">
 				<button type="button" class="proj-category-pill page-kit-action active" aria-pressed="true" data-category="all">All</button>
 				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="web">Web</button>
@@ -53,7 +53,10 @@ templ Projects(props ProjectsProps) {
 			</div>
 		</section>
 		<section class="page-section pt-2 sm:pb-14">
-			@partials.SectionLabel("Project Showcase")
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Project Showcase",
+				Title: "Explore featured work",
+			})
 			<div class="projects-section py-2">
 				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
 			</div>

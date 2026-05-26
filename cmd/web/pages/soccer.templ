@@ -30,7 +30,7 @@ templ Soccer(props SoccerProps) {
 		}) {
 			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Soccer", Title: "Soccer Schedule Download"}) {
 				if soccerSupportsGoogle(props.AuthState) {
-					<p class="page-hero-description max-w-[44rem]">
+					<p class="page-hero-description">
 						Fetch schedules from
 						<a class="font-medium text-primary-200 hover:text-primary-100" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
@@ -38,7 +38,7 @@ templ Soccer(props SoccerProps) {
 						choose the matches you want to keep, then export an .ics file or add them directly to Google Calendar.
 					</p>
 				} else {
-					<p class="page-hero-description max-w-[44rem]">
+					<p class="page-hero-description">
 						Fetch schedules from
 						<a class="font-medium text-primary-200 hover:text-primary-100" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
@@ -49,8 +49,11 @@ templ Soccer(props SoccerProps) {
 			}
 		}
 		<section class="page-section animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] [animation-delay:0.1s]">
-			@partials.SectionLabel("Schedule tool")
-			<h2 class="page-section-title">Get your schedule</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Schedule tool",
+				Title: "Get your schedule",
+				Description: "Import your Let's Play Soccer context, choose matches, and export or sync the schedule workflow that fits your calendar.",
+			})
 			<div class="soccer-unified-card page-kit-shell relative flex flex-col gap-8 overflow-hidden p-6 transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong max-sm:gap-4 max-sm:p-4 sm:max-md:gap-6 sm:max-md:p-6">
 				if props.GoogleMessage != "" {
 					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})

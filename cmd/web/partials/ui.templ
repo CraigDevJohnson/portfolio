@@ -93,6 +93,13 @@ type PageHeroIntroProps struct {
 	AnimatedStatus bool
 }
 
+type SectionIntroProps struct {
+	Label       string
+	Title       string
+	Description string
+	ExtraClass  string
+}
+
 func mergeClasses(base, extra string) string {
 	if extra == "" {
 		return base
@@ -105,7 +112,9 @@ func pageHeroIntroClasses(props PageHeroIntroProps) string {
 	if props.MaxWidthClass != "" {
 		base += " " + props.MaxWidthClass
 	} else {
-		base += " max-w-4xl"
+		// Default matches .page-hero-description max-w-3xl so the intro
+		// container and its description paragraph stay in sync.
+		base += " max-w-3xl"
 	}
 
 	return mergeClasses(base, props.ExtraClass)
@@ -228,6 +237,16 @@ templ SectionLabel(label string) {
 	<div class="page-kit-section-label">
 		<span class="page-kit-section-label-line" aria-hidden="true"></span>
 		<span class="page-kit-eyebrow">{ label }</span>
+	</div>
+}
+
+templ SectionIntro(props SectionIntroProps) {
+	<div class={ mergeClasses("max-w-3xl space-y-3", props.ExtraClass) }>
+		@SectionLabel(props.Label)
+		<h2 class="page-section-title">{ props.Title }</h2>
+		if props.Description != "" {
+			<p class="page-section-subtitle">{ props.Description }</p>
+		}
 	</div>
 }
 

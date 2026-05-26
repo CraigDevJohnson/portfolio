@@ -34,16 +34,18 @@ templ Contact() {
 				Eyebrow:       "Contact",
 				Title:         "Get in Touch",
 				Status:        "Open to opportunities",
-				MaxWidthClass: "max-w-3xl",
 			}) {
-				<p class="page-hero-description max-w-3xl">
+				<p class="page-hero-description">
 					Whether it&apos;s cloud architecture, DevOps strategy, or your next big idea — let&apos;s connect and build something meaningful together.
 				</p>
 			}
 		}
 		<section class="page-section">
-			@partials.SectionLabel("Ways to Connect")
-			<h2 class="page-section-title">Choose the easiest way to reach me</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Ways to Connect",
+				Title: "Choose the easiest way to reach me",
+				Description: "Use the channel that fits best for opportunities, collaboration, or cloud and platform engineering discussions.",
+			})
 			<div class="page-kit-link-panel-row-grid">
 				for _, card := range contactMethodCards() {
 					@partials.LinkPanelRow(card)
@@ -51,8 +53,11 @@ templ Contact() {
 			</div>
 		</section>
 		<section class="page-section">
-			@partials.SectionLabel("What I Bring")
-			<h2 class="page-section-title">Expertise that delivers</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "What I Bring",
+				Title: "Expertise that delivers",
+				Description: "A practical mix of architecture, automation, and security patterns applied across modern cloud environments.",
+			})
 			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 				for _, card := range contactExpertiseCards() {
 					@partials.FeatureCard(card)

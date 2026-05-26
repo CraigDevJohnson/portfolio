@@ -46,8 +46,8 @@ templ Education(props EducationProps) {
 			ImageURL:     "/static/images/backgrounds/education-hero.jpg",
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications", MaxWidthClass: "max-w-3xl"}) {
-				<p class="page-hero-description max-w-3xl">
+			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications"}) {
+				<p class="page-hero-description">
 					Academic foundation and professional certifications powering a career in cloud technology
 				</p>
 			}
@@ -58,7 +58,11 @@ templ Education(props EducationProps) {
 		</section>
 		<!-- Featured Degree -->
 		<section class="page-section">
-			@partials.SectionLabel("Academic Foundation")
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Academic Foundation",
+				Title: "Formal education",
+				Description: "A cloud-focused academic base that complements hands-on infrastructure and automation work.",
+			})
 			<a
 				href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
 				target="_blank"
@@ -90,8 +94,11 @@ templ Education(props EducationProps) {
 		</section>
 		<!-- Certifications Grid -->
 		<section class="page-section">
-			@partials.SectionLabel("Professional Certifications")
-			<h2 class="page-section-title">Industry Recognized Credentials</h2>
+			@partials.SectionIntro(partials.SectionIntroProps{
+				Label: "Professional Certifications",
+				Title: "Industry recognized credentials",
+				Description: "Certifications spanning cloud architecture, security, networking, and platform operations.",
+			})
 			<div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
 				for _, credential := range educationCredentialCards() {
 					@partials.CredentialCard(credential)
