@@ -52,12 +52,12 @@ templ Projects(props ProjectsProps) {
 				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="automation">Automation</button>
 			</div>
 		</section>
-		<section class="page-section pt-2 sm:pb-14">
+		<section class="page-section-tight">
 			@partials.SectionIntro(partials.SectionIntroProps{
 				Label: "Project Showcase",
 				Title: "Explore featured work",
 			})
-			<div class="projects-section py-2">
+			<div class="projects-section">
 				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
 			</div>
 		</section>

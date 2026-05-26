@@ -50,7 +50,8 @@
 
   .btn {
     @apply inline-flex cursor-pointer items-center justify-center gap-2 border-0 font-sans text-sm font-semibold no-underline transition duration-150 ease-out;
-    padding: var(--space-lg) var(--space-xl);
+    min-height: 2.75rem;
+    padding: calc(var(--space-sm) + var(--space-2xs)) var(--space-xl);
     border-radius: var(--radius-lg);
   }
 
@@ -149,7 +150,7 @@
   }
 
   .form-error {
-    @apply mt-[var(--space-sm)] block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
+    @apply mt-(--space-sm) block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-lg);
   }
@@ -385,7 +386,7 @@
     }
 
   .page-kit-section-label {
-    @apply mb-[var(--space-lg)] flex items-center gap-[var(--space-lg)];
+    @apply mb-(--space-lg) flex items-center gap-(--space-lg);
   }
 
   .page-kit-section-label-line {
@@ -401,7 +402,7 @@
   }
 
   .page-kit-status-pill {
-    @apply inline-flex w-fit items-center gap-[var(--space-md)] border text-sm font-semibold shadow-panel;
+    @apply inline-flex w-fit items-center gap-(--space-md) border text-sm font-semibold shadow-panel;
     padding: var(--space-sm) var(--space-lg);
     border-radius: 9999px;
     background-color: var(--page-kit-surface-strong, var(--experience-surface-strong, var(--color-carbon-black-900)));
@@ -612,7 +613,7 @@
     );
     border-color: var(--page-kit-border-strong, var(--experience-border-strong));
     color: var(--page-kit-text, var(--experience-text));
-    @apply sm:p-[var(--space-xl)];
+    @apply sm:p-(--space-xl);
   }
 
   .page-kit-step-card::before {
@@ -781,7 +782,8 @@
 
   .page-kit-shell,
   .experience-kit-shell {
-    @apply relative isolate rounded-4xl border shadow-panel-strong;
+    @apply relative isolate border shadow-panel-strong;
+    border-radius: 24px !important;
     background-color: var(--page-kit-bg, var(--experience-bg));
     border-color: var(--page-kit-border, var(--experience-border));
     color: var(--page-kit-text, var(--experience-text));
@@ -789,7 +791,8 @@
 
   .page-kit-panel,
   .experience-kit-panel {
-    @apply rounded-3xl border p-5 sm:p-6;
+    @apply border p-5 sm:p-6;
+    border-radius: var(--radius-xl);
     background-color: var(--page-kit-surface, var(--experience-surface));
     border-color: var(--page-kit-border, var(--experience-border));
     color: var(--page-kit-text, var(--experience-text));
@@ -797,7 +800,8 @@
 
   .page-kit-panel-strong,
   .experience-kit-panel-strong {
-    @apply rounded-3xl border p-5 sm:p-6;
+    @apply border p-5 sm:p-6;
+    border-radius: var(--radius-xl);
     background: linear-gradient(
       135deg,
       var(--page-kit-surface-strong, var(--experience-surface-strong)),
@@ -924,7 +928,8 @@
 
   .page-kit-action,
   .experience-kit-action {
-    @apply inline-flex min-h-11 items-center justify-center rounded-full border px-5 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    @apply inline-flex min-h-11 items-center justify-center border px-5 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    border-radius: 16px !important;
     background-color: var(--page-kit-action-bg, var(--experience-action-bg));
     border-color: var(--page-kit-border-strong, var(--experience-border-strong));
     color: var(--page-kit-action-text, var(--experience-action-text));
