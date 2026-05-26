@@ -95,7 +95,7 @@ func pageHeroBackdropStyle(props PageHeroProps) string {
 		return ""
 	}
 
-	style := fmt.Sprintf("--page-kit-hero-image: url('%s');", props.ImageURL)
+	style := fmt.Sprintf("--page-kit-hero-image: url(%s);", props.ImageURL)
 	if props.ImagePosition != "" {
 		style += " --page-kit-hero-position: " + props.ImagePosition + ";"
 	}

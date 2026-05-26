@@ -586,19 +586,26 @@
     --page-kit-step-rail: linear-gradient(180deg, rgb(177 78 114 / 0.96) 0%, rgb(59 134 196 / 0.86) 100%);
   }
 
+  .page-kit-panel-subtle {
+    @apply rounded-3xl border p-5 sm:p-6;
+    background-color: var(--page-kit-bg, var(--experience-bg));
+    border-color: var(--page-kit-border, var(--experience-border));
+    color: var(--page-kit-text, var(--experience-text));
+  }
+
   .page-kit-step-badge {
-    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white;
+    @apply inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-950;
     box-shadow: 0 0 0 4px var(--page-kit-step-halo, rgb(59 134 196 / 0.14));
   }
 
   .page-kit-step-badge-primary {
-    background-color: var(--color-primary-500);
-    --page-kit-step-halo: rgb(59 134 196 / 0.14);
+    background-color: var(--color-accent-300);
+    --page-kit-step-halo: rgb(255 212 102 / 0.16);
   }
 
   .page-kit-step-badge-secondary {
-    background: linear-gradient(135deg, rgb(177 78 114) 0%, rgb(59 134 196 / 0.85) 100%);
-    --page-kit-step-halo: rgb(177 78 114 / 0.16);
+    background-color: var(--color-primary-200);
+    --page-kit-step-halo: rgb(185 221 246 / 0.18);
   }
 
   .page-kit-icon-frame {
@@ -910,6 +917,10 @@
     color: var(--page-kit-action-text, var(--experience-action-text));
   }
 
+  .page-kit-action-sm {
+    @apply min-h-10 px-4 py-2 text-xs;
+  }
+
   .page-kit-action:hover,
   .experience-kit-action:hover {
     transform: translateY(-1px);
@@ -988,6 +999,7 @@
     .page-kit-shell,
     .page-kit-panel,
     .page-kit-panel-strong,
+    .page-kit-panel-subtle,
     .page-kit-feature-card,
     .page-kit-info-row,
     .page-kit-step-card,
@@ -1013,6 +1025,7 @@
     .site-chrome-menu-button,
     .site-chrome-footer,
     .site-chrome-nav-link-active,
+    .page-kit-panel-subtle,
     .page-kit-feature-card,
     .page-kit-info-row,
     .page-kit-step-card,
@@ -1031,6 +1044,12 @@
     .site-chrome-nav-link,
     .site-chrome-footer-link {
       color: LinkText;
+    }
+
+    .page-kit-panel-subtle {
+      background-color: Canvas;
+      border-color: ButtonBorder;
+      color: CanvasText;
     }
 
     .page-kit-step-card::before,
