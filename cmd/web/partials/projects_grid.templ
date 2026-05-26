@@ -16,11 +16,11 @@ templ ProjectsGrid(props ProjectsGridProps) {
 					if project.Image != "" {
 						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225" class="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-[1.05]"/>
 					} else {
-						<div class="project-placeholder flex h-full w-full items-center justify-center bg-linear-to-br from-accent-500/10 to-carbon-black-900 text-xs font-semibold uppercase tracking-[0.3em] text-copy-muted">
+						<div class="project-placeholder flex h-full w-full items-center justify-center bg-linear-to-br from-accent-500/10 to bg-carbon-black-900 text-xs font-semibold uppercase tracking-[0.3em] text-copy-muted">
 							<span>Project</span>
 						</div>
 					}
-					<div class="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-carbon-black-950/80 to-transparent"></div>
+					<div class="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-bg-carbon-black-950/80 to-transparent"></div>
 					<div class="project-category page-kit-chip absolute right-4 top-4 px-3 py-1 uppercase tracking-[0.18em] shadow-panel">{ project.Category }</div>
 				</div>
 				<div class="project-content flex flex-1 flex-col gap-4 p-6">
