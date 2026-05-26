@@ -17,10 +17,10 @@ type ProjectsProps struct {
 
 func projectStatCards(props ProjectsProps) []partials.StatCardProps {
 	return []partials.StatCardProps{
-		{Value: fmt.Sprintf("%d", props.TotalProjects), Label: "Projects", AriaLabel: fmt.Sprintf("%d projects", props.TotalProjects), Icon: "🛠️", Tone: "accent", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
-		{Value: fmt.Sprintf("%d", props.UniqueTechnologies), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.UniqueTechnologies), Icon: "💻", Tone: "primary", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
-		{Value: fmt.Sprintf("%d", props.CategoryCount), Label: "Categories", AriaLabel: fmt.Sprintf("%d categories", props.CategoryCount), Icon: "🏷️", Tone: "secondary", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
-		{Value: fmt.Sprintf("%d", props.PublicRepositoryCount), Label: "Public Repos", AriaLabel: fmt.Sprintf("%d public repositories", props.PublicRepositoryCount), Icon: "📂", Tone: "accent", ExtraClass: "stagger-enter", LabelClass: "uppercase tracking-[0.18em]"},
+		{Value: fmt.Sprintf("%d", props.TotalProjects), Label: "Projects", AriaLabel: fmt.Sprintf("%d projects", props.TotalProjects), Icon: "🛠️", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Value: fmt.Sprintf("%d", props.UniqueTechnologies), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.UniqueTechnologies), Icon: "💻", Tone: "primary", ExtraClass: "stagger-enter"},
+		{Value: fmt.Sprintf("%d", props.CategoryCount), Label: "Categories", AriaLabel: fmt.Sprintf("%d categories", props.CategoryCount), Icon: "🏷️", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{Value: fmt.Sprintf("%d", props.PublicRepositoryCount), Label: "Public Repos", AriaLabel: fmt.Sprintf("%d public repositories", props.PublicRepositoryCount), Icon: "📂", Tone: "accent", ExtraClass: "stagger-enter"},
 	}
 }
 
@@ -36,6 +36,7 @@ templ Projects(props ProjectsProps) {
 			ContentClass: "flex min-h-full flex-col justify-center",
 		}) {
 			<div class="flex max-w-4xl flex-col gap-5">
+				<p class="page-kit-eyebrow">Projects</p>
 				<h1 class="page-hero-title">Projects</h1>
 				<p class="page-hero-description max-w-4xl">
 					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
@@ -59,9 +60,9 @@ templ Projects(props ProjectsProps) {
 		</section>
 		<section class="page-section pt-2 sm:pb-14">
 			@partials.SectionLabel("Project Showcase")
-			<section class="projects-section py-2">
+			<div class="projects-section py-2">
 				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
-			</section>
+			</div>
 		</section>
 		@partials.PageCTA(
 			"Looking for more?",

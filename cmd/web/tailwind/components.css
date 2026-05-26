@@ -7,10 +7,6 @@
     @apply max-w-4xl text-base leading-7 text-copy-secondary sm:text-lg sm:leading-8;
   }
 
-  .page-hero-description-centered {
-    @apply mx-auto max-w-176 text-base leading-7 text-copy-muted sm:text-lg sm:leading-8;
-  }
-
   .page-stats-section {
     @apply py-8 sm:py-10;
   }
@@ -657,7 +653,6 @@
   }
 
   .page-kit-page .page-hero-description,
-  .page-kit-page .page-hero-description-centered,
   .page-kit-page .page-section-subtitle {
     color: var(--page-kit-muted);
   }
@@ -755,67 +750,6 @@
 
   .experience-hero-link-item::marker {
     content: "";
-  }
-
-  .experience-kit-hero-backdrop {
-    @apply absolute inset-0 overflow-hidden;
-    background-color: #021622;
-  }
-
-  .experience-kit-hero-backdrop::before {
-    content: "";
-    position: absolute;
-    inset: -2%;
-    background-image: url('/static/images/backgrounds/experience-hero.jpg');
-    background-position: center 36%;
-    background-size: cover;
-    filter: saturate(0.72) contrast(0.82) brightness(0.56) blur(1.25px);
-    transform: scale(1.04);
-    transform-origin: center;
-  }
-
-  .experience-kit-hero-backdrop::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(110deg, rgb(36 0 0 / 0.92) 0%, rgb(36 26 0 / 0.78) 46%, rgb(8 19 27 / 0.7) 100%),
-      radial-gradient(circle at 16% 24%, rgb(255 183 0 / 0.16), transparent 28%),
-      radial-gradient(circle at 82% 18%, rgb(59 134 196 / 0.22), transparent 30%),
-      linear-gradient(180deg, rgb(8 19 27 / 0.08) 0%, rgb(8 19 27 / 0.26) 100%);
-    pointer-events: none;
-  }
-
-  .experience-kit-hero-grid {
-    @apply absolute inset-y-0 right-0 hidden lg:block;
-    width: min(36%, 26rem);
-    background:
-      linear-gradient(180deg, rgb(59 134 196 / 0.12), transparent 100%),
-      radial-gradient(circle at top, rgb(255 212 102 / 0.22), transparent 62%);
-    border-left: 1px solid rgb(255 183 0 / 0.28);
-    clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
-  }
-
-  .experience-kit-hero-glow {
-    @apply absolute rounded-full blur-3xl;
-    pointer-events: none;
-  }
-
-  .experience-kit-hero-glow-primary {
-    top: -8rem;
-    right: -5rem;
-    height: 20rem;
-    width: 20rem;
-    background: rgb(255 212 102 / 0.24);
-  }
-
-  .experience-kit-hero-glow-secondary {
-    bottom: -9rem;
-    left: 42%;
-    height: 16rem;
-    width: 16rem;
-    transform: translateX(-50%);
-    background: rgb(59 134 196 / 0.18);
   }
 
   .experience-hero-stats {

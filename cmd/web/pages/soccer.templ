@@ -27,12 +27,13 @@ templ Soccer(props SoccerProps) {
 			ImageURL:      "/static/images/backgrounds/soccer-hero.jpg",
 			ImagePosition: "center 30%",
 			ExtraClass:    "min-h-[20rem] sm:min-h-[22rem]",
-			ContentClass:  "flex min-h-full flex-col items-center justify-center text-center",
+			ContentClass:  "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="mx-auto flex w-[min(48rem,100%)] flex-col gap-4 text-center">
-				<h1 class="page-hero-title text-gradient-brand">Soccer Schedule Download</h1>
+			<div class="flex max-w-4xl flex-col gap-5">
+				<p class="page-kit-eyebrow">Soccer</p>
+				<h1 class="page-hero-title">Soccer Schedule Download</h1>
 				if soccerSupportsGoogle(props.AuthState) {
-					<p class="page-hero-description-centered max-w-[44rem]">
+					<p class="page-hero-description max-w-[44rem]">
 						Fetch schedules from
 						<a class="font-medium text-primary-200 hover:text-primary-100" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
@@ -40,7 +41,7 @@ templ Soccer(props SoccerProps) {
 						choose the matches you want to keep, then export an .ics file or add them directly to Google Calendar.
 					</p>
 				} else {
-					<p class="page-hero-description-centered max-w-[44rem]">
+					<p class="page-hero-description max-w-[44rem]">
 						Fetch schedules from
 						<a class="font-medium text-primary-200 hover:text-primary-100" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer

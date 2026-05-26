@@ -13,11 +13,12 @@ templ Skills() {
 			ImageURL:      "/static/images/backgrounds/skills-hero.jpg",
 			ImagePosition: "center 30%",
 			ExtraClass:    "min-h-[16rem] sm:min-h-[18rem]",
-			ContentClass:  "flex min-h-full flex-col items-center justify-center text-center",
+			ContentClass:  "flex min-h-full flex-col justify-center",
 		}) {
-			<div class="mx-auto flex w-[min(46rem,100%)] flex-col gap-4 text-center">
-				<h1 class="page-hero-title text-gradient-brand">Technical Proficiencies</h1>
-				<p class="page-hero-description-centered sm:text-xl">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
+			<div class="flex max-w-4xl flex-col gap-5">
+				<p class="page-kit-eyebrow">Skills</p>
+				<h1 class="page-hero-title">Technical Proficiencies</h1>
+				<p class="page-hero-description max-w-3xl">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
 			</div>
 		}
 		<section class="page-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
