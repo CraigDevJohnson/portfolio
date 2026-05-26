@@ -21,14 +21,19 @@ This option runs the Go web app on **AWS Lambda** behind **API Gateway**.
 
 ## Migration summary
 
-1. Package the Go app for Lambda (zip or container image flow).
-2. Expose it through API Gateway HTTP API.
-3. Configure runtime variables/secrets:
+1. Build and deploy with OpenTofu + ECR using:
+   - `task deploy-lambda` (first deploy)
+   - `task redeploy-lambda` (subsequent image updates)
+2. Package flow uses the repo's Lambda container path:
+   - `Dockerfile.lambda`
+   - `cmd/lambda/main.go`
+3. Expose it through API Gateway HTTP API.
+4. Configure runtime variables/secrets:
    - `LPS_SESSION_KEY`
    - `CLIENT_ID_KEY`
    - `CLIENT_SECRET_KEY`
    - `GOOGLE_CONNECTION_TABLE_NAME`
-4. Configure domain and TLS (Cloudflare + API Gateway custom domain, optionally CloudFront).
+5. Configure domain and TLS (Cloudflare + API Gateway custom domain, optionally CloudFront).
 
 ## Tradeoffs
 

@@ -32,3 +32,13 @@ output "instance_role_arn" {
   description = "ARN of the App Runner instance role (attach future policies here)"
   value       = aws_iam_role.apprunner_instance.arn
 }
+
+output "lambda_function_name" {
+  description = "Name of the Lambda function backing the portfolio app"
+  value       = aws_lambda_function.app.function_name
+}
+
+output "lambda_api_url" {
+  description = "Invoke URL for the API Gateway HTTP API fronting Lambda"
+  value       = aws_apigatewayv2_api.lambda.api_endpoint
+}

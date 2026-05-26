@@ -49,23 +49,7 @@ func registerMIMETypes() error {
 	return nil
 }
 
-// Run loads configuration, constructs the App, registers routes, and starts the server.
-func Run() error {
-	rootLogger, logConfig, warnings := logging.NewLoggerFromEnv()
-	slog.SetDefault(rootLogger)
-	for _, warning := range warnings {
-		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
-	}
-
-	appLogger := rootLogger.With(slog.String("component", "app"))
-
-	if err := registerMIMETypes(); err != nil {
-		appLogger.Error("mime type registration failed", slog.Any("error", err))
-		return err
-	}
-
-	cfg := config.Load()
-	app := New(&cfg, rootLogger)
+func buildMux(app *App, rootLogger *slog.Logger) (*http.ServeMux, *internalsoccer.Handler) {
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
 		app.LPSClient,
@@ -116,6 +100,7 @@ func Run() error {
 	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
 	mux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
 	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+
 	// static files
 	mux.Handle(
 		"/static/",
@@ -130,6 +115,93 @@ func Run() error {
 		w.Header().Set("Expires", "0")
 		http.ServeFile(w, r, "cmd/web/static/images/favicon.ico")
 	})
+
+	return mux, soccerHandler
+}
+
+func initializeGoogleStore(app *App) {
+	initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)
+	defer initCancel()
+	store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
+	if initErr != nil {
+		app.GoogleHandler.Logger.Warn(
+			"google calendar add remains disabled; connection store initialization failed",
+			slog.String("table_name", app.Config.GoogleConnectionTableName),
+			slog.Any("error", initErr),
+		)
+		return
+	}
+	app.GoogleHandler.SetStore(store)
+	app.GoogleHandler.Logger.Info(
+		"google connection store initialized",
+		slog.String("table_name", app.Config.GoogleConnectionTableName),
+	)
+}
+
+func initializeSoccerStore(app *App, soccerHandler *internalsoccer.Handler) {
+	initCtx, initCancel := context.WithTimeout(context.Background(), soccerStoreInitTimeout)
+	defer initCancel()
+	store, initErr := internalsoccer.NewSoccerStore(initCtx, app.Config.SoccerSessionTableName)
+	if initErr != nil {
+		soccerHandler.Logger.Warn(
+			"soccer session store initialization failed; DynamoDB persistence disabled",
+			slog.String("table_name", app.Config.SoccerSessionTableName),
+			slog.Any("error", initErr),
+		)
+		return
+	}
+	soccerHandler.Store = store
+	soccerHandler.Logger.Info(
+		"soccer session store initialized",
+		slog.String("table_name", app.Config.SoccerSessionTableName),
+	)
+}
+
+// NewLambdaHandler constructs the HTTP handler for Lambda + API Gateway deployments.
+func NewLambdaHandler() (http.Handler, error) {
+	rootLogger, _, warnings := logging.NewLoggerFromEnv()
+	slog.SetDefault(rootLogger)
+	for _, warning := range warnings {
+		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
+	}
+
+	if err := registerMIMETypes(); err != nil {
+		rootLogger.Error("mime type registration failed", slog.Any("error", err))
+		return nil, err
+	}
+
+	cfg := config.Load()
+	app := New(&cfg, rootLogger)
+	mux, soccerHandler := buildMux(app, rootLogger)
+
+	if app.Config.GoogleEnabled() {
+		initializeGoogleStore(app)
+	}
+	if app.Config.SoccerSessionEnabled() {
+		initializeSoccerStore(app, soccerHandler)
+	}
+
+	return withRequestLogging(rootLogger.With(slog.String("component", "http")), mux), nil
+}
+
+// Run loads configuration, constructs the App, registers routes, and starts the server.
+func Run() error {
+	rootLogger, logConfig, warnings := logging.NewLoggerFromEnv()
+	slog.SetDefault(rootLogger)
+	for _, warning := range warnings {
+		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
+	}
+
+	appLogger := rootLogger.With(slog.String("component", "app"))
+
+	if err := registerMIMETypes(); err != nil {
+		appLogger.Error("mime type registration failed", slog.Any("error", err))
+		return err
+	}
+
+	cfg := config.Load()
+	app := New(&cfg, rootLogger)
+	mux, soccerHandler := buildMux(app, rootLogger)
 
 	// Bind the listener before any slow init so health checks pass immediately.
 	listenAddress := config.ServerListenAddress()
@@ -167,44 +239,14 @@ func Run() error {
 	// health checks never wait on AWS SDK startup or credential resolution.
 	if app.Config.GoogleEnabled() {
 		go func() {
-			initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)
-			defer initCancel()
-			store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
-			if initErr != nil {
-				app.GoogleHandler.Logger.Warn(
-					"google calendar add remains disabled; connection store initialization failed",
-					slog.String("table_name", app.Config.GoogleConnectionTableName),
-					slog.Any("error", initErr),
-				)
-				return
-			}
-			app.GoogleHandler.SetStore(store)
-			app.GoogleHandler.Logger.Info(
-				"google connection store initialized",
-				slog.String("table_name", app.Config.GoogleConnectionTableName),
-			)
+			initializeGoogleStore(app)
 		}()
 	}
 
 	// Initialize the soccer session store in the background — same pattern as Google store.
 	if app.Config.SoccerSessionEnabled() {
 		go func() {
-			initCtx, initCancel := context.WithTimeout(context.Background(), soccerStoreInitTimeout)
-			defer initCancel()
-			store, initErr := internalsoccer.NewSoccerStore(initCtx, app.Config.SoccerSessionTableName)
-			if initErr != nil {
-				soccerHandler.Logger.Warn(
-					"soccer session store initialization failed; DynamoDB persistence disabled",
-					slog.String("table_name", app.Config.SoccerSessionTableName),
-					slog.Any("error", initErr),
-				)
-				return
-			}
-			soccerHandler.Store = store
-			soccerHandler.Logger.Info(
-				"soccer session store initialized",
-				slog.String("table_name", app.Config.SoccerSessionTableName),
-			)
+			initializeSoccerStore(app, soccerHandler)
 		}()
 	}
 

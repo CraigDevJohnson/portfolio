@@ -244,6 +244,64 @@ tasks:
         echo "Redeployment triggered. Check status with:"
         echo "  aws apprunner describe-service --service-arn $SERVICE_ARN --query Service.Status"
 
+  deploy-lambda:
+    desc: Deploy to AWS Lambda + API Gateway (build and push Lambda image, apply OpenTofu)
+    cmds:
+      - |
+        set -eu
+        for cmd in tofu aws docker; do
+          if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "$cmd not found -- see DEPLOY-INSTRUCTIONS.md for installation steps"
+            exit 1
+          fi
+        done
+        if ! aws sts get-caller-identity >/dev/null 2>&1; then
+          echo "AWS credentials not configured -- run 'aws configure' or export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+          exit 1
+        fi
+        cd infra
+        if [ ! -d .terraform ]; then
+          tofu init
+        fi
+        tofu apply -target=aws_ecr_repository.app -target=aws_ecr_lifecycle_policy.app --auto-approve
+        ECR_URL=$(tofu output -raw ecr_repository_url)
+        AWS_REGION=$(echo "$ECR_URL" | sed 's/.*\.ecr\.\(.*\)\.amazonaws\.com.*/\1/')
+        AWS_ACCOUNT_ID=$(echo "$ECR_URL" | sed 's/\..*//')
+        aws ecr get-login-password --region "$AWS_REGION" | \
+          docker login --username AWS --password-stdin \
+            "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+        cd ..
+        docker build --platform linux/amd64 -f Dockerfile.lambda -t portfolio-lambda .
+        docker tag portfolio-lambda:latest "$ECR_URL:lambda-latest"
+        docker push "$ECR_URL:lambda-latest"
+        cd infra
+        tofu apply \
+          -target=aws_lambda_function.app \
+          -target=aws_apigatewayv2_stage.lambda_default \
+          -target=aws_lambda_permission.allow_apigateway_invoke \
+          --auto-approve
+        echo "Lambda deployment complete!"
+        tofu output lambda_api_url
+
+  redeploy-lambda:
+    desc: Push a new Lambda image and update function code
+    cmds:
+      - |
+        set -eu
+        ECR_URL=$(cd infra && tofu output -raw ecr_repository_url)
+        AWS_REGION=$(echo "$ECR_URL" | sed 's/.*\.ecr\.\(.*\)\.amazonaws\.com.*/\1/')
+        AWS_ACCOUNT_ID=$(echo "$ECR_URL" | sed 's/\..*//')
+        aws ecr get-login-password --region "$AWS_REGION" | \
+          docker login --username AWS --password-stdin \
+            "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+        docker build --platform linux/amd64 -f Dockerfile.lambda -t portfolio-lambda .
+        docker tag portfolio-lambda:latest "$ECR_URL:lambda-latest"
+        docker push "$ECR_URL:lambda-latest"
+        FUNCTION_NAME=$(cd infra && tofu output -raw lambda_function_name)
+        aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$ECR_URL:lambda-latest" >/dev/null
+        echo "Lambda redeployment triggered. Check status with:"
+        echo "  aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.LastUpdateStatus'"
+
   # ── Troubleshoot ───────────────────────────────────────────────────────────
 
   logs:

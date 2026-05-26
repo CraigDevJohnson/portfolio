@@ -3,6 +3,10 @@
 This guide walks you through deploying the portfolio site to **AWS App Runner** using
 **OpenTofu** for infrastructure and **Amazon ECR** for container images.
 
+If you want to run this app on **AWS Lambda + API Gateway** instead, follow
+`docs/deployment/aws-lambda-api-gateway.md` and use `task deploy-lambda` /
+`task redeploy-lambda`.
+
 ---
 
 ## Table of Contents
