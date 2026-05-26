@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: portfolio
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: APP_BIND_ALL
+        value: "true"
+      - key: LOG_FORMAT
+        value: "json"
+      - key: LOG_LEVEL
+        value: "info"
+      - key: LOG_ADD_SOURCE
+        value: "false"
+      - key: LPS_SESSION_KEY
+        sync: false
+      - key: CLIENT_ID_KEY
+        sync: false
+      - key: CLIENT_SECRET_KEY
+        sync: false
+      - key: GOOGLE_CONNECTION_TABLE_NAME
+        sync: false
