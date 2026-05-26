@@ -2,11 +2,23 @@ FROM golang:1.26.3-alpine AS builder
 
 WORKDIR /app
 
+ARG TAILWIND_VERSION=v4.2.4
+
+RUN arch="$(uname -m)" \
+  && case "$arch" in \
+  x86_64|amd64) asset="tailwindcss-linux-x64" ;; \
+  aarch64|arm64) asset="tailwindcss-linux-arm64" ;; \
+  *) echo "Unsupported platform for Tailwind CLI: $arch" && exit 1 ;; \
+  esac \
+  && wget -qO /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}" \
+  && chmod +x /usr/local/bin/tailwindcss
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
+RUN tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bootstrap ./cmd/lambda
 
 FROM public.ecr.aws/lambda/provided:al2023
