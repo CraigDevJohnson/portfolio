@@ -13,7 +13,7 @@ type ExperienceKitStagesProps struct {
 templ ExperienceKitStages(props ExperienceKitStagesProps) {
 	{{ overview := buildExperienceOverview(props.Experiences) }}
 	{{ stages := buildCareerStages(props.Experiences) }}
-	<div class="experience-kit-page experience-kit-stages space-y-8 sm:space-y-10">
+	<div class="page-kit-page experience-kit-page experience-kit-stages space-y-8 sm:space-y-10">
 		<section class="experience-kit-shell overflow-hidden p-0">
 			<div class="relative overflow-hidden px-6 py-9 sm:p-10 lg:p-12">
 				<div class="experience-kit-hero-backdrop" aria-hidden="true">
@@ -22,11 +22,11 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 					<div class="experience-kit-hero-glow experience-kit-hero-glow-secondary"></div>
 				</div>
 				<div class="relative space-y-7 sm:space-y-8">
-					<p class="experience-kit-eyebrow">Experience</p>
+					<p class="page-kit-eyebrow">Experience</p>
 					<div class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)] xl:items-end">
 						<div class="space-y-4">
-							<h1 class="experience-kit-title max-w-4xl">Experience in Three Eras</h1>
-							<p class="experience-kit-copy max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
+							<h1 class="page-hero-title max-w-4xl">Experience in Three Eras</h1>
+							<p class="page-hero-description max-w-3xl">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
 						</div>
 						<div class="experience-kit-panel-strong experience-hero-stats grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 							<div>

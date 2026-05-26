@@ -80,12 +80,14 @@ templ Home(props HomeProps) {
 								<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
 								Available for opportunities
 							</div>
-							<h1 class="flex flex-col gap-2">
-								<span class="text-xl font-medium text-copy-muted sm:text-2xl">Hi, I'm</span>
-								<span class="text-gradient-brand text-5xl font-extrabold leading-none sm:text-6xl lg:text-7xl">{ props.Name }</span>
-							</h1>
-							<h2 class="text-2xl font-semibold text-copy-secondary sm:text-3xl">{ props.Role }</h2>
-							<p class="max-w-2xl text-sm leading-7 text-copy-secondary sm:text-lg sm:leading-8">{ props.Description }</p>
+							<div class="space-y-4">
+								<p class="page-kit-eyebrow">Hi, I&apos;m</p>
+								<h1 class="page-hero-title max-w-3xl text-gradient-brand sm:text-6xl lg:text-7xl">{ props.Name }</h1>
+								<p class="page-hero-description max-w-2xl">
+									<span class="mb-3 block text-sm font-semibold uppercase tracking-[0.2em] text-primary-200 sm:text-base">{ props.Role }</span>
+									<span>{ props.Description }</span>
+								</p>
+							</div>
 							<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
 								<a href="/experience" class="page-kit-action page-kit-action-primary w-full gap-2 sm:w-auto sm:min-w-[11rem]">
 									<span>View Experience</span>

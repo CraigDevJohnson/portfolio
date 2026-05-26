@@ -640,7 +640,7 @@
   }
 
   .page-kit-detail-card {
-    @apply relative mt-6 rounded-3xl border border-l-4 px-6 py-5 shadow-panel animate-[card-fade-in_0.3s_ease-out];
+    @apply relative rounded-3xl border border-l-4 px-6 py-5 shadow-panel animate-[card-fade-in_0.3s_ease-out];
     background: linear-gradient(
       135deg,
       var(--page-kit-surface-strong, var(--experience-surface-strong)),
@@ -1058,8 +1058,7 @@
     }
   }
 
-  .page-kit-footer-cta,
-  .experience-kit-footer-cta {
+  .page-kit-footer-cta {
     @apply mb-6 sm:mb-8 lg:mb-10;
   }
 }

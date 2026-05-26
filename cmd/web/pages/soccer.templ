@@ -50,9 +50,9 @@ templ Soccer(props SoccerProps) {
 				}
 			</div>
 		}
-		<section class="animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] py-14 sm:py-16 [animation-delay:0.1s]">
+		<section class="page-section animate-[card-fade-in_var(--duration-slow)_var(--ease-out)_both] [animation-delay:0.1s]">
 			@partials.SectionLabel("Schedule tool")
-			<h2 class="mb-4 text-2xl font-bold leading-tight text-copy-primary sm:text-3xl">Get your schedule</h2>
+			<h2 class="page-section-title">Get your schedule</h2>
 			<div class="soccer-unified-card page-kit-shell relative flex flex-col gap-8 overflow-hidden p-6 transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/35 hover:shadow-panel-strong max-sm:gap-4 max-sm:p-4 sm:max-md:gap-6 sm:max-md:p-6">
 				if props.GoogleMessage != "" {
 					@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})

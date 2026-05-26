@@ -9,11 +9,9 @@
   // Add new page-level stat sections here so their counters animate on reveal.
   const COUNTER_SECTIONS = [
     { section: '.hero-stats', duration: 2000, threshold: 0.1 },
-    { section: '.about-stats', duration: 2000 },
+    { section: '.page-stats-section', duration: 2000 },
     { section: '.experience-hero-stats', duration: 1500 },
     { section: '.experience-summary', duration: 1500 },
-    { section: '.edu-stats', duration: 1500 },
-    { section: '.projects-stats', duration: 1500 },
   ]
 
   // Mobile menu toggle

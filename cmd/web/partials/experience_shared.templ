@@ -6,14 +6,10 @@ type ExperienceKitFooterActionsProps struct {
 }
 
 templ ExperienceKitFooterActions(props ExperienceKitFooterActionsProps) {
-	<section class="experience-kit-panel-strong experience-kit-footer-cta space-y-5">
-		<div class="space-y-3">
-			<h2 class="text-2xl font-bold tracking-tight [color:var(--experience-text)] sm:text-3xl">{ props.Heading }</h2>
-			<p class="max-w-3xl text-sm leading-7 [color:var(--experience-muted)] sm:text-base">{ props.Description }</p>
-		</div>
-		<div class="flex flex-wrap gap-3">
-			<a href={ templ.SafeURL("/projects") } class="experience-kit-action">View Projects</a>
-			<a href={ templ.SafeURL("/skills") } class="experience-kit-action">Review Skills</a>
-		</div>
-	</section>
+	@PageCTA(
+		props.Heading,
+		props.Description,
+		CTALink{Href: "/projects", Label: "View Projects"},
+		CTALink{Href: "/skills", Label: "Review Skills"},
+	)
 }

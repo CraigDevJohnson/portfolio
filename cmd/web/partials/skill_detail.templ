@@ -8,9 +8,9 @@ type SkillDetailProps struct {
 
 templ SkillDetail(props SkillDetailProps) {
 	<div class="page-kit-detail-card skill-detail-card">
-		<button class="page-kit-icon-button skill-detail-close absolute right-3 top-3 h-8 w-8 text-lg leading-none" aria-label="Close detail" type="button" data-close-detail>&times;</button>
-		<div class="skill-detail-content flex flex-col items-center gap-6 text-center md:flex-row md:items-start md:text-left">
-			<div class="skill-detail-icon page-kit-panel flex h-16 w-16 shrink-0 items-center justify-center p-0">
+		<button class="page-kit-icon-button skill-detail-close absolute right-3 top-3 h-9 w-9 text-lg leading-none" aria-label="Close detail" type="button" data-close-detail>&times;</button>
+		<div class="skill-detail-content flex flex-col gap-5 text-left sm:flex-row sm:items-start sm:gap-6">
+			<div class="skill-detail-icon page-kit-panel flex h-16 w-16 shrink-0 items-center justify-center self-start p-0">
 				@skillAsset(props.Skill, props.Skill.Name, "flex h-full w-full items-center justify-center", "h-10 w-10")
 			</div>
 			<div class="skill-detail-info min-w-0 flex-1">
@@ -18,7 +18,7 @@ templ SkillDetail(props SkillDetailProps) {
 				if props.Skill.Category != "" {
 					<span class={ categoryTagClasses(props.Skill.Category) + " mb-3" }>{ props.Skill.Category }</span>
 				}
-				<div class="skill-detail-proficiency mb-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+				<div class="skill-detail-proficiency mb-3 flex flex-col gap-3 md:flex-row md:items-center">
 					<div class={ proficiencyBadgeClasses(props.Skill.Proficiency, false) }>
 						{ props.Skill.Proficiency }
 					</div>

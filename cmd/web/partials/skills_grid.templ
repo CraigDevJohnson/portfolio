@@ -69,7 +69,7 @@ func categoryTagClasses(category string) string {
 }
 
 func filterTabClasses(active bool) string {
-	base := "page-kit-action min-h-10 gap-2 px-3.5 py-2 text-xs font-medium tracking-[0.02em]"
+	base := "page-kit-action min-h-10 shrink-0 gap-2 whitespace-nowrap px-3.5 py-2 text-xs font-medium tracking-[0.02em]"
 	if active {
 		return base + " border-accent-500 bg-accent-500 text-primary-950 shadow-panel"
 	}
@@ -265,13 +265,14 @@ templ conceptCardContent(skill types.Skill) {
 }
 
 templ SkillsGrid(props SkillsGridProps) {
-	<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-10">
+	<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-8 sm:gap-10">
 		<!-- Core Competencies -->
 		if len(props.FeaturedSkills) > 0 {
-			<div class="page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
-				<div class="mb-8 text-center">
-					<h2 class="page-kit-section-heading">Core Competencies</h2>
-					<p class="mt-4 text-base font-medium text-copy-muted">My strongest areas of expertise</p>
+			<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
+				<div class="max-w-3xl space-y-3">
+					@SectionLabel("Featured skills")
+					<h2 class="page-section-title">Core competencies</h2>
+					<p class="page-section-subtitle max-w-2xl">My strongest areas of expertise</p>
 				</div>
 				<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 					for i, skill := range props.FeaturedSkills {
@@ -294,10 +295,11 @@ templ SkillsGrid(props SkillsGridProps) {
 		<!-- Concepts & Practices (elevated position) -->
 		for _, cat := range props.Categories {
 			if cat.Name == conceptsCategoryName {
-				<div class="page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
-					<div class="mb-8 text-center">
-						<h2 class="page-kit-section-heading page-kit-section-heading-secondary">Concepts &amp; Practices</h2>
-						<p class="mt-4 text-base font-medium text-copy-muted">Engineering principles that guide my approach</p>
+				<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
+					<div class="max-w-3xl space-y-3">
+						@SectionLabel("Engineering approach")
+						<h2 class="page-section-title">Concepts &amp; Practices</h2>
+						<p class="page-section-subtitle max-w-2xl">Engineering principles that guide my approach</p>
 					</div>
 					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
 						for i, skill := range cat.Skills {
@@ -335,21 +337,22 @@ templ SkillsGrid(props SkillsGridProps) {
 }
 
 templ SkillsFilterableSection(props SkillsFilterableProps) {
-	<div id="skills-filterable" class="page-kit-shell px-6 py-8 shadow-panel sm:px-8 sm:py-10">
-    <!-- Section Heading -->
-		<div class="mb-8 text-center">
-			<h2 class="page-kit-section-heading">All Technical Skills</h2>
-      <p class="mt-4 text-base font-medium text-copy-muted">A filterable list of my technical toolkit</p>
+	<div id="skills-filterable" class="skills-section space-y-6">
+		<!-- Section Heading -->
+		<div class="max-w-3xl space-y-3">
+			@SectionLabel("Browse skills")
+			<h2 class="page-section-title">All technical skills</h2>
+			<p class="page-section-subtitle">A filterable list of my technical toolkit.</p>
 		</div>
 		<!-- Filter Bar -->
-		<div class="page-kit-panel-subtle mb-8 p-4 sm:p-5">
-			<div class="grid gap-4 md:grid-cols-2 md:gap-6">
-				<div class="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<span class="min-w-20 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Category</span>
-					<div class="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible" role="group" aria-label="Filter by category">
+		<div class="page-kit-panel flex flex-col gap-5 p-5 sm:p-6">
+			<div class="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:gap-6">
+				<div class="grid gap-3 sm:grid-cols-[5.75rem_minmax(0,1fr)] sm:items-start sm:gap-4">
+					<span class="pt-2 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Category</span>
+					<div class="filter-tabs flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filter by category">
 					<button
 						type="button"
-							class={ filterTabClasses(props.ActiveCategory == "") }
+							class={ filterTabClasses(props.ActiveCategory == "") + " filter-tab" }
 						hx-get={ buildFilterURL("", props.ActiveProficiency) }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -361,7 +364,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 						if cat.Name != conceptsCategoryName {
 							<button
 								type="button"
-									class={ filterTabClasses(props.ActiveCategory == cat.Name) }
+									class={ filterTabClasses(props.ActiveCategory == cat.Name) + " filter-tab" }
 								hx-get={ buildFilterURL(cat.Name, props.ActiveProficiency) }
 								hx-target="#skills-filterable"
 								hx-swap="outerHTML"
@@ -373,12 +376,12 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					}
 				</div>
 			</div>
-				<div class="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<span class="min-w-20 pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Proficiency</span>
-					<div class="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible" role="group" aria-label="Filter by proficiency">
+				<div class="grid gap-3 sm:grid-cols-[5.75rem_minmax(0,1fr)] sm:items-start sm:gap-4">
+					<span class="pt-2 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Proficiency</span>
+					<div class="filter-tabs flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filter by proficiency">
 					<button
 						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "") }
+						class={ filterTabClasses(props.ActiveProficiency == "") + " filter-tab" }
 						hx-get={ buildFilterURL(props.ActiveCategory, "") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -388,7 +391,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					</button>
 					<button
 						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "expert") }
+						class={ filterTabClasses(props.ActiveProficiency == "expert") + " filter-tab" }
 						hx-get={ buildFilterURL(props.ActiveCategory, "expert") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -398,7 +401,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					</button>
 					<button
 						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "advanced") }
+						class={ filterTabClasses(props.ActiveProficiency == "advanced") + " filter-tab" }
 						hx-get={ buildFilterURL(props.ActiveCategory, "advanced") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -408,7 +411,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					</button>
 					<button
 						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "intermediate") }
+						class={ filterTabClasses(props.ActiveProficiency == "intermediate") + " filter-tab" }
 						hx-get={ buildFilterURL(props.ActiveCategory, "intermediate") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -418,7 +421,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 					</button>
 					<button
 						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "familiar") }
+						class={ filterTabClasses(props.ActiveProficiency == "familiar") + " filter-tab" }
 						hx-get={ buildFilterURL(props.ActiveCategory, "familiar") }
 						hx-target="#skills-filterable"
 						hx-swap="outerHTML"
@@ -436,7 +439,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 				for catIndex, cat := range props.Categories {
 					if cat.Name != conceptsCategoryName && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
 						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
-							<div class="page-kit-panel-strong animate-[card-fade-in_0.45s_ease-out_both] p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
+							<div class="skill-category page-kit-panel-strong animate-[card-fade-in_0.45s_ease-out_both] p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
 								<h3 class="mb-4 flex items-center gap-3 border-l-4 border-l-primary-400 pl-3 text-base font-semibold uppercase tracking-[0.05em] text-copy-primary sm:text-lg">
 									{ cat.Name }
 
@@ -446,7 +449,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 										if shouldShowSkill(skill, props.ActiveProficiency) {
 											<button
 												type="button"
-												class={ skillCardClasses(skill.Proficiency) }
+												class={ skillCardClasses(skill.Proficiency) + " skill-icon-btn" }
 												data-proficiency={ skill.Proficiency }
 												data-skill-id={ fmt.Sprintf("%d", skill.ID) }
 												hx-get={ fmt.Sprintf("/skills/detail?id=%d", skill.ID) }
@@ -469,7 +472,7 @@ templ SkillsFilterableSection(props SkillsFilterableProps) {
 										}
 									}
 								</div>
-								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="mt-4 overflow-hidden"></div>
+								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="skill-detail-slot mt-3 overflow-hidden"></div>
 							</div>
 						}
 					}
