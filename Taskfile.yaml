@@ -277,6 +277,8 @@ tasks:
         cd infra
         tofu apply \
           -target=aws_lambda_function.app \
+          -target=aws_apigatewayv2_integration.lambda_proxy \
+          -target=aws_apigatewayv2_route.lambda_default \
           -target=aws_apigatewayv2_stage.lambda_default \
           -target=aws_lambda_permission.allow_apigateway_invoke \
           --auto-approve
