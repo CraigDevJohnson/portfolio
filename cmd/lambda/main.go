@@ -20,6 +20,10 @@ var (
 
 func lambdaHandler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	handlerOnce.Do(func() {
+		if err := resolveSSMSecrets(ctx); err != nil {
+			initErr = err
+			return
+		}
 		httpHandler, err := app.NewLambdaHandler()
 		if err != nil {
 			initErr = err

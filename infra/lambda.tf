@@ -34,10 +34,32 @@ resource "aws_iam_role_policy_attachment" "lambda_soccer_sessions_dynamodb" {
   policy_arn = aws_iam_policy.soccer_sessions_dynamodb.arn
 }
 
-data "aws_ssm_parameter" "lambda_runtime_secrets" {
-  for_each        = toset(local.ssm_parameter_names)
-  name            = "/${var.app_name}/${each.key}"
-  with_decryption = true
+resource "aws_iam_policy" "lambda_runtime_secrets" {
+  name = "${var.app_name}-lambda-runtime-secrets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+        ]
+        Resource = [for name in local.ssm_parameter_names : "${local.ssm_parameter_base_arn}/${name}"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = data.aws_kms_alias.ssm.target_key_arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_runtime_secrets" {
+  role       = aws_iam_role.lambda_execution.name
+  policy_arn = aws_iam_policy.lambda_runtime_secrets.arn
 }
 
 # ──────────────────────────────────────────────
@@ -55,10 +77,10 @@ resource "aws_lambda_function" "app" {
   environment {
     variables = {
       APP_BIND_ALL                 = "true"
-      CLIENT_ID_KEY                = data.aws_ssm_parameter.lambda_runtime_secrets["CLIENT_ID_KEY"].value
-      CLIENT_SECRET_KEY            = data.aws_ssm_parameter.lambda_runtime_secrets["CLIENT_SECRET_KEY"].value
+      CLIENT_ID_KEY                = "/${var.app_name}/CLIENT_ID_KEY"
+      CLIENT_SECRET_KEY            = "/${var.app_name}/CLIENT_SECRET_KEY"
       GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
-      LPS_SESSION_KEY              = data.aws_ssm_parameter.lambda_runtime_secrets["LPS_SESSION_KEY"].value
+      LPS_SESSION_KEY              = "/${var.app_name}/LPS_SESSION_KEY"
       LOG_ADD_SOURCE               = "false"
       LOG_FORMAT                   = "json"
       LOG_LEVEL                    = "info"
@@ -70,6 +92,7 @@ resource "aws_lambda_function" "app" {
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy_attachment.lambda_google_connections_dynamodb,
     aws_iam_role_policy_attachment.lambda_soccer_sessions_dynamodb,
+    aws_iam_role_policy_attachment.lambda_runtime_secrets,
   ]
 }
 
