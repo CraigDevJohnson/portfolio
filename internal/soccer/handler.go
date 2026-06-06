@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -42,9 +43,24 @@ type Handler struct {
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
 	Logger       *slog.Logger
-	Store        SoccerStore
 
+	storeMu     sync.RWMutex
+	store       SoccerStore
 	googleHooks GoogleHooks
+}
+
+// Store returns the current soccer session store (thread-safe).
+func (h *Handler) Store() SoccerStore {
+	h.storeMu.RLock()
+	defer h.storeMu.RUnlock()
+	return h.store
+}
+
+// SetStore replaces the soccer session store (thread-safe, called after background init).
+func (h *Handler) SetStore(store SoccerStore) {
+	h.storeMu.Lock()
+	h.store = store
+	h.storeMu.Unlock()
 }
 
 // NewHandler constructs a soccer handler with its runtime dependencies.
@@ -61,7 +77,7 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 		LPSClient:    lpsClient,
 		LoginLimiter: loginLimiter,
 		Logger:       logger,
-		Store:        store,
+		store:        store,
 		googleHooks:  googleHooks,
 	}
 }

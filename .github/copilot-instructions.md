@@ -15,7 +15,7 @@ Link to those docs instead of copying long procedures into new instructions or P
 
 ## Architecture
 
-- Go 1.26.3 server-rendered app with Templ and HTMX.
+- Go 1.26.4 server-rendered app with Templ and HTMX.
 - `cmd/server/main.go` is intentionally thin and delegates to `internal/app` for startup and route wiring.
 - `internal/app` is a thin routing and dependency-injection layer (~260 lines). It constructs the `App` struct, wires domain packages, registers routes, and starts the HTTP server. It does not contain any business logic.
 - `internal/config` holds env parsing, feature toggles (`LoginEnabled`, `GoogleEnabled`), and shared constants.
@@ -94,7 +94,7 @@ Relevant handlers and components:
 ## Known Drift To Avoid
 
 - Older docs still mention manual player-ID import. Ignore that and follow the current code.
-- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.3 and uses `task fmt` via golangci-lint.
+- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.4 and uses `task fmt` via golangci-lint (config at `.qlty/configs/.golangci.toml`).
 - References to `cmd/web/tailwind/legacy/` or `tailwindcss/legacy/` are stale — that directory no longer exists.
 - References to `PROGRESS.md` or `PRD.md` at the repo root are stale — those files do not exist.
 - Historical workspace tasks may reference generated Templ files or old commit flows. Follow `Taskfile.yaml`, not old one-off commands.

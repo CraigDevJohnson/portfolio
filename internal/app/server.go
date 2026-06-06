@@ -150,7 +150,7 @@ func initializeSoccerStore(app *App, soccerHandler *internalsoccer.Handler) {
 		)
 		return
 	}
-	soccerHandler.Store = store
+	soccerHandler.SetStore(store)
 	soccerHandler.Logger.Info(
 		"soccer session store initialized",
 		slog.String("table_name", app.Config.SoccerSessionTableName),

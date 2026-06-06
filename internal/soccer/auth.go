@@ -209,7 +209,7 @@ func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID stri
 		ExpiresAt:   session.ExpiresAt,
 		TTL:         session.ExpiresAt.Unix(),
 	}
-	if err := h.Store.Put(ctx, record); err != nil {
+	if err := h.Store().Put(ctx, record); err != nil {
 		h.Logger.Warn("soccer session persist: DynamoDB write failed", slog.Any("error", err))
 	}
 }
