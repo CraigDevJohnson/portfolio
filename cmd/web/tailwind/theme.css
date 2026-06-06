@@ -51,6 +51,90 @@
   --carbon-black-900: #1B1B1B;
   --carbon-black-950: #0D0D0D;
 
+  --color-white: var(--color-carbon-black-50);
+  --color-black: var(--color-carbon-black-950);
+  --color-night-slate: var(--color-secondary-950);
+
+  --color-border-subtle: color-mix(in srgb, var(--color-white) 8%, transparent);
+  --color-border-strong: color-mix(in srgb, var(--color-white) 16%, transparent);
+
+  --color-overlay-scrim: color-mix(in srgb, var(--color-black) 70%, transparent);
+  --color-overlay-scrim-strong: color-mix(in srgb, var(--color-black) 80%, transparent);
+
+  --color-success-500: var(--color-secondary-500);
+  --color-success-200: var(--color-secondary-200);
+  --color-success-bg: color-mix(in srgb, var(--color-success-500) 14%, transparent);
+  --color-success-fg: var(--color-primary-200);
+  --color-success-border: color-mix(in srgb, var(--color-success-500) 28%, transparent);
+
+  --color-danger-500: var(--color-accent-500);
+  --color-danger-200: var(--color-accent-200);
+  --color-danger-bg: color-mix(in srgb, var(--color-danger-500) 14%, transparent);
+  --color-danger-fg: var(--color-secondary-200);
+  --color-danger-border: color-mix(in srgb, var(--color-danger-500) 26%, transparent);
+
+  --color-warning-500: var(--color-primary-500);
+  --color-warning-200: var(--color-primary-200);
+  --color-warning-bg: color-mix(in srgb, var(--color-warning-500) 14%, transparent);
+  --color-warning-fg: var(--color-warning-200);
+  --color-warning-border: color-mix(in srgb, var(--color-warning-500) 26%, transparent);
+
+  --color-page-kit-bg: color-mix(in srgb, var(--color-primary-950) 82%, var(--color-accent-950) 18%);
+  --color-page-kit-surface: color-mix(in srgb, var(--color-primary-900) 70%, var(--color-accent-950) 30%);
+  --color-page-kit-surface-strong: color-mix(in srgb, var(--color-primary-950) 74%, var(--color-accent-900) 26%);
+  --color-page-kit-text: var(--color-primary-50);
+  --color-page-kit-muted: var(--color-primary-100);
+  --color-page-kit-muted-soft: var(--color-primary-200);
+  --color-page-kit-border: color-mix(in srgb, var(--color-primary-500) 72%, var(--color-accent-700) 28%);
+  --color-page-kit-border-strong: color-mix(in srgb, var(--color-primary-400) 68%, var(--color-accent-600) 32%);
+  --color-page-kit-accent: var(--color-primary-200);
+  --color-page-kit-accent-strong: var(--color-primary-100);
+  --color-page-kit-chip-bg: color-mix(in srgb, var(--color-primary-950) 76%, var(--color-accent-900) 24%);
+  --color-page-kit-company: var(--color-secondary-300);
+  --color-page-kit-action-bg: var(--color-secondary-800);
+  --color-page-kit-action-text: var(--color-primary-50);
+  --color-page-kit-action-hover-text: var(--color-secondary-950);
+  --color-page-kit-hero-backdrop: var(--color-secondary-950);
+  --color-page-kit-logo-bg: var(--color-primary-50);
+  --color-page-kit-logo-shadow: color-mix(in srgb, var(--color-primary-900) 12%, transparent);
+  --color-page-kit-icon-frame-accent-border: color-mix(in srgb, var(--color-primary-500) 70%, transparent);
+  --color-page-kit-icon-frame-accent-bg: color-mix(in srgb, var(--color-primary-900) 68%, transparent);
+  --color-page-kit-icon-frame-primary-border: color-mix(in srgb, var(--color-secondary-700) 70%, transparent);
+  --color-page-kit-icon-frame-primary-bg: color-mix(in srgb, var(--color-secondary-950) 68%, transparent);
+  --color-page-kit-icon-frame-secondary-border: color-mix(in srgb, var(--color-accent-700) 70%, transparent);
+  --color-page-kit-icon-frame-secondary-bg: color-mix(in srgb, var(--color-accent-950) 72%, transparent);
+  --color-page-kit-hero-glow-primary: color-mix(in srgb, var(--color-primary-200) 24%, transparent);
+  --color-page-kit-hero-glow-secondary: color-mix(in srgb, var(--color-secondary-400) 18%, transparent);
+  --color-page-kit-hero-grid-start: color-mix(in srgb, var(--color-secondary-400) 12%, transparent);
+  --color-page-kit-hero-grid-glow: color-mix(in srgb, var(--color-primary-200) 22%, transparent);
+  --color-page-kit-step-rail-primary: linear-gradient(180deg, var(--color-secondary-500) 0%, var(--color-accent-500) 100%);
+  --color-page-kit-step-rail-secondary: linear-gradient(180deg, var(--color-accent-500) 0%, var(--color-secondary-500) 100%);
+  --color-page-kit-step-halo-primary: color-mix(in srgb, var(--color-primary-200) 16%, transparent);
+  --color-page-kit-step-halo-secondary: color-mix(in srgb, var(--color-secondary-200) 18%, transparent);
+  --color-page-kit-hero-overlay: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--color-page-kit-bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--color-primary-900) 78%, transparent) 46%,
+      color-mix(in srgb, var(--color-secondary-950) 70%, transparent) 100%
+    ),
+    radial-gradient(circle at 16% 24%, color-mix(in srgb, var(--color-page-kit-border-strong) 16%, transparent), transparent 28%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--color-secondary-500) 22%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-secondary-950) 8%, transparent) 0%, color-mix(in srgb, var(--color-secondary-950) 26%, transparent) 100%);
+
+  --field-badge-primary-gradient: linear-gradient(
+    135deg,
+    var(--color-primary-950) 0%,
+    var(--color-primary-800) 50%,
+    var(--color-accent-700) 100%
+  );
+  --field-badge-gradient: var(--field-badge-primary-gradient);
+
+  --shadow-xs: 0 1px 2px color-mix(in srgb, var(--color-carbon-black-950) 30%, transparent);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, var(--color-carbon-black-950) 38%, transparent);
+  --shadow-md: 0 4px 18px color-mix(in srgb, var(--color-carbon-black-950) 48%, transparent);
+  --shadow-lg: 0 10px 36px color-mix(in srgb, var(--color-secondary-950) 56%, transparent);
+  --shadow-xl: 0 18px 56px color-mix(in srgb, var(--color-secondary-950) 64%, transparent);
+
 
   --color-primary-50: var(--deep-walnut-50);
   --color-primary-100: var(--deep-walnut-100);
@@ -116,13 +200,13 @@
   --color-focus-ring: var(--color-primary-300);
   --color-info-surface: color-mix(in srgb, var(--color-primary-950) 84%, var(--color-secondary-950) 16%);
   --color-info-border: var(--color-primary-700);
-  --color-danger-surface: color-mix(in srgb, var(--color-secondary-950) 82%, black);
+  --color-danger-surface: color-mix(in srgb, var(--color-secondary-950) 82%, var(--color-carbon-black-950));
   --color-danger-border: var(--color-secondary-700);
   --color-success-surface: color-mix(in srgb, var(--color-primary-950) 82%, var(--color-secondary-950) 18%);
   --color-success-border: var(--color-primary-700);
 
-  --shadow-panel: 0 18px 40px rgb(0 21 36 / 0.38);
-  --shadow-panel-strong: 0 24px 55px rgb(0 21 36 / 0.48);
+  --shadow-panel: 0 18px 40px color-mix(in srgb, var(--color-secondary-950) 38%, transparent);
+  --shadow-panel-strong: 0 24px 55px color-mix(in srgb, var(--color-secondary-950) 48%, transparent);
 
   --breakpoint-xs: 30rem;
   --container-site: 75rem;

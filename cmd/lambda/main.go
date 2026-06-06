@@ -18,7 +18,7 @@ var (
 	initErr     error
 )
 
-func lambdaHandler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func lambdaHandler(ctx context.Context, req *events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	handlerOnce.Do(func() {
 		if err := resolveSSMSecrets(ctx); err != nil {
 			initErr = err
@@ -40,7 +40,15 @@ func lambdaHandler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (eve
 		}, nil
 	}
 
-	return adapter.ProxyWithContext(ctx, req)
+	if req == nil {
+		slog.Error("lambda request payload missing")
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: 400,
+			Body:       "invalid request",
+		}, nil
+	}
+
+	return adapter.ProxyWithContext(ctx, *req)
 }
 
 func main() {

@@ -4,7 +4,7 @@ version: "3"
 
 vars:
   GOFLAGS: ""
-  BINARY: "{{if eq OS \"windows\"}}portfolio-server.exe{{else}}portfolio-server{{end}}"
+  BINARY: '{{if eq OS "windows"}}portfolio-server.exe{{else}}portfolio-server{{end}}'
   TAILWIND_VERSION: v4.2.4
   TAILWIND_DIR: .tools/tailwind
   TAILWIND_BIN: "{{if eq OS
@@ -16,14 +16,14 @@ vars:
 tasks:
   default:
     desc: Build the project
-    deps: [ build ]
+    deps: [build]
     silent: true
 
   # ── Build ──────────────────────────────────────────────────────────────────
 
   generate:
     desc: Generate Templ components
-    deps: [ templ ]
+    deps: [templ]
 
   templ:
     desc: Low-level Templ generation command used by generate
@@ -49,7 +49,7 @@ tasks:
 
   build:
     desc: Build the binary
-    deps: [ generate, tailwind-build ]
+    deps: [generate, tailwind-build]
     cmds:
       - "go build {{.GOFLAGS}} -o {{.BINARY}} ./cmd/server"
 
@@ -57,7 +57,7 @@ tasks:
 
   run:
     desc: Build and run the server
-    deps: [ build ]
+    deps: [build]
     cmds:
       - "{{if eq OS \"windows\"}}.\\{{.BINARY}}{{else}}./{{.BINARY}}{{end}}"
 
@@ -87,7 +87,7 @@ tasks:
   fmt:
     desc: Format Go source files
     cmds:
-      - golangci-lint fmt --config .golangci.toml
+      - golangci-lint fmt --config .qlty/configs/.golangci.toml
 
   vet:
     desc: Run go vet
@@ -103,7 +103,7 @@ tasks:
           echo "golangci-lint v2+ not found -- please run 'task install-lint' to install it"
           exit 1
         fi
-        golangci-lint run --config .golangci.toml --fix
+        golangci-lint run --config .qlty/configs/.golangci.toml --fix
 
   ci:
     desc: Check quality, run tests and build the binary
@@ -127,9 +127,9 @@ tasks:
   clean:
     desc: Remove binary and clean cached files
     cmds:
-      - "{{if eq OS \"windows\"}}powershell -Command \"Remove-Item -Force
-        {{.BINARY}} -ErrorAction SilentlyContinue\"{{else}}rm -f
-        {{.BINARY}}{{end}}"
+      - '{{if eq OS "windows"}}powershell -Command "Remove-Item -Force
+        {{.BINARY}} -ErrorAction SilentlyContinue"{{else}}rm -f
+        {{.BINARY}}{{end}}'
       - "go clean"
 
   # ── Tools ──────────────────────────────────────────────────────────────────
@@ -154,7 +154,8 @@ tasks:
         echo "golangci-lint is installed and up to date!"
 
   install-tailwind:
-    desc: Install the pinned Tailwind standalone CLI used by local builds, CI, and
+    desc:
+      Install the pinned Tailwind standalone CLI used by local builds, CI, and
       Docker
     cmds:
       - |
@@ -184,7 +185,7 @@ tasks:
 
   install-tools:
     desc: Install all development tools
-    deps: [ install-air, install-lint, install-tailwind ]
+    deps: [install-air, install-lint, install-tailwind]
     cmds:
       - echo "All development tools installed successfully!"
 
@@ -316,7 +317,8 @@ tasks:
           xargs -I {} aws apprunner get-instance-logs --instance-id {} --service-arn "$SERVICE_ARN" --query 'LogStream' --output text
 
   local-logs:
-    desc: Output logs from Docker container running from docker compose. Useful for
+    desc:
+      Output logs from Docker container running from docker compose. Useful for
       local development with `task compose`.
     cmds:
       - |

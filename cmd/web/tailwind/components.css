@@ -9,15 +9,15 @@
   }
 
   .page-stats-section {
-    @apply py-[var(--space-2xl)] sm:py-[var(--space-3xl)];
+    @apply py-(--space-2xl) sm:py-(--space-3xl);
   }
 
   .page-section {
-    @apply space-y-[var(--space-xl)] py-[var(--space-3xl)] sm:py-[3.5rem];
+    @apply space-y-(--space-xl) py-(--space-3xl) sm:py-14;
   }
 
   .page-section-tight {
-    @apply space-y-[var(--space-xl)] py-[var(--space-2xl)] sm:py-[var(--space-3xl)];
+    @apply space-y-(--space-xl) py-(--space-2xl) sm:py-(--space-3xl);
   }
 
   .page-section-title {
@@ -150,7 +150,7 @@
   }
 
   .form-error {
-    @apply mt-[var(--space-sm)] block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
+    @apply mt-(--space-sm) block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-lg);
   }
@@ -219,39 +219,53 @@
 
   .site-chrome-header {
     @apply fixed inset-x-0 top-0 z-100 h-(--header-height) border-b backdrop-blur-xl backdrop-saturate-150;
-    border-color: rgb(255 183 0 / 0.16);
-    background: linear-gradient(180deg, rgb(2 22 34 / 0.96) 0%, rgb(11 16 24 / 0.92) 48%, rgb(36 0 0 / 0.92) 100%);
+    border-color: color-mix(in srgb, var(--color-page-kit-border-strong) 16%, transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-page-kit-hero-backdrop) 96%, transparent) 0%,
+      color-mix(in srgb, var(--color-night-slate) 92%, transparent) 48%,
+      color-mix(in srgb, var(--color-page-kit-bg) 92%, transparent) 100%
+    );
     box-shadow:
-      0 1px 0 rgb(255 255 255 / 0.04),
-      0 18px 40px rgb(0 0 0 / 0.24);
+      0 1px 0 color-mix(in srgb, var(--color-white) 4%, transparent),
+      0 18px 40px color-mix(in srgb, var(--color-black) 24%, transparent);
   }
 
   .site-chrome-mobile-nav {
     @apply absolute left-0 right-0 top-(--header-height) hidden max-h-[calc(100dvh-var(--header-height))] min-h-[calc(100dvh-var(--header-height))] flex-col gap-1 overflow-y-auto overscroll-contain border-b px-6 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl max-[480px]:px-4;
-    border-color: rgb(255 183 0 / 0.16);
-    background: linear-gradient(180deg, rgb(2 22 34 / 0.98) 0%, rgb(11 16 24 / 0.96) 48%, rgb(36 0 0 / 0.97) 100%);
+    border-color: color-mix(in srgb, var(--color-page-kit-border-strong) 16%, transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-page-kit-hero-backdrop) 98%, transparent) 0%,
+      color-mix(in srgb, var(--color-night-slate) 96%, transparent) 48%,
+      color-mix(in srgb, var(--color-page-kit-bg) 97%, transparent) 100%
+    );
   }
 
   .site-chrome-menu-button {
   @apply relative hidden min-h-11 items-center justify-center gap-3 rounded-xl border px-3.5 py-2.5 text-copy-primary transition duration-150 ease-out max-[1120px]:inline-flex;
-    border-color: rgb(255 183 0 / 0.18);
-    background: linear-gradient(135deg, rgb(23 54 79 / 0.92) 0%, rgb(36 0 0 / 0.88) 100%);
+    border-color: color-mix(in srgb, var(--color-page-kit-border-strong) 18%, transparent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-page-kit-action-bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--color-page-kit-bg) 88%, transparent) 100%
+    );
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.04),
-      0 8px 18px rgb(0 0 0 / 0.18);
+      inset 0 1px 0 color-mix(in srgb, var(--color-white) 4%, transparent),
+      0 8px 18px color-mix(in srgb, var(--color-black) 18%, transparent);
   }
 
   .site-chrome-menu-label {
   @apply text-xs font-semibold uppercase tracking-[0.16em] text-copy-primary;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 0.2);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--color-black) 20%, transparent);
   }
 
   .site-chrome-menu-button:hover {
     transform: translateY(-1px);
-    border-color: rgb(255 212 102 / 0.4);
+    border-color: color-mix(in srgb, var(--color-page-kit-accent) 40%, transparent);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 10px 22px rgb(0 0 0 / 0.22);
+    inset 0 1px 0 color-mix(in srgb, var(--color-white) 6%, transparent),
+    0 10px 22px color-mix(in srgb, var(--color-black) 22%, transparent);
   }
 
   .site-chrome-menu-button:focus-visible,
@@ -270,27 +284,36 @@
   }
 
   .site-chrome-nav-link:hover {
-    background: rgb(59 134 196 / 0.12);
+    background: color-mix(in srgb, var(--color-brand-secondary) 12%, transparent);
     color: var(--color-copy-primary);
   }
 
   .site-chrome-nav-link-active {
-    background: linear-gradient(135deg, rgb(59 134 196 / 0.18) 0%, rgb(255 183 0 / 0.16) 100%);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-brand-secondary) 18%, transparent) 0%,
+      color-mix(in srgb, var(--color-page-kit-accent) 16%, transparent) 100%
+    );
     color: var(--color-primary-100);
     box-shadow:
-      inset 0 0 0 1px rgb(255 183 0 / 0.22),
-      0 10px 20px rgb(0 0 0 / 0.14);
+      inset 0 0 0 1px color-mix(in srgb, var(--color-page-kit-accent) 22%, transparent),
+      0 10px 20px color-mix(in srgb, var(--color-black) 14%, transparent);
   }
 
   .site-chrome-footer {
     @apply mt-auto border-t;
-    border-color: rgb(255 183 0 / 0.16);
-    background: linear-gradient(180deg, rgb(23 54 79 / 0.16) 0%, rgb(11 16 24 / 0.98) 58%, rgb(36 0 0 / 0.98) 100%);
+    border-color: color-mix(in srgb, var(--color-page-kit-border-strong) 16%, transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-page-kit-action-bg) 16%, transparent) 0%,
+      color-mix(in srgb, var(--color-night-slate) 98%, transparent) 58%,
+      color-mix(in srgb, var(--color-page-kit-bg) 98%, transparent) 100%
+    );
   }
 
   .site-chrome-footer-main {
     @apply grid gap-10 border-b pb-8 max-[1024px]:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)];
-    border-color: rgb(255 183 0 / 0.12);
+    border-color: color-mix(in srgb, var(--color-page-kit-border-strong) 12%, transparent);
   }
 
   .site-chrome-footer-link {
@@ -311,35 +334,27 @@
   }
 
   .page-kit-page {
-    --page-kit-bg: #240000;
-    --page-kit-surface: #332500;
-    --page-kit-surface-strong: #330000;
-    --page-kit-text: #fff8e5;
-    --page-kit-muted: #ffe299;
-    --page-kit-border: #996e00;
-    --page-kit-border-strong: #ffb700;
-    --page-kit-accent: #ffd466;
-    --page-kit-accent-strong: #fff1cc;
-    --page-kit-chip-bg: #330000;
-    --page-kit-company: #89b7dc;
-    --page-kit-action-bg: #17364f;
-    --page-kit-action-text: #fff8e5;
-    --page-kit-action-hover-text: #021622;
-    --page-kit-hero-overlay: linear-gradient(
-        110deg,
-        rgb(36 0 0 / 0.92) 0%,
-        rgb(36 26 0 / 0.78) 46%,
-        rgb(8 19 27 / 0.7) 100%
-      ),
-      radial-gradient(circle at 16% 24%, rgb(255 183 0 / 0.16), transparent 28%),
-      radial-gradient(circle at 82% 18%, rgb(59 134 196 / 0.22), transparent 30%),
-      linear-gradient(180deg, rgb(8 19 27 / 0.08) 0%, rgb(8 19 27 / 0.26) 100%);
+    --page-kit-bg: var(--color-page-kit-bg);
+    --page-kit-surface: var(--color-page-kit-surface);
+    --page-kit-surface-strong: var(--color-page-kit-surface-strong);
+    --page-kit-text: var(--color-page-kit-text);
+    --page-kit-muted: var(--color-page-kit-muted);
+    --page-kit-border: var(--color-page-kit-border);
+    --page-kit-border-strong: var(--color-page-kit-border-strong);
+    --page-kit-accent: var(--color-page-kit-accent);
+    --page-kit-accent-strong: var(--color-page-kit-accent-strong);
+    --page-kit-chip-bg: var(--color-page-kit-chip-bg);
+    --page-kit-company: var(--color-page-kit-company);
+    --page-kit-action-bg: var(--color-page-kit-action-bg);
+    --page-kit-action-text: var(--color-page-kit-action-text);
+    --page-kit-action-hover-text: var(--color-page-kit-action-hover-text);
+    --page-kit-hero-overlay: var(--color-page-kit-hero-overlay);
 
     --color-surface-panel: var(--page-kit-surface);
     --color-surface-raised: var(--page-kit-surface-strong);
     --color-copy-primary: var(--page-kit-text);
     --color-copy-secondary: var(--page-kit-muted);
-    --color-copy-muted: #f0dba5;
+    --color-copy-muted: var(--color-page-kit-muted-soft);
     --color-brand-link: var(--page-kit-accent-strong);
     --color-brand-link-hover: var(--page-kit-accent);
     --color-focus-ring: var(--page-kit-accent);
@@ -357,7 +372,7 @@
     }
 
   .page-kit-section-label {
-    @apply mb-[var(--space-lg)] flex items-center gap-[var(--space-lg)];
+    @apply mb-(--space-lg) flex items-center gap-(--space-lg);
   }
 
   .page-kit-section-label-line {
@@ -373,7 +388,7 @@
   }
 
   .page-kit-status-pill {
-    @apply inline-flex w-fit items-center gap-[var(--space-md)] border text-sm font-semibold shadow-panel;
+    @apply inline-flex w-fit items-center gap-(--space-md) border text-sm font-semibold shadow-panel;
     padding: var(--space-sm) var(--space-lg);
     border-radius: 9999px;
     background-color: var(--page-kit-surface-strong, var(--experience-surface-strong, var(--color-carbon-black-900)));
@@ -388,7 +403,7 @@
 
   .page-kit-hero-backdrop {
     @apply absolute inset-0 overflow-hidden;
-    background-color: #021622;
+    background-color: var(--color-page-kit-hero-backdrop);
   }
 
   .page-kit-hero-backdrop::before {
@@ -415,9 +430,9 @@
     @apply absolute inset-y-0 right-0 hidden lg:block;
     width: min(36%, 26rem);
     background:
-      linear-gradient(180deg, rgb(59 134 196 / 0.12), transparent 100%),
-      radial-gradient(circle at top, rgb(255 212 102 / 0.22), transparent 62%);
-    border-left: 1px solid rgb(255 183 0 / 0.28);
+      linear-gradient(180deg, var(--color-page-kit-hero-grid-start), transparent 100%),
+      radial-gradient(circle at top, var(--color-page-kit-hero-grid-glow), transparent 62%);
+    border-left: 1px solid color-mix(in srgb, var(--color-page-kit-border-strong) 28%, transparent);
     clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
   }
 
@@ -431,7 +446,7 @@
     right: calc(var(--space-2xl) * -1);
     height: 20rem;
     width: 20rem;
-    background: rgb(255 212 102 / 0.24);
+    background: var(--color-page-kit-hero-glow-primary);
   }
 
   .page-kit-hero-glow-secondary {
@@ -440,7 +455,7 @@
     height: 16rem;
     width: 16rem;
     transform: translateX(-50%);
-    background: rgb(59 134 196 / 0.18);
+    background: var(--color-page-kit-hero-glow-secondary);
   }
 
   .page-kit-action-primary {
@@ -486,7 +501,7 @@
   .page-kit-icon-button {
     @apply inline-flex items-center justify-center border bg-transparent text-copy-muted transition duration-150 ease-out;
     border-radius: var(--radius-md);
-    border-color: var(--page-kit-border, var(--experience-border, rgb(255 255 255 / 0.1)));
+    border-color: var(--page-kit-border, var(--experience-border, var(--color-border-subtle)));
   }
 
   .page-kit-icon-button:hover {
@@ -559,7 +574,7 @@
     width: 1rem;
     border-color: var(--page-kit-accent, var(--experience-accent, var(--color-accent-400)));
     background-color: var(--page-kit-bg, var(--experience-bg, var(--color-carbon-black-950)));
-    box-shadow: 0 0 0 4px rgb(255 212 102 / 0.12);
+    box-shadow: 0 0 0 4px var(--color-page-kit-step-halo-primary);
   }
 
   .page-kit-timeline-dot-current {
@@ -569,7 +584,7 @@
     width: 1.25rem;
     border-color: var(--color-primary-300);
     background-color: var(--color-primary-500);
-    box-shadow: 0 0 0 4px rgb(59 134 196 / 0.18);
+    box-shadow: 0 0 0 4px var(--color-page-kit-step-halo-secondary);
   }
 
   .page-kit-step-card {
@@ -584,7 +599,7 @@
     );
     border-color: var(--page-kit-border-strong, var(--experience-border-strong));
     color: var(--page-kit-text, var(--experience-text));
-    @apply sm:p-[var(--space-xl)];
+    @apply sm:p-(--space-xl);
   }
 
   .page-kit-step-card::before {
@@ -594,15 +609,15 @@
     left: 0;
     width: 0.25rem;
     border-radius: 1rem 0 0 1rem;
-    background: var(--page-kit-step-rail, linear-gradient(180deg, rgb(59 134 196 / 0.96) 0%, rgb(177 78 114 / 0.92) 100%));
+    background: var(--page-kit-step-rail, var(--color-page-kit-step-rail-primary));
   }
 
   .page-kit-step-card-primary {
-    --page-kit-step-rail: linear-gradient(180deg, rgb(59 134 196 / 0.96) 0%, rgb(177 78 114 / 0.92) 100%);
+    --page-kit-step-rail: var(--color-page-kit-step-rail-primary);
   }
 
   .page-kit-step-card-secondary {
-    --page-kit-step-rail: linear-gradient(180deg, rgb(177 78 114 / 0.96) 0%, rgb(59 134 196 / 0.86) 100%);
+    --page-kit-step-rail: var(--color-page-kit-step-rail-secondary);
   }
 
   .page-kit-panel-subtle {
@@ -614,17 +629,17 @@
 
   .page-kit-step-badge {
     @apply inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-950;
-    box-shadow: 0 0 0 4px var(--page-kit-step-halo, rgb(59 134 196 / 0.14));
+    box-shadow: 0 0 0 4px var(--page-kit-step-halo, var(--color-page-kit-step-halo-secondary));
   }
 
   .page-kit-step-badge-primary {
     background-color: var(--color-accent-300);
-    --page-kit-step-halo: rgb(255 212 102 / 0.16);
+    --page-kit-step-halo: var(--color-page-kit-step-halo-primary);
   }
 
   .page-kit-step-badge-secondary {
     background-color: var(--color-primary-200);
-    --page-kit-step-halo: rgb(185 221 246 / 0.18);
+    --page-kit-step-halo: var(--color-page-kit-step-halo-secondary);
   }
 
   .page-kit-icon-frame {
@@ -632,18 +647,18 @@
   }
 
   .page-kit-icon-frame-accent {
-    border-color: rgb(153 110 0 / 0.7);
-    background-color: rgb(51 37 0 / 0.68);
+    border-color: var(--color-page-kit-icon-frame-accent-border);
+    background-color: var(--color-page-kit-icon-frame-accent-bg);
   }
 
   .page-kit-icon-frame-primary {
-    border-color: rgb(23 54 79 / 0.7);
-    background-color: rgb(2 22 34 / 0.68);
+    border-color: var(--color-page-kit-icon-frame-primary-border);
+    background-color: var(--color-page-kit-icon-frame-primary-bg);
   }
 
   .page-kit-icon-frame-secondary {
-    border-color: rgb(111 35 62 / 0.7);
-    background-color: rgb(51 0 0 / 0.72);
+    border-color: var(--color-page-kit-icon-frame-secondary-border);
+    background-color: var(--color-page-kit-icon-frame-secondary-bg);
   }
 
   .page-kit-credential-art {
@@ -654,8 +669,8 @@
 
   .page-kit-credential-logo {
 	@apply h-28 w-28 rounded-2xl object-contain p-3 sm:h-32 sm:w-32;
-    background-color: rgb(255 248 229 / 0.98);
-    box-shadow: inset 0 0 0 1px rgb(51 37 0 / 0.12);
+    background-color: var(--color-page-kit-logo-bg);
+    box-shadow: inset 0 0 0 1px var(--color-page-kit-logo-shadow);
   }
 
   .page-kit-disclosure {
@@ -809,7 +824,11 @@
   .experience-hero-stats {
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
-    background: linear-gradient(135deg, rgb(36 0 0 / 0.88), rgb(8 19 27 / 0.78));
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-page-kit-bg) 88%, transparent),
+      color-mix(in srgb, var(--color-night-slate) 78%, transparent)
+    );
   }
 
   .experience-hero-stat-label {
@@ -925,21 +944,21 @@
   }
 
   .experience-kit-stages {
-    --experience-bg: #240000;
-    --experience-surface: #332500;
-    --experience-surface-strong: #330000;
-    --experience-text: #fff8e5;
-    --experience-muted: #ffe299;
-    --experience-border: #996e00;
-    --experience-border-strong: #ffb700;
-    --experience-accent: #ffd466;
-    --experience-accent-strong: #fff1cc;
-    --experience-accent-soft: rgb(255 183 0 / 0.2);
-    --experience-chip-bg: #330000;
-    --experience-company: #89b7dc;
-    --experience-action-bg: #17364f;
-    --experience-action-text: #fff8e5;
-    --experience-action-hover-text: #021622;
+    --experience-bg: var(--color-page-kit-bg);
+    --experience-surface: var(--color-page-kit-surface);
+    --experience-surface-strong: var(--color-page-kit-surface-strong);
+    --experience-text: var(--color-page-kit-text);
+    --experience-muted: var(--color-page-kit-muted);
+    --experience-border: var(--color-page-kit-border);
+    --experience-border-strong: var(--color-page-kit-border-strong);
+    --experience-accent: var(--color-page-kit-accent);
+    --experience-accent-strong: var(--color-page-kit-accent-strong);
+    --experience-accent-soft: color-mix(in srgb, var(--color-page-kit-accent) 20%, transparent);
+    --experience-chip-bg: var(--color-page-kit-chip-bg);
+    --experience-company: var(--color-page-kit-company);
+    --experience-action-bg: var(--color-page-kit-action-bg);
+    --experience-action-text: var(--color-page-kit-action-text);
+    --experience-action-hover-text: var(--color-page-kit-action-hover-text);
   }
 
   @media (forced-colors: active) {
