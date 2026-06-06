@@ -26,6 +26,6 @@ FROM public.ecr.aws/lambda/provided:al2023
 WORKDIR /var/task
 
 COPY --from=builder /bootstrap ./bootstrap
-COPY cmd/web/static ./cmd/web/static
+COPY --from=builder /app/cmd/web/static ./cmd/web/static
 
 CMD [ "bootstrap" ]
