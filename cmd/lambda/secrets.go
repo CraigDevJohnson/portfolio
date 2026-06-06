@@ -55,12 +55,20 @@ func resolveSSMSecrets(ctx context.Context) error {
 	}
 
 	// Overwrite each env var with its resolved plaintext value.
+	// Treat any missing parameter as a hard error so Lambda fails at cold-start
+	// rather than running with SSM paths as credential values.
 	for _, name := range ssmSecretEnvVars {
 		path := os.Getenv(name)
-		if val, ok := byPath[path]; ok {
-			if err := os.Setenv(name, val); err != nil {
-				return fmt.Errorf("setenv %s: %w", name, err)
-			}
+		if !strings.HasPrefix(path, "/") {
+			// Not an SSM path; skip.
+			continue
+		}
+		val, ok := byPath[path]
+		if !ok {
+			return fmt.Errorf("SSM parameter %q (env %s) not found or inaccessible", path, name)
+		}
+		if err := os.Setenv(name, val); err != nil {
+			return fmt.Errorf("setenv %s: %w", name, err)
 		}
 	}
 	return nil

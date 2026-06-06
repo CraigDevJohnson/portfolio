@@ -10,7 +10,6 @@ Use these files in this order when instructions conflict:
 2. `cmd/server/main.go` and `internal/app/*.go` for the actual application flow.
 3. `README.md` for high-level architecture and local usage.
 4. `DEPLOY-INSTRUCTIONS.md` plus `infra/*.tf` for deployment and infrastructure.
-5. `docs/archive/PRD-2026-internal-app-refactor.md` for historical refactor context.
 
 Link to those docs instead of copying long procedures into new instructions or PR notes.
 

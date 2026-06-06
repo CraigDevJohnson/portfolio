@@ -150,7 +150,7 @@
   }
 
   .form-error {
-    @apply mt-(--space-sm) block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
+    @apply mt-[var(--space-sm)] block border border-secondary-500/25 bg-secondary-500/15 text-sm text-secondary-100;
     padding: var(--space-sm) var(--space-md);
     border-radius: var(--radius-lg);
   }
@@ -357,7 +357,7 @@
     }
 
   .page-kit-section-label {
-    @apply mb-(--space-lg) flex items-center gap-(--space-lg);
+    @apply mb-[var(--space-lg)] flex items-center gap-[var(--space-lg)];
   }
 
   .page-kit-section-label-line {
@@ -373,7 +373,7 @@
   }
 
   .page-kit-status-pill {
-    @apply inline-flex w-fit items-center gap-(--space-md) border text-sm font-semibold shadow-panel;
+    @apply inline-flex w-fit items-center gap-[var(--space-md)] border text-sm font-semibold shadow-panel;
     padding: var(--space-sm) var(--space-lg);
     border-radius: 9999px;
     background-color: var(--page-kit-surface-strong, var(--experience-surface-strong, var(--color-carbon-black-900)));
@@ -584,7 +584,7 @@
     );
     border-color: var(--page-kit-border-strong, var(--experience-border-strong));
     color: var(--page-kit-text, var(--experience-text));
-    @apply sm:p-(--space-xl);
+    @apply sm:p-[var(--space-xl)];
   }
 
   .page-kit-step-card::before {
@@ -754,7 +754,7 @@
   .page-kit-shell,
   .experience-kit-shell {
     @apply relative isolate border shadow-panel-strong;
-    border-radius: 24px !important;
+    border-radius: var(--radius-xl);
     background-color: var(--page-kit-bg, var(--experience-bg));
     border-color: var(--page-kit-border, var(--experience-border));
     color: var(--page-kit-text, var(--experience-text));
@@ -900,7 +900,7 @@
   .page-kit-action,
   .experience-kit-action {
     @apply inline-flex min-h-11 items-center justify-center border px-5 py-2.5 text-sm font-semibold transition duration-150 ease-out;
-    border-radius: 16px !important;
+    border-radius: var(--radius-lg);
     background-color: var(--page-kit-action-bg, var(--experience-action-bg));
     border-color: var(--page-kit-border-strong, var(--experience-border-strong));
     color: var(--page-kit-action-text, var(--experience-action-text));
