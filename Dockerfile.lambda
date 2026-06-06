@@ -18,8 +18,10 @@ RUN go mod download
 
 COPY . .
 
-RUN tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bootstrap ./cmd/lambda
+RUN templ_version="$(go list -m -f '{{.Version}}' github.com/a-h/templ)" \
+  && tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
+  && go run "github.com/a-h/templ/cmd/templ@${templ_version}" generate \
+  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /bootstrap ./cmd/lambda
 
 FROM public.ecr.aws/lambda/provided:al2023
 
