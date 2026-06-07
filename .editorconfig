@@ -16,7 +16,8 @@ max_line_length = 120
 [*.md]
 trim_trailing_whitespace = false
 insert_final_newline = true
-max_line_length = 80
+max_line_length = off
+indent_size = unset
 
 # Go files — use tabs to align with gofmt and the Go toolchain (necessary exception)
 [*.go]
@@ -25,6 +26,57 @@ end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
+max_line_length = off
+
+# Templ templates use tab indentation and often include long utility-class strings
+[*.templ]
+indent_style = unset
+max_line_length = off
+
+[*.css]
+max_line_length = off
+
+[*.js]
+max_line_length = off
+
+[*.yaml]
+max_line_length = off
+
+[*.yml]
+max_line_length = off
+
+[*.tf]
+max_line_length = off
+
+[Dockerfile*]
+max_line_length = off
+
+[*.toml]
+max_line_length = off
+
+[*.html]
+max_line_length = off
+
+[*.json]
+max_line_length = off
+
+[internal/portfolio/data/experience.json]
+end_of_line = unset
+insert_final_newline = unset
+
+[internal/portfolio/data/skills.json]
+end_of_line = unset
+insert_final_newline = unset
+
+[docs/plans/*.md]
+indent_style = unset
+
+[cmd/web/tailwind/*.css]
+indent_style = unset
+indent_size = unset
+
+[cmd/web/static/js/*.js]
+indent_style = unset
 
 # Lock files and binary assets
 [*.lock]

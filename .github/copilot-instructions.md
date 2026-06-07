@@ -42,8 +42,8 @@ Dependencies flow downward from `internal/app` through domain packages to `types
 - `task tailwind-watch` rebuilds the generated Tailwind stylesheet while you edit Tailwind source files.
 - `task test` runs `go test -v ./...`.
 - `task vet` runs `go vet ./...`.
-- `task fmt` runs `golangci-lint fmt --config .golangci.toml`.
-- `task lint` runs Go lint autofixes.
+- `task fmt` runs `qlty fmt --all`
+- `task lint` runs `qlty lint --all`.
 
 Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 

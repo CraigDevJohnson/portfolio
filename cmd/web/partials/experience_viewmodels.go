@@ -235,12 +235,36 @@ func uniqueTopTechnologies(experiences []types.Experience, limit int) []string {
 
 func capabilityCounts(frequency map[string]int) []experienceCapabilityCount {
 	definitions := []experienceCapabilityCount{
-		{Code: "cloud", Label: "Cloud Platforms", Description: "Infrastructure design, migration, and modernization."},
-		{Code: "automation", Label: "Automation & IaC", Description: "Repeatable delivery through scripting, pipelines, and configuration as code."},
-		{Code: "security", Label: "Security & Compliance", Description: "Controls, policy enforcement, and operational hardening."},
-		{Code: "systems", Label: "Systems Engineering", Description: "Platform ownership across endpoints, identity, messaging, and operations."},
-		{Code: "devops", Label: "DevOps Delivery", Description: "Release flow, CI/CD, GitOps, and deployment enablement."},
-		{Code: "scripting", Label: "Scripting", Description: "PowerShell, Bash, Python, and Go used to remove manual work."},
+		{
+			Code:        "cloud",
+			Label:       "Cloud Platforms",
+			Description: "Infrastructure design, migration, and modernization.",
+		},
+		{
+			Code:        "automation",
+			Label:       "Automation & IaC",
+			Description: "Repeatable delivery through scripting, pipelines, and configuration as code.",
+		},
+		{
+			Code:        "security",
+			Label:       "Security & Compliance",
+			Description: "Controls, policy enforcement, and operational hardening.",
+		},
+		{
+			Code:        "systems",
+			Label:       "Systems Engineering",
+			Description: "Platform ownership across endpoints, identity, messaging, and operations.",
+		},
+		{
+			Code:        "devops",
+			Label:       "DevOps Delivery",
+			Description: "Release flow, CI/CD, GitOps, and deployment enablement.",
+		},
+		{
+			Code:        "scripting",
+			Label:       "Scripting",
+			Description: "PowerShell, Bash, Python, and Go used to remove manual work.",
+		},
 	}
 
 	result := make([]experienceCapabilityCount, 0, len(definitions))

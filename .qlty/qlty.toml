@@ -84,14 +84,6 @@ name = "hadolint"
 name = "osv-scanner"
 
 [[plugin]]
-name = "radarlint-go"
-mode = "monitor"
-
-[[plugin]]
-name = "radarlint-iac"
-mode = "monitor"
-
-[[plugin]]
 name = "ripgrep"
 mode = "comment"
 

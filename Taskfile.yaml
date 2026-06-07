@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 
 version: "3"
+silent: true
 
 vars:
   GOFLAGS: ""
@@ -85,9 +86,10 @@ tasks:
   # ── Quality ────────────────────────────────────────────────────────────────
 
   fmt:
-    desc: Format Go source files
+    desc: Format files
     cmds:
-      - golangci-lint fmt --config .qlty/configs/.golangci.toml
+      # - golangci-lint fmt --config .qlty/configs/.golangci.toml
+      - qlty fmt --all
 
   vet:
     desc: Run go vet
@@ -95,15 +97,16 @@ tasks:
       - "go vet ./..."
 
   lint:
-    desc: Lint Go source files
+    desc: Lint files
+    deps: [fmt, vet]
     cmds:
-      - |
-        set -eu
-        if ! command -v golangci-lint >/dev/null 2>&1 || golangci-lint version --short 2>/dev/null | grep -qE '^[0-1]'; then
-          echo "golangci-lint v2+ not found -- please run 'task install-lint' to install it"
-          exit 1
-        fi
-        golangci-lint run --config .qlty/configs/.golangci.toml --fix
+      - qlty check --all
+        # set -eu
+        # if ! command -v golangci-lint >/dev/null 2>&1 || golangci-lint version --short 2>/dev/null | grep -qE '^[0-1]'; then
+        #   echo "golangci-lint v2+ not found -- please run 'task install-lint' to install it"
+        #   exit 1
+        # fi
+        # golangci-lint run --config .qlty/configs/.golangci.toml --fix
 
   ci:
     desc: Check quality, run tests and build the binary
@@ -137,12 +140,18 @@ tasks:
   install-air:
     desc: Install air for hot-reload development
     cmds:
-      - echo "Installing air for hot-reload development..."
-      - "go install github.com/air-verse/air@latest"
-      - echo "air installed successfully!"
+      - |
+        if command -v air >/dev/null 2>&1; then
+          echo "air is already installed -- skipping installation"
+          exit 0
+        fi
+        echo "Installing air for hot-reload development..."
+        curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
+        echo "air installed successfully!"
 
   install-lint:
     desc: Install golangci-lint v2 for linting
+    silent: true
     cmds:
       - |
         set -eu
@@ -153,10 +162,24 @@ tasks:
         fi
         echo "golangci-lint is installed and up to date!"
 
+  install-qlty:
+    desc: Install qlty for code quality checks
+    silent: true
+    cmds:
+      - |
+        if command -v qlty >/dev/null 2>&1; then
+          echo "qlty is already installed -- skipping installation"
+          exit 0
+        fi
+        echo "Installing qlty for code quality checks..."
+        curl https://qlty.sh | sh
+        echo "qlty installed successfully!"
+
   install-tailwind:
     desc:
       Install the pinned Tailwind standalone CLI used by local builds, CI, and
       Docker
+    silent: true
     cmds:
       - |
         set -eu
@@ -179,6 +202,7 @@ tasks:
 
   install-templ:
     desc: Install Templ
+    silent: true
     cmds:
       - |
         go install github.com/a-h/templ/cmd/templ@latest
