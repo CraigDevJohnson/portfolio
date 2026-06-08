@@ -1,5 +1,8 @@
 FROM golang:1.26.4-alpine AS builder
 
+# checkov:skip=CKV_DOCKER_2:HEALTHCHECK not relevant for Lambda container
+# checkov:skip=CKV_DOCKER_3:Lambda provided runtime manages user context
+
 WORKDIR /app
 
 ARG TAILWIND_VERSION=v4.2.4
@@ -30,4 +33,4 @@ WORKDIR /var/task
 COPY --from=builder /bootstrap ./bootstrap
 COPY --from=builder /app/cmd/web/static ./cmd/web/static
 
-CMD [ "bootstrap" ]
+CMD ["bootstrap"]

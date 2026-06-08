@@ -18,5 +18,5 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LPS_SESSION_KEY: ${LPS_SESSION_KEY}
     ports:
-      - "8080:8080"
+      - 8080:8080
     restart: unless-stopped

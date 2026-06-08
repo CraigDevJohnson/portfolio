@@ -1,8 +1,10 @@
 # Portfolio Codebase Instructions
 
-Always use Context7 MCP when you need library or API documentation, code generation, setup steps, or configuration details.
+Always use Context7 MCP when you need library or API documentation, code generation, setup steps, or configuration details. If Context7 MCP is unavailable or returns no relevant results, fall back to the source-of-truth files defined in the Source of Truth Order section and note in your response that live documentation was not consulted.
 
 ## Source of Truth Order
+
+The Known Drift section below supersedes all of the files in this section for the specific topics it covers. For all other topics, use the ranked order below.
 
 Use these files in this order when instructions conflict:
 
@@ -50,6 +52,7 @@ Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo'
 ## Templ Workflow
 
 - Edit `.templ` source files, not generated `*_templ.go` files.
+- If a user asks to edit a `*_templ.go` file directly, decline and explain that these are generated artifacts; instruct them to edit the corresponding `.templ` source file and run `task generate`.
 - Run `task generate` after any `.templ` change unless another command already does it.
 - Tailwind source lives under `cmd/web/tailwind/`; compile it with `task tailwind-build` or `task tailwind-watch`.
 - CSS-first component and page rules live in `cmd/web/tailwind/components.css` and `cmd/web/tailwind/soccer.css`; they are compiled into the generated Tailwind output.
@@ -87,6 +90,7 @@ Relevant handlers and components:
 - `LPS_SESSION_KEY` is the critical runtime secret for soccer auth.
 - `LPS_API_BASE_URL` is optional and overrides the upstream API base URL.
 - Google Calendar integration also requires `CLIENT_ID_KEY` and `CLIENT_SECRET_KEY`. In App Runner, `infra/*.tf` supplies `GOOGLE_CONNECTION_TABLE_NAME`; local runs still need it set. See `DEPLOY-INSTRUCTIONS.md` for deployment details.
+- If a user asks about Google Calendar integration and these variables are not set, instruct them to follow `DEPLOY-INSTRUCTIONS.md` for local setup and do not attempt to generate integration code that assumes the variables are present.
 - `docker-compose.yml` expects local env configuration and passes through `LPS_SESSION_KEY`.
 - The runtime server listens on port `8080`.
 - Use `infra/*.tf` as the source of truth for actual Terraform or OpenTofu defaults; deployment prose may lag behind.
@@ -94,7 +98,7 @@ Relevant handlers and components:
 ## Known Drift To Avoid
 
 - Older docs still mention manual player-ID import. Ignore that and follow the current code.
-- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.4 and uses `task fmt` via golangci-lint (config at `.qlty/configs/.golangci.toml`).
+- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.4 and uses `task fmt`, not `go fmt ./...`.
 - References to `cmd/web/tailwind/legacy/` or `tailwindcss/legacy/` are stale — that directory no longer exists.
 - References to `PROGRESS.md` or `PRD.md` at the repo root are stale — those files do not exist.
 - Historical workspace tasks may reference generated Templ files or old commit flows. Follow `Taskfile.yaml`, not old one-off commands.
@@ -104,4 +108,4 @@ Relevant handlers and components:
 - Keep changes focused and minimal.
 - Reuse the existing structs in `types/types.go` before adding new ones.
 - Preserve server-rendered and HTMX-first patterns instead of introducing SPA-style client state.
-- Validate the smallest relevant surface after changes: `task generate` for Templ edits, `task test` for behavior changes, `task build` before finishing when practical.
+- Validate the smallest relevant surface after changes: `task generate` for Templ edits, `task test` for behavior changes, and `task build` before finishing unless the change is limited to `.templ` files or documentation only.

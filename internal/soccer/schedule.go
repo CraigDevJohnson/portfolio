@@ -378,6 +378,49 @@ func splitDelimitedValues(raw string) []string {
 	})
 }
 
+func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) []types.PlayerTeamGroup {
+	knownTeamIDs := make(map[int]struct{}, len(session.KnownTeams))
+	for _, t := range session.KnownTeams {
+		knownTeamIDs[t.TeamID] = struct{}{}
+	}
+
+	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
+	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
+	for _, p := range session.Players {
+		playerMap[p.UPlayerID] = p
+	}
+
+	var groups []types.PlayerTeamGroup
+	for _, playerID := range playerIDs {
+		player, ok := playerMap[playerID]
+		if !ok {
+			continue
+		}
+		rawTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
+		if err != nil {
+			continue
+		}
+		var teams []types.LPSTeam
+		for _, t := range rawTeams {
+			if t.UTeamID <= 0 {
+				continue
+			}
+			_, isKnown := knownTeamIDs[t.UTeamID]
+			teams = append(teams, types.LPSTeam{
+				TeamID:    t.UTeamID,
+				TeamName:  t.TeamName,
+				Season:    t.Season,
+				PlayerID:  playerID,
+				IsSubTeam: !isKnown,
+			})
+		}
+		if len(teams) > 0 {
+			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
+		}
+	}
+	return groups
+}
+
 // DiscoverTeamsHandler fetches current LPS teams for the selected players and
 // returns the team-selection fragment so users can include/exclude teams before
 // fetching schedules.
@@ -411,45 +454,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	knownTeamIDs := make(map[int]struct{}, len(session.KnownTeams))
-	for _, t := range session.KnownTeams {
-		knownTeamIDs[t.TeamID] = struct{}{}
-	}
-
-	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
-	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
-	for _, p := range session.Players {
-		playerMap[p.UPlayerID] = p
-	}
-
-	var groups []types.PlayerTeamGroup
-	for _, playerID := range playerIDs {
-		player, ok := playerMap[playerID]
-		if !ok {
-			continue
-		}
-		rawTeams, err := resolver.FetchPlayerTeams(r.Context(), playerID)
-		if err != nil {
-			continue
-		}
-		var teams []types.LPSTeam
-		for _, t := range rawTeams {
-			if t.UTeamID <= 0 {
-				continue
-			}
-			_, isKnown := knownTeamIDs[t.UTeamID]
-			teams = append(teams, types.LPSTeam{
-				TeamID:    t.UTeamID,
-				TeamName:  t.TeamName,
-				Season:    t.Season,
-				PlayerID:  playerID,
-				IsSubTeam: !isKnown,
-			})
-		}
-		if len(teams) > 0 {
-			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
-		}
-	}
+	groups := h.resolvePlayerTeams(r.Context(), session, playerIDs)
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerTeamSelect(partials.SoccerTeamSelectProps{

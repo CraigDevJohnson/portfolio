@@ -23,7 +23,6 @@ exclude_patterns = [
   "**/bower_components/**",
   "**/build/**",
   "**/cache/**",
-  "**/config/**",
   "**/db/**",
   "**/deps/**",
   "**/dist/**",
@@ -92,3 +91,46 @@ name = "trufflehog"
 
 [[plugin]]
 name = "zizmor"
+
+[[plugin]]
+name = "markdownlint"
+mode = "comment"
+config_files = [".qlty/configs/.markdownlint.yaml"]
+
+[[plugin]]
+name = "shellcheck"
+
+[[plugin]]
+name = "radarlint-go"
+mode = "monitor"
+
+[[plugin]]
+name = "radarlint"
+config_files = [".qlty/configs/radarlint.properties"]
+
+[[plugin]]
+name = "radarlint-iac"
+mode = "monitor"
+config_files = [".qlty/configs/radarlint.properties"]
+
+[[plugin]]
+name = "shfmt"
+config_files = [".editorconfig"]
+
+[[plugin]]
+name = "dockerfmt"
+version = "0.5.2"
+config_files = [".editorconfig"]
+
+[[plugin]]
+name = "checkov"
+
+[[plugin]]
+name = "dotenv-linter"
+mode = "comment"
+
+[[plugin]]
+name = "yamllint"
+
+[[plugin]]
+name = "gitleaks"

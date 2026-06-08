@@ -67,6 +67,12 @@ resource "aws_iam_role_policy_attachment" "lambda_runtime_secrets" {
 # ──────────────────────────────────────────────
 
 resource "aws_lambda_function" "app" {
+  # checkov:skip=CKV_AWS_173:Secrets handled via SSM at cold-start, not env vars
+  # checkov:skip=CKV_AWS_272:Code signing not needed for personal portfolio
+  # checkov:skip=CKV_AWS_116:No DLQ needed for this use case
+  # checkov:skip=CKV_AWS_115:No concurrent execution limit needed
+  # checkov:skip=CKV_AWS_117:VPC integration not needed for this app
+  # checkov:skip=CKV_AWS_50:X-Ray tracing not needed for personal portfolio
   function_name = "${var.app_name}-lambda"
   role          = aws_iam_role.lambda_execution.arn
   package_type  = "Image"
@@ -114,12 +120,14 @@ resource "aws_apigatewayv2_integration" "lambda_proxy" {
 }
 
 resource "aws_apigatewayv2_route" "lambda_default" {
+  # checkov:skip=CKV_AWS_309:Public route intended for website access
   api_id    = aws_apigatewayv2_api.lambda.id
   route_key = "$default"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
 }
 
 resource "aws_apigatewayv2_stage" "lambda_default" {
+  # checkov:skip=CKV_AWS_76:Access logging not needed for personal portfolio
   api_id      = aws_apigatewayv2_api.lambda.id
   name        = "$default"
   auto_deploy = true

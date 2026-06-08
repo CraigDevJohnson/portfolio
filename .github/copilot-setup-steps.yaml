@@ -1,5 +1,6 @@
 name: Copilot Setup Steps
 
+# yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
   push:

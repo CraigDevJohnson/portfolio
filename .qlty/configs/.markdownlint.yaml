@@ -1,0 +1,14 @@
+# Markdownlint configuration for the portfolio project.
+# Rules are aligned with .editorconfig settings for *.md files.
+# Reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# MD013 - Line length: disabled because .editorconfig sets max_line_length = off
+#         for *.md files; long URLs and code spans are common in docs.
+MD013: false
+
+# MD033 - Inline HTML: allow, Templ partials and README docs use HTML snippets.
+MD033: false
+
+# MD041 - First line must be a top-level heading: disable for partial/fragment
+#         files that intentionally omit a document heading.
+MD041: false

@@ -16,51 +16,30 @@ import (
 // application configuration is loaded.
 var ssmSecretEnvVars = []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"}
 
-// resolveSSMSecrets replaces each env var in ssmSecretEnvVars whose current
-// value begins with "/" with the decrypted value fetched from AWS SSM Parameter
-// Store. This keeps plaintext secrets out of Terraform state while still making
-// them available to the application via the standard os.Getenv API.
-func resolveSSMSecrets(ctx context.Context) error {
-	// Collect the env vars that contain SSM parameter paths.
+func collectSSMPaths() []string {
 	paths := make([]string, 0, len(ssmSecretEnvVars))
 	for _, name := range ssmSecretEnvVars {
 		if val := os.Getenv(name); strings.HasPrefix(val, "/") {
 			paths = append(paths, val)
 		}
 	}
-	if len(paths) == 0 {
-		return nil
-	}
+	return paths
+}
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("load AWS config: %w", err)
-	}
-	client := ssm.NewFromConfig(cfg)
-
-	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
-		Names:          paths,
-		WithDecryption: aws.Bool(true),
-	})
-	if err != nil {
-		return fmt.Errorf("GetParameters: %w", err)
-	}
-
-	// Build a path→value index from the response.
+func buildPathIndex(out *ssm.GetParametersOutput) map[string]string {
 	byPath := make(map[string]string, len(out.Parameters))
 	for _, p := range out.Parameters {
 		if p.Name != nil && p.Value != nil {
 			byPath[*p.Name] = *p.Value
 		}
 	}
+	return byPath
+}
 
-	// Overwrite each env var with its resolved plaintext value.
-	// Treat any missing parameter as a hard error so Lambda fails at cold-start
-	// rather than running with SSM paths as credential values.
+func applySSMSecrets(byPath map[string]string) error {
 	for _, name := range ssmSecretEnvVars {
 		path := os.Getenv(name)
 		if !strings.HasPrefix(path, "/") {
-			// Not an SSM path; skip.
 			continue
 		}
 		val, ok := byPath[path]
@@ -72,4 +51,29 @@ func resolveSSMSecrets(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// resolveSSMSecrets replaces each env var in ssmSecretEnvVars whose current
+// value begins with "/" with the decrypted value fetched from AWS SSM Parameter
+// Store. This keeps plaintext secrets out of Terraform state while still making
+// them available to the application via the standard os.Getenv API.
+func resolveSSMSecrets(ctx context.Context) error {
+	paths := collectSSMPaths()
+	if len(paths) == 0 {
+		return nil
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("load AWS config: %w", err)
+	}
+	client := ssm.NewFromConfig(cfg)
+	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
+		Names:          paths,
+		WithDecryption: aws.Bool(true),
+	})
+	if err != nil {
+		return fmt.Errorf("GetParameters: %w", err)
+	}
+	byPath := buildPathIndex(out)
+	return applySSMSecrets(byPath)
 }

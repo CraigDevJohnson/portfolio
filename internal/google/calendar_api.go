@@ -16,6 +16,8 @@ import (
 	"portfolio/types"
 )
 
+const calendarEventsPath = "calendars/"
+
 func decodeEvent(resp *http.Response) (*Event, error) {
 	defer resp.Body.Close()
 	var event Event
@@ -62,7 +64,7 @@ func (h *Handler) newAPIRequest(ctx context.Context, method, requestPath string,
 }
 
 func (h *Handler) insertCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *Event) (*http.Response, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodPost, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
+	req, err := h.newAPIRequest(ctx, http.MethodPost, calendarEventsPath+url.PathEscape(calendarID)+"/events", url.Values{"sendUpdates": {"none"}}, token, event)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +72,7 @@ func (h *Handler) insertCalendarEvent(ctx context.Context, calendarID string, to
 }
 
 func (h *Handler) getCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token) (*http.Response, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), nil, token, nil)
+	req, err := h.newAPIRequest(ctx, http.MethodGet, calendarEventsPath+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), nil, token, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +80,7 @@ func (h *Handler) getCalendarEvent(ctx context.Context, calendarID, eventID stri
 }
 
 func (h *Handler) updateCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token, event *Event) (*http.Response, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodPut, "calendars/"+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), url.Values{"sendUpdates": {"none"}}, token, event)
+	req, err := h.newAPIRequest(ctx, http.MethodPut, calendarEventsPath+url.PathEscape(calendarID)+"/events/"+url.PathEscape(eventID), url.Values{"sendUpdates": {"none"}}, token, event)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +88,7 @@ func (h *Handler) updateCalendarEvent(ctx context.Context, calendarID, eventID s
 }
 
 func (h *Handler) listCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodGet, "calendars/"+url.PathEscape(calendarID)+"/events", url.Values{
+	req, err := h.newAPIRequest(ctx, http.MethodGet, calendarEventsPath+url.PathEscape(calendarID)+"/events", url.Values{
 		"maxResults":              {"10"},
 		"privateExtendedProperty": {"game_id=" + gameID},
 		"showDeleted":             {"true"},

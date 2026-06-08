@@ -25,6 +25,8 @@ data "aws_kms_alias" "ssm" {
 # ──────────────────────────────────────────────
 
 resource "aws_ecr_repository" "app" {
+  # checkov:skip=CKV_AWS_51:Mutable tags required by deployment workflow
+  # checkov:skip=CKV_AWS_136:KMS encryption not needed for personal portfolio
   name                 = var.app_name
   image_tag_mutability = "MUTABLE"
   # Do not force-delete the repository when it still contains images to avoid accidental loss in production.
@@ -62,6 +64,8 @@ resource "aws_ecr_lifecycle_policy" "app" {
 # ──────────────────────────────────────────────
 
 resource "aws_dynamodb_table" "google_connections" {
+  # checkov:skip=CKV_AWS_119:KMS encryption not needed for personal portfolio
+  # checkov:skip=CKV_AWS_28:Point-in-time recovery not needed for personal portfolio
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "connection_id"
   name         = local.google_connection_table_name
@@ -82,6 +86,8 @@ resource "aws_dynamodb_table" "google_connections" {
 # ──────────────────────────────────────────────
 
 resource "aws_dynamodb_table" "soccer_sessions" {
+  # checkov:skip=CKV_AWS_119:KMS encryption not needed for personal portfolio
+  # checkov:skip=CKV_AWS_28:Point-in-time recovery not needed for personal portfolio
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "session_id"
   name         = local.soccer_session_table_name

@@ -121,6 +121,19 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 	if err != nil {
 		return nil, false, false, err
 	}
+	event, found, authRejected, err := h.handleGetEventByIDResponse(resp, gameID)
+	if found || authRejected || err != nil {
+		return event, found, authRejected, err
+	}
+
+	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
+	if err != nil {
+		return nil, false, false, err
+	}
+	return h.handleListEventsResponse(resp, gameID)
+}
+
+func (h *Handler) handleGetEventByIDResponse(resp *http.Response, gameID string) (*Event, bool, bool, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 		existingEvent, decodeErr := decodeEvent(resp)
@@ -130,8 +143,10 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 		if eventMatchesGameID(existingEvent, gameID) {
 			return existingEvent, true, false, nil
 		}
+		return nil, false, false, nil
 	case http.StatusNotFound, http.StatusGone:
 		resp.Body.Close()
+		return nil, false, false, nil
 	default:
 		authRejected, apiErr := apiResponseError(h.Logger, resp)
 		if authRejected {
@@ -139,11 +154,9 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 		}
 		return nil, false, false, apiErr
 	}
+}
 
-	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
-	if err != nil {
-		return nil, false, false, err
-	}
+func (h *Handler) handleListEventsResponse(resp *http.Response, gameID string) (*Event, bool, bool, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
 		events, decodeErr := decodeEventList(resp)

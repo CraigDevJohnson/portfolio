@@ -2,6 +2,9 @@ ARG BUILDPLATFORM
 
 FROM --platform=$BUILDPLATFORM golang:1.26.4 AS builder
 
+# checkov:skip=CKV_DOCKER_2:HEALTHCHECK - managed by App Runner
+# checkov:skip=CKV_DOCKER_3:nonroot distroless runtime user defined below
+
 WORKDIR /src
 
 ARG TAILWIND_VERSION=v4.2.4
@@ -10,9 +13,8 @@ ARG TARGETARCH=arm64
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
-RUN os="$(uname -s)" \
+  && rm -rf /var/lib/apt/lists/* \
+  && os="$(uname -s)" \
   && arch="$(uname -m)" \
   && case "$os/$arch" in \
   Linux/x86_64|Linux/amd64) asset="tailwindcss-linux-x64" ;; \
@@ -31,7 +33,8 @@ COPY . .
 RUN templ_version="$(go list -m -f '{{.Version}}' github.com/a-h/templ)" \
   && tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
   && go run "github.com/a-h/templ/cmd/templ@${templ_version}" generate \
-  && CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
+  && CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
+    go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
