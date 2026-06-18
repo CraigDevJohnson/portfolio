@@ -63,6 +63,7 @@ default = true
 
 [[plugin]]
 name = "actionlint"
+version = "1.7.12"
 
 [[plugin]]
 name = "editorconfig-checker"
@@ -78,9 +79,11 @@ version = "2.12.2"
 
 [[plugin]]
 name = "hadolint"
+version = "2.14.0"
 
 [[plugin]]
 name = "osv-scanner"
+version = "2.3.8"
 
 [[plugin]]
 name = "ripgrep"
@@ -88,9 +91,11 @@ mode = "comment"
 
 [[plugin]]
 name = "trufflehog"
+version = "3.95.5"
 
 [[plugin]]
 name = "zizmor"
+version = "1.25.2"
 
 [[plugin]]
 name = "markdownlint"
@@ -99,6 +104,7 @@ config_files = [".qlty/configs/.markdownlint.yaml"]
 
 [[plugin]]
 name = "shellcheck"
+version = "0.11.0"
 
 [[plugin]]
 name = "radarlint-go"
@@ -114,23 +120,23 @@ mode = "monitor"
 config_files = [".qlty/configs/radarlint.properties"]
 
 [[plugin]]
-name = "shfmt"
-config_files = [".editorconfig"]
-
-[[plugin]]
 name = "dockerfmt"
 version = "0.5.2"
 config_files = [".editorconfig"]
 
 [[plugin]]
 name = "checkov"
+version = "3.2.530"
 
 [[plugin]]
 name = "dotenv-linter"
 mode = "comment"
+version = "4.0.0"
 
 [[plugin]]
 name = "yamllint"
+version = "1.38.0"
 
 [[plugin]]
 name = "gitleaks"
+version = "8.30.1"

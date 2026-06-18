@@ -47,3 +47,11 @@
 - Ignore references to manual player-ID import — the soccer flow is JWT import + auto-discovery
 - Ignore references to `PROGRESS.md` or `PRD.md` at repo root — they don't exist
 - `Taskfile.yaml` is authoritative, not ad hoc command suggestions in old docs
+
+## Always run the below when making changes to ensure consistency
+
+- `task generate` after editing `.templ` files
+- `task build` after any changes to verify the app compiles successfully
+- `task test` after changes to verify tests pass
+- `task fmt` after editing Go code to maintain consistent formatting (using `qlty fmt --all`)
+- `task lint` after changes to catch any linting issues (using `qlty check --all`)
