@@ -85,7 +85,7 @@ tasks:
     desc: Format files
     cmds:
       - printf "Formatting files...\n"
-      - qlty fmt --all
+      - golangci-lint fmt
 
   vet:
     desc: Run go vet
@@ -97,8 +97,8 @@ tasks:
     deps: [fmt]
     cmds:
       - printf "Running linters to check code quality...\n"
-      - qlty check --all
-      - task: vet
+      - golangci-lint run
+      - printf "All linters passed!\n"
 
   ci:
     desc: Check quality, run tests and build
@@ -137,18 +137,6 @@ tasks:
         curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
         echo "air installed successfully!"
 
-  install-qlty:
-    desc: Install qlty for code quality checks
-    cmds:
-      - |
-        if command -v qlty >/dev/null 2>&1; then
-          echo "qlty is already installed -- skipping installation"
-          exit 0
-        fi
-        echo "Installing qlty for code quality checks..."
-        curl https://qlty.sh | sh
-        echo "qlty installed successfully!"
-
   install-tailwind:
     desc: Install the pinned Tailwind standalone CLI used by local builds, CI, and Docker
     cmds:
@@ -178,7 +166,7 @@ tasks:
 
   install-tools:
     desc: Install all development tools
-    deps: [install-air, install-qlty, install-tailwind]
+    deps: [install-air, install-tailwind]
     cmds:
       - echo "All development tools installed successfully!"
 
