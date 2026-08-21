@@ -73,8 +73,8 @@
 .text-gradient-brand {
   color: var(--candle-oat);
   background: linear-gradient(105deg, var(--candle-oat) 5%, var(--campfire-apricot) 48%, var(--rosehip) 82%, var(--color-warm-signal));
-  background-clip: text;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: none;
 }

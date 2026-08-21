@@ -6,5 +6,23 @@
     "defaults",
     "not ie 11",
     "not chrome <= 109"
-  ]
+  ],
+  "hints": {
+    "compat-api/css": [
+      "default",
+      {
+        "ignore": [
+          "mask-image",
+          "backdrop-filter",
+          "text-wrap",
+          "text-wrap: balance",
+          "scrollbar-gutter",
+          "scrollbar-gutter: auto",
+          "scrollbar-gutter: stable",
+          "forced-color-adjust",
+          "forced-color-adjust: none"
+        ]
+      }
+    ]
+  }
 }
