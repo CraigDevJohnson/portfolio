@@ -7,7 +7,7 @@ regular HTTP server or behind API Gateway on AWS Lambda.
 
 Pinned versions:
 
-- Go 1.26.6
+- Go 1.27.0
 - Templ 0.3.1020
 - HTMX 1.9.10
 - Tailwind CSS 4.2.4 standalone CLI
@@ -32,7 +32,7 @@ actions, and load CloudWatch metrics and logs.
 
 ## Requirements
 
-- Go 1.26.6
+- Go 1.27.0
 - [Task](https://taskfile.dev/)
 - `curl`, used to install the pinned Tailwind CLI
 

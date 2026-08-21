@@ -3,7 +3,7 @@ ARG TEMPL_VERSION=v0.3.1020
 
 FROM --platform=$BUILDPLATFORM ghcr.io/a-h/templ:${TEMPL_VERSION} AS templ
 
-FROM --platform=$BUILDPLATFORM golang:1.26.6 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.0 AS builder
 
 # checkov:skip=CKV_DOCKER_2:HEALTHCHECK - managed by App Runner
 # checkov:skip=CKV_DOCKER_3:nonroot distroless runtime user defined below
