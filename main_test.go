@@ -189,6 +189,8 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 
 	previousConfig := configData
 	token := testJWT(t, time.Now().Add(30*time.Minute))
+	firstGameStart := testMislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	secondGameStart := testMislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
 	requestCounts := map[string]int{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCounts[r.URL.Path]++
@@ -245,11 +247,11 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 				}
 			]`))
 		case "/teams/479393":
-			_, _ = w.Write([]byte(`{
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
 					{
 						"UGameID": 9001,
-						"SchedGameDateTime": "2026-05-01T19:00:00-06:00",
+						"SchedGameDateTime": %q,
 						"field_name": "Arena 1",
 						"facilityName": "North Campus",
 						"FacilityID": 4,
@@ -260,13 +262,13 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 					}
 				],
 				"team": {"UTeamID": 479393, "team_name": "Craig FC", "division_name": "Coed One", "FacilityID": 4, "facility_name": "North Campus", "Season": 77}
-			}`))
+			}`, firstGameStart)))
 		case "/teams/479400":
-			_, _ = w.Write([]byte(`{
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
 					{
 						"UGameID": 9002,
-						"SchedGameDateTime": "2026-05-08T20:15:00-06:00",
+						"SchedGameDateTime": %q,
 						"field_name": "Arena 2",
 						"facilityName": "South Campus",
 						"FacilityID": 8,
@@ -277,7 +279,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 					}
 				],
 				"team": {"UTeamID": 479400, "team_name": "Taylor FC", "division_name": "Coed Two", "FacilityID": 8, "facility_name": "South Campus", "Season": 77}
-			}`))
+			}`, secondGameStart)))
 		case "/facilities/4":
 			_, _ = w.Write([]byte(`{"FacilityID": 4, "FacilityName": "North Campus", "Address": "1 North Rd", "City": "Boise", "State": "ID", "ZIP": "83701"}`))
 		case "/facilities/8":
@@ -1473,6 +1475,8 @@ func TestDownloadICSHandlerReturnsActionableInvalidPlayerError(t *testing.T) {
 
 func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 	previousConfig := configData
+	gameStart := time.Now().Add(24 * time.Hour)
+	gameEnd := gameStart.Add(90 * time.Minute)
 	configData = serverConfig{
 		SessionKey:    []byte("0123456789abcdef0123456789abcdef"),
 		LPSAPIBaseURL: defaultLPSAPIBaseURL,
@@ -1499,12 +1503,12 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 				}
 			]`))
 		case "/teams/8881":
-			_, _ = w.Write([]byte(`{
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
 				"games": [
 					{
 						"UGameID": 888,
-						"SchedGameDateTime": "2026-05-15T20:00:00-06:00",
-						"schedGameEndTime": "2026-05-15T21:30:00-06:00",
+						"SchedGameDateTime": %q,
+						"schedGameEndTime": %q,
 						"facilityName": "North Fieldhouse",
 						"field_name": "Pitch 2",
 						"FacilityID": 12,
@@ -1515,7 +1519,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 					}
 				],
 				"team": {"UTeamID": 8881, "team_name": "Craig FC", "division_name": "Premier", "FacilityID": 12, "facility_name": "North Fieldhouse", "Season": 300}
-			}`))
+			}`, testMislabelledLPSZuluTime(gameStart), testMislabelledLPSZuluTime(gameEnd))))
 		case "/facilities/12":
 			_, _ = w.Write([]byte(`{"FacilityID": 12, "FacilityName": "North Fieldhouse", "Address": "123 Main St", "City": "Boise", "State": "ID", "ZIP": "83709"}`))
 		default:
