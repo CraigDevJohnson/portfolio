@@ -100,7 +100,7 @@
 
 .btn-secondary {
   @apply border text-copy-primary hover:text-copy-primary;
-  background: color-mix(in srgb, var(--pool) 30%, #ffffff);
+  background: color-mix(in srgb, var(--pond-mint) 30%, #ffffff);
   border-color: color-mix(in srgb, var(--pool-800) 28%, transparent);
 }
 
@@ -157,7 +157,7 @@ a.btn-loading[aria-disabled='true'] {
 
 .tech-pill {
   @apply inline-flex items-center rounded-full border px-2 py-1 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-copy-secondary;
-  background: color-mix(in srgb, var(--pool) 22%, #ffffff);
+  background: color-mix(in srgb, var(--pond-mint) 22%, #ffffff);
   border-color: color-mix(in srgb, var(--pool-800) 18%, transparent);
 }
 
@@ -572,7 +572,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
   @apply inline-flex w-fit items-center gap-(--space-md) border font-mono text-xs font-semibold uppercase tracking-[0.08em] shadow-panel;
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-full);
-  background-color: color-mix(in srgb, var(--guava) 20%, #ffffff);
+  background-color: color-mix(in srgb, var(--rosehip) 20%, #ffffff);
   border-color: color-mix(in srgb, var(--guava-800) 28%, transparent);
   color: var(--guava-900);
 }

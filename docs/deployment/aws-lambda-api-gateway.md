@@ -1,109 +1,66 @@
 # AWS Lambda and API Gateway
 
-The Lambda deployment packages the Go HTTP application as a container image and
-adapts API Gateway HTTP API requests through
-`github.com/awslabs/aws-lambda-go-api-proxy`.
+The Lambda image runs the same Go HTTP handler as the regular server. The
+`aws-lambda-go-api-proxy` adapter converts API Gateway HTTP API events into
+`net/http` requests.
 
-## Repository path
+Shared ECR, OpenTofu, secret, deploy, update, and teardown instructions live in
+[`DEPLOY-INSTRUCTIONS.md`](../../DEPLOY-INSTRUCTIONS.md). This page covers only
+the Lambda path.
 
-- `Dockerfile.lambda` builds the Lambda image.
-- `cmd/lambda/main.go` starts the Lambda handler.
+## Code path
+
+- `Dockerfile.lambda` builds the image.
+- `cmd/lambda/main.go` initializes the API Gateway adapter.
 - `cmd/lambda/secrets.go` resolves configured SSM parameter paths during cold
   start.
-- `internal/app.NewLambdaHandler` creates the same application routes without a
-  listening TCP server.
-- `infra/lambda.tf` declares the function, API Gateway integration, IAM, and
-  runtime configuration.
+- `internal/app.NewLambdaHandler` constructs the application routes without a
+  TCP listener.
+- `infra/lambda.tf` declares Lambda, API Gateway, IAM, and runtime settings.
 
-The Lambda and App Runner resources share one ECR repository, two DynamoDB
-tables, and one OpenTofu state. See `DEPLOY-INSTRUCTIONS.md` for backend,
-region, secret, and first-deploy setup.
+The Lambda and App Runner deployments share an ECR repository, DynamoDB tables,
+and OpenTofu state.
 
-## Deploy
+## Deploy and inspect
 
-For the repository's first full infrastructure deployment, run:
+Use `task deploy` for the first complete infrastructure deployment. Use
+`task deploy-lambda` only after the shared ECR and OpenTofu state exist. Later
+image updates use `task redeploy-lambda`.
 
-```bash
-task deploy
-```
-
-That command pushes both `latest` and `lambda-latest` before the full OpenTofu
-apply. To create or refresh only the Lambda path after shared infrastructure
-exists, use:
-
-```bash
-task deploy-lambda
-```
-
-For later Lambda image updates:
-
-```bash
-task redeploy-lambda
-```
-
-Read the API endpoint from OpenTofu:
+Read the API endpoint after deployment:
 
 ```bash
 cd infra
 tofu output -raw lambda_api_url
 ```
 
-## Runtime configuration
+## Runtime behavior
 
-OpenTofu sets:
+OpenTofu passes SSM paths through `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and
+`LPS_SESSION_KEY`. During cold start, `cmd/lambda/secrets.go` replaces those
+paths with decrypted values before application configuration loads. A missing
+or inaccessible configured parameter fails handler initialization.
 
-- `CLIENT_ID_KEY=/portfolio/CLIENT_ID_KEY`
-- `CLIENT_SECRET_KEY=/portfolio/CLIENT_SECRET_KEY`
-- `LPS_SESSION_KEY=/portfolio/LPS_SESSION_KEY`
-- `GOOGLE_CONNECTION_TABLE_NAME` from the managed DynamoDB table
-- `SOCCER_SESSION_TABLE_NAME` from the managed DynamoDB table
-- JSON logging defaults
+OpenTofu also sets the managed Google connection and Soccer session table
+names. The default function configuration is 512 MB with a 30-second timeout.
+`lambda_memory_mb` and `lambda_timeout_seconds` control those values.
 
-At cold start, `cmd/lambda/secrets.go` replaces the three SSM paths with
-decrypted values. A missing or inaccessible configured parameter fails handler
-startup. Create all three SecureString parameters before deployment.
+Register the API Gateway HTTPS URL ending in `/soccer` as a Google OAuth
+redirect URI. Google returns the callback to that same route.
 
-The default Lambda configuration is 512 MB with a 30-second timeout. Change
-`lambda_memory_mb` or `lambda_timeout_seconds` through OpenTofu variables, then
-review `tofu plan` before applying.
+The Lambda resources do not pass `MGMT_*` settings or grant the EC2 and
+CloudWatch permissions used by the optional management portal. The portal is
+therefore unavailable on the managed Lambda path.
 
-## Google OAuth
+## Verify
 
-Register the API Gateway HTTPS URL ending in `/soccer` as an authorized redirect
-URI. The callback returns to the same route.
-
-## EC2 management portal
-
-The Terraform-managed Lambda path does not currently supply or resolve
-`MGMT_*` values and does not attach EC2 or CloudWatch portal permissions.
-Therefore, the optional management portal is not supported on this deployment
-path without additional infrastructure work.
-
-## Cost and behavior
-
-Lambda charges by requests and execution duration, while API Gateway,
-DynamoDB, logs, ECR storage, and data transfer can add charges. Use the current
-[AWS Lambda pricing](https://aws.amazon.com/lambda/pricing/) and AWS Pricing
-Calculator rather than a fixed estimate.
-
-Cold starts can make the first request slower than the long-lived App Runner
-service. Static assets are embedded in the container deployment and served by
-the same handler.
-
-## Verification
-
-Before deployment, run the repository gates:
+Run the repository gate before deployment:
 
 ```bash
-task generate
-task fmt
-task lint
-task vet
-task test
-task build
+task ci
 ```
 
-After deployment, verify at least:
+After deployment, verify these paths:
 
 ```text
 GET /
@@ -111,5 +68,5 @@ GET /soccer
 GET /static/css/tailwind.css
 ```
 
-If cold start fails, check CloudWatch Logs and confirm the function role can
-read each configured SSM path and decrypt its KMS key.
+If cold start fails, inspect CloudWatch Logs. Confirm the function role can read
+each configured SSM parameter and decrypt its KMS key.

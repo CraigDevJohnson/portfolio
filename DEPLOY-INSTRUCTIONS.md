@@ -61,7 +61,7 @@ Both deployed runtimes expect these SecureString parameters:
 - `/portfolio/CLIENT_ID_KEY`
 - `/portfolio/CLIENT_SECRET_KEY`
 
-`LPS_SESSION_KEY` must be a 64-character lowercase hexadecimal value. Create or
+`LPS_SESSION_KEY` must be a 64-character hexadecimal value. Create or
 update the parameters in the infrastructure region before the first full apply:
 
 ```bash
@@ -241,7 +241,7 @@ runtime locally:
 
 ```bash
 docker build --platform linux/amd64 -t portfolio .
-docker run --rm -p 8080:8080 portfolio
+docker run --rm -e APP_BIND_ALL=true -p 8080:8080 portfolio
 ```
 
 Then inspect App Runner operations:

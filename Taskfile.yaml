@@ -141,6 +141,7 @@ tasks:
     desc: Check quality, run tests and build
     cmds:
       - task: clean
+      - task: generate
       - task: fmt
       - task: vet
       - task: _lint-check

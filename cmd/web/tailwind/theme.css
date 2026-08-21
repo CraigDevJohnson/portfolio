@@ -11,20 +11,6 @@
   --pond-mint: #78E3C3;
   --color-warm-signal: color-mix(in srgb, var(--candle-oat) 42%, var(--campfire-apricot));
 
-  /* Compatibility aliases used only by the structural component baseline. */
-  --buttercream: var(--candle-oat);
-  --apricot: var(--campfire-apricot);
-  --guava: var(--rosehip);
-  --pool: var(--pond-mint);
-  --aubergine: var(--night-mulberry);
-  --polar-night: var(--night-mulberry);
-  --fjord: var(--cocoa-cedar);
-  --glacier: var(--pond-mint);
-  --ice: var(--candle-oat);
-  --lichen: var(--campfire-apricot);
-  --salmon: var(--rosehip);
-  --firelight: var(--campfire-apricot);
-
   /* Conventional light-to-dark ramps keep Tailwind shade utilities predictable. */
   --pool-50: color-mix(in srgb, var(--pond-mint) 12%, var(--candle-oat));
   --pool-100: color-mix(in srgb, var(--pond-mint) 28%, var(--candle-oat));
