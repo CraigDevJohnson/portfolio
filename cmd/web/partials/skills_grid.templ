@@ -2,40 +2,11 @@ package partials
 
 import (
 	"fmt"
-	"net/url"
 	"portfolio/types"
 	"strings"
 )
 
-type SkillsGridProps struct {
-	Categories     []types.SkillCategory
-	FeaturedSkills []types.Skill
-}
-
-type SkillsFilterableProps struct {
-	Categories        []types.SkillCategory
-	ActiveCategory    string
-	ActiveProficiency string
-}
-
-const conceptsCategoryName = "Concepts & Practices"
-
-func buildFilterURL(category, proficiency string) string {
-	params := url.Values{}
-	if category != "" {
-		params.Set("category", category)
-	}
-	if proficiency != "" {
-		params.Set("proficiency", proficiency)
-	}
-	q := params.Encode()
-	if q == "" {
-		return "/skills/filtered"
-	}
-	return "/skills/filtered?" + q
-}
-
-// catSlug normalizes a category name for visual variant mapping.
+// catSlug normalizes a category name for the route's restrained tone mapping.
 func catSlug(name string) string {
 	s := strings.ToLower(name)
 	s = strings.ReplaceAll(s, " & ", "-")
@@ -45,466 +16,374 @@ func catSlug(name string) string {
 }
 
 func categoryTagClasses(category string) string {
-	base := "inline-flex rounded-full border px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.06em]"
+	base := "skill-tag"
 	switch catSlug(category) {
-	case "languages-scripting":
-		return base + " border-secondary-500/25 bg-secondary-500/12 text-secondary-100"
-	case "cloud-platforms":
-		return base + " border-primary-500/26 bg-primary-500/12 text-primary-100"
-	case "security-identity":
-		return base + " border-secondary-500/24 bg-secondary-500/12 text-secondary-100"
-	case "containers-orchestration":
-		return base + " border-primary-400/25 bg-primary-500/12 text-primary-100"
-	case "cicd-automation":
-		return base + " border-secondary-500/22 bg-secondary-900/60 text-secondary-100"
-	case "infrastructure-as-code":
-		return base + " border-secondary-500/24 bg-secondary-500/10 text-secondary-100"
-	case "development-tools":
-		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
-	case "operating-systems":
-		return base + " border-primary-500/20 bg-primary-950 text-primary-100"
+	case "languages-scripting", "cicd-automation":
+		return base + " skill-tag-apricot"
+	case "cloud-platforms", "containers-orchestration", "operating-systems":
+		return base + " skill-tag-mint"
+	case "security-identity", "infrastructure-as-code":
+		return base + " skill-tag-rose"
 	default:
-		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
+		return base + " skill-tag-neutral"
 	}
 }
 
 func filterTabClasses(active bool) string {
-	base := "page-kit-action min-h-10 shrink-0 gap-2 whitespace-nowrap px-3.5 py-2 text-xs font-medium tracking-[0.02em]"
+	classes := "skills-filter-tab filter-tab"
 	if active {
-		return base + " border-accent-500 bg-accent-500 text-primary-950 shadow-panel"
+		classes += " skills-filter-tab-active"
 	}
-	return base + " bg-carbon-black-900 text-copy-secondary hover:border-accent-400 hover:bg-carbon-black-950 hover:text-copy-primary"
+	return classes
 }
 
 func proficiencyBadgeClasses(proficiency string, compact bool) string {
-	base := "inline-flex items-center rounded-full border uppercase tracking-[0.05em]"
+	classes := "skill-level"
 	if compact {
-		base += " px-2 py-0.5 text-[0.6rem] font-medium"
-	} else {
-		base += " px-2.5 py-1 text-xs font-medium"
+		classes += " skill-level-compact"
 	}
-
 	switch proficiency {
-	case "expert":
-		return base + " border-primary-500/30 bg-primary-500/15 text-primary-100"
-	case "advanced":
-		return base + " border-secondary-500/28 bg-secondary-500/15 text-secondary-100"
-	case "intermediate":
-		return base + " border-secondary-500/28 bg-secondary-500/14 text-secondary-100"
-	case "familiar":
-		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
+	case "expert", "advanced", "intermediate", "familiar":
+		return classes + " skill-level-" + proficiency
 	default:
-		return base + " border-carbon-black-400/24 bg-carbon-black-700/60 text-carbon-black-100"
+		return classes + " skill-level-familiar"
 	}
 }
 
-func shouldInvertSkillIcon(name string) bool {
-	switch name {
-	case "GitHub", "GitHub Codespaces", "Bash", "Markdown", "SSH", "Splunk", "SQL Server", "CircleCI", "Flask", "Jenkins", "npm", "Node.js":
-		return true
-	default:
-		return false
-	}
-}
-
-func skillImageClasses(name, size string) string {
-	base := size + " object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.28)]"
-	if shouldInvertSkillIcon(name) {
-		return base + " invert"
-	}
-	return base
+func skillImageClasses(size string) string {
+	return size + " skill-asset"
 }
 
 func skillCardClasses(proficiency string) string {
-	base := "page-kit-panel-subtle group flex min-h-36 w-full flex-col p-4 text-left transition duration-200 ease-out hover:-translate-y-1 hover:shadow-panel focus-ring"
-	switch proficiency {
-	case "expert":
-		return base + " border-primary-500/28 hover:border-primary-400/50"
-	case "advanced":
-		return base + " border-secondary-500/26 hover:border-secondary-400/48"
-	case "intermediate":
-		return base + " border-secondary-500/24 hover:border-secondary-400/46"
-	case "familiar":
-		return base + " border-carbon-black-400/24 hover:border-carbon-black-300/32"
-	default:
-		return base + " border-carbon-black-400/24 hover:border-primary-400/35"
-	}
+	classes := "skill-card skill-card-" + proficiency
+	return classes
 }
 
 func skillIconFrameClasses(proficiency string) string {
-	base := "mb-3 flex h-12 w-12 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-	switch proficiency {
-	case "expert":
-		return base + " border-primary-400/30 bg-primary-500/12 text-primary-50"
-	case "advanced":
-		return base + " border-secondary-400/28 bg-secondary-500/12 text-secondary-50"
-	case "intermediate":
-		return base + " border-secondary-400/28 bg-secondary-500/12 text-secondary-50"
-	case "familiar":
-		return base + " border-carbon-black-300/22 bg-carbon-black-700/55 text-carbon-black-50"
-	default:
-		return base + " border-carbon-black-300/22 bg-carbon-black-700/55 text-copy-primary"
-	}
-}
-
-func proficiencyFilterDotClasses(proficiency string) string {
-	base := "inline-block h-2 w-2 shrink-0 rounded-full"
-	switch proficiency {
-	case "expert":
-		return base + " bg-primary-400"
-	case "advanced":
-		return base + " bg-secondary-400"
-	case "intermediate":
-		return base + " bg-secondary-400"
-	case "familiar":
-		return base + " bg-carbon-black-300"
-	default:
-		return base + " bg-carbon-black-300"
-	}
-}
-
-func skillLevelDotClasses(proficiency string) string {
-	base := "pointer-events-none absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full border-2 border-carbon-black-950/80"
-	switch proficiency {
-	case "expert":
-		return base + " bg-primary-400 shadow-[0_0_8px_rgba(0,149,255,0.5)]"
-	case "advanced":
-		return base + " bg-secondary-400 shadow-[0_0_8px_rgba(255,0,98,0.4)]"
-	case "intermediate":
-		return base + " bg-secondary-400 shadow-[0_0_8px_rgba(255,166,0,0.42)]"
-	case "familiar":
-		return base + " bg-carbon-black-300 shadow-[0_0_8px_rgba(171,155,135,0.32)]"
-	default:
-		return base + " bg-carbon-black-300 shadow-[0_0_8px_rgba(171,155,135,0.32)]"
-	}
+	return "skill-icon-frame skill-icon-frame-" + proficiency
 }
 
 func proficiencyFillClasses(proficiency string) string {
-	base := "h-full rounded-[3px] transition-[width] duration-300 ease-out"
-	switch proficiency {
-	case "expert":
-		return base + " w-full bg-primary-400"
-	case "advanced":
-		return base + " w-3/4 bg-secondary-400"
-	case "intermediate":
-		return base + " w-1/2 bg-secondary-400"
-	case "familiar":
-		return base + " w-1/4 bg-carbon-black-300"
-	default:
-		return base + " w-1/3 bg-carbon-black-300"
-	}
-}
-
-func countCategorySkills(skills []types.Skill, proficiency string) int {
-	c := 0
-	for _, s := range skills {
-		if proficiency != "" && s.Proficiency != proficiency {
-			continue
-		}
-		c++
-	}
-	return c
-}
-
-func shouldShowSkill(skill types.Skill, proficiency string) bool {
-	if proficiency != "" && skill.Proficiency != proficiency {
-		return false
-	}
-	return true
-}
-
-func hasVisibleSkills(categories []types.SkillCategory, activeCategory, activeProficiency string) bool {
-	for _, cat := range categories {
-		if cat.Name == conceptsCategoryName {
-			continue
-		}
-		if activeCategory != "" && cat.Name != activeCategory {
-			continue
-		}
-		if countCategorySkills(cat.Skills, activeProficiency) > 0 {
-			return true
-		}
-	}
-	return false
+	return "skill-proficiency-fill skill-proficiency-" + proficiency
 }
 
 templ skillAsset(skill types.Skill, altText string, wrapperClass string, imageClass string) {
 	<span class={ wrapperClass }>
-	if skill.IconPath != "" {
-		<img class={ skillImageClasses(skill.Name, imageClass) } src={ skill.IconPath } alt={ altText } loading="lazy" width="56" height="56"/>
-	} else if skill.Icon != "" {
-		<span class={ imageClass + " flex items-center justify-center [&>svg]:h-full [&>svg]:w-full" }>
-			@templ.Raw(skill.Icon)
-		</span>
-	}
+		if skill.IconPath != "" {
+			<img class={ skillImageClasses(imageClass) } src={ skill.IconPath } alt={ altText } loading="lazy" decoding="async" width="56" height="56"/>
+		} else if skill.Icon != "" {
+			<span class={ imageClass + " skill-inline-icon" }>
+				@templ.Raw(skill.Icon)
+			</span>
+		}
 	</span>
 }
 
 templ featuredSkillCardContent(skill types.Skill) {
-	@skillAsset(skill, skill.Name, "page-kit-icon-frame mb-4 h-16 w-16", "h-10 w-10")
-	<div class="flex w-full flex-1 flex-col items-center gap-2 text-center">
-		<h3 class="text-base font-semibold text-copy-primary">{ skill.Name }</h3>
+	@skillAsset(skill, "", "skills-featured-icon", "skill-asset-featured")
+	<div class="skills-featured-copy">
+		<h3>{ skill.Name }</h3>
 		if skill.Category != "" {
 			<span class={ categoryTagClasses(skill.Category) }>{ skill.Category }</span>
 		}
 		if skill.Description != "" {
-			<p class="text-xs leading-relaxed text-copy-muted">{ skill.Description }</p>
+			<p>{ skill.Description }</p>
 		}
 		<div class={ proficiencyBadgeClasses(skill.Proficiency, false) }>{ skill.Proficiency }</div>
 	</div>
 }
 
 templ conceptCardContent(skill types.Skill) {
-	@skillAsset(skill, "", "page-kit-icon-frame h-11 w-11 shrink-0 rounded-xl text-copy-primary", "h-7 w-7")
-	<div class="min-w-0 flex-1">
-		<span class="block text-sm font-semibold leading-snug text-copy-primary">{ skill.Name }</span>
-		<div class={ proficiencyBadgeClasses(skill.Proficiency, true) }>
-			{ skill.Proficiency }
-		</div>
+	@skillAsset(skill, "", "skills-practice-icon", "skill-asset-practice")
+	<div class="skills-practice-copy">
+		<span class="skills-practice-name">{ skill.Name }</span>
+		<div class={ proficiencyBadgeClasses(skill.Proficiency, true) }>{ skill.Proficiency }</div>
 	</div>
 }
 
 templ SkillsGrid(props SkillsGridProps) {
-	<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-8 sm:gap-10">
-		<!-- Core Competencies -->
-		if len(props.FeaturedSkills) > 0 {
-			<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
-				@SectionIntro(SectionIntroProps{
-					Label: "Featured skills",
-					Title: "Core competencies",
-					Description: "My strongest areas of expertise.",
-					ExtraClass: "max-w-2xl",
-				})
-				<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-					for i, skill := range props.FeaturedSkills {
-						<div class="animate-[card-fade-in_0.4s_ease-out_both]" style={ fmt.Sprintf("animation-delay: %dms;", i*50) }>
-							if skill.Link != "" {
-								<a href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="page-kit-panel-strong group relative flex h-full min-h-0 flex-col items-center px-5 py-6 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/40 hover:shadow-panel focus-ring">
-									@featuredSkillCardContent(skill)
-									<div class="absolute right-4 top-4 text-sm text-copy-muted opacity-0 transition group-hover:opacity-100" aria-hidden="true">↗</div>
-								</a>
-							} else {
-								<div class="page-kit-panel flex h-full min-h-0 flex-col items-center px-5 py-6 opacity-95">
-									@featuredSkillCardContent(skill)
-								</div>
-							}
-						</div>
-					}
-				</div>
-			</div>
-		}
-		<!-- Concepts & Practices (elevated position) -->
-		for _, cat := range props.Categories {
-			if cat.Name == conceptsCategoryName {
-				<div class="page-kit-panel-strong space-y-6 px-6 py-7 sm:px-8 sm:py-8">
+	<div
+		class="skills-workbench-history"
+		data-skills-workbench-history
+		data-skills-request-state="idle"
+		hx-history-elt
+	>
+		<span data-skills-history-focus hidden></span>
+		<div class="skills-showcase" data-skills-showcase>
+			if len(props.FeaturedSkills) > 0 {
+				<section class="skills-featured-panel" aria-labelledby="skills-featured-title">
 					@SectionIntro(SectionIntroProps{
-						Label: "Engineering approach",
-						Title: "Concepts &amp; Practices",
-						Description: "Engineering principles that guide my approach.",
-						ExtraClass: "max-w-2xl",
+						Label:       "Featured skills",
+						Title:       "Core competencies",
+						Description: "My strongest areas of expertise.",
+						ExtraClass:  "skills-section-intro",
+						HeadingID:   "skills-featured-title",
 					})
-					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-						for i, skill := range cat.Skills {
+					<div class="skills-featured-mosaic">
+						for _, item := range props.FeaturedSkills {
+							<article class="skills-featured-tile" data-featured-slot={ item.Slot }>
+								if item.Skill.Link != "" {
+									<a id={ fmt.Sprintf("skill-featured-link-%d", item.Skill.ID) } href={ templ.SafeURL(item.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-featured-card">
+										@featuredSkillCardContent(item.Skill)
+										<span class="sr-only">(opens in a new tab)</span>
+										<span class="skills-external-mark" aria-hidden="true">↗</span>
+									</a>
+								} else {
+									<div class="skills-featured-card">
+										@featuredSkillCardContent(item.Skill)
+									</div>
+								}
+							</article>
+						}
+					</div>
+				</section>
+			}
+			if len(props.PracticeSkills) > 0 {
+				<section class="skills-practices-panel" aria-labelledby="skills-practices-title">
+					@SectionIntro(SectionIntroProps{
+						Label:       "Engineering approach",
+						Title:       "Concepts & Practices",
+						Description: "Engineering principles that guide my approach.",
+						ExtraClass:  "skills-section-intro",
+						HeadingID:   "skills-practices-title",
+					})
+					<div class="skills-practice-grid">
+						for _, skill := range props.PracticeSkills {
 							if skill.Link != "" {
-								<a
-									href={ templ.SafeURL(skill.Link) }
-									target="_blank"
-									rel="noopener noreferrer"
-									class="page-kit-panel-subtle group grid min-h-[5.5rem] grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-4 text-inherit transition duration-200 ease-out hover:-translate-y-1 hover:border-primary-400/34 hover:shadow-panel focus-ring"
-									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
-								>
+								<a id={ fmt.Sprintf("skill-practice-link-%d", skill.ID) } href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-practice-card">
 									@conceptCardContent(skill)
-									<span class="text-sm text-copy-muted opacity-0 transition group-hover:opacity-100" aria-hidden="true">↗</span>
+									<span class="sr-only">(opens in a new tab)</span>
+									<span class="skills-external-mark" aria-hidden="true">↗</span>
 								</a>
 							} else {
-								<div
-									class="page-kit-panel-subtle grid min-h-[5.5rem] grid-cols-[auto_1fr] items-center gap-4 px-4 py-4"
-									style={ fmt.Sprintf("animation-delay: %dms;", i*60) }
-								>
+								<div class="skills-practice-card">
 									@conceptCardContent(skill)
 								</div>
 							}
 						}
 					</div>
-				</div>
+				</section>
 			}
-		}
-		<!-- Filterable Skills Section -->
-		<details class="page-kit-disclosure">
-			<summary class="page-kit-disclosure-summary">
-				<div class="space-y-1 text-left">
-					<span class="page-kit-eyebrow">Browse skills</span>
-					<h2 class="text-lg font-semibold text-copy-primary sm:text-xl">Explore the full technical toolkit</h2>
-					<p class="text-sm leading-6 text-copy-secondary">Open the full catalog only when you want to filter by category or proficiency.</p>
-				</div>
-				<span class="page-kit-disclosure-chevron" aria-hidden="true">⌄</span>
-			</summary>
-			<div class="page-kit-disclosure-body">
-				@SkillsFilterableSection(SkillsFilterableProps{
-					Categories:        props.Categories,
-					ActiveCategory:    "",
-					ActiveProficiency: "",
-				})
-			</div>
-		</details>
+		</div>
+		@SkillsFilterControls(props, false)
+		@SkillsFilterableSection(props)
 	</div>
 }
 
-templ SkillsFilterableSection(props SkillsFilterableProps) {
-	<div id="skills-filterable" class="skills-section space-y-6">
-		<!-- Section Heading -->
-		@SectionIntro(SectionIntroProps{
-			Label: "Browse skills",
-			Title: "All technical skills",
-			Description: "A filterable list of my technical toolkit.",
-		})
-		<!-- Filter Bar -->
-		<div class="page-kit-panel flex flex-col gap-5 p-5 sm:p-6">
-			<div class="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:gap-6">
-				<div class="grid gap-3 sm:grid-cols-[5.75rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-					<span class="pt-2 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Category</span>
-					<div class="filter-tabs flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filter by category">
-					<button
-						type="button"
-							class={ filterTabClasses(props.ActiveCategory == "") + " filter-tab" }
-						hx-get={ buildFilterURL("", props.ActiveProficiency) }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveCategory == "") }
-					>
-						All
-					</button>
-					for _, cat := range props.Categories {
-						if cat.Name != conceptsCategoryName {
-							<button
-								type="button"
-									class={ filterTabClasses(props.ActiveCategory == cat.Name) + " filter-tab" }
-								hx-get={ buildFilterURL(cat.Name, props.ActiveProficiency) }
-								hx-target="#skills-filterable"
-								hx-swap="outerHTML"
-								aria-pressed={ fmt.Sprintf("%t", props.ActiveCategory == cat.Name) }
-							>
-								{ cat.Name }
-							</button>
-						}
-					}
-				</div>
-			</div>
-				<div class="grid gap-3 sm:grid-cols-[5.75rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-					<span class="pt-2 text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Proficiency</span>
-					<div class="filter-tabs flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible" role="group" aria-label="Filter by proficiency">
-					<button
-						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "") + " filter-tab" }
-						hx-get={ buildFilterURL(props.ActiveCategory, "") }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "") }
-					>
-						All
-					</button>
-					<button
-						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "expert") + " filter-tab" }
-						hx-get={ buildFilterURL(props.ActiveCategory, "expert") }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "expert") }
-					>
-						<span class={ proficiencyFilterDotClasses("expert") } aria-hidden="true"></span> Expert
-					</button>
-					<button
-						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "advanced") + " filter-tab" }
-						hx-get={ buildFilterURL(props.ActiveCategory, "advanced") }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "advanced") }
-					>
-						<span class={ proficiencyFilterDotClasses("advanced") } aria-hidden="true"></span> Advanced
-					</button>
-					<button
-						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "intermediate") + " filter-tab" }
-						hx-get={ buildFilterURL(props.ActiveCategory, "intermediate") }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "intermediate") }
-					>
-						<span class={ proficiencyFilterDotClasses("intermediate") } aria-hidden="true"></span> Intermediate
-					</button>
-					<button
-						type="button"
-						class={ filterTabClasses(props.ActiveProficiency == "familiar") + " filter-tab" }
-						hx-get={ buildFilterURL(props.ActiveCategory, "familiar") }
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-						aria-pressed={ fmt.Sprintf("%t", props.ActiveProficiency == "familiar") }
-					>
-						<span class={ proficiencyFilterDotClasses("familiar") } aria-hidden="true"></span> Familiar
-					</button>
-				</div>
-			</div>
-			</div>
-		</div>
-		<!-- Skills Grid -->
-		<div class="space-y-6">
-			if hasVisibleSkills(props.Categories, props.ActiveCategory, props.ActiveProficiency) {
-				for catIndex, cat := range props.Categories {
-					if cat.Name != conceptsCategoryName && (props.ActiveCategory == "" || props.ActiveCategory == cat.Name) {
-						if countCategorySkills(cat.Skills, props.ActiveProficiency) > 0 {
-							<div class="skill-category page-kit-panel-strong animate-[card-fade-in_0.45s_ease-out_both] p-4 sm:p-5" style={ fmt.Sprintf("animation-delay: %dms;", catIndex*80) }>
-								<h3 class="mb-4 flex items-center gap-3 border-l-4 border-l-primary-400 pl-3 text-base font-semibold uppercase tracking-[0.05em] text-copy-primary sm:text-lg">
-									{ cat.Name }
+templ SkillsFilterFragment(props SkillsGridProps) {
+	@SkillsFilterableSection(props)
+	@SkillsFilterControls(props, true)
+}
 
-								</h3>
-								<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-									for skillIndex, skill := range cat.Skills {
-										if shouldShowSkill(skill, props.ActiveProficiency) {
-											<button
-												type="button"
-												class={ skillCardClasses(skill.Proficiency) + " skill-icon-btn" }
-												data-proficiency={ skill.Proficiency }
-												data-skill-id={ fmt.Sprintf("%d", skill.ID) }
-												hx-get={ fmt.Sprintf("/skills/detail?id=%d", skill.ID) }
-												hx-target={ fmt.Sprintf("#detail-slot-%d", catIndex) }
-												hx-swap="innerHTML"
-												style={ fmt.Sprintf("animation-delay: %dms;", skillIndex*30) }
-												aria-expanded="false"
-												aria-controls={ fmt.Sprintf("detail-slot-%d", catIndex) }
-											>
-												@skillAsset(skill, skill.Name, skillIconFrameClasses(skill.Proficiency), "h-8 w-8")
-												<span class="text-sm font-semibold leading-snug text-copy-primary">{ skill.Name }</span>
-												<div class="mt-auto flex w-full items-center justify-between gap-2 pt-3">
-													<span class={ proficiencyBadgeClasses(skill.Proficiency, true) }>{ skill.Proficiency }</span>
-													<span class="inline-flex items-center gap-1 text-[0.68rem] font-medium uppercase tracking-[0.05em] text-copy-muted transition group-hover:text-copy-primary">
-														Details
-														<span class="transition group-hover:translate-x-0.5" aria-hidden="true">→</span>
-													</span>
-												</div>
-											</button>
-										}
-									}
-								</div>
-								<div id={ fmt.Sprintf("detail-slot-%d", catIndex) } class="skill-detail-slot mt-3 overflow-hidden"></div>
-							</div>
-						}
-					}
-				}
-			} else {
-				<div class="page-kit-panel-subtle px-5 py-6 text-center">
-					<p class="text-sm text-copy-secondary">No skills match the selected filters.</p>
-					<button
-						type="button"
-						class="page-kit-action page-kit-action-sm mt-4"
-						hx-get="/skills/filtered"
-						hx-target="#skills-filterable"
-						hx-swap="outerHTML"
-					>
-						Clear Filters
-					</button>
-				</div>
-			}
+templ SkillsFilterControls(props SkillsGridProps, outOfBand bool) {
+	<section
+		id="skills-filter-controls"
+		class="skills-filter-controls"
+		aria-labelledby="skills-catalog-title"
+		data-active-category={ props.Filters.Category }
+		data-active-proficiency={ props.Filters.Proficiency }
+		data-skills-state={ props.StateURL }
+		if outOfBand {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		<div class="skills-filter-heading">
+			<div>
+				<span class="page-kit-eyebrow">Browse skills</span>
+				<h2 id="skills-catalog-title">Explore the full technical toolkit</h2>
+				<p>Search the bench or narrow it by category and proficiency.</p>
+			</div>
+			<p class="skills-control-summary" aria-hidden="true">{ props.ResultSummary }</p>
 		</div>
-	</div>
+		<form
+			class="skills-search-form"
+			method="get"
+			action="/skills"
+			hx-get="/skills"
+			hx-target="#skills-filterable"
+			hx-swap="outerHTML"
+			hx-push-url="true"
+			hx-sync="#skills-filterable:replace"
+			hx-indicator="#skills-filter-status"
+			data-skills-search-form
+		>
+			<label for="skills-search">Search the toolkit</label>
+			<div class="skills-search-field">
+				<span class="skills-search-glyph" aria-hidden="true">⌕</span>
+				<input
+					id="skills-search"
+					type="search"
+					name="q"
+					value={ props.Filters.Query }
+					autocomplete="off"
+					placeholder="Try Terraform, automation, or cloud…"
+					hx-get="/skills"
+					hx-trigger="input changed delay:300ms"
+					hx-include="closest form"
+					hx-target="#skills-filterable"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+					hx-sync="#skills-filterable:replace"
+					hx-indicator="#skills-filter-status"
+					data-skills-search-input
+				/>
+			</div>
+			if props.Filters.Category != "" {
+				<input type="hidden" name="category" value={ props.Filters.Category }/>
+			}
+			if props.Filters.Proficiency != "" {
+				<input type="hidden" name="proficiency" value={ props.Filters.Proficiency }/>
+			}
+			<button id="skills-search-submit" type="submit" class="page-kit-action ui-action-secondary skills-search-submit">
+				<span class="sr-only" id="skills-search-submit-label">Run toolkit search</span>
+				<span>Search</span><span aria-hidden="true">→</span>
+			</button>
+		</form>
+		<div class="skills-filter-groups">
+			<div class="skills-filter-group">
+				<span class="skills-filter-label">Category</span>
+				<div class="filter-tabs" role="group" aria-label="Filter by category">
+					for _, option := range props.CategoryOptions {
+						<a
+							id={ option.ID }
+							href={ templ.SafeURL(option.Href) }
+							class={ filterTabClasses(option.Active) }
+							hx-get={ option.Href }
+							hx-target="#skills-filterable"
+							hx-swap="outerHTML"
+							hx-push-url="true"
+							hx-sync="#skills-filterable:replace"
+							hx-indicator="#skills-filter-status"
+							data-skill-filter-category={ option.Value }
+							if option.Active {
+								aria-current="page"
+							}
+						>{ option.Label }</a>
+					}
+				</div>
+			</div>
+			<div class="skills-filter-group">
+				<span class="skills-filter-label">Proficiency</span>
+				<div class="filter-tabs" role="group" aria-label="Filter by proficiency">
+					for _, option := range props.ProficiencyOptions {
+						<a
+							id={ option.ID }
+							href={ templ.SafeURL(option.Href) }
+							class={ filterTabClasses(option.Active) }
+							hx-get={ option.Href }
+							hx-target="#skills-filterable"
+							hx-swap="outerHTML"
+							hx-push-url="true"
+							hx-sync="#skills-filterable:replace"
+							hx-indicator="#skills-filter-status"
+							data-skill-filter-proficiency={ option.Value }
+							if option.Active {
+								aria-current="page"
+							}
+						>{ option.Label }</a>
+					}
+				</div>
+			</div>
+		</div>
+		<div id="skills-filter-status" class="skills-filter-status htmx-indicator" role="status" aria-live="polite">
+			<span class="spinner" aria-hidden="true"></span>
+			<span>Updating the toolkit…</span>
+		</div>
+		<div id="skills-filter-error" class="skills-filter-error" role="alert" hidden>
+			<div>
+				<strong>The toolkit could not be updated.</strong>
+				<span>Your current results are still here.</span>
+			</div>
+			<button
+				id="skills-filter-retry"
+				type="button"
+				class="page-kit-action ui-action-secondary"
+				hx-get={ props.StateURL }
+				hx-target="#skills-filterable"
+				hx-swap="outerHTML"
+				hx-push-url="true"
+				hx-sync="#skills-filterable:replace"
+				hx-indicator="#skills-filter-status"
+				data-skills-retry
+			>Try again</button>
+		</div>
+	</section>
+}
+
+templ SkillsFilterableSection(props SkillsGridProps) {
+	<section
+		id="skills-filterable"
+		class="skills-filterable"
+		aria-labelledby="skills-results-title"
+		aria-busy="false"
+		data-skills-state={ props.StateURL }
+	>
+		@SignalTrail(SignalTrailProps{Variant: TrailWorkbench, ExtraClass: "skills-workbench-trail"})
+		<span class="skills-workbench-caption">Set the instruments / inspect the toolkit</span>
+		<header class="skills-results-heading">
+			<div>
+				<span class="page-kit-eyebrow">Workbench catalog</span>
+				<h2 id="skills-results-title">All technical skills</h2>
+				<p>A filterable list of my technical toolkit.</p>
+			</div>
+			<p class="skills-result-summary" role="status" aria-live="polite">{ props.ResultSummary }</p>
+		</header>
+		if len(props.VisibleCategories) > 0 {
+			<div class="skills-catalog" data-skills-catalog>
+				for _, category := range props.VisibleCategories {
+					<section id={ category.ID } class="skill-category" data-skill-category={ category.Name }>
+						<header class="skill-category-heading">
+							<span class="skill-category-index">{ fmt.Sprintf("%02d", len(category.Skills)) }</span>
+							<h3>{ category.Name }</h3>
+							<span>{ fmt.Sprintf("%d instruments", len(category.Skills)) }</span>
+						</header>
+						<div class="skill-card-grid">
+							for _, item := range category.Skills {
+								<button
+									id={ item.TriggerID }
+									type="button"
+									class={ skillCardClasses(item.Skill.Proficiency) }
+									data-proficiency={ item.Skill.Proficiency }
+									data-skill-id={ fmt.Sprintf("%d", item.Skill.ID) }
+									data-skill-detail-trigger
+									hx-get={ fmt.Sprintf("/skills/detail?id=%d", item.Skill.ID) }
+									hx-target={ "#" + category.DetailSlotID }
+									hx-swap="innerHTML"
+									hx-sync="#skills-filterable:replace"
+									aria-expanded="false"
+									aria-controls={ category.DetailSlotID }
+								>
+									@skillAsset(item.Skill, "", skillIconFrameClasses(item.Skill.Proficiency), "skill-asset-card")
+									<span class="skill-card-name">{ item.Skill.Name }</span>
+									<span class="skill-card-footer">
+										<span class={ proficiencyBadgeClasses(item.Skill.Proficiency, true) }>{ item.Skill.Proficiency }</span>
+										<span class="skill-card-detail-label">Details <span aria-hidden="true">→</span></span>
+									</span>
+								</button>
+							}
+						</div>
+						<div id={ category.DetailSlotID } class="skill-detail-slot" aria-live="polite"></div>
+					</section>
+				}
+			</div>
+		} else {
+			<div class="skills-empty-state">
+				<span class="skills-empty-glyph" aria-hidden="true">⌁</span>
+				<h3>No skills match these filters</h3>
+				<p>{ props.NoResultsMessage }</p>
+				<a
+					id="skills-clear-filters"
+					href={ templ.SafeURL(props.ClearHref) }
+					class="page-kit-action ui-action-secondary"
+					hx-get={ props.ClearHref }
+					hx-target="#skills-filterable"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+					hx-sync="#skills-filterable:replace"
+					hx-indicator="#skills-filter-status"
+					data-skills-clear
+				>Clear filters</a>
+			</div>
+		}
+	</section>
 }

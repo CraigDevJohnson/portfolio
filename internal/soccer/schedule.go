@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -18,6 +19,8 @@ import (
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
+
+const teamSelectionMode = "teams"
 
 // FetchSchedulesHandler renders the schedule table fragment for the current selection.
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
@@ -38,18 +41,25 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	props := partials.SoccerTableFragmentProps{
 		TeamCodes:       teamCodes,
 		PlayerIDs:       input.PlayerIDs,
-		GoogleAvailable: h.Config.GoogleEnabled(),
+		GoogleAvailable: h.googleAvailable(),
+		ImportAvailable: h.Config.LoginEnabled(),
 	}
 	if h.googleHooks != nil {
 		props.GoogleConnected = h.googleHooks.GoogleConnected(r.Context(), w, r)
 	}
-	if h.resolveScheduleData(r.Context(), session, &input, &props) {
+	clearImportedSession, resolved := h.resolveScheduleData(r.Context(), session, &input, &props)
+	if clearImportedSession {
 		h.clearSession(w, r)
 		swapAuthState = true
+	} else if resolved {
+		if err := h.persistScheduleWorkflow(w, r, session, &input); err != nil {
+			logging.WithContext(h.Logger, r.Context()).Error("soccer workflow session write failed", slog.Any("error", err))
+		}
 	}
 
 	h.setHTMLContentType(w)
 	if swapAuthState {
+		w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -58,6 +68,37 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	if err := partials.SoccerTableFragment(props).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request, session *types.SessionData, input *scheduleFormInput) error {
+	if session == nil {
+		if !h.Config.LoginEnabled() {
+			return nil
+		}
+		session = &types.SessionData{StartedAt: time.Now()}
+	}
+
+	switch {
+	case input.TeamSelection && len(input.TeamIDs) > 0:
+		state := session.Workflow
+		state.Source = "imported"
+		state.SelectedPlayerIDs = input.PlayerIDs
+		state.SelectedTeamIDs = input.TeamIDs
+		session.Workflow = normalizeWorkflowState(&state, session.Players)
+	case strings.TrimSpace(input.TeamCodes) != "":
+		session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
+			Source:          "manual",
+			SelectedTeamIDs: parseTeamIDs(input.TeamCodes),
+		}, session.Players)
+	case len(input.PlayerIDs) > 0:
+		state := session.Workflow
+		state.Source = "imported"
+		state.SelectedPlayerIDs = input.PlayerIDs
+		session.Workflow = normalizeWorkflowState(&state, session.Players)
+	default:
+		return nil
+	}
+	return h.setSession(w, r, session)
 }
 
 // DownloadICSHandler exports the selected schedule rows as an ICS download.
@@ -109,11 +150,16 @@ func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input *scheduleFormInput, props *partials.SoccerTableFragmentProps) bool {
+func (h *Handler) resolveScheduleData(ctx context.Context, session *types.SessionData, input *scheduleFormInput, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
 	if hasInvalidPlayerInput(input.RawPlayerIDs, input.PlayerIDs) {
 		props.Message = invalidPlayersMessage
 		props.Hint = invalidPlayersHint
-		return false
+		return false, false
+	}
+	if input.TeamSelection && len(input.TeamIDs) == 0 {
+		props.Message = "Choose at least one team to fetch schedules."
+		props.Hint = "Select one or more teams in the final selection step, then try again."
+		return false, false
 	}
 
 	// When explicit team_ids[] arrive (from the discover-teams step), fetch all
@@ -122,12 +168,12 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		games, err := lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, input.TeamIDs)
 		if err == nil {
 			setTableFragmentGames(props, games)
-			return false
+			return false, true
 		}
 		if applyScheduleSelectionError(props, err) {
-			return false
+			return false, false
 		}
-		return applyScheduleFetchError(props, err)
+		return applyScheduleFetchError(props, err), false
 	}
 
 	// Player-based fetch always includes past games so results are visible.
@@ -140,13 +186,13 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	}
 	if err == nil {
 		setTableFragmentGames(props, games)
-		return false
+		return false, true
 	}
 	if applyScheduleSelectionError(props, err) {
-		return false
+		return false, false
 	}
 
-	return applyScheduleFetchError(props, err)
+	return applyScheduleFetchError(props, err), false
 }
 
 func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {
@@ -184,6 +230,17 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 	hasSelectedPlayers := len(playerIDs) > 0
 	hasManualTeamInput := strings.TrimSpace(teamCodes) != ""
 
+	if hasManualTeamInput {
+		switch {
+		case len(teamIDs) == 0:
+			return nil, ErrInvalidTeamSelection
+		case includePast:
+			return h.resolveAllScheduleGames(ctx, session, nil, teamIDs)
+		default:
+			return h.resolveScheduleGames(ctx, session, nil, teamIDs)
+		}
+	}
+
 	if hasSelectedPlayers {
 		if session == nil {
 			return nil, ErrPlayerSessionRequired
@@ -195,8 +252,6 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 	}
 
 	switch {
-	case hasManualTeamInput && len(teamIDs) == 0:
-		return nil, ErrInvalidTeamSelection
 	case len(teamIDs) > 0:
 		if includePast {
 			return h.resolveAllScheduleGames(ctx, session, nil, teamIDs)
@@ -325,19 +380,21 @@ func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
 
 // scheduleFormInput holds the parsed form values shared by schedule handlers.
 type scheduleFormInput struct {
-	TeamCodes    string
-	RawPlayerIDs []string
-	PlayerIDs    []int
-	TeamIDs      []int
+	TeamCodes     string
+	RawPlayerIDs  []string
+	PlayerIDs     []int
+	TeamIDs       []int
+	TeamSelection bool
 }
 
 func parseScheduleFormInput(form url.Values) scheduleFormInput {
 	rawPlayerIDs := form["player_ids"]
 	return scheduleFormInput{
-		TeamCodes:    form.Get("team_codes"),
-		RawPlayerIDs: rawPlayerIDs,
-		PlayerIDs:    parsePlayerIDs(rawPlayerIDs),
-		TeamIDs:      parsePlayerIDs(form["team_ids"]),
+		TeamCodes:     form.Get("team_codes"),
+		RawPlayerIDs:  rawPlayerIDs,
+		PlayerIDs:     parsePlayerIDs(rawPlayerIDs),
+		TeamIDs:       parsePlayerIDs(form["team_ids"]),
+		TeamSelection: form.Get("selection_mode") == teamSelectionMode,
 	}
 }
 
@@ -356,6 +413,44 @@ func parsePositiveUniqueIDs(values []string) []int {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+func normalizeWorkflowState(state *types.SoccerWorkflowState, players []types.LPSPlayer) types.SoccerWorkflowState {
+	switch state.Source {
+	case "manual":
+		return types.SoccerWorkflowState{
+			Source:          "manual",
+			SelectedTeamIDs: normalizePositiveUniqueIDs(state.SelectedTeamIDs),
+		}
+	case "imported":
+	default:
+		return types.SoccerWorkflowState{}
+	}
+
+	knownPlayers := make(map[int]struct{}, len(players))
+	for _, player := range players {
+		if player.UPlayerID > 0 {
+			knownPlayers[player.UPlayerID] = struct{}{}
+		}
+	}
+
+	normalized := types.SoccerWorkflowState{Source: "imported"}
+	for _, playerID := range normalizePositiveUniqueIDs(state.SelectedPlayerIDs) {
+		if _, ok := knownPlayers[playerID]; ok {
+			normalized.SelectedPlayerIDs = append(normalized.SelectedPlayerIDs, playerID)
+		}
+	}
+
+	normalized.SelectedTeamIDs = normalizePositiveUniqueIDs(state.SelectedTeamIDs)
+	return normalized
+}
+
+func normalizePositiveUniqueIDs(ids []int) []int {
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, strconv.Itoa(id))
+	}
+	return parsePositiveUniqueIDs(values)
 }
 
 func hasNonEmptyTrimmedValues(rawValues []string) bool {
@@ -379,11 +474,6 @@ func splitDelimitedValues(raw string) []string {
 }
 
 func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) []types.PlayerTeamGroup {
-	knownTeamIDs := make(map[int]struct{}, len(session.KnownTeams))
-	for _, t := range session.KnownTeams {
-		knownTeamIDs[t.TeamID] = struct{}{}
-	}
-
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
 	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
 	for _, p := range session.Players {
@@ -405,13 +495,11 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 			if t.UTeamID <= 0 {
 				continue
 			}
-			_, isKnown := knownTeamIDs[t.UTeamID]
 			teams = append(teams, types.LPSTeam{
-				TeamID:    t.UTeamID,
-				TeamName:  t.TeamName,
-				Season:    t.Season,
-				PlayerID:  playerID,
-				IsSubTeam: !isKnown,
+				TeamID:   t.UTeamID,
+				TeamName: t.TeamName,
+				Season:   t.Season,
+				PlayerID: playerID,
 			})
 		}
 		if len(teams) > 0 {
@@ -434,8 +522,9 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	if hasInvalidPlayerInput(rawPlayerIDs, playerIDs) {
 		h.setHTMLContentType(w)
 		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
-			Message: invalidPlayersMessage,
-			Hint:    invalidPlayersHint,
+			Message:         invalidPlayersMessage,
+			Hint:            invalidPlayersHint,
+			ImportAvailable: h.Config.LoginEnabled(),
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -446,8 +535,9 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	if len(playerIDs) == 0 || session == nil {
 		h.setHTMLContentType(w)
 		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
-			Message: "Import a bearer JWT to discover teams.",
-			Hint:    "Choose at least one player after importing.",
+			Message:         "Import a bearer JWT to discover teams.",
+			Hint:            "Choose at least one player after importing.",
+			ImportAvailable: h.Config.LoginEnabled(),
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -455,6 +545,22 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	groups := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
+		Source:            "imported",
+		SelectedPlayerIDs: playerIDs,
+	}, session.Players)
+	if err := h.setSession(w, r, session); err != nil {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer discovery workflow session write failed", slog.Any("error", err))
+		h.setHTMLContentType(w)
+		if renderErr := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
+			Message:         "Teams were discovered, but the selection could not be saved.",
+			Hint:            "Try choosing the players again before continuing.",
+			ImportAvailable: h.Config.LoginEnabled(),
+		}).Render(r.Context(), w); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerTeamSelect(partials.SoccerTeamSelectProps{

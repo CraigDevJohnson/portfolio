@@ -1,0 +1,42 @@
+package partials
+
+templ FeatureCard(props FeatureCardProps) {
+	<div class={ mergeClasses("page-kit-feature-card "+pageKitToneSurfaceClass(props.Tone), props.ExtraClass) }>
+		<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) } aria-hidden="true">
+			if props.IconName != "" {
+				@UIIcon(props.IconName)
+			} else {
+				<span class="page-kit-field-mark">{ props.Icon }</span>
+			}
+		</div>
+		<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+		<p class="mt-3 text-sm leading-6 text-copy-secondary">{ props.Description }</p>
+	</div>
+}
+
+templ LinkPanelRow(props LinkPanelRowProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		class={ mergeClasses(mergeClasses("page-kit-link-panel-row "+pageKitToneSurfaceClass(props.Tone)+" "+actionVariantClass(props.Variant), pageKitToneHoverBorderClass(props.Tone)), props.ExtraClass) }
+		if linkPanelRowAriaLabel(&props) != "" {
+			aria-label={ linkPanelRowAriaLabel(&props) }
+		}
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+	>
+		<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) + " shrink-0" }>
+			if props.IconName != "" {
+				@UIIcon(props.IconName)
+			} else {
+				<span class="page-kit-field-mark" aria-hidden="true">{ props.Icon }</span>
+			}
+		</div>
+		<div class="min-w-0 flex-1 space-y-1">
+			<h3 class="text-lg font-semibold text-copy-primary">{ props.Title }</h3>
+			<p class={ "wrap-anywhere text-sm font-medium " + pageKitToneTextClass(props.Tone) }>{ props.Label }</p>
+			<p class="text-sm leading-6 text-copy-secondary">{ props.Description }</p>
+		</div>
+	</a>
+}

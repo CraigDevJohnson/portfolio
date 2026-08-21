@@ -16,6 +16,7 @@ import (
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/logging"
+	"portfolio/internal/portal"
 	"portfolio/internal/portfolio"
 	internalsoccer "portfolio/internal/soccer"
 )
@@ -49,7 +50,7 @@ func registerMIMETypes() error {
 	return nil
 }
 
-func buildMux(app *App, rootLogger *slog.Logger) (*http.ServeMux, *internalsoccer.Handler) {
+func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http.ServeMux, *internalsoccer.Handler) {
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
 		app.LPSClient,
@@ -74,7 +75,6 @@ func buildMux(app *App, rootLogger *slog.Logger) (*http.ServeMux, *internalsocce
 	})
 	mux.HandleFunc("GET /experience", portfolio.ExperienceHandler)
 	mux.HandleFunc("GET /skills", portfolio.SkillsHandler)
-	mux.HandleFunc("GET /skills/grid", portfolio.SkillsGridHandler)
 	mux.HandleFunc("GET /skills/filtered", portfolio.SkillsFilteredHandler)
 	mux.HandleFunc("GET /skills/detail", portfolio.SkillsDetailHandler)
 	mux.HandleFunc("GET /projects", portfolio.ProjectsHandler)
@@ -100,6 +100,34 @@ func buildMux(app *App, rootLogger *slog.Logger) (*http.ServeMux, *internalsocce
 	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
 	mux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
 	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+
+	// portal routes
+	if localPortalPreview {
+		mux.HandleFunc("GET /__preview/soccer/{fixture}", soccerPreviewPageHandler)
+		mux.HandleFunc("POST /__preview/soccer/download", soccerPreviewDownloadHandler)
+		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
+		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
+		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("GET /auth/callback", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
+		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.InstanceActionHandler)
+		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.InstanceActionHandler)
+		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.InstanceActionHandler)
+		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.MetricsHandler)
+		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.LogsHandler)
+	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
+		ph := app.PortalHandler
+		mux.HandleFunc("GET /login", ph.LoginPageHandler)
+		mux.HandleFunc("GET /auth/callback", ph.CallbackHandler)
+		mux.HandleFunc("POST /logout", ph.LogoutHandler)
+		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireAuth(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.RequireAuth(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.RequireAuth(ph.InstanceActionHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.RequireAuth(ph.MetricsHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.RequireAuth(ph.LogsHandler))
+	}
 
 	// static files
 	mux.Handle(
@@ -172,7 +200,7 @@ func NewLambdaHandler() (http.Handler, error) {
 
 	cfg := config.Load()
 	app := New(&cfg, rootLogger)
-	mux, soccerHandler := buildMux(app, rootLogger)
+	mux, soccerHandler := buildMux(app, rootLogger, false)
 
 	if app.Config.GoogleEnabled() {
 		initializeGoogleStore(app)
@@ -199,12 +227,33 @@ func Run() error {
 		return err
 	}
 
+	listenAddress := config.ServerListenAddress()
+	localPortalPreview := config.LocalPortalPreviewEnabled(listenAddress)
+	if config.LocalPortalPreviewRequested() && !localPortalPreview {
+		appLogger.Warn(
+			"local portal preview refused; the server must bind to a loopback address",
+			slog.String("listen_address", listenAddress),
+		)
+	}
+
 	cfg := config.Load()
+	if localPortalPreview {
+		// Preview mode must never initialize the real portal's Cognito or AWS
+		// dependencies, even when live portal variables are also present locally.
+		cfg.PortalSessionKey = nil
+		cfg.PortalCognitoDomain = ""
+		cfg.PortalCognitoClientID = ""
+		cfg.PortalCognitoRedirectURI = ""
+		cfg.PortalCognitoLogoutURI = ""
+		appLogger.Warn(
+			"local portal preview enabled; mock data only and no AWS actions will be sent",
+			slog.String("preview_url", config.LocalServerURL(listenAddress)+"/mgmt"),
+		)
+	}
 	app := New(&cfg, rootLogger)
-	mux, soccerHandler := buildMux(app, rootLogger)
+	mux, soccerHandler := buildMux(app, rootLogger, localPortalPreview)
 
 	// Bind the listener before any slow init so health checks pass immediately.
-	listenAddress := config.ServerListenAddress()
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		appLogger.Error("failed to listen", slog.String("listen_address", listenAddress), slog.Any("error", err))
@@ -237,14 +286,14 @@ func Run() error {
 
 	// Initialize the Google connection store in the background so App Runner
 	// health checks never wait on AWS SDK startup or credential resolution.
-	if app.Config.GoogleEnabled() {
+	if !localPortalPreview && app.Config.GoogleEnabled() {
 		go func() {
 			initializeGoogleStore(app)
 		}()
 	}
 
 	// Initialize the soccer session store in the background — same pattern as Google store.
-	if app.Config.SoccerSessionEnabled() {
+	if !localPortalPreview && app.Config.SoccerSessionEnabled() {
 		go func() {
 			initializeSoccerStore(app, soccerHandler)
 		}()

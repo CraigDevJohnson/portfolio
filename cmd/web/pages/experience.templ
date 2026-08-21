@@ -12,8 +12,8 @@ type ExperienceProps struct {
 
 templ Experience(props ExperienceProps) {
 	@layouts.Base(layouts.BaseProps{
-		Title: "Experience - Craig Johnson",
-		Page:  "experience",
+		Title:       "Experience - Craig Johnson",
+		Page:        "experience",
 		Description: "Craig Johnson's experience page, organized into career stages spanning foundational support, systems growth, and cloud leadership.",
 	}) {
 		@partials.ExperienceKitStages(partials.ExperienceKitStagesProps{Experiences: props.Experiences})

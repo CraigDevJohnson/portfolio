@@ -60,13 +60,45 @@ tasks:
   run:
     desc: Build and run the server
     deps: [build]
+    dotenv: [".env"]
+    cmds:
+      - "{{.BINARY_PATH}}"
+
+  portal-preview:
+    desc: Build and run the mock management portal on loopback only
+    deps: [build]
+    dotenv: [".env"]
+    env:
+      APP_BIND_ALL: "false"
+      HOST: "127.0.0.1"
+      MGMT_LOCAL_PREVIEW: "true"
     cmds:
       - "{{.BINARY_PATH}}"
 
   compose:
     desc: Run with Docker Compose
     cmds:
-      - docker compose -f docker-compose.yml up -d --build portfolio
+      - |
+        set -eu
+        build_ca_bundle="$(mktemp)"
+        trap 'rm -f "$build_ca_bundle"' EXIT
+
+        if [ -n "${DOCKER_BUILD_CA_CERT_PATH:-}" ]; then
+          if [ ! -r "$DOCKER_BUILD_CA_CERT_PATH" ]; then
+            echo "Docker build CA certificate is not readable: $DOCKER_BUILD_CA_CERT_PATH"
+            exit 1
+          fi
+          cp "$DOCKER_BUILD_CA_CERT_PATH" "$build_ca_bundle"
+        elif command -v security >/dev/null 2>&1 \
+          && [ -r /Library/Keychains/System.keychain ]; then
+          security find-certificate -a -c "Gateway CA" -p \
+            /Library/Keychains/System.keychain > "$build_ca_bundle" || true
+        fi
+
+        build_ca_digest=$(shasum -a 256 "$build_ca_bundle" | awk '{print $1}')
+        DOCKER_BUILD_CA_CERT_PATH="$build_ca_bundle" \
+        DOCKER_BUILD_CA_BUNDLE_DIGEST="$build_ca_digest" \
+          docker compose -f docker-compose.yml up -d --build portfolio
 
   dev:
     desc: Run with air for hot-reload development
@@ -96,6 +128,11 @@ tasks:
     desc: Lint files
     deps: [fmt]
     cmds:
+      - task: _lint-check
+
+  _lint-check:
+    internal: true
+    cmds:
       - printf "Running linters to check code quality...\n"
       - golangci-lint run
       - printf "All linters passed!\n"
@@ -104,7 +141,9 @@ tasks:
     desc: Check quality, run tests and build
     cmds:
       - task: clean
-      - task: lint
+      - task: fmt
+      - task: vet
+      - task: _lint-check
       - task: test
       - task: build
 
@@ -160,13 +199,18 @@ tasks:
         echo "Tailwind CLI {{.TAILWIND_VERSION}} installed to {{.TAILWIND_BIN}}"
 
   install-templ:
-    desc: Install Templ
+    desc: Install the Templ version used by this repository
     cmds:
-      - go install github.com/a-h/templ/cmd/templ@latest
+      - go install github.com/a-h/templ/cmd/templ@v0.3.1020
+
+  install-golangci-lint:
+    desc: Install the golangci-lint version used by this repository
+    cmds:
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0
 
   install-tools:
     desc: Install all development tools
-    deps: [install-air, install-tailwind]
+    deps: [install-air, install-golangci-lint, install-tailwind, install-templ]
     cmds:
       - echo "All development tools installed successfully!"
 
@@ -219,11 +263,16 @@ tasks:
         docker push "$ECR_URL:{{.IMAGE_TAG}}"
 
   deploy:
-    desc: Deploy to AWS (build and push Docker image, apply OpenTofu)
+    desc: Deploy the AWS infrastructure and both runtime images
     cmds:
       - task: _check-aws
       - task: _ecr-ensure-repo
       - task: _ecr-docker-push
+      - task: _ecr-docker-push
+        vars:
+          IMAGE_NAME: portfolio-lambda
+          DOCKERFILE: Dockerfile.lambda
+          IMAGE_TAG: lambda-latest
       - |
         set -eu
         cd infra

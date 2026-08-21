@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"portfolio/internal/schedule"
 	"portfolio/types"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -17,68 +19,133 @@ type SoccerTableFragmentProps struct {
 	Hint            string
 	GoogleAvailable bool
 	GoogleConnected bool
+	GoogleFeedback  *SoccerLoginFeedbackProps
+	ImportAvailable bool
+	Preview         bool
 }
 
 func visibleGamesCount(props SoccerTableFragmentProps) int {
 	return len(props.UpcomingGames) + len(props.PastGames)
 }
 
+func selectedGamesCountLabel(count int) string {
+	label := "games"
+	if count == 1 {
+		label = "game"
+	}
+	return fmt.Sprintf("%d %s selected", count, label)
+}
+
+func gamesCountLabel(count int) string {
+	label := "games"
+	if count == 1 {
+		label = "game"
+	}
+	return fmt.Sprintf("%d %s", count, label)
+}
+
 func resultBadgeClass(outcome string) string {
 	switch outcome {
 	case schedule.OutcomeWin:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 text-sm font-semibold text-primary-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-primary-100"
 	case schedule.OutcomeLoss:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 text-sm font-semibold text-secondary-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeDraw:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 text-sm font-semibold text-secondary-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeCanceled:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-800/55 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	case schedule.OutcomeFinal:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/25 bg-carbon-black-800/55 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	default:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-400/24 bg-carbon-black-700/55 px-2 py-0.5 text-sm font-semibold text-carbon-black-100"
+		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	}
+}
+
+func soccerGameVenue(game types.Game) string {
+	if game.Facility != nil && strings.TrimSpace(game.Facility.Name) != "" {
+		return strings.TrimSpace(game.Facility.Name)
+	}
+	if strings.TrimSpace(game.Location) != "" {
+		return strings.TrimSpace(game.Location)
+	}
+	return "Venue not provided"
+}
+
+func soccerTeamFingerprint(raw string) string {
+	seen := make(map[int]struct{})
+	ids := make([]int, 0)
+	for _, value := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' || r == ' ' }) {
+		id, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(id)
+	}
+	return strings.Join(parts, "-")
+}
+
+func soccerGameMetaLabel(hasResult bool) string {
+	if hasResult {
+		return "Season / result"
+	}
+	return "Season"
 }
 
 templ SoccerGameRows(sectionKey string, games []types.Game) {
 	for _, game := range games {
 		{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
 		{{ isPast := strings.TrimSpace(game.Result) != "" }}
-		<tr
-			class="game-row"
+		<li
+			class="soccer-match-row"
 			if isPast {
 				data-past-game
 			}
 		>
-			<td class="col-check">
-				<input
-					class="game-checkbox"
-					type="checkbox"
-					name="selected"
-					value={ game.ID }
-					checked
-					aria-label={ "Select " + game.Home + " versus " + game.Away }
-					data-game-checkbox
-					data-game-group={ sectionKey }
-				/>
-			</td>
-			<td class="col-datetime">{ game.DateTime }</td>
-			<td class="col-field">
+			<div class="soccer-match-select">
+				<label class="game-checkbox-target">
+					<input
+						class="game-checkbox"
+						type="checkbox"
+						name="selected"
+						value={ game.ID }
+						checked
+						aria-label={ "Select " + game.Home + " versus " + game.Away }
+						data-game-checkbox
+						data-game-group={ sectionKey }
+					/>
+					<span class="sr-only">Select { game.Home } versus { game.Away }</span>
+				</label>
+			</div>
+			<div class="soccer-match-detail soccer-match-datetime" data-label="Date / time">
+				<span>{ game.DateTime }</span>
+			</div>
+			<div class="soccer-match-detail soccer-matchup" data-label="Matchup">
+				<strong>{ game.Home }</strong>
+				<span class="soccer-match-versus">vs</span>
+				<span>{ game.Away }</span>
+			</div>
+			<div class="soccer-match-detail soccer-match-location" data-label="Location">
 				<span class="field-badge">{ game.Field }</span>
-			</td>
-			<td class="col-team home-team">{ game.Home }</td>
-			<td class="col-team">{ game.Away }</td>
-			<td class="col-season">
+				<span>{ soccerGameVenue(game) }</span>
+			</div>
+			<div class="soccer-match-detail soccer-match-meta" data-label={ soccerGameMetaLabel(isPast) }>
 				<span class="season-badge">{ game.Season }</span>
-			</td>
-			<td class="col-result">
 				if outcome.Parsed {
 					<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
 				} else if outcome.Raw != "" {
 					<span class={ resultBadgeClass("") }>{ outcome.Raw }</span>
 				}
-			</td>
-		</tr>
+			</div>
+		</li>
 	}
 }
 
@@ -89,32 +156,17 @@ templ SoccerScheduleHiddenInputs(props SoccerTableFragmentProps) {
 	}
 }
 
-templ SoccerGamesTable(sectionID string, games []types.Game) {
-	<div class="table-wrapper" role="region" aria-labelledby={ sectionID + "-heading" } tabindex="0">
-		<table class="games-table">
-			<thead>
-				<tr>
-					<th scope="col" class="col-check" aria-label="Select"></th>
-					<th scope="col" class="col-datetime">Date / Time</th>
-					<th scope="col" class="col-field">Field</th>
-					<th scope="col" class="col-team">Home</th>
-					<th scope="col" class="col-team">Away</th>
-					<th scope="col" class="col-season">Season</th>
-					<th scope="col" class="col-result">Result</th>
-				</tr>
-			</thead>
-			<tbody>
-				@SoccerGameRows(sectionID, games)
-			</tbody>
-		</table>
-	</div>
+templ SoccerGamesList(sectionID string, games []types.Game) {
+	<ol class="soccer-match-list" aria-labelledby={ sectionID + "-heading" } data-game-group={ sectionID }>
+		@SoccerGameRows(sectionID, games)
+	</ol>
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if visibleGamesCount(props) == 0 {
 		<div class="no-results">
 			<div class="no-results-icon" aria-hidden="true">🗓️</div>
-			<h3>No games found yet</h3>
+			<h4>No games found yet</h4>
 			if props.Message != "" {
 				<p>{ props.Message }</p>
 			} else {
@@ -126,23 +178,37 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 				<p class="hint">Check your team IDs or choose at least one linked player.</p>
 			}
 			<p class="no-results-next-step">If you already know the team IDs, try manual lookup again. If you imported access, confirm that your player and team selections are still current.</p>
+			<div class="soccer-recovery-actions">
+				<a class="btn soccer-secondary-btn" href="#team_codes">Return to manual team IDs</a>
+				if props.ImportAvailable {
+					<button type="button" class="btn soccer-secondary-btn" data-open-login-modal>Import fresh access</button>
+				}
+			</div>
 		</div>
 	} else {
-		<div class="games-form" data-soccer-form>
-			<p class="table-scroll-hint">Tip: On smaller screens, scroll horizontally to review every schedule column.</p>
+		<div class="games-form" data-soccer-form data-team-fingerprint={ soccerTeamFingerprint(props.TeamCodes) }>
 			<div class="games-results-layout">
 				if len(props.UpcomingGames) > 0 {
 					<section class="games-results-item">
-						<form id="upcoming-games-form" action="/soccer/download" method="post">
+						<form
+							id="upcoming-games-form"
+							method="post"
+							data-native-download
+							if props.Preview {
+								action="/__preview/soccer/download"
+							} else {
+								action="/soccer/download"
+							}
+						>
 							@SoccerScheduleHiddenInputs(props)
 							<div class="games-table-section">
 								<div class="games-section-top">
 									<div class="games-section-header">
 										<div class="games-section-copy-block">
-											<h3 id="upcoming-games-heading" class="games-section-heading">
-                        Upcoming games
-                        <span class="games-total-count">{ fmt.Sprintf("%d game(s)", len(props.UpcomingGames)) }</span>
-											</h3>
+											<h4 id="upcoming-games-heading" class="games-section-heading">
+												Upcoming games
+												<span class="games-total-count">{ gamesCountLabel(len(props.UpcomingGames)) }</span>
+											</h4>
 											<p class="games-section-copy">Pick the matches you want to download or add to Google Calendar.</p>
 										</div>
 									</div>
@@ -158,54 +224,69 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 												/>
 												<span>Select all upcoming games</span>
 											</label>
-											<span class="games-section-count">{ fmt.Sprintf("%d game(s) selected", len(props.UpcomingGames)) }</span>
+											<span class="games-section-count" data-selected-count data-game-group="upcoming-games" aria-live="polite">{ selectedGamesCountLabel(len(props.UpcomingGames)) }</span>
 										</div>
 										<div class="games-section-cta-group">
-											if props.GoogleConnected {
+											if props.GoogleConnected && props.Preview {
+												<button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="upcoming-games" data-selection-locked><span class="btn-text">Add Selected to Calendar</span></button>
+											} else if props.GoogleConnected {
 												<button
 													type="button"
 													class="btn soccer-secondary-btn games-section-action-btn btn-loading"
 													hx-post="/soccer/google/add"
 													hx-include="#upcoming-games-form"
-													hx-target="#google-calendar-feedback"
+													hx-target="#upcoming-calendar-feedback"
 													hx-swap="innerHTML"
 													hx-indicator=".soccer-google-add-indicator"
 													hx-disabled-elt="this"
 													data-loading-button
+													data-game-action
+													data-game-group="upcoming-games"
+													data-loading-text="Adding {count} games…"
 												>
 													<span class="btn-text">Add Selected to Calendar</span>
 													<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
 												</button>
 											}
-											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn btn-loading" data-loading-button>
+											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn" data-game-action data-game-group="upcoming-games">
 												<span class="btn-text">Download Selected (.ics)</span>
-												<span class="btn-loading-indicator" aria-hidden="true"></span>
 											</button>
 										</div>
 									</div>
+									<div id="upcoming-calendar-feedback" class="soccer-action-feedback" role="status" aria-live="polite" aria-atomic="true" data-soccer-feedback>
+										if props.GoogleFeedback != nil {
+											@SoccerLoginFeedback(*props.GoogleFeedback)
+										}
+									</div>
 								</div>
-								@SoccerGamesTable("upcoming-games", props.UpcomingGames)
+								@SoccerGamesList("upcoming-games", props.UpcomingGames)
 							</div>
 						</form>
 					</section>
 				} else if len(props.PastGames) > 0 {
 					<div class="games-empty-panel" role="status">
-						<h3>No upcoming games right now</h3>
+						<h4>No upcoming games right now</h4>
 						<p>Past results are still available below if you want to review or sync them.</p>
 					</div>
 				}
 				if len(props.PastGames) > 0 {
 					<section class="games-results-item">
-						<form id="past-results-form" action="/soccer/google/sync-results" method="post">
+						<form
+							id="past-results-form"
+							if !props.Preview {
+								action="/soccer/google/sync-results"
+								method="post"
+							}
+						>
 							@SoccerScheduleHiddenInputs(props)
 							<div class="games-table-section games-table-section--past">
 								<div class="games-section-top">
 									<div class="games-section-header">
 										<div class="games-section-copy-block">
-											<h3 id="past-results-heading" class="games-section-heading">
-                        Past results
-                        <span class="games-total-count">{ fmt.Sprintf("%d game(s)", len(props.PastGames)) }</span>
-                      </h3>
+											<h4 id="past-results-heading" class="games-section-heading">
+												Past results
+												<span class="games-total-count">{ gamesCountLabel(len(props.PastGames)) }</span>
+											</h4>
 											<p class="games-section-copy">Completed matches stay available here so you can review scores or sync them to Google Calendar.</p>
 										</div>
 									</div>
@@ -221,20 +302,25 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 												/>
 												<span>Select all past results</span>
 											</label>
-											<span class="games-section-count">{ fmt.Sprintf("%d game(s) selected", len(props.PastGames)) }</span>
+											<span class="games-section-count" data-selected-count data-game-group="past-results" aria-live="polite">{ selectedGamesCountLabel(len(props.PastGames)) }</span>
 										</div>
-										if props.GoogleConnected {
+										if props.GoogleConnected && props.Preview {
+											<div class="games-section-cta-group"><button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="past-results" data-selection-locked><span class="btn-text">Sync Selected Results</span></button></div>
+										} else if props.GoogleConnected {
 											<div class="games-section-cta-group">
 												<button
 													type="button"
 													class="btn soccer-secondary-btn games-section-action-btn btn-loading"
 													hx-post="/soccer/google/sync-results"
 													hx-include="#past-results-form"
-													hx-target="#google-calendar-feedback"
+													hx-target="#past-results-feedback"
 													hx-swap="innerHTML"
 													hx-indicator=".soccer-google-sync-indicator"
 													hx-disabled-elt="this"
 													data-loading-button
+													data-game-action
+													data-game-group="past-results"
+													data-loading-text="Syncing {count} results…"
 												>
 													<span class="btn-text">Sync Selected Results</span>
 													<span class="btn-loading-indicator soccer-google-sync-indicator htmx-indicator" aria-hidden="true"></span>
@@ -242,8 +328,13 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 											</div>
 										}
 									</div>
+									<div id="past-results-feedback" class="soccer-action-feedback" role="status" aria-live="polite" aria-atomic="true" data-soccer-feedback>
+										if props.GoogleFeedback != nil && len(props.UpcomingGames) == 0 {
+											@SoccerLoginFeedback(*props.GoogleFeedback)
+										}
+									</div>
 								</div>
-								@SoccerGamesTable("past-results", props.PastGames)
+								@SoccerGamesList("past-results", props.PastGames)
 							</div>
 						</form>
 					</section>
@@ -252,19 +343,21 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			if props.GoogleAvailable && !props.GoogleConnected {
 				<div class="soccer-google-cta soccer-google-cta--inline">
 					<p class="table-helper-copy">Connect Google Calendar to add selected games directly or sync selected past results.</p>
-					<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link>
-						<span class="btn-text">Connect Google Calendar</span>
-						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
-					</a>
+					if props.Preview {
+						<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true"><span class="btn-text">Connect Google Calendar</span></button>
+					} else {
+						<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link>
+							<span class="btn-text">Connect Google Calendar</span>
+							<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+						</a>
+					}
 				</div>
 			}
-			<div id="google-calendar-feedback" class="soccer-login-feedback" aria-live="polite">
-				if !props.GoogleAvailable {
-					@SoccerLoginFeedback(SoccerLoginFeedbackProps{Kind: "", Message: "Google Calendar add is unavailable in this environment."})
-				} else if !props.GoogleConnected {
-					@SoccerLoginFeedback(SoccerLoginFeedbackProps{Kind: "", Message: "Connect Google Calendar to add selected games directly or sync selected past results."})
-				}
-			</div>
+			if !props.GoogleAvailable {
+				<div class="soccer-google-cta soccer-google-cta--inline">
+					<p class="table-helper-copy">Google Calendar add is unavailable in this environment. Select upcoming games and download an .ics file instead.</p>
+				</div>
+			}
 		</div>
 	}
 }

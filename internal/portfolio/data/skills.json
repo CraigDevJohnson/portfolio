@@ -9,6 +9,7 @@
         "link": "https://www.gnu.org/software/bash/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["CI/CD & Automation", "Operating Systems"],
         "description": "Unix shell and command language for task automation and system administration"
       },
       {
@@ -48,6 +49,7 @@
         "link": "https://learn.microsoft.com/en-us/powershell/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["CI/CD & Automation", "Security & Identity", "Operating Systems"],
         "description": "Cross-platform framework for configuration management and task automation"
       },
       {
@@ -57,6 +59,7 @@
         "link": "https://www.python.org/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["CI/CD & Automation", "API & Testing"],
         "description": "Versatile language for automation, scripting, and cloud infrastructure tooling"
       },
       {
@@ -85,6 +88,7 @@
         "link": "https://aws.amazon.com/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Infrastructure as Code", "Security & Identity", "Monitoring & Observability"],
         "description": "Primary cloud platform for compute, storage, networking, and serverless solutions"
       },
       {
@@ -94,6 +98,7 @@
         "link": "https://azure.microsoft.com/",
         "proficiency": "advanced",
         "featured": true,
+        "tags": ["Infrastructure as Code", "Security & Identity", "Monitoring & Observability"],
         "description": "Microsoft cloud platform for hybrid identity, VMs, and enterprise services"
       },
       {
@@ -101,7 +106,8 @@
         "name": "Cloudflare",
         "icon_path": "/static/images/skills/cloudflare.svg",
         "link": "https://www.cloudflare.com/",
-        "proficiency": "intermediate"
+        "proficiency": "intermediate",
+        "tags": ["Security & Identity", "Web Servers & Frameworks"]
       },
       {
         "id": 17,
@@ -150,6 +156,7 @@
         "link": "https://www.docker.com/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Development Tools", "CI/CD & Automation"],
         "description": "Container platform for building, shipping, and running applications consistently"
       },
       {
@@ -159,6 +166,7 @@
         "link": "https://kubernetes.io/",
         "proficiency": "advanced",
         "featured": true,
+        "tags": ["Cloud Platforms", "CI/CD & Automation"],
         "description": "Container orchestration for deploying and scaling containerized workloads"
       },
       {
@@ -189,6 +197,7 @@
         "link": "https://www.ansible.com/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Infrastructure as Code"],
         "description": "Agentless automation for configuration management and application deployment"
       },
       {
@@ -219,6 +228,7 @@
         "link": "https://github.com/features/actions",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Development Tools", "Collaboration Tools"],
         "description": "CI/CD platform for automating build, test, and deployment workflows"
       },
       {
@@ -233,7 +243,8 @@
         "name": "Packer",
         "icon_path": "/static/images/skills/packer.svg",
         "link": "https://www.packer.io/",
-        "proficiency": "intermediate"
+        "proficiency": "intermediate",
+        "tags": ["Infrastructure as Code", "Cloud Platforms"]
       },
       {
         "id": 103,
@@ -261,7 +272,8 @@
         "name": "OpenTofu",
         "icon_path": "/static/images/skills/opentofu.svg",
         "link": "https://opentofu.org/",
-        "proficiency": "advanced"
+        "proficiency": "advanced",
+        "tags": ["Cloud Platforms"]
       },
       {
         "id": 29,
@@ -270,6 +282,7 @@
         "link": "https://www.terraform.io/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Cloud Platforms", "CI/CD & Automation"],
         "description": "Multi-cloud infrastructure as code for declarative resource provisioning"
       },
       {
@@ -406,6 +419,7 @@
         "link": "https://git-scm.com/",
         "proficiency": "expert",
         "featured": true,
+        "tags": ["Collaboration Tools"],
         "description": "Distributed version control for collaborative development and code management"
       },
       {
@@ -413,14 +427,16 @@
         "name": "GitHub",
         "icon_path": "/static/images/skills/github.svg",
         "link": "https://github.com/",
-        "proficiency": "expert"
+        "proficiency": "expert",
+        "tags": ["Collaboration Tools", "CI/CD & Automation"]
       },
       {
         "id": 46,
         "name": "GitHub Codespaces",
         "icon_path": "/static/images/skills/github_codespaces.svg",
         "link": "https://github.com/features/codespaces",
-        "proficiency": "advanced"
+        "proficiency": "advanced",
+        "tags": ["Collaboration Tools", "Cloud Platforms"]
       },
       {
         "id": 50,

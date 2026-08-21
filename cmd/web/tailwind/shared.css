@@ -1,4 +1,4 @@
-/* Shared Tailwind component-layer styles */
+/* Low-level design tokens and reusable motion primitives. */
 :root {
   --space-2xs: 0.125rem;
   --space-xs: 0.25rem;
@@ -9,13 +9,18 @@
   --space-2xl: 3rem;
   --space-3xl: 4rem;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 38px;
   --radius-full: 9999px;
 
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', consolas, monospace;
+  --line-hairline: 0.0625rem;
+  --line-accent: 0.125rem;
+  --line-signal: 0.1875rem;
+  --line-focus: 0.25rem;
+
+  --font-mono: 'IBM Plex Mono', 'SF Mono', consolas, monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -42,228 +47,9 @@
   --duration-normal: 250ms;
   --duration-slow: 400ms;
 
-  --header-height: 72px;
+  --header-height: 84px;
   --container-max: var(--container-site);
   --container-narrow: var(--container-reading);
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: var(--leading-normal);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  scroll-behavior: smooth;
-}
-
-body {
-  background: var(--bg-primary);
-  color: var(--fg-primary);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow-wrap: anywhere;
-  transition:
-    background-color var(--duration-normal) var(--ease-out),
-    color var(--duration-normal) var(--ease-out);
-  position: relative;
-}
-
-/* ================================
-   Typography
-================================ */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-weight: var(--font-bold);
-  line-height: var(--leading-tight);
-  color: var(--fg-primary);
-}
-
-h1 {
-  font-size: var(--text-4xl);
-}
-
-h2 {
-  font-size: var(--text-2xl);
-}
-
-h3 {
-  font-size: var(--text-xl);
-}
-
-h4 {
-  font-size: var(--text-lg);
-}
-
-p {
-  color: var(--fg-secondary);
-  line-height: var(--leading-relaxed);
-}
-
-a {
-  color: var(--fg-accent);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-a:hover {
-  color: var(--accent-primary);
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-}
-
-.sr-only:not(:focus, :active) {
-  clip-path: inset(50%);
-  border: 0;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  padding: 0;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
-}
-
-.skip-link {
-  position: absolute;
-  top: var(--space-sm);
-  left: var(--space-sm);
-  z-index: 300;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-secondary);
-  color: var(--fg-primary);
-  border: 1px solid var(--border-color-strong);
-  border-radius: var(--radius-md);
-  transform: translateY(-200%);
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.skip-link:focus {
-  transform: translateY(0);
-}
-
-@supports selector(:focus-visible) {
-  .skip-link:focus:not(:focus-visible) {
-    transform: translateY(-200%);
-  }
-}
-
-code {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  padding: 0.15em 0.4em;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
-}
-
-@media (forced-colors: active) {
-  .skip-link {
-    background: Canvas;
-    color: CanvasText;
-    border-color: ButtonText;
-  }
-
-  .btn,
-  .btn-primary,
-  .btn-secondary,
-  .btn-ghost,
-  .btn-success {
-    background: Canvas;
-    color: ButtonText;
-    border: 2px solid ButtonBorder;
-    box-shadow: none;
-  }
-
-  .btn:hover,
-  .btn:focus-visible {
-    background: Highlight;
-    color: HighlightText;
-    border-color: Highlight;
-  }
-
-  .text-input:focus {
-    outline: 2px solid Highlight;
-    outline-offset: 1px;
-    border-color: Highlight;
-  }
-
-  /* Gradient text becomes invisible in forced-colors; reset to system text */
-  .text-gradient-brand,
-  .about-stat-value,
-  .quick-facts-card h3,
-  .edu-stat-value,
-  .proj-stat-value,
-  .summary-value,
-  .name,
-  .home-stat-value,
-  .stat-value {
-    background: none;
-    -webkit-text-fill-color: CanvasText;
-    color: CanvasText;
-  }
-}
-
-.hamburger,
-.hamburger::before,
-.hamburger::after {
-  position: absolute;
-  width: 20px;
-  height: 2px;
-  background: var(--fg-primary);
-  border-radius: 2px;
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.hamburger {
-  position: relative;
-  display: inline-block;
-  flex: none;
-  top: auto;
-  left: auto;
-  transform: none;
-}
-
-.hamburger::before,
-.hamburger::after {
-  content: '';
-  left: 0;
-}
-
-.hamburger::before {
-  top: -6px;
-}
-
-.hamburger::after {
-  top: 6px;
-}
-
-.mobile-menu-btn[aria-expanded='true'] .hamburger {
-  background: transparent;
-}
-
-.mobile-menu-btn[aria-expanded='true'] .hamburger::before {
-  top: 0;
-  transform: rotate(45deg);
-}
-
-.mobile-menu-btn[aria-expanded='true'] .hamburger::after {
-  top: 0;
-  transform: rotate(-45deg);
 }
 
 @keyframes shimmer {
@@ -274,13 +60,6 @@ code {
   100% {
     background-position: -200% 0;
   }
-}
-
-/* ================================
-   Animations
-================================ */
-.fade-in {
-  animation: fade-in var(--duration-normal) var(--ease-out);
 }
 
 @keyframes fade-in {
@@ -294,9 +73,6 @@ code {
     transform: translateY(0);
   }
 }
-/* ================================
-   Shared Animations
-================================ */
 @keyframes card-fade-in {
   from {
     opacity: 0;
@@ -309,44 +85,40 @@ code {
   }
 }
 
-/* ================================
-   Responsive
-================================ */
-@media (width <= 1024px) {
+@keyframes hero-arrive {
+  from {
+    opacity: 0.72;
+    transform: translateY(var(--space-xs));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (width < 70rem) {
   :root {
     --text-4xl: 2rem;
     --text-3xl: 1.75rem;
   }
 }
 
-@media (width <= 768px) {
+@media (width < 48rem) {
   :root {
-    --header-height: 64px;
+    --header-height: 68px;
     --space-lg: 1rem;
     --space-xl: 1.5rem;
     --space-2xl: 2rem;
     --space-3xl: 2.5rem;
   }
-
 }
 
-@media (width <= 480px) {
+@media (width < 30rem) {
   :root {
     --text-5xl: 2rem;
     --text-4xl: 1.75rem;
     --text-3xl: 1.5rem;
     --text-2xl: 1.25rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  html {
-    scroll-behavior: auto;
   }
 }

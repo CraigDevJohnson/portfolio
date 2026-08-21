@@ -125,7 +125,10 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 	if found || authRejected || err != nil {
 		return event, found, authRejected, err
 	}
+	resp.Body.Close()
 
+	// handleListEventsResponse owns and closes the replacement response body.
+	//nolint:bodyclose
 	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
 	if err != nil {
 		return nil, false, false, err

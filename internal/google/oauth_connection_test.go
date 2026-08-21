@@ -3,6 +3,7 @@ package google
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +61,22 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 		t.Fatal("expected revoked Google connection record to be deleted")
 	}
 	assertClearedConnectionCookie(t, resp.Result())
+}
+
+func TestRenderDisconnectFeedbackRefreshesGoogleStateWithoutLPSSession(t *testing.T) {
+	h := newTestHandler(t, &fakeConnectionStore{records: map[string]ConnectionRecord{}})
+	bridge := h.Soccer.(*stubSoccerBridge)
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/add", nil)
+	resp := httptest.NewRecorder()
+
+	h.RenderDisconnectFeedback(resp, req, nil, "Google Calendar access expired.")
+
+	if bridge.loginStateOOBCalls != 1 {
+		t.Fatalf("granular Google refresh calls = %d, want 1 for nil LPS session", bridge.loginStateOOBCalls)
+	}
+	if !strings.Contains(resp.Body.String(), "login-state-oob-rendered") {
+		t.Fatalf("nil-session response lacks refreshed Google state: %q", resp.Body.String())
+	}
 }
 
 func assertClearedConnectionCookie(t *testing.T, resp *http.Response) {

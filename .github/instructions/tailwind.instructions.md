@@ -18,8 +18,10 @@ Edit the source files under `cmd/web/tailwind/` and run `task tailwind-build`.
 | `theme.css`      | Color palette tokens and breakpoints                                          |
 | `shared.css`     | Spacing, radius, typography, timing, and `--header-height` custom properties  |
 | `base.css`       | Base element styles and `:root` semantic aliases                              |
-| `components.css` | All shared component classes (layout, buttons, cards, forms, skills, etc.)    |
+| `components.css` | Shared component classes for layout, buttons, cards, and forms                 |
+| `pages/*.css`    | Route-owned styles for the public portfolio pages                              |
 | `soccer.css`     | Soccer-page-specific components (login modal, hero overlay, games section)    |
+| `portal.css`     | Management portal and portal-preview styles                                    |
 
 ## Design tokens
 
@@ -35,7 +37,8 @@ Do not introduce ad-hoc hex values or raw pixel sizes.
 
 ## Adding new component styles
 
-1. Add component classes to `components.css` for shared components or `soccer.css` for soccer-page-specific styles.
+1. Add shared classes to `components.css`; add route-owned rules to the matching
+   `pages/*.css`, `soccer.css`, or `portal.css` source.
 2. Follow the existing `@apply` pattern for component classes.
 3. Rebuild with `task tailwind-build` (or `task tailwind-watch` during development).
 

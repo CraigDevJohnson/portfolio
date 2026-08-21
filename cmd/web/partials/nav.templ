@@ -2,24 +2,54 @@ package partials
 
 // navItem represents a single navigation link.
 type navItem struct {
-	Href  string
+	Href        string
+	Label       string
+	Page        string
+	FooterGroup string
+}
+
+type footerNavGroup struct {
 	Label string
-	Page  string
+	Items []navItem
 }
 
 // navItems returns the shared list of navigation links used by both
 // desktop and mobile navigation menus.
 func navItems() []navItem {
 	return []navItem{
-		{Href: "/", Label: "Home", Page: "home"},
-		{Href: "/about", Label: "About", Page: "about"},
-		{Href: "/experience", Label: "Experience", Page: "experience"},
-		{Href: "/skills", Label: "Skills", Page: "skills"},
-		{Href: "/projects", Label: "Projects", Page: "projects"},
-		{Href: "/education", Label: "Education", Page: "education"},
-		{Href: "/contact", Label: "Contact", Page: "contact"},
-		{Href: "/soccer", Label: "Soccer", Page: "soccer"},
+		{Href: "/", Label: "Home", Page: "home", FooterGroup: "Portfolio"},
+		{Href: "/about", Label: "About", Page: "about", FooterGroup: "Portfolio"},
+		{Href: "/experience", Label: "Experience", Page: "experience", FooterGroup: "Portfolio"},
+		{Href: "/skills", Label: "Skills", Page: "skills", FooterGroup: "Portfolio"},
+		{Href: "/projects", Label: "Projects", Page: "projects", FooterGroup: "Portfolio"},
+		{Href: "/education", Label: "Education", Page: "education", FooterGroup: "Portfolio"},
+		{Href: "/contact", Label: "Contact", Page: "contact", FooterGroup: "Portfolio"},
+		{Href: "/soccer", Label: "Soccer", Page: "soccer", FooterGroup: "Tools"},
 	}
+}
+
+func footerNavGroups() []footerNavGroup {
+	groups := []footerNavGroup{
+		{Label: "Portfolio"},
+		{Label: "Tools"},
+	}
+	for _, item := range navItems() {
+		for i := range groups {
+			if item.FooterGroup == groups[i].Label {
+				groups[i].Items = append(groups[i].Items, item)
+				break
+			}
+		}
+	}
+	return groups
+}
+
+func footerNavListClasses(label string) string {
+	classes := "footer-nav-list"
+	if label == "Portfolio" {
+		return classes + " footer-nav-list-portfolio"
+	}
+	return classes
 }
 
 func navLinkClasses(active bool) string {
@@ -36,6 +66,7 @@ templ NavLinks(page string) {
 		<a
 			href={ templ.SafeURL(item.Href) }
 			class={ navLinkClasses(page == item.Page) }
+			data-nav-page={ item.Page }
 			if page == item.Page {
 				aria-current="page"
 			}
@@ -44,7 +75,7 @@ templ NavLinks(page string) {
 }
 
 templ Nav(page string) {
-	<nav class="main-nav flex items-center gap-1 max-[1120px]:hidden" aria-label="Main navigation">
+	<nav class="main-nav site-dock-desktop-nav" aria-label="Main navigation">
 		@NavLinks(page)
 	</nav>
 }

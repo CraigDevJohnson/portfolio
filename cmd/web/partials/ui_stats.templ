@@ -1,0 +1,37 @@
+package partials
+
+templ StatCard(props StatCardProps) {
+	<div
+		class={ mergeClasses("page-kit-stat-card "+toneClass(props.Tone), props.ExtraClass) }
+		{ props.Attributes... }
+	>
+		if props.Icon != "" {
+			<div class={ "page-kit-icon-frame " + pageKitIconToneClass(props.Tone) + " mb-3" }>
+				<span class="page-kit-field-mark" aria-hidden="true">{ props.Icon }</span>
+			</div>
+		}
+		<span
+			class={ statCardValueClasses(props.ValueClass) }
+			if statCardIsNumeric(props.Value) {
+				data-counter
+				data-target={ props.Value }
+			}
+			if props.Suffix != "" {
+				data-suffix={ props.Suffix }
+			}
+			aria-label={ props.AriaLabel }
+		>{ statCardDisplayValue(props.Value, props.Suffix) }</span>
+		<span class={ statCardLabelClasses(props.LabelClass) }>{ props.Label }</span>
+		if props.CornerIcon != "" {
+			<span class="absolute right-5 top-5 text-xl leading-none opacity-60 sm:text-2xl" aria-hidden="true">{ props.CornerIcon }</span>
+		}
+	</div>
+}
+
+templ StatCardGrid(props StatCardGridProps) {
+	<div class={ statCardGridClasses(props) }>
+		for _, card := range props.Cards {
+			@StatCard(card)
+		}
+	</div>
+}

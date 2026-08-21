@@ -1,57 +1,118 @@
 package partials
 
 import "fmt"
-import "strings"
 import "portfolio/types"
 
 type ProjectsGridProps struct {
 	Projects []types.Project
 }
 
-templ ProjectsGrid(props ProjectsGridProps) {
-	<div class="projects-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-		for index, project := range props.Projects {
-			<article class="page-kit-panel project-card group flex h-full flex-col overflow-hidden text-copy-primary transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong" data-category={ strings.ToLower(project.Category) } style={ fmt.Sprintf("animation-delay: %dms;", index*150) }>
-				<div class="project-image relative aspect-video overflow-hidden bg-carbon-black-900">
-					if project.Image != "" {
-						<img src={ project.Image } alt={ project.Name } loading="lazy" width="400" height="225" class="h-full w-full object-cover transition duration-300 ease-out group-hover:scale-[1.05]"/>
-					} else {
-						<div class="project-placeholder flex h-full w-full items-center justify-center bg-linear-to-br from-accent-500/10 to-carbon-black-900 text-xs font-semibold uppercase tracking-[0.3em] text-copy-muted">
-							<span>Project</span>
-						</div>
+func projectDossierClasses(project types.Project) string {
+	classes := "project-dossier"
+	if project.Featured {
+		return classes + " project-dossier-lead"
+	}
+	return classes + " project-dossier-support"
+}
+
+func projectImageIntrinsicHeight(ratio types.ProjectImageRatio) string {
+	if ratio == types.ProjectImagePortrait {
+		return "1200"
+	}
+	return "534"
+}
+
+func projectImageLoading(project types.Project) string {
+	if project.Featured {
+		return "eager"
+	}
+	return "lazy"
+}
+
+templ ProjectDossier(dossier projectDossier) {
+	<article
+		class={ projectDossierClasses(dossier.Project) }
+		data-project-dossier
+		data-featured={ fmt.Sprintf("%t", dossier.Project.Featured) }
+		data-image-ratio={ dossier.Project.ImageRatio }
+		aria-labelledby={ fmt.Sprintf("project-title-%d", dossier.Project.ID) }
+	>
+		<figure class="project-dossier-media" data-image-ratio={ dossier.Project.ImageRatio }>
+			<span class="project-dossier-image-fallback" data-image-fallback aria-hidden="true">
+				<span>Project file</span>
+				<strong>{ dossier.Project.Name }</strong>
+			</span>
+			if dossier.Project.Image != "" {
+				<img
+					src={ dossier.Project.Image }
+					alt={ fmt.Sprintf("Preview of %s", dossier.Project.Name) }
+					loading={ projectImageLoading(dossier.Project) }
+					width="800"
+					height={ projectImageIntrinsicHeight(dossier.Project.ImageRatio) }
+					class="project-dossier-image"
+					data-remote-image
+				/>
+			}
+		</figure>
+		<div class="project-dossier-body">
+			<header class="project-dossier-header">
+				<div class="project-dossier-meta">
+					<span class="page-kit-chip">{ dossier.Project.Category }</span>
+					<span>{ fmt.Sprintf("%d technologies", len(dossier.Project.Technologies)) }</span>
+				</div>
+				<h3 id={ fmt.Sprintf("project-title-%d", dossier.Project.ID) } class="project-dossier-title">{ dossier.Project.Name }</h3>
+			</header>
+			<div class="project-dossier-notes">
+				<section class="project-dossier-note project-dossier-problem">
+					<h4>Problem</h4>
+					<p>{ dossier.Project.Problem }</p>
+				</section>
+				<section class="project-dossier-note project-dossier-approach">
+					<h4>Approach</h4>
+					<p>{ dossier.Project.Approach }</p>
+				</section>
+				<section class="project-dossier-note project-dossier-outcome">
+					<h4>Outcome</h4>
+					<p>{ dossier.Project.Outcome }</p>
+				</section>
+			</div>
+			<section class="project-dossier-technology">
+				<h4>Technology</h4>
+				<div class="project-dossier-tech-list">
+					for _, tech := range dossier.Project.Technologies {
+						<span class="tech-pill">{ tech }</span>
 					}
-					<div class="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-carbon-black-950/80 to-transparent"></div>
-					<div class="project-category page-kit-chip absolute right-4 top-4 px-3 py-1 uppercase tracking-[0.18em] shadow-panel">{ project.Category }</div>
 				</div>
-				<div class="project-content flex flex-1 flex-col gap-4 p-6">
-					<h3 class="project-title text-xl font-semibold text-copy-primary">{ project.Name }</h3>
-					<p class="project-intro text-sm font-medium text-primary-200">{ project.Intro }</p>
-					<p class="project-description flex-1 text-sm leading-6 text-copy-secondary">{ project.Description }</p>
-					<div class="project-tech flex flex-wrap gap-2">
-						for _, tech := range project.Technologies {
-							<span class="tech-pill">{ tech }</span>
+			</section>
+			if len(dossier.Destinations) > 0 {
+				<section class="project-dossier-destination">
+					<h4>Destination</h4>
+					<div class="project-dossier-actions">
+						for _, destination := range dossier.Destinations {
+							@ActionLink(projectDestinationAction(destination))
 						}
 					</div>
-					<div class="project-actions mt-auto flex flex-wrap gap-3">
-						if project.GitHubURL != "" {
-							<a href={ templ.SafeURL(project.GitHubURL) } target="_blank" rel="noopener noreferrer" class="page-kit-action page-kit-action-sm" aria-label={ fmt.Sprintf("GitHub repository for %s", project.Name) }>
-								GitHub
-							</a>
-						}
-						if project.DemoURL != "" {
-							if strings.HasPrefix(project.DemoURL, "/") {
-								<a href={ templ.SafeURL(project.DemoURL) } class="page-kit-action page-kit-action-primary page-kit-action-sm" aria-label={ fmt.Sprintf("Live demo for %s", project.Name) }>
-									Live Demo
-								</a>
-							} else {
-								<a href={ templ.SafeURL(project.DemoURL) } target="_blank" rel="noopener noreferrer" class="page-kit-action page-kit-action-primary page-kit-action-sm" aria-label={ fmt.Sprintf("Live demo for %s", project.Name) }>
-									Live Demo
-								</a>
-							}
-						}
-					</div>
-				</div>
-			</article>
-		}
+				</section>
+			}
+		</div>
+	</article>
+}
+
+templ ProjectsGrid(props ProjectsGridProps) {
+	{{ dossiers := buildProjectDossiers(props.Projects) }}
+	<div class="project-dossier-composition">
+		@SignalTrail(SignalTrailProps{Variant: TrailDossier, ExtraClass: "projects-dossier-signal"})
+		<div class="project-dossier-lead-region" data-region="lead">
+			if len(dossiers) > 0 {
+				@ProjectDossier(dossiers[0])
+			}
+		</div>
+		<div class="project-dossier-support-grid" data-region="support">
+			if len(dossiers) > 1 {
+				for _, dossier := range dossiers[1:] {
+					@ProjectDossier(dossier)
+				}
+			}
+		</div>
 	</div>
 }

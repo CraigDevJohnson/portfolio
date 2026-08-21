@@ -17,7 +17,7 @@ import (
 	"portfolio/internal/logging"
 )
 
-func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) {
+func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) { //nolint:gosec // Callers pass cookies created by httpx.NewSecureCookie.
 	cookie.Expires = expires
 	http.SetCookie(w, cookie)
 }
@@ -33,13 +33,13 @@ func GetConnectionID(r *http.Request) string {
 
 // SetConnectionCookie persists the Google connection ID in a secure cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteStrictMode)
+	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
 // ClearConnectionCookie removes the Google connection cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
@@ -87,7 +87,7 @@ func RedirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, stat
 
 // ConnectHandler initiates the Google OAuth flow.
 func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.Config.GoogleEnabled() {
+	if !h.GoogleAvailable() {
 		RedirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
@@ -120,7 +120,7 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 
 // CallbackHandler processes the OAuth callback after user consent.
 func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.Config.GoogleEnabled() {
+	if !h.GoogleAvailable() {
 		RedirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
@@ -182,7 +182,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.Soccer.LoadSession(w, r)
 	h.DeleteConnection(r.Context(), w, r)
-	h.Soccer.RenderLoginState(w, r, session)
+	h.Soccer.RenderLoginStateRefresh(w, r, session)
 }
 
 // NewRandomHex generates a random hex string of the given byte length.

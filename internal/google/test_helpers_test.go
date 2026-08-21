@@ -70,15 +70,19 @@ func (s *fakeConnectionStore) Put(_ context.Context, record *ConnectionRecord) e
 }
 
 type stubSoccerBridge struct {
-	lastFeedbackKind    string
-	lastFeedbackMessage string
-	games               []types.Game
-	syncResultsGames    []types.Game
-	syncResultsMessage  string
+	lastFeedbackKind       string
+	lastFeedbackMessage    string
+	loginStateOOBCalls     int
+	loginStateRefreshCalls int
+	session                *types.SessionData
+	lastRefreshSession     *types.SessionData
+	games                  []types.Game
+	syncResultsGames       []types.Game
+	syncResultsMessage     string
 }
 
 func (b *stubSoccerBridge) LoadSession(_ http.ResponseWriter, _ *http.Request) (*types.SessionData, bool) {
-	return nil, false
+	return b.session, false
 }
 
 func (b *stubSoccerBridge) LoginStateProps(_ http.ResponseWriter, _ *http.Request, _ *types.SessionData, _ bool) partials.SoccerLoginStateProps {
@@ -87,6 +91,17 @@ func (b *stubSoccerBridge) LoginStateProps(_ http.ResponseWriter, _ *http.Reques
 
 func (b *stubSoccerBridge) RenderLoginState(w http.ResponseWriter, _ *http.Request, _ *types.SessionData) {
 	_, _ = w.Write([]byte("login-state-rendered"))
+}
+
+func (b *stubSoccerBridge) RenderLoginStateOOB(w http.ResponseWriter, _ *http.Request, _ *types.SessionData) {
+	b.loginStateOOBCalls++
+	_, _ = w.Write([]byte("login-state-oob-rendered"))
+}
+
+func (b *stubSoccerBridge) RenderLoginStateRefresh(w http.ResponseWriter, _ *http.Request, session *types.SessionData) {
+	b.loginStateRefreshCalls++
+	b.lastRefreshSession = session
+	_, _ = w.Write([]byte("login-state-refresh-rendered"))
 }
 
 func (b *stubSoccerBridge) RenderLoginFeedback(w http.ResponseWriter, _ *http.Request, kind, message string) {

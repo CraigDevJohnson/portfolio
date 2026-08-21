@@ -1,0 +1,39 @@
+package pages
+
+import "fmt"
+import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
+import "strconv"
+
+type ErrorPageProps struct {
+	StatusCode int
+	Message    string
+}
+
+templ PortalError(props ErrorPageProps) {
+	@layouts.Base(layouts.BaseProps{Title: fmt.Sprintf("%d - Management portal", props.StatusCode), Page: "portal", Shell: layouts.ShellOperator}) {
+		<div class="page-kit-page portal-error-page portal-console-error-page" data-layout="operator-interruption">
+			<section class="portal-error-card portal-console-error-card" aria-labelledby="portal-error-heading">
+				<div class="portal-error-code" aria-label={ "Status " + strconv.Itoa(props.StatusCode) }>{ strconv.Itoa(props.StatusCode) }</div>
+				<div class="portal-error-copy">
+					<p class="page-kit-eyebrow">Management portal</p>
+					<h1 id="portal-error-heading" class="page-section-title">Something interrupted the connection</h1>
+					@partials.Feedback(partials.FeedbackProps{
+						Kind:       partials.FeedbackError,
+						Title:      "Connection status",
+						Message:    props.Message,
+						ExtraClass: "portal-error-feedback",
+					})
+					@partials.ActionLink(partials.ActionLinkProps{
+						Href:       "/login",
+						Label:      "Try again",
+						Variant:    partials.ActionPrimary,
+						ShowArrow:  true,
+						ExtraClass: "portal-error-action",
+					})
+				</div>
+				@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailInterruption, ExtraClass: "portal-interruption-trail"})
+			</section>
+		</div>
+	}
+}

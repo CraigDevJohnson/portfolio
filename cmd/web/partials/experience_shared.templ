@@ -6,10 +6,10 @@ type ExperienceKitFooterActionsProps struct {
 }
 
 templ ExperienceKitFooterActions(props ExperienceKitFooterActionsProps) {
-	@PageCTA(
-		props.Heading,
-		props.Description,
-		CTALink{Href: "/projects", Label: "View Projects"},
-		CTALink{Href: "/skills", Label: "Review Skills"},
-	)
+	@PageCTA(PageCTAProps{
+		Title:     props.Heading,
+		Subtitle:  props.Description,
+		Primary:   ActionLinkProps{Href: "/projects", Label: "View Projects", Variant: ActionPrimary},
+		Secondary: &ActionLinkProps{Href: "/skills", Label: "Review Skills", Variant: ActionSecondary},
+	})
 }

@@ -45,6 +45,10 @@ static/screenshots/
 dev
 .playwright-mcp/
 
+# Local browser-test sessions and generated evidence
+.playwright-cli/
+/output/playwright/
+
 # Review and design screenshots captured in the repo root
 /*.png
 /*.jpg

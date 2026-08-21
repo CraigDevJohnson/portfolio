@@ -1,20 +1,24 @@
 package partials
 
 templ Header(page string) {
-	<header class="site-header site-chrome-header">
-		<div class="header-content mx-auto flex h-full max-w-[var(--container-max)] items-center justify-between gap-6 px-6 max-[480px]:px-4">
-			<a href="/" class="logo text-lg font-extrabold tracking-[-0.02em] text-copy-primary transition duration-150 ease-out hover:scale-[1.02] hover:text-copy-primary focus-ring">
-				<span class="logo-text">Craig Johnson</span>
+	<header class="site-header site-chrome-header site-dock" data-site-dock>
+		<div class="header-content site-dock-shell mx-auto flex h-full max-w-[var(--container-max)] items-center justify-between gap-6 px-4 sm:px-6">
+			<a href="/" class="logo site-logo site-dock-brand text-copy-primary transition duration-150 ease-out hover:text-copy-primary focus-ring" aria-label="Craig Johnson, home">
+				<span class="site-logo-mark" aria-hidden="true">CJ</span>
+				<span class="site-logo-copy">
+					<span class="logo-text">Craig Johnson</span>
+					<span class="site-logo-role">Cloud systems &amp; automation</span>
+				</span>
 			</a>
 			@Nav(page)
-			<div class="header-actions flex items-center gap-2">
-				<button id="mobile-menu-btn" class="mobile-menu-btn site-chrome-menu-button" aria-label="Open navigation menu" aria-controls="mobile-nav" aria-expanded="false">
+			<div class="header-actions site-dock-actions flex items-center gap-2">
+				<button id="mobile-menu-btn" class="mobile-menu-btn site-chrome-menu-button" aria-label="Open navigation menu" aria-controls="mobile-nav" aria-expanded="false" data-mobile-menu-trigger>
 					<span class="hamburger" aria-hidden="true"></span>
 					<span class="site-chrome-menu-label" data-menu-label>Menu</span>
 				</button>
 			</div>
 		</div>
-		<nav id="mobile-nav" class="mobile-nav site-chrome-mobile-nav" aria-label="Mobile navigation" aria-hidden="true">
+		<nav id="mobile-nav" class="mobile-nav site-chrome-mobile-nav site-dock-mobile-nav" aria-label="Mobile navigation" aria-hidden="true" tabindex="-1" data-mobile-nav>
 			@NavLinks(page)
 		</nav>
 	</header>

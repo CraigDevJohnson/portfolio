@@ -14,6 +14,7 @@ import (
 
 // GoogleHooks exposes temporary Google integration points wired from internal/app.
 type GoogleHooks interface {
+	GoogleAvailable() bool
 	GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool
 	PopulateLoginState(ctx context.Context, w http.ResponseWriter, r *http.Request, props *partials.SoccerLoginStateProps)
 }
@@ -49,20 +50,6 @@ type Handler struct {
 	googleHooks GoogleHooks
 }
 
-// Store returns the current soccer session store (thread-safe).
-func (h *Handler) Store() SoccerStore {
-	h.storeMu.RLock()
-	defer h.storeMu.RUnlock()
-	return h.store
-}
-
-// SetStore replaces the soccer session store (thread-safe, called after background init).
-func (h *Handler) SetStore(store SoccerStore) {
-	h.storeMu.Lock()
-	h.store = store
-	h.storeMu.Unlock()
-}
-
 // NewHandler constructs a soccer handler with its runtime dependencies.
 func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *session.LoginRateLimiter, googleHooks GoogleHooks, store SoccerStore, logger *slog.Logger) *Handler {
 	if logger == nil {
@@ -82,6 +69,27 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 	}
 }
 
+// Store returns the current soccer session store (thread-safe).
+func (h *Handler) Store() SoccerStore {
+	h.storeMu.RLock()
+	defer h.storeMu.RUnlock()
+	return h.store
+}
+
+// SetStore replaces the soccer session store (thread-safe, called after background init).
+func (h *Handler) SetStore(store SoccerStore) {
+	h.storeMu.Lock()
+	h.store = store
+	h.storeMu.Unlock()
+}
+
 func (h *Handler) setHTMLContentType(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", htmlContentType)
+}
+
+func (h *Handler) googleAvailable() bool {
+	if h.googleHooks != nil {
+		return h.googleHooks.GoogleAvailable()
+	}
+	return h.Config != nil && h.Config.GoogleEnabled()
 }

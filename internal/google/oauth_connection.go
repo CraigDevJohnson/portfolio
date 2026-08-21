@@ -20,12 +20,7 @@ import (
 // RenderDisconnectFeedback removes the Google connection and renders status UI.
 func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Request, session *types.SessionData, message string) {
 	h.DeleteConnection(r.Context(), w, r)
-	if session != nil {
-		if err := partials.SoccerLoginState(h.Soccer.LoginStateProps(w, r, session, true)).Render(r.Context(), w); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
+	h.Soccer.RenderLoginStateOOB(w, r, session)
 	h.Soccer.RenderLoginFeedback(w, r, "error", message)
 }
 
@@ -134,7 +129,7 @@ func (h *Handler) ListCalendars(ctx context.Context, r *http.Request, record *Co
 
 // GoogleConnected returns true if a valid Google connection exists for the request.
 func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
-	if !h.Config.GoogleEnabled() {
+	if !h.GoogleAvailable() {
 		return false
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)

@@ -70,17 +70,13 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	sessionID := generateSessionID()
-	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
-	knownTeams := fetchKnownTeams(r.Context(), resolver, discovery.Players)
-
 	session := types.SessionData{
-		JWT:        jwt,
-		UserName:   discovery.UserName,
-		Players:    discovery.Players,
-		ExpiresAt:  lps.ImportedSessionExpiry(jwt),
-		SessionID:  sessionID,
-		KnownTeams: knownTeams,
-		StartedAt:  now,
+		JWT:       jwt,
+		UserName:  discovery.UserName,
+		Players:   discovery.Players,
+		ExpiresAt: lps.ImportedSessionExpiry(jwt),
+		SessionID: sessionID,
+		StartedAt: now,
 	}
 	if err := h.setSession(w, r, &session); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer import session write failed", slog.Any("error", err))
@@ -91,6 +87,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	persistCtx := context.WithoutCancel(r.Context())
 	go h.persistSessionRecord(persistCtx, sessionID, &session)
 
+	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	h.setHTMLContentType(w)
 	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -103,7 +100,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-logout")
-	h.RenderLoginState(w, r, nil)
+	h.RenderWorkflowReset(w, r, nil)
 }
 
 func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
@@ -122,6 +119,7 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
+	session.Workflow = normalizeWorkflowState(&session.Workflow, session.Players)
 	return &session, nil
 }
 
@@ -145,12 +143,12 @@ func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *ty
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteStrictMode))
+	http.SetCookie(w, httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteLaxMode))
 	return nil
 }
 
 func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
-	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteStrictMode)
+	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
 }
@@ -159,30 +157,6 @@ func generateSessionID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// fetchKnownTeams calls FetchPlayerTeams for each player and returns the collected teams.
-// Errors from individual players are logged and skipped to avoid blocking import.
-func fetchKnownTeams(ctx context.Context, resolver *lps.ScheduleResolver, players []types.LPSPlayer) []types.LPSTeam {
-	var known []types.LPSTeam
-	for _, player := range players {
-		teams, err := resolver.FetchPlayerTeams(ctx, player.UPlayerID)
-		if err != nil {
-			continue
-		}
-		for _, t := range teams {
-			if t.UTeamID <= 0 {
-				continue
-			}
-			known = append(known, types.LPSTeam{
-				TeamID:   t.UTeamID,
-				TeamName: t.TeamName,
-				Season:   t.Season,
-				PlayerID: player.UPlayerID,
-			})
-		}
-	}
-	return known
 }
 
 func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID string, session *types.SessionData) {
@@ -194,17 +168,10 @@ func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID stri
 		h.Logger.Warn("soccer session persist: failed to marshal players", slog.Any("error", err))
 		return
 	}
-	teamsJSON, err := marshalTeamsJSON(session.KnownTeams)
-	if err != nil {
-		h.Logger.Warn("soccer session persist: failed to marshal teams", slog.Any("error", err))
-		return
-	}
-
 	record := &SoccerSessionRecord{
 		SessionID:   sessionID,
 		UserName:    session.UserName,
 		PlayersJSON: playersJSON,
-		TeamsJSON:   teamsJSON,
 		StartedAt:   session.StartedAt,
 		ExpiresAt:   session.ExpiresAt,
 		TTL:         session.ExpiresAt.Unix(),

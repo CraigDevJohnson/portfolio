@@ -78,7 +78,7 @@ func RequestBaseURL(request *http.Request) string {
 
 // NewSecureCookie builds an HTTP-only cookie using the request security context.
 func NewSecureCookie(request *http.Request, name, value, path string, maxAge int, sameSite http.SameSite) *http.Cookie {
-	return &http.Cookie{
+	return &http.Cookie{ //nolint:gosec // Secure is request-aware: true for TLS/trusted-proxy HTTPS and false for local HTTP development.
 		Name:     name,
 		Value:    value,
 		Path:     path,

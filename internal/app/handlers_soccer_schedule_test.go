@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -64,6 +66,135 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	}
 	if !strings.Contains(resp.Body.String(), "token was rejected") {
 		t.Fatalf("unexpected response body: %q", resp.Body.String())
+	}
+}
+
+func TestFetchSchedulesHandlerRequiresTeamInExplicitTeamSelection(t *testing.T) {
+	app := newTestApp(t)
+	var upstreamCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalls.Add(1)
+		http.Error(w, "unexpected upstream request", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"selection_mode": {"teams"},
+		"player_ids":     {"1001"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		UserName: "Craig Johnson",
+		Players: []types.LPSPlayer{{
+			UPlayerID: 1001,
+			FirstName: "Craig",
+			LastName:  "Johnson",
+		}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).FetchSchedulesHandler(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	if !strings.Contains(resp.Body.String(), "Choose at least one team to fetch schedules") {
+		t.Fatalf("expected actionable empty team selection message, got %q", resp.Body.String())
+	}
+	if got := upstreamCalls.Load(); got != 0 {
+		t.Fatalf("unexpected upstream requests: got %d want 0", got)
+	}
+}
+
+func TestDiscoverTeamsHandlerKeepsRenderedTeamCatalogOutOfCookieBudget(t *testing.T) {
+	app := newTestApp(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/players/1001/my_teams" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var payload strings.Builder
+		payload.WriteByte('[')
+		for index := 0; index < 48; index++ {
+			if index > 0 {
+				payload.WriteByte(',')
+			}
+			_, _ = fmt.Fprintf(&payload, `{"UTeamID":%d,"team_name":"Craig FC %02d %s","Season":77}`, 4101+index, index+1, strings.Repeat("LongName", 8))
+		}
+		payload.WriteByte(']')
+		_, _ = w.Write([]byte(payload.String()))
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/discover-teams", strings.NewReader(url.Values{"player_ids": {"1001"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).DiscoverTeamsHandler(resp, req)
+
+	cookie := findSessionCookie(t, resp.Result())
+	if cookie == nil {
+		t.Fatal("discover teams did not persist the workflow cookie")
+	}
+	workflow := decryptTestSession(t, app, cookie.Value).Workflow
+	if workflow.Source != "imported" || !reflect.DeepEqual(workflow.SelectedPlayerIDs, []int{1001}) || workflow.SelectedTeamIDs != nil {
+		t.Fatalf("persisted discovery workflow = %#v", workflow)
+	}
+	if got := len(cookie.Value); got >= 3800 {
+		t.Fatalf("discover-team workflow cookie length = %d, want less than 3800 bytes so browsers do not discard it", got)
+	}
+	if body := resp.Body.String(); !strings.Contains(body, "Craig FC 48") {
+		t.Fatal("discover-team response did not render the complete current team catalog")
+	}
+}
+
+func TestFetchSchedulesHandlerPersistsConfirmedImportedTeams(t *testing.T) {
+	app := newTestApp(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/teams/4101" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"games":[]}`))
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"selection_mode": {"teams"},
+		"player_ids":     {"1001"},
+		"team_ids":       {"4101"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{1001},
+		},
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).FetchSchedulesHandler(resp, req)
+
+	cookie := findSessionCookie(t, resp.Result())
+	if cookie == nil {
+		t.Fatal("schedule fetch did not persist the confirmed-team workflow cookie")
+	}
+	workflow := decryptTestSession(t, app, cookie.Value).Workflow
+	if workflow.Source != "imported" || !reflect.DeepEqual(workflow.SelectedTeamIDs, []int{4101}) {
+		t.Fatalf("persisted schedule workflow = %#v", workflow)
 	}
 }
 
@@ -601,8 +732,8 @@ func TestFetchSchedulesHandlerSplitsUpcomingGamesAndPastResults(t *testing.T) {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 	}
 	body := resp.Body.String()
-	if strings.Count(body, `<table class="games-table">`) != 2 {
-		t.Fatalf("expected two rendered schedule tables, got body %q", body)
+	if strings.Count(body, `<ol class="soccer-match-list"`) != 2 {
+		t.Fatalf("expected two rendered schedule match lists, got body %q", body)
 	}
 	if !strings.Contains(body, "Upcoming games") {
 		t.Fatalf("expected upcoming games heading, got %q", body)
@@ -636,7 +767,7 @@ func TestFetchSchedulesHandlerSplitsUpcomingGamesAndPastResults(t *testing.T) {
 	}
 }
 
-func TestFetchSchedulesHandlerShowsConnectGoogleCTAWhenAvailableButDisconnected(t *testing.T) {
+func TestFetchSchedulesHandlerDoesNotAdvertiseGoogleBeforeStoreIsReady(t *testing.T) {
 	app := newTestApp(t)
 	app.Config.GoogleClientID = "client-id"
 	app.Config.GoogleClientSecret = "client-secret"
@@ -684,11 +815,11 @@ func TestFetchSchedulesHandlerShowsConnectGoogleCTAWhenAvailableButDisconnected(
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 	}
 	body := resp.Body.String()
-	if !strings.Contains(body, "Connect Google Calendar") {
-		t.Fatalf("expected rendered schedule to show connect Google CTA, got %q", body)
+	if strings.Contains(body, "Connect Google Calendar") {
+		t.Fatalf("rendered schedule advertised Google before its connection store was ready: %q", body)
 	}
-	if strings.Contains(body, "Google Calendar add is unavailable in this environment.") {
-		t.Fatalf("expected rendered schedule to avoid unavailable message when Google is configured, got %q", body)
+	if !strings.Contains(body, "Google Calendar add is unavailable in this environment.") {
+		t.Fatalf("rendered schedule did not explain that Google is unavailable in this runtime: %q", body)
 	}
 	if strings.Contains(body, "Sync Past Results") || strings.Contains(body, "Add Selected to Google Calendar") {
 		t.Fatalf("expected disconnected Google actions to stay hidden until connected, got %q", body)

@@ -6,6 +6,32 @@ type BaseProps struct {
 	Title       string
 	Page        string
 	Description string
+	Shell       ShellVariant
+}
+
+type ShellVariant string
+
+const (
+	ShellPublic   ShellVariant = "public"
+	ShellOperator ShellVariant = "operator"
+)
+
+func normalizedShell(shell ShellVariant) ShellVariant {
+	if shell == ShellOperator {
+		return ShellOperator
+	}
+	return ShellPublic
+}
+
+func baseBodyClasses(page string) string {
+	classes := "site-body"
+	if page != "" {
+		classes += " page-" + page
+	}
+	if page == "soccer" {
+		classes += " soccer-theme"
+	}
+	return classes
 }
 
 templ Base(props BaseProps) {
@@ -23,44 +49,41 @@ templ Base(props BaseProps) {
 				}
 			/>
 			<meta name="author" content="Craig Johnson"/>
-			<meta name="theme-color" content="#001524"/>
+			<meta name="theme-color" content="#17121B"/>
 			<title>{ props.Title }</title>
 			<!-- Favicons -->
-			<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png?v=20260405b"/>
-			<link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png?v=20260405b"/>
-			<link rel="icon" type="image/x-icon" href="/static/images/favicon.ico?v=20260405b"/>
-			<link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png?v=20260405b"/>
-			<link rel="manifest" href="/static/images/site.webmanifest?v=20260405c"/>
+			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v=20260819a"/>
+			<link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png?v=20260819a"/>
+			<link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png?v=20260819a"/>
+			<link rel="icon" type="image/x-icon" href="/static/images/favicon.ico?v=20260819a"/>
+			<link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png?v=20260819a"/>
+			<link rel="manifest" href="/static/images/site.webmanifest?v=20260819a"/>
 			<!-- Fonts -->
 			<link rel="preconnect" href="https://fonts.googleapis.com"/>
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 			<link
-				href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+				href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
 				rel="stylesheet"
 			/>
 			<!-- Styles -->
-			<link rel="stylesheet" href="/static/css/tailwind.css?v=20260504a"/>
+			<link rel="stylesheet" href="/static/css/tailwind.css?v=20260818c"/>
 			<!-- HTMX with integrity check -->
-			<script
-				src="https://unpkg.com/htmx.org@1.9.10"
-				integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
-				crossorigin="anonymous"
-			></script>
-			<script src="/static/js/main.js?v=20260504a" defer></script>
+			<script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+			<script src="/static/js/main.js?v=20260810d" defer></script>
 		</head>
-		<body
-			if props.Page == "soccer" {
-				class="soccer-theme"
-			}
-		>
-			<a href="#maincontent" class="skip-link sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[300] focus:rounded-lg focus:border focus:border-white/15 focus:bg-primary-950 focus:px-4 focus:py-2 focus:text-copy-primary">Skip to main content</a>
+		<body class={ baseBodyClasses(props.Page) } data-shell={ string(normalizedShell(props.Shell)) }>
+			<a href="#maincontent" class="site-skip-link">Skip to main content</a>
 			@partials.Header(props.Page)
 			<main id="maincontent" class="main-content flex-1 pt-[var(--header-height)]" tabindex="-1">
-				<div class="container mx-auto w-full max-w-[var(--container-max)] px-6 max-[480px]:px-4">
+				<div class="site-page-shell container mx-auto w-full px-4 sm:px-6">
 					{ children... }
 				</div>
 			</main>
-			@partials.Footer()
+			if normalizedShell(props.Shell) == ShellOperator {
+				@partials.OperatorFooter()
+			} else {
+				@partials.Footer()
+			}
 		</body>
 	</html>
 }

@@ -26,3 +26,12 @@ const (
 	DefaultGameDuration    = 45 * time.Minute
 	SoccerCookiePath       = "/soccer"
 )
+
+const (
+	PortalSessionCookieName    = "mgmt_session"
+	PortalCookiePath           = "/"
+	PortalSessionTTL           = 12 * time.Hour
+	PortalOAuthStateCookieName = "mgmt_oauth_state"
+	PortalOAuthStateCookieTTL  = 10 * time.Minute
+	DefaultPortalAWSRegion     = "us-east-1"
+)

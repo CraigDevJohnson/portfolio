@@ -1,42 +1,115 @@
-# AWS Option: Lambda + API Gateway (Serverless HTTP)
+# AWS Lambda and API Gateway
 
-This option runs the Go web app on **AWS Lambda** behind **API Gateway**.
+The Lambda deployment packages the Go HTTP application as a container image and
+adapts API Gateway HTTP API requests through
+`github.com/awslabs/aws-lambda-go-api-proxy`.
 
-## Estimated Monthly Cost
+## Repository path
 
-- Low traffic (personal site level): **often <$5/month**
-- Expected budget fit: **Yes (under $10/month), depending on request volume and duration**
+- `Dockerfile.lambda` builds the Lambda image.
+- `cmd/lambda/main.go` starts the Lambda handler.
+- `cmd/lambda/secrets.go` resolves configured SSM parameter paths during cold
+  start.
+- `internal/app.NewLambdaHandler` creates the same application routes without a
+  listening TCP server.
+- `infra/lambda.tf` declares the function, API Gateway integration, IAM, and
+  runtime configuration.
 
-## Why choose it
+The Lambda and App Runner resources share one ECR repository, two DynamoDB
+tables, and one OpenTofu state. See `DEPLOY-INSTRUCTIONS.md` for backend,
+region, secret, and first-deploy setup.
 
-- Fully AWS-native and strongly aligned with AWS learning goals.
-- Pay-per-request pricing can be very cost efficient for bursty or low-traffic usage.
-- No server patching or EC2/container host management.
+## Deploy
 
-## Why this was not previously the default recommendation
+For the repository's first full infrastructure deployment, run:
 
-- This app is a server-rendered Go HTTP service; Lambda usually needs an adapter pattern (for example a Lambda HTTP adapter) rather than running as a plain long-lived web server.
-- You typically manage extra integration choices (API Gateway HTTP API config, binary/static asset handling, and often CloudFront/S3 fronting), which can increase setup complexity.
-- Cold starts can impact first-hit latency compared with always-on container or instance options.
+```bash
+task deploy
+```
 
-## Migration summary
+That command pushes both `latest` and `lambda-latest` before the full OpenTofu
+apply. To create or refresh only the Lambda path after shared infrastructure
+exists, use:
 
-1. Build and deploy with OpenTofu + ECR using:
-   - `task deploy-lambda` (first deploy)
-   - `task redeploy-lambda` (subsequent image updates)
-2. Package flow uses the repo's Lambda container path:
-   - `Dockerfile.lambda`
-   - `cmd/lambda/main.go`
-3. Expose it through API Gateway HTTP API.
-4. Configure runtime variables/secrets:
-   - `LPS_SESSION_KEY`
-   - `CLIENT_ID_KEY`
-   - `CLIENT_SECRET_KEY`
-   - `GOOGLE_CONNECTION_TABLE_NAME`
-5. Configure domain and TLS (Cloudflare + API Gateway custom domain, optionally CloudFront).
+```bash
+task deploy-lambda
+```
 
-## Tradeoffs
+For later Lambda image updates:
 
-- Best cost efficiency for low/variable traffic.
-- More integration complexity than Lightsail or single-instance Beanstalk for this app shape.
-- Requires careful tuning for latency-sensitive first requests.
+```bash
+task redeploy-lambda
+```
+
+Read the API endpoint from OpenTofu:
+
+```bash
+cd infra
+tofu output -raw lambda_api_url
+```
+
+## Runtime configuration
+
+OpenTofu sets:
+
+- `CLIENT_ID_KEY=/portfolio/CLIENT_ID_KEY`
+- `CLIENT_SECRET_KEY=/portfolio/CLIENT_SECRET_KEY`
+- `LPS_SESSION_KEY=/portfolio/LPS_SESSION_KEY`
+- `GOOGLE_CONNECTION_TABLE_NAME` from the managed DynamoDB table
+- `SOCCER_SESSION_TABLE_NAME` from the managed DynamoDB table
+- JSON logging defaults
+
+At cold start, `cmd/lambda/secrets.go` replaces the three SSM paths with
+decrypted values. A missing or inaccessible configured parameter fails handler
+startup. Create all three SecureString parameters before deployment.
+
+The default Lambda configuration is 512 MB with a 30-second timeout. Change
+`lambda_memory_mb` or `lambda_timeout_seconds` through OpenTofu variables, then
+review `tofu plan` before applying.
+
+## Google OAuth
+
+Register the API Gateway HTTPS URL ending in `/soccer` as an authorized redirect
+URI. The callback returns to the same route.
+
+## EC2 management portal
+
+The Terraform-managed Lambda path does not currently supply or resolve
+`MGMT_*` values and does not attach EC2 or CloudWatch portal permissions.
+Therefore, the optional management portal is not supported on this deployment
+path without additional infrastructure work.
+
+## Cost and behavior
+
+Lambda charges by requests and execution duration, while API Gateway,
+DynamoDB, logs, ECR storage, and data transfer can add charges. Use the current
+[AWS Lambda pricing](https://aws.amazon.com/lambda/pricing/) and AWS Pricing
+Calculator rather than a fixed estimate.
+
+Cold starts can make the first request slower than the long-lived App Runner
+service. Static assets are embedded in the container deployment and served by
+the same handler.
+
+## Verification
+
+Before deployment, run the repository gates:
+
+```bash
+task generate
+task fmt
+task lint
+task vet
+task test
+task build
+```
+
+After deployment, verify at least:
+
+```text
+GET /
+GET /soccer
+GET /static/css/tailwind.css
+```
+
+If cold start fails, check CloudWatch Logs and confirm the function role can
+read each configured SSM path and decrypt its KMS key.

@@ -1,4 +1,4 @@
-FROM golang:1.26.4-alpine AS builder
+FROM golang:1.26.6-alpine AS builder
 
 # checkov:skip=CKV_DOCKER_2:HEALTHCHECK not relevant for Lambda container
 # checkov:skip=CKV_DOCKER_3:Lambda provided runtime manages user context

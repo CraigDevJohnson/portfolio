@@ -26,7 +26,6 @@ type SoccerSessionRecord struct {
 	SessionID   string    `dynamodbav:"session_id"`
 	UserName    string    `dynamodbav:"user_name"`
 	PlayersJSON string    `dynamodbav:"players_json"`
-	TeamsJSON   string    `dynamodbav:"teams_json"`
 	StartedAt   time.Time `dynamodbav:"started_at"`
 	ExpiresAt   time.Time `dynamodbav:"expires_at"`
 	TTL         int64     `dynamodbav:"ttl"`
@@ -106,17 +105,6 @@ func (s *DynamoSoccerStore) Delete(ctx context.Context, sessionID string) error 
 		TableName: &s.tableName,
 	})
 	return err
-}
-
-func marshalTeamsJSON(teams []types.LPSTeam) (string, error) {
-	if len(teams) == 0 {
-		return "[]", nil
-	}
-	b, err := json.Marshal(teams)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
 }
 
 func marshalPlayersJSON(players []types.LPSPlayer) (string, error) {

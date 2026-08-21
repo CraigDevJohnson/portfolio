@@ -1,39 +1,42 @@
 package pages
 
 import (
-	"fmt"
 	"portfolio/cmd/web/layouts"
 	"portfolio/cmd/web/partials"
 )
 
-type EducationProps struct {
-	TotalCerts      int
-	Providers       int
-	YearsCertifying int
-}
-
-func educationStatCards(props EducationProps) []partials.StatCardProps {
-	return []partials.StatCardProps{
-		{Value: "1", Label: "Degree", AriaLabel: "1 degree", ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.TotalCerts), Label: "Certifications", AriaLabel: fmt.Sprintf("%d certifications", props.TotalCerts), ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.Providers), Label: "Providers", AriaLabel: fmt.Sprintf("%d providers", props.Providers), ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.YearsCertifying), Label: "Years Certifying", AriaLabel: fmt.Sprintf("%d years certifying", props.YearsCertifying), ExtraClass: "stagger-enter"},
-	}
-}
-
-func educationCredentialCards() []partials.CredentialCardProps {
-	return []partials.CredentialCardProps{
-		{Href: "https://www.credly.com/badges/c35d4426-9abe-4965-9eb2-9599498e1b5e/", ImageSrc: "/static/images/certs/awscloudpract.png", ImageAlt: "AWS Certified Cloud Practitioner", Title: "AWS Certified Cloud Practitioner", Provider: "Amazon Web Services", Year: "2023", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/8bbdc1c8-71d9-4764-b47f-b9f66de1b103", ImageSrc: "/static/images/certs/azure.png", ImageAlt: "Microsoft Certified: Azure Fundamentals", Title: "Microsoft Certified: Azure Fundamentals", Provider: "Microsoft", Year: "2020", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/c5406a0d-c4d2-41f7-b897-e12c01182f9f", ImageSrc: "/static/images/certs/MCSE-Cloud-Platform-Infrastructure-2018.png", ImageAlt: "MCSE: Cloud Platform and Infrastructure", Title: "MCSE: Cloud Platform and Infrastructure", Provider: "Microsoft", Year: "2018", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/c2187483-a746-4268-be1a-ea0e5b9281a1", ImageSrc: "/static/images/certs/MCSA-Windows-Server-2016-2018.png", ImageAlt: "MCSA: Windows Server 2016", Title: "MCSA: Windows Server 2016", Provider: "Microsoft", Year: "2018", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/f8416144-c1cb-4388-bc53-8f622fc7e302", ImageSrc: "/static/images/certs/lpi.png", ImageAlt: "Linux Essentials Certificate", Title: "Linux Essentials Certificate", Provider: "Linux Professional Institute", Year: "2021", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/72ce956a-0c40-485b-8af6-52f7d8652c71", ImageSrc: "/static/images/certs/CompTIA_Cloud_2Bce.png", ImageAlt: "CompTIA Cloud+ ce Certification", Title: "CompTIA Cloud+ ce", Provider: "CompTIA", Year: "2023", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/276cd921-2315-4136-ae6a-342b477ab6d5", ImageSrc: "/static/images/certs/CompTIA_Security_2Bce.png", ImageAlt: "CompTIA Security+ ce Certification", Title: "CompTIA Security+ ce", Provider: "CompTIA", Year: "2022", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/4eca7af7-c7e3-4ad5-ad95-b90379c33e52", ImageSrc: "/static/images/certs/CompTIA_Network_2Bce.png", ImageAlt: "CompTIA Network+ ce Certification", Title: "CompTIA Network+ ce", Provider: "CompTIA", Year: "2021", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/a3c22ccb-3e16-4564-af65-c540ae38e99d", ImageSrc: "/static/images/certs/CompTIA_Project_2B.png", ImageAlt: "CompTIA Project+ Certification", Title: "CompTIA Project+", Provider: "CompTIA", Year: "2022", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-		{Href: "https://www.credly.com/badges/b4c88402-4ce7-4d98-a6dd-d0a468d4ac15", ImageSrc: "/static/images/certs/CompTIA_A_2Bce.png", ImageAlt: "CompTIA A+ ce Certification", Title: "CompTIA A+ ce", Provider: "CompTIA", Year: "2021", Loading: "eager", External: true, ExtraClass: "stagger-enter hover:border-primary-400"},
-	}
+templ EducationCredentialCard(credential educationCredential) {
+	<a
+		href={ templ.SafeURL(credential.Href) }
+		class="education-credential-card stagger-enter"
+		data-credential-card
+		data-credential-title={ credential.Title }
+		target="_blank"
+		rel="noopener noreferrer"
+	>
+		<figure class="education-credential-art" aria-hidden="true">
+			<span class="education-credential-fallback" data-image-fallback>
+				<span>{ credential.Year }</span>
+				<strong>Credential</strong>
+			</span>
+			<img
+				src={ credential.ImageSrc }
+				alt=""
+				loading={ credential.Loading }
+				class="education-credential-logo"
+				width="200"
+				height="200"
+				data-remote-image
+			/>
+		</figure>
+		<div class="education-credential-copy">
+			<h4 class="education-credential-title">{ credential.Title }</h4>
+			<p class="education-credential-provider">{ credential.Provider }</p>
+			<span class="education-credential-year">{ credential.Year }</span>
+		</div>
+		<span class="education-credential-arrow" aria-hidden="true">↗</span>
+		<span class="sr-only">(opens in a new tab)</span>
+	</a>
 }
 
 templ Education(props EducationProps) {
@@ -41,76 +44,100 @@ templ Education(props EducationProps) {
 		Title: "Education & Certifications - Craig Johnson",
 		Page:  "education",
 	}) {
-		<div class="page-kit-page">
-		@partials.PageHero(partials.PageHeroProps{
-			ImageURL:     "/static/images/backgrounds/education-hero.jpg",
-			ContentClass: "flex min-h-full flex-col justify-center",
-		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications"}) {
-				<p class="page-hero-description">
-					Academic foundation and professional certifications powering a career in cloud technology
-				</p>
-			}
-		}
-		<!-- Stats -->
-		<section class="page-stats-section">
-			@partials.StatCardGrid(partials.StatCardGridProps{Cards: educationStatCards(props)})
-		</section>
-		<!-- Featured Degree -->
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "Academic Foundation",
-				Title: "Formal education",
-				Description: "A cloud-focused academic base that complements hands-on infrastructure and automation work.",
-			})
-			<a
-				href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="page-kit-panel-strong group grid gap-6 overflow-hidden p-6 text-copy-primary no-underline transition duration-200 ease-out hover:-translate-y-1 hover:border-accent-400 hover:shadow-panel-strong lg:grid-cols-[12rem_minmax(0,1fr)_auto] lg:items-center"
-			>
-				<div class="flex justify-center">
-					<img
-						src="/static/images/edu/wgu.png"
-						alt="Western Governor University"
-						loading="lazy"
-						class="h-40 w-40 rounded-3xl border border-carbon-black-700 bg-carbon-black-950/60 object-contain p-4 shadow-panel"
-						width="200"
-						height="200"
-					/>
-				</div>
-				<div class="space-y-3">
-					<div class="page-kit-chip gap-2 px-4 py-2 text-sm">🎓 Bachelor&apos;s Degree</div>
-					<h2 class="text-2xl font-bold tracking-tight text-copy-primary">Bachelor of Science</h2>
-					<h3 class="text-xl font-semibold text-primary-200">Cloud Computing</h3>
-					<p class="text-base font-medium text-copy-secondary">Western Governor University</p>
-					<p class="text-sm uppercase tracking-[0.2em] text-copy-muted">Completed 2023</p>
-					<p class="text-base leading-7 text-copy-secondary">
-						Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
-					</p>
-				</div>
-				<span class="hidden text-3xl text-accent-300 transition duration-200 group-hover:translate-x-1 lg:inline" aria-hidden="true">↗</span>
-			</a>
-		</section>
-		<!-- Certifications Grid -->
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "Professional Certifications",
-				Title: "Industry recognized credentials",
-				Description: "Certifications spanning cloud architecture, security, networking, and platform operations.",
-			})
-			<div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
-				for _, credential := range educationCredentialCards() {
-					@partials.CredentialCard(credential)
+		<div class="page-kit-page education-page" data-layout="learning-field-guide">
+			<div class="education-intro-region" data-region="intro">
+				@partials.PageHero(partials.PageHeroProps{
+					ImageURL:      "/static/images/backgrounds/education-hero.jpg",
+					ImagePosition: "center 45%",
+					ImageHeight:   1775,
+					Caption:       "A practice of staying curious",
+					Variant:       partials.HeroCatalog,
+				}) {
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications"}) {
+						<p class="page-hero-description">
+							Academic foundation and professional certifications powering a career in cloud technology
+						</p>
+					}
 				}
 			</div>
-		</section>
-		@partials.PageCTA(
-			"See how education translates to experience",
-			"Explore how these credentials are applied in real-world cloud engineering",
-			partials.CTALink{Href: "/experience", Label: "View Experience"},
-			partials.CTALink{Href: "/skills", Label: "View Skills"},
-		)
+			<section class="page-stats-section education-stats-section" data-region="stats" aria-label="Education summary">
+				@partials.StatCardGrid(partials.StatCardGridProps{Cards: educationStatCards(props)})
+			</section>
+			<section class="page-section education-foundation-section" data-region="foundation" aria-labelledby="education-foundation-heading">
+				<div class="page-kit-section-intro education-foundation-intro">
+					@partials.SectionLabel("Academic Foundation")
+					<h2 id="education-foundation-heading" class="education-foundation-heading page-section-title">Formal education</h2>
+					<p class="page-section-subtitle">A cloud-focused academic base that complements hands-on infrastructure and automation work.</p>
+				</div>
+				<a
+					href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="education-degree-card group"
+					data-degree-card
+				>
+					<figure class="education-degree-mark" aria-hidden="true">
+						<span class="education-degree-fallback" data-degree-image-fallback>
+							<span>WGU</span>
+							<strong>Cloud Computing</strong>
+						</span>
+						<img
+							src="/static/images/edu/wgu.png"
+							alt=""
+							loading="lazy"
+							class="education-degree-logo"
+							width="200"
+							height="200"
+							data-remote-image
+						/>
+					</figure>
+					<div class="education-degree-copy">
+						<div class="page-kit-chip education-degree-kind"><span class="page-kit-field-mark" aria-hidden="true">BS</span> Bachelor&apos;s Degree</div>
+						<h3 class="education-degree-title">Bachelor of Science</h3>
+						<p class="education-degree-program">Cloud Computing</p>
+						<p class="education-degree-provider">Western Governors University</p>
+						<p class="education-degree-date">Completed 2023</p>
+						<p class="education-degree-description">
+							Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
+						</p>
+					</div>
+					<span class="education-degree-arrow" aria-hidden="true">↗</span>
+					<span class="sr-only">(opens in a new tab)</span>
+				</a>
+			</section>
+			<section class="page-section education-domains-section" data-region="domains" aria-labelledby="education-domains-heading">
+				<div class="page-kit-section-intro education-domains-intro">
+					@partials.SectionLabel("Professional Certifications")
+					<h2 id="education-domains-heading" class="page-section-title">Industry recognized credentials</h2>
+					<p class="page-section-subtitle">Certifications spanning cloud architecture, security, networking, and platform operations.</p>
+				</div>
+				@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailFieldGuide, ExtraClass: "education-field-guide-trail"})
+				<div class="education-domain-mosaic">
+					for _, domain := range educationCredentialDomains() {
+						<section class="education-domain" data-domain={ domain.ID } aria-labelledby={ "education-domain-" + domain.ID }>
+							<header class="education-domain-heading">
+								<div>
+									<h3 id={ "education-domain-" + domain.ID } class="education-domain-title">{ domain.Title }</h3>
+									<p>{ domain.Description }</p>
+								</div>
+							</header>
+							<div class="education-credential-grid">
+								for _, credential := range domain.Credentials {
+									@EducationCredentialCard(credential)
+								}
+							</div>
+						</section>
+					}
+				</div>
+			</section>
+			<div class="education-cta-region" data-region="cta">
+				@partials.PageCTA(partials.PageCTAProps{
+					Title:     "See how education translates to experience",
+					Subtitle:  "Explore how these credentials are applied in real-world cloud engineering",
+					Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View Experience", Variant: partials.ActionPrimary},
+					Secondary: &partials.ActionLinkProps{Href: "/skills", Label: "View Skills", Variant: partials.ActionSecondary},
+				})
+			</div>
 		</div>
 	}
 }

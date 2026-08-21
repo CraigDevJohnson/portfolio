@@ -3,69 +3,35 @@ package pages
 import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
 
-templ Skills() {
+type SkillsProps struct {
+	Grid partials.SkillsGridProps
+}
+
+templ Skills(props SkillsProps) {
 	@layouts.Base(layouts.BaseProps{
 		Title: "Technical Proficiencies - Craig Johnson",
 		Page:  "skills",
 	}) {
-		<div class="page-kit-page">
-		@partials.PageHero(partials.PageHeroProps{
-			ImageURL:      "/static/images/backgrounds/skills-hero.jpg",
-			ImagePosition: "center 30%",
-			ContentClass:  "flex min-h-full flex-col justify-center",
-		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Skills", Title: "Technical Proficiencies"}) {
-				<p class="page-hero-description">A comprehensive toolkit for cloud infrastructure, automation, and security.</p>
-			}
-		}
-		<section class="page-section" hx-get="/skills/grid" hx-trigger="revealed" hx-swap="innerHTML">
-			<div class="mx-auto flex max-w-[var(--container-site)] flex-col gap-8 sm:gap-10">
-				<!-- Featured skeleton -->
-				<div class="pointer-events-none page-kit-panel-strong px-6 py-8 sm:px-8 sm:py-10">
-					<div class="mb-8 text-center">
-						<div class="skeleton mx-auto mb-3 h-7 w-56"></div>
-						<div class="skeleton mx-auto h-4 w-72 max-w-full"></div>
-					</div>
-					<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-						for j := 1; j <= 8; j++ {
-							<div class="skeleton h-56 rounded-2xl"></div>
-						}
-					</div>
-				</div>
-				<!-- Concepts skeleton -->
-				<div class="pointer-events-none page-kit-panel px-6 py-8 sm:px-8 sm:py-10">
-					<div class="mb-8 text-center">
-						<div class="skeleton mx-auto h-7 w-52"></div>
-					</div>
-					<div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-						for j := 1; j <= 6; j++ {
-							<div class="skeleton h-[5.5rem] rounded-2xl"></div>
-						}
-					</div>
-				</div>
-				<!-- All skills bar skeleton -->
-				<div class="pointer-events-none page-kit-panel p-4 sm:p-5">
-					<div class="skeleton h-20 rounded-2xl"></div>
-				</div>
-				<!-- Category skeletons -->
-				for i := 1; i <= 3; i++ {
-					<div class="pointer-events-none page-kit-panel p-4 sm:p-5">
-						<div class="skeleton mb-4 h-5 w-44"></div>
-						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-							for j := 1; j <= 8; j++ {
-								<div class="skeleton h-36 rounded-2xl"></div>
-							}
-						</div>
-					</div>
+		<div class="page-kit-page skills-page" data-layout="skills-workbench">
+			@partials.PageHero(partials.PageHeroProps{
+				ImageURL:      "/static/images/backgrounds/skills-hero.jpg",
+				ImagePosition: "center 30%",
+				Caption:       "Tools in service of systems",
+				Variant:       partials.HeroCatalog,
+			}) {
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Skills", Title: "Cloud & Platform Toolkit"}) {
+					<p class="page-hero-description">Tools, platforms, and operating practices I use to build and improve production infrastructure.</p>
 				}
-			</div>
-		</section>
-		@partials.PageCTA(
-			"Interested in my expertise?",
-			"View my projects or get in touch to discuss how I can help with your infrastructure needs.",
-			partials.CTALink{Href: "/projects", Label: "View Projects"},
-			partials.CTALink{Href: "/contact", Label: "Contact Me"},
-		)
+			}
+			<section class="page-section skills-toolkit-section">
+				@partials.SkillsGrid(props.Grid)
+			</section>
+			@partials.PageCTA(partials.PageCTAProps{
+				Title:     "Interested in my expertise?",
+				Subtitle:  "View my projects or get in touch to discuss how I can help with your infrastructure needs.",
+				Primary:   partials.ActionLinkProps{Href: "/projects", Label: "View Projects", Variant: partials.ActionPrimary},
+				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Contact Me", Variant: partials.ActionSecondary},
+			})
 		</div>
 	}
 }

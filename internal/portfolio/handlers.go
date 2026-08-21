@@ -38,6 +38,9 @@ func gravatarURL(email string, size int) string {
 
 // renderComponent renders a templ component and returns a generic 500 on failure.
 func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Component) {
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}
 	if err := component.Render(r.Context(), w); err != nil {
 		logging.WithContext(logging.Component("portfolio"), r.Context()).Error(
 			"portfolio render failed",
@@ -58,7 +61,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 		Name:               displayName,
 		Role:               displayRole,
 		AvatarURL:          gravatarURL(gravatarEmail, gravatarSize),
-		Description:        "Hi there! I'm a seasoned System Engineer with over a decade of experience in system engineering, administration, and optimization. I specialize in designing, implementing, and maintaining various systems and applications, thriving on performance optimization and security enhancement. I enjoy collaborating with application owners and software engineers to deliver innovative solutions and streamline processes through automation. I'm passionate about modernizing infrastructure and documenting critical processes. Let's connect and share our tech journeys!",
+		Description:        "I design and modernize cloud platforms with a focus on automation, security, and operational clarity. Across more than a decade in systems engineering, the throughline has stayed the same: make critical infrastructure easier to change, understand, and trust.",
 		YearsInTech:        time.Now().Year() - careerStartYear,
 		Certifications:     certificationCount,
 		AutomationProjects: "100",
@@ -83,21 +86,6 @@ func ExperienceHandler(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// featuredSkills returns the featured skills with category names attached.
-func featuredSkills(categories []types.SkillCategory) []types.Skill {
-	var featured []types.Skill
-	for _, category := range categories {
-		for i := range category.Skills {
-			if category.Skills[i].Featured {
-				skill := category.Skills[i]
-				skill.Category = category.Name
-				featured = append(featured, skill)
-			}
-		}
-	}
-	return featured
-}
-
 // findSkillByID looks up a skill and returns the matching category name.
 func findSkillByID(categories []types.SkillCategory, id int) (types.Skill, string, bool) {
 	for _, category := range categories {
@@ -113,29 +101,38 @@ func findSkillByID(categories []types.SkillCategory, id int) (types.Skill, strin
 	return types.Skill{}, "", false
 }
 
-// SkillsHandler renders the skills page shell.
+// SkillsHandler renders the skills page with its primary content server-side.
 func SkillsHandler(w http.ResponseWriter, r *http.Request) {
-	renderComponent(w, r, pages.Skills())
-}
-
-// SkillsGridHandler renders the skills grid fragment.
-func SkillsGridHandler(w http.ResponseWriter, r *http.Request) {
 	categories := SkillsData()
-	props := partials.SkillsGridProps{
-		Categories:     categories,
-		FeaturedSkills: featuredSkills(categories),
+	props := buildSkillsPageProps(categories, r.URL.Query())
+	setSkillsResponseVary(w)
+	if isHTMXRequest(r) && !isHTMXHistoryRestore(r) {
+		w.Header().Set("HX-Push-Url", props.Grid.StateURL)
+		renderComponent(w, r, partials.SkillsFilterFragment(props.Grid))
+		return
 	}
-	renderComponent(w, r, partials.SkillsGrid(props))
+	renderComponent(w, r, pages.Skills(props))
 }
 
 // SkillsFilteredHandler renders the filterable skills section.
 func SkillsFilteredHandler(w http.ResponseWriter, r *http.Request) {
-	props := partials.SkillsFilterableProps{
-		Categories:        SkillsData(),
-		ActiveCategory:    r.URL.Query().Get("category"),
-		ActiveProficiency: r.URL.Query().Get("proficiency"),
-	}
-	renderComponent(w, r, partials.SkillsFilterableSection(props))
+	props := buildSkillsPageProps(SkillsData(), r.URL.Query())
+	setSkillsResponseVary(w)
+	w.Header().Set("HX-Push-Url", props.Grid.StateURL)
+	renderComponent(w, r, partials.SkillsFilterFragment(props.Grid))
+}
+
+func isHTMXRequest(r *http.Request) bool {
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("HX-Request")), "true")
+}
+
+func isHTMXHistoryRestore(r *http.Request) bool {
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("HX-History-Restore-Request")), "true")
+}
+
+func setSkillsResponseVary(w http.ResponseWriter) {
+	w.Header().Add("Vary", "HX-Request")
+	w.Header().Add("Vary", "HX-History-Restore-Request")
 }
 
 // SkillsDetailHandler renders the detail fragment for a single skill.
@@ -160,14 +157,9 @@ func SkillsDetailHandler(w http.ResponseWriter, r *http.Request) {
 // ProjectsHandler renders the projects page shell.
 func ProjectsHandler(w http.ResponseWriter, r *http.Request) {
 	projects := ProjectsData()
-	stats := projectStats(projects)
 
 	renderComponent(w, r, pages.Projects(pages.ProjectsProps{
-		TotalProjects:         stats.TotalProjects,
-		UniqueTechnologies:    stats.UniqueTechnologies,
-		CategoryCount:         stats.CategoryCount,
-		PublicRepositoryCount: stats.PublicRepositoryCount,
-		Projects:              projects,
+		Projects: projects,
 	}))
 }
 

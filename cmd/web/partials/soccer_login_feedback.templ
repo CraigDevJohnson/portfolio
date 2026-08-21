@@ -2,29 +2,44 @@ package partials
 
 type SoccerLoginFeedbackProps struct {
 	Kind    string
+	Title   string
 	Message string
 }
 
-func feedbackRole(kind string) string {
-	if kind == "error" {
-		return "alert"
+func soccerFeedbackKind(kind string) FeedbackKind {
+	switch kind {
+	case "success":
+		return FeedbackSuccess
+	case "warning":
+		return FeedbackWarning
+	case "error", "invalid", "rejected", "upstream", "google-error":
+		return FeedbackError
+	default:
+		return FeedbackInfo
 	}
-	return "status"
 }
 
-func feedbackClasses(kind string) string {
-	base := "rounded-xl border px-4 py-3 text-sm"
-	if kind == "error" {
-		return base + " border-secondary-500/26 bg-secondary-500/14 text-secondary-100"
+func soccerFeedbackTitle(props SoccerLoginFeedbackProps) string {
+	if props.Title != "" {
+		return props.Title
 	}
-	if kind == "success" {
-		return base + " border-primary-500/28 bg-primary-500/14 text-primary-100"
+	switch soccerFeedbackKind(props.Kind) {
+	case FeedbackSuccess:
+		return "Calendar update complete"
+	case FeedbackWarning:
+		return "Action needed"
+	case FeedbackError:
+		return "This step could not be completed"
+	default:
+		return "Matchday update"
 	}
-	return base + " border-carbon-black-400/24 bg-carbon-black-700/55 text-carbon-black-100"
 }
 
 templ SoccerLoginFeedback(props SoccerLoginFeedbackProps) {
-	<div class={ feedbackClasses(props.Kind) } role={ feedbackRole(props.Kind) }>
-		{ props.Message }
-	</div>
+	@Feedback(FeedbackProps{
+		Kind:       soccerFeedbackKind(props.Kind),
+		Title:      soccerFeedbackTitle(props),
+		Message:    props.Message,
+		ExtraClass: "soccer-feedback",
+	})
 }

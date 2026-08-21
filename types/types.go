@@ -1,10 +1,30 @@
 package types
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 )
+
+// InstanceSummary is the display model for a managed EC2 instance.
+type InstanceSummary struct {
+	ID           string
+	Name         string
+	State        string
+	InstanceType string
+	AZ           string
+}
+
+// MetricPoint is a CloudWatch CPU utilization data point.
+type MetricPoint struct {
+	Timestamp  time.Time
+	CPUPercent float64
+}
+
+// LogEvent is a CloudWatch log event.
+type LogEvent struct {
+	Timestamp time.Time
+	Message   string
+}
 
 // Experience describes a single entry in the portfolio experience timeline.
 type Experience struct {
@@ -20,15 +40,16 @@ type Experience struct {
 
 // Skill describes one portfolio skill and its presentation metadata.
 type Skill struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Icon        string `json:"icon,omitempty"`
-	IconPath    string `json:"icon_path,omitempty"`
-	Link        string `json:"link,omitempty"`
-	Proficiency string `json:"proficiency"`
-	Featured    bool   `json:"featured,omitempty"`
-	Category    string `json:"category,omitempty"`
-	Description string `json:"description,omitempty"`
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Icon        string   `json:"icon,omitempty"`
+	IconPath    string   `json:"icon_path,omitempty"`
+	Link        string   `json:"link,omitempty"`
+	Proficiency string   `json:"proficiency"`
+	Featured    bool     `json:"featured,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Description string   `json:"description,omitempty"`
 }
 
 // SkillCategory groups related skills for presentation.
@@ -37,17 +58,29 @@ type SkillCategory struct {
 	Skills []Skill `json:"skills"`
 }
 
-// Project describes one portfolio project card.
+// ProjectImageRatio is the closed set of supported project image compositions.
+type ProjectImageRatio string
+
+const (
+	ProjectImageLandscape ProjectImageRatio = "landscape"
+	ProjectImagePortrait  ProjectImageRatio = "portrait"
+	ProjectImageSquare    ProjectImageRatio = "square"
+)
+
+// Project describes one portfolio project and its explicit dossier metadata.
 type Project struct {
-	ID           int      `json:"id"`
-	Name         string   `json:"name"`
-	Intro        string   `json:"intro"`
-	Description  string   `json:"description"`
-	Technologies []string `json:"technologies"`
-	Image        string   `json:"image"`
-	GitHubURL    string   `json:"github_url,omitempty"`
-	DemoURL      string   `json:"demo_url,omitempty"`
-	Category     string   `json:"category"`
+	ID           int               `json:"id"`
+	Name         string            `json:"name"`
+	Featured     bool              `json:"featured,omitempty"`
+	ImageRatio   ProjectImageRatio `json:"image_ratio"`
+	Problem      string            `json:"problem"`
+	Approach     string            `json:"approach"`
+	Outcome      string            `json:"outcome"`
+	Technologies []string          `json:"technologies"`
+	Image        string            `json:"image"`
+	GitHubURL    string            `json:"github_url,omitempty"`
+	DemoURL      string            `json:"demo_url,omitempty"`
+	Category     string            `json:"category"`
 }
 
 // Facility describes a game venue as returned by LPS schedule data.
@@ -80,47 +113,6 @@ type Game struct {
 	DivisionName     string    `json:"division_name,omitempty"`
 	Facility         *Facility `json:"facility,omitempty"`
 	Result           string    `json:"result,omitempty"`
-}
-
-// LambdaGamesResponse wraps a list of normalized games from upstream APIs.
-type LambdaGamesResponse struct {
-	Games []Game `json:"games"`
-}
-
-// gameAlias lets Game.UnmarshalJSON decode the base fields without recursively
-// invoking itself while facility data is merged from both payload shapes.
-type gameAlias Game
-
-type gameJSON struct {
-	gameAlias
-
-	FacilityID      int    `json:"facility_id,omitempty"`
-	FacilityName    string `json:"facility_name,omitempty"`
-	FacilityAddress string `json:"facility_address,omitempty"`
-	FacilityCity    string `json:"facility_city,omitempty"`
-	FacilityState   string `json:"facility_state,omitempty"`
-	FacilityZIP     string `json:"facility_zip,omitempty"`
-}
-
-// UnmarshalJSON hydrates Game and merges legacy flat facility fields into the
-// nested Facility shape used by the rest of the app.
-func (game *Game) UnmarshalJSON(data []byte) error {
-	var payload gameJSON
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return err
-	}
-
-	*game = Game(payload.gameAlias)
-	legacyFacility := NewFacilityDetails(
-		payload.FacilityID,
-		payload.FacilityName,
-		payload.FacilityAddress,
-		payload.FacilityCity,
-		payload.FacilityState,
-		payload.FacilityZIP,
-	)
-	game.Facility = MergeFacility(game.Facility, legacyFacility)
-	return nil
 }
 
 // NewFacilityDetails builds and normalizes a Facility from legacy flat fields.
@@ -205,13 +197,12 @@ type LPSPlayer struct {
 	IsMainPlayer bool   `json:"is_main_player"`
 }
 
-// LPSTeam describes a team linked to an LPS player, captured at session start.
+// LPSTeam describes a team discovered for an imported LPS player.
 type LPSTeam struct {
-	TeamID    int    `json:"team_id"`
-	TeamName  string `json:"team_name"`
-	Season    int    `json:"season"`
-	PlayerID  int    `json:"player_id"`
-	IsSubTeam bool   `json:"is_sub_team"`
+	TeamID   int    `json:"team_id"`
+	TeamName string `json:"team_name"`
+	Season   int    `json:"season"`
+	PlayerID int    `json:"player_id"`
 }
 
 // PlayerTeamGroup pairs a player with their discovered teams for the team-select step.
@@ -220,15 +211,23 @@ type PlayerTeamGroup struct {
 	Teams  []LPSTeam
 }
 
+// SoccerWorkflowState stores the non-secret choices needed to reconstruct the
+// Soccer workflow after a full-page navigation such as a Google OAuth return.
+type SoccerWorkflowState struct {
+	Source            string `json:"source,omitempty"`
+	SelectedPlayerIDs []int  `json:"selected_player_ids,omitempty"`
+	SelectedTeamIDs   []int  `json:"selected_team_ids,omitempty"`
+}
+
 // SessionData stores the encrypted soccer session payload in the auth cookie.
 type SessionData struct {
-	JWT        string      `json:"jwt"`
-	UserName   string      `json:"user_name"`
-	Players    []LPSPlayer `json:"players"`
-	ExpiresAt  time.Time   `json:"expires_at"`
-	SessionID  string      `json:"session_id,omitempty"`
-	KnownTeams []LPSTeam   `json:"known_teams,omitempty"`
-	StartedAt  time.Time   `json:"started_at,omitempty"`
+	JWT       string              `json:"jwt"`
+	UserName  string              `json:"user_name"`
+	Players   []LPSPlayer         `json:"players"`
+	ExpiresAt time.Time           `json:"expires_at"`
+	SessionID string              `json:"session_id,omitempty"`
+	StartedAt time.Time           `json:"started_at,omitempty"`
+	Workflow  SoccerWorkflowState `json:"workflow,omitempty"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

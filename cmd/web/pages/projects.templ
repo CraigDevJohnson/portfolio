@@ -1,27 +1,13 @@
 package pages
 
 import (
-	"fmt"
 	"portfolio/cmd/web/layouts"
 	"portfolio/cmd/web/partials"
 	"portfolio/types"
 )
 
 type ProjectsProps struct {
-	TotalProjects         int
-	UniqueTechnologies    int
-	CategoryCount         int
-	PublicRepositoryCount int
-	Projects              []types.Project
-}
-
-func projectStatCards(props ProjectsProps) []partials.StatCardProps {
-	return []partials.StatCardProps{
-		{Value: fmt.Sprintf("%d", props.TotalProjects), Label: "Projects", AriaLabel: fmt.Sprintf("%d projects", props.TotalProjects), Icon: "🛠️", Tone: "accent", ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.UniqueTechnologies), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.UniqueTechnologies), Icon: "💻", Tone: "primary", ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.CategoryCount), Label: "Categories", AriaLabel: fmt.Sprintf("%d categories", props.CategoryCount), Icon: "🏷️", Tone: "secondary", ExtraClass: "stagger-enter"},
-		{Value: fmt.Sprintf("%d", props.PublicRepositoryCount), Label: "Public Repos", AriaLabel: fmt.Sprintf("%d public repositories", props.PublicRepositoryCount), Icon: "📂", Tone: "accent", ExtraClass: "stagger-enter"},
-	}
+	Projects []types.Project
 }
 
 templ Projects(props ProjectsProps) {
@@ -29,44 +15,40 @@ templ Projects(props ProjectsProps) {
 		Title: "Projects - Craig Johnson",
 		Page:  "projects",
 	}) {
-		<div class="page-kit-page">
-		@partials.PageHero(partials.PageHeroProps{
-			ImageURL:     "/static/images/backgrounds/projects-hero.jpg",
-			ContentClass: "flex min-h-full flex-col justify-center",
-		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Projects", Title: "Projects"}) {
-				<p class="page-hero-description">
-					A showcase of automation, web development, and cloud infrastructure projects. Each project reflects a commitment to clean architecture, practical problem-solving, and building tools that make workflows more efficient.
-				</p>
-			}
-		}
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "What I Build",
-				Title: "Practical builds across cloud, automation, and the web",
-				Description: "From cloud automation pipelines and serverless APIs to full-stack web applications, my projects span the spectrum of modern software engineering. I focus on building tools that solve real problems—whether it's streamlining deployments, visualizing data, or creating delightful user experiences.",
-			})
-			<div class="proj-category-filters page-kit-panel flex flex-wrap gap-2 p-4 sm:p-5" role="toolbar" aria-label="Project category filters">
-				<button type="button" class="proj-category-pill page-kit-action active" aria-pressed="true" data-category="all">All</button>
-				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="web">Web</button>
-				<button type="button" class="proj-category-pill page-kit-action" aria-pressed="false" data-category="automation">Automation</button>
+		<div class="page-kit-page projects-page" data-layout="project-dossiers">
+			<div class="projects-intro-region" data-region="intro">
+				@partials.PageHero(partials.PageHeroProps{
+					ImageURL:      "/static/images/backgrounds/projects-hero.jpg",
+					ImagePosition: "center",
+					ImageHeight:   1282,
+					Caption:       "Ideas made operational",
+					Variant:       partials.HeroCaseStudy,
+				}) {
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Projects", Title: "Projects"}) {
+						<p class="page-hero-description">
+							Production-minded tools for cloud automation, delivery workflows, and the web.
+						</p>
+					}
+				}
 			</div>
-		</section>
-		<section class="page-section-tight">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "Project Showcase",
-				Title: "Explore featured work",
-			})
-			<div class="projects-section">
-				@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
+			<section class="page-section-tight projects-page-showcase projects-case-study-section">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label:       "What I Build",
+					Title:       "Three builds, each with a real job to do",
+					Description: "A focused collection of software, automation, and infrastructure work built to remove friction from real workflows.",
+				})
+				<div class="projects-section projects-case-studies">
+					@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
+				</div>
+			</section>
+			<div class="projects-cta-region" data-region="cta">
+				@partials.PageCTA(partials.PageCTAProps{
+					Title:     "Looking for more?",
+					Subtitle:  "Check out my GitHub profile for additional projects and contributions",
+					Primary:   partials.ActionLinkProps{Href: "https://github.com/CraigDevJohnson", Label: "View GitHub Profile", Variant: partials.ActionPrimary, External: true},
+					Secondary: &partials.ActionLinkProps{Href: "/experience", Label: "See Experience", Variant: partials.ActionSecondary},
+				})
 			</div>
-		</section>
-		@partials.PageCTA(
-			"Looking for more?",
-			"Check out my GitHub profile for additional projects and contributions",
-			partials.CTALink{Href: "https://github.com/CraigDevJohnson", Label: "View GitHub Profile", External: true},
-			partials.CTALink{Href: "/experience", Label: "See Experience"},
-		)
 		</div>
 	}
 }

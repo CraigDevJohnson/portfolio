@@ -11,6 +11,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/internal/config"
+	"portfolio/types"
 )
 
 func TestConnectHandlerRedirectsToOAuth(t *testing.T) {
@@ -53,6 +54,32 @@ func TestConnectHandlerRedirectsToOAuth(t *testing.T) {
 	}
 	if stateCookie.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("unexpected SameSite for state cookie: %v", stateCookie.SameSite)
+	}
+}
+
+func TestGoogleAvailabilityRequiresReadyConnectionStore(t *testing.T) {
+	cfg := &config.Config{
+		SessionKey:                []byte("0123456789abcdef0123456789abcdef"),
+		GoogleClientID:            "google-client-id",
+		GoogleClientSecret:        "google-client-secret",
+		GoogleConnectionTableName: "google-connections",
+	}
+	h := NewHandler(cfg, &http.Client{Timeout: time.Second}, nil, &stubSoccerBridge{})
+
+	if h.GoogleAvailable() {
+		t.Fatal("configured Google handler reported available before its connection store was ready")
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
+	response := httptest.NewRecorder()
+	h.ConnectHandler(response, request)
+	if got := response.Header().Get("Location"); got != "/soccer?google=unavailable" {
+		t.Fatalf("unready Google connect redirect = %q, want unavailable status", got)
+	}
+
+	h.SetStore(&fakeConnectionStore{records: map[string]ConnectionRecord{}})
+	if !h.GoogleAvailable() {
+		t.Fatal("configured Google handler remained unavailable after its connection store became ready")
 	}
 }
 
@@ -166,11 +193,24 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 	if connectionCookie == nil {
 		t.Fatal("expected persistent google connection cookie")
 	}
+	if connectionCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("google connection cookie SameSite = %v, want Lax for the OAuth return", connectionCookie.SameSite)
+	}
 }
 
 func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
 	h := newTestHandler(t, store)
+	workflowSession := &types.SessionData{
+		JWT: "still-imported",
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{101},
+			SelectedTeamIDs:   []int{202},
+		},
+	}
+	bridge := &stubSoccerBridge{session: workflowSession}
+	h.Soccer = bridge
 	tokenCiphertext, err := h.EncryptToken(&oauth2.Token{AccessToken: "access-token"})
 	if err != nil {
 		t.Fatalf("EncryptToken returned error: %v", err)
@@ -209,8 +249,38 @@ func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 	if record.CalendarID != "team" || record.CalendarSummary != "Team Calendar" {
 		t.Fatalf("unexpected updated calendar selection: %#v", record)
 	}
-	// CalendarHandler calls RenderLoginState, which our stub writes "login-state-rendered"
-	if !strings.Contains(resp.Body.String(), "login-state-rendered") {
-		t.Fatalf("expected login state render, got %q", resp.Body.String())
+	if !strings.Contains(resp.Body.String(), "login-state-refresh-rendered") {
+		t.Fatalf("expected primary auth plus granular calendar refresh, got %q", resp.Body.String())
+	}
+	if bridge.lastRefreshSession != workflowSession {
+		t.Fatal("calendar selection refresh discarded the loaded soccer workflow session")
+	}
+}
+
+func TestDisconnectHandlerUsesPrimaryAuthRefresh(t *testing.T) {
+	h := newTestHandler(t, &fakeConnectionStore{records: map[string]ConnectionRecord{}})
+	workflowSession := &types.SessionData{
+		JWT: "still-imported",
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{101},
+			SelectedTeamIDs:   []int{202},
+		},
+	}
+	bridge := &stubSoccerBridge{session: workflowSession}
+	h.Soccer = bridge
+	req := httptest.NewRequest(http.MethodPost, "/soccer/google/disconnect", nil)
+	resp := httptest.NewRecorder()
+
+	h.DisconnectHandler(resp, req)
+
+	if !strings.Contains(resp.Body.String(), "login-state-refresh-rendered") {
+		t.Fatalf("expected primary auth plus granular calendar refresh, got %q", resp.Body.String())
+	}
+	if strings.Contains(resp.Body.String(), "login-state-rendered") {
+		t.Fatalf("disconnect used the primary non-OOB fragment: %q", resp.Body.String())
+	}
+	if bridge.lastRefreshSession != workflowSession {
+		t.Fatal("Google disconnect refresh discarded the loaded soccer workflow session")
 	}
 }

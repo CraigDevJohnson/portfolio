@@ -1,0 +1,18 @@
+package partials
+
+templ SoccerSecurityNotice(props SoccerSecurityNoticeProps) {
+	<aside
+		class={ mergeClasses("soccer-security-notice", map[bool]string{true: "soccer-security-notice--compact", false: "soccer-security-notice--full"}[props.Compact]) }
+		data-soccer-security-notice
+		if props.Compact {
+			data-compact="true"
+		} else {
+			data-compact="false"
+		}
+	>
+		<p>Player Discovery uses the JWT (JSON web token) from your signed-in Let&apos;s Play Soccer account, which gives full access to your account (only used to query players/teams/schedules/results).</p>
+		if !props.Compact {
+			<a href="https://en.wikipedia.org/wiki/JSON_Web_Token" target="_blank" rel="noopener noreferrer">Learn how JSON web tokens work<span class="sr-only">(opens in a new tab)</span></a>
+		}
+	</aside>
+}

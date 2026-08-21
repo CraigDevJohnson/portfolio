@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,9 +12,33 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
+
+type appTestGoogleConnectionStore struct {
+	records map[string]internalgoogle.ConnectionRecord
+}
+
+func (s *appTestGoogleConnectionStore) Delete(_ context.Context, connectionID string) error {
+	delete(s.records, connectionID)
+	return nil
+}
+
+func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID string) (*internalgoogle.ConnectionRecord, error) {
+	record, ok := s.records[connectionID]
+	if !ok {
+		return nil, nil
+	}
+	clone := record
+	return &clone, nil
+}
+
+func (s *appTestGoogleConnectionStore) Put(_ context.Context, record *internalgoogle.ConnectionRecord) error {
+	s.records[record.ConnectionID] = *record
+	return nil
+}
 
 func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 	app := newTestApp(t)
@@ -26,8 +51,10 @@ func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
 	}
 	body := resp.Body.String()
-	if !strings.Contains(body, `id="soccer-auth-panel"`) {
-		t.Fatalf("expected soccer auth panel in initial page render, got %q", body)
+	for _, marker := range []string{`id="soccer-connections"`, `id="soccer-lps-connection"`, `id="soccer-google-connection"`} {
+		if !strings.Contains(body, marker) {
+			t.Fatalf("expected Soccer connection marker %q in initial page render", marker)
+		}
 	}
 	if strings.Contains(body, `hx-get="/soccer/session"`) {
 		t.Fatalf("expected initial soccer page render to avoid HTMX auth bootstrap, got %q", body)
@@ -67,6 +94,260 @@ func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testin
 	}
 	if !strings.Contains(body, "Craig Johnson") {
 		t.Fatalf("expected imported player name in initial page render, got %q", body)
+	}
+}
+
+func TestSoccerLoginStateCountsUniqueConfirmedTeams(t *testing.T) {
+	app := newTestApp(t)
+	session := &types.SessionData{
+		Players: []types.LPSPlayer{{UPlayerID: 1001}, {UPlayerID: 1002}},
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{1001, 1002},
+			SelectedTeamIDs:   []int{4101, 4101, 4102},
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	resp := httptest.NewRecorder()
+
+	props := newTestSoccerHandler(app).LoginStateProps(resp, req, session, false)
+	if props.ConfirmedTeamCount != 2 {
+		t.Fatalf("confirmed team count = %d, want 2 unique teams", props.ConfirmedTeamCount)
+	}
+}
+
+func TestSoccerPageRestoresWorkflowAndReportsMissingGoogleConnection(t *testing.T) {
+	app := newTestApp(t)
+	app.Config.GoogleClientID = "configured-client"
+	app.Config.GoogleClientSecret = "configured-secret"
+	app.Config.GoogleConnectionTableName = "configured-table"
+	app.GoogleHandler.SetStore(&appTestGoogleConnectionStore{records: map[string]internalgoogle.ConnectionRecord{}})
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/players/1001/my_teams":
+			_, _ = w.Write([]byte(`[{"UTeamID":4101,"team_name":"Craig FC","Season":77}]`))
+		case "/teams/4101":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{
+				"games":[{
+					"UGameID":9101,
+					"SchedGameDateTime":%q,
+					"field_name":"Pitch 4",
+					"facilityName":"North Campus",
+					"home_team":{"team_name":"Craig FC"},
+					"visitor_team":{"team_name":"Rivals"},
+					"Season":77
+				}]
+			}`, future)))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}, {UPlayerID: 1002, FirstName: "Taylor", LastName: "Johnson"}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{1001},
+			SelectedTeamIDs:   []int{4101},
+		},
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unexpected status code: got %d want %d", resp.Code, http.StatusOK)
+	}
+	body := resp.Body.String()
+	for _, marker := range []string{"Craig Johnson", "Craig FC", "Rivals", "Pitch 4", "Google Calendar connection was not restored"} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("restored Soccer page missing %q", marker)
+		}
+	}
+	if strings.Contains(body, "Google Calendar connected. Choose a calendar") {
+		t.Error("Soccer page showed a successful Google connection flash without a persisted connection")
+	}
+	for _, value := range []string{"1001", "4101"} {
+		if !strings.Contains(body, `value="`+value+`" checked`) {
+			t.Errorf("restored Soccer page does not check ID %s", value)
+		}
+	}
+	if strings.Contains(body, `value="1002" checked`) {
+		t.Error("restored Soccer page checked an unselected player")
+	}
+}
+
+func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t *testing.T) {
+	app := newTestApp(t)
+	app.Config.GoogleClientID = "configured-client"
+	app.Config.GoogleClientSecret = "configured-secret"
+	app.Config.GoogleConnectionTableName = "configured-table"
+	store := &appTestGoogleConnectionStore{records: map[string]internalgoogle.ConnectionRecord{}}
+	app.GoogleHandler.SetStore(store)
+
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/players/1001/my_teams":
+			_, _ = w.Write([]byte(`[{"UTeamID":4101,"team_name":"Craig FC","Season":77}]`))
+		case "/teams/4101":
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"games":[{"UGameID":9101,"SchedGameDateTime":%q,"field_name":"Pitch 4","facilityName":"North Campus","home_team":{"team_name":"Craig FC"},"visitor_team":{"team_name":"Rivals"},"Season":77}]}`, future)))
+		default:
+			t.Fatalf("unexpected LPS path: %s", r.URL.Path)
+		}
+	}))
+	defer lpsServer.Close()
+	app.Config.LPSAPIBaseURL = lpsServer.URL
+
+	googleServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"test-access","refresh_token":"test-refresh","token_type":"Bearer","expires_in":3600}`))
+		case "/calendar/v3/users/me/calendarList":
+			if got := r.Header.Get("Authorization"); got != "Bearer test-access" {
+				t.Fatalf("unexpected Google authorization header: %q", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
+		default:
+			t.Fatalf("unexpected Google path: %s", r.URL.Path)
+		}
+	}))
+	defer googleServer.Close()
+	app.GoogleHandler.OAuthAuthURL = googleServer.URL + "/oauth/auth"
+	app.GoogleHandler.OAuthTokenURL = googleServer.URL + "/oauth/token"
+	app.GoogleHandler.CalendarAPIBaseURL = googleServer.URL + "/calendar/v3"
+
+	workflow := &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{1001},
+			SelectedTeamIDs:   []int{4101},
+		},
+	}
+	encryptedSession := encryptTestSession(t, app, workflow)
+	lpsCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptedSession}
+
+	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
+	connectReq.Host = "example.com"
+	connectReq.AddCookie(lpsCookie)
+	connectResp := httptest.NewRecorder()
+	app.GoogleHandler.ConnectHandler(connectResp, connectReq)
+	connectResult := connectResp.Result()
+	connectLocation, err := connectResult.Location()
+	if err != nil {
+		t.Fatalf("connect redirect: %v", err)
+	}
+	stateValue := connectLocation.Query().Get("state")
+	if stateValue == "" {
+		t.Fatal("connect redirect lacked OAuth state")
+	}
+	var stateCookie *http.Cookie
+	for _, cookie := range connectResult.Cookies() {
+		if cookie.Name == config.GoogleOAuthStateCookieName {
+			stateCookie = cookie
+			break
+		}
+	}
+	if stateCookie == nil {
+		t.Fatal("connect response lacked OAuth state cookie")
+	}
+
+	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer/google/callback?code=auth-code&state="+url.QueryEscape(stateValue), nil)
+	callbackReq.Host = "example.com"
+	callbackReq.AddCookie(lpsCookie)
+	callbackReq.AddCookie(stateCookie)
+	callbackResp := httptest.NewRecorder()
+	app.GoogleHandler.CallbackHandler(callbackResp, callbackReq)
+	callbackResult := callbackResp.Result()
+	if location := callbackResp.Header().Get("Location"); location != "/soccer?google=connected" {
+		t.Fatalf("callback redirect = %q, want connected Soccer page", location)
+	}
+	var connectionCookie *http.Cookie
+	for _, cookie := range callbackResult.Cookies() {
+		if cookie.Name == config.GoogleConnectionCookieName {
+			connectionCookie = cookie
+		}
+		if cookie.Name == config.LPSSessionCookieName && cookie.MaxAge < 0 {
+			t.Fatal("Google callback cleared the imported LPS session")
+		}
+	}
+	if connectionCookie == nil {
+		t.Fatal("callback response lacked Google connection cookie")
+	}
+
+	pageReq := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	pageReq.Host = "example.com"
+	pageReq.AddCookie(lpsCookie)
+	pageReq.AddCookie(connectionCookie)
+	pageResp := httptest.NewRecorder()
+	newTestSoccerHandler(app).SoccerPage(pageResp, pageReq)
+	pageBody := pageResp.Body.String()
+	for _, marker := range []string{
+		"Google Calendar connected", "Connected to Primary Calendar", "Imported for this session",
+		"Craig Johnson", "Craig FC", "Rivals", "Pitch 4", "1 selected", "1 confirmed",
+	} {
+		if !strings.Contains(pageBody, marker) {
+			t.Errorf("connected OAuth return page lacks %q", marker)
+		}
+	}
+	if strings.Contains(pageBody, "Google Calendar connection was not restored") {
+		t.Error("connected OAuth return page rendered the missing-connection recovery message")
+	}
+}
+
+func TestSoccerPageKeepsRestoredChoicesWhenScheduleRefreshFails(t *testing.T) {
+	app := newTestApp(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/players/1001/my_teams" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"UTeamID":4101,"team_name":"Craig FC","Season":77}]`))
+			return
+		}
+		if r.URL.Path == "/teams/4101" {
+			http.Error(w, "temporary failure", http.StatusBadGateway)
+			return
+		}
+		t.Fatalf("unexpected path: %s", r.URL.Path)
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		Workflow: types.SoccerWorkflowState{
+			Source:            "imported",
+			SelectedPlayerIDs: []int{1001},
+			SelectedTeamIDs:   []int{4101},
+		},
+	})
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	body := resp.Body.String()
+	for _, marker := range []string{"Craig Johnson", "Craig FC", "could not be refreshed"} {
+		if !strings.Contains(strings.ToLower(body), strings.ToLower(marker)) {
+			t.Errorf("restore failure page missing %q", marker)
+		}
+	}
+	if cookie := findSessionCookie(t, resp.Result()); cookie != nil && cookie.MaxAge < 0 {
+		t.Fatal("restore failure cleared the workflow session")
 	}
 }
 
@@ -126,6 +407,9 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	if result.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status code: got %d want %d", result.StatusCode, http.StatusOK)
 	}
+	if got := result.Header.Get("HX-Trigger"); got != "soccer-workflow-reset" {
+		t.Fatalf("unexpected import HX-Trigger: got %q want %q", got, "soccer-workflow-reset")
+	}
 
 	sessionCookie := findSessionCookie(t, result)
 	if sessionCookie == nil {
@@ -137,8 +421,8 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	if sessionCookie.Expires != (time.Time{}) {
 		t.Fatalf("expected current-session cookie without expiry, got %v", sessionCookie.Expires)
 	}
-	if sessionCookie.SameSite != http.SameSiteStrictMode {
-		t.Fatalf("unexpected same-site mode: %v", sessionCookie.SameSite)
+	if sessionCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("unexpected same-site mode: got %v want Lax for Google OAuth restoration", sessionCookie.SameSite)
 	}
 
 	session := decryptTestSession(t, app, sessionCookie.Value)
@@ -311,13 +595,12 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	if fetchResp.Code != http.StatusOK {
 		t.Fatalf("unexpected fetch status code: got %d want %d", fetchResp.Code, http.StatusOK)
 	}
-	// my_teams is called once at import (to populate KnownTeams) and once at fetch
-	// (to resolve player teams into games) — 2 total per player.
-	if got := requestCounts["/players/1669080/my_teams"]; got != 2 {
-		t.Fatalf("unexpected player 1669080 my_teams call count: got %d want 2", got)
+	// Import only discovers players; team lookup happens once when schedules are requested.
+	if got := requestCounts["/players/1669080/my_teams"]; got != 1 {
+		t.Fatalf("unexpected player 1669080 my_teams call count: got %d want 1", got)
 	}
-	if got := requestCounts["/players/1669081/my_teams"]; got != 2 {
-		t.Fatalf("unexpected player 1669081 my_teams call count: got %d want 2", got)
+	if got := requestCounts["/players/1669081/my_teams"]; got != 1 {
+		t.Fatalf("unexpected player 1669081 my_teams call count: got %d want 1", got)
 	}
 	if got := requestCounts["/teams/479393"]; got != 1 {
 		t.Fatalf("unexpected team 479393 call count: got %d want 1", got)
@@ -489,7 +772,7 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 	}
 
 	assertClearedSessionCookie(t, result)
-	if !strings.Contains(resp.Body.String(), "No import active") {
+	if !strings.Contains(resp.Body.String(), "Not imported") {
 		t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
 	}
 	if !strings.Contains(resp.Body.String(), "Import access") {
@@ -497,6 +780,13 @@ func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testi
 	}
 	if strings.Contains(resp.Body.String(), "Clear import") {
 		t.Fatalf("did not expect authenticated controls after logout, got %q", resp.Body.String())
+	}
+	for _, resetID := range []string{
+		"soccer-player-stage-content", "soccer-team-stage-content", "games-container",
+	} {
+		if !strings.Contains(resp.Body.String(), `id="`+resetID+`" hx-swap-oob="innerHTML"`) {
+			t.Errorf("logout response lacks OOB reset for %s", resetID)
+		}
 	}
 }
 
@@ -542,10 +832,19 @@ func TestSoccerSessionHandlerClearsExpiredOrInvalidSessionAndRendersUnauthentica
 			}
 
 			assertClearedSessionCookie(t, result)
-			if strings.Contains(resp.Body.String(), "hx-swap-oob") {
-				t.Fatalf("expected /soccer/session to render auth panel as primary content (no OOB swap), got %q", resp.Body.String())
+			body := resp.Body.String()
+			lpsStart := strings.Index(body, `id="soccer-lps-connection"`)
+			if lpsStart < 0 {
+				t.Fatalf("expected /soccer/session to render the auth panel, got %q", body)
 			}
-			if !strings.Contains(resp.Body.String(), "No import active") {
+			lpsEnd := strings.Index(body[lpsStart:], `>`)
+			if lpsEnd < 0 || strings.Contains(body[lpsStart:lpsStart+lpsEnd+1], "hx-swap-oob") {
+				t.Fatalf("expected /soccer/session to render the auth panel as primary content, got %q", body)
+			}
+			if strings.Contains(body, `id="soccer-configuration"`) {
+				t.Fatalf("expected /soccer/session to omit the removed duplicate configuration summary, got %q", body)
+			}
+			if !strings.Contains(body, "Not imported") {
 				t.Fatalf("expected unauthenticated auth panel, got %q", resp.Body.String())
 			}
 			if !strings.Contains(resp.Body.String(), "Import access") {

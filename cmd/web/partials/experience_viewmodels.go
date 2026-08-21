@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"portfolio/types"
 )
@@ -33,6 +32,7 @@ type experienceStage struct {
 	Title       string
 	Range       string
 	Summary     string
+	IsCurrent   bool
 	Experiences []types.Experience
 }
 
@@ -55,6 +55,9 @@ func buildExperienceOverview(experiences []types.Experience) experienceOverview 
 
 	for index := range experiences {
 		experience := &experiences[index]
+		if experienceIsMoreRecent(experience, &overview.CurrentRole) {
+			overview.CurrentRole = *experience
+		}
 		if company := strings.TrimSpace(experience.Company); company != "" {
 			companySet[company] = struct{}{}
 		}
@@ -101,10 +104,11 @@ func buildCareerStages(experiences []types.Experience) []experienceStage {
 			Summary: "Expanded from endpoint and directory operations into infrastructure engineering, automation, and enterprise systems ownership.",
 		},
 		{
-			ID:      "cloud-leadership",
-			Title:   "Cloud Leadership",
-			Range:   "2021–Present",
-			Summary: "Shifted into regulated environments, cloud platforms, GitOps, and infrastructure leadership across modern delivery pipelines.",
+			ID:        "cloud-leadership",
+			Title:     "Cloud Leadership",
+			Range:     "2021–Present",
+			Summary:   "Shifted into regulated environments, cloud platforms, GitOps, and infrastructure leadership across modern delivery pipelines.",
+			IsCurrent: true,
 		},
 	}
 
@@ -113,8 +117,21 @@ func buildCareerStages(experiences []types.Experience) []experienceStage {
 		stages[baseStages[i].ID] = &baseStages[i]
 	}
 
-	for index := len(experiences) - 1; index >= 0; index-- {
-		experience := &experiences[index]
+	chronological := append([]types.Experience(nil), experiences...)
+	sort.SliceStable(chronological, func(i, j int) bool {
+		leftYear := experienceStartYear(chronological[i].Duration)
+		rightYear := experienceStartYear(chronological[j].Duration)
+		if leftYear != rightYear {
+			return leftYear < rightYear
+		}
+		if chronological[i].ID != chronological[j].ID {
+			return chronological[i].ID > chronological[j].ID
+		}
+		return chronological[i].Position < chronological[j].Position
+	})
+
+	for index := range chronological {
+		experience := &chronological[index]
 		stageID := stageIDForExperience(experience)
 		if stage, ok := stages[stageID]; ok {
 			stage.Experiences = append(stage.Experiences, *experience)
@@ -132,6 +149,23 @@ func buildCareerStages(experiences []types.Experience) []experienceStage {
 	return result
 }
 
+func experienceIsMoreRecent(candidate, current *types.Experience) bool {
+	candidateYear := experienceStartYear(candidate.Duration)
+	currentYear := experienceStartYear(current.Duration)
+	if candidateYear != currentYear {
+		return candidateYear > currentYear
+	}
+	candidatePresent := strings.Contains(strings.ToLower(candidate.Duration), "present")
+	currentPresent := strings.Contains(strings.ToLower(current.Duration), "present")
+	if candidatePresent != currentPresent {
+		return candidatePresent
+	}
+	if candidate.ID != current.ID {
+		return candidate.ID < current.ID
+	}
+	return candidate.Position < current.Position
+}
+
 func splitSkillAreas(raw string) []string {
 	parts := strings.Split(raw, ",")
 	areas := make([]string, 0, len(parts))
@@ -143,44 +177,6 @@ func splitSkillAreas(raw string) []string {
 		areas = append(areas, normalized)
 	}
 	return areas
-}
-
-func skillAreaLabel(code string) string {
-	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "cloud":
-		return "Cloud Platforms"
-	case "automation":
-		return "Automation & IaC"
-	case "security":
-		return "Security & Compliance"
-	case "systems":
-		return "Systems Engineering"
-	case "devops":
-		return "DevOps Delivery"
-	case "scripting":
-		return "Scripting"
-	default:
-		return humanizeCode(code)
-	}
-}
-
-func humanizeCode(code string) string {
-	code = strings.TrimSpace(strings.ReplaceAll(code, "-", " "))
-	if code == "" {
-		return "General Practice"
-	}
-
-	parts := strings.Fields(code)
-	for index := range parts {
-		if parts[index] == "" {
-			continue
-		}
-		runes := []rune(strings.ToLower(parts[index]))
-		runes[0] = unicode.ToUpper(runes[0])
-		parts[index] = string(runes)
-	}
-
-	return strings.Join(parts, " ")
 }
 
 func experienceStartYear(duration string) int {
@@ -195,42 +191,6 @@ func experienceStartYear(duration string) int {
 	}
 
 	return year
-}
-
-func experienceEndLabel(duration string) string {
-	trimmed := strings.TrimSpace(duration)
-	if trimmed == "" {
-		return "Present"
-	}
-
-	if strings.Contains(strings.ToLower(trimmed), "present") {
-		return "Present"
-	}
-
-	fields := strings.Fields(trimmed)
-	for index := len(fields) - 1; index >= 0; index-- {
-		if _, err := strconv.Atoi(fields[index]); err == nil {
-			return fields[index]
-		}
-	}
-
-	return trimmed
-}
-
-func uniqueTopTechnologies(experiences []types.Experience, limit int) []string {
-	frequency := make(map[string]int)
-	for index := range experiences {
-		experience := &experiences[index]
-		for _, technology := range experience.Technologies {
-			technology = strings.TrimSpace(technology)
-			if technology == "" {
-				continue
-			}
-			frequency[technology]++
-		}
-	}
-
-	return topRankedLabels(frequency, limit)
 }
 
 func capabilityCounts(frequency map[string]int) []experienceCapabilityCount {
@@ -321,33 +281,4 @@ func stageIDForExperience(experience *types.Experience) string {
 	default:
 		return "foundation"
 	}
-}
-
-func slugify(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "" {
-		return "experience"
-	}
-
-	var builder strings.Builder
-	lastDash := false
-	for _, r := range value {
-		switch {
-		case unicode.IsLetter(r), unicode.IsDigit(r):
-			builder.WriteRune(r)
-			lastDash = false
-		case lastDash:
-			continue
-		default:
-			builder.WriteRune('-')
-			lastDash = true
-		}
-	}
-
-	result := strings.Trim(builder.String(), "-")
-	if result == "" {
-		return "experience"
-	}
-
-	return result
 }

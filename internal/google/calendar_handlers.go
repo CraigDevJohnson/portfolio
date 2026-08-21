@@ -22,7 +22,7 @@ const (
 
 // AddHandler adds selected games to Google Calendar.
 func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.Config.GoogleEnabled() {
+	if !h.GoogleAvailable() {
 		h.Soccer.RenderLoginFeedback(w, r, "error", googleUnavailableMessage)
 		return
 	}
@@ -72,7 +72,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 
 // SyncResultsHandler updates previously synced past games with result text.
 func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
-	if !h.Config.GoogleEnabled() {
+	if !h.GoogleAvailable() {
 		h.Soccer.RenderLoginFeedback(w, r, "error", googleUnavailableMessage)
 		return
 	}
@@ -132,17 +132,17 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 // CalendarHandler handles calendar selection changes.
 func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.Soccer.LoadSession(w, r)
-	if !h.Config.GoogleEnabled() {
-		h.Soccer.RenderLoginState(w, r, session)
+	if !h.GoogleAvailable() {
+		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
 	if err := parseGoogleForm(r, w); err != nil {
-		h.Soccer.RenderLoginState(w, r, session)
+		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
 	record, ok := h.loadConnectionRecordOrLog(r.Context(), r)
 	if !ok {
-		h.Soccer.RenderLoginState(w, r, session)
+		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
 	calendars, err := h.ListCalendars(r.Context(), r, record)
@@ -154,7 +154,7 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			logger.Error("google calendar list failed", slog.Any("error", err))
 		}
-		h.Soccer.RenderLoginState(w, r, session)
+		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
 	selectedCalendarID := strings.TrimSpace(r.Form.Get("calendar_id"))
@@ -168,7 +168,7 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	if err := h.Store().Put(r.Context(), record); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("google calendar selection save failed", slog.Any("error", err))
 	}
-	h.Soccer.RenderLoginState(w, r, session)
+	h.Soccer.RenderLoginStateRefresh(w, r, session)
 }
 
 func apiResponseError(logger *slog.Logger, resp *http.Response) (bool, error) {

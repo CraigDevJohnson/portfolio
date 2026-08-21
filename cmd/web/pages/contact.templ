@@ -5,18 +5,18 @@ import "portfolio/cmd/web/partials"
 
 func contactExpertiseCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
-		{Icon: "☁️", Title: "Cloud Architecture", Description: "Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.", Tone: "accent"},
-		{Icon: "🔄", Title: "CI/CD Pipelines", Description: "Build automated deployment workflows that ship reliable code faster and more safely.", Tone: "primary"},
-		{Icon: "🔒", Title: "Security First", Description: "Embed security into every layer — from IAM policies to compliance automation.", Tone: "secondary"},
-		{Icon: "📈", Title: "Growth Mindset", Description: "Continuous learner who stays current with evolving cloud and DevOps best practices.", Tone: "secondary"},
+		{IconName: partials.UIIconArchitecture, Title: "Cloud Architecture", Description: "Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.", Tone: partials.ToneMint, ExtraClass: "contact-fit-card contact-fit-cloud"},
+		{IconName: partials.UIIconAutomation, Title: "Delivery Automation", Description: "Build deployment workflows that ship reliable changes faster and more safely.", Tone: partials.ToneRose, ExtraClass: "contact-fit-card contact-fit-delivery"},
+		{IconName: partials.UIIconSecurity, Title: "Security by Default", Description: "Embed security into every layer — from IAM policies to compliance automation.", Tone: partials.ToneApricot, ExtraClass: "contact-fit-card contact-fit-security"},
+		{IconName: partials.UIIconObservability, Title: "Operational Clarity", Description: "Improve observability, documentation, and handoffs so systems remain understandable.", Tone: partials.ToneMint, ExtraClass: "contact-fit-card contact-fit-operations"},
 	}
 }
 
 func contactMethodCards() []partials.LinkPanelRowProps {
 	return []partials.LinkPanelRowProps{
-		{Href: "mailto:opportunity@craigdevjohnson.com", Title: "Email", Label: "opportunity@craigdevjohnson.com", Description: "Best for professional inquiries and new opportunities.", Icon: "✉️", Tone: "accent", AriaLabel: "Email opportunity@craigdevjohnson.com"},
-		{Href: "https://linkedin.com/in/craigdevjohnson", Title: "LinkedIn", Label: "linkedin.com/in/craigdevjohnson", Description: "Connect for networking, platform engineering, and career conversations.", Icon: "💼", Tone: "primary", AriaLabel: "LinkedIn profile for Craig Johnson", External: true},
-		{Href: "https://github.com/CraigDevJohnson", Title: "GitHub", Label: "github.com/CraigDevJohnson", Description: "Explore technical collaborations, experiments, and open-source work.", Icon: "🛠️", Tone: "secondary", AriaLabel: "GitHub profile for Craig Johnson", External: true},
+		{Href: "mailto:opportunity@craigdevjohnson.com", Title: "Email", Label: "opportunity@craigdevjohnson.com", Description: "Best for professional inquiries and new opportunities.", IconName: partials.UIIconMail, Tone: partials.ToneRose, Variant: partials.ActionPrimary, AriaLabel: "Email opportunity@craigdevjohnson.com", ExtraClass: "contact-channel contact-channel-email"},
+		{Href: "https://linkedin.com/in/craigdevjohnson", Title: "LinkedIn", Label: "linkedin.com/in/craigdevjohnson", Description: "Connect for networking, platform engineering, and career conversations.", IconName: partials.UIIconLinkedIn, Tone: partials.ToneMint, Variant: partials.ActionSecondary, AriaLabel: "LinkedIn profile for Craig Johnson", External: true, ExtraClass: "contact-channel contact-channel-linkedin"},
+		{Href: "https://github.com/CraigDevJohnson", Title: "GitHub", Label: "github.com/CraigDevJohnson", Description: "Explore technical collaborations, experiments, and open-source work.", IconName: partials.UIIconGitHub, Tone: partials.ToneApricot, Variant: partials.ActionSecondary, AriaLabel: "GitHub profile for Craig Johnson", External: true, ExtraClass: "contact-channel contact-channel-github"},
 	}
 }
 
@@ -25,76 +25,94 @@ templ Contact() {
 		Title: "Get in Touch - Craig Johnson",
 		Page:  "contact",
 	}) {
-		<div class="page-kit-page">
-		@partials.PageHero(partials.PageHeroProps{
-			ImageURL:     "/static/images/backgrounds/contact-hero.jpg",
-			ContentClass: "flex min-h-full flex-col justify-center",
-		}) {
-			@partials.PageHeroIntro(partials.PageHeroIntroProps{
-				Eyebrow:       "Contact",
-				Title:         "Get in Touch",
-				Status:        "Open to opportunities",
-			}) {
-				<p class="page-hero-description">
-					Whether it&apos;s cloud architecture, DevOps strategy, or your next big idea — let&apos;s connect and build something meaningful together.
-				</p>
-			}
-		}
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "Ways to Connect",
-				Title: "Choose the easiest way to reach me",
-				Description: "Use the channel that fits best for opportunities, collaboration, or cloud and platform engineering discussions.",
-			})
-			<div class="page-kit-link-panel-row-grid">
-				for _, card := range contactMethodCards() {
-					@partials.LinkPanelRow(card)
+		<div class="page-kit-page contact-page" data-layout="correspondence-window">
+			<div class="contact-intro-region" data-region="intro">
+				@partials.PageHero(partials.PageHeroProps{
+					ImageURL:      "/static/images/backgrounds/contact-hero.jpg",
+					ImagePosition: "center",
+					Caption:       "Start with a conversation",
+					Variant:       partials.HeroInvitation,
+				}) {
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{
+						Eyebrow: "Contact",
+						Title:   "Get in Touch",
+						Status:  "Open to opportunities",
+					}) {
+						<p class="page-hero-description">
+							For cloud, platform, or DevOps opportunities, email is the fastest way to start a conversation.
+						</p>
+						<div class="page-hero-actions">
+							@partials.ActionLink(partials.ActionLinkProps{
+								Href:       "mailto:opportunity@craigdevjohnson.com",
+								Label:      "Email me",
+								Variant:    partials.ActionQuiet,
+								ShowArrow:  true,
+								ExtraClass: "contact-hero-email",
+							})
+						</div>
+					}
 				}
 			</div>
-		</section>
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "What I Bring",
-				Title: "Expertise that delivers",
-				Description: "A practical mix of architecture, automation, and security patterns applied across modern cloud environments.",
-			})
-			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				for _, card := range contactExpertiseCards() {
-					@partials.FeatureCard(card)
-				}
+			<div class="contact-correspondence-route">
+				@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailCorrespondence, ExtraClass: "contact-correspondence-trail"})
+				<aside class="contact-availability-section" data-region="availability" aria-labelledby="contact-availability-title">
+					<div class="page-kit-panel-strong contact-availability-ticket">
+						<div class="contact-availability-header">
+							<div class="contact-availability-heading">
+								<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
+								<h2 id="contact-availability-title" class="contact-availability-title">Currently available</h2>
+							</div>
+							<span class="contact-response-time">⏱ Response within 24-48 hours</span>
+						</div>
+						<div class="contact-availability-grid">
+							<div class="contact-availability-item contact-availability-work">
+								<span class="contact-detail-label">Looking for</span>
+								<span class="contact-detail-value">Full-time &amp; contract roles</span>
+							</div>
+							<div class="contact-availability-item contact-availability-location">
+								<span class="contact-detail-label">Location</span>
+								<span class="contact-detail-value">Remote / Hybrid</span>
+							</div>
+							<div class="contact-availability-item contact-availability-focus">
+								<span class="contact-detail-label">Focus areas</span>
+								<span class="contact-detail-value">Cloud, DevOps, Platform Engineering</span>
+							</div>
+						</div>
+					</div>
+				</aside>
+				<section class="page-section contact-channels-section" data-region="channels">
+					@partials.SectionIntro(partials.SectionIntroProps{
+						Label:       "Ways to Connect",
+						Title:       "Choose the easiest way to reach me",
+						Description: "Use the channel that fits best for opportunities, collaboration, or cloud and platform engineering discussions.",
+					})
+					<div class="page-kit-link-panel-row-grid contact-method-grid contact-channels-grid">
+						for _, card := range contactMethodCards() {
+							@partials.LinkPanelRow(card)
+						}
+					</div>
+				</section>
 			</div>
-		</section>
-		<section class="page-section-tight">
-			<div class="page-kit-panel-strong overflow-hidden p-6 sm:p-8">
-				<div class="flex flex-col gap-4 border-b border-carbon-black-700/80 pb-6 sm:flex-row sm:items-center sm:justify-between">
-					<div class="flex items-center gap-3">
-						<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
-						<span class="text-base font-semibold text-accent-300 sm:text-lg">Currently available</span>
-					</div>
-					<span class="text-sm text-copy-secondary">⏱ Response within 24-48 hours</span>
+			<section class="page-section contact-fit-section" data-region="expertise">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label:       "What I Bring",
+					Title:       "Expertise that delivers",
+					Description: "A practical mix of architecture, automation, and security patterns applied across modern cloud environments.",
+				})
+				<div class="contact-expertise-ribbon contact-fit-grid">
+					for _, card := range contactExpertiseCards() {
+						@partials.FeatureCard(card)
+					}
 				</div>
-				<div class="grid gap-5 pt-6 md:grid-cols-3">
-					<div class="space-y-1">
-						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Looking for</span>
-						<span class="block text-base font-semibold text-copy-primary">Full-time &amp; contract roles</span>
-					</div>
-					<div class="space-y-1">
-						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Location</span>
-						<span class="block text-base font-semibold text-copy-primary">Remote / Hybrid</span>
-					</div>
-					<div class="space-y-1">
-						<span class="text-xs font-semibold uppercase tracking-[0.2em] text-copy-muted">Focus areas</span>
-						<span class="block text-base font-semibold text-copy-primary">Cloud, DevOps, Platform Engineering</span>
-					</div>
-				</div>
+			</section>
+			<div class="contact-cta-region">
+				@partials.PageCTA(partials.PageCTAProps{
+					Title:     "Want to see my work first?",
+					Subtitle:  "Explore my projects and experience before reaching out",
+					Primary:   partials.ActionLinkProps{Href: "/projects", Label: "View Projects", Variant: partials.ActionSecondary},
+					Secondary: &partials.ActionLinkProps{Href: "/experience", Label: "See Experience", Variant: partials.ActionQuiet},
+				})
 			</div>
-		</section>
-		@partials.PageCTA(
-			"Want to see my work first?",
-			"Explore my projects and experience before reaching out",
-			partials.CTALink{Href: "/projects", Label: "View Projects"},
-			partials.CTALink{Href: "/experience", Label: "See Experience"},
-		)
 		</div>
 	}
 }

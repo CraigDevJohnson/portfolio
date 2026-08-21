@@ -24,16 +24,19 @@ applyTo: "**/*.templ"
 
 ## Shared UI components
 
-`cmd/web/partials/ui.templ` contains reusable partial components:
+Reusable partials are split by responsibility under `cmd/web/partials/ui_*.templ`:
 
-- `PageHero` / `PageHeroIntro` — hero section with title and description
-- `PageCTA` — call-to-action section at page bottom
+- `ui_hero.templ` contains `PageHero`, `PageHeroIntro`, and section headings.
+- `ui_actions.templ` contains `PageCTA` and shared actions.
+- `ui_cards.templ`, `ui_feedback.templ`, `ui_icons.templ`, `ui_signal.templ`,
+  and `ui_stats.templ` contain the other shared primitives.
 
 Reuse these before adding inline markup.
 
 ## Styling
 
-- Use CSS component classes defined in `cmd/web/tailwind/components.css` and `cmd/web/tailwind/soccer.css`.
+- Use CSS component classes defined in `cmd/web/tailwind/components.css`, the
+  matching file under `cmd/web/tailwind/pages/`, `soccer.css`, or `portal.css`.
 - Tailwind utility classes are available but prefer named component classes for consistency.
 - For page structure, wrap content in `.page-kit-page` to apply the correct color scheme.
 - Common layout helpers: `.page-section`, `.page-section-tight`, `.page-hero-title`, `.page-hero-description`.

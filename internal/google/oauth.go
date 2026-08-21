@@ -25,6 +25,8 @@ type SoccerBridge interface {
 	LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool)
 	LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps
 	RenderLoginState(w http.ResponseWriter, r *http.Request, session *types.SessionData)
+	RenderLoginStateOOB(w http.ResponseWriter, r *http.Request, session *types.SessionData)
+	RenderLoginStateRefresh(w http.ResponseWriter, r *http.Request, session *types.SessionData)
 	RenderLoginFeedback(w http.ResponseWriter, r *http.Request, kind, message string)
 	ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
 	ResolveSyncResultsGames(w http.ResponseWriter, r *http.Request) (*types.SessionData, []types.Game, string, bool)
@@ -45,8 +47,9 @@ type Handler struct {
 	Logger             *slog.Logger
 	Soccer             SoccerBridge
 
-	storeMu sync.RWMutex
-	store   ConnectionStore
+	storeMu    sync.RWMutex
+	store      ConnectionStore
+	storeReady bool
 }
 
 // NewHandler constructs a Handler with the given dependencies.
@@ -74,9 +77,26 @@ func (h *Handler) Store() ConnectionStore {
 	return h.store
 }
 
+// GoogleAvailable reports whether configuration and durable connection storage
+// are both ready for Google Calendar operations.
+func (h *Handler) GoogleAvailable() bool {
+	if h == nil || h.Config == nil || !h.Config.GoogleEnabled() {
+		return false
+	}
+	h.storeMu.RLock()
+	defer h.storeMu.RUnlock()
+	return h.storeReady
+}
+
 // SetStore replaces the connection store (thread-safe, called after background init).
 func (h *Handler) SetStore(store ConnectionStore) {
 	h.storeMu.Lock()
+	if store == nil {
+		store = NoopStore{}
+	}
 	h.store = store
+	_, noopValue := store.(NoopStore)
+	_, noopPointer := store.(*NoopStore)
+	h.storeReady = !noopValue && !noopPointer
 	h.storeMu.Unlock()
 }

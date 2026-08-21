@@ -40,7 +40,7 @@ func validateAPIRequest(request *http.Request) error {
 }
 
 func doAPIRequest(client *http.Client, request *http.Request) (*http.Response, error) {
-	return client.Do(request) //nolint:gosec // Request URLs are rebuilt from a validated base URL and revalidated here.
+	return client.Do(request)
 }
 
 // statusErrorKind maps a non-standard LPS status code to the appropriate ErrorKind for the resource type.

@@ -15,13 +15,15 @@ Link to those docs instead of copying long procedures into new instructions or P
 
 ## Architecture
 
-- Go 1.26.4 server-rendered app with Templ and HTMX.
+- Go 1.26.6 server-rendered app with Templ and HTMX.
 - `cmd/server/main.go` is intentionally thin and delegates to `internal/app` for startup and route wiring.
-- `internal/app` is a thin routing and dependency-injection layer (~260 lines). It constructs the `App` struct, wires domain packages, registers routes, and starts the HTTP server. It does not contain any business logic.
+- `internal/app` is the routing and dependency-injection layer. It constructs the `App` struct, wires domain packages, registers routes, and starts the HTTP server.
 - `internal/config` holds env parsing, feature toggles (`LoginEnabled`, `GoogleEnabled`), and shared constants.
-- `internal/soccer` contains soccer page rendering, JWT import, player discovery, session management, schedule fetch, ICS download, and subscribe handlers.
+- `internal/soccer` contains soccer page rendering, JWT import, player discovery, session management, schedule fetch, and ICS download handlers.
 - `internal/google` contains Google OAuth connect/callback/disconnect, Calendar API event sync, DynamoDB connection store, and token management.
-- `internal/lps` contains the LPS API client, schedule resolver, JSON decode helpers, and error classification.
+- `internal/portal` contains Cognito OAuth + PKCE authentication, encrypted portal
+  sessions, EC2 instance actions, CloudWatch metrics, and CloudWatch Logs handlers.
+- `internal/lps` contains the LPS API client, typed schedule resolver, player-response decoder, and error classification.
 - `internal/schedule` contains game normalization, merge/sort/dedup, time parsing, and ICS building.
 - `internal/session` contains AES-GCM cookie encryption and login rate limiting.
 - `internal/httpx` contains client IP detection, HTTPS detection, and secure cookie builder.
@@ -42,8 +44,8 @@ Dependencies flow downward from `internal/app` through domain packages to `types
 - `task tailwind-watch` rebuilds the generated Tailwind stylesheet while you edit Tailwind source files.
 - `task test` runs `go test -v ./...`.
 - `task vet` runs `go vet ./...`.
-- `task fmt` runs `golangci-lint fmt --config .golangci.toml`.
-- `task lint` runs Go lint autofixes.
+- `task fmt` runs `golangci-lint fmt`.
+- `task lint` formats first, then runs `golangci-lint run`.
 
 Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo's primary formatter entry point.
 
@@ -52,7 +54,7 @@ Prefer the `task` recipes over ad hoc commands. `go fmt ./...` is not this repo'
 - Edit `.templ` source files, not generated `*_templ.go` files.
 - Run `task generate` after any `.templ` change unless another command already does it.
 - Tailwind source lives under `cmd/web/tailwind/`; compile it with `task tailwind-build` or `task tailwind-watch`.
-- CSS-first component and page rules live in `cmd/web/tailwind/components.css` and `cmd/web/tailwind/soccer.css`; they are compiled into the generated Tailwind output.
+- CSS-first component and page rules live in `cmd/web/tailwind/components.css`, `cmd/web/tailwind/pages/`, `cmd/web/tailwind/soccer.css`, and `cmd/web/tailwind/portal.css`; they compile into the generated Tailwind output.
 - Preserve existing HTMX patterns: full pages render layout wrappers, fragment endpoints return partial HTML only.
 
 Useful exemplars:
@@ -82,20 +84,36 @@ Relevant handlers and components:
 - `cmd/web/partials/soccer_login_state.templ`.
 - `cmd/web/partials/soccer_player_select.templ`.
 
+## Portal Auth Flow
+
+The optional portal uses Cognito's OAuth 2.0 authorization-code flow with PKCE.
+It validates the OAuth state, exchanges the authorization code, verifies the ID
+token through Cognito JWKS, and stores only an encrypted application session.
+Protected `/mgmt` routes redirect unauthenticated requests to `/login`.
+
+Relevant code is in `internal/portal/` and the dashboard templates are
+`cmd/web/pages/portal_mgmt.templ` and `cmd/web/pages/portal_error.templ`.
+
 ## Environment And Deployment Notes
 
 - `LPS_SESSION_KEY` is the critical runtime secret for soccer auth.
 - `LPS_API_BASE_URL` is optional and overrides the upstream API base URL.
 - Google Calendar integration also requires `CLIENT_ID_KEY` and `CLIENT_SECRET_KEY`. In App Runner, `infra/*.tf` supplies `GOOGLE_CONNECTION_TABLE_NAME`; local runs still need it set. See `DEPLOY-INSTRUCTIONS.md` for deployment details.
-- `docker-compose.yml` expects local env configuration and passes through `LPS_SESSION_KEY`.
+- The EC2 portal requires `MGMT_SESSION_KEY`, `MGMT_COGNITO_DOMAIN`, and
+  `MGMT_COGNITO_CLIENT_ID`. `MGMT_COGNITO_REDIRECT_URI` configures the OAuth
+  callback, `MGMT_COGNITO_LOGOUT_URI` is optional, and `MGMT_AWS_REGION`
+  defaults to `us-east-1`.
+- Terraform does not currently provision Cognito or portal-specific IAM
+  permissions; follow `DEPLOY-INSTRUCTIONS.md` for least-privilege setup.
+- `docker-compose.yml` passes the documented LPS, Google, Soccer store, portal, logging, and local AWS variables from `.env`.
 - The runtime server listens on port `8080`.
 - Use `infra/*.tf` as the source of truth for actual Terraform or OpenTofu defaults; deployment prose may lag behind.
 
 ## Known Drift To Avoid
 
-- Older docs still mention manual player-ID import. Ignore that and follow the current code.
-- Some docs still describe older Go versions or `go fmt`. The repo is on Go 1.26.4 and uses `task fmt` via golangci-lint (config at `.qlty/configs/.golangci.toml`).
-- References to `cmd/web/tailwind/legacy/` or `tailwindcss/legacy/` are stale — that directory no longer exists.
+- Do not reintroduce manual player-ID import. The current flow imports a JWT and discovers linked players.
+- The repo is on Go 1.26.6 and uses `task fmt` via golangci-lint with the root `.golangci.toml`.
+- Do not reference `cmd/web/tailwind/legacy/` or `tailwindcss/legacy/`; neither directory exists.
 - References to `PROGRESS.md` or `PRD.md` at the repo root are stale — those files do not exist.
 - Historical workspace tasks may reference generated Templ files or old commit flows. Follow `Taskfile.yaml`, not old one-off commands.
 

@@ -4,56 +4,71 @@ import "time"
 
 templ Footer() {
 	<footer class="site-footer site-chrome-footer">
-		<div class="footer-content mx-auto max-w-[var(--container-max)] px-6 pb-6 pt-12 max-[768px]:pb-5 max-[480px]:px-4">
+		<div class="footer-content site-footer-shell mx-auto max-w-[var(--container-max)] px-4 pb-5 pt-12 sm:px-6 md:pb-6">
 			<div class="footer-main site-chrome-footer-main">
-				<div class="footer-brand flex flex-col gap-2">
-					<span class="footer-logo text-xl font-extrabold text-copy-primary">Craig Johnson</span>
-					<p class="footer-tagline text-sm text-copy-muted">Cloud Engineer Principal</p>
+				<div class="footer-brand site-footer-brand flex flex-col gap-4">
+					<div class="flex items-center gap-3">
+						<span class="site-logo-mark" aria-hidden="true">CJ</span>
+						<div>
+							<span class="footer-logo block text-xl font-extrabold text-copy-primary">Craig Johnson</span>
+							<p class="footer-tagline text-sm text-copy-muted">Cloud Engineer Principal</p>
+						</div>
+					</div>
+					<p class="max-w-sm text-sm leading-6 text-copy-secondary">Building cloud platforms that are easier to change, understand, and trust.</p>
 				</div>
-				<nav class="footer-nav grid gap-6 max-[560px]:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Footer navigation">
-					<div class="footer-nav-section flex flex-col gap-1.5">
-						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Pages</h3>
-						for i, item := range navItems() {
-							if i < 4 {
-								<a class="site-chrome-footer-link focus-ring" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
-							}
-						}
-					</div>
-					<div class="footer-nav-section flex flex-col gap-1.5">
-						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">More</h3>
-						for i, item := range navItems() {
-							if i >= 4 {
-								<a class="site-chrome-footer-link focus-ring" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
-							}
-						}
-					</div>
-					<div class="footer-nav-section flex flex-col gap-1.5 max-[560px]:col-span-2 max-[560px]:pt-2">
+				<nav class="footer-nav site-footer-links" aria-label="Footer navigation">
+					for _, group := range footerNavGroups() {
+						<div class="footer-nav-section">
+							<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">{ group.Label }</h3>
+							<div class={ footerNavListClasses(group.Label) }>
+								for _, item := range group.Items {
+									<a class="site-chrome-footer-link focus-ring" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+								}
+							</div>
+						</div>
+					}
+					<div class="footer-nav-section footer-nav-connect">
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Connect</h3>
-						<a class="site-chrome-footer-link focus-ring" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub</a>
-						<a
-							class="site-chrome-footer-link focus-ring"
-							href="https://linkedin.com/in/craigdevjohnson"
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							LinkedIn
-						</a>
-						<a class="site-chrome-footer-link focus-ring" href="mailto:opportunity@craigdevjohnson.com">Email</a>
+						<div class="footer-nav-list">
+							<a class="site-chrome-footer-link focus-ring" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only">(opens in a new tab)</span></a>
+							<a
+								class="site-chrome-footer-link focus-ring"
+								href="https://linkedin.com/in/craigdevjohnson"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								LinkedIn<span class="sr-only">(opens in a new tab)</span>
+							</a>
+							<a class="site-chrome-footer-link focus-ring" href="mailto:opportunity@craigdevjohnson.com">Email</a>
+						</div>
 					</div>
 				</nav>
 			</div>
-			<div class="footer-bottom flex items-start justify-between gap-5 pt-6 text-sm text-copy-muted max-[768px]:flex-col max-[768px]:text-left">
+			<div class="footer-bottom site-footer-meta flex flex-col items-start justify-between gap-5 pt-6 text-left text-sm text-copy-muted md:flex-row">
 				<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
-				<div class="tech-stack flex max-w-full flex-col gap-3 max-[768px]:w-full sm:items-end">
+				<div class="tech-stack flex w-full max-w-full flex-col gap-3 md:w-auto md:items-end">
 					<span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Built with</span>
-					<div class="flex flex-wrap gap-2 max-[768px]:justify-start sm:justify-end">
-						<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go<span class="sr-only"> programming language</span></a>
-						<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ<span class="sr-only"> framework</span></a>
-						<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX<span class="sr-only"> library</span></a>
-						<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot<span class="sr-only"> assistant</span></a>
+					<div class="flex flex-wrap justify-start gap-2 md:justify-end">
+						<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go<span class="sr-only">programming language (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ<span class="sr-only">framework (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX<span class="sr-only">library (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot<span class="sr-only">assistant (opens in a new tab)</span></a>
 					</div>
 				</div>
 			</div>
+		</div>
+	</footer>
+}
+
+templ OperatorFooter() {
+	<footer class="site-footer site-chrome-footer site-operator-footer">
+		<div class="site-operator-footer-shell mx-auto flex flex-col gap-4 px-4 py-6 text-sm text-copy-muted sm:px-6 md:flex-row md:items-center md:justify-between">
+			<a href="/" class="site-operator-identity site-chrome-footer-link focus-ring" aria-label="Craig Johnson, portfolio home">
+				<span class="site-logo-mark" aria-hidden="true">CJ</span>
+				<span>Craig Johnson</span>
+			</a>
+			<a href="/" class="site-chrome-footer-link focus-ring">Back to portfolio</a>
+			<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
 		</div>
 	</footer>
 }

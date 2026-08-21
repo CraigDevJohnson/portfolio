@@ -1,0 +1,424 @@
+/* Contact — one correspondence window from invitation to the right channel. */
+.contact-page {
+  --contact-signal: var(--rosehip);
+}
+
+.contact-intro-region,
+.contact-correspondence-route,
+.contact-availability-section,
+.contact-availability-ticket,
+.contact-availability-grid,
+.contact-channels-section,
+.contact-channels-grid,
+.contact-channel,
+.contact-fit-section,
+.contact-expertise-ribbon,
+.contact-fit-card,
+.contact-cta-region {
+  min-width: 0;
+}
+
+.page-hero-invitation {
+  --hero-signal: var(--rosehip);
+}
+
+.contact-hero-email {
+  min-block-size: 2.75rem;
+  border-color: color-mix(in srgb, var(--candle-oat) 22%, transparent);
+  background: color-mix(in srgb, var(--night-mulberry) 34%, transparent);
+  color: var(--candle-oat);
+}
+
+.contact-correspondence-route {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+  max-width: var(--container-site);
+  margin-inline: auto;
+  padding-block: clamp(var(--space-2xl), 7vw, var(--space-3xl));
+}
+
+.contact-availability-section {
+  z-index: 1;
+  position: static;
+  inset: auto;
+  grid-column: auto;
+  grid-row: auto;
+  align-self: stretch;
+  transform: none;
+}
+
+.contact-availability-ticket {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-xl);
+  border-color: color-mix(in srgb, var(--pond-mint) 36%, var(--color-border-subtle));
+  border-radius: var(--radius-xl) var(--radius-md) var(--radius-xl) var(--radius-md);
+  background:
+    radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--rosehip) 12%, transparent), transparent 12rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--pond-mint) 10%, var(--color-surface-raised)), var(--cocoa-cedar));
+  box-shadow: var(--shadow-panel);
+}
+
+.contact-availability-header {
+  display: grid;
+  gap: var(--space-md);
+  padding-block-end: var(--space-lg);
+  border-block-end: var(--line-hairline) dashed color-mix(in srgb, var(--candle-oat) 18%, transparent);
+}
+
+.contact-availability-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.contact-availability-title {
+  color: var(--pond-mint);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.contact-response-time {
+  color: var(--color-copy-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.contact-availability-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+  padding-block-start: var(--space-lg);
+}
+
+.contact-availability-item {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2xs);
+}
+
+.contact-detail-label {
+  color: var(--color-copy-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.contact-detail-value {
+  color: var(--candle-oat);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+}
+
+.contact-correspondence-trail {
+  --signal-trail-forced-block-border: 0;
+  --signal-trail-forced-inline-border: var(--line-signal) solid CanvasText;
+  position: absolute;
+  z-index: 0;
+  inset-block: var(--space-2xl);
+  inset-inline-start: var(--space-xl);
+  display: block;
+  width: var(--line-signal);
+  height: auto;
+  margin: 0;
+  background: linear-gradient(180deg, var(--rosehip), var(--campfire-apricot) 46%, var(--pond-mint));
+  color: var(--contact-signal);
+  opacity: 0.72;
+  pointer-events: none;
+  transform: none;
+}
+
+.contact-correspondence-trail::before,
+.contact-correspondence-trail::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 50%;
+  width: var(--space-sm);
+  height: var(--space-sm);
+  border: var(--line-accent) solid var(--night-mulberry);
+  border-radius: var(--radius-full);
+  background: currentColor;
+  box-shadow: 0 0 var(--space-md) color-mix(in srgb, currentColor 44%, transparent);
+  transform: translateX(-50%);
+}
+
+.contact-correspondence-trail::before {
+  inset-block-start: 0;
+}
+
+.contact-correspondence-trail::after {
+  inset-block-end: 0;
+  color: var(--pond-mint);
+}
+
+.contact-correspondence-trail .signal-trail-svg {
+  display: none;
+}
+
+.contact-channels-section {
+  position: relative;
+  z-index: 1;
+  padding-block: 0;
+}
+
+.contact-channels-section > .page-kit-section-intro,
+.contact-fit-section > .page-kit-section-intro {
+  margin-block-end: var(--space-xl);
+}
+
+.contact-channels-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+}
+
+.contact-channel {
+  min-block-size: 2.75rem;
+  min-width: 0;
+  border-radius: var(--radius-lg);
+}
+
+.contact-channel .wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.contact-channel .page-kit-icon-frame {
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  box-shadow:
+    inset 0 0 0 var(--line-hairline) color-mix(in srgb, currentcolor 12%, transparent),
+    0 0.7rem 1.4rem color-mix(in srgb, var(--night-mulberry) 28%, transparent);
+}
+
+.contact-channel.ui-action-primary {
+  --card-signal: var(--rosehip);
+  border-color: color-mix(in srgb, var(--rosehip) 62%, var(--color-border-strong));
+  background:
+    radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--color-warm-signal) 15%, transparent), transparent 12rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--rosehip) 16%, var(--color-surface-raised)), var(--cocoa-cedar));
+  box-shadow: var(--shadow-panel-strong);
+}
+
+.contact-channel.ui-action-secondary {
+  background: color-mix(in srgb, var(--cocoa-cedar) 94%, var(--night-mulberry));
+  box-shadow: inset 0 var(--line-hairline) 0 color-mix(in srgb, var(--candle-oat) 5%, transparent);
+}
+
+.contact-fit-section {
+  padding-block-start: var(--space-xl);
+}
+
+.contact-expertise-ribbon {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+}
+
+.contact-fit-card {
+  --contact-fit-signal: var(--pond-mint);
+  min-height: 0;
+  border-color: color-mix(in srgb, var(--candle-oat) 12%, transparent);
+  border-inline-start: 0.2rem solid var(--contact-fit-signal);
+  background: color-mix(in srgb, var(--night-mulberry) 38%, var(--cocoa-cedar));
+  box-shadow: none;
+}
+
+.contact-fit-delivery { --contact-fit-signal: var(--rosehip); }
+.contact-fit-security { --contact-fit-signal: var(--campfire-apricot); }
+
+.contact-fit-card .page-kit-icon-frame {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 1.5rem color-mix(in srgb, var(--contact-fit-signal) 18%, transparent);
+}
+
+.contact-fit-card::before,
+.contact-fit-card::after {
+  display: none;
+}
+
+.contact-fit-card:hover,
+.contact-fit-card:focus-within {
+  border-color: color-mix(in srgb, var(--candle-oat) 18%, transparent);
+  background: color-mix(in srgb, var(--night-mulberry) 38%, var(--cocoa-cedar));
+  box-shadow: none;
+  transform: none;
+}
+
+@media (min-width: 30rem) {
+  .contact-availability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-availability-focus {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 48rem) {
+  .contact-availability-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .contact-availability-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .contact-availability-focus {
+    grid-column: auto;
+  }
+
+  .contact-channels-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contact-channel-email {
+    grid-column: 1 / -1;
+  }
+
+  .contact-channel-linkedin,
+  .contact-channel-github {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .contact-channel-email {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .contact-expertise-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 70rem) {
+  .page-hero-invitation .page-kit-hero-photo {
+    width: 37%;
+    border-radius: 11rem 11rem var(--radius-xl) var(--radius-xl);
+  }
+
+  .page-hero-invitation .page-kit-hero-photo::after,
+  .page-hero-invitation .page-kit-hero-photo-image {
+    border-radius: calc(11rem - var(--space-sm)) calc(11rem - var(--space-sm)) var(--radius-lg) var(--radius-lg);
+  }
+
+  .contact-correspondence-route {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    align-items: start;
+    column-gap: clamp(var(--space-xl), 4vw, var(--space-3xl));
+  }
+
+  .contact-availability-header,
+  .contact-availability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contact-availability-section {
+    position: sticky;
+    inset: auto;
+    top: calc(var(--header-height) + var(--space-lg));
+    grid-column: 1 / span 4;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .contact-channels-section {
+    grid-column: 5 / -1;
+    grid-row: 1;
+  }
+
+  .contact-correspondence-trail {
+    --signal-trail-forced-block-border: var(--line-signal) solid CanvasText;
+    --signal-trail-forced-inline-border: 0;
+    inset: var(--space-xl) var(--space-sm) var(--space-lg);
+    width: auto;
+    height: auto;
+    background: transparent;
+    opacity: 0.62;
+    transform: scaleX(-1);
+  }
+
+  .contact-correspondence-trail::before,
+  .contact-correspondence-trail::after {
+    display: none;
+  }
+
+  .contact-correspondence-trail .signal-trail-svg {
+    display: block;
+  }
+
+  .contact-expertise-ribbon {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 80rem) {
+  .contact-correspondence-route {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+  }
+
+  .contact-availability-header,
+  .contact-availability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contact-availability-section {
+    grid-column: 1 / span 4;
+    grid-row: 1;
+  }
+
+  .contact-channels-section {
+    grid-column: 5 / -1;
+    grid-row: 1;
+  }
+
+  .contact-channel-email {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .contact-channel-linkedin,
+  .contact-channel-github {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .contact-correspondence-trail {
+    border-block-start: 0 !important;
+    border-inline-start: var(--line-signal) solid CanvasText !important;
+    color: CanvasText !important;
+  }
+
+  .contact-correspondence-trail .signal-trail-svg {
+    display: none !important;
+  }
+}
+
+@media (forced-colors: active) and (min-width: 70rem) {
+  .contact-correspondence-trail {
+    border-block-start: var(--line-signal) solid CanvasText !important;
+    border-inline-start: 0 !important;
+  }
+}

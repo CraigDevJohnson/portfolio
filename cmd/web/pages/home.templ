@@ -18,27 +18,18 @@ type HomeProps struct {
 
 func homeFeatureCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
-		{Icon: "☁️", Title: "Cloud Architecture", Description: "Designing and implementing scalable, secure cloud infrastructure on AWS and Azure.", Tone: "accent", ExtraClass: "stagger-enter"},
-		{Icon: "⚙️", Title: "Infrastructure as Code", Description: "Automating infrastructure with Terraform, CloudFormation, and Ansible for repeatable deployments.", Tone: "primary", ExtraClass: "stagger-enter"},
-		{Icon: "🔄", Title: "CI/CD & DevOps", Description: "Building pipelines with GitHub Actions and implementing GitOps for continuous delivery.", Tone: "secondary", ExtraClass: "stagger-enter"},
-		{Icon: "🔒", Title: "Security & Compliance", Description: "Implementing zero-trust architecture, IAM policies, and security automation.", Tone: "secondary", ExtraClass: "stagger-enter"},
+		{IconName: partials.UIIconArchitecture, Title: "Cloud Architecture", Description: "Designing secure, scalable infrastructure across AWS and Azure.", Tone: partials.ToneMint, ExtraClass: "home-capability-card home-capability-cloud stagger-enter"},
+		{IconName: partials.UIIconInfrastructure, Title: "Infrastructure as Code", Description: "Turning environments into repeatable, reviewable systems with Terraform, CloudFormation, and Ansible.", Tone: partials.ToneApricot, ExtraClass: "home-capability-card home-capability-infrastructure stagger-enter"},
+		{IconName: partials.UIIconAutomation, Title: "Delivery Automation", Description: "Building delivery pipelines with GitHub Actions and GitOps practices that teams can trust.", Tone: partials.ToneRose, ExtraClass: "home-capability-card home-capability-delivery stagger-enter"},
+		{IconName: partials.UIIconSecurity, Title: "Security & Operations", Description: "Embedding identity, observability, and compliance into the platform instead of bolting them on later.", Tone: partials.ToneMint, ExtraClass: "home-capability-card home-capability-operations stagger-enter"},
 	}
 }
 
 func homeStatCards(props HomeProps) []partials.StatCardProps {
 	return []partials.StatCardProps{
-		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years Experience", AriaLabel: fmt.Sprintf("%d plus years experience", props.YearsInTech), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
-		{Value: fmt.Sprintf("%d", props.Certifications), Label: "Certifications", AriaLabel: fmt.Sprintf("%d plus certifications", props.Certifications), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
-		{Value: props.AutomationProjects, Label: "Automation Projects", AriaLabel: fmt.Sprintf("%s plus automation projects", props.AutomationProjects), Suffix: "+", ExtraClass: "stagger-enter px-4 py-5", ValueClass: "text-3xl sm:text-4xl"},
-	}
-}
-
-func homeExploreCards() []partials.LinkPanelCardProps {
-	return []partials.LinkPanelCardProps{
-		{Href: "/experience", Icon: "💼", Title: "Experience", Description: "View my professional journey through cloud engineering and IT.", CTA: "Explore", Tone: "accent", ExtraClass: "stagger-enter"},
-		{Href: "/skills", Icon: "🛠️", Title: "Skills", Description: "The tools and technologies I use to build, automate, and ship reliably.", CTA: "Explore", Tone: "primary", ExtraClass: "stagger-enter"},
-		{Href: "/projects", Icon: "🚀", Title: "Projects", Description: "Real-world applications, automation, and infrastructure tools I've built.", CTA: "Explore", Tone: "secondary", ExtraClass: "stagger-enter"},
-		{Href: "/soccer", Icon: "⚽", Title: "Soccer Tool", Description: "A schedule download utility built to streamline match-day planning.", CTA: "Explore", Tone: "accent", ExtraClass: "stagger-enter"},
+		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years Experience", AriaLabel: fmt.Sprintf("%d plus years experience", props.YearsInTech), Suffix: "+", ExtraClass: "home-stat home-stat-years stagger-enter", ValueClass: "home-stat-value", LabelClass: "home-stat-label"},
+		{Value: fmt.Sprintf("%d", props.Certifications), Label: "Certifications", AriaLabel: fmt.Sprintf("%d plus certifications", props.Certifications), Suffix: "+", ExtraClass: "home-stat home-stat-certifications stagger-enter", ValueClass: "home-stat-value", LabelClass: "home-stat-label"},
+		{Value: props.AutomationProjects, Label: "Automation Projects", AriaLabel: fmt.Sprintf("%s plus automation projects", props.AutomationProjects), Suffix: "+", ExtraClass: "home-stat home-stat-automation stagger-enter", ValueClass: "home-stat-value", LabelClass: "home-stat-label"},
 	}
 }
 
@@ -47,88 +38,81 @@ templ Home(props HomeProps) {
 		Title: "Craig Johnson - Cloud Engineer Principal",
 		Page:  "home",
 	}) {
-		<div class="page-kit-page">
-			@partials.PageHero(partials.PageHeroProps{
-				ImageURL:      "/static/images/backgrounds/home-hero.jpg",
-				ImagePosition: "center",
-				ImageFilter:   "saturate(0.76) contrast(0.84) brightness(0.54) blur(1.25px)",
-			}) {
-					<div class="grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center lg:gap-10">
-						<div class="flex justify-center lg:justify-start">
-							<a
-								href="https://gravatar.com/craigdevjohnson1"
-								target="_blank"
-								rel="noopener noreferrer"
-								class="focus-ring group relative inline-flex rounded-full"
-								aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"
-							>
-								<span class="absolute inset-[-0.5rem] rounded-full bg-[image:var(--accent-primary-gradient)] opacity-70 blur-[1px] transition duration-300 group-hover:scale-[1.02]" aria-hidden="true"></span>
-								<span class="absolute inset-[-2rem] rounded-full bg-radial from-accent-400/25 via-accent-300/10 to-transparent" aria-hidden="true"></span>
-								<img
-									src={ props.AvatarURL }
-									alt={ props.Name }
-									class="relative h-[13rem] w-[13rem] rounded-full border-4 border-carbon-black-950 object-cover shadow-panel-strong transition duration-300 group-hover:scale-[1.02] sm:h-[15rem] sm:w-[15rem] lg:h-[17.25rem] lg:w-[17.25rem]"
-									width="275"
-									height="275"
-									loading="eager"
-								/>
+		<div class="page-kit-page home-page" data-layout="systems-overlook">
+			<section class="home-overlook-hero" aria-label="Craig Johnson introduction">
+				<figure class="home-build-portal" data-region="photo">
+					<div class="home-build-portal-visual" aria-hidden="true">
+						<img src="/static/images/backgrounds/home-hero.jpg" alt="" class="home-build-environment" width="1920" height="1280" loading="eager"/>
+						<span class="home-build-portal-shade"></span>
+					</div>
+					<figcaption class="home-build-caption">A warm place to build</figcaption>
+					<a
+						href="https://gravatar.com/craigdevjohnson1"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="home-portrait-link focus-ring"
+						aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"
+					>
+						<span class="home-portrait-visual">
+							<span class="home-portrait-fallback" data-image-fallback aria-hidden="true">CJ</span>
+							<img
+								src={ props.AvatarURL }
+								alt={ props.Name }
+								class="home-portrait-image"
+								width="275"
+								height="275"
+								loading="eager"
+								data-remote-image
+							/>
+						</span>
+					</a>
+				</figure>
+				<div class="home-overlook-intro" data-region="intro">
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{
+						Eyebrow:        "Hi, I'm",
+						Title:          props.Name,
+						Status:         "Available for opportunities",
+						AnimatedStatus: true,
+						TitleClass:     "text-gradient-brand",
+					}) {
+						<p class="page-hero-description">
+							<span class="home-hero-role">{ props.Role }</span>
+							<span>{ props.Description }</span>
+						</p>
+						<div class="page-hero-actions home-overlook-actions">
+							<a href="/experience" class="page-kit-action page-kit-action-primary">
+								<span>View Experience</span>
+								<span class="btn-icon" aria-hidden="true">→</span>
+							</a>
+							<a href="/projects" class="page-kit-action home-overlook-secondary-action">
+								<span>See Projects</span>
+							</a>
+							<a href="/contact" class="page-kit-action home-overlook-secondary-action">
+								Get in Touch
 							</a>
 						</div>
-							@partials.PageHeroIntro(partials.PageHeroIntroProps{
-								Eyebrow:        "Hi, I'm",
-								Title:          props.Name,
-								Status:         "Available for opportunities",
-								AnimatedStatus: true,
-								TitleClass:     "max-w-3xl text-gradient-brand sm:text-6xl lg:text-7xl",
-								MaxWidthClass:  "max-w-3xl",
-							}) {
-								<p class="page-hero-description max-w-2xl">
-									<span class="mb-3 block text-sm font-semibold uppercase tracking-[0.2em] text-primary-200 sm:text-base">{ props.Role }</span>
-									<span>{ props.Description }</span>
-								</p>
-								<div class="page-hero-actions">
-								<a href="/experience" class="page-kit-action page-kit-action-primary w-full gap-2 sm:w-auto sm:min-w-[11rem]">
-									<span>View Experience</span>
-									<span class="btn-icon" aria-hidden="true">→</span>
-								</a>
-								<a href="/projects" class="page-kit-action w-full sm:w-auto sm:min-w-[11rem]">
-									<span>See Projects</span>
-								</a>
-								<a href="/contact" class="page-kit-action w-full sm:w-auto sm:min-w-[11rem]">
-									Get in Touch
-								</a>
-							</div>
-								@partials.StatCardGrid(partials.StatCardGridProps{
-									Cards:     homeStatCards(props),
-									GridClass: "hero-stats grid gap-3 border-t border-carbon-black-700 pt-5 sm:grid-cols-3 sm:gap-4 sm:pt-6",
-								})
-							}
+						@partials.StatCardGrid(partials.StatCardGridProps{
+							Cards:     homeStatCards(props),
+							GridClass: "hero-stats home-overlook-stats",
+						})
+					}
+				</div>
+			</section>
+			<section class="page-section home-capabilities-section" data-region="topology">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label:      "How I Work",
+					Title:      "Reliable systems, clear handoffs",
+					ExtraClass: "home-section-intro",
+				})
+				<div class="home-topology-map">
+					@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailTopology, ExtraClass: "home-topology-trail"})
+					<div class="home-capabilities-grid home-capabilities-path">
+						for _, card := range homeFeatureCards() {
+							@partials.FeatureCard(card)
+						}
 					</div>
-			}
-		<!-- What I Do -->
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "What I Do",
-				Title: "Building the future of infrastructure",
-			})
-			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				for _, card := range homeFeatureCards() {
-					@partials.FeatureCard(card)
-				}
-			</div>
-		</section>
-		<!-- Explore -->
-		<section class="page-section">
-			@partials.SectionIntro(partials.SectionIntroProps{
-				Label: "Explore",
-				Title: "Dive deeper",
-			})
-			<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				for _, card := range homeExploreCards() {
-					@partials.LinkPanelCard(card)
-				}
-			</div>
-		</section>
+				</div>
+			</section>
 		</div>
 	}
 }

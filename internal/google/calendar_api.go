@@ -52,7 +52,7 @@ func (h *Handler) newAPIRequest(ctx context.Context, method, requestPath string,
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody) //nolint:gosec // endpoint is derived from the constant Google Calendar API base URL and fixed paths.
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (h *Handler) insertCalendarEvent(ctx context.Context, calendarID string, to
 	if err != nil {
 		return nil, err
 	}
-	return h.LPSClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
+	return h.LPSClient.Do(req)
 }
 
 func (h *Handler) getCalendarEvent(ctx context.Context, calendarID, eventID string, token *oauth2.Token) (*http.Response, error) {
@@ -84,7 +84,7 @@ func (h *Handler) updateCalendarEvent(ctx context.Context, calendarID, eventID s
 	if err != nil {
 		return nil, err
 	}
-	return h.LPSClient.Do(req) //nolint:gosec // request is created from the constant Google Calendar API base URL and fixed paths.
+	return h.LPSClient.Do(req)
 }
 
 func (h *Handler) listCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
