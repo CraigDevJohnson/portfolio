@@ -78,8 +78,11 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	persistCtx := context.WithoutCancel(r.Context())
-	go h.persistSessionRecord(persistCtx, sessionID, &session)
+	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancelPersist()
+	if err := h.persistSessionRecord(persistCtx, sessionID, &session); err != nil {
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer import session persistence failed", slog.Any("error", err))
+	}
 
 	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	h.setHTMLContentType(w)
@@ -153,14 +156,10 @@ func generateSessionID() string {
 	return hex.EncodeToString(b)
 }
 
-func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID string, session *types.SessionData) {
-	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
-	defer cancel()
-
+func (h *Handler) persistSessionRecord(ctx context.Context, sessionID string, session *types.SessionData) error {
 	playersJSON, err := marshalPlayersJSON(session.Players)
 	if err != nil {
-		h.Logger.Warn("soccer session persist: failed to marshal players", slog.Any("error", err))
-		return
+		return err
 	}
 	record := &SoccerSessionRecord{
 		SessionID:   sessionID,
@@ -170,7 +169,5 @@ func (h *Handler) persistSessionRecord(parentCtx context.Context, sessionID stri
 		ExpiresAt:   session.ExpiresAt,
 		TTL:         session.ExpiresAt.Unix(),
 	}
-	if err := h.Store().Put(ctx, record); err != nil {
-		h.Logger.Warn("soccer session persist: DynamoDB write failed", slog.Any("error", err))
-	}
+	return h.Store().Put(ctx, record)
 }
