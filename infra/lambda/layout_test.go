@@ -52,6 +52,21 @@ var artifactOutputTypes = map[string]any{
 	"ecr_repository_url":  "string",
 }
 
+var serviceIAMResourceCounts = map[string]int{
+	"aws_iam_role":        1,
+	"aws_iam_role_policy": 1,
+}
+
+type plannedResource struct {
+	Mode string `json:"mode"`
+	Type string `json:"type"`
+}
+
+type plannedModule struct {
+	Resources    []plannedResource `json:"resources"`
+	ChildModules []plannedModule   `json:"child_modules"`
+}
+
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
 		"artifacts/backend.hcl",
@@ -122,20 +137,20 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofu(t, "artifacts", "init", "-backend=false", "-input=false")
 	runOpenTofu(t, "artifacts", "fmt", "-check")
 	runOpenTofu(t, "artifacts", "validate")
-	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes)
+	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTest(t, "modules/service", 4, serviceOutputTypes)
+	runOpenTofuTest(t, "modules/service", 4, serviceOutputTypes, serviceIAMResourceCounts)
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		runOpenTofuTest(t, directory, 1, serviceOutputTypes)
+		runOpenTofuTest(t, directory, 1, serviceOutputTypes, serviceIAMResourceCounts)
 	}
 }
 
-func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes map[string]any) {
+func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes map[string]any, iamResourceCounts map[string]int) {
 	t.Helper()
 
 	command := exec.Command("tofu", "-chdir="+directory, "test", "-json", "-verbose", "-no-color")
@@ -158,6 +173,7 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes 
 					Outputs map[string]struct {
 						Type any `json:"type"`
 					} `json:"outputs"`
+					RootModule plannedModule `json:"root_module"`
 				} `json:"planned_values"`
 			} `json:"test_plan"`
 			TestSummary *struct {
@@ -173,6 +189,7 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes 
 		if event.TestPlan != nil {
 			planCount++
 			assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs, outputTypes)
+			assertManagedIAMResources(t, directory, event.TestRun, event.TestPlan.PlannedValues.RootModule, iamResourceCounts)
 		}
 		if event.TestSummary != nil {
 			summaryPassed = event.TestSummary.Status == "pass" && event.TestSummary.Failed == 0 && event.TestSummary.Errored == 0
@@ -186,6 +203,35 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes 
 	}
 	if !summaryPassed {
 		t.Errorf("tofu test summary in %q did not report a clean pass", directory)
+	}
+}
+
+func assertManagedIAMResources(t *testing.T, directory, run string, module plannedModule, wantCounts map[string]int) {
+	t.Helper()
+
+	gotCounts := make(map[string]int)
+	collectManagedIAMResources(module, gotCounts)
+
+	for resourceType, count := range gotCounts {
+		if _, ok := wantCounts[resourceType]; !ok {
+			t.Errorf("evaluated plan for %q run %q contains unapproved managed IAM resource type %q (%d)", directory, run, resourceType, count)
+		}
+	}
+	for resourceType, wantCount := range wantCounts {
+		if gotCount := gotCounts[resourceType]; gotCount != wantCount {
+			t.Errorf("evaluated plan for %q run %q contains %d managed %q resources, want exactly %d", directory, run, gotCount, resourceType, wantCount)
+		}
+	}
+}
+
+func collectManagedIAMResources(module plannedModule, counts map[string]int) {
+	for _, resource := range module.Resources {
+		if resource.Mode == "managed" && strings.HasPrefix(resource.Type, "aws_iam_") {
+			counts[resource.Type]++
+		}
+	}
+	for _, childModule := range module.ChildModules {
+		collectManagedIAMResources(childModule, counts)
 	}
 }
 

@@ -208,14 +208,57 @@ run "published_service_contract" {
 
   assert {
     condition = (
-      !contains(flatten([for statement in data.aws_iam_policy_document.lambda.statement : statement.actions]), "logs:CreateLogGroup") &&
+      length(data.aws_iam_policy_document.lambda.statement) == 5 &&
+      alltrue([
+        for statement in data.aws_iam_policy_document.lambda.statement :
+        (statement.effect == null || statement.effect == "Allow") &&
+        statement.not_actions == null &&
+        statement.not_resources == null &&
+        length(statement.condition) == 0 &&
+        length(statement.principals) == 0 &&
+        length(statement.not_principals) == 0
+      ]) &&
       length([
         for statement in data.aws_iam_policy_document.lambda.statement : statement
-        if toset(statement.actions) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
+        if length(statement.actions) == 3 &&
+        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]) &&
+        length(statement.resources) == 1 &&
+        toset(statement.resources) == toset([aws_dynamodb_table.google_connections.arn])
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 1 &&
+        toset(statement.actions) == toset(["dynamodb:PutItem"]) &&
+        length(statement.resources) == 1 &&
+        toset(statement.resources) == toset([aws_dynamodb_table.soccer_sessions.arn])
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 1 &&
+        toset(statement.actions) == toset(["ssm:GetParameters"]) &&
+        length(statement.resources) == 3 &&
+        toset(statement.resources) == toset([
+          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+        ])
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 1 &&
+        toset(statement.actions) == toset(["kms:Decrypt"]) &&
+        length(statement.resources) == 1 &&
+        toset(statement.resources) == toset(["arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000"])
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 2 &&
+        toset(statement.actions) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
+        length(statement.resources) == 1 &&
         toset(statement.resources) == toset(["${aws_cloudwatch_log_group.lambda.arn}:*"])
       ]) == 1
     )
-    error_message = "runtime IAM must write only to streams in the precreated Lambda log group"
+    error_message = "runtime IAM must contain exactly the reviewed Google, Soccer, SSM, KMS, and Lambda log statements"
   }
 
   assert {
