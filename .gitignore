@@ -1,6 +1,6 @@
 # Compiled binaries
-portfolio-server
-server
+/portfolio-server
+/lambda
 *.exe
 
 # IDE
@@ -19,11 +19,23 @@ Thumbs.db
 # Logs
 *.log
 
+
+# Local tool downloads
+.tools/
+.venv/
+
+# Local agent and hot-reload state
+.superpowers/
+/tmp/
+
 # Test coverage
 coverage.out
 
 # Templ generated files
 *_templ.go
+
+# Generated Tailwind output
+cmd/web/static/css/tailwind.css
 
 # OpenTofu / Terraform
 infra/.terraform/
@@ -37,3 +49,13 @@ tfplan
 
 static/screenshots/
 dev
+.playwright-mcp/
+
+# Local browser-test sessions and generated evidence
+.playwright-cli/
+/output/playwright/
+
+# Review and design screenshots captured in the repo root
+/*.png
+/*.jpg
+/*.jpeg

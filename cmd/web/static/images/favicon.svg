@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="favicon-title">
+  <title id="favicon-title">Craig Johnson</title>
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="#17121B" stroke="#4A3549" stroke-width="2"/>
+  <path d="M15.5 14.5C22.5 9.5 34.5 10 43 13c9.5 3.5 14.5 11 13.5 20.5-1 11-7 20-18 22-12 2-24.5-3-28.5-13-4-11-1.5-21 5.5-28Z" fill="#78E3C3"/>
+  <path d="M13 12c7-5 19-4.5 27.5-1.5C50 14 55 21.5 54 31c-1 11-7 20-18 22-12 2-24.5-3-28.5-13C3.5 29 6 19 13 12Z" fill="#FFA677"/>
+  <path d="M40.5 10.5C50 14 55 21.5 54 31c-.6-6.5-5.3-11.7-12.8-14.4l-.7-6.1Z" fill="#FF7FA8"/>
+  <g fill="none" stroke="#17121B" stroke-linecap="round" stroke-linejoin="round" stroke-width="5.5">
+    <path d="M30 25c-3-4-10.5-4.5-14 1.5-4 7 .5 16 7.5 16.5 3 .2 5.5-.9 7.5-3.4"/>
+    <path d="M36 22h11M44 22v14.5c0 5-2.5 7.5-7 7.5-2.5 0-4.5-1-6-3"/>
+  </g>
+</svg>

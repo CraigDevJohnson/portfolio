@@ -4,6 +4,10 @@
 
 locals {
   google_connection_table_name = "${var.app_name}-google-connections"
+  soccer_session_table_name    = "${var.app_name}-soccer-sessions"
+  ssm_parameter_base_arn       = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}"
+  # Runtime secrets for Google OAuth and soccer JWT session authentication.
+  ssm_parameter_names = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
 }
 
 # ──────────────────────────────────────────────
@@ -21,6 +25,8 @@ data "aws_kms_alias" "ssm" {
 # ──────────────────────────────────────────────
 
 resource "aws_ecr_repository" "app" {
+  # checkov:skip=CKV_AWS_51:Mutable tags required by deployment workflow
+  # checkov:skip=CKV_AWS_136:KMS encryption not needed for personal portfolio
   name                 = var.app_name
   image_tag_mutability = "MUTABLE"
   # Do not force-delete the repository when it still contains images to avoid accidental loss in production.
@@ -58,6 +64,8 @@ resource "aws_ecr_lifecycle_policy" "app" {
 # ──────────────────────────────────────────────
 
 resource "aws_dynamodb_table" "google_connections" {
+  # checkov:skip=CKV_AWS_119:KMS encryption not needed for personal portfolio
+  # checkov:skip=CKV_AWS_28:Point-in-time recovery not needed for personal portfolio
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "connection_id"
   name         = local.google_connection_table_name
@@ -69,7 +77,34 @@ resource "aws_dynamodb_table" "google_connections" {
 
   tags = {
     Name        = local.google_connection_table_name
-    Environment = "development"
+    Environment = var.environment
+  }
+}
+
+# ──────────────────────────────────────────────
+# DynamoDB — soccer session store
+# ──────────────────────────────────────────────
+
+resource "aws_dynamodb_table" "soccer_sessions" {
+  # checkov:skip=CKV_AWS_119:KMS encryption not needed for personal portfolio
+  # checkov:skip=CKV_AWS_28:Point-in-time recovery not needed for personal portfolio
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "session_id"
+  name         = local.soccer_session_table_name
+
+  attribute {
+    name = "session_id"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = local.soccer_session_table_name
+    Environment = var.environment
   }
 }
 
@@ -147,6 +182,30 @@ resource "aws_iam_role_policy_attachment" "google_connections_dynamodb" {
   role       = aws_iam_role.apprunner_instance.name
 }
 
+resource "aws_iam_policy" "soccer_sessions_dynamodb" {
+  name = "${var.app_name}-soccer-sessions-dynamodb"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DeleteItem",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+        ]
+        Resource = aws_dynamodb_table.soccer_sessions.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "soccer_sessions_dynamodb" {
+  policy_arn = aws_iam_policy.soccer_sessions_dynamodb.arn
+  role       = aws_iam_role.apprunner_instance.name
+}
+
 resource "aws_iam_policy" "apprunner_runtime_secrets" {
   name = "${var.app_name}-apprunner-runtime-secrets"
 
@@ -159,11 +218,7 @@ resource "aws_iam_policy" "apprunner_runtime_secrets" {
           "ssm:GetParameter",
           "ssm:GetParameters",
         ]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY",
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY",
-        ]
+        Resource = [for name in local.ssm_parameter_names : "${local.ssm_parameter_base_arn}/${name}"]
       },
       {
         Effect   = "Allow"
@@ -201,16 +256,16 @@ resource "aws_apprunner_service" "app" {
         runtime_environment_variables = {
           APP_BIND_ALL                 = "true"
           GOOGLE_CONNECTION_TABLE_NAME = local.google_connection_table_name
+          LOG_ADD_SOURCE               = "false"
+          LOG_FORMAT                   = "json"
+          LOG_LEVEL                    = "info"
+          SOCCER_SESSION_TABLE_NAME    = local.soccer_session_table_name
         }
-        runtime_environment_secrets = {
-          CLIENT_ID_KEY                = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_ID_KEY"
-          CLIENT_SECRET_KEY            = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/CLIENT_SECRET_KEY"
-          LPS_SESSION_KEY              = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/LPS_SESSION_KEY"
-        }
+        runtime_environment_secrets = { for name in local.ssm_parameter_names : name => "${local.ssm_parameter_base_arn}/${name}" }
       }
     }
 
-    auto_deployments_enabled = false
+    auto_deployments_enabled = var.auto_deployments_enabled
   }
 
   instance_configuration {
@@ -220,16 +275,17 @@ resource "aws_apprunner_service" "app" {
   }
 
   health_check_configuration {
+    # These values keep startup checks responsive without making the service too eager to recycle.
     protocol            = "HTTP"
     path                = "/"
-    healthy_threshold   = 2  # consecutive successes to mark healthy
-    unhealthy_threshold = 3  # consecutive failures to mark unhealthy
-    interval            = 10 # seconds between checks
-    timeout             = 5  # seconds to wait before considering the check failed
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 10
+    timeout             = 5
   }
 
   tags = {
     Name        = var.app_name
-    Environment = "development"
+    Environment = var.environment
   }
 }

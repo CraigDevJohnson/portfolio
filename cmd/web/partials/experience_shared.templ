@@ -1,0 +1,15 @@
+package partials
+
+type ExperienceKitFooterActionsProps struct {
+	Heading     string
+	Description string
+}
+
+templ ExperienceKitFooterActions(props ExperienceKitFooterActionsProps) {
+	@PageCTA(PageCTAProps{
+		Title:     props.Heading,
+		Subtitle:  props.Description,
+		Primary:   ActionLinkProps{Href: "/projects", Label: "View Projects", Variant: ActionPrimary},
+		Secondary: &ActionLinkProps{Href: "/skills", Label: "Review Skills", Variant: ActionSecondary},
+	})
+}

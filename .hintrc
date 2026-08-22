@@ -5,9 +5,24 @@
   "browserslist": [
     "defaults",
     "not ie 11",
-    "not ios_saf <= 26.3",
-    "not safari <= 26.3",
-    "not and_ff <= 147",
-    "not firefox <= 148"
-  ]
+    "not chrome <= 109"
+  ],
+  "hints": {
+    "compat-api/css": [
+      "default",
+      {
+        "ignore": [
+          "mask-image",
+          "backdrop-filter",
+          "text-wrap",
+          "text-wrap: balance",
+          "scrollbar-gutter",
+          "scrollbar-gutter: auto",
+          "scrollbar-gutter: stable",
+          "forced-color-adjust",
+          "forced-color-adjust: none"
+        ]
+      }
+    ]
+  }
 }

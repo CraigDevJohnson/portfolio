@@ -1,0 +1,51 @@
+package partials
+
+templ ActionLink(props ActionLinkProps) {
+	<a
+		href={ templ.SafeURL(props.Href) }
+		class={ actionClasses(props.Variant, props.ExtraClass) }
+		if props.External {
+			target="_blank"
+			rel="noopener noreferrer"
+		}
+		{ props.Attributes... }
+	>
+		<span>{ props.Label }</span>
+		if props.ShowArrow {
+			<span class="btn-icon" aria-hidden="true">→</span>
+		}
+		if props.External {
+			<span class="sr-only">(opens in a new tab)</span>
+		}
+	</a>
+}
+
+templ ActionButton(props ActionButtonProps) {
+	<button
+		type={ actionButtonType(props.Type) }
+		class={ actionClasses(props.Variant, props.ExtraClass) }
+		if props.Disabled {
+			disabled
+			aria-disabled="true"
+		}
+		{ props.Attributes... }
+	>
+		<span>{ props.Label }</span>
+	</button>
+}
+
+templ PageCTA(props PageCTAProps) {
+	<section class="page-kit-panel-strong page-kit-footer-cta relative overflow-hidden px-5 py-8 text-center sm:px-8 sm:py-10 lg:py-12">
+		<div class="pointer-events-none absolute left-1/2 top-1/2 h-[15rem] w-[min(28rem,90%)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-radial from-primary-400/18 to-transparent" aria-hidden="true"></div>
+		<div class="relative z-10 mx-auto flex max-w-[38rem] flex-col items-center gap-3 sm:gap-4">
+			<h2 class="page-kit-heading text-2xl sm:text-3xl">{ props.Title }</h2>
+			<p class="page-kit-copy max-w-2xl">{ props.Subtitle }</p>
+			<div class="mt-2 flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+				@ActionLink(pageCTAActionProps(&props.Primary, true))
+				if props.Secondary != nil {
+					@ActionLink(pageCTAActionProps(props.Secondary, false))
+				}
+			</div>
+		</div>
+	</section>
+}

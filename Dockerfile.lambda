@@ -1,0 +1,36 @@
+FROM golang:1.27.0-alpine AS builder
+
+# checkov:skip=CKV_DOCKER_2:HEALTHCHECK not relevant for Lambda container
+# checkov:skip=CKV_DOCKER_3:Lambda provided runtime manages user context
+
+WORKDIR /app
+
+ARG TAILWIND_VERSION=v4.2.4
+
+RUN arch="$(uname -m)" \
+  && case "$arch" in \
+  x86_64|amd64) asset="tailwindcss-linux-x64" ;; \
+  aarch64|arm64) asset="tailwindcss-linux-arm64" ;; \
+  *) echo "Unsupported platform for Tailwind CLI: $arch" && exit 1 ;; \
+  esac \
+  && wget -qO /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}" \
+  && chmod +x /usr/local/bin/tailwindcss
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN templ_version="$(go list -m -f '{{.Version}}' github.com/a-h/templ)" \
+  && tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
+  && go run "github.com/a-h/templ/cmd/templ@${templ_version}" generate \
+  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /bootstrap ./cmd/lambda
+
+FROM public.ecr.aws/lambda/provided:al2023
+
+WORKDIR /var/task
+
+COPY --from=builder /bootstrap ./bootstrap
+COPY --from=builder /app/cmd/web/static ./cmd/web/static
+
+CMD ["bootstrap"]

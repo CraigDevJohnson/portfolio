@@ -1,8 +1,20 @@
 const CAPTURE_KEY = 'lpsJwtCapture'
 const AUTOFILL_QUERY_KEY = 'extension_autofill'
+// These selectors must match the soccer import UI rendered by the main site.
 const FIELD_SELECTOR = '#soccer-import-jwt'
 const OPEN_BUTTON_SELECTOR = '[data-open-login-modal]'
 let cachedImportValue = ''
+let applyQueued = false
+const warnedMissingTargets = new Set()
+
+function warnOnce(message, warningKey) {
+  if (warnedMissingTargets.has(warningKey)) {
+    return
+  }
+
+  console.warn(message)
+  warnedMissingTargets.add(warningKey)
+}
 
 function dispatchFieldEvents(field) {
   field.dispatchEvent(new Event('input', { bubbles: true }))
@@ -12,8 +24,14 @@ function dispatchFieldEvents(field) {
 function fillImportField(importValue) {
   const field = document.querySelector(FIELD_SELECTOR)
   if (!field || !importValue) {
+    if (importValue && !field) {
+      warnOnce(`LPS JWT autofill could not find ${FIELD_SELECTOR}.`, 'field')
+    }
+
     return false
   }
+
+  warnedMissingTargets.delete('field')
 
   if (field.value.trim() === importValue.trim()) {
     return true
@@ -43,15 +61,18 @@ function maybeOpenImportModal() {
 
   const button = document.querySelector(OPEN_BUTTON_SELECTOR)
   if (!button) {
+    warnOnce(`LPS JWT autofill could not find ${OPEN_BUTTON_SELECTOR}.`, 'button')
     return false
   }
+
+  warnedMissingTargets.delete('button')
 
   button.click()
   cleanAutofillQueryParam()
   return true
 }
 
-async function applyCaptureToPage() {
+function applyCaptureToPage() {
   if (!cachedImportValue) {
     cleanAutofillQueryParam()
     return
@@ -61,11 +82,23 @@ async function applyCaptureToPage() {
   maybeOpenImportModal()
 }
 
+function scheduleApplyCapture() {
+  if (applyQueued) {
+    return
+  }
+
+  applyQueued = true
+  window.requestAnimationFrame(() => {
+    applyQueued = false
+    applyCaptureToPage()
+  })
+}
+
 async function refreshCapture() {
   const result = await chrome.storage.local.get(CAPTURE_KEY)
   const capture = result[CAPTURE_KEY]
   cachedImportValue = capture?.importValue || ''
-  applyCaptureToPage()
+  scheduleApplyCapture()
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -74,11 +107,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   cachedImportValue = changes[CAPTURE_KEY].newValue?.importValue || ''
-  applyCaptureToPage()
+  scheduleApplyCapture()
 })
 
 const observer = new MutationObserver(() => {
-  applyCaptureToPage()
+  scheduleApplyCapture()
 })
 
 observer.observe(document.documentElement, {

@@ -1,0 +1,143 @@
+package pages
+
+import (
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+)
+
+templ EducationCredentialCard(credential educationCredential) {
+	<a
+		href={ templ.SafeURL(credential.Href) }
+		class="education-credential-card stagger-enter"
+		data-credential-card
+		data-credential-title={ credential.Title }
+		target="_blank"
+		rel="noopener noreferrer"
+	>
+		<figure class="education-credential-art" aria-hidden="true">
+			<span class="education-credential-fallback" data-image-fallback>
+				<span>{ credential.Year }</span>
+				<strong>Credential</strong>
+			</span>
+			<img
+				src={ credential.ImageSrc }
+				alt=""
+				loading={ credential.Loading }
+				class="education-credential-logo"
+				width="200"
+				height="200"
+				data-remote-image
+			/>
+		</figure>
+		<div class="education-credential-copy">
+			<h4 class="education-credential-title">{ credential.Title }</h4>
+			<p class="education-credential-provider">{ credential.Provider }</p>
+			<span class="education-credential-year">{ credential.Year }</span>
+		</div>
+		<span class="education-credential-arrow" aria-hidden="true">↗</span>
+		<span class="sr-only">(opens in a new tab)</span>
+	</a>
+}
+
+templ Education(props EducationProps) {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Education & Certifications - Craig Johnson",
+		Page:  "education",
+	}) {
+		<div class="page-kit-page education-page" data-layout="learning-field-guide">
+			<div class="education-intro-region" data-region="intro">
+				@partials.PageHero(partials.PageHeroProps{
+					ImageURL:      "/static/images/backgrounds/education-hero.jpg",
+					ImagePosition: "center 45%",
+					ImageHeight:   1775,
+					Caption:       "A practice of staying curious",
+					Variant:       partials.HeroCatalog,
+				}) {
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Education & Certifications"}) {
+						<p class="page-hero-description">
+							Academic foundation and professional certifications powering a career in cloud technology
+						</p>
+					}
+				}
+			</div>
+			<section class="page-stats-section education-stats-section" data-region="stats" aria-label="Education summary">
+				@partials.StatCardGrid(partials.StatCardGridProps{Cards: educationStatCards(props)})
+			</section>
+			<section class="page-section education-foundation-section" data-region="foundation" aria-labelledby="education-foundation-heading">
+				<div class="page-kit-section-intro education-foundation-intro">
+					@partials.SectionLabel("Academic Foundation")
+					<h2 id="education-foundation-heading" class="education-foundation-heading page-section-title">Formal education</h2>
+					<p class="page-section-subtitle">A cloud-focused academic base that complements hands-on infrastructure and automation work.</p>
+				</div>
+				<a
+					href="https://www.wgu.edu/online-it-degrees/cloud-computing-bachelors-program.html"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="education-degree-card group"
+					data-degree-card
+				>
+					<figure class="education-degree-mark" aria-hidden="true">
+						<span class="education-degree-fallback" data-degree-image-fallback>
+							<span>WGU</span>
+							<strong>Cloud Computing</strong>
+						</span>
+						<img
+							src="/static/images/edu/wgu.png"
+							alt=""
+							loading="lazy"
+							class="education-degree-logo"
+							width="200"
+							height="200"
+							data-remote-image
+						/>
+					</figure>
+					<div class="education-degree-copy">
+						<div class="page-kit-chip education-degree-kind"><span class="page-kit-field-mark" aria-hidden="true">BS</span> Bachelor&apos;s Degree</div>
+						<h3 class="education-degree-title">Bachelor of Science</h3>
+						<p class="education-degree-program">Cloud Computing</p>
+						<p class="education-degree-provider">Western Governors University</p>
+						<p class="education-degree-date">Completed 2023</p>
+						<p class="education-degree-description">
+							Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
+						</p>
+					</div>
+					<span class="education-degree-arrow" aria-hidden="true">↗</span>
+					<span class="sr-only">(opens in a new tab)</span>
+				</a>
+			</section>
+			<section class="page-section education-domains-section" data-region="domains" aria-labelledby="education-domains-heading">
+				<div class="page-kit-section-intro education-domains-intro">
+					@partials.SectionLabel("Professional Certifications")
+					<h2 id="education-domains-heading" class="page-section-title">Industry recognized credentials</h2>
+					<p class="page-section-subtitle">Certifications spanning cloud architecture, security, networking, and platform operations.</p>
+				</div>
+				@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailFieldGuide, ExtraClass: "education-field-guide-trail"})
+				<div class="education-domain-mosaic">
+					for _, domain := range educationCredentialDomains() {
+						<section class="education-domain" data-domain={ domain.ID } aria-labelledby={ "education-domain-" + domain.ID }>
+							<header class="education-domain-heading">
+								<div>
+									<h3 id={ "education-domain-" + domain.ID } class="education-domain-title">{ domain.Title }</h3>
+									<p>{ domain.Description }</p>
+								</div>
+							</header>
+							<div class="education-credential-grid">
+								for _, credential := range domain.Credentials {
+									@EducationCredentialCard(credential)
+								}
+							</div>
+						</section>
+					}
+				</div>
+			</section>
+			<div class="education-cta-region" data-region="cta">
+				@partials.PageCTA(partials.PageCTAProps{
+					Title:     "See how education translates to experience",
+					Subtitle:  "Explore how these credentials are applied in real-world cloud engineering",
+					Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View Experience", Variant: partials.ActionPrimary},
+					Secondary: &partials.ActionLinkProps{Href: "/skills", Label: "View Skills", Variant: partials.ActionSecondary},
+				})
+			</div>
+		</div>
+	}
+}

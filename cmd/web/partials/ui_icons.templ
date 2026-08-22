@@ -1,0 +1,41 @@
+package partials
+
+templ UIIcon(name UIIconName) {
+	switch name {
+		case UIIconLinkedIn:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M5.2 7.7A2.1 2.1 0 1 0 5.2 3.5a2.1 2.1 0 0 0 0 4.2ZM3.45 20.5h3.5V9.1h-3.5v11.4ZM9.15 9.1h3.35v1.56h.05c.47-.88 1.61-1.81 3.31-1.81 3.54 0 4.19 2.33 4.19 5.36v6.29h-3.49v-5.58c0-1.33-.03-3.04-1.86-3.04-1.86 0-2.15 1.45-2.15 2.94v5.68H9.15V9.1Z"></path>
+			</svg>
+		case UIIconGitHub:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path fill-rule="evenodd" d="M12 2.2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.36-1.18-3.36-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 7.02a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.56 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2.2Z" clip-rule="evenodd"></path>
+			</svg>
+		case UIIconArchitecture:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M7 9.5a4.5 4.5 0 0 1 8.6-1.85A3.75 3.75 0 1 1 16.75 15H7a2.75 2.75 0 0 1 0-5.5Z"></path>
+				<path d="M9 15v3m6-3v3m-3-3v5"></path><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="19" r="1"></circle><circle cx="12" cy="21" r="1"></circle>
+			</svg>
+		case UIIconInfrastructure:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M4 4.5h6v5H4zM14 4.5h6v5h-6zM9 14.5h6v5H9z"></path>
+				<path d="M7 9.5v2.2h10V9.5M12 11.7v2.8"></path>
+			</svg>
+		case UIIconAutomation:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M18.8 8A7.5 7.5 0 0 0 6 5.5L4.5 7"></path><path d="M4.5 3.8V7H7.7"></path>
+				<path d="M5.2 16A7.5 7.5 0 0 0 18 18.5l1.5-1.5"></path><path d="M19.5 20.2V17h-3.2"></path><path d="m10 8.8 5 3.2-5 3.2V8.8Z"></path>
+			</svg>
+		case UIIconSecurity:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M12 2.8 19 6v5.1c0 4.5-2.7 8.1-7 10.1-4.3-2-7-5.6-7-10.1V6l7-3.2Z"></path><path d="m8.7 12 2.1 2.1 4.6-4.7"></path>
+			</svg>
+		case UIIconObservability:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M2.7 12s3.4-5.5 9.3-5.5 9.3 5.5 9.3 5.5-3.4 5.5-9.3 5.5S2.7 12 2.7 12Z"></path><path d="m7.7 12 2-2.1 2.1 4.2 2.1-4.2 2.4 2.1"></path>
+			</svg>
+		default:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path>
+			</svg>
+	}
+}

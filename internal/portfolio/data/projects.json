@@ -1,0 +1,40 @@
+[
+  {
+    "id": 1,
+    "name": "Personal Portfolio Website",
+    "featured": true,
+    "image_ratio": "portrait",
+    "problem": "Bring my projects, skills, certifications, and the soccer schedule tool together in one place.",
+    "approach": "A fast server-rendered portfolio built with Go, Templ, HTMX, and Tailwind CSS.",
+    "outcome": "Showcases the work with a focus on accessibility and maintainability.",
+    "technologies": ["Go", "Templ", "HTMX", "Tailwind CSS", "AWS", "GitHub Actions"],
+    "image": "/static/images/projects/portfolio.webp",
+    "github_url": "https://github.com/CraigDevJohnson/portfolio",
+    "demo_url": "https://craigdevjohnson.com",
+    "category": "Web"
+  },
+  {
+    "id": 2,
+    "name": "New User Account Provisioning",
+    "image_ratio": "landscape",
+    "problem": "New user information arrived through a database push and required complete account creation and configuration.",
+    "approach": "PowerShell scripts created the new user's Active Directory account, email account in O365/Exchange, and role-based group memberships.",
+    "outcome": "Fully automated new user account creation and configuration.",
+    "technologies": ["PowerShell", "Git", "APIs", "AD DS", "O365/Exchange"],
+    "image": "/static/images/projects/provisioning.webp",
+    "category": "Automation"
+  },
+  {
+    "id": 3,
+    "name": "Soccer Schedule Scraper",
+    "image_ratio": "square",
+    "problem": "Pull and parse team schedules for download as an ICS file.",
+    "approach": "A multi-function Python script deployed on AWS Lambda scrapes soccer team schedules.",
+    "outcome": "Returns ICS files for broadly supported calendar importing.",
+    "technologies": ["Python", "AWS Lambda", "GitHub", "APIs"],
+    "image": "/static/images/projects/scraper.webp",
+    "github_url": "https://github.com/CraigDevJohnson/soccer-scraper",
+    "demo_url": "/soccer",
+    "category": "Automation"
+  }
+]

@@ -10,10 +10,22 @@ variable "app_name" {
   default     = "portfolio"
 }
 
+variable "environment" {
+  description = "Deployment environment tag for provisioned resources"
+  type        = string
+  default     = "development"
+}
+
 variable "container_port" {
   description = "Port the container listens on"
   type        = number
   default     = 8080
+}
+
+variable "auto_deployments_enabled" {
+  description = "Enable automatic App Runner deployments when a new ECR image is pushed"
+  type        = bool
+  default     = false
 }
 
 variable "ecr_image_tag" {
@@ -32,4 +44,22 @@ variable "app_runner_memory" {
   description = "Memory in MB for App Runner"
   type        = string
   default     = "512"
+}
+
+variable "lambda_image_tag" {
+  description = "Tag for the Lambda container image in ECR"
+  type        = string
+  default     = "lambda-latest"
+}
+
+variable "lambda_timeout_seconds" {
+  description = "Lambda timeout in seconds"
+  type        = number
+  default     = 30
+}
+
+variable "lambda_memory_mb" {
+  description = "Lambda memory in MB"
+  type        = number
+  default     = 512
 }

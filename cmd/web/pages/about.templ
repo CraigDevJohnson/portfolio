@@ -1,0 +1,228 @@
+package pages
+
+import (
+	"fmt"
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+)
+
+type AboutProps struct {
+	YearsInTech    int
+	Certifications int
+	TechUsed       int
+	CupsOfCoffee   string
+}
+
+func aboutCoreValueCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "🔄", Title: "Continuous Improvement", Description: "Iterate, measure, and leave the system easier to operate than it was before.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-improvement stagger-enter"},
+		{Icon: "🤝", Title: "Collaboration", Description: "Build with the people who operate the platform, not just for them.", Tone: partials.ToneMint, ExtraClass: "about-value-card about-value-collaboration stagger-enter"},
+		{Icon: "🧩", Title: "Problem Solving", Description: "Break complex constraints into practical, maintainable decisions.", Tone: partials.ToneApricot, ExtraClass: "about-value-card about-value-problem-solving stagger-enter"},
+		{Icon: "📝", Title: "Documentation", Description: "Make context durable so the next person can move without guesswork.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-documentation stagger-enter"},
+	}
+}
+
+func aboutHobbyCards() []partials.FeatureCardProps {
+	return []partials.FeatureCardProps{
+		{Icon: "⚽", Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
+		{Icon: "🌲", Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
+		{Icon: "♟", Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
+		{Icon: "🐕", Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-dog-dad stagger-enter"},
+	}
+}
+
+func aboutStatCards(props AboutProps) []partials.StatCardProps {
+	return []partials.StatCardProps{
+		{Value: fmt.Sprintf("%d", props.YearsInTech), Label: "Years in Tech", AriaLabel: fmt.Sprintf("%d years in tech", props.YearsInTech), ExtraClass: "about-stat about-stat-years stagger-enter relative"},
+		{Value: fmt.Sprintf("%d", props.Certifications), Label: "Certifications", AriaLabel: fmt.Sprintf("%d certifications", props.Certifications), ExtraClass: "about-stat about-stat-certifications stagger-enter relative"},
+		{Value: fmt.Sprintf("%d", props.TechUsed), Label: "Technologies", AriaLabel: fmt.Sprintf("%d technologies", props.TechUsed), ExtraClass: "about-stat about-stat-technologies stagger-enter relative"},
+		{Value: props.CupsOfCoffee, Label: "Cups of Coffee", AriaLabel: fmt.Sprintf("%s cups of coffee", props.CupsOfCoffee), ExtraClass: "about-stat about-stat-coffee stagger-enter relative"},
+	}
+}
+
+type aboutQuickFact struct {
+	Icon string
+	Text string
+}
+
+func aboutQuickFacts() []aboutQuickFact {
+	return []aboutQuickFact{
+		{Icon: "🏔", Text: "Originally from Alaska"},
+		{Icon: "👨‍👩‍👧‍👦", Text: "Family of 4 + 2 dogs"},
+		{Icon: "⚽", Text: "Lifelong soccer enthusiast"},
+		{Icon: "🎓", Text: "BS in Cloud Computing"},
+		{Icon: "☁️", Text: "Cloud & automation specialist"},
+		{Icon: "📚", Text: "Continuous learner"},
+	}
+}
+
+type aboutTimelineEntry struct {
+	Year        string
+	Title       string
+	Description string
+	Current     bool
+}
+
+func aboutTimelineEntries() []aboutTimelineEntry {
+	return []aboutTimelineEntry{
+		{Year: "2012", Title: "Started in Tech", Description: "Service Desk Student Analyst — first steps into IT support and troubleshooting."},
+		{Year: "2016", Title: "Healthcare IT", Description: "Moved into healthcare technology — ensuring systems enhance patient care."},
+		{Year: "2018", Title: "Microsoft Certified", Description: "Earned MCSA and MCSE certifications — a deep dive into enterprise infrastructure."},
+		{Year: "2021", Title: "Cloud Transition", Description: "Pivoted to cloud engineering — AWS, Azure, and infrastructure as code."},
+		{Year: "2023", Title: "BS in Cloud Computing", Description: "Completed the degree at Western Governors University with multiple cloud certifications."},
+		{Year: "Now", Title: "Cloud Engineer Principal", Description: "Leading cloud infrastructure, automation, and DevOps practices.", Current: true},
+	}
+}
+
+func aboutTimelineEntryClasses(current bool) string {
+	classes := "about-timeline-entry"
+	if current {
+		return classes + " about-timeline-entry-current"
+	}
+	return classes
+}
+
+templ About(props AboutProps) {
+	@layouts.Base(layouts.BaseProps{
+		Title: "About Me - Craig Johnson",
+		Page:  "about",
+	}) {
+		<div class="page-kit-page about-page" data-layout="alaska-switchback">
+			@partials.PageHero(partials.PageHeroProps{
+				ImageURL:      "/static/images/backgrounds/about-hero.jpg",
+				ImagePosition: "center 36%",
+				Caption:       "Alaska roots, wider horizons",
+				Variant:       partials.HeroNarrative,
+				ExtraClass:    "about-hero",
+				ContentClass:  "about-hero-content",
+			}) {
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me"}) {
+					<p class="page-hero-description">From Alaska service desks to principal-level cloud engineering.</p>
+				}
+			}
+			<div class="page-stats-section about-stats-section" role="group" aria-label="Career at a glance">
+				@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props)})
+			</div>
+			<div class="about-switchback" data-about-switchback>
+				<section class="page-section about-story-section" data-region="story">
+					<div class="about-story-copy">
+						@partials.SectionIntro(partials.SectionIntroProps{
+							Label:      "My Story",
+							Title:      "From the Last Frontier to the Cloud",
+							ExtraClass: "about-story-heading",
+						})
+						<div class="about-story-prose">
+							<p>
+								My career started at a local university service desk in Alaska, where I learned that useful
+								tech support begins with patient troubleshooting and clear explanations. Since then, I've
+								worked in healthcare IT, enterprise systems, and cloud engineering — each step adding
+								more scale and responsibility.
+							</p>
+							<blockquote class="about-story-pullquote">
+								Leaving Alaska expanded both the environments I could work in and the problems I could learn from.
+							</blockquote>
+							<p>
+								My tech career began at the local university as a Service Desk Student Analyst, where I
+								laid the foundations of my skills and knowledge. This journey led me into the health care
+								sector, providing tech support and ensuring that technology enhances patient care and
+								operational efficiency.
+							</p>
+							<p>
+								Soccer has been a lifelong love of mine, keeping me active and connected with the
+								community. I'm always eager to learn new tools and technologies and am thrilled by the
+								endless possibilities ahead.
+							</p>
+						</div>
+					</div>
+				</section>
+				<aside class="about-quick-facts" data-region="facts" aria-labelledby="about-quick-facts-heading">
+					<p class="about-facts-kicker">Field pack</p>
+					<h2 id="about-quick-facts-heading">Quick Facts</h2>
+					<ul class="about-facts-list" role="list">
+						for _, fact := range aboutQuickFacts() {
+							<li class="about-fact">
+								<span class="about-fact-mark" aria-hidden="true">{ fact.Icon }</span>
+								<span>{ fact.Text }</span>
+							</li>
+						}
+					</ul>
+				</aside>
+				<section class="page-section about-timeline-section" data-region="timeline">
+					@partials.SectionIntro(partials.SectionIntroProps{
+						Label:      "Career Timeline",
+						Title:      "The journey so far",
+						ExtraClass: "about-timeline-heading",
+					})
+					<div class="about-timeline">
+						@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailSwitchback, ExtraClass: "about-timeline-trail"})
+						<span class="about-timeline-track" aria-hidden="true"></span>
+						<ol class="about-timeline-list">
+							for _, entry := range aboutTimelineEntries() {
+								<li
+									class={ aboutTimelineEntryClasses(entry.Current) }
+									if entry.Current {
+										aria-current="step"
+									}
+								>
+									if entry.Current {
+										<span class="page-kit-timeline-dot-current" aria-hidden="true"></span>
+									} else {
+										<span class="page-kit-timeline-dot" aria-hidden="true"></span>
+									}
+									<div class="about-timeline-entry-copy">
+										<span class="about-timeline-year">{ entry.Year }</span>
+										<h3 class="about-timeline-title">{ entry.Title }</h3>
+										<p class="about-timeline-description">{ entry.Description }</p>
+									</div>
+								</li>
+							}
+						</ol>
+					</div>
+				</section>
+			</div>
+			<section class="page-section about-hobbies-section" data-region="hobbies">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label: "Beyond the Code",
+					Title: "Outside of work",
+				})
+				<ul class="about-hobby-strip" role="list">
+					for _, card := range aboutHobbyCards() {
+						<li class="about-hobby-note" data-tone={ string(card.Tone) }>
+							<span class="about-hobby-mark" aria-hidden="true">{ card.Icon }</span>
+							<div>
+								<h3>{ card.Title }</h3>
+								<p>{ card.Description }</p>
+							</div>
+						</li>
+					}
+				</ul>
+			</section>
+			<section class="page-section about-values-section" data-region="values">
+				<div class="about-values-composition">
+					@partials.SectionIntro(partials.SectionIntroProps{
+						Label:      "What Drives Me",
+						Title:      "Core values",
+						ExtraClass: "about-values-heading",
+					})
+					<ul class="about-values-manifesto" role="list">
+						for _, card := range aboutCoreValueCards() {
+							<li class="about-value-principle" data-tone={ string(card.Tone) }>
+								<span class="about-value-mark" aria-hidden="true">{ card.Icon }</span>
+								<div>
+									<h3>{ card.Title }</h3>
+									<p>{ card.Description }</p>
+								</div>
+							</li>
+						}
+					</ul>
+				</div>
+			</section>
+			@partials.PageCTA(partials.PageCTAProps{
+				Title:     "Want to know more?",
+				Subtitle:  "Check out my experience or reach out directly",
+				Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View My Experience", Variant: partials.ActionPrimary},
+				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Get in Touch", Variant: partials.ActionSecondary},
+			})
+		</div>
+	}
+}

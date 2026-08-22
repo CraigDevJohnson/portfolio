@@ -1,0 +1,205 @@
+package pages
+
+import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
+
+type SoccerProps struct {
+	GoogleMessage        string
+	GoogleMessageKind    string
+	AuthState            partials.SoccerLoginStateProps
+	Preview              bool
+	ModalOpen            bool
+	Loading              bool
+	ManualTeamCodes      string
+	InitialResults       *partials.SoccerTableFragmentProps
+	InitialTeamSelection *partials.SoccerTeamSelectProps
+	InitialFeedback      *partials.SoccerLoginFeedbackProps
+	ModalFeedback        *partials.SoccerLoginFeedbackProps
+}
+
+func soccerLoadingIndicatorClass(loading bool) string {
+	if loading {
+		return "loading-indicator soccer-results-loading soccer-loading-visible"
+	}
+	return "loading-indicator soccer-results-loading htmx-indicator"
+}
+
+func soccerHeroCalendarClause(google bool) string {
+	if google {
+		return " or add them directly to Google Calendar."
+	}
+	return " for your calendar app."
+}
+
+func soccerReadyState(ready bool) string {
+	if ready {
+		return "ready"
+	}
+	return "locked"
+}
+
+templ Soccer(props SoccerProps) {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Soccer Schedule Download - Craig Johnson",
+		Page:  "soccer",
+	}) {
+		<div class="page-kit-page soccer-page" data-layout="matchday-planner">
+			@partials.PageHero(partials.PageHeroProps{
+				ImageURL:      "/static/images/backgrounds/soccer-hero.jpg",
+				ImagePosition: "center 30%",
+				ImageHeight:   1122,
+				Caption:       "Built for the next matchday",
+				Variant:       partials.HeroTool,
+				ContentClass:  "flex min-h-full flex-col justify-center",
+			}) {
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Soccer", Title: "Soccer Schedule Download"}) {
+					<p class="page-hero-description">
+						Fetch schedules from
+						<a class="soccer-inline-link font-medium text-primary-200 hover:text-accent-200" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
+							Let&apos;s Play Soccer
+						</a>,
+						choose the matches you want to keep, then export an .ics file{ soccerHeroCalendarClause(props.AuthState.SupportsGoogle()) }
+					</p>
+				}
+			}
+			<section id="soccer-connections" class="page-section soccer-connections-section" aria-labelledby="soccer-connections-title">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label:       "Connections",
+					Title:       "Set up access before building the schedule",
+					Description: "Your imported LPS access and optional Google Calendar destination stay visible here without interrupting the match workflow.",
+					HeadingID:   "soccer-connections-title",
+				})
+				if props.GoogleMessage != "" {
+					<div class="soccer-workspace-feedback">
+						@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
+					</div>
+				}
+				@partials.SoccerConnections(props.AuthState)
+			</section>
+			<section class="page-section soccer-workflow-section" aria-labelledby="soccer-planner-title">
+				<div class="soccer-workflow-header">
+					@partials.SectionIntro(partials.SectionIntroProps{
+						Label:       "Schedule tool",
+						Title:       "Build a calendar-ready matchday",
+						Description: "Choose one source, narrow it to the right teams, then review and export the schedule.",
+						HeadingID:   "soccer-planner-title",
+					})
+					<ol class="soccer-stage-legend" aria-label="Matchday planner stages">
+						<li><span aria-hidden="true">1</span><strong>Choose source</strong><small>Linked players or team IDs</small></li>
+						<li><span aria-hidden="true">2</span><strong>Select players</strong><small>Choose linked players</small></li>
+						<li><span aria-hidden="true">3</span><strong>Confirm teams</strong><small>Review current teams</small></li>
+						<li><span aria-hidden="true">4</span><strong>Review &amp; output</strong><small>Load, select, and export</small></li>
+					</ol>
+				</div>
+				<div class="soccer-planner-layout">
+					<div class="soccer-matchday-workspace">
+						@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailMatchday, ExtraClass: "soccer-matchday-trail"})
+						<section class="soccer-stage soccer-stage-source" data-soccer-stage="source" aria-labelledby="soccer-stage-source-title">
+							<header class="soccer-stage-header">
+								<span class="soccer-stage-number" aria-hidden="true">1</span>
+								<div><p>Schedule source</p><h3 id="soccer-stage-source-title">Choose a schedule source</h3></div>
+							</header>
+							<div class="soccer-source-grid">
+								<div class="soccer-source-option" data-source-state={ soccerReadyState(props.AuthState.Authenticated) }>
+									<p class="soccer-stage-kicker">Linked account</p>
+									<h4>Use linked players</h4>
+									if props.AuthState.Authenticated {
+										<p>{ len(props.AuthState.Players) } linked player(s) are ready. Continue to choose whose teams should be included.</p>
+										<a class="soccer-inline-link" href="#soccer-player-stage">Continue to players</a>
+									} else if props.AuthState.SupportsDiscovery() {
+										<p>Set up LPS access in Connections above, then return here to choose linked players.</p>
+										<a class="soccer-inline-link" href="#soccer-connections">Go to Connections</a>
+									} else {
+										<p>Linked-player discovery is not enabled in this runtime.</p>
+										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
+									}
+								</div>
+								<div class="soccer-source-option soccer-manual-path" data-source-state="ready">
+									<p class="soccer-stage-kicker">Direct lookup</p>
+									<h4>Use manual team IDs</h4>
+									<p>Already know the numeric Let&apos;s Play Soccer team IDs? Load those schedules directly.</p>
+									<form
+										id="fetch-form"
+										class="fetch-form"
+										autocomplete="off"
+										if !props.Preview {
+											hx-post="/soccer/fetch"
+											hx-target="#games-container"
+											hx-swap="innerHTML"
+											hx-indicator="#loading-indicator, .soccer-manual-submit-indicator"
+											hx-disabled-elt="find button[type='submit']"
+										}
+									>
+										<label for="team_codes" class="form-label">Team IDs</label>
+										<div class="soccer-manual-controls">
+											<input id="team_codes" name="team_codes" class="text-input" type="text" value={ props.ManualTeamCodes } placeholder="e.g. 479691, 479147" pattern="\d+([\s,;]+\d+)*" required aria-describedby="team-codes-hint"/>
+											<button
+												type="submit"
+												class="btn btn-primary btn-loading"
+												data-loading-button
+												if props.Preview || props.Loading {
+													disabled
+													aria-disabled="true"
+												}
+												if props.Loading {
+													aria-busy="true"
+													data-preview-loading-control
+												}
+											>
+												<span class="btn-text">Fetch Schedules</span>
+												<span class="btn-loading-indicator soccer-manual-submit-indicator htmx-indicator" aria-hidden="true"></span>
+											</button>
+										</div>
+										<p id="team-codes-hint" class="form-hint">Supports Let&apos;s Play Soccer teams only. Enter numeric team IDs separated by commas.</p>
+									</form>
+								</div>
+							</div>
+						</section>
+						<section id="soccer-player-stage" class="soccer-stage soccer-stage-players" data-soccer-stage="players" data-stage-state={ soccerReadyState(props.AuthState.Authenticated) } aria-labelledby="soccer-stage-players-title">
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">2</span><div><p>Linked context</p><h3 id="soccer-stage-players-title">Choose players</h3></div></header>
+							<div id="soccer-player-stage-content">
+								@partials.SoccerPlayerStageContent(props.AuthState)
+							</div>
+						</section>
+						<section class="soccer-stage soccer-stage-teams" data-soccer-stage="teams" data-stage-state={ soccerReadyState(props.InitialTeamSelection != nil) } aria-labelledby="soccer-stage-teams-title">
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">3</span><div><p>Final scope</p><h3 id="soccer-stage-teams-title">Confirm teams</h3></div></header>
+							<div id="soccer-team-stage-content">
+								if props.InitialTeamSelection != nil {
+									@partials.SoccerTeamSelect(*props.InitialTeamSelection)
+								} else {
+									@partials.SoccerTeamStagePlaceholder()
+								}
+							</div>
+						</section>
+					</div>
+				</div>
+				<section class="soccer-stage soccer-stage-review soccer-review-output" data-soccer-stage="review" data-stage-state={ soccerReadyState(props.InitialResults != nil) } aria-labelledby="soccer-stage-review-title">
+					<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">4</span><div><p>Schedule output</p><h3 id="soccer-stage-review-title">Review &amp; output</h3></div></header>
+					<div id="loading-indicator" class={ soccerLoadingIndicatorClass(props.Loading) } role="status" aria-live="polite" aria-atomic="true">
+						<div class="spinner" aria-hidden="true"></div><span>Fetching schedules...</span>
+					</div>
+					<p id="soccer-results-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+					<div
+						id="games-container"
+						class="games-container soccer-results-region"
+						role="region"
+						aria-label="Schedule results"
+						aria-describedby="loading-indicator"
+						if props.Loading {
+							aria-busy="true"
+						}
+					>
+						if props.InitialResults != nil {
+							@partials.SoccerTableFragment(*props.InitialResults)
+						} else if props.InitialFeedback != nil {
+							@partials.SoccerLoginFeedback(*props.InitialFeedback)
+						} else {
+							@partials.SoccerResultsInvitation(props.AuthState.SupportsGoogle())
+						}
+					</div>
+				</section>
+			</section>
+		</div>
+		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, Feedback: props.ModalFeedback})
+	}
+}

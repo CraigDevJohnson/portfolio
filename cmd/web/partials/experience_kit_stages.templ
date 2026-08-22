@@ -1,0 +1,200 @@
+package partials
+
+import (
+	"fmt"
+
+	"portfolio/types"
+)
+
+type ExperienceKitStagesProps struct {
+	Experiences []types.Experience
+}
+
+func experienceStageStatusLabel(stage experienceStage) string {
+	if stage.IsCurrent {
+		return "Current"
+	}
+	return "Completed"
+}
+
+func experienceStageStatusValue(stage experienceStage) string {
+	if stage.IsCurrent {
+		return "current"
+	}
+	return "completed"
+}
+
+func experienceStagePillClass(stage experienceStage) string {
+	if stage.IsCurrent {
+		return mergeClasses("page-kit-status-pill", "experience-status-pill-current")
+	}
+	return "page-kit-status-pill"
+}
+
+func experienceOverviewCards(overview experienceOverview) []StatCardProps {
+	return []StatCardProps{
+		{
+			Value:      fmt.Sprintf("%d", overview.CareerSpanYears),
+			Label:      "Years active",
+			AriaLabel:  fmt.Sprintf("%d years active", overview.CareerSpanYears),
+			Tone:       ToneApricot,
+			ExtraClass: "experience-overview-stat experience-overview-stat-years",
+			Attributes: templ.Attributes{"data-experience-summary-stat": "years"},
+		},
+		{
+			Value:      fmt.Sprintf("%d", overview.TotalRoles),
+			Label:      "Roles",
+			AriaLabel:  fmt.Sprintf("%d roles", overview.TotalRoles),
+			Tone:       ToneRose,
+			ExtraClass: "experience-overview-stat experience-overview-stat-roles",
+			Attributes: templ.Attributes{"data-experience-summary-stat": "roles"},
+		},
+		{
+			Value:      fmt.Sprintf("%d", overview.TotalTechnologies),
+			Label:      "Technologies",
+			AriaLabel:  fmt.Sprintf("%d technologies", overview.TotalTechnologies),
+			Tone:       ToneMint,
+			ExtraClass: "experience-overview-stat experience-overview-stat-technologies",
+			Attributes: templ.Attributes{"data-experience-summary-stat": "technologies"},
+		},
+	}
+}
+
+func experienceEraItemClass(stage experienceStage) string {
+	return "experience-era-item experience-era-item-" + stage.ID
+}
+
+func experienceEraClass(stage experienceStage) string {
+	return "experience-era experience-era-" + stage.ID
+}
+
+templ ExperienceKitStages(props ExperienceKitStagesProps) {
+	{{ overview := buildExperienceOverview(props.Experiences) }}
+	{{ stages := buildCareerStages(props.Experiences) }}
+	<div class="page-kit-page experience-page" data-layout="career-eras">
+		@PageHero(PageHeroProps{
+			ImageURL:      "/static/images/backgrounds/experience-hero.jpg",
+			ImagePosition: "center",
+			Caption:       "Systems, teams, and the work between",
+			Variant:       HeroTimeline,
+			ExtraClass:    "experience-hero",
+			ContentClass:  "experience-hero-content",
+		}) {
+			<div class="experience-hero-layout">
+				@PageHeroIntro(PageHeroIntroProps{Eyebrow: "Experience", Title: "Experience in Three Eras", MaxWidthClass: "max-w-3xl"}) {
+					<p class="page-hero-description">A chaptered view of my career progression, from foundational support and systems growth to cloud engineering and technical leadership.</p>
+				}
+				<div data-experience-summary-grid aria-label="Career overview">
+					@StatCardGrid(StatCardGridProps{
+						Cards:     experienceOverviewCards(overview),
+						Variant:   StatGridSummary,
+						GridClass: "experience-overview-stats",
+					})
+				</div>
+			</div>
+		}
+		<section class="page-section-tight experience-orientation-section" aria-label="Experience orientation">
+			<div class="experience-orientation">
+				@SignalTrail(SignalTrailProps{Variant: TrailTopology, ExtraClass: "experience-orientation-trail"})
+				<section class="page-kit-panel-strong experience-era-index experience-era-index-section">
+					@SectionIntro(SectionIntroProps{
+						Label:       "Career stages",
+						Title:       "Jump to an era",
+						Description: "Navigate to the chapter of experience most relevant to your current needs.",
+						ExtraClass:  "experience-era-index-heading",
+					})
+					<nav class="experience-era-nav" aria-label="Jump to career stage">
+						<ul class="experience-era-nav-list">
+							for _, stage := range stages {
+								<li>
+									<a href={ templ.SafeURL("#" + stage.ID) } class="page-kit-action experience-era-link">
+										<span class="experience-era-link-mark" aria-hidden="true"></span>
+										{ stage.Title }
+									</a>
+								</li>
+							}
+						</ul>
+					</nav>
+				</section>
+				<section class="page-kit-panel-strong experience-technology-panel experience-technology-strip" data-experience-spotlight aria-labelledby="experience-technology-heading">
+					<div class="experience-technology-heading">
+						<p class="page-kit-eyebrow">Recurring technology</p>
+						<h2 id="experience-technology-heading" class="page-section-title">Tools that followed the work</h2>
+						<p class="experience-technology-description">These tools recur across roles, connecting systems operations, automation, and cloud delivery.</p>
+					</div>
+					<ul class="experience-technology-chips">
+						for _, technology := range overview.SpotlightTechnologies {
+							<li class="experience-technology-item" data-recurring-technology>
+								<span class="page-kit-chip">{ technology }</span>
+							</li>
+						}
+					</ul>
+				</section>
+			</div>
+		</section>
+		<section class="page-section experience-era-sequence" data-career-sequence aria-labelledby="experience-sequence-heading">
+			<div class="experience-sequence-heading">
+				<p class="page-kit-eyebrow">Career sequence</p>
+				<h2 id="experience-sequence-heading" class="page-section-title">Responsibility, widened over time</h2>
+			</div>
+			<div class="experience-era-track">
+				@SignalTrail(SignalTrailProps{Variant: TrailTimeline, ExtraClass: "experience-era-trail"})
+				<ol class="experience-era-list">
+					for _, stage := range stages {
+						<li class={ experienceEraItemClass(stage) } data-career-era={ stage.ID }>
+							<section id={ stage.ID } class={ experienceEraClass(stage) } data-era-status={ experienceStageStatusValue(stage) }>
+								<div class="experience-era-layout" data-era-layout>
+									<header class="experience-era-heading" data-era-heading>
+										<div class="experience-era-title-row">
+											<h3 class="experience-era-title">{ stage.Title }</h3>
+											<div class="experience-era-meta">
+												<p class="experience-era-range">{ stage.Range }</p>
+												<span class={ experienceStagePillClass(stage) }>
+													if stage.IsCurrent {
+														<span class="page-kit-status-dot" aria-hidden="true"></span>
+													}
+													{ experienceStageStatusLabel(stage) }
+												</span>
+											</div>
+										</div>
+										<p class="experience-era-summary">{ stage.Summary }</p>
+										<ul class="experience-era-role-index" aria-label={ stage.Title + " roles" }>
+											for _, role := range stage.Experiences {
+												<li>{ role.Position }</li>
+											}
+										</ul>
+									</header>
+									<ol class="experience-role-list" data-role-list>
+										for _, role := range stage.Experiences {
+											<li class="experience-role-item">
+												<article class="page-kit-panel-strong experience-role-card" data-experience-role={ fmt.Sprintf("%d", role.ID) }>
+													<header class="experience-role-heading">
+														<div class="experience-role-title-row">
+															<h4 class="experience-role-title">{ role.Position }</h4>
+															<p class="experience-role-duration">{ role.Duration }</p>
+														</div>
+														<p class="experience-role-company">{ role.Company }</p>
+													</header>
+													<p class="experience-role-responsibilities">{ role.Responsibilities }</p>
+													<ul class="experience-role-technologies" aria-label={ role.Position + " technologies" }>
+														for _, technology := range role.Technologies {
+															<li><span class="page-kit-chip" data-role-technology>{ technology }</span></li>
+														}
+													</ul>
+												</article>
+											</li>
+										}
+									</ol>
+								</div>
+							</section>
+						</li>
+					}
+				</ol>
+			</div>
+		</section>
+		@ExperienceKitFooterActions(ExperienceKitFooterActionsProps{
+			Heading:     "Want to see the work that sits behind these stages?",
+			Description: "Explore the projects and technical skills that support the same progression across systems, automation, and cloud leadership.",
+		})
+	</div>
+}

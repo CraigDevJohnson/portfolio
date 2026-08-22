@@ -1,0 +1,54 @@
+package pages
+
+import (
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+	"portfolio/types"
+)
+
+type ProjectsProps struct {
+	Projects []types.Project
+}
+
+templ Projects(props ProjectsProps) {
+	@layouts.Base(layouts.BaseProps{
+		Title: "Projects - Craig Johnson",
+		Page:  "projects",
+	}) {
+		<div class="page-kit-page projects-page" data-layout="project-dossiers">
+			<div class="projects-intro-region" data-region="intro">
+				@partials.PageHero(partials.PageHeroProps{
+					ImageURL:      "/static/images/backgrounds/projects-hero.jpg",
+					ImagePosition: "center",
+					ImageHeight:   1282,
+					Caption:       "Ideas made operational",
+					Variant:       partials.HeroCaseStudy,
+				}) {
+					@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Projects", Title: "Projects"}) {
+						<p class="page-hero-description">
+							Production-minded tools for cloud automation, delivery workflows, and the web.
+						</p>
+					}
+				}
+			</div>
+			<section class="page-section-tight projects-page-showcase projects-case-study-section">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label:       "What I Build",
+					Title:       "Three builds, each with a real job to do",
+					Description: "A focused collection of software, automation, and infrastructure work built to remove friction from real workflows.",
+				})
+				<div class="projects-section projects-case-studies">
+					@partials.ProjectsGrid(partials.ProjectsGridProps{Projects: props.Projects})
+				</div>
+			</section>
+			<div class="projects-cta-region" data-region="cta">
+				@partials.PageCTA(partials.PageCTAProps{
+					Title:     "Looking for more?",
+					Subtitle:  "Check out my GitHub profile for additional projects and contributions",
+					Primary:   partials.ActionLinkProps{Href: "https://github.com/CraigDevJohnson", Label: "View GitHub Profile", Variant: partials.ActionPrimary, External: true},
+					Secondary: &partials.ActionLinkProps{Href: "/experience", Label: "See Experience", Variant: partials.ActionSecondary},
+				})
+			</div>
+		</div>
+	}
+}

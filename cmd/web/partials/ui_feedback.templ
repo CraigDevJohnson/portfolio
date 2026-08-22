@@ -1,0 +1,37 @@
+package partials
+
+templ Feedback(props FeedbackProps) {
+	<div
+		if props.ID != "" {
+			id={ props.ID }
+		}
+		class={ mergeClasses("ui-feedback "+feedbackKindClass(props.Kind), props.ExtraClass) }
+		role={ feedbackARIArole(props.Kind) }
+		if props.Kind != FeedbackError {
+			aria-live="polite"
+		}
+	>
+		if props.Title != "" {
+			<p class="ui-feedback-title">{ props.Title }</p>
+		}
+		if props.Message != "" {
+			<p class="ui-feedback-message">{ props.Message }</p>
+		}
+	</div>
+}
+
+templ OverflowRegion(props OverflowRegionProps) {
+	<div class={ mergeClasses("overflow-region-shell", props.ExtraClass) }>
+		<p id={ props.ID + "-hint" } class="overflow-region-hint">{ props.Hint }</p>
+		<div
+			id={ props.ID }
+			class="overflow-region"
+			role="region"
+			aria-label={ props.Label }
+			aria-describedby={ props.ID + "-hint" }
+			tabindex="0"
+		>
+			{ children... }
+		</div>
+	</div>
+}

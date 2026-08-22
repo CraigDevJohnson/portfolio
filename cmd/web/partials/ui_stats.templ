@@ -1,0 +1,29 @@
+package partials
+
+templ StatCard(props StatCardProps) {
+	<div
+		class={ mergeClasses("page-kit-stat-card "+toneClass(props.Tone), props.ExtraClass) }
+		{ props.Attributes... }
+	>
+		<span
+			class={ statCardValueClasses(props.ValueClass) }
+			if statCardIsNumeric(props.Value) {
+				data-counter
+				data-target={ props.Value }
+			}
+			if props.Suffix != "" {
+				data-suffix={ props.Suffix }
+			}
+			aria-label={ props.AriaLabel }
+		>{ statCardDisplayValue(props.Value, props.Suffix) }</span>
+		<span class={ statCardLabelClasses(props.LabelClass) }>{ props.Label }</span>
+	</div>
+}
+
+templ StatCardGrid(props StatCardGridProps) {
+	<div class={ statCardGridClasses(props) }>
+		for _, card := range props.Cards {
+			@StatCard(card)
+		}
+	</div>
+}

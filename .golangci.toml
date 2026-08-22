@@ -2,7 +2,7 @@ version = "2"
 
 [run]
 timeout = "5m"
-go = "1.23"
+go = "1.27.0"
 
 [linters]
 # Start with the standard set (errcheck, govet, ineffassign, staticcheck, unused, ...)
@@ -16,6 +16,7 @@ enable = [
   "errorlint",     # Proper error wrapping with Go 1.13+ patterns
   "fatcontext",    # Prevent context values in loops/closures
   "gocritic",      # Bug, performance, and style diagnostics
+  "gomodguard_v2", # Enforce Go module versioning rules
   "gosec",         # Security vulnerability scanning
   "misspell",      # Catch common typos in comments and strings
   "nolintlint",    # Enforce proper //nolint directive usage
@@ -31,6 +32,7 @@ disable = [
   "godoclint",   # Data constants and comments don't need godoc symbol naming
   "godot",       # Enforcing periods on comments is too opinionated
   "godox",       # TODOs/FIXMEs in comments are acceptable
+  "gomodguard",  # Deprecated v1; gomodguard_v2 is enabled above
   "lll",         # SVG inline data and long strings exceed 120 chars by design
   "mnd",         # IDs and timeouts as literals are clear enough in context
   "varnamelen",  # Short variable names are idiomatic in Go
@@ -83,9 +85,9 @@ path = "node_modules/"
 linters = ["gocyclo", "nestif", "gocritic", "gosec"]
 
 [[linters.exclusions.rules]]
-# Relax error checks and security rules in test files
+# Relax error checks, security rules, and complexity linters in test files
 path = "_test\\.go"
-linters = ["errcheck", "bodyclose", "gosec", "unparam"]
+linters = ["errcheck", "bodyclose", "gosec", "unparam", "gocyclo", "nestif", "maintidx", "testpackage"]
 
 [[linters.exclusions.rules]]
 # Ignore G104 (errors unhandled) for defer/Close patterns — very common in handlers
@@ -106,7 +108,7 @@ enable = ["gofumpt", "goimports"]
 # Use a concise, human-friendly formatter
 [formatters.settings.gofumpt]
 module-path = "portfolio"
-extra-rules = true
+extra.group-params = true
 
 [formatters.settings.goimports]
 local-prefixes = ["portfolio"]
