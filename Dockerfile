@@ -25,21 +25,21 @@ ARG BUILD_CA_BUNDLE_DIGEST=empty
 RUN --mount=type=secret,id=build_ca_bundle,required=false \
   set -eu; \
   ca_bundle=/tmp/build-ca-bundle.pem; \
+  trap 'rm -f "$ca_bundle"' 0; \
   cp /etc/ssl/certs/ca-certificates.crt "$ca_bundle"; \
   if [ -s /run/secrets/build_ca_bundle ]; then \
   cat /run/secrets/build_ca_bundle >> "$ca_bundle"; \
   fi; \
   printf '%s' "${BUILD_CA_BUNDLE_DIGEST}" >/dev/null; \
-  os="$(uname -s)" \
-  && arch="$(uname -m)" \
-  && case "$os/$arch" in \
+  os="$(uname -s)"; \
+  arch="$(uname -m)"; \
+  case "$os/$arch" in \
   Linux/x86_64|Linux/amd64) asset="tailwindcss-linux-x64" ;; \
   Linux/aarch64|Linux/arm64) asset="tailwindcss-linux-arm64" ;; \
   *) echo "Unsupported platform for Tailwind CLI: $os/$arch" && exit 1 ;; \
-  esac \
-  && curl --cacert "$ca_bundle" -fsSL -o /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}" \
-  && chmod +x /usr/local/bin/tailwindcss; \
-  rm -f "$ca_bundle"
+  esac; \
+  curl --cacert "$ca_bundle" -fsSL -o /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}"; \
+  chmod +x /usr/local/bin/tailwindcss
 
 COPY --from=templ /ko-app/templ /usr/local/bin/templ
 

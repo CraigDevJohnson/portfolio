@@ -26,6 +26,23 @@ fi
 cat "$tmp_dir/build-only-ca.pem" >> "$tmp_dir/build-ca.pem"
 build_ca_digest=$(shasum -a 256 "$tmp_dir/build-ca.pem" | awk '{print $1}')
 
+missing_tailwind_version=v0.0.0-portfolio-contract-missing
+invalid_tailwind_log="$tmp_dir/invalid-tailwind.log"
+if docker build --platform linux/amd64 --target builder \
+	--secret "id=build_ca_bundle,src=$tmp_dir/build-ca.pem" \
+	--build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
+	--build-arg "TAILWIND_VERSION=$missing_tailwind_version" \
+	-f Dockerfile.lambda . >"$invalid_tailwind_log" 2>&1; then
+	echo "Lambda image unexpectedly built with a missing Tailwind release" >&2
+	exit 1
+fi
+if grep -F -q 'tailwindcss: not found' "$invalid_tailwind_log" \
+	|| ! grep 'ERROR: process' "$invalid_tailwind_log" | grep -F -q 'wget --ca-certificate'; then
+	echo "Lambda Tailwind download failure was masked or reported by a later layer" >&2
+	tail -n 40 "$invalid_tailwind_log" >&2
+	exit 1
+fi
+
 docker build --platform linux/amd64 \
 	--secret "id=build_ca_bundle,src=$tmp_dir/build-ca.pem" \
 	--build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \

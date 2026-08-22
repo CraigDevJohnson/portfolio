@@ -36,6 +36,25 @@ cp "$runtime_ca_dir/runtime-only-ca.pem" "$runtime_ca_dir/runtime-ca-secret.pem"
 build_ca_digest=$(shasum -a 256 "$runtime_ca_dir/build-ca.pem" | awk '{print $1}')
 runtime_ca_digest=$(shasum -a 256 "$runtime_ca_dir/runtime-ca-secret.pem" | awk '{print $1}')
 
+missing_tailwind_version=v0.0.0-portfolio-contract-missing
+invalid_tailwind_log="$runtime_ca_dir/invalid-tailwind.log"
+if docker build --platform linux/amd64 --target builder \
+	--secret "id=build_ca_bundle,src=$runtime_ca_dir/build-ca.pem" \
+	--secret "id=runtime_ca_bundle,src=$runtime_ca_dir/runtime-ca-secret.pem" \
+	--build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
+	--build-arg "RUNTIME_CA_BUNDLE_DIGEST=$runtime_ca_digest" \
+	--build-arg "TAILWIND_VERSION=$missing_tailwind_version" \
+	. >"$invalid_tailwind_log" 2>&1; then
+	echo "regular image unexpectedly built with a missing Tailwind release" >&2
+	exit 1
+fi
+if grep -F -q 'tailwindcss: not found' "$invalid_tailwind_log" \
+	|| ! grep 'ERROR: process' "$invalid_tailwind_log" | grep -F -q 'curl --cacert'; then
+	echo "regular Tailwind download failure was masked or reported by a later layer" >&2
+	tail -n 40 "$invalid_tailwind_log" >&2
+	exit 1
+fi
+
 docker build --platform linux/amd64 \
 	--secret "id=build_ca_bundle,src=$runtime_ca_dir/build-ca.pem" \
 	--secret "id=runtime_ca_bundle,src=$runtime_ca_dir/runtime-ca-secret.pem" \
