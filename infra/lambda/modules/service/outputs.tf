@@ -73,21 +73,15 @@ output "alarm_arns" {
 }
 
 output "certificate_arn" {
-  value = var.request_custom_domain ? aws_acm_certificate.custom[0].arn : null
+  value = var.request_custom_domain ? aws_acm_certificate.custom[0].arn : tostring(null)
 }
 
 output "acm_validation_records" {
-  value = [
-    for domain_name in sort(keys(local.acm_validation_records_by_domain)) :
-    local.acm_validation_records_by_domain[domain_name]
-  ]
+  value = local.acm_validation_records
 }
 
 output "api_gateway_domain_targets" {
-  value = tomap({
-    for domain_name, configuration in aws_apigatewayv2_domain_name.custom :
-    domain_name => configuration.domain_name_configuration[0].target_domain_name
-  })
+  value = local.api_gateway_domain_targets
 }
 
 output "oauth_redirect_uris" {

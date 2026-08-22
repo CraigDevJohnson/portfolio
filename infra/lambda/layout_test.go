@@ -1,42 +1,44 @@
 package lambda
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
 	"reflect"
-	"regexp"
-	"sort"
+	"strings"
 	"testing"
 )
 
-var (
-	outputBlockPattern = regexp.MustCompile(`(?m)^output\s+"([^"]+)"\s+\{`)
-	outputAliasPattern = regexp.MustCompile(`(?ms)^output\s+"([^"]+)"\s+\{\s*value\s*=\s*module\.service\.([A-Za-z0-9_]+)\s*\}`)
-)
-
-var serviceOutputNames = []string{
-	"acm_validation_records",
-	"alarm_arns",
-	"api_access_log_group_name",
-	"api_default_url",
-	"api_gateway_domain_targets",
-	"api_id",
-	"certificate_arn",
-	"environment",
-	"google_connection_table_arn",
-	"google_connection_table_name",
-	"image_uri",
-	"lambda_alias_arn",
-	"lambda_alias_name",
-	"lambda_function_arn",
-	"lambda_function_name",
-	"lambda_log_group_name",
-	"lambda_published_version",
-	"oauth_redirect_uris",
-	"soccer_session_table_arn",
-	"soccer_session_table_name",
-	"ssm_parameter_paths",
+var serviceOutputTypes = map[string]any{
+	"acm_validation_records": []any{"list", []any{"object", map[string]any{
+		"domain_name":           "string",
+		"resource_record_name":  "string",
+		"resource_record_type":  "string",
+		"resource_record_value": "string",
+	}}},
+	"alarm_arns":                   []any{"list", "string"},
+	"api_access_log_group_name":    "string",
+	"api_default_url":              "string",
+	"api_gateway_domain_targets":   []any{"map", "string"},
+	"api_id":                       "string",
+	"certificate_arn":              "string",
+	"environment":                  "string",
+	"google_connection_table_arn":  "string",
+	"google_connection_table_name": "string",
+	"image_uri":                    "string",
+	"lambda_alias_arn":             "string",
+	"lambda_alias_name":            "string",
+	"lambda_function_arn":          "string",
+	"lambda_function_name":         "string",
+	"lambda_log_group_name":        "string",
+	"lambda_published_version":     "string",
+	"oauth_redirect_uris":          []any{"list", "string"},
+	"soccer_session_table_arn":     "string",
+	"soccer_session_table_name":    "string",
+	"ssm_parameter_paths":          []any{"map", "string"},
 }
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
@@ -48,6 +50,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"environments/dev/main.tf",
 		"environments/dev/outputs.tf",
 		"environments/dev/providers.tf",
+		"environments/dev/tests/environment_contract.tftest.hcl",
 		"environments/dev/variables.tf",
 		"environments/dev/versions.tf",
 		"environments/prod/backend.hcl",
@@ -55,6 +58,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"environments/prod/outputs.tf",
 		"environments/prod/prod.auto.tfvars",
 		"environments/prod/providers.tf",
+		"environments/prod/tests/environment_contract.tftest.hcl",
 		"environments/prod/variables.tf",
 		"environments/prod/versions.tf",
 		"modules/service/api.tf",
@@ -103,62 +107,108 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		}
 	}
 
-	assertExactTerraformOutputs(t, "modules/service/outputs.tf", serviceOutputNames)
-	assertTerraformOutputAliases(t, "environments/dev/outputs.tf", serviceOutputNames)
-	assertTerraformOutputAliases(t, "environments/prod/outputs.tf", serviceOutputNames)
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofu(t, "modules/service", "test", "-no-color")
+	runOpenTofuTest(t, "modules/service", 4)
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
+		runOpenTofuTest(t, directory, 1)
 	}
 }
 
-func assertExactTerraformOutputs(t *testing.T, path string, want []string) {
+func runOpenTofuTest(t *testing.T, directory string, wantPlans int) {
 	t.Helper()
 
-	contents, err := os.ReadFile(path)
+	command := exec.Command("tofu", "-chdir="+directory, "test", "-json", "-verbose", "-no-color")
+	command.Env = terraformTestEnvironment()
+	output, err := command.CombinedOutput()
 	if err != nil {
-		t.Errorf("read Terraform outputs from %q: %v", path, err)
-		return
+		t.Fatalf("tofu test in %q: %v\n%s", directory, err, output)
 	}
 
-	matches := outputBlockPattern.FindAllStringSubmatch(string(contents), -1)
-	got := make([]string, 0, len(matches))
-	for _, match := range matches {
-		got = append(got, match[1])
-	}
-	sort.Strings(got)
-
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Terraform outputs in %q = %v, want exactly %v", path, got, want)
-	}
-}
-
-func assertTerraformOutputAliases(t *testing.T, path string, want []string) {
-	t.Helper()
-
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Errorf("read Terraform output aliases from %q: %v", path, err)
-		return
-	}
-
-	matches := outputAliasPattern.FindAllStringSubmatch(string(contents), -1)
-	got := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if match[1] != match[2] {
-			t.Errorf("Terraform output %q in %q aliases module.service.%s, want the same name", match[1], path, match[2])
+	planCount := 0
+	summaryPassed := false
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
+	for scanner.Scan() {
+		var event struct {
+			Type     string `json:"type"`
+			TestRun  string `json:"@testrun"`
+			TestPlan *struct {
+				PlannedValues struct {
+					Outputs map[string]struct {
+						Type any `json:"type"`
+					} `json:"outputs"`
+				} `json:"planned_values"`
+			} `json:"test_plan"`
+			TestSummary *struct {
+				Status  string `json:"status"`
+				Failed  int    `json:"failed"`
+				Errored int    `json:"errored"`
+			} `json:"test_summary"`
 		}
-		got = append(got, match[1])
-	}
-	sort.Strings(got)
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			t.Fatalf("decode tofu test event in %q: %v\n%s", directory, err, scanner.Bytes())
+		}
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("Terraform output aliases in %q = %v, want exactly %v", path, got, want)
+		if event.TestPlan != nil {
+			planCount++
+			assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs)
+		}
+		if event.TestSummary != nil {
+			summaryPassed = event.TestSummary.Status == "pass" && event.TestSummary.Failed == 0 && event.TestSummary.Errored == 0
+		}
 	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scan tofu test events in %q: %v", directory, err)
+	}
+	if planCount != wantPlans {
+		t.Errorf("tofu test plans in %q = %d, want %d", directory, planCount, wantPlans)
+	}
+	if !summaryPassed {
+		t.Errorf("tofu test summary in %q did not report a clean pass", directory)
+	}
+}
+
+func assertOutputTypes(t *testing.T, directory, run string, outputs map[string]struct {
+	Type any `json:"type"`
+},
+) {
+	t.Helper()
+
+	if len(outputs) != len(serviceOutputTypes) {
+		t.Errorf("evaluated outputs for %q run %q contain %d names, want exactly %d", directory, run, len(outputs), len(serviceOutputTypes))
+	}
+	for name, wantType := range serviceOutputTypes {
+		output, ok := outputs[name]
+		if !ok {
+			t.Errorf("evaluated outputs for %q run %q are missing %q", directory, run, name)
+			continue
+		}
+		if !reflect.DeepEqual(output.Type, wantType) {
+			t.Errorf("evaluated output %q for %q run %q has type %v, want %v", name, directory, run, output.Type, wantType)
+		}
+	}
+}
+
+func terraformTestEnvironment() []string {
+	environment := make([]string, 0, len(os.Environ())+2)
+	for _, entry := range os.Environ() {
+		if strings.HasPrefix(entry, "TF_VAR_ecr_repository_url=") ||
+			strings.HasPrefix(entry, "TF_VAR_image_digest=") ||
+			strings.HasPrefix(entry, "TF_VAR_alarm_action_arns=") {
+			continue
+		}
+		environment = append(environment, entry)
+	}
+
+	return append(environment,
+		"TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases",
+		"TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"TF_VAR_alarm_action_arns=[\"arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts\"]",
+	)
 }
 
 func runOpenTofu(t *testing.T, directory string, args ...string) {
@@ -166,6 +216,7 @@ func runOpenTofu(t *testing.T, directory string, args ...string) {
 
 	commandArgs := append([]string{"-chdir=" + directory}, args...)
 	command := exec.Command("tofu", commandArgs...)
+	command.Env = terraformTestEnvironment()
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("tofu %v in %q: %v\n%s", args, directory, err, output)

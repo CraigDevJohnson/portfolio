@@ -49,6 +49,18 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_cloudwatch_metric_alarm" {
+    defaults = {
+      arn = "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test"
+    }
+  }
+
+  mock_resource "aws_dynamodb_table" {
+    defaults = {
+      arn = "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-test"
+    }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = {
       arn = "arn:aws:iam::180294223248:role/portfolio-lambda-test"
@@ -99,7 +111,7 @@ variables {
   log_retention_days         = 14
   enable_pitr                = false
   enable_deletion_protection = false
-  alarm_action_arns          = []
+  alarm_action_arns          = ["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-alerts"]
   domain_names               = ["www.example.com", "api.example.com"]
   request_custom_domain      = false
   activate_custom_domain     = false
@@ -114,13 +126,69 @@ run "published_service_contract" {
   }
 
   assert {
-    condition     = aws_lambda_function.app.publish && aws_lambda_alias.live.name == "live"
-    error_message = "the function must publish a version behind the live alias"
+    condition = (
+      aws_lambda_function.app.architectures == tolist(["x86_64"]) &&
+      aws_lambda_function.app.package_type == "Image" &&
+      aws_lambda_function.app.memory_size == 512 &&
+      aws_lambda_function.app.timeout == 29 &&
+      aws_lambda_function.app.reserved_concurrent_executions == 5 &&
+      aws_lambda_function.app.publish
+    )
+    error_message = "the Lambda runtime must use the reviewed image, architecture, sizing, and published-version settings"
   }
 
   assert {
-    condition     = aws_apigatewayv2_integration.lambda.integration_uri == aws_lambda_alias.live.invoke_arn && aws_lambda_permission.api.qualifier == aws_lambda_alias.live.name
-    error_message = "API Gateway and its permission must target only the live alias"
+    condition = (
+      aws_lambda_alias.live.name == "live" &&
+      aws_lambda_alias.live.function_name == aws_lambda_function.app.function_name &&
+      aws_lambda_alias.live.function_version == aws_lambda_function.app.version
+    )
+    error_message = "the live alias must select the newly published function version by default"
+  }
+
+  assert {
+    condition = (
+      aws_apigatewayv2_api.app.protocol_type == "HTTP" &&
+      aws_apigatewayv2_integration.lambda.integration_type == "AWS_PROXY" &&
+      aws_apigatewayv2_integration.lambda.integration_uri == aws_lambda_alias.live.invoke_arn &&
+      aws_apigatewayv2_integration.lambda.payload_format_version == "2.0" &&
+      aws_apigatewayv2_route.default.route_key == "$default" &&
+      aws_apigatewayv2_route.default.target == "integrations/${aws_apigatewayv2_integration.lambda.id}" &&
+      aws_apigatewayv2_stage.default.name == "$default" &&
+      aws_apigatewayv2_stage.default.auto_deploy
+    )
+    error_message = "the HTTP API must use an auto-deployed default route with a payload-v2 alias integration"
+  }
+
+  assert {
+    condition = (
+      aws_lambda_permission.api.action == "lambda:InvokeFunction" &&
+      aws_lambda_permission.api.function_name == aws_lambda_function.app.function_name &&
+      aws_lambda_permission.api.qualifier == aws_lambda_alias.live.name &&
+      aws_lambda_permission.api.principal == "apigateway.amazonaws.com" &&
+      aws_lambda_permission.api.source_arn == "${aws_apigatewayv2_api.app.execution_arn}/*/*"
+    )
+    error_message = "API Gateway permission must invoke only the live alias from the reviewed API execution ARN"
+  }
+
+  assert {
+    condition = (
+      aws_apigatewayv2_stage.default.access_log_settings[0].destination_arn == aws_cloudwatch_log_group.api_access.arn &&
+      jsondecode(aws_apigatewayv2_stage.default.access_log_settings[0].format) == {
+        integration_error_message = "$context.integrationErrorMessage"
+        integration_latency       = "$context.integrationLatency"
+        integration_status        = "$context.integrationStatus"
+        method                    = "$context.httpMethod"
+        path                      = "$context.path"
+        request_id                = "$context.requestId"
+        response_latency          = "$context.responseLatency"
+        response_length           = "$context.responseLength"
+        route_key                 = "$context.routeKey"
+        source_ip                 = "$context.identity.sourceIp"
+        status                    = "$context.status"
+      }
+    )
+    error_message = "API access logs must contain exactly the reviewed metadata fields and no request content"
   }
 
   assert {
@@ -143,14 +211,54 @@ run "published_service_contract" {
   assert {
     condition = (
       aws_cloudwatch_metric_alarm.lambda_errors.metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.lambda_errors.namespace == "AWS/Lambda" &&
+      aws_cloudwatch_metric_alarm.lambda_errors.period == 300 &&
+      aws_cloudwatch_metric_alarm.lambda_errors.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.lambda_errors.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      aws_cloudwatch_metric_alarm.lambda_errors.statistic == "Sum" &&
+      aws_cloudwatch_metric_alarm.lambda_errors.threshold == 1 &&
+      aws_cloudwatch_metric_alarm.lambda_errors.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.lambda_throttles.metric_name == "Throttles" &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.namespace == "AWS/Lambda" &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.period == 300 &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.statistic == "Sum" &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.threshold == 1 &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.lambda_duration.metric_name == "Duration" &&
+      aws_cloudwatch_metric_alarm.lambda_duration.namespace == "AWS/Lambda" &&
+      aws_cloudwatch_metric_alarm.lambda_duration.period == 300 &&
+      aws_cloudwatch_metric_alarm.lambda_duration.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.lambda_duration.comparison_operator == "GreaterThanOrEqualToThreshold" &&
       aws_cloudwatch_metric_alarm.lambda_duration.extended_statistic == "p95" &&
       aws_cloudwatch_metric_alarm.lambda_duration.threshold == 24000 &&
+      aws_cloudwatch_metric_alarm.lambda_duration.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.api_5xx.metric_name == "5xx" &&
+      aws_cloudwatch_metric_alarm.api_5xx.namespace == "AWS/ApiGateway" &&
+      aws_cloudwatch_metric_alarm.api_5xx.period == 300 &&
+      aws_cloudwatch_metric_alarm.api_5xx.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.api_5xx.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      aws_cloudwatch_metric_alarm.api_5xx.statistic == "Sum" &&
+      aws_cloudwatch_metric_alarm.api_5xx.threshold == 1 &&
+      aws_cloudwatch_metric_alarm.api_5xx.dimensions == tomap({ ApiId = "test-api" }) &&
       aws_cloudwatch_metric_alarm.api_latency.metric_name == "Latency" &&
+      aws_cloudwatch_metric_alarm.api_latency.namespace == "AWS/ApiGateway" &&
+      aws_cloudwatch_metric_alarm.api_latency.period == 300 &&
+      aws_cloudwatch_metric_alarm.api_latency.evaluation_periods == 1 &&
+      aws_cloudwatch_metric_alarm.api_latency.comparison_operator == "GreaterThanOrEqualToThreshold" &&
       aws_cloudwatch_metric_alarm.api_latency.extended_statistic == "p95" &&
-      aws_cloudwatch_metric_alarm.api_latency.threshold == 25000
+      aws_cloudwatch_metric_alarm.api_latency.threshold == 25000 &&
+      aws_cloudwatch_metric_alarm.api_latency.dimensions == tomap({ ApiId = "test-api" }) &&
+      alltrue([
+        for alarm in [
+          aws_cloudwatch_metric_alarm.lambda_errors,
+          aws_cloudwatch_metric_alarm.lambda_throttles,
+          aws_cloudwatch_metric_alarm.lambda_duration,
+          aws_cloudwatch_metric_alarm.api_5xx,
+          aws_cloudwatch_metric_alarm.api_latency,
+        ] : alarm.treat_missing_data == "notBreaching" && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-alerts"])
+      ])
     )
     error_message = "the service must define the five required Lambda and API alarms"
   }
@@ -178,6 +286,46 @@ run "published_service_contract" {
   assert {
     condition     = output.oauth_redirect_uris == tolist(["https://api.example.com/soccer", "https://www.example.com/soccer"])
     error_message = "OAuth redirect URIs must be a sorted list derived from the requested domains"
+  }
+}
+
+run "live_version_override_contract" {
+  command = plan
+
+  variables {
+    live_version_override = 7
+  }
+
+  assert {
+    condition     = aws_lambda_alias.live.function_version == "7"
+    error_message = "live_version_override must select the requested published version"
+  }
+}
+
+run "certificate_request_only_contract" {
+  command = plan
+
+  variables {
+    request_custom_domain = true
+  }
+
+  assert {
+    condition = (
+      length(aws_acm_certificate.custom) == 1 &&
+      length(aws_acm_certificate_validation.custom) == 0 &&
+      length(aws_apigatewayv2_domain_name.custom) == 0 &&
+      length(aws_apigatewayv2_api_mapping.custom) == 0
+    )
+    error_message = "requesting a certificate must not activate validation or API custom-domain resources"
+  }
+
+  assert {
+    condition = (
+      output.certificate_arn == "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000" &&
+      [for record in output.acm_validation_records : record.domain_name] == ["api.example.com", "www.example.com"] &&
+      length(output.api_gateway_domain_targets) == 0
+    )
+    error_message = "certificate request outputs must expose sorted DNS records without active API targets"
   }
 }
 

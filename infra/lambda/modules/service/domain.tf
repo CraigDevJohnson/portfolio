@@ -8,6 +8,23 @@ locals {
       resource_record_value = option.resource_record_value
     }
   } : {}
+  acm_validation_records = slice(tolist(concat(
+    [
+      for domain_name in sort(keys(local.acm_validation_records_by_domain)) :
+      local.acm_validation_records_by_domain[domain_name]
+    ],
+    [{
+      domain_name           = ""
+      resource_record_name  = ""
+      resource_record_type  = ""
+      resource_record_value = ""
+    }],
+  )), 0, length(local.acm_validation_records_by_domain))
+  empty_string_list = slice(tolist([""]), 0, 0)
+  api_gateway_domain_targets = var.activate_custom_domain ? tomap({
+    for domain_name in var.domain_names : domain_name =>
+    aws_apigatewayv2_domain_name.custom[domain_name].domain_name_configuration[0].target_domain_name
+  }) : zipmap(local.empty_string_list, local.empty_string_list)
 }
 
 resource "aws_acm_certificate" "custom" {
