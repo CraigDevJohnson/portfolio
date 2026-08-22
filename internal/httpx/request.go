@@ -58,6 +58,12 @@ func isValidIP(value string) bool {
 
 // RequestIsHTTPS reports whether the request reached the app over HTTPS.
 func RequestIsHTTPS(request *http.Request) bool {
+	if origin, ok := requestTrustedOrigin(request); ok {
+		return origin.Scheme == "https"
+	}
+	if request == nil {
+		return false
+	}
 	if request.TLS != nil {
 		return true
 	}
@@ -69,6 +75,9 @@ func RequestIsHTTPS(request *http.Request) bool {
 
 // RequestBaseURL returns the request origin using the detected request scheme.
 func RequestBaseURL(request *http.Request) string {
+	if origin, ok := requestTrustedOrigin(request); ok {
+		return origin.Scheme + "://" + origin.Host
+	}
 	scheme := "http"
 	if RequestIsHTTPS(request) {
 		scheme = "https"
