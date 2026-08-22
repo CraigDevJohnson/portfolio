@@ -94,7 +94,7 @@ make_environment_plan() {
 		--argjson retention "$retention" \
 		--argjson alarm_actions "$alarm_actions" '
 		def change($after): {actions: ["create"], after: $after, after_sensitive: {}};
-		def resource($address; $type; $name; $after): {address: $address, type: $type, name: $name, change: change($after)};
+		def resource($address; $type; $name; $after): {mode: "managed", address: $address, type: $type, name: $name, change: change($after)};
 		def alarm($short; $metric; $threshold; $statistic):
 			resource("module.service.aws_cloudwatch_metric_alarm." + $short; "aws_cloudwatch_metric_alarm"; $short; {
 				alarm_name: ($prefix + "-" + ($short | gsub("_"; "-"))),
@@ -188,18 +188,32 @@ mutate_and_reject "alarm threshold drift" "$dev_plan" '.resource_changes[10].cha
 mutate_and_reject "extra artifact resource" "$artifact_plan" '.resource_changes += [{address: "aws_iam_role.legacy", type: "aws_iam_role", name: "legacy", change: {actions: ["create"], after: {name: "legacy"}, after_sensitive: {}}}]'
 mutate_and_reject "artifact lifecycle drift" "$artifact_plan" '.resource_changes[1].change.after.policy = ({rules: []} | tojson)'
 mutate_and_reject "artifact repository-policy drift" "$artifact_plan" '.resource_changes[2].change.after.policy = ({Version: "2012-10-17", Statement: []} | tojson)'
-mutate_and_reject "unapproved IAM user resource" "$dev_plan" '.resource_changes += [{address: "module.service.aws_iam_user.unapproved", type: "aws_iam_user", name: "unapproved", change: {actions: ["create"], after: {name: "unapproved"}, after_sensitive: {}}}]'
-mutate_and_reject "unapproved SSM parameter resource" "$dev_plan" '.resource_changes += [{address: "module.service.aws_ssm_parameter.unapproved", type: "aws_ssm_parameter", name: "unapproved", change: {actions: ["create"], after: {name: "/portfolio/lambda/dev/unapproved"}, after_sensitive: {}}}]'
+mutate_and_reject "unapproved IAM user resource" "$dev_plan" '.resource_changes += [{mode: "managed", address: "module.service.aws_iam_user.unapproved", type: "aws_iam_user", name: "unapproved", change: {actions: ["create"], after: {name: "unapproved"}, after_sensitive: {}}}]'
+mutate_and_reject "unapproved SSM parameter resource" "$dev_plan" '.resource_changes += [{mode: "managed", address: "module.service.aws_ssm_parameter.unapproved", type: "aws_ssm_parameter", name: "unapproved", change: {actions: ["create"], after: {name: "/portfolio/lambda/dev/unapproved"}, after_sensitive: {}}}]'
 
 dev_domain_plan="$tmp_dir/dev-domain.json"
 jq '.resource_changes += [
-	{address: "module.service.aws_acm_certificate.custom[0]", type: "aws_acm_certificate", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
-	{address: "module.service.aws_acm_certificate_validation.custom[0]", type: "aws_acm_certificate_validation", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}},
-	{address: "module.service.aws_apigatewayv2_domain_name.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_domain_name", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
-	{address: "module.service.aws_apigatewayv2_api_mapping.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_api_mapping", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}}
+	{mode: "managed", address: "module.service.aws_acm_certificate.custom[0]", type: "aws_acm_certificate", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
+	{mode: "managed", address: "module.service.aws_acm_certificate_validation.custom[0]", type: "aws_acm_certificate_validation", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}},
+	{mode: "managed", address: "module.service.aws_apigatewayv2_domain_name.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_domain_name", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
+	{mode: "managed", address: "module.service.aws_apigatewayv2_api_mapping.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_api_mapping", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}}
 ]' "$dev_plan" >"$dev_domain_plan"
 expect_pass "approved conditional development domain resources" run_check "$dev_domain_plan" dev
 mutate_and_reject "unapproved conditional domain address" "$dev_domain_plan" '.resource_changes[-1].address = "module.service.aws_apigatewayv2_api_mapping.custom[\"attacker.example\"]"'
+
+dev_data_plan="$tmp_dir/dev-data.json"
+jq '.resource_changes += [{
+	mode: "data",
+	address: "module.service.data.aws_iam_policy_document.lambda",
+	type: "aws_iam_policy_document",
+	name: "lambda",
+	change: {actions: ["read"], before: null, after: {json: "{}"}, after_sensitive: {}}
+}]' "$dev_plan" >"$dev_data_plan"
+expect_pass "exact reviewed IAM policy-document data read" run_check "$dev_data_plan" dev
+mutate_and_reject "unapproved data-source address" "$dev_data_plan" '.resource_changes[-1].address = "module.service.data.aws_iam_policy_document.unapproved"'
+mutate_and_reject "unapproved data-source type" "$dev_data_plan" '.resource_changes[-1].type = "aws_caller_identity"'
+mutate_and_reject "data source presented as a managed resource" "$dev_data_plan" '.resource_changes[-1].mode = "managed"'
+mutate_and_reject "data source with a non-read action" "$dev_data_plan" '.resource_changes[-1].change.actions = ["create"]'
 
 documented_versioning_mutation_is_guarded() {
 	document=$1

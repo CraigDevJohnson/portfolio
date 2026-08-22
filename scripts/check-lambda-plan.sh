@@ -141,7 +141,7 @@ if [ "$ENVIRONMENT" = prod ]; then
 fi
 
 jq -e --arg environment "$ENVIRONMENT" '
-	def allowed($address; $type):
+	def allowed_managed($address; $type):
 		[
 			["module.service.aws_apigatewayv2_api.app", "aws_apigatewayv2_api"],
 			["module.service.aws_apigatewayv2_integration.lambda", "aws_apigatewayv2_integration"],
@@ -178,8 +178,16 @@ jq -e --arg environment "$ENVIRONMENT" '
 			]
 		end) |
 		any(.[]; .[0] == $address and .[1] == $type);
-	all(.resource_changes[]; allowed(.address; .type))
+	all(.resource_changes[] | select(.mode != "data");
+		.mode == "managed" and allowed_managed(.address; .type))
 ' "$PLAN_JSON" >/dev/null || fail "environment plan contains an unapproved resource address or type"
+
+jq -e '
+	all(.resource_changes[] | select(.mode == "data");
+		.address == "module.service.data.aws_iam_policy_document.lambda" and
+		.type == "aws_iam_policy_document" and
+		.change.actions == ["read"])
+' "$PLAN_JSON" >/dev/null || fail "environment plan contains an unapproved data-source read"
 
 jq -e \
 	--arg prefix "$NAME_PREFIX" \
