@@ -37,6 +37,13 @@ func TestBuildMuxPublicRouteRenderingSmoke(t *testing.T) {
 		location    string
 	}{
 		{
+			name:       "health proof",
+			path:       "/healthz",
+			status:     http.StatusOK,
+			mediaType:  "application/json",
+			bodyMarker: `"status":"ok"`,
+		},
+		{
 			name:       "home page",
 			path:       "/",
 			status:     http.StatusOK,

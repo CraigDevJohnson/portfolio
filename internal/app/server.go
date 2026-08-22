@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"portfolio/internal/buildinfo"
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/logging"
@@ -51,6 +52,9 @@ func registerMIMETypes() error {
 }
 
 func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http.ServeMux, *internalsoccer.Handler) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
+
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
 		app.LPSClient,
@@ -60,8 +64,6 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		rootLogger.With(slog.String("component", "soccer")),
 	)
 	app.GoogleHandler.Soccer = soccerHandler
-
-	mux := http.NewServeMux()
 
 	// portfolio routes
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
