@@ -47,10 +47,12 @@ tfplan
 
 # Track provider locks for replacement infrastructure roots.
 !infra/lambda/artifacts/.terraform.lock.hcl
+!infra/lambda/environments/dev/.terraform.lock.hcl
+!infra/lambda/environments/prod/.terraform.lock.hcl
 
 
 static/screenshots/
-dev
+/dev
 .playwright-mcp/
 
 # Local browser-test sessions and generated evidence
