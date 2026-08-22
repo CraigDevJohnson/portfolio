@@ -26,6 +26,7 @@ esac
 
 environment_record=$(jq -cer --arg environment "$ENVIRONMENT" '.[$environment]' "$RELEASE_RECORD") ||
 	fail "release record has no environment coordinates"
+cutover_epoch=$(printf '%s\n' "$environment_record" | jq -er '.dns_cutover_at | fromdateiso8601') || fail "invalid DNS cutover timestamp"
 source_sha=$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' "$RELEASE_RECORD") || fail "invalid source SHA"
 expected_digest=$(jq -er '.image.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$RELEASE_RECORD") || fail "invalid image digest"
 expected_version=$(printf '%s\n' "$environment_record" | jq -er '.published_version | tostring | select(length > 0)') || fail "invalid published version"
@@ -34,8 +35,15 @@ public_host=$(printf '%s\n' "$environment_record" | jq -er '.custom_domains[0] |
 rollback_evidence=$(printf '%s\n' "$environment_record" | jq -er '.rollback_evidence | select(type == "string" and length > 0)') || fail "missing rollback evidence path"
 test -f "$rollback_evidence" || fail "rollback evidence does not exist"
 rollback_origin=$(jq -er --arg environment "$ENVIRONMENT" '
+	def strict_https_origin:
+		type == "string" and
+		test("^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?::[0-9]{1,5})?$") and
+		(if test(":[0-9]+$") then
+			(capture(":(?<port>[0-9]+)$").port | tonumber) as $port |
+			$port >= 1 and $port <= 65535
+		else true end);
 	select(.schema_version == 1 and .environment == $environment) |
-	.rollback_origin_url | select(type == "string" and test("^https://"))
+	.rollback_origin_url | select(strict_https_origin)
 ' "$rollback_evidence") || fail "invalid rollback evidence"
 
 repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
@@ -88,9 +96,40 @@ alarms=$(printf '%s\n' "$alarms_json" | jq -ce --argjson names "$alarm_names" '
 if [ "$ENVIRONMENT" = production ]; then
 	alarm_delivery=$(printf '%s\n' "$environment_record" | jq -er '.alarm_delivery_evidence | select(type == "string" and length > 0)') || fail "production release has no alarm-delivery evidence"
 	test -f "$alarm_delivery" || fail "production alarm-delivery evidence does not exist"
-	topic_arn=$(jq -er '
-		select(.schema_version == 1 and .environment == "production" and .account_id == "180294223248" and .region == "us-west-2" and .delivery_verified == true) |
-		.topic_arn | select(type == "string" and test("^arn:aws:sns:us-west-2:180294223248:"))
+	topic_arn=$(jq -er --argjson cutover "$cutover_epoch" '
+		select(
+			(keys | sort) == ([
+				"account_id",
+				"confirmed_subscription_count",
+				"environment",
+				"message_id",
+				"receipt_confirmed_at",
+				"receipt_token_sha256",
+				"region",
+				"schema_version",
+				"sent_at",
+				"topic_arn"
+			] | sort) and
+			.schema_version == 1 and
+			.environment == "production" and
+			.account_id == "180294223248" and
+			.region == "us-west-2" and
+			.topic_arn == "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts" and
+			(.confirmed_subscription_count | type) == "number" and
+			.confirmed_subscription_count >= 1 and
+			.confirmed_subscription_count == (.confirmed_subscription_count | floor) and
+			(.message_id | type == "string" and test("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$")) and
+			(.receipt_token_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+			(.sent_at | fromdateiso8601) as $sent |
+			(.receipt_confirmed_at | fromdateiso8601) as $confirmed |
+			.sent_at == ($sent | todateiso8601) and
+			.receipt_confirmed_at == ($confirmed | todateiso8601) and
+			$confirmed >= $sent and
+			($confirmed - $sent) <= 300 and
+			$confirmed <= $cutover and
+			$confirmed <= now
+		) |
+		.topic_arn
 	' "$alarm_delivery") || fail "production alarm-delivery evidence is invalid"
 	printf '%s\n' "$alarms_json" | jq -e --arg topic "$topic_arn" '
 		(.MetricAlarms | length) == 5 and all(.MetricAlarms[]; .AlarmActions == [$topic])

@@ -459,6 +459,7 @@ tasks:
   _lambda-saved-plan-apply:
     internal: true
     env:
+      APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
       PLAN_FILE: '{{default "" .PLAN_FILE}}'
       ROOT: '{{.ROOT}}'
     cmds:
@@ -470,6 +471,15 @@ tasks:
         esac
         test -f "$PLAN_FILE" || {
           echo "PLAN_FILE does not exist: $PLAN_FILE" >&2
+          exit 1
+        }
+        printf '%s\n' "$APPROVED_PLAN_SHA256" | grep -Eq '^[0-9a-f]{64}$' || {
+          echo "APPROVED_PLAN_SHA256 must be the exact reviewed SHA-256 checksum" >&2
+          exit 1
+        }
+        actual_plan_sha256=$(shasum -a 256 "$PLAN_FILE" | awk '{print $1}')
+        test "$actual_plan_sha256" = "$APPROVED_PLAN_SHA256" || {
+          echo "PLAN_FILE checksum does not match APPROVED_PLAN_SHA256" >&2
           exit 1
         }
         tofu -chdir="$ROOT" apply -input=false "$PLAN_FILE"
@@ -544,33 +554,45 @@ tasks:
         repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
         test "$repository_url" = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
         image_uri="$repository_url:$release_tag"
-        existing_digest=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
+        repository_mutability=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-repositories \
+          --repository-names portfolio-lambda-releases \
+          --query 'repositories[0].imageTagMutability' \
+          --output text)
+        test "$repository_mutability" = "IMMUTABLE" || {
+          echo "portfolio-lambda-releases must enforce IMMUTABLE tags" >&2
+          exit 1
+        }
+        lookup_error=$(mktemp)
+        trap 'rm -f "$lookup_error"' EXIT
+        if existing_digest=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
           --repository-name portfolio-lambda-releases \
           --image-ids imageTag="$release_tag" \
           --query 'imageDetails[0].imageDigest' \
-          --output text 2>/dev/null || true)
+          --output text 2>"$lookup_error"); then
+          printf '%s\n' "$existing_digest" | grep -Eq '^sha256:[0-9a-f]{64}$' || {
+            echo "ECR returned an invalid digest for the existing release tag" >&2
+            exit 1
+          }
+          echo "Release tag already exists; refusing to push it again" >&2
+          exit 1
+        fi
+        grep -Fq 'An error occurred (ImageNotFoundException) when calling the DescribeImages operation:' "$lookup_error" || {
+          echo "Could not prove that the immutable release tag is absent" >&2
+          exit 1
+        }
         task build-lambda-image BUILD_REVISION="$BUILD_REVISION" IMAGE_TAG="$image_uri"
         registry=${repository_url%%/*}
         aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr get-login-password | \
           docker login --username AWS --password-stdin "$registry"
         docker push "$image_uri"
-        pushed_digest=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
-          --repository-name portfolio-lambda-releases \
-          --image-ids imageTag="$release_tag" \
-          --query 'imageDetails[0].imageDigest' \
-          --output text)
-        printf '%s\n' "$pushed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
-        case "$existing_digest" in
-          "" | None) ;;
-          "$pushed_digest") ;;
-          *) echo "Release tag already existed with a different digest" >&2; exit 1 ;;
-        esac
         : "${release_tag:?derive the immutable release tag first}"
-        aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
+        release_record=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
           --repository-name portfolio-lambda-releases \
           --image-ids imageTag="$release_tag" \
           --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt,ScanStatus:imageScanStatus.status}' \
-          --output json
+          --output json)
+        printf '%s\n' "$release_record" | jq -e '.Digest | test("^sha256:[0-9a-f]{64}$")' >/dev/null
+        printf '%s\n' "$release_record"
 
   lambda-plan-check:
     desc: Check a saved replacement Lambda plan JSON offline

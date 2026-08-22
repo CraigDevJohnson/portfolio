@@ -77,6 +77,8 @@ task lambda-dev-plan \
   PLAN_FILE="$dev_plan" \
   IMAGE_DIGEST="$release_digest" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+dev_plan_sha256=$(shasum -a 256 "$dev_plan" | awk '{print $1}')
+printf 'dev_plan_sha256=%s\n' "$dev_plan_sha256"
 ```
 
 The plan task writes one saved file, checks the JSON contract, and prints the
@@ -87,8 +89,10 @@ drift. Review and approve the exact plan separately from the lock write, then
 apply only that file:
 
 ```bash
+: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
 task lambda-dev-apply \
   PLAN_FILE="$dev_plan" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
@@ -99,8 +103,10 @@ Production plans also require the reviewed `ALARM_ACTION_ARNS_JSON`.
 
 `task lambda-release-push` accepts only a clean Git worktree. It builds
 `git-<full-source-SHA>`, pushes it to `portfolio-lambda-releases`, and reports
-the digest, push time, and scan state. Release records bind that SHA and tag to
-the digest-qualified image URI, published Lambda version, and `live` alias.
+the digest, push time, and scan state. Before pushing, it verifies repository
+tag immutability and accepts only `ImageNotFoundException` as proof that the tag
+is absent. Release records bind that SHA and tag to the digest-qualified image
+URI, published Lambda version, and `live` alias.
 
 The replacement runtime resolves exactly these environment-owned SSM paths:
 

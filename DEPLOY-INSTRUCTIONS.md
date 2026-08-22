@@ -79,6 +79,7 @@ and non-root command and obtain separate current-session approval for the one
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
+task lambda-artifacts-init
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   s3api put-bucket-versioning \
   --bucket portfolio-tofu-state-180294223248 \
@@ -88,6 +89,10 @@ test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   --bucket portfolio-tofu-state-180294223248 \
   --query Status --output text)" = "Enabled"
 ```
+
+`lambda-artifacts-init` runs the full same-session identity guard immediately
+before the approved mutation: exact profile, region, account, SSO-role ARN,
+non-root principal, and absence of ambient static or session credentials.
 
 If the deployer needs `s3:PutBucketVersioning`, grant only that exact bucket
 action for this step and remove it after verification. Never run this mutation
@@ -106,8 +111,9 @@ the root's `backend.hcl`, reconfigures the backend without interactive input,
 and refuses any workspace other than `default`. A plan requires a new absolute
 `PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
 and prints the human-readable plan. An apply accepts only an existing absolute
-saved plan. Replacement commands contain no `--auto-approve`, `-target`, or
-mutable image tag.
+saved plan whose SHA-256 digest equals the separately approved
+`APPROVED_PLAN_SHA256`. Replacement commands contain no `--auto-approve`,
+`-target`, or mutable image tag.
 
 For example, create and inspect the artifact plan only after the controller
 approves the exact artifact lock write:
@@ -120,6 +126,8 @@ plan_dir=$(mktemp -d)
 artifact_plan="$plan_dir/artifacts.tfplan"
 export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
+artifact_plan_sha256=$(shasum -a 256 "$artifact_plan" | awk '{print $1}')
+printf 'artifact_plan_sha256=%s\n' "$artifact_plan_sha256"
 ```
 
 The artifact checker permits exactly the immutable ECR repository, its
@@ -129,8 +137,10 @@ and exact lock URI. Obtain separate current-session apply and lock-write
 approval, then run:
 
 ```bash
+: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
 task lambda-artifacts-apply \
   PLAN_FILE="$artifact_plan" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 ```
 
@@ -146,9 +156,11 @@ action drift.
 After the artifact root exists, obtain a separate approval for the exact ECR
 push. `task lambda-release-push` requires a clean worktree, builds with the full
 `git rev-parse HEAD`, and pushes only
-`portfolio-lambda-releases:git-<40-character-SHA>`. Record the returned digest,
-push time, scan status, and digest-qualified URI. Environment plans consume
-only `repository-url@sha256:<64 lowercase hex characters>`.
+`portfolio-lambda-releases:git-<40-character-SHA>`. It first requires repository
+tag immutability and an authoritative `ImageNotFoundException`; every other
+lookup failure and every existing tag stops before push. Record the returned
+digest, push time, scan status, and digest-qualified URI. Environment plans
+consume only `repository-url@sha256:<64 lowercase hex characters>`.
 
 The environment-owned SecureString paths are:
 
@@ -201,10 +213,11 @@ before that traffic mutation.
 
 Observation commands reinitialize artifact and environment roots before reading
 outputs. They append sanitized samples and workflow request IDs to the release
-record's evidence path. Production stays blocked until the development gate has
-at least eight passing samples over seven full days, no gap over 26 hours,
-stable release coordinates, two complete workflow proofs, five non-ALARM alarm
-states, no blocker, and a healthy rollback origin.
+record's evidence path. Production stays blocked unless the first sample and
+every later gap are within 26 hours, all timestamps are current and internally
+consistent, and the window spans seven full days. It also requires stable
+release coordinates, distinct request IDs for two complete workflows, five
+non-ALARM alarm states, no blocker, and a strict HTTPS rollback origin.
 
 The application behavior and direct-endpoint checks are also documented in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

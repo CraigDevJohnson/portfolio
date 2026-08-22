@@ -140,6 +140,47 @@ if [ "$ENVIRONMENT" = prod ]; then
 	expected_protection=true
 fi
 
+jq -e --arg environment "$ENVIRONMENT" '
+	def allowed($address; $type):
+		[
+			["module.service.aws_apigatewayv2_api.app", "aws_apigatewayv2_api"],
+			["module.service.aws_apigatewayv2_integration.lambda", "aws_apigatewayv2_integration"],
+			["module.service.aws_apigatewayv2_route.default", "aws_apigatewayv2_route"],
+			["module.service.aws_apigatewayv2_stage.default", "aws_apigatewayv2_stage"],
+			["module.service.aws_cloudwatch_log_group.api_access", "aws_cloudwatch_log_group"],
+			["module.service.aws_cloudwatch_log_group.lambda", "aws_cloudwatch_log_group"],
+			["module.service.aws_cloudwatch_metric_alarm.api_5xx", "aws_cloudwatch_metric_alarm"],
+			["module.service.aws_cloudwatch_metric_alarm.api_latency", "aws_cloudwatch_metric_alarm"],
+			["module.service.aws_cloudwatch_metric_alarm.lambda_duration", "aws_cloudwatch_metric_alarm"],
+			["module.service.aws_cloudwatch_metric_alarm.lambda_errors", "aws_cloudwatch_metric_alarm"],
+			["module.service.aws_cloudwatch_metric_alarm.lambda_throttles", "aws_cloudwatch_metric_alarm"],
+			["module.service.aws_dynamodb_table.google_connections", "aws_dynamodb_table"],
+			["module.service.aws_dynamodb_table.soccer_sessions", "aws_dynamodb_table"],
+			["module.service.aws_iam_role.lambda", "aws_iam_role"],
+			["module.service.aws_iam_role_policy.lambda", "aws_iam_role_policy"],
+			["module.service.aws_lambda_alias.live", "aws_lambda_alias"],
+			["module.service.aws_lambda_function.app", "aws_lambda_function"],
+			["module.service.aws_lambda_permission.api", "aws_lambda_permission"],
+			["module.service.aws_acm_certificate.custom[0]", "aws_acm_certificate"],
+			["module.service.aws_acm_certificate_validation.custom[0]", "aws_acm_certificate_validation"]
+		] +
+		(if $environment == "dev" then
+			[
+				["module.service.aws_apigatewayv2_domain_name.custom[\"dev.craigdevjohnson.com\"]", "aws_apigatewayv2_domain_name"],
+				["module.service.aws_apigatewayv2_api_mapping.custom[\"dev.craigdevjohnson.com\"]", "aws_apigatewayv2_api_mapping"]
+			]
+		else
+			[
+				["module.service.aws_apigatewayv2_domain_name.custom[\"craigdevjohnson.com\"]", "aws_apigatewayv2_domain_name"],
+				["module.service.aws_apigatewayv2_domain_name.custom[\"www.craigdevjohnson.com\"]", "aws_apigatewayv2_domain_name"],
+				["module.service.aws_apigatewayv2_api_mapping.custom[\"craigdevjohnson.com\"]", "aws_apigatewayv2_api_mapping"],
+				["module.service.aws_apigatewayv2_api_mapping.custom[\"www.craigdevjohnson.com\"]", "aws_apigatewayv2_api_mapping"]
+			]
+		end) |
+		any(.[]; .[0] == $address and .[1] == $type);
+	all(.resource_changes[]; allowed(.address; .type))
+' "$PLAN_JSON" >/dev/null || fail "environment plan contains an unapproved resource address or type"
+
 jq -e \
 	--arg prefix "$NAME_PREFIX" \
 	--arg image "$IMAGE_URI" \

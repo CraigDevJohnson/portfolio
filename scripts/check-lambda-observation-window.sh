@@ -19,15 +19,24 @@ esac
 
 environment_record=$(jq -cer --arg environment "$ENVIRONMENT" '.[$environment]' "$RELEASE_RECORD") ||
 	fail "release record has no environment coordinates"
+cutover_epoch=$(printf '%s\n' "$environment_record" | jq -er '.dns_cutover_at | fromdateiso8601') ||
+	fail "DNS cutover timestamp is invalid"
 rollback_evidence=$(printf '%s\n' "$environment_record" | jq -er '.rollback_evidence | select(type == "string" and length > 0)') ||
 	fail "release record has no rollback evidence path"
 test -f "$rollback_evidence" || fail "rollback evidence does not exist"
 
 jq -e --arg environment "$ENVIRONMENT" '
+	def strict_https_origin:
+		type == "string" and
+		test("^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?::[0-9]{1,5})?$") and
+		(if test(":[0-9]+$") then
+			(capture(":(?<port>[0-9]+)$").port | tonumber) as $port |
+			$port >= 1 and $port <= 65535
+		else true end);
 	.schema_version == 1 and
 	.environment == $environment and
 	(.public_hostname | type == "string" and length > 0) and
-	(.rollback_origin_url | type == "string" and test("^https://")) and
+	(.rollback_origin_url | strict_https_origin) and
 	(.dns_record.id | type == "string" and length > 0) and
 	(.dns_record.type | type == "string" and length > 0) and
 	(.dns_record.name | type == "string" and length > 0) and
@@ -35,23 +44,46 @@ jq -e --arg environment "$ENVIRONMENT" '
 	(.dns_record.ttl | type == "number") and
 	(.dns_record.proxied | type == "boolean")
 ' "$rollback_evidence" >/dev/null || fail "rollback evidence is incomplete"
+rollback_origin=$(jq -er '.rollback_origin_url' "$rollback_evidence") || fail "rollback origin is missing"
 
 if [ "$ENVIRONMENT" = production ]; then
 	alarm_delivery=$(printf '%s\n' "$environment_record" | jq -er '.alarm_delivery_evidence | select(type == "string" and length > 0)') ||
 		fail "production release has no alarm-delivery evidence path"
 	test -f "$alarm_delivery" || fail "production alarm-delivery evidence does not exist"
-	jq -e '
+	jq -e --argjson cutover "$cutover_epoch" '
+		(keys | sort) == ([
+			"account_id",
+			"confirmed_subscription_count",
+			"environment",
+			"message_id",
+			"receipt_confirmed_at",
+			"receipt_token_sha256",
+			"region",
+			"schema_version",
+			"sent_at",
+			"topic_arn"
+		] | sort) and
 		.schema_version == 1 and
 		.environment == "production" and
 		.account_id == "180294223248" and
 		.region == "us-west-2" and
 		.topic_arn == "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts" and
-		.delivery_verified == true
+		(.confirmed_subscription_count | type) == "number" and
+		.confirmed_subscription_count >= 1 and
+		.confirmed_subscription_count == (.confirmed_subscription_count | floor) and
+		(.message_id | type == "string" and test("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$")) and
+		(.receipt_token_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+		(.sent_at | fromdateiso8601) as $sent |
+		(.receipt_confirmed_at | fromdateiso8601) as $confirmed |
+		.sent_at == ($sent | todateiso8601) and
+		.receipt_confirmed_at == ($confirmed | todateiso8601) and
+		$confirmed >= $sent and
+		($confirmed - $sent) <= 300 and
+		$confirmed <= $cutover and
+		$confirmed <= now
 	' "$alarm_delivery" >/dev/null || fail "production alarm-delivery evidence is invalid"
 fi
 
-cutover_epoch=$(printf '%s\n' "$environment_record" | jq -er '.dns_cutover_at | fromdateiso8601') ||
-	fail "DNS cutover timestamp is invalid"
 release_sha=$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' "$RELEASE_RECORD") ||
 	fail "source SHA is invalid"
 release_digest=$(jq -er '.image.digest | select(test("^sha256:[0-9a-f]{64}$"))' "$RELEASE_RECORD") ||
@@ -74,11 +106,16 @@ jq -s -e \
 	--arg digest "$release_digest" \
 	--arg version "$release_version" \
 	--arg alias "$release_alias" \
+	--arg rollback_origin "$rollback_origin" \
 	--argjson cutover "$cutover_epoch" '
 	def samples: [.[] | select(.kind == "sample" and .environment == $environment)] | sort_by(.observed_at_epoch);
 	def workflows: [.[] | select(.kind == "workflow" and .environment == $environment)] | sort_by(.observed_at_epoch);
 	def gaps_ok($items):
 		[range(1; $items | length) | ($items[.].observed_at_epoch - $items[. - 1].observed_at_epoch)] | all(. <= 93600);
+	def timestamp_matches:
+		(.observed_at_epoch | type) == "number" and
+		.observed_at_epoch <= now and
+		.observed_at == (.observed_at_epoch | todateiso8601);
 	def route_ok($sample; $path; $content_type):
 		[$sample.routes[] | select(.path == $path and .status == 200 and (.content_type | startswith($content_type)))] | length == 1;
 	def alarm_names: [
@@ -91,10 +128,13 @@ jq -s -e \
 	samples as $samples |
 	workflows as $workflows |
 	($samples | length) >= 8 and
+	$cutover <= now and
+	($samples[0].observed_at_epoch - $cutover) <= 93600 and
 	($samples[-1].observed_at_epoch - $cutover) >= 604800 and
 	gaps_ok($samples) and
 	all($samples[];
 		.schema_version == 1 and
+		timestamp_matches and
 		.passed == true and
 		.observed_at_epoch >= $cutover and
 		.public_hostname == $host and
@@ -115,6 +155,7 @@ jq -s -e \
 		([.alarms[].name] | sort) == alarm_names and
 		all(.alarms[]; .state == "OK" or .state == "INSUFFICIENT_DATA") and
 		(.metrics | [.lambda_errors, .lambda_throttles, .lambda_duration_p95_ms, .api_5xx, .api_latency_p95_ms] | all(.[]; type == "number")) and
+		.rollback_origin.url == $rollback_origin and
 		.rollback_origin.passed == true and
 		(.rollback_origin.probes | type == "array" and length == 3) and
 		all(.rollback_origin.probes[]; .status == 200)) and
@@ -122,8 +163,11 @@ jq -s -e \
 	($workflows[0].observed_at_epoch >= $cutover) and
 	($workflows[0].observed_at_epoch - $cutover <= 93600) and
 	($workflows[-1].observed_at_epoch - $cutover >= 604800) and
+	([ $workflows[] | [.connect_request_id, .add_request_id, .sync_request_id][] ] as $request_ids |
+		($request_ids | length) == ($request_ids | unique | length)) and
 	all($workflows[];
 		.schema_version == 1 and
+		timestamp_matches and
 		.passed == true and
 		.public_hostname == $host and
 		.source_sha == $sha and

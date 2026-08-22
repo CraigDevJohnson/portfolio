@@ -188,6 +188,35 @@ mutate_and_reject "alarm threshold drift" "$dev_plan" '.resource_changes[10].cha
 mutate_and_reject "extra artifact resource" "$artifact_plan" '.resource_changes += [{address: "aws_iam_role.legacy", type: "aws_iam_role", name: "legacy", change: {actions: ["create"], after: {name: "legacy"}, after_sensitive: {}}}]'
 mutate_and_reject "artifact lifecycle drift" "$artifact_plan" '.resource_changes[1].change.after.policy = ({rules: []} | tojson)'
 mutate_and_reject "artifact repository-policy drift" "$artifact_plan" '.resource_changes[2].change.after.policy = ({Version: "2012-10-17", Statement: []} | tojson)'
+mutate_and_reject "unapproved IAM user resource" "$dev_plan" '.resource_changes += [{address: "module.service.aws_iam_user.unapproved", type: "aws_iam_user", name: "unapproved", change: {actions: ["create"], after: {name: "unapproved"}, after_sensitive: {}}}]'
+mutate_and_reject "unapproved SSM parameter resource" "$dev_plan" '.resource_changes += [{address: "module.service.aws_ssm_parameter.unapproved", type: "aws_ssm_parameter", name: "unapproved", change: {actions: ["create"], after: {name: "/portfolio/lambda/dev/unapproved"}, after_sensitive: {}}}]'
+
+dev_domain_plan="$tmp_dir/dev-domain.json"
+jq '.resource_changes += [
+	{address: "module.service.aws_acm_certificate.custom[0]", type: "aws_acm_certificate", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
+	{address: "module.service.aws_acm_certificate_validation.custom[0]", type: "aws_acm_certificate_validation", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}},
+	{address: "module.service.aws_apigatewayv2_domain_name.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_domain_name", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
+	{address: "module.service.aws_apigatewayv2_api_mapping.custom[\"dev.craigdevjohnson.com\"]", type: "aws_apigatewayv2_api_mapping", name: "custom", change: {actions: ["create"], after: {}, after_sensitive: {}}}
+]' "$dev_plan" >"$dev_domain_plan"
+expect_pass "approved conditional development domain resources" run_check "$dev_domain_plan" dev
+mutate_and_reject "unapproved conditional domain address" "$dev_domain_plan" '.resource_changes[-1].address = "module.service.aws_apigatewayv2_api_mapping.custom[\"attacker.example\"]"'
+
+documented_versioning_mutation_is_guarded() {
+	document=$1
+	perl -0ne '
+		my $found = 0;
+		while (/```bash\n(.*?)```/sg) {
+			my $block = $1;
+			next unless $block =~ /s3api put-bucket-versioning/;
+			exit 1 unless $block =~ /task lambda-artifacts-init.*s3api put-bucket-versioning/s;
+			$found = 1;
+		}
+		exit($found ? 0 : 1);
+	' "$document"
+}
+
+expect_pass "deployment guide guards bucket versioning immediately before mutation" documented_versioning_mutation_is_guarded "$repo_root/DEPLOY-INSTRUCTIONS.md"
+expect_pass "authoritative plan guards bucket versioning immediately before mutation" documented_versioning_mutation_is_guarded "$repo_root/docs/superpowers/plans/2026-08-21-development-lambda-cutover.md"
 
 fake_bin="$tmp_dir/fake-bin"
 mkdir "$fake_bin"
@@ -208,8 +237,34 @@ case "$*" in
 	*"ecr get-login-password"*)
 		printf 'fake-password\n'
 		;;
+	*"ecr describe-repositories"*)
+		printf '%s\n' "${FAKE_REPOSITORY_MUTABILITY:-IMMUTABLE}"
+		;;
+	*"ecr describe-images"*"{Digest:imageDigest"*)
+		printf '%s\n' '{"Digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","PushedAt":"2026-08-22T00:00:00Z","ScanStatus":"COMPLETE"}'
+		;;
 	*"ecr describe-images"*"imageDigest"*)
-		printf '%s\n' "${FAKE_EXISTING_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+		if [ ! -f "$FAKE_LOOKUP_STATE" ]; then
+			: >"$FAKE_LOOKUP_STATE"
+			case "${FAKE_LOOKUP_MODE:-absent}" in
+				absent)
+					printf 'An error occurred (ImageNotFoundException) when calling the DescribeImages operation: image does not exist\n' >&2
+					exit 254
+					;;
+				denied)
+					printf 'An error occurred (AccessDeniedException) when calling the DescribeImages operation: denied\n' >&2
+					exit 254
+					;;
+				ambiguous)
+					printf 'AccessDeniedException included the words ImageNotFoundException\n' >&2
+					exit 254
+					;;
+				existing) printf '%s\n' "${FAKE_EXISTING_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" ;;
+				*) printf 'invalid FAKE_LOOKUP_MODE\n' >&2; exit 1 ;;
+			esac
+		else
+			printf '%s\n' "${FAKE_PUSHED_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+		fi
 		;;
 	*"ecr describe-images"*)
 		printf '%s\n' '{"Digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","PushedAt":"2026-08-22T00:00:00Z","ScanStatus":"COMPLETE"}'
@@ -278,13 +333,19 @@ EOF
 chmod +x "$fake_bin"/*
 
 real_task=$(command -v task)
+lookup_state="$tmp_dir/ecr-lookup-state"
 run_task() {
+	rm -f "$lookup_state"
 	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
 		PATH="$fake_bin:$PATH" \
 		COMMAND_LOG="$command_log" \
 		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$dev_plan}" \
 		FAKE_EXISTING_DIGEST="${FAKE_EXISTING_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
+		FAKE_LOOKUP_MODE="${FAKE_LOOKUP_MODE:-absent}" \
+		FAKE_LOOKUP_STATE="$lookup_state" \
+		FAKE_PUSHED_DIGEST="${FAKE_PUSHED_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
 		FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-false}" \
+		FAKE_REPOSITORY_MUTABILITY="${FAKE_REPOSITORY_MUTABILITY:-IMMUTABLE}" \
 		AWS_PROFILE=portfolio-deployer \
 		AWS_REGION=us-west-2 \
 		"$real_task" --dir "$repo_root" "$@"
@@ -304,7 +365,10 @@ expect_fail "plan rejects the wrong lock acknowledgement" run_task lambda-dev-pl
 expect_pass "development plan accepts only its exact lock acknowledgement" run_task lambda-dev-plan PLAN_FILE="$plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 expect_fail "plan refuses an existing saved-plan path" run_task lambda-dev-plan PLAN_FILE="$plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 expect_fail "apply rejects the wrong lock acknowledgement" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/wrong.tflock
-expect_pass "apply consumes only the existing saved plan" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+approved_plan_sha256=$(shasum -a 256 "$plan_file" | awk '{print $1}')
+expect_pass "apply consumes only the checksum-bound saved plan" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_PLAN_SHA256="$approved_plan_sha256" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+printf 'replacement plan bytes\n' >"$plan_file"
+expect_fail "apply rejects a plan replaced at the approved path" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_PLAN_SHA256="$approved_plan_sha256" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 
 artifact_plan_file="$tmp_dir/artifacts.tfplan"
 TASK7_PLAN_JSON="$artifact_plan" expect_pass "artifact plan accepts only its exact lock acknowledgement" run_task lambda-artifacts-plan PLAN_FILE="$artifact_plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
@@ -312,7 +376,25 @@ prod_plan_file="$tmp_dir/prod.tfplan"
 TASK7_PLAN_JSON="$prod_plan" expect_pass "production plan accepts only its exact lock acknowledgement" run_task lambda-prod-plan PLAN_FILE="$prod_plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
 
 expect_pass "immutable full-SHA release push" run_task lambda-release-push
-FAKE_PUSH_FAIL=true FAKE_EXISTING_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb expect_fail "release push propagates immutable-tag conflicts" run_task lambda-release-push
+pushes_before=$(grep -c '^docker push ' "$command_log" || true)
+FAKE_LOOKUP_MODE=denied expect_fail "release push fails closed on tag lookup denial" run_task lambda-release-push
+pushes_after=$(grep -c '^docker push ' "$command_log" || true)
+test "$pushes_after" = "$pushes_before" || {
+	printf 'FAIL: release pushed after a denied tag lookup\n' >&2
+	exit 1
+}
+pass "release performs no push after a denied tag lookup"
+FAKE_LOOKUP_MODE=ambiguous expect_fail "release accepts only the exact tag-absence error" run_task lambda-release-push
+FAKE_REPOSITORY_MUTABILITY=MUTABLE expect_fail "release push requires an immutable repository" run_task lambda-release-push
+pushes_before=$(grep -c '^docker push ' "$command_log" || true)
+FAKE_LOOKUP_MODE=existing expect_fail "release stops when the immutable tag already exists" run_task lambda-release-push
+pushes_after=$(grep -c '^docker push ' "$command_log" || true)
+test "$pushes_after" = "$pushes_before" || {
+	printf 'FAIL: release pushed an existing immutable tag\n' >&2
+	exit 1
+}
+pass "release performs no push for an existing immutable tag"
+FAKE_PUSH_FAIL=true expect_fail "release push propagates registry conflicts" run_task lambda-release-push
 grep -F 'task build-lambda-image BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 IMAGE_TAG=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases:git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {
 	printf 'FAIL: release build did not receive the immutable full-SHA tag\n' >&2
 	exit 1

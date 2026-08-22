@@ -129,6 +129,7 @@ After that exact approval only:
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
 test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
+task lambda-artifacts-init
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api put-bucket-versioning \
   --bucket portfolio-tofu-state-180294223248 \
   --versioning-configuration Status=Enabled
@@ -137,6 +138,10 @@ test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   --bucket portfolio-tofu-state-180294223248 \
   --query Status --output text)" = "Enabled"
 ```
+
+`lambda-artifacts-init` reruns the full exact profile, region, account,
+SSO-role ARN, non-root, and ambient-credential guard in this same shell
+immediately before the approved bucket mutation.
 
 - [ ] **Step 3: Record legacy-state metadata without fetching its contents**
 
@@ -823,7 +828,8 @@ git commit -m "feat(infra): add isolated Lambda environment roots"
 **Interfaces:**
 
 - Produces: `lambda-artifacts-init`, `lambda-artifacts-plan`, `lambda-artifacts-apply`, `lambda-release-push`, `lambda-dev-init`, `lambda-dev-plan`, `lambda-dev-apply`, `lambda-prod-init`, `lambda-prod-plan`, `lambda-prod-apply`, `lambda-plan-check`, `lambda-dev-observation-sample`, `lambda-dev-observation-workflow`, `lambda-dev-observation-gate`, `lambda-prod-observation-sample`, `lambda-prod-observation-workflow`, `lambda-prod-observation-gate`
-- Consumes: named `PLAN_FILE`, `IMAGE_DIGEST`, and non-root `AWS_PROFILE`
+- Consumes: named `PLAN_FILE`, `APPROVED_PLAN_SHA256`, `IMAGE_DIGEST`, and
+  non-root `AWS_PROFILE`
 
 - [ ] **Step 1: Add one reusable non-root identity guard**
 
@@ -869,7 +875,9 @@ The only accepted values are:
 - `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock`;
 - `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock`.
 
-Each apply command requires an existing `PLAN_FILE` and runs only:
+Each apply command requires an existing `PLAN_FILE`, requires the exact
+separately approved `APPROVED_PLAN_SHA256`, recomputes the file's SHA-256
+digest immediately before apply, and runs only:
 
 ```sh
 tofu -chdir="$root" apply -input=false "$PLAN_FILE"
@@ -893,7 +901,9 @@ aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
   --output json
 ```
 
-The task must fail if the tag already exists with a different digest.
+Before build or push, the task verifies repository tag immutability and proves
+the tag is absent. It fails closed on every lookup error except the specific
+`ImageNotFoundException`, and stops without pushing if the tag already exists.
 
 - [ ] **Step 4: Extend CI with offline infrastructure validation**
 
@@ -909,10 +919,14 @@ credentials in GitHub Actions.
 `record-lambda-observation.sh` requires explicit `RELEASE_RECORD` and
 `EVIDENCE_FILE` paths and the non-root deployment profile. It resolves the
 environment's `rollback_evidence` path from the release JSON and loads the
-recorded legacy origin from that machine-readable file. Production additionally
-resolves and validates `alarm_delivery_evidence`, requires its account and
-region, and proves its topic ARN is the sole action on all five live alarms; no caller supplies an
-unrecorded origin or notification claim. Each JSONL sample re-derives and records health revision, ECR digest,
+recorded legacy origin from that machine-readable file. The URL must be a
+strict HTTPS origin without user info, a path, a query, a fragment, or encoded
+delimiters. Production also validates the confirmed-subscription count,
+message ID, ordered timestamps within five minutes and before cutover, and
+64-hex receipt-token hash from `alarm_delivery_evidence`. It proves the topic
+ARN is the sole action on all five live alarms; no caller supplies an
+unrecorded origin or notification claim. Each JSONL sample re-derives and
+records health revision, ECR digest,
 published version, alias target, primary route/CSS/binary-asset status and
 content types, exactly five alarm states, Lambda Errors/Throttles/Duration p95,
 API 5xx/Latency p95, and App Runner rollback-origin health. It must never record
@@ -933,12 +947,14 @@ outputs, so an observation does not depend on a prior local `.terraform` cache.
 `check-lambda-observation-window.sh` exits nonzero unless:
 
 - at least eight passing samples exist;
+- the first sample is no more than 26 hours after DNS cutover;
 - the last sample is at least 604800 seconds after DNS cutover;
 - no sample gap exceeds 26 hours;
+- every recorded timestamp matches its epoch and is not in the future;
 - every sample has the same SHA, digest, version, and alias target;
 - no sample has an alarm in `ALARM` or an unresolved blocker;
 - full OAuth, Secure-cookie, add, and sync checks passed at cutover and after
-  seven full days; and
+  seven full days with distinct request IDs; and
 - the App Runner rollback origin still passes.
 
 The same scripts support production through the two production Task commands and
@@ -953,9 +969,10 @@ run the offline test in hosted infrastructure CI.
 digest-qualified image URI, and expected alarm-action JSON. It exits nonzero on
 delete/replace actions, legacy/App Runner/Amplify addresses or names, mutable
 tags, secret values, incorrect table protection/retention, wrong name-bearing
-resource prefixes, or an alarm action mismatch. `tests/lambda-plan-contract.sh`
-uses synthetic plan JSON to prove every rejection and one dev/prod pass without
-AWS access.
+resource prefixes, an address/type outside the exact environment allowlist, or
+an alarm action mismatch. The allowlist includes only the reviewed conditional
+domain addresses. `tests/lambda-plan-contract.sh` uses synthetic plan JSON to
+prove every rejection and one dev/prod pass without AWS access.
 
 - [ ] **Step 6: Rewrite deployment docs around the new roots**
 
@@ -1105,6 +1122,8 @@ plan_dir=$(mktemp -d)
 artifact_plan="$plan_dir/artifacts.tfplan"
 export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
+artifact_plan_sha256=$(shasum -a 256 "$artifact_plan" | awk '{print $1}')
+printf 'artifact_plan_sha256=%s\n' "$artifact_plan_sha256"
 tofu -chdir=infra/lambda/artifacts show -json "$artifact_plan" | \
   jq -r '.resource_changes[] | [.address, (.change.actions | join(","))] | @tsv'
 ```
@@ -1124,12 +1143,14 @@ fresh shell and apply only it:
 
 ```bash
 : "${APPROVED_ARTIFACT_PLAN:?set the exact approved artifact plan path}"
+: "${APPROVED_PLAN_SHA256:?set the exact approved artifact plan checksum}"
 test -f "$APPROVED_ARTIFACT_PLAN"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
 task lambda-artifacts-init
 task lambda-artifacts-apply \
   PLAN_FILE="$APPROVED_ARTIFACT_PLAN" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 ```
 
@@ -1329,6 +1350,8 @@ task lambda-dev-plan \
   PLAN_FILE="$dev_plan" \
   IMAGE_DIGEST="$release_digest" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+dev_plan_sha256=$(shasum -a 256 "$dev_plan" | awk '{print $1}')
+printf 'dev_plan_sha256=%s\n' "$dev_plan_sha256"
 
 tofu -chdir=infra/lambda/environments/dev show -json "$dev_plan" > "$dev_plan_json"
 jq -r '.resource_changes[] | [.address, (.change.actions | join(","))] | @tsv' "$dev_plan_json"
@@ -1354,6 +1377,7 @@ path in a fresh shell and apply only it:
 
 ```bash
 : "${APPROVED_DEV_PLAN:?set the exact approved development plan path}"
+: "${APPROVED_PLAN_SHA256:?set the exact approved development plan checksum}"
 test -f "$APPROVED_DEV_PLAN"
 test -f "$APPROVED_DEV_PLAN.json"
 export AWS_PROFILE=portfolio-deployer
@@ -1362,6 +1386,7 @@ task lambda-artifacts-init
 task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_DEV_PLAN" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
@@ -1521,6 +1546,8 @@ task lambda-dev-plan \
   PLAN_FILE="$certificate_plan" \
   IMAGE_DIGEST="$release_digest" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+certificate_plan_sha256=$(shasum -a 256 "$certificate_plan" | awk '{print $1}')
+printf 'certificate_plan_sha256=%s\n' "$certificate_plan_sha256"
 tofu -chdir=infra/lambda/environments/dev show -json "$certificate_plan" > \
   "$certificate_plan_dir/dev-certificate.json"
 jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes |
@@ -1538,6 +1565,7 @@ current execution session. No Lambda replacement or alias movement is allowed.
 
 ```bash
 : "${APPROVED_CERTIFICATE_PLAN:?set the exact approved certificate plan path}"
+: "${APPROVED_PLAN_SHA256:?set the exact approved certificate plan checksum}"
 test -f "$APPROVED_CERTIFICATE_PLAN"
 test -f "$(dirname "$APPROVED_CERTIFICATE_PLAN")/dev-certificate.json"
 export AWS_PROFILE=portfolio-deployer
@@ -1545,6 +1573,7 @@ export AWS_REGION=us-west-2
 task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_CERTIFICATE_PLAN" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
@@ -1587,6 +1616,8 @@ task lambda-dev-plan \
   PLAN_FILE="$activation_plan" \
   IMAGE_DIGEST="$release_digest" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+activation_plan_sha256=$(shasum -a 256 "$activation_plan" | awk '{print $1}')
+printf 'activation_plan_sha256=%s\n' "$activation_plan_sha256"
 tofu -chdir=infra/lambda/environments/dev show -json "$activation_plan" > \
   "$activation_plan_dir/dev-domain-activation.json"
 jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes |
@@ -1603,6 +1634,7 @@ hosted CI before the apply.
 
 ```bash
 : "${APPROVED_ACTIVATION_PLAN:?set the exact approved domain-activation plan path}"
+: "${APPROVED_PLAN_SHA256:?set the exact approved domain-activation plan checksum}"
 test -f "$APPROVED_ACTIVATION_PLAN"
 test -f "$(dirname "$APPROVED_ACTIVATION_PLAN")/dev-domain-activation.json"
 export AWS_PROFILE=portfolio-deployer
@@ -1610,6 +1642,7 @@ export AWS_REGION=us-west-2
 task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_ACTIVATION_PLAN" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
   APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
