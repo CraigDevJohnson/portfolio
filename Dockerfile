@@ -11,12 +11,13 @@ FROM --platform=$BUILDPLATFORM golang:1.27.0 AS builder
 WORKDIR /src
 
 ARG TAILWIND_VERSION=v4.2.4
-ARG TARGETOS=linux
-ARG TARGETARCH=arm64
+ARG TARGETOS
+ARG TARGETARCH
+ARG BUILD_REVISION=development
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# Preserve the standard trust store before adding build-only trust. The final
+# image is assembled from this copy plus the distinct runtime secret below.
+RUN cp /etc/ssl/certs/ca-certificates.crt /tmp/runtime-ca-certificates.crt
 
 # BuildKit keeps the host's managed proxy CA out of image history. `task compose`
 # supplies this bundle when Docker traffic is intercepted by a trusted proxy.
@@ -49,15 +50,25 @@ COPY . .
 RUN tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
   && templ generate \
   && CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
-  go build -trimpath -ldflags='-s -w' -o /out/portfolio-server ./cmd/server
+  go build -trimpath \
+  -ldflags="-s -w -X portfolio/internal/buildinfo.revision=${BUILD_REVISION}" \
+  -o /out/portfolio-server ./cmd/server
+
+ARG RUNTIME_CA_BUNDLE_DIGEST=empty
+RUN --mount=type=secret,id=runtime_ca_bundle,required=false \
+  printf '%s' "${RUNTIME_CA_BUNDLE_DIGEST}" >/dev/null; \
+  cp /tmp/runtime-ca-certificates.crt /out/ca-certificates.crt; \
+  if [ -s /run/secrets/runtime_ca_bundle ]; then \
+  cat /run/secrets/runtime_ca_bundle >> /out/ca-certificates.crt; \
+  fi
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 
-# Keep the standard trust store plus any BuildKit-provided managed proxy CA in
-# the runtime image. The server makes outbound HTTPS calls after startup.
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Keep the standard trust store plus only the distinct runtime CA bundle. The
+# build-only CA never crosses the builder-stage boundary.
+COPY --from=builder /out/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/portfolio-server /app/portfolio-server
 COPY --from=builder /src/cmd/web/static /app/cmd/web/static
 

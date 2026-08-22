@@ -4,10 +4,14 @@ services:
       context: .
       args:
         BUILD_CA_BUNDLE_DIGEST: ${DOCKER_BUILD_CA_BUNDLE_DIGEST:-empty}
+        BUILD_REVISION: ${BUILD_REVISION:-development}
+        RUNTIME_CA_BUNDLE_DIGEST: ${DOCKER_RUNTIME_CA_BUNDLE_DIGEST:-empty}
       secrets:
         - build_ca_bundle
+        - runtime_ca_bundle
     image: portfolio-app:latest
     container_name: portfolio-app
+    platform: linux/amd64
     environment:
       APP_BIND_ALL: ${APP_BIND_ALL:-true}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -36,3 +40,5 @@ services:
 secrets:
   build_ca_bundle:
     file: ${DOCKER_BUILD_CA_CERT_PATH:-/dev/null}
+  runtime_ca_bundle:
+    file: ${DOCKER_RUNTIME_CA_CERT_PATH:-/dev/null}

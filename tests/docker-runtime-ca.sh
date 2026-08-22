@@ -14,9 +14,15 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 openssl req -x509 -newkey rsa:2048 -nodes \
-	-keyout "$runtime_ca_dir/test-ca.key" \
-	-out "$runtime_ca_dir/test-ca.pem" \
-	-subj "/CN=Portfolio Runtime CA Contract" \
+	-keyout "$runtime_ca_dir/build-only-ca.key" \
+	-out "$runtime_ca_dir/build-only-ca.pem" \
+	-subj "/CN=Portfolio Build Only CA Contract" \
+	-days 1 >/dev/null 2>&1
+
+openssl req -x509 -newkey rsa:2048 -nodes \
+	-keyout "$runtime_ca_dir/runtime-only-ca.key" \
+	-out "$runtime_ca_dir/runtime-only-ca.pem" \
+	-subj "/CN=Portfolio Runtime Only CA Contract" \
 	-days 1 >/dev/null 2>&1
 
 : > "$runtime_ca_dir/build-ca.pem"
@@ -24,16 +30,31 @@ if command -v security >/dev/null 2>&1 && [ -r /Library/Keychains/System.keychai
 	security find-certificate -a -c "Gateway CA" -p \
 		/Library/Keychains/System.keychain > "$runtime_ca_dir/build-ca.pem" || true
 fi
-cat "$runtime_ca_dir/test-ca.pem" >> "$runtime_ca_dir/build-ca.pem"
-runtime_ca_digest=$(shasum -a 256 "$runtime_ca_dir/build-ca.pem" | awk '{print $1}')
+cat "$runtime_ca_dir/build-only-ca.pem" >> "$runtime_ca_dir/build-ca.pem"
+cp "$runtime_ca_dir/runtime-only-ca.pem" "$runtime_ca_dir/runtime-ca-secret.pem"
+build_ca_digest=$(shasum -a 256 "$runtime_ca_dir/build-ca.pem" | awk '{print $1}')
+runtime_ca_digest=$(shasum -a 256 "$runtime_ca_dir/runtime-ca-secret.pem" | awk '{print $1}')
 
-docker build \
+docker build --platform linux/amd64 \
 	--secret "id=build_ca_bundle,src=$runtime_ca_dir/build-ca.pem" \
-	--build-arg "BUILD_CA_BUNDLE_DIGEST=$runtime_ca_digest" \
+	--secret "id=runtime_ca_bundle,src=$runtime_ca_dir/runtime-ca-secret.pem" \
+	--build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
+	--build-arg "RUNTIME_CA_BUNDLE_DIGEST=$runtime_ca_digest" \
+	--build-arg BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 \
 	-t "$runtime_ca_image" \
 	. >/dev/null
 
+test "$(docker image inspect --format '{{.Architecture}}' "$runtime_ca_image")" = "amd64"
 docker create --name "$runtime_ca_container" "$runtime_ca_image" >/dev/null
+docker cp "$runtime_ca_container:/app/portfolio-server" "$runtime_ca_dir/portfolio-server"
+file "$runtime_ca_dir/portfolio-server" | grep -Eq 'x86-64|x86_64'
+strings "$runtime_ca_dir/portfolio-server" | \
+	grep -F -q '0123456789abcdef0123456789abcdef01234567'
 docker cp "$runtime_ca_container:/etc/ssl/certs/ca-certificates.crt" "$runtime_ca_dir/runtime-ca.pem"
 
-openssl verify -CAfile "$runtime_ca_dir/runtime-ca.pem" "$runtime_ca_dir/test-ca.pem"
+openssl verify -CAfile "$runtime_ca_dir/runtime-ca.pem" "$runtime_ca_dir/runtime-only-ca.pem"
+if openssl verify -CAfile "$runtime_ca_dir/runtime-ca.pem" \
+	"$runtime_ca_dir/build-only-ca.pem" >/dev/null 2>&1; then
+	echo "build-only CA unexpectedly present in the runtime trust store" >&2
+	exit 1
+fi

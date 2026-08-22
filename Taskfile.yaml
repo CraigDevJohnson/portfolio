@@ -55,6 +55,95 @@ tasks:
     cmds:
       - "go build {{.GOFLAGS}} -o {{.BINARY}} ./cmd/server"
 
+  build-image:
+    desc: Build the local Linux server image without pushing or deploying
+    env:
+      BUILD_REVISION: '{{default "" .BUILD_REVISION}}'
+      IMAGE_TAG: '{{default "portfolio:local" .IMAGE_TAG}}'
+    cmds:
+      - |
+        set -eu
+        ca_temp_dir="$(mktemp -d)"
+        chmod 700 "$ca_temp_dir"
+        trap 'rm -rf "$ca_temp_dir"' EXIT
+        build_ca_bundle="$ca_temp_dir/build-ca.pem"
+        runtime_ca_bundle="$ca_temp_dir/runtime-ca.pem"
+        : > "$build_ca_bundle"
+        : > "$runtime_ca_bundle"
+        chmod 600 "$build_ca_bundle" "$runtime_ca_bundle"
+
+        if [ -n "${DOCKER_BUILD_CA_CERT_PATH:-}" ]; then
+          if [ ! -r "$DOCKER_BUILD_CA_CERT_PATH" ]; then
+            echo "Docker build CA certificate is not readable: $DOCKER_BUILD_CA_CERT_PATH"
+            exit 1
+          fi
+          cp "$DOCKER_BUILD_CA_CERT_PATH" "$build_ca_bundle"
+        elif command -v security >/dev/null 2>&1 \
+          && [ -r /Library/Keychains/System.keychain ]; then
+          security find-certificate -a -c "Gateway CA" -p \
+            /Library/Keychains/System.keychain > "$build_ca_bundle" || true
+        fi
+
+        if [ -n "${DOCKER_RUNTIME_CA_CERT_PATH:-}" ]; then
+          if [ ! -r "$DOCKER_RUNTIME_CA_CERT_PATH" ]; then
+            echo "Docker runtime CA certificate is not readable: $DOCKER_RUNTIME_CA_CERT_PATH"
+            exit 1
+          fi
+          cp "$DOCKER_RUNTIME_CA_CERT_PATH" "$runtime_ca_bundle"
+        fi
+
+        if [ -z "$BUILD_REVISION" ]; then
+          BUILD_REVISION="$(git rev-parse HEAD)"
+        fi
+        build_ca_digest=$(shasum -a 256 "$build_ca_bundle" | awk '{print $1}')
+        runtime_ca_digest=$(shasum -a 256 "$runtime_ca_bundle" | awk '{print $1}')
+
+        docker build --platform linux/amd64 \
+          --secret "id=build_ca_bundle,src=$build_ca_bundle" \
+          --secret "id=runtime_ca_bundle,src=$runtime_ca_bundle" \
+          --build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
+          --build-arg "RUNTIME_CA_BUNDLE_DIGEST=$runtime_ca_digest" \
+          --build-arg "BUILD_REVISION=$BUILD_REVISION" \
+          -f Dockerfile -t "$IMAGE_TAG" .
+
+  build-lambda-image:
+    desc: Build the local Linux Lambda image without pushing or deploying
+    env:
+      BUILD_REVISION: '{{default "" .BUILD_REVISION}}'
+      IMAGE_TAG: '{{default "portfolio-lambda:local" .IMAGE_TAG}}'
+    cmds:
+      - |
+        set -eu
+        ca_temp_dir="$(mktemp -d)"
+        chmod 700 "$ca_temp_dir"
+        trap 'rm -rf "$ca_temp_dir"' EXIT
+        build_ca_bundle="$ca_temp_dir/build-ca.pem"
+        : > "$build_ca_bundle"
+        chmod 600 "$build_ca_bundle"
+
+        if [ -n "${DOCKER_BUILD_CA_CERT_PATH:-}" ]; then
+          if [ ! -r "$DOCKER_BUILD_CA_CERT_PATH" ]; then
+            echo "Docker build CA certificate is not readable: $DOCKER_BUILD_CA_CERT_PATH"
+            exit 1
+          fi
+          cp "$DOCKER_BUILD_CA_CERT_PATH" "$build_ca_bundle"
+        elif command -v security >/dev/null 2>&1 \
+          && [ -r /Library/Keychains/System.keychain ]; then
+          security find-certificate -a -c "Gateway CA" -p \
+            /Library/Keychains/System.keychain > "$build_ca_bundle" || true
+        fi
+
+        if [ -z "$BUILD_REVISION" ]; then
+          BUILD_REVISION="$(git rev-parse HEAD)"
+        fi
+        build_ca_digest=$(shasum -a 256 "$build_ca_bundle" | awk '{print $1}')
+
+        docker build --platform linux/amd64 \
+          --secret "id=build_ca_bundle,src=$build_ca_bundle" \
+          --build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
+          --build-arg "BUILD_REVISION=$BUILD_REVISION" \
+          -f Dockerfile.lambda -t "$IMAGE_TAG" .
+
   # ── Run ────────────────────────────────────────────────────────────────────
 
   run:
@@ -80,8 +169,14 @@ tasks:
     cmds:
       - |
         set -eu
-        build_ca_bundle="$(mktemp)"
-        trap 'rm -f "$build_ca_bundle"' EXIT
+        ca_temp_dir="$(mktemp -d)"
+        chmod 700 "$ca_temp_dir"
+        trap 'rm -rf "$ca_temp_dir"' EXIT
+        build_ca_bundle="$ca_temp_dir/build-ca.pem"
+        runtime_ca_bundle="$ca_temp_dir/runtime-ca.pem"
+        : > "$build_ca_bundle"
+        : > "$runtime_ca_bundle"
+        chmod 600 "$build_ca_bundle" "$runtime_ca_bundle"
 
         if [ -n "${DOCKER_BUILD_CA_CERT_PATH:-}" ]; then
           if [ ! -r "$DOCKER_BUILD_CA_CERT_PATH" ]; then
@@ -95,9 +190,22 @@ tasks:
             /Library/Keychains/System.keychain > "$build_ca_bundle" || true
         fi
 
+        if [ -n "${DOCKER_RUNTIME_CA_CERT_PATH:-}" ]; then
+          if [ ! -r "$DOCKER_RUNTIME_CA_CERT_PATH" ]; then
+            echo "Docker runtime CA certificate is not readable: $DOCKER_RUNTIME_CA_CERT_PATH"
+            exit 1
+          fi
+          cp "$DOCKER_RUNTIME_CA_CERT_PATH" "$runtime_ca_bundle"
+        else
+          cp "$build_ca_bundle" "$runtime_ca_bundle"
+        fi
+
         build_ca_digest=$(shasum -a 256 "$build_ca_bundle" | awk '{print $1}')
+        runtime_ca_digest=$(shasum -a 256 "$runtime_ca_bundle" | awk '{print $1}')
         DOCKER_BUILD_CA_CERT_PATH="$build_ca_bundle" \
         DOCKER_BUILD_CA_BUNDLE_DIGEST="$build_ca_digest" \
+        DOCKER_RUNTIME_CA_CERT_PATH="$runtime_ca_bundle" \
+        DOCKER_RUNTIME_CA_BUNDLE_DIGEST="$runtime_ca_digest" \
           docker compose -f docker-compose.yml up -d --build portfolio
 
   dev:
@@ -131,6 +239,12 @@ tasks:
     cmds:
       - task: fmt
       - task: _lint-check
+
+  test-images:
+    desc: Verify both local Linux image contracts
+    cmds:
+      - sh tests/docker-runtime-ca.sh
+      - sh tests/docker-lambda-image.sh
 
   _lint-check:
     internal: true
