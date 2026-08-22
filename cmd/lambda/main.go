@@ -2,57 +2,70 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"sync"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/awslabs/aws-lambda-go-api-proxy/core"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"portfolio/internal/app"
+	"portfolio/internal/httpx"
 )
 
-var (
-	adapterMu sync.Mutex
-	adapter   *httpadapter.HandlerAdapterV2
-)
+const lambdaInitializationTimeout = 8 * time.Second
 
-func lambdaHandler(ctx context.Context, req *events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	adapterMu.Lock()
-	if adapter == nil {
-		if err := resolveSSMSecrets(ctx); err != nil {
-			adapterMu.Unlock()
-			slog.Error("lambda secret resolution failed", slog.Any("error", err))
-			return events.APIGatewayV2HTTPResponse{
-				StatusCode: 500,
-				Body:       "server initialization failed",
-			}, nil
-		}
-		httpHandler, err := app.NewLambdaHandler()
-		if err != nil {
-			adapterMu.Unlock()
-			slog.Error("lambda handler construction failed", slog.Any("error", err))
-			return events.APIGatewayV2HTTPResponse{
-				StatusCode: 500,
-				Body:       "server initialization failed",
-			}, nil
-		}
-		adapter = httpadapter.NewV2(httpHandler)
+type proxyV2 interface {
+	ProxyWithContext(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error)
+}
+
+type lambdaHandlerFunc func(context.Context, *events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error)
+
+func initializeLambda(ctx context.Context) (proxyV2, error) {
+	if err := resolveSSMSecrets(ctx); err != nil {
+		return nil, fmt.Errorf("resolve SSM secrets: %w", err)
 	}
-	a := adapter
-	adapterMu.Unlock()
-
-	if req == nil {
-		slog.Error("lambda request payload missing")
-		return events.APIGatewayV2HTTPResponse{
-			StatusCode: 400,
-			Body:       "invalid request",
-		}, nil
+	handler, err := app.NewLambdaHandler(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("construct application: %w", err)
 	}
+	return httpadapter.NewV2(withAPIGatewayOrigin(handler)), nil
+}
 
-	return a.ProxyWithContext(ctx, *req)
+func newLambdaHandler(proxy proxyV2) lambdaHandlerFunc {
+	return func(ctx context.Context, request *events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+		if request == nil {
+			return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusBadRequest, Body: "invalid request"}, nil
+		}
+		return proxy.ProxyWithContext(ctx, *request)
+	}
+}
+
+func withAPIGatewayOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gatewayContext, ok := core.GetAPIGatewayV2ContextFromContext(r.Context())
+		domain := strings.TrimSpace(gatewayContext.DomainName)
+		if !ok || domain == "" {
+			http.Error(w, "gateway request context missing", http.StatusInternalServerError)
+			return
+		}
+		r = httpx.WithTrustedOrigin(r, httpx.TrustedOrigin{Scheme: "https", Host: domain})
+		next.ServeHTTP(w, r)
+	})
 }
 
 func main() {
-	lambda.Start(lambdaHandler)
+	initCtx, cancel := context.WithTimeout(context.Background(), lambdaInitializationTimeout)
+	proxy, err := initializeLambda(initCtx)
+	cancel()
+	if err != nil {
+		slog.Error("lambda initialization failed", slog.Any("error", err))
+		os.Exit(1)
+	}
+	lambda.Start(newLambdaHandler(proxy))
 }

@@ -146,46 +146,34 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	return mux, soccerHandler
 }
 
-func initializeGoogleStore(app *App) {
-	initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)
-	defer initCancel()
-	store, initErr := internalgoogle.NewConnectionStore(initCtx, app.Config.GoogleConnectionTableName)
+func initializeGoogleStore(ctx context.Context, app *App) error {
+	store, initErr := internalgoogle.NewConnectionStore(ctx, app.Config.GoogleConnectionTableName)
 	if initErr != nil {
-		app.GoogleHandler.Logger.Warn(
-			"google calendar add remains disabled; connection store initialization failed",
-			slog.String("table_name", app.Config.GoogleConnectionTableName),
-			slog.Any("error", initErr),
-		)
-		return
+		return initErr
 	}
 	app.GoogleHandler.SetStore(store)
 	app.GoogleHandler.Logger.Info(
 		"google connection store initialized",
 		slog.String("table_name", app.Config.GoogleConnectionTableName),
 	)
+	return nil
 }
 
-func initializeSoccerStore(app *App, soccerHandler *internalsoccer.Handler) {
-	initCtx, initCancel := context.WithTimeout(context.Background(), soccerStoreInitTimeout)
-	defer initCancel()
-	store, initErr := internalsoccer.NewSoccerStore(initCtx, app.Config.SoccerSessionTableName)
+func initializeSoccerStore(ctx context.Context, app *App, soccerHandler *internalsoccer.Handler) error {
+	store, initErr := internalsoccer.NewSoccerStore(ctx, app.Config.SoccerSessionTableName)
 	if initErr != nil {
-		soccerHandler.Logger.Warn(
-			"soccer session store initialization failed; DynamoDB persistence disabled",
-			slog.String("table_name", app.Config.SoccerSessionTableName),
-			slog.Any("error", initErr),
-		)
-		return
+		return initErr
 	}
 	soccerHandler.SetStore(store)
 	soccerHandler.Logger.Info(
 		"soccer session store initialized",
 		slog.String("table_name", app.Config.SoccerSessionTableName),
 	)
+	return nil
 }
 
 // NewLambdaHandler constructs the HTTP handler for Lambda + API Gateway deployments.
-func NewLambdaHandler() (http.Handler, error) {
+func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
 	rootLogger, _, warnings := logging.NewLoggerFromEnv()
 	slog.SetDefault(rootLogger)
 	for _, warning := range warnings {
@@ -202,10 +190,14 @@ func NewLambdaHandler() (http.Handler, error) {
 	mux, soccerHandler := buildMux(app, rootLogger, false)
 
 	if app.Config.GoogleEnabled() {
-		initializeGoogleStore(app)
+		if err := initializeGoogleStore(ctx, app); err != nil {
+			return nil, fmt.Errorf("initialize Google connection store: %w", err)
+		}
 	}
 	if app.Config.SoccerSessionEnabled() {
-		initializeSoccerStore(app, soccerHandler)
+		if err := initializeSoccerStore(ctx, app, soccerHandler); err != nil {
+			return nil, fmt.Errorf("initialize soccer session store: %w", err)
+		}
 	}
 
 	return withRequestLogging(rootLogger.With(slog.String("component", "http")), mux), nil
@@ -287,14 +279,30 @@ func Run() error {
 	// health checks never wait on AWS SDK startup or credential resolution.
 	if !localPortalPreview && app.Config.GoogleEnabled() {
 		go func() {
-			initializeGoogleStore(app)
+			initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)
+			defer initCancel()
+			if err := initializeGoogleStore(initCtx, app); err != nil {
+				app.GoogleHandler.Logger.Warn(
+					"google calendar add remains disabled; connection store initialization failed",
+					slog.String("table_name", app.Config.GoogleConnectionTableName),
+					slog.Any("error", err),
+				)
+			}
 		}()
 	}
 
 	// Initialize the soccer session store in the background — same pattern as Google store.
 	if !localPortalPreview && app.Config.SoccerSessionEnabled() {
 		go func() {
-			initializeSoccerStore(app, soccerHandler)
+			initCtx, initCancel := context.WithTimeout(context.Background(), soccerStoreInitTimeout)
+			defer initCancel()
+			if err := initializeSoccerStore(initCtx, app, soccerHandler); err != nil {
+				soccerHandler.Logger.Warn(
+					"soccer session store initialization failed; DynamoDB persistence disabled",
+					slog.String("table_name", app.Config.SoccerSessionTableName),
+					slog.Any("error", err),
+				)
+			}
 		}()
 	}
 
