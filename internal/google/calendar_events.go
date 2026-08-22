@@ -13,32 +13,38 @@ import (
 	"portfolio/types"
 )
 
-func (h *Handler) insertCalendarEvents(r *http.Request, record *ConnectionRecord, token *oauth2.Token, games []types.Game) (int, int, int, bool, error) {
-	added := 0
-	updated := 0
-	skipped := 0
+type calendarMutationResult struct {
+	added        int
+	updated      int
+	skipped      int
+	authRejected bool
+}
+
+func (h *Handler) insertCalendarEvents(ctx context.Context, r *http.Request, record *ConnectionRecord, token *oauth2.Token, games []types.Game) (calendarMutationResult, error) {
+	var result calendarMutationResult
 	for i := range games {
 		event, ok := eventPayload(r, &games[i])
 		if !ok {
 			continue
 		}
-		action, authRejected, err := h.syncCalendarEvent(h.httpContext(r.Context()), record.CalendarID, token, &event)
+		action, authRejected, err := h.syncCalendarEvent(h.httpContext(ctx), record.CalendarID, token, &event)
 		if err != nil {
-			return 0, 0, 0, false, err
+			return result, err
 		}
 		if authRejected {
-			return 0, 0, 0, true, nil
+			result.authRejected = true
+			return result, nil
 		}
 		switch action {
 		case calendarEventInserted:
-			added++
+			result.added++
 		case calendarEventUpdated:
-			updated++
+			result.updated++
 		case calendarEventSkipped:
-			skipped++
+			result.skipped++
 		}
 	}
-	return added, updated, skipped, false, nil
+	return result, nil
 }
 
 func (h *Handler) syncCalendarEvent(ctx context.Context, calendarID string, token *oauth2.Token, event *Event) (calendarEventAction, bool, error) {

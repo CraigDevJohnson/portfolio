@@ -36,13 +36,14 @@ type OAuthState struct {
 }
 
 type Handler struct {
-	Config             *config.Config
-	OAuthAuthURL       string
-	OAuthTokenURL      string
-	CalendarAPIBaseURL string
-	LPSClient          *http.Client
-	Logger             *slog.Logger
-	Soccer             SoccerBridge
+	Config                  *config.Config
+	OAuthAuthURL            string
+	OAuthTokenURL           string
+	CalendarAPIBaseURL      string
+	CalendarMutationTimeout time.Duration
+	LPSClient               *http.Client
+	Logger                  *slog.Logger
+	Soccer                  SoccerBridge
 
 	storeMu    sync.RWMutex
 	store      ConnectionStore
