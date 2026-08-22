@@ -1,0 +1,161 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DevGoogleConnections",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DeleteItem",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ],
+      "Resource": "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-google-connections",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+        }
+      }
+    },
+    {
+      "Sid": "DevSoccerSessions",
+      "Effect": "Allow",
+      "Action": "dynamodb:PutItem",
+      "Resource": "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-soccer-sessions",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+        }
+      }
+    },
+    {
+      "Sid": "DevParameters",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+      ],
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+        }
+      }
+    },
+    {
+      "Sid": "DevParameterDecryption",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+        },
+        "StringEquals": {
+          "kms:CallerAccount": "180294223248",
+          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
+          "kms:EncryptionContext:PARAMETER_ARN": [
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+          ]
+        },
+        "ForAnyValue:StringEquals": {
+          "kms:ResourceAliases": "alias/aws/ssm"
+        }
+      }
+    },
+    {
+      "Sid": "DevLambdaLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+        }
+      }
+    },
+    {
+      "Sid": "ProdGoogleConnections",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DeleteItem",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
+      ],
+      "Resource": "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-prod-google-connections",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-prod-execution"
+        }
+      }
+    },
+    {
+      "Sid": "ProdSoccerSessions",
+      "Effect": "Allow",
+      "Action": "dynamodb:PutItem",
+      "Resource": "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-prod-soccer-sessions",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-prod-execution"
+        }
+      }
+    },
+    {
+      "Sid": "ProdParameters",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/LPS_SESSION_KEY"
+      ],
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-prod-execution"
+        }
+      }
+    },
+    {
+      "Sid": "ProdParameterDecryption",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-prod-execution"
+        },
+        "StringEquals": {
+          "kms:CallerAccount": "180294223248",
+          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
+          "kms:EncryptionContext:PARAMETER_ARN": [
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/prod/LPS_SESSION_KEY"
+          ]
+        },
+        "ForAnyValue:StringEquals": {
+          "kms:ResourceAliases": "alias/aws/ssm"
+        }
+      }
+    },
+    {
+      "Sid": "ProdLambdaLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-prod:*",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::180294223248:role/portfolio-lambda-prod-execution"
+        }
+      }
+    }
+  ]
+}

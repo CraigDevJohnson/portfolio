@@ -26,12 +26,21 @@ the Lambda path.
   IAM, data, domain, log, and alarm resources.
 - `infra/lambda/artifacts/`, `infra/lambda/environments/dev/`, and
   `infra/lambda/environments/prod/` own three isolated states.
+- `infra/lambda/bootstrap/` contains the reviewed non-secret initial deployer
+  and root-owned execution-boundary policy inputs.
 - `infra/lambda.tf` remains the legacy shared-stack Lambda source.
 
 The replacement environments do not share ECR ownership, DynamoDB tables, IAM
 roles, SSM paths, logs, alarms, or state with the legacy stack.
 
 ## Replacement release workflow
+
+The tracked [bootstrap policy inputs](../../infra/lambda/bootstrap/README.md)
+are authoritative for their reviewed initial bytes. Checking them in grants no
+AWS access. Live provisioning, assignment, use, tightening, and reprovisioning
+remain separately approved, with identity ownership evidence kept private.
+The deployer input contains temporary grants and is not standing state; never
+restore it after an approved removal and reprovisioning gate.
 
 Every replacement task requires exactly the `portfolio-deployer` SSO profile in
 `us-west-2`, no ambient static AWS credential variables, account

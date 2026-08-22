@@ -52,6 +52,17 @@ OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-enable MD013 -->
 
+The reviewed non-secret initial policy inputs are the
+[development deployer policy](./infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json)
+and the
+[root-owned execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json).
+They are authoritative for their initial policy content, but grant nothing
+merely by being checked in. The deployer document contains temporary grants;
+never restore it after a removal and reprovisioning gate. Keep exact Identity
+Center ownership, assignment, MFA, provisioning results, and live approval
+evidence private. Every live create, update, assignment, and use remains
+separately approval-gated.
+
 The lock acknowledgement is mechanical evidence that the controller approved
 the exact native S3 lock-object write in the current session. It does not
 authorize the plan or apply. Every changed lock path needs new approval.
@@ -176,6 +187,10 @@ stores only these paths, never decrypted values. The legacy `/portfolio/*`
 parameters remain unchanged.
 
 ### Development proof and custom domain
+
+The initial development deployer policy excludes ACM and custom-domain
+authority. Before either custom-domain stage, review and approve the exact
+just-in-time development-only permission-set candidate and reprovisioning.
 
 For the first development plan, set the approved dev lock URI and pass the
 recorded digest:

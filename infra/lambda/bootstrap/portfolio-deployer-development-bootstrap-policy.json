@@ -1,0 +1,455 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
+    },
+    {
+      "Sid": "T1",
+      "Effect": "Allow",
+      "Action": "s3:PutBucketVersioning",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248",
+      "Condition": {
+        "StringEquals": {
+          "s3:prefix": "env:/"
+        },
+        "NumericLessThanEquals": {
+          "s3:max-keys": "1000"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate",
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock",
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate",
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock"
+      ]
+    },
+    {
+      "Sid": "TJ",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio/terraform.tfstate"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "T2",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:TagResource"
+      ],
+      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+    },
+    {
+      "Sid": "T3",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:PutImageScanningConfiguration",
+        "ecr:PutImageTagMutability",
+        "ecr:PutLifecyclePolicy",
+        "ecr:SetRepositoryPolicy"
+      ],
+      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories",
+        "ecr:GetLifecyclePolicy",
+        "ecr:GetRepositoryPolicy",
+        "ecr:InitiateLayerUpload",
+        "ecr:ListTagsForResource",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+    },
+    {
+      "Sid": "T4",
+      "Effect": "Allow",
+      "Action": "iam:CreateRole",
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:ListRoleTags",
+        "iam:TagRole"
+      ],
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PutRolePolicy",
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "lambda.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "T5",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:TagResource"
+      ],
+      "Resource": "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateAlias",
+        "lambda:GetAlias",
+        "lambda:GetFunction",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetFunctionConcurrency",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetPolicy",
+        "lambda:GetRuntimeManagementConfig",
+        "lambda:ListTags",
+        "lambda:ListVersionsByFunction",
+        "lambda:PublishVersion",
+        "lambda:PutFunctionConcurrency",
+        "lambda:UpdateAlias",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration"
+      ],
+      "Resource": [
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev",
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:*"
+      ]
+    },
+    {
+      "Sid": "TI",
+      "Effect": "Allow",
+      "Action": "lambda:AddPermission",
+      "Resource": [
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev",
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "lambda:Principal": "apigateway.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "T7",
+      "Effect": "Allow",
+      "Action": "apigateway:POST",
+      "Resource": "arn:aws:apigateway:us-west-2::/apis",
+      "Condition": {
+        "StringEquals": {
+          "apigateway:Request/ApiName": "portfolio-lambda-dev-http",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/ManagedBy": "opentofu",
+          "aws:RequestTag/Platform": "lambda-http-api",
+          "aws:RequestTag/Project": "portfolio"
+        },
+        "ForAllValues:StringEquals": {
+          "aws:TagKeys": [
+            "Environment",
+            "ManagedBy",
+            "Platform",
+            "Project"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "T8",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET",
+        "apigateway:PATCH",
+        "apigateway:POST"
+      ],
+      "Resource": "arn:aws:apigateway:us-west-2::/apis/*"
+    },
+    {
+      "Sid": "TK",
+      "Effect": "Allow",
+      "Action": "apigateway:PUT",
+      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F*%2Fstages%2F%24default"
+    },
+    {
+      "Sid": "T9",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:FilterLogEvents",
+        "logs:ListTagsForResource",
+        "logs:PutRetentionPolicy"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "logs:DescribeLogGroups",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "TA",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogDelivery",
+        "logs:DeleteLogDelivery",
+        "logs:DescribeResourcePolicies",
+        "logs:GetLogDelivery",
+        "logs:ListLogDeliveries",
+        "logs:PutResourcePolicy",
+        "logs:UpdateLogDelivery"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "TB",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-google-connections",
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-soccer-sessions"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:UpdateContinuousBackups",
+        "dynamodb:UpdateTable",
+        "dynamodb:UpdateTimeToLive"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-google-connections",
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-soccer-sessions"
+      ]
+    },
+    {
+      "Sid": "TD",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_SECRET_KEY"
+      ]
+    },
+    {
+      "Sid": "TE",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+      ]
+    },
+    {
+      "Sid": "TF",
+      "Effect": "Allow",
+      "Action": "ssm:PutParameter",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ssm:Overwrite": "false"
+        },
+        "Null": {
+          "ssm:Policies": "true"
+        }
+      }
+    },
+    {
+      "Sid": "D",
+      "Effect": "Deny",
+      "Action": "ssm:PutParameter",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ssm:Overwrite": "true"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:ListAliases",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:DescribeKey",
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {
+          "kms:ResourceAliases": "alias/aws/ssm"
+        }
+      }
+    },
+    {
+      "Sid": "TG",
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:CallerAccount": "180294223248",
+          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
+          "kms:EncryptionContext:PARAMETER_ARN": [
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_SECRET_KEY"
+          ]
+        },
+        "ForAnyValue:StringEquals": {
+          "kms:ResourceAliases": "alias/aws/ssm"
+        }
+      }
+    },
+    {
+      "Sid": "TH",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:CallerAccount": "180294223248",
+          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
+          "kms:EncryptionContext:PARAMETER_ARN": [
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+          ]
+        },
+        "ForAnyValue:StringEquals": {
+          "kms:ResourceAliases": "alias/aws/ssm"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:ListTagsForResource",
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-dev-api-5xx",
+        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-dev-api-latency",
+        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-dev-lambda-duration",
+        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-dev-lambda-errors",
+        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-dev-lambda-throttles"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "cloudwatch:GetMetricStatistics",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    }
+  ]
+}

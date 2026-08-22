@@ -225,8 +225,14 @@ The replacement roots derive its partition and account from the current AWS data
 sources but never create, edit, or remove the boundary policy. A separately
 reviewed Identity Center deployer permission set may create or pass only roles
 that carry this boundary. It cannot create unbounded roles, attach managed
-policies, manage the boundary, or mutate any legacy resource. That permission
-set is a later access package, not part of this source contract.
+policies, manage the boundary, or mutate any legacy resource. The reviewed
+non-secret initial deployer and boundary policy inputs are tracked under
+[`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md). Their
+presence grants no access; exact live identity, assignment, and approval
+evidence remains private and every use is separately approved. The deployer
+input is development-only and temporary; never restore it after a removal and
+reprovisioning gate. The boundary's production statements are a dormant
+runtime ceiling, not production deployment authority.
 
 ### Release repository
 
@@ -239,8 +245,10 @@ It requires `aws:SourceAccount` equal to `180294223248` and `aws:SourceArn`
 matching only
 `arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*`. Image tags
 use `git-` followed by the full 40-character source SHA, while Lambda receives
-the digest-qualified URI. The access bootstrap does not create or import any
-ECR resource.
+the digest-qualified URI. Provisioning the access package does not create or
+import any ECR resource. Its temporary `T2` and `T3` SIDs authorize only the
+later separately approved Terraform artifact saved plan and are removed after
+verified convergence.
 
 ### Development service
 
@@ -393,3 +401,6 @@ successful cutover.
     window.
 11. No legacy platform, data, secret, image, branch, or state is deleted without
     a separate approved retirement plan.
+12. `infra/lambda/bootstrap/` contains the reviewed initial policy bodies and
+    their contract test, while live principal, assignment, provisioning, and
+    post-tightening evidence remains outside Git.

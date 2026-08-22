@@ -30,12 +30,17 @@
 - The account-root-owned execution boundary is
   `arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
   Replacement roots may reference it, but never create, edit, or remove it.
-- A future Identity Center deployer may create or pass the deterministic
+- The reviewed initial development deployer and root-owned boundary inputs are
+  tracked under [`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md).
+  A separately approved Identity Center permission set created from that
+  development-only input may create or pass only deterministic
   boundary-constrained execution roles. It cannot create unbounded roles,
   attach managed policies, manage the boundary, or mutate legacy resources.
-  Its exact policy package requires separate review after this source contract
-  is stable. This plan does not authorize broad deployer policy, root commands,
-  secret-copy authority, or ECR creation/import during access bootstrap.
+  Tracked policy presence authorizes no assignment, root command, secret copy,
+  plan, or apply; exact live identity and approval evidence stays private.
+  Never restore the initial deployer document after a temporary SID is removed.
+  The boundary's production statements are a dormant runtime ceiling, not
+  production deployment authority.
 - Cloudflare traffic is DNS-only during initial custom-domain proof.
 - Approval of this plan does not approve a future live mutation. At every
   **Approval gate**, stop and present the exact commands, resource identifiers,
@@ -182,6 +187,10 @@ printed. Recheck the legacy metadata before the first remote plan.
 
 - Modify: `.gitignore`
 - Create: `infra/lambda/README.md`
+- Create: `infra/lambda/bootstrap/README.md`
+- Create: `infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json`
+- Create: `infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json`
+- Create: `infra/lambda/bootstrap/policy_contract_test.go`
 - Create directories and later files under: `infra/lambda/artifacts/`, `infra/lambda/modules/service/`, `infra/lambda/environments/dev/`, `infra/lambda/environments/prod/`
 
 **Interfaces:**
@@ -355,9 +364,11 @@ resource "aws_ecr_repository_policy" "lambda_releases" {
 
 Do not add a tagged-image expiration rule. The artifact mock-provider contract
 must fail if the repository policy is absent, uses another principal, grants
-another action, or loses either source condition. The later access bootstrap
-must not create or import the repository, lifecycle policy, or repository
-policy.
+another action, or loses either source condition. Provisioning the access
+package itself must not create or import the repository, lifecycle policy, or
+repository policy. Temporary deployer SIDs `T2` and `T3` authorize only the
+later separately approved Terraform artifact saved plan and are removed after
+its verified convergence.
 
 - [ ] **Step 3: Add non-sensitive outputs**
 
