@@ -37,18 +37,176 @@ AWS charges vary by region and traffic. Check the current
 [Lambda pricing](https://aws.amazon.com/lambda/pricing/) instead of relying on
 a fixed monthly estimate.
 
-## Pending replacement contract
+## Replacement Lambda deployment
 
-This repository does not yet contain the replacement environment, and this
-release does not make the replacement live. A later environment plan must
-implement its deployment resources and set the Lambda timeout to 29 seconds.
-That timeout leaves five seconds outside the application's 24-second Google
-Calendar add and result-sync budget.
+The replacement source is under `infra/lambda/`. It has three independent
+OpenTofu roots and never initializes the legacy `infra/` root:
 
-The legacy `infra/variables.tf` default remains 30 seconds. That value describes
-only the shared rollback stack; it is not the replacement target.
+<!-- markdownlint-disable MD013 -->
 
-The application behavior prepared for the replacement is documented in
+| Root | State key | Lock acknowledgement |
+| --- | --- | --- |
+| `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
+| `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
+| `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
+
+<!-- markdownlint-enable MD013 -->
+
+The lock acknowledgement is mechanical evidence that the controller approved
+the exact native S3 lock-object write in the current session. It does not
+authorize the plan or apply. Every changed lock path needs new approval.
+
+### Replacement preflight status
+
+The 2026-08-22 read-only preflight found:
+
+- the state bucket uses AES256 encryption, but versioning status was absent;
+- legacy state metadata was ETag
+  `99f293c374a751614c92f83934ad6a3b`, null `VersionId`, and
+  `2026-04-28T10:08:47Z` `LastModified`;
+- all three replacement state keys and ECR repository
+  `portfolio-lambda-releases` were absent;
+- the API Gateway service-linked role existed and the account had zero HTTP
+  APIs;
+- the account-owned Identity Center organization instance was active; and
+- root MFA was enabled, but a root access key still existed.
+
+Do not create replacement state until bucket versioning reports `Enabled`.
+After `portfolio-deployer` exists, the controller must present the exact bucket
+and non-root command and obtain separate current-session approval for the one
+`s3api put-bucket-versioning` mutation:
+
+```bash
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  s3api put-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --versioning-configuration Status=Enabled
+test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  s3api get-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --query Status --output text)" = "Enabled"
+```
+
+If the deployer needs `s3:PutBucketVersioning`, grant only that exact bucket
+action for this step and remove it after verification. Never run this mutation
+as root.
+
+### Identity and saved-plan rules
+
+Every replacement command requires exactly `AWS_PROFILE=portfolio-deployer`
+and `AWS_REGION=us-west-2`. The private guard rejects ambient
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other
+account, root, and any assumed role that does not contain
+`AWSReservedSSO_PortfolioDeployer_`.
+
+Initialization, planning, and apply are separate commands. Initialization uses
+the root's `backend.hcl`, reconfigures the backend without interactive input,
+and refuses any workspace other than `default`. A plan requires a new absolute
+`PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
+and prints the human-readable plan. An apply accepts only an existing absolute
+saved plan. Replacement commands contain no `--auto-approve`, `-target`, or
+mutable image tag.
+
+For example, create and inspect the artifact plan only after the controller
+approves the exact artifact lock write:
+
+```bash
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+task lambda-artifacts-init
+plan_dir=$(mktemp -d)
+artifact_plan="$plan_dir/artifacts.tfplan"
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
+```
+
+The artifact checker permits exactly the immutable ECR repository, its
+untagged-image lifecycle policy, and the Lambda pull repository policy. Before
+applying, present the absolute saved-plan path, checksum, complete action list,
+and exact lock URI. Obtain separate current-session apply and lock-write
+approval, then run:
+
+```bash
+task lambda-artifacts-apply \
+  PLAN_FILE="$artifact_plan" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+```
+
+Development and production use the same split with `lambda-dev-*` and
+`lambda-prod-*`. Development requires `IMAGE_DIGEST`; production also requires
+the reviewed `ALARM_ACTION_ARNS_JSON`. The checker rejects delete or replace
+actions, legacy resources, mutable tags, sensitive values, wrong execution
+boundaries or deterministic names, protection and retention drift, and alarm
+action drift.
+
+### Immutable image and runtime parameters
+
+After the artifact root exists, obtain a separate approval for the exact ECR
+push. `task lambda-release-push` requires a clean worktree, builds with the full
+`git rev-parse HEAD`, and pushes only
+`portfolio-lambda-releases:git-<40-character-SHA>`. Record the returned digest,
+push time, scan status, and digest-qualified URI. Environment plans consume
+only `repository-url@sha256:<64 lowercase hex characters>`.
+
+The environment-owned SecureString paths are:
+
+- development: `/portfolio/lambda/dev/CLIENT_ID_KEY`,
+  `/portfolio/lambda/dev/CLIENT_SECRET_KEY`, and
+  `/portfolio/lambda/dev/LPS_SESSION_KEY`;
+- production: `/portfolio/lambda/prod/CLIENT_ID_KEY`,
+  `/portfolio/lambda/prod/CLIENT_SECRET_KEY`, and
+  `/portfolio/lambda/prod/LPS_SESSION_KEY`.
+
+Copying or creating their values is a separate approved mutation. OpenTofu
+stores only these paths, never decrypted values. The legacy `/portfolio/*`
+parameters remain unchanged.
+
+### Development proof and custom domain
+
+For the first development plan, set the approved dev lock URI and pass the
+recorded digest:
+
+```bash
+task lambda-dev-init
+dev_plan_dir=$(mktemp -d)
+dev_plan="$dev_plan_dir/dev.tfplan"
+task lambda-dev-plan \
+  PLAN_FILE="$dev_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+```
+
+After separate plan and lock approval, apply that exact file with
+`lambda-dev-apply`. Before any custom-domain work, prove the direct API endpoint
+returns the release SHA at `/healthz` and returns 200 with the expected content
+types for `/`, `/soccer`, `/static/css/tailwind.css`, and a binary image asset.
+Also verify the published version, `live` alias target, exactly five alarms,
+logs, and a no-change saved convergence plan.
+
+Custom-domain setup has two saved-plan stages:
+
+1. Set only `request_custom_domain = true`, plan and approve the ACM certificate
+   create, apply it, then add the exact DNS-only validation CNAMEs after a
+   separate Cloudflare approval.
+2. After ACM reports `ISSUED`, set only `activate_custom_domain = true`, plan and
+   approve certificate validation, Regional API Gateway domains, and API
+   mappings, then apply that exact file.
+
+Each stage requires the dev lock URI and a fresh current-session lock-write and
+apply approval. Prove OAuth against the API Gateway target before changing the
+traffic record. Record the legacy origin and complete DNS rollback coordinates
+before that traffic mutation.
+
+Observation commands reinitialize artifact and environment roots before reading
+outputs. They append sanitized samples and workflow request IDs to the release
+record's evidence path. Production stays blocked until the development gate has
+at least eight passing samples over seven full days, no gap over 26 hours,
+stable release coordinates, two complete workflow proofs, five non-ALARM alarm
+states, no blocker, and a healthy rollback origin.
+
+The application behavior and direct-endpoint checks are also documented in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).
 
 ## Local image verification

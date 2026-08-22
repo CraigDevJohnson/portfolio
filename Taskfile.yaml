@@ -380,8 +380,412 @@ tasks:
         docker tag {{.IMAGE_NAME}}:latest "$ECR_URL:{{.IMAGE_TAG}}"
         docker push "$ECR_URL:{{.IMAGE_TAG}}"
 
+  # ── Replacement Lambda release ─────────────────────────────────────────────
+
+  _lambda-identity-check:
+    internal: true
+    env:
+      AWS_PROFILE: '{{default "" .AWS_PROFILE}}'
+      AWS_REGION: '{{default "" .AWS_REGION}}'
+    cmds:
+      - |
+        set -eu
+        test "$AWS_PROFILE" = "portfolio-deployer" || {
+          echo "AWS_PROFILE must be portfolio-deployer" >&2
+          exit 1
+        }
+        test "$AWS_REGION" = "us-west-2" || {
+          echo "AWS_REGION must be us-west-2" >&2
+          exit 1
+        }
+        test -z "${AWS_ACCESS_KEY_ID+x}" || {
+          echo "AWS_ACCESS_KEY_ID must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SECRET_ACCESS_KEY+x}" || {
+          echo "AWS_SECRET_ACCESS_KEY must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SESSION_TOKEN+x}" || {
+          echo "AWS_SESSION_TOKEN must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Arn --output text)
+        account=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Account --output text)
+        test "$account" = "180294223248" || {
+          echo "AWS account must be 180294223248" >&2
+          exit 1
+        }
+        case "$arn" in
+          *:root)
+            echo "Refusing AWS root identity" >&2
+            exit 1
+            ;;
+          *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
+          *)
+            echo "AWS identity must use AWSReservedSSO_PortfolioDeployer_" >&2
+            exit 1
+            ;;
+        esac
+
+  _lambda-state-lock-check:
+    internal: true
+    env:
+      APPROVED_STATE_LOCK_URI: '{{default "" .APPROVED_STATE_LOCK_URI}}'
+      EXPECTED_STATE_LOCK_URI: '{{.EXPECTED_STATE_LOCK_URI}}'
+    cmds:
+      - |
+        set -eu
+        test "$APPROVED_STATE_LOCK_URI" = "$EXPECTED_STATE_LOCK_URI" || {
+          echo "APPROVED_STATE_LOCK_URI must exactly equal $EXPECTED_STATE_LOCK_URI" >&2
+          echo "This acknowledgement does not authorize a plan or apply by itself" >&2
+          exit 1
+        }
+
+  _lambda-root-init:
+    internal: true
+    env:
+      ROOT: '{{.ROOT}}'
+    cmds:
+      - |
+        set -eu
+        tofu -chdir="$ROOT" init -backend-config=backend.hcl -reconfigure -input=false
+        workspace=$(tofu -chdir="$ROOT" workspace show)
+        test "$workspace" = "default" || {
+          echo "Refusing non-default OpenTofu workspace: $workspace" >&2
+          exit 1
+        }
+
+  _lambda-saved-plan-apply:
+    internal: true
+    env:
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+      ROOT: '{{.ROOT}}'
+    cmds:
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test -f "$PLAN_FILE" || {
+          echo "PLAN_FILE does not exist: $PLAN_FILE" >&2
+          exit 1
+        }
+        tofu -chdir="$ROOT" apply -input=false "$PLAN_FILE"
+
+  lambda-artifacts-init:
+    desc: Initialize only the replacement Lambda artifact state
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/artifacts
+
+  lambda-artifacts-plan:
+    desc: Create and check a saved replacement Lambda artifact plan
+    env:
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test ! -e "$PLAN_FILE" || {
+          echo "Refusing existing PLAN_FILE: $PLAN_FILE" >&2
+          exit 1
+        }
+        plan_json=$(mktemp)
+        trap 'rm -f "$plan_json"' EXIT
+        tofu -chdir=infra/lambda/artifacts plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        tofu -chdir=infra/lambda/artifacts show -json "$PLAN_FILE" > "$plan_json"
+        PLAN_JSON="$plan_json" \
+          ENVIRONMENT=artifacts \
+          NAME_PREFIX=portfolio-lambda-releases \
+          IMAGE_URI=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+          EXPECTED_ALARM_ACTIONS_JSON='[]' \
+          sh scripts/check-lambda-plan.sh
+        tofu -chdir=infra/lambda/artifacts show -no-color "$PLAN_FILE"
+
+  lambda-artifacts-apply:
+    desc: Apply only an approved saved replacement Lambda artifact plan
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+      - task: _lambda-saved-plan-apply
+        vars:
+          ROOT: infra/lambda/artifacts
+
+  lambda-release-push:
+    desc: Build and push one immutable full-SHA Lambda release image
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - |
+        set -eu
+        test -z "$(git status --porcelain)" || {
+          echo "Lambda releases require a clean Git worktree" >&2
+          exit 1
+        }
+        BUILD_REVISION=$(git rev-parse HEAD)
+        printf '%s\n' "$BUILD_REVISION" | grep -Eq '^[0-9a-f]{40}$' || {
+          echo "BUILD_REVISION must be the full Git SHA" >&2
+          exit 1
+        }
+        release_tag="git-${BUILD_REVISION}"
+        repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
+        test "$repository_url" = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
+        image_uri="$repository_url:$release_tag"
+        existing_digest=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
+          --repository-name portfolio-lambda-releases \
+          --image-ids imageTag="$release_tag" \
+          --query 'imageDetails[0].imageDigest' \
+          --output text 2>/dev/null || true)
+        task build-lambda-image BUILD_REVISION="$BUILD_REVISION" IMAGE_TAG="$image_uri"
+        registry=${repository_url%%/*}
+        aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr get-login-password | \
+          docker login --username AWS --password-stdin "$registry"
+        docker push "$image_uri"
+        pushed_digest=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
+          --repository-name portfolio-lambda-releases \
+          --image-ids imageTag="$release_tag" \
+          --query 'imageDetails[0].imageDigest' \
+          --output text)
+        printf '%s\n' "$pushed_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+        case "$existing_digest" in
+          "" | None) ;;
+          "$pushed_digest") ;;
+          *) echo "Release tag already existed with a different digest" >&2; exit 1 ;;
+        esac
+        : "${release_tag:?derive the immutable release tag first}"
+        aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
+          --repository-name portfolio-lambda-releases \
+          --image-ids imageTag="$release_tag" \
+          --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt,ScanStatus:imageScanStatus.status}' \
+          --output json
+
+  lambda-plan-check:
+    desc: Check a saved replacement Lambda plan JSON offline
+    env:
+      PLAN_JSON: '{{default "" .PLAN_JSON}}'
+      ENVIRONMENT: '{{default "" .ENVIRONMENT}}'
+      NAME_PREFIX: '{{default "" .NAME_PREFIX}}'
+      IMAGE_URI: '{{default "" .IMAGE_URI}}'
+      EXPECTED_ALARM_ACTIONS_JSON: '{{default "" .EXPECTED_ALARM_ACTIONS_JSON}}'
+    cmds:
+      - sh scripts/check-lambda-plan.sh
+
+  lambda-dev-init:
+    desc: Initialize only the replacement development Lambda state
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/environments/dev
+
+  lambda-dev-plan:
+    desc: Create and check a saved replacement development Lambda plan
+    env:
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+      IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test ! -e "$PLAN_FILE" || {
+          echo "Refusing existing PLAN_FILE: $PLAN_FILE" >&2
+          exit 1
+        }
+        printf '%s\n' "$IMAGE_DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || {
+          echo "IMAGE_DIGEST must be a SHA-256 digest" >&2
+          exit 1
+        }
+        repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
+        image_uri="$repository_url@$IMAGE_DIGEST"
+        plan_json=$(mktemp)
+        trap 'rm -f "$plan_json"' EXIT
+        TF_VAR_ecr_repository_url="$repository_url" TF_VAR_image_digest="$IMAGE_DIGEST" \
+          tofu -chdir=infra/lambda/environments/dev plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        tofu -chdir=infra/lambda/environments/dev show -json "$PLAN_FILE" > "$plan_json"
+        PLAN_JSON="$plan_json" ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$image_uri" \
+          EXPECTED_ALARM_ACTIONS_JSON='[]' sh scripts/check-lambda-plan.sh
+        tofu -chdir=infra/lambda/environments/dev show -no-color "$PLAN_FILE"
+
+  lambda-dev-apply:
+    desc: Apply only an approved saved replacement development Lambda plan
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+      - task: _lambda-saved-plan-apply
+        vars:
+          ROOT: infra/lambda/environments/dev
+
+  lambda-prod-init:
+    desc: Initialize only the replacement production Lambda state
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/environments/prod
+
+  lambda-prod-plan:
+    desc: Create and check a saved replacement production Lambda plan
+    env:
+      ALARM_ACTION_ARNS_JSON: '{{default "" .ALARM_ACTION_ARNS_JSON}}'
+      IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test ! -e "$PLAN_FILE" || {
+          echo "Refusing existing PLAN_FILE: $PLAN_FILE" >&2
+          exit 1
+        }
+        printf '%s\n' "$IMAGE_DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$' || {
+          echo "IMAGE_DIGEST must be a SHA-256 digest" >&2
+          exit 1
+        }
+        printf '%s\n' "$ALARM_ACTION_ARNS_JSON" | jq -e 'type == "array" and length > 0 and all(.[]; test("^arn:aws:sns:us-west-2:180294223248:"))' >/dev/null || {
+          echo "ALARM_ACTION_ARNS_JSON must contain reviewed production SNS ARNs" >&2
+          exit 1
+        }
+        repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
+        image_uri="$repository_url@$IMAGE_DIGEST"
+        plan_json=$(mktemp)
+        trap 'rm -f "$plan_json"' EXIT
+        TF_VAR_ecr_repository_url="$repository_url" TF_VAR_image_digest="$IMAGE_DIGEST" TF_VAR_alarm_action_arns="$ALARM_ACTION_ARNS_JSON" \
+          tofu -chdir=infra/lambda/environments/prod plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        tofu -chdir=infra/lambda/environments/prod show -json "$PLAN_FILE" > "$plan_json"
+        PLAN_JSON="$plan_json" ENVIRONMENT=prod NAME_PREFIX=portfolio-lambda-prod IMAGE_URI="$image_uri" \
+          EXPECTED_ALARM_ACTIONS_JSON="$ALARM_ACTION_ARNS_JSON" sh scripts/check-lambda-plan.sh
+        tofu -chdir=infra/lambda/environments/prod show -no-color "$PLAN_FILE"
+
+  lambda-prod-apply:
+    desc: Apply only an approved saved replacement production Lambda plan
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
+      - task: _lambda-saved-plan-apply
+        vars:
+          ROOT: infra/lambda/environments/prod
+
+  lambda-dev-observation-sample:
+    desc: Record one sanitized development Lambda observation sample
+    env:
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: development
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-dev-init
+      - sh scripts/record-lambda-observation.sh
+
+  lambda-dev-observation-workflow:
+    desc: Record one sanitized development Lambda workflow proof
+    env:
+      ADD_OK: '{{default "" .ADD_OK}}'
+      ADD_REQUEST_ID: '{{default "" .ADD_REQUEST_ID}}'
+      CONNECT_REQUEST_ID: '{{default "" .CONNECT_REQUEST_ID}}'
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: development
+      OAUTH_OK: '{{default "" .OAUTH_OK}}'
+      PUBLIC_HOST: '{{default "" .PUBLIC_HOST}}'
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+      SECURE_COOKIES_OK: '{{default "" .SECURE_COOKIES_OK}}'
+      SYNC_OK: '{{default "" .SYNC_OK}}'
+      SYNC_REQUEST_ID: '{{default "" .SYNC_REQUEST_ID}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-dev-init
+      - sh scripts/record-lambda-workflow-proof.sh
+
+  lambda-dev-observation-gate:
+    desc: Check the development Lambda observation window
+    env:
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: development
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-dev-init
+      - sh scripts/check-lambda-observation-window.sh
+
+  lambda-prod-observation-sample:
+    desc: Record one sanitized production Lambda observation sample
+    env:
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: production
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-prod-init
+      - sh scripts/record-lambda-observation.sh
+
+  lambda-prod-observation-workflow:
+    desc: Record one sanitized production Lambda workflow proof
+    env:
+      ADD_OK: '{{default "" .ADD_OK}}'
+      ADD_REQUEST_ID: '{{default "" .ADD_REQUEST_ID}}'
+      CONNECT_REQUEST_ID: '{{default "" .CONNECT_REQUEST_ID}}'
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: production
+      OAUTH_OK: '{{default "" .OAUTH_OK}}'
+      PUBLIC_HOST: '{{default "" .PUBLIC_HOST}}'
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+      SECURE_COOKIES_OK: '{{default "" .SECURE_COOKIES_OK}}'
+      SYNC_OK: '{{default "" .SYNC_OK}}'
+      SYNC_REQUEST_ID: '{{default "" .SYNC_REQUEST_ID}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-prod-init
+      - sh scripts/record-lambda-workflow-proof.sh
+
+  lambda-prod-observation-gate:
+    desc: Check the production Lambda observation window
+    env:
+      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
+      ENVIRONMENT: production
+      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+    cmds:
+      - task: _lambda-identity-check
+      - task: lambda-artifacts-init
+      - task: lambda-prod-init
+      - sh scripts/check-lambda-observation-window.sh
+
   deploy:
-    desc: Deploy the AWS infrastructure and both runtime images
+    desc: LEGACY STATE - deploy the shared App Runner and Lambda stack
     cmds:
       - task: _check-aws
       - task: _ecr-ensure-repo
@@ -399,7 +803,7 @@ tasks:
         tofu output app_runner_service_url
 
   redeploy:
-    desc: Push a new image and trigger App Runner redeployment
+    desc: LEGACY STATE - push a mutable image and trigger App Runner
     cmds:
       - task: _ecr-docker-push
       - |
@@ -410,7 +814,7 @@ tasks:
         echo "  aws apprunner describe-service --service-arn $SERVICE_ARN --query Service.Status"
 
   deploy-lambda:
-    desc: Deploy to AWS Lambda + API Gateway (build and push Lambda image, apply OpenTofu)
+    desc: LEGACY STATE - target Lambda resources in the shared stack
     cmds:
       - task: _check-aws
       - task: _ecr-ensure-repo
@@ -433,7 +837,7 @@ tasks:
         tofu output lambda_api_url
 
   redeploy-lambda:
-    desc: Push a new Lambda image and update function code
+    desc: LEGACY STATE - push lambda-latest and update function code
     cmds:
       - task: _ecr-docker-push
         vars:

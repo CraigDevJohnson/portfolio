@@ -1,0 +1,332 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
+checker="$repo_root/scripts/check-lambda-plan.sh"
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
+
+pass_count=0
+
+pass() {
+	pass_count=$((pass_count + 1))
+	printf 'PASS: %s\n' "$1"
+}
+
+expect_pass() {
+	name=$1
+	shift
+	if "$@" >"$tmp_dir/output" 2>&1; then
+		pass "$name"
+	else
+		printf 'FAIL: %s\n' "$name" >&2
+		cat "$tmp_dir/output" >&2
+		exit 1
+	fi
+}
+
+expect_fail() {
+	name=$1
+	shift
+	if "$@" >"$tmp_dir/output" 2>&1; then
+		printf 'FAIL: %s unexpectedly passed\n' "$name" >&2
+		exit 1
+	fi
+	pass "$name"
+}
+
+make_artifact_plan() {
+	jq -n '{
+		resource_changes: [
+			{
+				address: "aws_ecr_repository.lambda_releases",
+				type: "aws_ecr_repository",
+				name: "lambda_releases",
+				change: {actions: ["create"], after: {
+					name: "portfolio-lambda-releases",
+					image_tag_mutability: "IMMUTABLE",
+					force_delete: false,
+					image_scanning_configuration: [{scan_on_push: true}],
+					encryption_configuration: [{encryption_type: "AES256"}]
+				}, after_sensitive: {}}
+			},
+			{
+				address: "aws_ecr_lifecycle_policy.lambda_releases",
+				type: "aws_ecr_lifecycle_policy",
+				name: "lambda_releases",
+				change: {actions: ["create"], after: {
+					repository: "portfolio-lambda-releases",
+					policy: ({rules: [{rulePriority: 1, description: "Expire untagged images after 30 days", selection: {tagStatus: "untagged", countType: "sinceImagePushed", countUnit: "days", countNumber: 30}, action: {type: "expire"}}]} | tojson)
+				}, after_sensitive: {}}
+			},
+			{
+				address: "aws_ecr_repository_policy.lambda_releases",
+				type: "aws_ecr_repository_policy",
+				name: "lambda_releases",
+				change: {actions: ["create"], after: {
+					repository: "portfolio-lambda-releases",
+					policy: ({Version: "2012-10-17", Statement: [{Sid: "LambdaPull", Effect: "Allow", Principal: {Service: "lambda.amazonaws.com"}, Action: ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"], Condition: {StringEquals: {"aws:SourceAccount": "180294223248"}, ArnLike: {"aws:SourceArn": "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"}}}]} | tojson)
+				}, after_sensitive: {}}
+			}
+		]
+	}' >"$1"
+}
+
+make_environment_plan() {
+	output=$1
+	environment=$2
+	prefix="portfolio-lambda-$environment"
+	image_uri="180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if [ "$environment" = prod ]; then
+		protection=true
+		retention=90
+		alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+	else
+		protection=false
+		retention=14
+		alarm_actions='[]'
+	fi
+	jq -n \
+		--arg prefix "$prefix" \
+		--arg image "$image_uri" \
+		--arg boundary "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" \
+		--argjson protection "$protection" \
+		--argjson retention "$retention" \
+		--argjson alarm_actions "$alarm_actions" '
+		def change($after): {actions: ["create"], after: $after, after_sensitive: {}};
+		def resource($address; $type; $name; $after): {address: $address, type: $type, name: $name, change: change($after)};
+		def alarm($short; $metric; $threshold; $statistic):
+			resource("module.service.aws_cloudwatch_metric_alarm." + $short; "aws_cloudwatch_metric_alarm"; $short; {
+				alarm_name: ($prefix + "-" + ($short | gsub("_"; "-"))),
+				metric_name: $metric,
+				period: 300,
+				evaluation_periods: 1,
+				threshold: $threshold,
+				treat_missing_data: "notBreaching",
+				alarm_actions: $alarm_actions
+			} + (if $statistic == "p95" then {extended_statistic: "p95"} else {statistic: $statistic} end));
+		{
+			resource_changes: [
+				resource("module.service.aws_iam_role.lambda"; "aws_iam_role"; "lambda"; {name: ($prefix + "-execution"), permissions_boundary: $boundary}),
+				resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}),
+				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image}),
+				resource("module.service.aws_apigatewayv2_api.app"; "aws_apigatewayv2_api"; "app"; {name: ($prefix + "-http")}),
+				resource("module.service.aws_cloudwatch_log_group.lambda"; "aws_cloudwatch_log_group"; "lambda"; {name: ("/aws/lambda/" + $prefix), retention_in_days: $retention}),
+				resource("module.service.aws_cloudwatch_log_group.api_access"; "aws_cloudwatch_log_group"; "api_access"; {name: ("/aws/apigateway/" + $prefix + "/access"), retention_in_days: $retention}),
+				resource("module.service.aws_dynamodb_table.google_connections"; "aws_dynamodb_table"; "google_connections"; {name: ($prefix + "-google-connections"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
+				resource("module.service.aws_dynamodb_table.soccer_sessions"; "aws_dynamodb_table"; "soccer_sessions"; {name: ($prefix + "-soccer-sessions"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
+				alarm("lambda_errors"; "Errors"; 1; "Sum"),
+				alarm("lambda_throttles"; "Throttles"; 1; "Sum"),
+				alarm("lambda_duration"; "Duration"; 24000; "p95"),
+				alarm("api_5xx"; "5xx"; 1; "Sum"),
+				alarm("api_latency"; "Latency"; 25000; "p95")
+			]
+		}' >"$output"
+}
+
+run_check() {
+	plan=$1
+	environment=$2
+	if [ "$environment" = artifacts ]; then
+		prefix=portfolio-lambda-releases
+		actions='[]'
+	else
+		prefix="portfolio-lambda-$environment"
+		if [ "$environment" = prod ]; then
+			actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+		else
+			actions='[]'
+		fi
+	fi
+	PLAN_JSON="$plan" \
+		ENVIRONMENT="$environment" \
+		NAME_PREFIX="$prefix" \
+		IMAGE_URI="180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+		EXPECTED_ALARM_ACTIONS_JSON="$actions" \
+		sh "$checker"
+}
+
+artifact_plan="$tmp_dir/artifact.json"
+dev_plan="$tmp_dir/dev.json"
+prod_plan="$tmp_dir/prod.json"
+make_artifact_plan "$artifact_plan"
+make_environment_plan "$dev_plan" dev
+make_environment_plan "$prod_plan" prod
+
+expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
+expect_pass "development replacement plan" run_check "$dev_plan" dev
+expect_pass "production replacement plan" run_check "$prod_plan" prod
+
+mutate_and_reject() {
+	name=$1
+	source=$2
+	filter=$3
+	mutated="$tmp_dir/mutated.json"
+	jq "$filter" "$source" >"$mutated"
+	environment=dev
+	case "$source" in
+		*artifact*) environment=artifacts ;;
+		*prod*) environment=prod ;;
+	esac
+	expect_fail "$name" run_check "$mutated" "$environment"
+}
+
+mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
+mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'
+mutate_and_reject "legacy App Runner address" "$dev_plan" '.resource_changes[0].address = "module.service.aws_apprunner_service.legacy"'
+mutate_and_reject "legacy resource name" "$dev_plan" '.resource_changes[2].change.after.function_name = "portfolio"'
+mutate_and_reject "mutable image tag" "$dev_plan" '.resource_changes[2].change.after.image_uri = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases:latest"'
+mutate_and_reject "secret plan value" "$dev_plan" '.resource_changes[2].change.after.oauth_token = "do-not-store-this"'
+mutate_and_reject "secret prior-state value" "$dev_plan" '.resource_changes[2].change.before = {oauth_token: "do-not-store-this"}'
+mutate_and_reject "missing execution boundary" "$dev_plan" '.resource_changes[0].change.after.permissions_boundary = null'
+mutate_and_reject "wrong deterministic API name" "$dev_plan" '.resource_changes[3].change.after.name = "portfolio-http"'
+mutate_and_reject "development table protection drift" "$dev_plan" '.resource_changes[6].change.after.deletion_protection_enabled = true'
+mutate_and_reject "production table protection drift" "$prod_plan" '.resource_changes[6].change.after.deletion_protection_enabled = false'
+mutate_and_reject "log retention drift" "$dev_plan" '.resource_changes[4].change.after.retention_in_days = 7'
+mutate_and_reject "alarm action mismatch" "$prod_plan" '.resource_changes[8].change.after.alarm_actions = []'
+mutate_and_reject "alarm threshold drift" "$dev_plan" '.resource_changes[10].change.after.threshold = 29000'
+mutate_and_reject "extra artifact resource" "$artifact_plan" '.resource_changes += [{address: "aws_iam_role.legacy", type: "aws_iam_role", name: "legacy", change: {actions: ["create"], after: {name: "legacy"}, after_sensitive: {}}}]'
+mutate_and_reject "artifact lifecycle drift" "$artifact_plan" '.resource_changes[1].change.after.policy = ({rules: []} | tojson)'
+mutate_and_reject "artifact repository-policy drift" "$artifact_plan" '.resource_changes[2].change.after.policy = ({Version: "2012-10-17", Statement: []} | tojson)'
+
+fake_bin="$tmp_dir/fake-bin"
+mkdir "$fake_bin"
+command_log="$tmp_dir/commands.log"
+: >"$command_log"
+
+cat >"$fake_bin/aws" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'aws %s\n' "$*" >>"$COMMAND_LOG"
+case "$*" in
+	*"sts get-caller-identity"*"--query Arn"*)
+		printf '%s\n' "${FAKE_ARN:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig}"
+		;;
+	*"sts get-caller-identity"*"--query Account"*)
+		printf '%s\n' "${FAKE_ACCOUNT:-180294223248}"
+		;;
+	*"ecr get-login-password"*)
+		printf 'fake-password\n'
+		;;
+	*"ecr describe-images"*"imageDigest"*)
+		printf '%s\n' "${FAKE_EXISTING_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+		;;
+	*"ecr describe-images"*)
+		printf '%s\n' '{"Digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","PushedAt":"2026-08-22T00:00:00Z","ScanStatus":"COMPLETE"}'
+		;;
+	*)
+		printf 'unexpected fake aws command: %s\n' "$*" >&2
+		exit 1
+		;;
+esac
+EOF
+
+cat >"$fake_bin/tofu" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'tofu %s\n' "$*" >>"$COMMAND_LOG"
+case "$*" in
+	*" init "*) ;;
+	*" workspace show"*) printf 'default\n' ;;
+	*" plan "*)
+		for argument in "$@"; do
+			case "$argument" in
+				-out=*) : >"${argument#-out=}" ;;
+			esac
+		done
+		;;
+	*" show -json "*) cat "$FAKE_PLAN_JSON" ;;
+	*" show -no-color "*) printf 'synthetic human-readable plan\n' ;;
+	*" apply "*) ;;
+	*" output -raw ecr_repository_url"*) printf '180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases\n' ;;
+	*)
+		printf 'unexpected fake tofu command: %s\n' "$*" >&2
+		exit 1
+		;;
+esac
+EOF
+
+cat >"$fake_bin/git" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'git %s\n' "$*" >>"$COMMAND_LOG"
+case "$*" in
+	"status --porcelain") ;;
+	"rev-parse HEAD") printf '0123456789abcdef0123456789abcdef01234567\n' ;;
+	*) /usr/bin/git "$@" ;;
+esac
+EOF
+
+cat >"$fake_bin/docker" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'docker %s\n' "$*" >>"$COMMAND_LOG"
+case "$1" in
+	login) cat >/dev/null ;;
+	tag) ;;
+	push) [ "${FAKE_PUSH_FAIL:-false}" != true ] ;;
+	*) printf 'unexpected fake docker command: %s\n' "$*" >&2; exit 1 ;;
+esac
+EOF
+
+cat >"$fake_bin/task" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'task %s\n' "$*" >>"$COMMAND_LOG"
+test "$1" = build-lambda-image
+EOF
+chmod +x "$fake_bin"/*
+
+real_task=$(command -v task)
+run_task() {
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		PATH="$fake_bin:$PATH" \
+		COMMAND_LOG="$command_log" \
+		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$dev_plan}" \
+		FAKE_EXISTING_DIGEST="${FAKE_EXISTING_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
+		FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-false}" \
+		AWS_PROFILE=portfolio-deployer \
+		AWS_REGION=us-west-2 \
+		"$real_task" --dir "$repo_root" "$@"
+}
+
+expect_pass "exact SSO identity guard" run_task lambda-dev-init
+expect_fail "identity guard rejects wrong profile" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=default AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
+expect_fail "identity guard rejects wrong region" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=portfolio-deployer AWS_REGION=us-east-1 "$real_task" --dir "$repo_root" lambda-dev-init
+expect_fail "identity guard rejects ambient static credentials" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=portfolio-deployer AWS_REGION=us-west-2 AWS_ACCESS_KEY_ID=AKIASTATIC "$real_task" --dir "$repo_root" lambda-dev-init
+expect_fail "identity guard rejects root ARN" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" FAKE_ARN=arn:aws:iam::180294223248:root AWS_PROFILE=portfolio-deployer AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
+expect_fail "identity guard rejects wrong SSO role" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" FAKE_ARN=arn:aws:sts::180294223248:assumed-role/OtherRole/craig AWS_PROFILE=portfolio-deployer AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
+
+expect_pass "development backend init verifies default workspace" run_task lambda-dev-init
+plan_file="$tmp_dir/dev.tfplan"
+expect_fail "plan requires an absolute path" run_task lambda-dev-plan PLAN_FILE=relative.tfplan IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+expect_fail "plan rejects the wrong lock acknowledgement" run_task lambda-dev-plan PLAN_FILE="$plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/wrong.tflock
+expect_pass "development plan accepts only its exact lock acknowledgement" run_task lambda-dev-plan PLAN_FILE="$plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+expect_fail "plan refuses an existing saved-plan path" run_task lambda-dev-plan PLAN_FILE="$plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+expect_fail "apply rejects the wrong lock acknowledgement" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/wrong.tflock
+expect_pass "apply consumes only the existing saved plan" run_task lambda-dev-apply PLAN_FILE="$plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+
+artifact_plan_file="$tmp_dir/artifacts.tfplan"
+TASK7_PLAN_JSON="$artifact_plan" expect_pass "artifact plan accepts only its exact lock acknowledgement" run_task lambda-artifacts-plan PLAN_FILE="$artifact_plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+prod_plan_file="$tmp_dir/prod.tfplan"
+TASK7_PLAN_JSON="$prod_plan" expect_pass "production plan accepts only its exact lock acknowledgement" run_task lambda-prod-plan PLAN_FILE="$prod_plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
+
+expect_pass "immutable full-SHA release push" run_task lambda-release-push
+FAKE_PUSH_FAIL=true FAKE_EXISTING_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb expect_fail "release push propagates immutable-tag conflicts" run_task lambda-release-push
+grep -F 'task build-lambda-image BUILD_REVISION=0123456789abcdef0123456789abcdef01234567 IMAGE_TAG=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases:git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {
+	printf 'FAIL: release build did not receive the immutable full-SHA tag\n' >&2
+	exit 1
+}
+grep -F 'docker push 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases:git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {
+	printf 'FAIL: release did not push the immutable full-SHA tag\n' >&2
+	exit 1
+}
+pass "release command used the immutable full-SHA tag"
+
+if rg -n -- '--auto-approve|-target=|:latest|lambda-latest' "$command_log" >/dev/null; then
+	printf 'FAIL: replacement command execution used an unsafe plan or mutable tag\n' >&2
+	exit 1
+fi
+pass "replacement command executions used no auto-approve, target, or mutable tag"
+
+printf 'PASS: %s Lambda plan contracts\n' "$pass_count"

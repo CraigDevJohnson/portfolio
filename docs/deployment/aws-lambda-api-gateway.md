@@ -1,9 +1,10 @@
 # AWS Lambda and API Gateway
 
 > [!WARNING]
-> The checked-in `infra/` directory and all existing deployment commands target
-> the legacy shared App Runner and Lambda state. They do not create the pending
-> replacement environment. Do not deploy the new release to App Runner.
+> The checked-in `infra/` directory and the `deploy`, `redeploy`,
+> `deploy-lambda`, and `redeploy-lambda` tasks target legacy shared state. Keep
+> them for rollback only. Replacement commands use `infra/lambda/` and must
+> never deploy the new release to App Runner.
 
 The Lambda image runs the same Go HTTP handler as the regular server. The
 `aws-lambda-go-api-proxy` adapter converts API Gateway HTTP API events into
@@ -21,11 +22,116 @@ the Lambda path.
   start.
 - `internal/app.NewLambdaHandler` constructs the application routes without a
   TCP listener.
-- `infra/lambda.tf` declares the legacy shared-stack Lambda, API Gateway, IAM,
-  and runtime settings.
+- `infra/lambda/modules/service/` declares the replacement Lambda, API Gateway,
+  IAM, data, domain, log, and alarm resources.
+- `infra/lambda/artifacts/`, `infra/lambda/environments/dev/`, and
+  `infra/lambda/environments/prod/` own three isolated states.
+- `infra/lambda.tf` remains the legacy shared-stack Lambda source.
 
-The legacy Lambda and App Runner deployments share an ECR repository, DynamoDB
-tables, and OpenTofu state.
+The replacement environments do not share ECR ownership, DynamoDB tables, IAM
+roles, SSM paths, logs, alarms, or state with the legacy stack.
+
+## Replacement release workflow
+
+Every replacement task requires exactly the `portfolio-deployer` SSO profile in
+`us-west-2`, no ambient static AWS credential variables, account
+`180294223248`, and an assumed-role ARN containing
+`AWSReservedSSO_PortfolioDeployer_`. Initialization and saved-plan creation are
+separate from apply.
+
+Each remote plan and apply writes and deletes one native S3 lock object. Before
+setting `APPROVED_STATE_LOCK_URI`, the controller must present that exact URI and
+obtain current-session approval for the lock write. The value acknowledges only
+the lock object. It does not authorize the plan or apply.
+
+The roots use these state and lock objects:
+
+<!-- markdownlint-disable MD013 -->
+
+| Root | State key | Lock object URI |
+| --- | --- | --- |
+| Artifact | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
+| Development | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
+| Production | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
+
+<!-- markdownlint-enable MD013 -->
+
+The 2026-08-22 preflight found that bucket versioning was not enabled, so no
+replacement remote plan may run yet. Enabling versioning on only
+`portfolio-tofu-state-180294223248` needs a separate non-root mutation approval,
+verification that status is `Enabled`, and removal of any temporary
+`s3:PutBucketVersioning` grant. The preflight also found all three replacement
+state keys and `portfolio-lambda-releases` absent.
+
+Initialize a root first. Then create a new absolute saved-plan path and pass the
+approved lock URI. For development:
+
+```bash
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+task lambda-artifacts-init
+task lambda-dev-init
+plan_dir=$(mktemp -d)
+dev_plan="$plan_dir/dev.tfplan"
+task lambda-dev-plan \
+  PLAN_FILE="$dev_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+```
+
+The plan task writes one saved file, checks the JSON contract, and prints the
+human-readable plan. It rejects an existing path, mutable image tags, legacy
+resources, delete or replace actions, secret values, missing execution
+boundaries, nondeterministic names, protection or retention drift, and alarm
+drift. Review and approve the exact plan separately from the lock write, then
+apply only that file:
+
+```bash
+task lambda-dev-apply \
+  PLAN_FILE="$dev_plan" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+```
+
+The artifact and production roots use `lambda-artifacts-*` and
+`lambda-prod-*`. Artifact plans permit only the immutable release repository,
+its untagged-image lifecycle policy, and its Lambda pull repository policy.
+Production plans also require the reviewed `ALARM_ACTION_ARNS_JSON`.
+
+`task lambda-release-push` accepts only a clean Git worktree. It builds
+`git-<full-source-SHA>`, pushes it to `portfolio-lambda-releases`, and reports
+the digest, push time, and scan state. Release records bind that SHA and tag to
+the digest-qualified image URI, published Lambda version, and `live` alias.
+
+The replacement runtime resolves exactly these environment-owned SSM paths:
+
+- `/portfolio/lambda/dev/{CLIENT_ID_KEY,CLIENT_SECRET_KEY,LPS_SESSION_KEY}`;
+- `/portfolio/lambda/prod/{CLIENT_ID_KEY,CLIENT_SECRET_KEY,LPS_SESSION_KEY}`.
+
+OpenTofu records paths only. Creating or copying SecureString values needs a
+separate approval and must not expose decrypted values.
+
+## Direct endpoint and domain proof
+
+After the approved development apply, read `api_default_url` and prove:
+
+- `/healthz` returns the full release SHA as JSON;
+- `/` and `/soccer` return 200 HTML;
+- `/static/css/tailwind.css` returns 200 CSS; and
+- a binary image asset returns 200 with its image content type.
+
+Also compare the published version and `live` alias target, verify all five
+alarms and both log groups, and run a saved convergence plan with the same dev
+lock approval.
+
+Custom-domain work uses two independent source changes and saved plans. First,
+set `request_custom_domain = true` to request only the ACM certificate. Add its
+exact validation CNAMEs as DNS-only records after separate approval. Once ACM
+reports `ISSUED`, set `activate_custom_domain = true` and allow only certificate
+validation, Regional API Gateway domain, and mapping creates. Both plans and
+both applies need fresh approval for the exact dev lock URI and exact saved
+plan. Prove OAuth directly against the API Gateway target before changing the
+traffic record, and commit the legacy origin plus complete rollback DNS record
+before cutover.
 
 ## Legacy deployment and rollback reference
 
@@ -68,12 +174,10 @@ table names. The legacy shared Terraform defaults to 512 MB and a 30-second
 timeout. `lambda_memory_mb` and `lambda_timeout_seconds` control those legacy
 values.
 
-The pending replacement environment has a 29-second deployment contract. A
-later environment plan must implement that setting; no replacement environment
-is defined or live in this repository. The application's Google Calendar add
-and result-sync handlers each use a 24-second child context, leaving five
-seconds outside their work budget under the pending timeout. If a deadline ends
-a multi-game batch, the response reports the completed work counts and
+Both replacement environment roots set a 29-second Lambda timeout. The
+application's Google Calendar add and result-sync handlers each use a 24-second
+child context, leaving five seconds outside their work budget. If a deadline
+ends a multi-game batch, the response reports the completed work counts and
 recommends a retry. Retries match the existing Google game ID and update
 completed events instead of inserting duplicates.
 
@@ -96,7 +200,7 @@ task test-images
 
 The two build tasks pass the current full Git SHA as `BUILD_REVISION` by
 default, or inject the caller's supplied `BUILD_REVISION`. Comparing `/healthz`
-with that exact expected value can prove the identity of those artifacts.
+with that exact expected value proves the identity of those artifacts.
 
 They do not log in to ECR, push images, apply OpenTofu, or update a running
 service.

@@ -20,6 +20,11 @@
 - Never run AWS mutation commands as an ARN ending in `:root`.
 - OpenTofu never manages or reads decrypted SSM values.
 - Every apply consumes the exact saved plan that was reviewed.
+- Every remote-backed plan and apply writes and deletes its native S3
+  `.tflock` object. Before either command, the controller presents the exact
+  root-specific `APPROVED_STATE_LOCK_URI` and obtains current-session approval
+  for that lock write. The variable is a mechanical acknowledgement, not plan
+  or apply authorization. A changed lock path requires new approval.
 - Every Lambda image URI contains `@sha256:` and every release is tied to a full Git SHA.
 - App Runner, `/portfolio/*`, both legacy DynamoDB tables, and `portfolio/terraform.tfstate` remain unchanged.
 - The account-root-owned execution boundary is
@@ -37,8 +42,11 @@
   record changes, or GitHub text; continue only after approval in that execution
   session.
 - Never rely on `AWS_PROFILE` exported in an earlier task. Every block that
-  mutates AWS sets `AWS_PROFILE=portfolio-deployer`, sets `AWS_REGION=us-west-2`,
-  and reruns the non-root identity guard immediately before the mutation.
+  accesses AWS sets `AWS_PROFILE=portfolio-deployer`, sets
+  `AWS_REGION=us-west-2`, rejects ambient `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, and reruns the identity
+  guard. The guard requires account `180294223248` and an assumed-role ARN
+  containing `AWSReservedSSO_PortfolioDeployer_` and rejects root.
 
 ---
 
@@ -59,7 +67,9 @@
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-identity_json=$(aws sts get-caller-identity --output json)
+test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
+identity_json=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  sts get-caller-identity --output json)
 identity_arn=$(printf '%s' "$identity_json" | jq -r .Arn)
 identity_account=$(printf '%s' "$identity_json" | jq -r .Account)
 
@@ -69,42 +79,79 @@ case "$identity_arn" in
     echo "Refusing to deploy with the AWS root identity" >&2
     exit 1
     ;;
+  *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
+  *)
+    echo "Refusing unexpected deployment role" >&2
+    exit 1
+    ;;
 esac
 echo "$identity_arn"
 ```
 
-Expected: a role, federated-user, assumed-role, or IAM-user ARN in the intended account. If the profile does not exist, stop. Establishing IAM Identity Center or a deployment role is a separately reviewed account-access mutation.
+Expected: the `AWSReservedSSO_PortfolioDeployer_` assumed-role ARN in the
+intended account. Reject any ambient static credential variable. If the profile
+does not exist, stop. Establishing IAM Identity Center or a deployment role is
+a separately reviewed account-access mutation.
 
 - [ ] **Step 2: Verify state bucket versioning**
 
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
+test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
 identity_arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Arn --output text)
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Account --output text)" = "180294223248"
 case "$identity_arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
+  *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
+  *) echo "Refusing unexpected deployment role" >&2; exit 1 ;;
 esac
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api get-bucket-versioning \
   --bucket portfolio-tofu-state-180294223248 \
   --query Status --output text)" = "Enabled"
 ```
 
-Expected: `Enabled`. Do not create new state if versioning is absent.
+The 2026-08-22 read-only preflight returned no versioning status. The bucket
+uses AES256 encryption, but no replacement state may be created until
+versioning reports `Enabled`.
+
+**Approval gate:** After `portfolio-deployer` exists, present the exact bucket,
+the non-root `s3api put-bucket-versioning` command, and any temporary exact
+`s3:PutBucketVersioning` permission. Obtain current-session approval before the
+one-bucket mutation. Verify `Enabled`, then remove that temporary permission.
+Never perform this change as root.
+
+After that exact approval only:
+
+```bash
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
+aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api put-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --versioning-configuration Status=Enabled
+test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  s3api get-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --query Status --output text)" = "Enabled"
+```
 
 - [ ] **Step 3: Record legacy-state metadata without fetching its contents**
 
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
+test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
 identity_arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Arn --output text)
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Account --output text)" = "180294223248"
 case "$identity_arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
+  *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
+  *) echo "Refusing unexpected deployment role" >&2; exit 1 ;;
 esac
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api head-object \
   --bucket portfolio-tofu-state-180294223248 \
@@ -113,7 +160,14 @@ aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api head-object \
   --output json
 ```
 
-Expected: one metadata object copied into the execution log; no state body or secret value is printed.
+The 2026-08-22 preflight recorded ETag
+`99f293c374a751614c92f83934ad6a3b`, null `VersionId`, and
+`2026-04-28T10:08:47Z` `LastModified`. It also confirmed that all three
+replacement state keys and `portfolio-lambda-releases` were absent, the API
+Gateway service-linked role existed, the HTTP API count was zero, the
+account-owned Identity Center organization instance was active, root MFA was
+enabled, and a root access key still existed. No state body or secret value was
+printed. Recheck the legacy metadata before the first remote plan.
 
 ---
 
@@ -777,11 +831,18 @@ The private Task command runs:
 
 ```sh
 set -eu
-arn=$(aws sts get-caller-identity --query Arn --output text)
-account=$(aws sts get-caller-identity --query Account --output text)
+test "$AWS_PROFILE" = "portfolio-deployer"
+test "$AWS_REGION" = "us-west-2"
+test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
+arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  sts get-caller-identity --query Arn --output text)
+account=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  sts get-caller-identity --query Account --output text)
 test "$account" = "180294223248"
 case "$arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
+  *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
+  *) echo "Refusing unexpected deployment role" >&2; exit 1 ;;
 esac
 ```
 
@@ -793,8 +854,20 @@ Each init command uses the root's `backend.hcl`, `-reconfigure`, `-input=false`,
 and verifies `tofu workspace show` equals `default`.
 
 Each plan command requires an absolute `PLAN_FILE`, refuses an existing file,
-uses `-lock-timeout=5m -input=false -out="$PLAN_FILE"`, then runs
-`tofu show -no-color "$PLAN_FILE"`.
+uses `-lock-timeout=5m -input=false -out="$PLAN_FILE"`, runs the JSON plan
+checker, then runs `tofu show -no-color "$PLAN_FILE"`.
+
+Before every artifact, development, or production plan and apply, a reusable
+guard compares `APPROVED_STATE_LOCK_URI` with the exact root lock URI. The
+controller obtains current-session approval for the exact S3 lock write before
+setting it. Initialization does not set this acknowledgement and never
+implicitly plans or applies.
+
+The only accepted values are:
+
+- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock`;
+- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock`;
+- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock`.
 
 Each apply command requires an existing `PLAN_FILE` and runs only:
 
@@ -903,7 +976,13 @@ git diff --check
 ```
 
 ```bash
-git add -- Taskfile.yaml .github/workflows/ci.yml DEPLOY-INSTRUCTIONS.md docs/deployment/aws-lambda-api-gateway.md scripts/record-lambda-observation.sh scripts/record-lambda-workflow-proof.sh scripts/check-lambda-observation-window.sh scripts/check-lambda-plan.sh tests/lambda-observation-window.sh tests/lambda-plan-contract.sh
+git add -- Taskfile.yaml .github/workflows/ci.yml DEPLOY-INSTRUCTIONS.md \
+  docs/deployment/aws-lambda-api-gateway.md \
+  docs/superpowers/plans/2026-08-21-development-lambda-cutover.md \
+  scripts/record-lambda-observation.sh \
+  scripts/record-lambda-workflow-proof.sh \
+  scripts/check-lambda-observation-window.sh scripts/check-lambda-plan.sh \
+  tests/lambda-observation-window.sh tests/lambda-plan-contract.sh
 git commit -m "build(infra): separate Lambda plans from applies"
 ```
 
@@ -1002,9 +1081,9 @@ Expected: application and infrastructure jobs succeed.
 
 - [ ] **Step 1: Re-run identity and legacy-state gates**
 
-Run `task _lambda-identity-check`, state-bucket versioning verification, and the
-legacy-state `head-object` query from Task 1. Compare its metadata with the
-recorded pre-work value.
+Run the exact identity guard from Task 1, state-bucket versioning verification,
+and the legacy-state `head-object` query. Compare its metadata with the recorded
+pre-work value. Stop unless versioning reports `Enabled`.
 
 - [ ] **Step 2: Initialize the artifact backend**
 
@@ -1014,13 +1093,17 @@ Expected: default workspace and backend key `portfolio-lambda-http-api/artifacts
 
 - [ ] **Step 3: Create and inspect a saved artifact plan**
 
+**Approval gate:** Present the artifact lock URI and obtain current-session
+approval for its create/delete write before setting
+`APPROVED_STATE_LOCK_URI`. This approval does not authorize applying the plan.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 plan_dir=$(mktemp -d)
 artifact_plan="$plan_dir/artifacts.tfplan"
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
 tofu -chdir=infra/lambda/artifacts show -json "$artifact_plan" | \
   jq -r '.resource_changes[] | [.address, (.change.actions | join(","))] | @tsv'
@@ -1034,29 +1117,35 @@ Amplify, DynamoDB, IAM, Lambda, or API address.
 - [ ] **Step 4: Apply only the approved saved plan**
 
 **Approval gate:** Stop and present the saved plan's absolute path, checksum,
-complete human-readable create list, repository name, and legacy-state metadata.
-After approval, reload the reviewed absolute path in a fresh shell and apply
-only it:
+complete human-readable create list, repository name, legacy-state metadata,
+and exact artifact lock URI. Obtain separate current-session approval for the
+saved-plan apply and its lock write. Then reload the reviewed absolute path in a
+fresh shell and apply only it:
 
 ```bash
 : "${APPROVED_ARTIFACT_PLAN:?set the exact approved artifact plan path}"
 test -f "$APPROVED_ARTIFACT_PLAN"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
-task lambda-artifacts-apply PLAN_FILE="$APPROVED_ARTIFACT_PLAN"
+task lambda-artifacts-apply \
+  PLAN_FILE="$APPROVED_ARTIFACT_PLAN" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 5: Verify convergence and repository settings**
 
+**Approval gate:** A convergence plan also writes the native lock object.
+Present the same exact artifact lock URI and obtain fresh current-session
+approval before running it.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 convergence_dir=$(mktemp -d)
 convergence_plan="$convergence_dir/artifacts-convergence.tfplan"
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$convergence_plan"
 tofu -chdir=infra/lambda/artifacts show -json "$convergence_plan" | \
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length == 0'
@@ -1103,7 +1192,6 @@ mutation in the current execution session.
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task test-images
 task lambda-release-push
 
@@ -1131,7 +1219,7 @@ set -euo pipefail
 set +x
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
+task lambda-artifacts-init
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm get-parameter \
   --name /portfolio/lambda/dev/LPS_SESSION_KEY --query Parameter.Name --output text 2>/dev/null || true)" = ""
 openssl rand -hex 32 | \
@@ -1151,7 +1239,7 @@ set -euo pipefail
 set +x
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
+task lambda-artifacts-init
 for name in CLIENT_ID_KEY CLIENT_SECRET_KEY; do
   test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm get-parameter \
     --name "/portfolio/lambda/dev/$name" --query Parameter.Name --output text 2>/dev/null || true)" = ""
@@ -1174,7 +1262,7 @@ instead of adding `Overwrite=true`.
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
+task lambda-artifacts-init
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm describe-parameters \
   --parameter-filters Key=Name,Option=BeginsWith,Values=/portfolio/lambda/dev/ \
   --query 'Parameters[].{Name:Name,Type:Type,KeyId:KeyId,LastModifiedDate:LastModifiedDate}' \
@@ -1202,7 +1290,6 @@ Expected: exactly three SecureStrings.
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 TF_VAR_ecr_repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)
@@ -1219,10 +1306,14 @@ export TF_VAR_image_digest="$release_digest"
 
 - [ ] **Step 2: Create and mechanically inspect the saved plan**
 
+**Approval gate:** Present the exact development lock URI and obtain
+current-session approval for its create/delete write before setting
+`APPROVED_STATE_LOCK_URI`. This approval does not authorize applying the saved
+plan.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 release_sha=$(git rev-parse HEAD)
@@ -1234,7 +1325,10 @@ repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_u
 plan_dir=$(mktemp -d)
 dev_plan="$plan_dir/dev.tfplan"
 dev_plan_json="$dev_plan.json"
-task lambda-dev-plan PLAN_FILE="$dev_plan" IMAGE_DIGEST="$release_digest"
+task lambda-dev-plan \
+  PLAN_FILE="$dev_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 
 tofu -chdir=infra/lambda/environments/dev show -json "$dev_plan" > "$dev_plan_json"
 jq -r '.resource_changes[] | [.address, (.change.actions | join(","))] | @tsv' "$dev_plan_json"
@@ -1243,7 +1337,7 @@ task lambda-plan-check \
   ENVIRONMENT=dev \
   NAME_PREFIX=portfolio-lambda-dev \
   IMAGE_URI="$repository_url@$release_digest" \
-  ALARM_ACTIONS_JSON='[]'
+  EXPECTED_ALARM_ACTIONS_JSON='[]'
 ```
 
 Expected: the checker enforces the no-legacy/no-delete contract, exact
@@ -1253,9 +1347,10 @@ and prefixes only on name-bearing workload fields.
 - [ ] **Step 3: Review the human-readable plan and apply exactly it**
 
 **Approval gate:** Stop and present the saved plan's absolute path and checksum,
-the complete action list, the digest-qualified image URI, and mechanical safety
-assertions. After approval, reload the reviewed path in a fresh shell and apply
-only it:
+the complete action list, the digest-qualified image URI, mechanical safety
+assertions, and exact development lock URI. Obtain separate current-session
+approval for the saved-plan apply and its lock write. Then reload the reviewed
+path in a fresh shell and apply only it:
 
 ```bash
 : "${APPROVED_DEV_PLAN:?set the exact approved development plan path}"
@@ -1263,10 +1358,11 @@ test -f "$APPROVED_DEV_PLAN"
 test -f "$APPROVED_DEV_PLAN.json"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
-task lambda-dev-apply PLAN_FILE="$APPROVED_DEV_PLAN"
+task lambda-dev-apply \
+  PLAN_FILE="$APPROVED_DEV_PLAN" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 4: Wait for the function and verify version/alias coordinates**
@@ -1274,7 +1370,7 @@ task lambda-dev-apply PLAN_FILE="$APPROVED_DEV_PLAN"
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
+task lambda-dev-init
 function_name=$(tofu -chdir=infra/lambda/environments/dev output -raw lambda_function_name)
 
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" lambda wait function-active-v2 --function-name "$function_name"
@@ -1315,10 +1411,12 @@ Inspect the latest Lambda and API access records without cookies, headers, query
 strings, or bodies. Confirm all five alarms exist and are `OK` or
 `INSUFFICIENT_DATA`, not `ALARM`. Create and inspect the convergence plan:
 
+**Approval gate:** Obtain fresh current-session approval for the exact
+development lock URI before the convergence plan.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 function_name=$(tofu -chdir=infra/lambda/environments/dev output -raw lambda_function_name)
@@ -1329,7 +1427,10 @@ live_image_uri=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" lambda get-
 release_digest=${live_image_uri##*@}
 convergence_dir=$(mktemp -d)
 convergence_plan="$convergence_dir/dev-convergence.tfplan"
-task lambda-dev-plan PLAN_FILE="$convergence_plan" IMAGE_DIGEST="$release_digest"
+task lambda-dev-plan \
+  PLAN_FILE="$convergence_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 tofu -chdir=infra/lambda/environments/dev show -json "$convergence_plan" | \
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length == 0'
 rm -- "$convergence_plan"
@@ -1371,7 +1472,6 @@ Re-derive the endpoint in this task:
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-dev-init
 base_url=$(tofu -chdir=infra/lambda/environments/dev output -raw api_default_url)
 direct_oauth_uri="${base_url%/}/soccer"
@@ -1399,10 +1499,13 @@ Change only `request_custom_domain = true` and commit
 locally with the digest already serving behind the `live` alias, not a tag
 derived from the now-advanced Git `HEAD`:
 
+**Approval gate:** Present the exact development lock URI and obtain fresh
+current-session approval for its create/delete write before the certificate
+plan. This approval does not authorize the later apply.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 function_name=$(tofu -chdir=infra/lambda/environments/dev output -raw lambda_function_name)
@@ -1414,7 +1517,10 @@ release_digest=${image_uri##*@}
 test "$(printf '%s' "$release_digest" | grep -Ec '^sha256:[0-9a-f]{64}$')" = "1"
 certificate_plan_dir=$(mktemp -d)
 certificate_plan="$certificate_plan_dir/dev-certificate.tfplan"
-task lambda-dev-plan PLAN_FILE="$certificate_plan" IMAGE_DIGEST="$release_digest"
+task lambda-dev-plan \
+  PLAN_FILE="$certificate_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 tofu -chdir=infra/lambda/environments/dev show -json "$certificate_plan" > \
   "$certificate_plan_dir/dev-certificate.json"
 jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes |
@@ -1426,9 +1532,9 @@ jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes 
 
 **Approval gate:** Present the exact commit, branch, and push before changing
 GitHub. After hosted CI passes, separately present the saved plan path, checksum,
-and full change list. Apply that exact plan only after the user approves each
-mutation in the current execution session. No Lambda replacement or alias
-movement is allowed.
+full change list, and exact development lock URI. Apply that exact plan only
+after the user separately approves the saved-plan apply and lock write in the
+current execution session. No Lambda replacement or alias movement is allowed.
 
 ```bash
 : "${APPROVED_CERTIFICATE_PLAN:?set the exact approved certificate plan path}"
@@ -1436,9 +1542,10 @@ test -f "$APPROVED_CERTIFICATE_PLAN"
 test -f "$(dirname "$APPROVED_CERTIFICATE_PLAN")/dev-certificate.json"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-dev-init
-task lambda-dev-apply PLAN_FILE="$APPROVED_CERTIFICATE_PLAN"
+task lambda-dev-apply \
+  PLAN_FILE="$APPROVED_CERTIFICATE_PLAN" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 4: Add ACM validation records to Cloudflare**
@@ -1458,10 +1565,13 @@ require only certificate validation, the Regional API Gateway domain, and API
 mapping; no function replacement. Re-derive the digest from the live version in
 this fresh step:
 
+**Approval gate:** Present the exact development lock URI and obtain fresh
+current-session approval for its create/delete write before the activation
+plan. This approval does not authorize the later apply.
+
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 function_name=$(tofu -chdir=infra/lambda/environments/dev output -raw lambda_function_name)
@@ -1473,7 +1583,10 @@ release_digest=${image_uri##*@}
 test "$(printf '%s' "$release_digest" | grep -Ec '^sha256:[0-9a-f]{64}$')" = "1"
 activation_plan_dir=$(mktemp -d)
 activation_plan="$activation_plan_dir/dev-domain-activation.tfplan"
-task lambda-dev-plan PLAN_FILE="$activation_plan" IMAGE_DIGEST="$release_digest"
+task lambda-dev-plan \
+  PLAN_FILE="$activation_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 tofu -chdir=infra/lambda/environments/dev show -json "$activation_plan" > \
   "$activation_plan_dir/dev-domain-activation.json"
 jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes |
@@ -1484,8 +1597,9 @@ jq -e '[.resource_changes[] | select(.change.actions != ["no-op"])] as $changes 
 ```
 
 **Approval gate:** Present and obtain separate approvals for the GitHub push and
-the exact saved AWS plan before either mutation. Wait for hosted CI before the
-apply.
+the exact saved AWS plan before either mutation. Present the exact development
+lock URI and obtain separate current-session lock-write approval. Wait for
+hosted CI before the apply.
 
 ```bash
 : "${APPROVED_ACTIVATION_PLAN:?set the exact approved domain-activation plan path}"
@@ -1493,9 +1607,10 @@ test -f "$APPROVED_ACTIVATION_PLAN"
 test -f "$(dirname "$APPROVED_ACTIVATION_PLAN")/dev-domain-activation.json"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-dev-init
-task lambda-dev-apply PLAN_FILE="$APPROVED_ACTIVATION_PLAN"
+task lambda-dev-apply \
+  PLAN_FILE="$APPROVED_ACTIVATION_PLAN" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 6: Add and test the custom-domain OAuth callback before traffic cutover**
@@ -1538,7 +1653,6 @@ hosted checks before evaluating merge readiness.
 git push
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-dev-init
 pr_url=$(gh pr view --json url --jq .url)
 pr_head_sha=$(git rev-parse HEAD)
@@ -1611,7 +1725,6 @@ Re-derive every value instead of using variables from earlier tasks:
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 
@@ -1669,7 +1782,6 @@ release_sha=$(curl --fail --show-error --silent \
 release_record="docs/deployment/evidence/releases/${release_sha}.json"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 task lambda-artifacts-init
 task lambda-dev-init
 function_name=$(tofu -chdir=infra/lambda/environments/dev output -raw lambda_function_name)
@@ -1702,7 +1814,6 @@ jq -e --arg sha "$release_sha" --arg digest "$release_digest" --arg image "$live
 : "${SYNC_REQUEST_ID:?set the sanitized sync request ID from Step 10}"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 evidence_file=docs/deployment/evidence/development-observation.jsonl
 task lambda-dev-observation-workflow \
   RELEASE_RECORD="$release_record" \
@@ -1746,7 +1857,6 @@ Set explicit paths from the reviewed source SHA and run the authoritative sample
 : "${RELEASE_RECORD:?set the reviewed release JSON path}"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 EVIDENCE_FILE=docs/deployment/evidence/development-observation.jsonl
 task lambda-dev-observation-sample \
   RELEASE_RECORD="$RELEASE_RECORD" \
@@ -1799,7 +1909,6 @@ append the second workflow record:
 : "${SYNC_REQUEST_ID:?set the sanitized day-seven sync request ID}"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 EVIDENCE_FILE=docs/deployment/evidence/development-observation.jsonl
 task lambda-dev-observation-workflow \
   RELEASE_RECORD="$RELEASE_RECORD" \
@@ -1817,7 +1926,6 @@ task lambda-dev-observation-workflow \
 : "${RELEASE_RECORD:?set the reviewed release JSON path}"
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-task _lambda-identity-check
 EVIDENCE_FILE=docs/deployment/evidence/development-observation.jsonl
 task lambda-dev-observation-gate \
   RELEASE_RECORD="$RELEASE_RECORD" \
