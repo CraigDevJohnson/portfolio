@@ -4,13 +4,47 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"reflect"
+	"regexp"
+	"sort"
 	"testing"
 )
+
+var outputBlockPattern = regexp.MustCompile(`(?m)^output\s+"([^"]+)"\s+\{`)
+
+var serviceOutputNames = []string{
+	"acm_validation_records",
+	"alarm_arns",
+	"api_access_log_group_name",
+	"api_default_url",
+	"api_gateway_domain_targets",
+	"api_id",
+	"certificate_arn",
+	"environment",
+	"google_connection_table_arn",
+	"google_connection_table_name",
+	"image_uri",
+	"lambda_alias_arn",
+	"lambda_alias_name",
+	"lambda_function_arn",
+	"lambda_function_name",
+	"lambda_log_group_name",
+	"lambda_published_version",
+	"oauth_redirect_uris",
+	"soccer_session_table_arn",
+	"soccer_session_table_name",
+	"ssm_parameter_paths",
+}
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
 		"artifacts/backend.hcl",
 		"artifacts/main.tf",
+		"modules/service/api.tf",
+		"modules/service/domain.tf",
+		"modules/service/lambda.tf",
+		"modules/service/observability.tf",
+		"modules/service/outputs.tf",
 	}
 
 	for _, path := range required {
@@ -33,6 +67,42 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 
 	if gitPathIsIgnored(t, "infra/lambda/artifacts/.terraform.lock.hcl") {
 		t.Error("the artifact root provider lock file must not be ignored")
+	}
+
+	assertExactTerraformOutputs(t, "modules/service/outputs.tf", serviceOutputNames)
+	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
+	runOpenTofu(t, "modules/service", "test", "-no-color")
+}
+
+func assertExactTerraformOutputs(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Errorf("read Terraform outputs from %q: %v", path, err)
+		return
+	}
+
+	matches := outputBlockPattern.FindAllStringSubmatch(string(contents), -1)
+	got := make([]string, 0, len(matches))
+	for _, match := range matches {
+		got = append(got, match[1])
+	}
+	sort.Strings(got)
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Terraform outputs in %q = %v, want exactly %v", path, got, want)
+	}
+}
+
+func runOpenTofu(t *testing.T, directory string, args ...string) {
+	t.Helper()
+
+	commandArgs := append([]string{"-chdir=" + directory}, args...)
+	command := exec.Command("tofu", commandArgs...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("tofu %v in %q: %v\n%s", args, directory, err, output)
 	}
 }
 

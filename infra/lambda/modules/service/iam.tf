@@ -54,6 +54,11 @@ data "aws_iam_policy_document" "lambda" {
     actions   = ["kms:Decrypt"]
     resources = [data.aws_kms_alias.ssm.target_key_arn]
   }
+
+  statement {
+    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["${aws_cloudwatch_log_group.lambda.arn}:*"]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {
