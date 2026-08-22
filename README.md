@@ -83,9 +83,12 @@ The main repository commands are:
 | `task fmt` | Format with `golangci-lint fmt` |
 | `task lint` | Generate templates, format, then run `golangci-lint run` |
 | `task ci` | Clean, generate, format, vet, lint, test, and build |
+| `task build-image` | Build a local amd64 server image; no push or deploy |
+| `task build-lambda-image` | Build amd64 Lambda image; no push or deploy |
+| `task test-images` | Verify both local Linux amd64 image contracts |
 | `task portal-preview` | Run the mock portal on loopback |
 | `task compose` | Build and start the Compose service |
-| `task logs` | Follow App Runner application logs in CloudWatch Logs |
+| `task logs` | Follow logs for the legacy shared-stack App Runner service |
 
 `Taskfile.yaml` is the command source of truth. In particular, use `task fmt`
 instead of `go fmt ./...` for the repository formatting gate.
@@ -184,7 +187,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  OpenTofu resources for AWS
+├── infra/                  Legacy shared-stack OpenTofu and rollback material
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -222,6 +225,7 @@ Public pages:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/healthz` | Dependency-free JSON health and build revision proof |
 | `GET` | `/` | Home |
 | `GET` | `/home` | Permanent redirect to `/` |
 | `GET` | `/about` | About |
@@ -265,8 +269,38 @@ Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The repository supports AWS App Runner and AWS Lambda with API Gateway. Read
-[`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for shared infrastructure,
-secrets, deployment, update, and teardown procedures. Lambda-specific behavior
-is documented in
+The current release candidate prepares the application for a replacement AWS
+Lambda and API Gateway environment, but it does not create or deploy that
+environment. The replacement deployment contract is a 29-second Lambda timeout.
+The Google add and result-sync handlers reserve 24 seconds of that window, which
+leaves five seconds outside their application work budget. A later environment
+plan must implement the 29-second setting before release.
+
+The checked-in `infra/` directory still describes the legacy shared App Runner
+and Lambda stack. Its Lambda timeout defaults to 30 seconds. Treat `infra/`,
+`task deploy`, `task redeploy`, `task deploy-lambda`, `task redeploy-lambda`,
+`task logs`, and the App Runner custom-domain instructions as legacy
+shared-stack and rollback material. Do not use them to deploy this release, and
+do not deploy the new release to App Runner.
+
+At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
+typed request context. That context controls secure cookies and generated URLs;
+client-supplied host and forwarding headers cannot override it. Cold-start
+initialization has an eight-second bound. It reads configured SSM paths in one
+decrypted batch, validates the complete response before changing the
+environment, constructs the application once, and reuses the proxy on warm
+invocations.
+
+Both Google Calendar add and result-sync operations have a 24-second request
+budget. If the deadline interrupts a batch, the response includes counts for
+completed work and tells the user to retry. Retries match existing games and
+update them instead of duplicating completed inserts.
+
+`task build-image` and `task build-lambda-image` build local Linux amd64 images.
+`task test-images` verifies their contracts. These tasks do not push an image,
+apply infrastructure, or deploy a service.
+
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the boundary
+between pending replacement work and preserved legacy rollback procedures.
+Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

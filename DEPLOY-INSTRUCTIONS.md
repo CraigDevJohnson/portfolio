@@ -1,8 +1,15 @@
 # Deployment instructions
 
-The repository deploys container images from one Amazon ECR repository to both
-AWS App Runner and AWS Lambda with API Gateway. OpenTofu manages both runtimes,
-their shared DynamoDB tables, and their IAM roles in one state.
+> [!WARNING]
+> This file preserves legacy shared-stack and rollback procedures. The
+> checked-in `infra/` directory and the existing `task deploy`, `task redeploy`,
+> `task deploy-lambda`, and `task redeploy-lambda` commands operate on the
+> legacy state that combines App Runner and Lambda. Do not use them for the
+> replacement release. The new release must not be deployed to App Runner.
+
+The legacy stack deploys container images from one Amazon ECR repository to
+both AWS App Runner and AWS Lambda with API Gateway. OpenTofu manages both
+runtimes, their shared DynamoDB tables, and their IAM roles in one state.
 
 > [!IMPORTANT]
 > AWS App Runner is closed to new customers. Existing customers can continue
@@ -10,9 +17,10 @@ their shared DynamoDB tables, and their IAM roles in one state.
 > container service. See the
 > [AWS App Runner availability change](https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html).
 
-## Current infrastructure
+## Legacy shared-stack infrastructure
 
-`infra/*.tf` is the source of truth. A full apply manages:
+`infra/*.tf` remains the source of truth for the legacy shared stack and its
+rollback procedures. A full apply manages:
 
 - one ECR repository with mutable `latest` and `lambda-latest` tags;
 - an App Runner service using `latest`;
@@ -29,7 +37,34 @@ AWS charges vary by region and traffic. Check the current
 [Lambda pricing](https://aws.amazon.com/lambda/pricing/) instead of relying on
 a fixed monthly estimate.
 
-## Prerequisites
+## Pending replacement contract
+
+This repository does not yet contain the replacement environment, and this
+release does not make the replacement live. A later environment plan must
+implement its deployment resources and set the Lambda timeout to 29 seconds.
+That timeout leaves five seconds outside the application's 24-second Google
+Calendar add and result-sync budget.
+
+The legacy `infra/variables.tf` default remains 30 seconds. That value describes
+only the shared rollback stack; it is not the replacement target.
+
+The application behavior prepared for the replacement is documented in
+[`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).
+
+## Local image verification
+
+These Linux amd64 tasks are local-only and do not push or deploy images:
+
+```bash
+task build-image
+task build-lambda-image
+task test-images
+```
+
+The build tasks accept optional `IMAGE_TAG` and `BUILD_REVISION` values. They
+default to local tags and the current Git revision.
+
+## Legacy shared-stack prerequisites
 
 Install and configure:
 
@@ -53,7 +88,7 @@ aws sts get-caller-identity
 The OpenTofu default is `us-west-2`. Set `AWS_PROFILE` when you do not want the
 AWS CLI's default profile.
 
-## Configure runtime secrets
+## Configure legacy shared-stack runtime secrets
 
 With the default `app_name = "portfolio"`, both deployed runtimes expect these
 SecureString parameters:
@@ -98,7 +133,7 @@ Register each deployed `/soccer` URL in the Google OAuth client. Include the
 App Runner custom domain, the API Gateway URL if Lambda is used directly, and
 `http://localhost:8080/soccer` for local testing.
 
-## First deployment
+## Legacy shared-stack first deployment
 
 From the repository root:
 
@@ -128,9 +163,10 @@ tofu output -raw lambda_api_url
 Open each URL and confirm the home page loads. Confirm `/soccer` separately if
 you configured Google OAuth and Soccer authentication.
 
-## Updates
+## Legacy shared-stack updates
 
-Use the runtime-specific update command after the first deployment:
+The commands below update the legacy shared stack after its first deployment.
+Keep them for rollback only; do not use them for the replacement release.
 
 ```bash
 # Push latest and trigger App Runner.
@@ -141,7 +177,8 @@ task redeploy-lambda
 ```
 
 `task deploy-lambda` is a targeted first-deploy helper for Lambda resources. It
-does not replace a full infrastructure reconciliation with `task deploy`.
+does not replace a full infrastructure reconciliation with `task deploy`. Both
+commands target the legacy shared OpenTofu state.
 
 ## EC2 management portal
 
@@ -176,9 +213,11 @@ Required AWS actions are:
 The Terraform-managed Lambda deployment does not pass or resolve `MGMT_*`
 values, so the portal is not currently supported on that path.
 
-## App Runner custom domain
+## Legacy App Runner custom domain and rollback reference
 
-This section applies only to accounts that already have App Runner access.
+This legacy section applies only to accounts that already have App Runner
+access. It is retained for rollback and must not be used to put the new release
+on App Runner.
 
 Associate the domain:
 
@@ -205,7 +244,7 @@ aws apprunner describe-custom-domains --service-arn "$SERVICE_ARN"
 AWS says activation can take up to 24 to 48 hours. See
 [Managing App Runner custom domains](https://docs.aws.amazon.com/apprunner/latest/dg/manage-custom-domains.html).
 
-## Teardown
+## Legacy shared-stack teardown
 
 Disassociate an App Runner custom domain before destroying its service:
 
@@ -230,14 +269,14 @@ it while images remain. Emptying ECR is a separate destructive decision; do
 not change that guard or delete images without confirming the exact repository
 and recovery impact.
 
-## Troubleshooting
+## Legacy shared-stack troubleshooting
 
 ### Image not found
 
 Run `task deploy`, not a bare full `tofu apply`, for the first deployment. The
 full state needs both `latest` and `lambda-latest` in ECR.
 
-### App Runner does not become healthy
+### Legacy App Runner does not become healthy
 
 The service expects an `amd64` container listening on port `8080`. Reproduce the
 runtime locally:
@@ -254,10 +293,11 @@ SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
 aws apprunner list-operations --service-arn "$SERVICE_ARN"
 ```
 
-Follow application logs from the service's CloudWatch Logs group with
-`task logs`.
+Follow application logs from the legacy service's CloudWatch Logs group with
+`task logs`. This command is legacy App Runner guidance, not a replacement
+Lambda log command.
 
-### Lambda fails during cold start
+### Legacy Lambda fails during cold start
 
 Confirm all three SSM parameter paths exist in the configured `aws_region`
 (`us-west-2` by default) and the Lambda role can call `ssm:GetParameters` and
