@@ -38,13 +38,15 @@ coverage.out
 cmd/web/static/css/tailwind.css
 
 # OpenTofu / Terraform
-infra/.terraform/
-infra/.tofu/
-infra/*.tfstate
-infra/*.tfstate.backup
-infra/*.tfplan
-infra/.terraform.lock.hcl
+infra/**/.terraform/
+infra/**/.tofu/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/*.tfplan
 tfplan
+
+# Track provider locks for replacement infrastructure roots.
+!infra/lambda/artifacts/.terraform.lock.hcl
 
 
 static/screenshots/
