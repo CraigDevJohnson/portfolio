@@ -225,7 +225,7 @@ Public pages:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/healthz` | Dependency-free JSON health and build revision proof |
+| `GET` | `/healthz` | JSON health and revision; no dependency probes |
 | `GET` | `/` | Home |
 | `GET` | `/home` | Permanent redirect to `/` |
 | `GET` | `/about` | About |
@@ -297,8 +297,13 @@ completed work and tells the user to retry. Retries match existing games and
 update them instead of duplicating completed inserts.
 
 `task build-image` and `task build-lambda-image` build local Linux amd64 images.
-`task test-images` verifies their contracts. These tasks do not push an image,
-apply infrastructure, or deploy a service.
+By default, they inject the current full Git SHA as the build revision; a
+supplied `BUILD_REVISION` overrides it. An exact `/healthz` comparison against
+that expected value proves the identity of those artifacts. Legacy deployment
+helpers and direct builds that omit `BUILD_REVISION` may report `development`,
+which is not immutable provenance proof. `task test-images` verifies the image
+contracts. These tasks do not push an image, apply infrastructure, or deploy a
+service.
 
 Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the boundary
 between pending replacement work and preserved legacy rollback procedures.

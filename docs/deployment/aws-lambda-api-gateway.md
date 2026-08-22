@@ -94,6 +94,10 @@ task build-lambda-image
 task test-images
 ```
 
+The two build tasks pass the current full Git SHA as `BUILD_REVISION` by
+default, or inject the caller's supplied `BUILD_REVISION`. Comparing `/healthz`
+with that exact expected value can prove the identity of those artifacts.
+
 They do not log in to ECR, push images, apply OpenTofu, or update a running
 service.
 
@@ -114,10 +118,13 @@ GET /soccer
 GET /static/css/tailwind.css
 ```
 
-`GET /healthz` is dependency-free. It returns `application/json` with
+`GET /healthz` returns `application/json` with the configured,
+linker-injected revision in
 `{"revision":"<build revision>","status":"ok"}` and `Cache-Control:
-no-store`, so it proves which immutable build is serving without probing SSM,
-DynamoDB, Google, or Soccer dependencies during request handling.
+no-store`. The handler does not probe SSM, DynamoDB, Google, or Soccer during
+request handling. Legacy deployment helpers and direct builds that omit
+`BUILD_REVISION` may report `development`. Do not use that value as immutable
+provenance proof.
 
 For a legacy cold-start failure, inspect that function's CloudWatch Logs.
 Confirm its role can read each configured SSM parameter and decrypt its KMS key.
