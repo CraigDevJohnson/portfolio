@@ -62,11 +62,13 @@ make_release() {
 	environment=$1
 	rollback=$2
 	alarm_delivery=$3
-	output=$4
+	evidence=$4
+	output=$5
 	jq -n \
 		--arg environment "$environment" \
 		--arg rollback "$rollback" \
 		--arg alarm_delivery "$alarm_delivery" \
+		--arg evidence "$evidence" \
 		--arg sha "$sha" \
 		--arg digest "$digest" \
 		--arg version "$version" \
@@ -80,7 +82,7 @@ make_release() {
 			healthz_revision: $sha,
 			dns_cutover_at: "1970-01-01T00:16:40Z",
 			rollback_evidence: $rollback,
-			observation_evidence: "observation.jsonl",
+			observation_evidence: $evidence,
 			observation_completed_at: null
 		}
 		| if $environment == "production" then .production.alarm_delivery_evidence = $alarm_delivery else . end' >"$output"
@@ -138,7 +140,7 @@ make_evidence() {
 					{name: ($prefix + "-lambda-throttles"), state: "OK"}
 				],
 				metrics: {lambda_errors: 0, lambda_throttles: 0, lambda_duration_p95_ms: 100, api_5xx: 0, api_latency_p95_ms: 100},
-				rollback_origin: {url: $rollback_origin, passed: true, probes: [{path: "/", status: 200}, {path: "/soccer", status: 200}, {path: "/static/css/tailwind.css", status: 200}]},
+				rollback_origin: {url: $rollback_origin, passed: true, probes: [{path: "/", status: 200, content_type: "text/html"}, {path: "/soccer", status: 200, content_type: "text/html"}, {path: "/static/css/tailwind.css", status: 200, content_type: "text/css"}]},
 				unresolved_blockers: []
 			}' >>"$output"
 		i=$((i + 1))
@@ -176,22 +178,29 @@ make_rollback development https://legacy-app-runner.example.com "$dev_rollback"
 make_rollback production https://legacy-amplify.example.com "$prod_rollback"
 make_alarm_delivery "$alarm_delivery_path"
 make_boolean_only_alarm_delivery "$boolean_alarm_delivery_path"
-make_release development "$dev_rollback" "" "$dev_release"
-make_release production "$prod_rollback" "$alarm_delivery_path" "$prod_release"
-make_release production "$prod_rollback" "$boolean_alarm_delivery_path" "$boolean_alarm_prod_release"
+make_release development "$dev_rollback" "" "$dev_evidence" "$dev_release"
+make_release production "$prod_rollback" "$alarm_delivery_path" "$prod_evidence" "$prod_release"
+make_release production "$prod_rollback" "$boolean_alarm_delivery_path" "$prod_evidence" "$boolean_alarm_prod_release"
 make_evidence development "$dev_evidence"
 make_evidence production "$prod_evidence"
 
 expect_pass "exact seven-day development window" run_gate "$dev_release" "$dev_evidence" development
+expect_pass "equivalent observation evidence path resolves to the release file" run_gate "$dev_release" "$tmp_dir/./development-observation.jsonl" development
 expect_fail "boolean-only production alarm evidence" run_gate "$boolean_alarm_prod_release" "$prod_evidence" production
 expect_pass "exact seven-day production window" run_gate "$prod_release" "$prod_evidence" production
+
+mismatched_evidence_release="$tmp_dir/mismatched-evidence-release.json"
+jq --arg evidence "$prod_evidence" '.development.observation_evidence = $evidence' "$dev_release" >"$mismatched_evidence_release"
+expect_fail "release record binds the exact observation evidence file" run_gate "$mismatched_evidence_release" "$dev_evidence" development
 
 mutate_evidence_and_reject() {
 	name=$1
 	filter=$2
 	mutated="$tmp_dir/mutated.jsonl"
+	mutated_release="$tmp_dir/mutated-release.json"
 	jq -c -s "$filter | .[]" "$dev_evidence" >"$mutated"
-	expect_fail "$name" run_gate "$dev_release" "$mutated" development
+	jq --arg evidence "$mutated" '.development.observation_evidence = $evidence' "$dev_release" >"$mutated_release"
+	expect_fail "$name" run_gate "$mutated_release" "$mutated" development
 }
 
 mutate_evidence_and_reject "too-short window" 'map(if .kind == "sample" and .observed_at_epoch == 605800 then .observed_at_epoch = 605799 | .observed_at = (605799 | todateiso8601) else . end) | map(if .kind == "workflow" and .observed_at_epoch == 605800 then .observed_at_epoch = 605799 | .observed_at = (605799 | todateiso8601) else . end)'
@@ -209,6 +218,11 @@ mutate_evidence_and_reject "missing day-seven workflow" 'map(select(.kind != "wo
 mutate_evidence_and_reject "failed workflow proof" 'map(if .kind == "workflow" and .observed_at_epoch == 605800 then .sync_ok = false | .passed = false else . end)'
 mutate_evidence_and_reject "rollback-origin failure" 'map(if .kind == "sample" and .observed_at_epoch == 519400 then .rollback_origin.passed = false | .passed = false else . end)'
 mutate_evidence_and_reject "unresolved blocker" 'map(if .kind == "sample" and .observed_at_epoch == 433000 then .unresolved_blockers = ["route failure"] | .passed = false else . end)'
+mutate_evidence_and_reject "sample rejects a secret-like extra field" 'map(if .kind == "sample" then .oauth_token = "durable-secret" else . end)'
+mutate_evidence_and_reject "sample rejects a nested extra field" 'map(if .kind == "sample" then .health.debug = true else . end)'
+mutate_evidence_and_reject "workflow rejects an extra field" 'map(if .kind == "workflow" then .debug = true else . end)'
+mutate_evidence_and_reject "unknown evidence kind" '. + [{schema_version: 1, kind: "note", environment: "development", text: "unreviewed"}]'
+mutate_evidence_and_reject "unknown evidence environment" '. + [.[0] | .environment = "staging"]'
 
 bad_alarm_release="$tmp_dir/bad-alarm-release.json"
 jq '.production.alarm_delivery_evidence = "/missing/alarm-evidence.json"' "$prod_release" >"$bad_alarm_release"
@@ -220,7 +234,7 @@ mutate_alarm_delivery_and_reject() {
 	invalid_alarm="$tmp_dir/invalid-alarm.json"
 	invalid_release="$tmp_dir/invalid-alarm-release.json"
 	jq "$filter" "$alarm_delivery_path" >"$invalid_alarm"
-	make_release production "$prod_rollback" "$invalid_alarm" "$invalid_release"
+	make_release production "$prod_rollback" "$invalid_alarm" "$prod_evidence" "$invalid_release"
 	expect_fail "$name" run_gate "$invalid_release" "$prod_evidence" production
 }
 
@@ -235,7 +249,7 @@ mutate_alarm_delivery_and_reject "alarm subscriber endpoint" '.subscriber_endpoi
 query_rollback="$tmp_dir/query-rollback.json"
 query_rollback_release="$tmp_dir/query-rollback-release.json"
 make_rollback development 'https://legacy.example.com/?oauth_token=secret-value' "$query_rollback"
-make_release development "$query_rollback" "" "$query_rollback_release"
+make_release development "$query_rollback" "" "$dev_evidence" "$query_rollback_release"
 expect_fail "rollback evidence rejects a query string" run_gate "$query_rollback_release" "$dev_evidence" development
 
 fake_bin="$tmp_dir/fake-bin"
@@ -342,7 +356,7 @@ make_bad_rollback_release_and_reject() {
 	bad_rollback="$tmp_dir/bad-rollback.json"
 	bad_release="$tmp_dir/bad-rollback-release.json"
 	make_rollback development "$origin" "$bad_rollback"
-	make_release development "$bad_rollback" "" "$bad_release"
+	make_release development "$bad_rollback" "" "$dev_evidence" "$bad_release"
 	expect_fail "$name" run_sample_recorder "$bad_release" development
 }
 

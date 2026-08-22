@@ -63,7 +63,7 @@ jq -e '
 jq -e --arg environment "$ENVIRONMENT" '
 	def allowed_secret_path:
 		type == "string" and
-		test("^/portfolio/lambda/(dev|prod)/CLIENT_SECRET_KEY$");
+		. == ("/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY");
 	[
 		.resource_changes[].change
 		| [.before, .after][]
@@ -188,6 +188,127 @@ jq -e '
 		.type == "aws_iam_policy_document" and
 		.change.actions == ["read"])
 ' "$PLAN_JSON" >/dev/null || fail "environment plan contains an unapproved data-source read"
+
+jq -e \
+	--arg environment "$ENVIRONMENT" \
+	--arg prefix "$NAME_PREFIX" '
+	def exact_keys($expected): (keys | sort) == ($expected | sort);
+	def by_address($address): first(.resource_changes[] | select(.address == $address));
+	def service_configuration_resource($address):
+		first(.configuration.root_module.module_calls.service.module.resources[] | select(.address == $address));
+	def exact_data_statement:
+		type == "object" and
+		exact_keys(["actions", "condition", "effect", "not_actions", "not_principals", "not_resources", "principals", "resources", "sid"]) and
+		(.actions | type == "array" and length > 0 and all(.[]; type == "string")) and
+		.condition == [] and
+		.effect == null and
+		.not_actions == null and
+		.not_principals == [] and
+		.not_resources == null and
+		.principals == [] and
+		(.resources | type == "array" and length > 0 and all(.[]; type == "string")) and
+		.sid == null;
+	def normalized_data_statement:
+		{actions: (.actions | sort), resources: (.resources | sort)};
+	def values_array: if type == "array" then . else [.] end;
+	def exact_known_policy($value; $expected):
+		(try ($value | fromjson) catch null) as $document |
+		($value | type) == "string" and
+		($document | type) == "object" and
+		($document | exact_keys(["Statement", "Version"])) and
+		$document.Version == "2012-10-17" and
+		($document.Statement | type == "array" and length == 5) and
+		all($document.Statement[];
+			type == "object" and
+			exact_keys(["Action", "Effect", "Resource"]) and
+			.Effect == "Allow" and
+			(.Action | values_array | length > 0 and all(.[]; type == "string")) and
+			(.Resource | values_array | length > 0 and all(.[]; type == "string"))) and
+		([
+			$document.Statement[] |
+			{actions: (.Action | values_array | sort), resources: (.Resource | values_array | sort)}
+		] | sort_by(tojson)) == $expected;
+
+	try (
+		by_address("module.service.aws_dynamodb_table.google_connections").change.after.arn as $google_arn |
+		by_address("module.service.aws_dynamodb_table.soccer_sessions").change.after.arn as $soccer_arn |
+		by_address("module.service.aws_cloudwatch_log_group.lambda").change.after.arn as $lambda_log_arn |
+		by_address("module.service.aws_iam_role_policy.lambda") as $runtime_policy |
+		by_address("module.service.aws_lambda_function.app") as $lambda |
+		[
+			.resource_changes[] |
+			select(
+				.address == "module.service.data.aws_iam_policy_document.lambda" and
+				.mode == "data" and
+				.type == "aws_iam_policy_document"
+			)
+		] as $policy_data_changes |
+		service_configuration_resource("aws_iam_role_policy.lambda") as $runtime_policy_configuration |
+		($policy_data_changes | length) == 1 and
+		($policy_data_changes[0].change.actions == ["read"]) and
+		($policy_data_changes[0].change.after.statement | type == "array" and length == 5) and
+		all($policy_data_changes[0].change.after.statement[]; exact_data_statement) and
+		[
+			$policy_data_changes[0].change.after.statement[] |
+			select((.actions | sort) == ["kms:Decrypt"]) |
+			.resources[]
+		] as $kms_resources |
+		($kms_resources | length) == 1 and
+		($kms_resources[0] | test("^arn:aws:kms:us-west-2:180294223248:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
+		($google_arn | type) == "string" and
+		($soccer_arn | type) == "string" and
+		($lambda_log_arn | type) == "string" and
+		([{
+			actions: ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem"],
+			resources: [$google_arn]
+		}, {
+			actions: ["dynamodb:PutItem"],
+			resources: [$soccer_arn]
+		}, {
+			actions: ["ssm:GetParameters"],
+			resources: [
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"
+			]
+		}, {
+			actions: ["kms:Decrypt"],
+			resources: $kms_resources
+		}, {
+			actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+			resources: [$lambda_log_arn + ":*"]
+		}] | map(.actions |= sort | .resources |= sort) | sort_by(tojson)) as $expected_statements |
+		([$policy_data_changes[0].change.after.statement[] | normalized_data_statement] | sort_by(tojson)) == $expected_statements and
+		($runtime_policy_configuration.mode == "managed") and
+		($runtime_policy_configuration.type == "aws_iam_role_policy") and
+		($runtime_policy_configuration.name == "lambda") and
+		($runtime_policy_configuration.expressions.policy | exact_keys(["references"])) and
+		(($runtime_policy_configuration.expressions.policy.references | sort) == ([
+			"data.aws_iam_policy_document.lambda",
+			"data.aws_iam_policy_document.lambda.json"
+		] | sort)) and
+		(
+			(
+				($runtime_policy.change.after.policy | type) == "string" and
+				(($runtime_policy.change.after_unknown.policy // false) == false) and
+				exact_known_policy($runtime_policy.change.after.policy; $expected_statements)
+			) or (
+				($runtime_policy.change.after | has("policy") | not) and
+				$runtime_policy.change.after_unknown == {policy: true}
+			)
+		) and
+		$lambda.change.after.environment == [{variables: {
+			CLIENT_ID_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY"),
+			CLIENT_SECRET_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY"),
+			GOOGLE_CONNECTION_TABLE_NAME: ($prefix + "-google-connections"),
+			LOG_ADD_SOURCE: "false",
+			LOG_FORMAT: "json",
+			LOG_LEVEL: "info",
+			LPS_SESSION_KEY: ("/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"),
+			SOCCER_SESSION_TABLE_NAME: ($prefix + "-soccer-sessions")
+		}}]
+	) catch false
+' "$PLAN_JSON" >/dev/null || fail "runtime policy or Lambda environment contract drifted"
 
 jq -e \
 	--arg prefix "$NAME_PREFIX" \

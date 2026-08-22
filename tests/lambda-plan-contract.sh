@@ -87,14 +87,47 @@ make_environment_plan() {
 		alarm_actions='[]'
 	fi
 	jq -n \
+		--arg environment "$environment" \
 		--arg prefix "$prefix" \
 		--arg image "$image_uri" \
 		--arg boundary "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" \
 		--argjson protection "$protection" \
 		--argjson retention "$retention" \
 		--argjson alarm_actions "$alarm_actions" '
-		def change($after): {actions: ["create"], after: $after, after_sensitive: {}};
+		def change($after): {actions: ["create"], before: null, after: $after, after_unknown: {}, before_sensitive: false, after_sensitive: {}};
 		def resource($address; $type; $name; $after): {mode: "managed", address: $address, type: $type, name: $name, change: change($after)};
+		def policy_statement($actions; $resources): {
+			actions: $actions,
+			condition: [],
+			effect: null,
+			not_actions: null,
+			not_principals: [],
+			not_resources: null,
+			principals: [],
+			resources: $resources,
+			sid: null
+		};
+		def policy_statements: [
+			policy_statement(["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem"]; ["arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-google-connections"]),
+			policy_statement(["dynamodb:PutItem"]; ["arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-soccer-sessions"]),
+			policy_statement(["ssm:GetParameters"]; [
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"
+			]),
+			policy_statement(["kms:Decrypt"]; ["arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000"]),
+			policy_statement(["logs:CreateLogStream", "logs:PutLogEvents"]; ["arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix + ":*"])
+		];
+		def lambda_variables: {
+			CLIENT_ID_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY"),
+			CLIENT_SECRET_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY"),
+			GOOGLE_CONNECTION_TABLE_NAME: ($prefix + "-google-connections"),
+			LOG_ADD_SOURCE: "false",
+			LOG_FORMAT: "json",
+			LOG_LEVEL: "info",
+			LPS_SESSION_KEY: ("/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"),
+			SOCCER_SESSION_TABLE_NAME: ($prefix + "-soccer-sessions")
+		};
 		def alarm($short; $metric; $threshold; $statistic):
 			resource("module.service.aws_cloudwatch_metric_alarm." + $short; "aws_cloudwatch_metric_alarm"; $short; {
 				alarm_name: ($prefix + "-" + ($short | gsub("_"; "-"))),
@@ -108,19 +141,52 @@ make_environment_plan() {
 		{
 			resource_changes: [
 				resource("module.service.aws_iam_role.lambda"; "aws_iam_role"; "lambda"; {name: ($prefix + "-execution"), permissions_boundary: $boundary}),
-				resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}),
-				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image}),
+				(resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}) | .change.after_unknown = {policy: true}),
+				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image, environment: [{variables: lambda_variables}]}),
 				resource("module.service.aws_apigatewayv2_api.app"; "aws_apigatewayv2_api"; "app"; {name: ($prefix + "-http")}),
-				resource("module.service.aws_cloudwatch_log_group.lambda"; "aws_cloudwatch_log_group"; "lambda"; {name: ("/aws/lambda/" + $prefix), retention_in_days: $retention}),
+				resource("module.service.aws_cloudwatch_log_group.lambda"; "aws_cloudwatch_log_group"; "lambda"; {name: ("/aws/lambda/" + $prefix), arn: ("arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix), retention_in_days: $retention}),
 				resource("module.service.aws_cloudwatch_log_group.api_access"; "aws_cloudwatch_log_group"; "api_access"; {name: ("/aws/apigateway/" + $prefix + "/access"), retention_in_days: $retention}),
-				resource("module.service.aws_dynamodb_table.google_connections"; "aws_dynamodb_table"; "google_connections"; {name: ($prefix + "-google-connections"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
-				resource("module.service.aws_dynamodb_table.soccer_sessions"; "aws_dynamodb_table"; "soccer_sessions"; {name: ($prefix + "-soccer-sessions"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
+				resource("module.service.aws_dynamodb_table.google_connections"; "aws_dynamodb_table"; "google_connections"; {name: ($prefix + "-google-connections"), arn: ("arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-google-connections"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
+				resource("module.service.aws_dynamodb_table.soccer_sessions"; "aws_dynamodb_table"; "soccer_sessions"; {name: ($prefix + "-soccer-sessions"), arn: ("arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-soccer-sessions"), deletion_protection_enabled: $protection, point_in_time_recovery: [{enabled: $protection}]}),
 				alarm("lambda_errors"; "Errors"; 1; "Sum"),
 				alarm("lambda_throttles"; "Throttles"; 1; "Sum"),
 				alarm("lambda_duration"; "Duration"; 24000; "p95"),
 				alarm("api_5xx"; "5xx"; 1; "Sum"),
-				alarm("api_latency"; "Latency"; 25000; "p95")
-			]
+				alarm("api_latency"; "Latency"; 25000; "p95"),
+				{
+					mode: "data",
+					address: "module.service.data.aws_iam_policy_document.lambda",
+					type: "aws_iam_policy_document",
+					name: "lambda",
+					change: {
+						actions: ["read"],
+						before: null,
+						after: {statement: policy_statements},
+						after_unknown: {id: true, json: true, minified_json: true},
+						before_sensitive: false,
+						after_sensitive: {}
+					}
+				}
+			],
+			configuration: {
+				root_module: {
+					module_calls: {
+						service: {
+							module: {
+								resources: [{
+									address: "aws_iam_role_policy.lambda",
+									mode: "managed",
+									type: "aws_iam_role_policy",
+									name: "lambda",
+									expressions: {
+										policy: {references: ["data.aws_iam_policy_document.lambda.json", "data.aws_iam_policy_document.lambda"]}
+									}
+								}]
+							}
+						}
+					}
+				}
+			}
 		}' >"$output"
 }
 
@@ -153,9 +219,25 @@ make_artifact_plan "$artifact_plan"
 make_environment_plan "$dev_plan" dev
 make_environment_plan "$prod_plan" prod
 
+dev_known_policy_plan="$tmp_dir/dev-known-policy.json"
+jq '
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.statement) as $statements |
+	({
+		Version: "2012-10-17",
+		Statement: [$statements[] | {
+			Effect: "Allow",
+			Action: (if (.actions | length) == 1 then .actions[0] else .actions end),
+			Resource: (if (.resources | length) == 1 then .resources[0] else .resources end)
+		}]
+	} | tojson) as $policy |
+	(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after.policy) = $policy |
+	del(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown.policy)
+' "$dev_plan" >"$dev_known_policy_plan"
+
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
+expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
 
 mutate_and_reject() {
 	name=$1
@@ -191,6 +273,17 @@ mutate_and_reject "artifact repository-policy drift" "$artifact_plan" '.resource
 mutate_and_reject "unapproved IAM user resource" "$dev_plan" '.resource_changes += [{mode: "managed", address: "module.service.aws_iam_user.unapproved", type: "aws_iam_user", name: "unapproved", change: {actions: ["create"], after: {name: "unapproved"}, after_sensitive: {}}}]'
 mutate_and_reject "unapproved SSM parameter resource" "$dev_plan" '.resource_changes += [{mode: "managed", address: "module.service.aws_ssm_parameter.unapproved", type: "aws_ssm_parameter", name: "unapproved", change: {actions: ["create"], after: {name: "/portfolio/lambda/dev/unapproved"}, after_sensitive: {}}}]'
 
+mutate_and_reject "development plan cannot use production runtime paths" "$dev_plan" '
+	(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change.after.environment[0].variables) |= with_entries(
+		if (.key == "CLIENT_ID_KEY" or .key == "CLIENT_SECRET_KEY" or .key == "LPS_SESSION_KEY") then .value |= sub("/dev/"; "/prod/") else . end
+	) |
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.statement[] | select(.actions == ["ssm:GetParameters"]) | .resources[]) |= sub("/dev/"; "/prod/")'
+mutate_and_reject "runtime policy rejects wildcard SSM resources" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.statement[] | select(.actions == ["ssm:GetParameters"]) | .resources) = ["arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/*"]'
+mutate_and_reject "runtime policy rejects altered actions" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.statement[] | select(.actions == ["ssm:GetParameters"]) | .actions) = ["ssm:GetParameter", "ssm:GetParameters"]'
+mutate_and_reject "runtime policy rejects an unbound deferred value" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "aws_iam_role_policy.lambda") | .expressions.policy.references) = ["var.unreviewed_policy"]'
+mutate_and_reject "Lambda environment rejects an extra variable" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change.after.environment[0].variables.UNREVIEWED) = "value"'
+mutate_and_reject "decoded runtime policy rejects altered actions" "$dev_known_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after.policy) |= (fromjson | (.Statement[] | select(.Action == "ssm:GetParameters") | .Action) = ["ssm:GetParameter", "ssm:GetParameters"] | tojson)'
+
 dev_domain_plan="$tmp_dir/dev-domain.json"
 jq '.resource_changes += [
 	{mode: "managed", address: "module.service.aws_acm_certificate.custom[0]", type: "aws_acm_certificate", name: "custom", change: {actions: ["create"], after: {domain_name: "dev.craigdevjohnson.com"}, after_sensitive: {}}},
@@ -201,19 +294,11 @@ jq '.resource_changes += [
 expect_pass "approved conditional development domain resources" run_check "$dev_domain_plan" dev
 mutate_and_reject "unapproved conditional domain address" "$dev_domain_plan" '.resource_changes[-1].address = "module.service.aws_apigatewayv2_api_mapping.custom[\"attacker.example\"]"'
 
-dev_data_plan="$tmp_dir/dev-data.json"
-jq '.resource_changes += [{
-	mode: "data",
-	address: "module.service.data.aws_iam_policy_document.lambda",
-	type: "aws_iam_policy_document",
-	name: "lambda",
-	change: {actions: ["read"], before: null, after: {json: "{}"}, after_sensitive: {}}
-}]' "$dev_plan" >"$dev_data_plan"
-expect_pass "exact reviewed IAM policy-document data read" run_check "$dev_data_plan" dev
-mutate_and_reject "unapproved data-source address" "$dev_data_plan" '.resource_changes[-1].address = "module.service.data.aws_iam_policy_document.unapproved"'
-mutate_and_reject "unapproved data-source type" "$dev_data_plan" '.resource_changes[-1].type = "aws_caller_identity"'
-mutate_and_reject "data source presented as a managed resource" "$dev_data_plan" '.resource_changes[-1].mode = "managed"'
-mutate_and_reject "data source with a non-read action" "$dev_data_plan" '.resource_changes[-1].change.actions = ["create"]'
+expect_pass "exact reviewed IAM policy-document data read" run_check "$dev_plan" dev
+mutate_and_reject "unapproved data-source address" "$dev_plan" '(.resource_changes[] | select(.mode == "data") | .address) = "module.service.data.aws_iam_policy_document.unapproved"'
+mutate_and_reject "unapproved data-source type" "$dev_plan" '(.resource_changes[] | select(.mode == "data") | .type) = "aws_caller_identity"'
+mutate_and_reject "data source presented as a managed resource" "$dev_plan" '(.resource_changes[] | select(.mode == "data") | .mode) = "managed"'
+mutate_and_reject "data source with a non-read action" "$dev_plan" '(.resource_changes[] | select(.mode == "data") | .change.actions) = ["create"]'
 
 documented_versioning_mutation_is_guarded() {
 	document=$1

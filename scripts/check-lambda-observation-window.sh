@@ -6,6 +6,14 @@ fail() {
 	exit 1
 }
 
+canonical_file() {
+	case "$1" in
+		/*) candidate=$1 ;;
+		*) candidate=./$1 ;;
+	esac
+	realpath "$candidate"
+}
+
 : "${RELEASE_RECORD:?set RELEASE_RECORD explicitly}"
 : "${EVIDENCE_FILE:?set EVIDENCE_FILE explicitly}"
 : "${ENVIRONMENT:?set ENVIRONMENT to development or production}"
@@ -19,6 +27,13 @@ esac
 
 environment_record=$(jq -cer --arg environment "$ENVIRONMENT" '.[$environment]' "$RELEASE_RECORD") ||
 	fail "release record has no environment coordinates"
+declared_evidence=$(printf '%s\n' "$environment_record" | jq -er '.observation_evidence | select(type == "string" and length > 0)') ||
+	fail "release record has no observation evidence path"
+test -f "$declared_evidence" || fail "release observation evidence does not exist"
+declared_evidence_path=$(canonical_file "$declared_evidence") || fail "release observation evidence path is invalid"
+supplied_evidence_path=$(canonical_file "$EVIDENCE_FILE") || fail "supplied observation evidence path is invalid"
+test "$declared_evidence_path" = "$supplied_evidence_path" || fail "evidence file does not match the release record"
+EVIDENCE_FILE=$supplied_evidence_path
 cutover_epoch=$(printf '%s\n' "$environment_record" | jq -er '.dns_cutover_at | fromdateiso8601') ||
 	fail "DNS cutover timestamp is invalid"
 rollback_evidence=$(printf '%s\n' "$environment_record" | jq -er '.rollback_evidence | select(type == "string" and length > 0)') ||
@@ -108,6 +123,64 @@ jq -s -e \
 	--arg alias "$release_alias" \
 	--arg rollback_origin "$rollback_origin" \
 	--argjson cutover "$cutover_epoch" '
+	def exact_keys($expected): type == "object" and (keys | sort) == ($expected | sort);
+	def route_schema:
+		exact_keys(["content_type", "path", "status"]);
+	def sample_schema:
+		exact_keys([
+			"alias_target",
+			"alarms",
+			"environment",
+			"health",
+			"image_digest",
+			"kind",
+			"metrics",
+			"observed_at",
+			"observed_at_epoch",
+			"passed",
+			"public_hostname",
+			"published_version",
+			"rollback_origin",
+			"routes",
+			"schema_version",
+			"source_sha",
+			"unresolved_blockers"
+		]) and
+		(.health | exact_keys(["content_type", "revision", "status"])) and
+		(.routes | type == "array" and all(.[]; route_schema)) and
+		(.alarms | type == "array" and all(.[]; exact_keys(["name", "state"]))) and
+		(.metrics | exact_keys(["api_5xx", "api_latency_p95_ms", "lambda_duration_p95_ms", "lambda_errors", "lambda_throttles"])) and
+		(.rollback_origin | exact_keys(["passed", "probes", "url"])) and
+		(.rollback_origin.probes | type == "array" and all(.[]; route_schema));
+	def workflow_schema:
+		exact_keys([
+			"add_ok",
+			"add_request_id",
+			"alias_target",
+			"connect_request_id",
+			"environment",
+			"image_digest",
+			"kind",
+			"oauth_ok",
+			"observed_at",
+			"observed_at_epoch",
+			"passed",
+			"public_hostname",
+			"published_version",
+			"schema_version",
+			"secure_cookies_ok",
+			"source_sha",
+			"sync_ok",
+			"sync_request_id"
+		]);
+	def exact_record_schema:
+		type == "object" and
+		.schema_version == 1 and
+		.environment == $environment and
+		(if .kind == "sample" then sample_schema
+		elif .kind == "workflow" then workflow_schema
+		else false
+		end);
 	def samples: [.[] | select(.kind == "sample" and .environment == $environment)] | sort_by(.observed_at_epoch);
 	def workflows: [.[] | select(.kind == "workflow" and .environment == $environment)] | sort_by(.observed_at_epoch);
 	def gaps_ok($items):
@@ -125,6 +198,7 @@ jq -s -e \
 		$prefix + "-lambda-errors",
 		$prefix + "-lambda-throttles"
 	] | sort;
+	all(.[]; exact_record_schema) and
 	samples as $samples |
 	workflows as $workflows |
 	($samples | length) >= 8 and
