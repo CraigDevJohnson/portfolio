@@ -1,7 +1,7 @@
 # Emberglass Field Station 2.0 Design Specification
 
-**Status:** Approved design direction  
-**Approved:** 2026-08-12  
+**Status:** Approved design direction
+**Approved:** 2026-08-12
 **Scope:** Portfolio pages, Soccer states, and the management portal
 
 ## Purpose

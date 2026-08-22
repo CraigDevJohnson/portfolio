@@ -93,4 +93,3 @@ disconnect, or external account mutation was performed. Those paths were
 verified with local preview fixtures plus stubbed LPS/Google handler and OAuth
 callback tests. The evidence therefore proves local UI/state handling and
 server contracts, not live third-party availability.
-

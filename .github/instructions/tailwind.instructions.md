@@ -7,7 +7,7 @@ applyTo: "cmd/web/tailwind/**"
 
 ## ⚠ Never edit the generated output
 
-`cmd/web/static/css/tailwind.css` is compiled output. **Do not edit it.**  
+`cmd/web/static/css/tailwind.css` is compiled output. **Do not edit it.**
 Edit the source files under `cmd/web/tailwind/` and run `task tailwind-build`.
 
 ## Source file roles

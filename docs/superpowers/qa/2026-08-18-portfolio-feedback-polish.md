@@ -78,4 +78,3 @@ also remain covered by the Go interaction/style contract suites run by
 Actual browser 200% zoom was not separately automated in this pass. The 768,
 1119, and 1121 seam captures exercise the corresponding reflow pressure, and
 the browser matrix found no page-level overflow or clipping at those widths.
-
