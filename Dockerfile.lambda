@@ -1,4 +1,7 @@
 ARG BUILDPLATFORM
+ARG TEMPL_VERSION=v0.3.1020
+
+FROM --platform=$BUILDPLATFORM ghcr.io/a-h/templ:${TEMPL_VERSION} AS templ
 
 FROM --platform=$BUILDPLATFORM golang:1.27.0 AS builder
 
@@ -11,31 +14,43 @@ ARG TAILWIND_VERSION=v4.2.4
 ARG BUILD_CA_BUNDLE_DIGEST=empty
 ARG BUILD_REVISION=development
 
-# BuildKit keeps intercepted-network trust in the builder stage only. The
-# digest makes changes to secret content invalidate this layer's cache.
+# Build-only trust is created, used, and deleted within each networked layer.
 RUN --mount=type=secret,id=build_ca_bundle,required=false \
-  printf '%s' "${BUILD_CA_BUNDLE_DIGEST}" >/dev/null; \
+  set -eu; \
+  ca_bundle=/tmp/build-ca-bundle.pem; \
+  cp /etc/ssl/certs/ca-certificates.crt "$ca_bundle"; \
   if [ -s /run/secrets/build_ca_bundle ]; then \
-  cat /run/secrets/build_ca_bundle >> /etc/ssl/certs/ca-certificates.crt; \
-  fi
-
-RUN arch="$(uname -m)" \
+  cat /run/secrets/build_ca_bundle >> "$ca_bundle"; \
+  fi; \
+  printf '%s' "${BUILD_CA_BUNDLE_DIGEST}" >/dev/null; \
+  arch="$(uname -m)" \
   && case "$arch" in \
   x86_64|amd64) asset="tailwindcss-linux-x64" ;; \
   aarch64|arm64) asset="tailwindcss-linux-arm64" ;; \
   *) echo "Unsupported platform for Tailwind CLI: $arch" && exit 1 ;; \
   esac \
-  && wget -qO /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}" \
-  && chmod +x /usr/local/bin/tailwindcss
+  && wget --ca-certificate="$ca_bundle" -qO /usr/local/bin/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${asset}" \
+  && chmod +x /usr/local/bin/tailwindcss; \
+  rm -f "$ca_bundle"
+
+COPY --from=templ /ko-app/templ /usr/local/bin/templ
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=secret,id=build_ca_bundle,required=false \
+  set -eu; \
+  ca_bundle=/tmp/build-ca-bundle.pem; \
+  cp /etc/ssl/certs/ca-certificates.crt "$ca_bundle"; \
+  if [ -s /run/secrets/build_ca_bundle ]; then \
+  cat /run/secrets/build_ca_bundle >> "$ca_bundle"; \
+  fi; \
+  printf '%s' "${BUILD_CA_BUNDLE_DIGEST}" >/dev/null; \
+  SSL_CERT_FILE="$ca_bundle" go mod download; \
+  rm -f "$ca_bundle"
 
 COPY . .
 
-RUN templ_version="$(go list -m -f '{{.Version}}' github.com/a-h/templ)" \
-  && tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
-  && go run "github.com/a-h/templ/cmd/templ@${templ_version}" generate \
+RUN tailwindcss -i ./cmd/web/tailwind/app.css -o ./cmd/web/static/css/tailwind.css --minify \
+  && templ generate \
   && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
   go build -trimpath \
   -ldflags="-s -w -X portfolio/internal/buildinfo.revision=${BUILD_REVISION}" \
