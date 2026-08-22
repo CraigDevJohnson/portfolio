@@ -42,6 +42,23 @@ func buildPathIndex(out *ssm.GetParametersOutput) map[string]string {
 	return byPath
 }
 
+func validateSSMSecrets(pathsByEnv, valuesByPath map[string]string) error {
+	for _, name := range ssmSecretEnvVars {
+		path, ok := pathsByEnv[name]
+		if !ok {
+			continue
+		}
+		val, ok := valuesByPath[path]
+		if !ok {
+			return fmt.Errorf("SSM parameter %q (env %s) not found or inaccessible", path, name)
+		}
+		if strings.IndexByte(val, 0) >= 0 {
+			return fmt.Errorf("SSM parameter %q (env %s) contains an invalid environment value", path, name)
+		}
+	}
+	return nil
+}
+
 func applySSMSecrets(pathsByEnv, valuesByPath map[string]string) error {
 	for _, name := range ssmSecretEnvVars {
 		path, ok := pathsByEnv[name]
@@ -78,14 +95,8 @@ func resolveSSMSecretsWithClient(ctx context.Context, client ssmParameterGetter)
 		return fmt.Errorf("invalid SSM parameters: %s", strings.Join(out.InvalidParameters, ", "))
 	}
 	valuesByPath := buildPathIndex(out)
-	for _, name := range ssmSecretEnvVars {
-		path, ok := pathsByEnv[name]
-		if !ok {
-			continue
-		}
-		if _, ok := valuesByPath[path]; !ok {
-			return fmt.Errorf("SSM parameter %q (env %s) not found or inaccessible", path, name)
-		}
+	if err := validateSSMSecrets(pathsByEnv, valuesByPath); err != nil {
+		return err
 	}
 	return applySSMSecrets(pathsByEnv, valuesByPath)
 }
