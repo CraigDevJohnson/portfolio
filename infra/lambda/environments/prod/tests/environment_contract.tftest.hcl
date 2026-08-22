@@ -55,6 +55,10 @@ mock_provider "aws" {
   }
 }
 
+variables {
+  alarm_action_arns = ["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]
+}
+
 run "production_environment_contract" {
   command = plan
 
@@ -71,7 +75,7 @@ run "production_environment_contract" {
       var.log_retention_days == 90 &&
       var.enable_pitr &&
       var.enable_deletion_protection &&
-      toset(jsondecode(var.alarm_action_arns)) == toset(["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]) &&
+      toset(var.alarm_action_arns) == toset(["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]) &&
       toset(var.domain_names) == toset(["craigdevjohnson.com", "www.craigdevjohnson.com"]) &&
       !var.request_custom_domain &&
       !var.activate_custom_domain
