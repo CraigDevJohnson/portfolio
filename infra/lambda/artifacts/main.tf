@@ -28,3 +28,29 @@ resource "aws_ecr_lifecycle_policy" "lambda_releases" {
     }]
   })
 }
+
+resource "aws_ecr_repository_policy" "lambda_releases" {
+  repository = aws_ecr_repository.lambda_releases.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "LambdaPull"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+      Action = [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount" = "180294223248"
+        }
+        ArnLike = {
+          "aws:SourceArn" = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"
+        }
+      }
+    }]
+  })
+}

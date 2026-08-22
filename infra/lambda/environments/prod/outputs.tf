@@ -26,12 +26,28 @@ output "lambda_alias_arn" {
   value = module.service.lambda_alias_arn
 }
 
+output "lambda_execution_role_name" {
+  value = module.service.lambda_execution_role_name
+}
+
+output "lambda_execution_permissions_boundary_arn" {
+  value = module.service.lambda_execution_permissions_boundary_arn
+}
+
+output "lambda_runtime_policy_name" {
+  value = module.service.lambda_runtime_policy_name
+}
+
 output "api_id" {
   value = module.service.api_id
 }
 
 output "api_default_url" {
   value = module.service.api_default_url
+}
+
+output "api_name" {
+  value = module.service.api_name
 }
 
 output "lambda_log_group_name" {
@@ -64,6 +80,10 @@ output "ssm_parameter_paths" {
 
 output "alarm_arns" {
   value = module.service.alarm_arns
+}
+
+output "alarm_names" {
+  value = module.service.alarm_names
 }
 
 output "certificate_arn" {

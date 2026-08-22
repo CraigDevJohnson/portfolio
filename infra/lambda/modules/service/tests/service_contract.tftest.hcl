@@ -149,6 +149,7 @@ run "published_service_contract" {
   assert {
     condition = (
       aws_apigatewayv2_api.app.protocol_type == "HTTP" &&
+      aws_apigatewayv2_api.app.name == "portfolio-lambda-dev-http" &&
       aws_apigatewayv2_integration.lambda.integration_type == "AWS_PROXY" &&
       aws_apigatewayv2_integration.lambda.integration_uri == aws_lambda_alias.live.invoke_arn &&
       aws_apigatewayv2_integration.lambda.payload_format_version == "2.0" &&
@@ -158,6 +159,15 @@ run "published_service_contract" {
       aws_apigatewayv2_stage.default.auto_deploy
     )
     error_message = "the HTTP API must use an auto-deployed default route with a payload-v2 alias integration"
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.lambda.name == "portfolio-lambda-dev-execution" &&
+      aws_iam_role.lambda.permissions_boundary == "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      aws_iam_role_policy.lambda.name == "portfolio-lambda-dev-runtime"
+    )
+    error_message = "runtime IAM must use the deterministic names and root-owned execution boundary"
   }
 
   assert {
@@ -211,6 +221,7 @@ run "published_service_contract" {
   assert {
     condition = (
       aws_cloudwatch_metric_alarm.lambda_errors.metric_name == "Errors" &&
+      aws_cloudwatch_metric_alarm.lambda_errors.alarm_name == "portfolio-lambda-dev-lambda-errors" &&
       aws_cloudwatch_metric_alarm.lambda_errors.namespace == "AWS/Lambda" &&
       aws_cloudwatch_metric_alarm.lambda_errors.period == 300 &&
       aws_cloudwatch_metric_alarm.lambda_errors.evaluation_periods == 1 &&
@@ -219,6 +230,7 @@ run "published_service_contract" {
       aws_cloudwatch_metric_alarm.lambda_errors.threshold == 1 &&
       aws_cloudwatch_metric_alarm.lambda_errors.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.lambda_throttles.metric_name == "Throttles" &&
+      aws_cloudwatch_metric_alarm.lambda_throttles.alarm_name == "portfolio-lambda-dev-lambda-throttles" &&
       aws_cloudwatch_metric_alarm.lambda_throttles.namespace == "AWS/Lambda" &&
       aws_cloudwatch_metric_alarm.lambda_throttles.period == 300 &&
       aws_cloudwatch_metric_alarm.lambda_throttles.evaluation_periods == 1 &&
@@ -227,6 +239,7 @@ run "published_service_contract" {
       aws_cloudwatch_metric_alarm.lambda_throttles.threshold == 1 &&
       aws_cloudwatch_metric_alarm.lambda_throttles.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.lambda_duration.metric_name == "Duration" &&
+      aws_cloudwatch_metric_alarm.lambda_duration.alarm_name == "portfolio-lambda-dev-lambda-duration" &&
       aws_cloudwatch_metric_alarm.lambda_duration.namespace == "AWS/Lambda" &&
       aws_cloudwatch_metric_alarm.lambda_duration.period == 300 &&
       aws_cloudwatch_metric_alarm.lambda_duration.evaluation_periods == 1 &&
@@ -235,6 +248,7 @@ run "published_service_contract" {
       aws_cloudwatch_metric_alarm.lambda_duration.threshold == 24000 &&
       aws_cloudwatch_metric_alarm.lambda_duration.dimensions == tomap({ FunctionName = "portfolio-lambda-dev" }) &&
       aws_cloudwatch_metric_alarm.api_5xx.metric_name == "5xx" &&
+      aws_cloudwatch_metric_alarm.api_5xx.alarm_name == "portfolio-lambda-dev-api-5xx" &&
       aws_cloudwatch_metric_alarm.api_5xx.namespace == "AWS/ApiGateway" &&
       aws_cloudwatch_metric_alarm.api_5xx.period == 300 &&
       aws_cloudwatch_metric_alarm.api_5xx.evaluation_periods == 1 &&
@@ -243,6 +257,7 @@ run "published_service_contract" {
       aws_cloudwatch_metric_alarm.api_5xx.threshold == 1 &&
       aws_cloudwatch_metric_alarm.api_5xx.dimensions == tomap({ ApiId = "test-api" }) &&
       aws_cloudwatch_metric_alarm.api_latency.metric_name == "Latency" &&
+      aws_cloudwatch_metric_alarm.api_latency.alarm_name == "portfolio-lambda-dev-api-latency" &&
       aws_cloudwatch_metric_alarm.api_latency.namespace == "AWS/ApiGateway" &&
       aws_cloudwatch_metric_alarm.api_latency.period == 300 &&
       aws_cloudwatch_metric_alarm.api_latency.evaluation_periods == 1 &&

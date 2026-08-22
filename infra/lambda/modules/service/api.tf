@@ -1,5 +1,5 @@
 resource "aws_apigatewayv2_api" "app" {
-  name          = local.function_name
+  name          = "${local.function_name}-http"
   protocol_type = "HTTP"
 }
 

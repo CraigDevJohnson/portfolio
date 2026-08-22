@@ -20,10 +20,12 @@ var serviceOutputTypes = map[string]any{
 		"resource_record_value": "string",
 	}}},
 	"alarm_arns":                   []any{"list", "string"},
+	"alarm_names":                  []any{"list", "string"},
 	"api_access_log_group_name":    "string",
 	"api_default_url":              "string",
 	"api_gateway_domain_targets":   []any{"map", "string"},
 	"api_id":                       "string",
+	"api_name":                     "string",
 	"certificate_arn":              "string",
 	"environment":                  "string",
 	"google_connection_table_arn":  "string",
@@ -31,20 +33,30 @@ var serviceOutputTypes = map[string]any{
 	"image_uri":                    "string",
 	"lambda_alias_arn":             "string",
 	"lambda_alias_name":            "string",
-	"lambda_function_arn":          "string",
-	"lambda_function_name":         "string",
-	"lambda_log_group_name":        "string",
-	"lambda_published_version":     "string",
-	"oauth_redirect_uris":          []any{"list", "string"},
-	"soccer_session_table_arn":     "string",
-	"soccer_session_table_name":    "string",
-	"ssm_parameter_paths":          []any{"map", "string"},
+	"lambda_execution_permissions_boundary_arn": "string",
+	"lambda_execution_role_name":                "string",
+	"lambda_function_arn":                       "string",
+	"lambda_function_name":                      "string",
+	"lambda_log_group_name":                     "string",
+	"lambda_published_version":                  "string",
+	"lambda_runtime_policy_name":                "string",
+	"oauth_redirect_uris":                       []any{"list", "string"},
+	"soccer_session_table_arn":                  "string",
+	"soccer_session_table_name":                 "string",
+	"ssm_parameter_paths":                       []any{"map", "string"},
+}
+
+var artifactOutputTypes = map[string]any{
+	"ecr_repository_arn":  "string",
+	"ecr_repository_name": "string",
+	"ecr_repository_url":  "string",
 }
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
 		"artifacts/backend.hcl",
 		"artifacts/main.tf",
+		"artifacts/tests/artifact_contract.tftest.hcl",
 		"environments/dev/backend.hcl",
 		"environments/dev/dev.auto.tfvars",
 		"environments/dev/main.tf",
@@ -107,18 +119,23 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		}
 	}
 
+	runOpenTofu(t, "artifacts", "init", "-backend=false", "-input=false")
+	runOpenTofu(t, "artifacts", "fmt", "-check")
+	runOpenTofu(t, "artifacts", "validate")
+	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes)
+
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTest(t, "modules/service", 4)
+	runOpenTofuTest(t, "modules/service", 4, serviceOutputTypes)
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		runOpenTofuTest(t, directory, 1)
+		runOpenTofuTest(t, directory, 1, serviceOutputTypes)
 	}
 }
 
-func runOpenTofuTest(t *testing.T, directory string, wantPlans int) {
+func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes map[string]any) {
 	t.Helper()
 
 	command := exec.Command("tofu", "-chdir="+directory, "test", "-json", "-verbose", "-no-color")
@@ -155,7 +172,7 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int) {
 
 		if event.TestPlan != nil {
 			planCount++
-			assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs)
+			assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs, outputTypes)
 		}
 		if event.TestSummary != nil {
 			summaryPassed = event.TestSummary.Status == "pass" && event.TestSummary.Failed == 0 && event.TestSummary.Errored == 0
@@ -175,13 +192,14 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int) {
 func assertOutputTypes(t *testing.T, directory, run string, outputs map[string]struct {
 	Type any `json:"type"`
 },
+	wantOutputs map[string]any,
 ) {
 	t.Helper()
 
-	if len(outputs) != len(serviceOutputTypes) {
-		t.Errorf("evaluated outputs for %q run %q contain %d names, want exactly %d", directory, run, len(outputs), len(serviceOutputTypes))
+	if len(outputs) != len(wantOutputs) {
+		t.Errorf("evaluated outputs for %q run %q contain %d names, want exactly %d", directory, run, len(outputs), len(wantOutputs))
 	}
-	for name, wantType := range serviceOutputTypes {
+	for name, wantType := range wantOutputs {
 		output, ok := outputs[name]
 		if !ok {
 			t.Errorf("evaluated outputs for %q run %q are missing %q", directory, run, name)

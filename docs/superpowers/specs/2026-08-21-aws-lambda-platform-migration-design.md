@@ -219,21 +219,38 @@ Backend keys are:
 The existing `portfolio/terraform.tfstate` object is never migrated or modified
 by these roots. S3 bucket versioning and native lock files are prerequisites.
 
+The Lambda execution role uses the account-root-owned permissions boundary
+`arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+The replacement roots derive its partition and account from the current AWS data
+sources but never create, edit, or remove the boundary policy. A separately
+reviewed Identity Center deployer permission set may create or pass only roles
+that carry this boundary. It cannot create unbounded roles, attach managed
+policies, manage the boundary, or mutate any legacy resource. That permission
+set is a later access package, not part of this source contract.
+
 ### Release repository
 
-The artifact root owns `portfolio-lambda-releases`, configured with immutable
-tags, scan-on-push, `force_delete=false`, and no policy that expires tagged
-releases. Image tags use `git-` followed by the full 40-character source SHA,
-while Lambda receives the
-digest-qualified URI.
+The artifact root owns `portfolio-lambda-releases`, its lifecycle policy, and
+its repository policy. The repository uses immutable tags, scan-on-push,
+`force_delete=false`, and no lifecycle rule that expires tagged releases. The
+repository policy grants only `ecr:BatchGetImage` and
+`ecr:GetDownloadUrlForLayer` to the `lambda.amazonaws.com` service principal.
+It requires `aws:SourceAccount` equal to `180294223248` and `aws:SourceArn`
+matching only
+`arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*`. Image tags
+use `git-` followed by the full 40-character source SHA, while Lambda receives
+the digest-qualified URI. The access bootstrap does not create or import any
+ECR resource.
 
 ### Development service
 
 Development physical names start with `portfolio-lambda-dev`. The service owns:
 
 - a published x86-64 Lambda image function and `live` alias;
-- one HTTP API, `$default` route and stage, alias-qualified integration, and
-  alias-qualified invoke permission;
+- execution role `${local.function_name}-execution`, inline runtime policy
+  `${local.function_name}-runtime`, and the root-owned boundary above;
+- HTTP API `${local.function_name}-http`, `$default` route and stage,
+  alias-qualified integration, and alias-qualified invoke permission;
 - environment-specific Google connection and Soccer session DynamoDB tables;
 - exact SSM and KMS read permissions for `/portfolio/lambda/dev/*`;
 - managed Lambda and API access log groups with 14-day retention;
@@ -241,6 +258,16 @@ Development physical names start with `portfolio-lambda-dev`. The service owns:
   latency; and
 - a Regional ACM certificate, API Gateway custom domain, and mapping for
   `dev.craigdevjohnson.com` after direct-endpoint acceptance.
+
+The five alarm names are exactly `${local.function_name}-lambda-errors`,
+`${local.function_name}-lambda-throttles`,
+`${local.function_name}-lambda-duration`, `${local.function_name}-api-5xx`, and
+`${local.function_name}-api-latency`. The inline runtime policy remains limited
+to GetItem/PutItem/DeleteItem on the Google table, PutItem on the Soccer table,
+GetParameters on the three exact environment paths, Decrypt through the exact
+`alias/aws/ssm` key, and CreateLogStream/PutLogEvents in the precreated Lambda
+log group. It has no legacy paths, deployment permissions, managed-policy
+attachments, CreateLogGroup, or boundary-management actions.
 
 The management portal remains disabled during the first development proof. It
 requires a separate threat and IAM scope because the current portal can describe

@@ -100,6 +100,23 @@ run "production_environment_contract" {
 
   assert {
     condition = (
+      output.lambda_execution_role_name == "portfolio-lambda-prod-execution" &&
+      output.lambda_execution_permissions_boundary_arn == "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      output.lambda_runtime_policy_name == "portfolio-lambda-prod-runtime" &&
+      output.api_name == "portfolio-lambda-prod-http" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-prod-api-5xx",
+        "portfolio-lambda-prod-api-latency",
+        "portfolio-lambda-prod-lambda-duration",
+        "portfolio-lambda-prod-lambda-errors",
+        "portfolio-lambda-prod-lambda-throttles",
+      ])
+    )
+    error_message = "production deployment names and execution boundary must remain deterministic"
+  }
+
+  assert {
+    condition = (
       output.lambda_log_group_name == "/aws/lambda/portfolio-lambda-prod" &&
       output.api_access_log_group_name == "/aws/apigateway/portfolio-lambda-prod/access" &&
       output.google_connection_table_name == "portfolio-lambda-prod-google-connections" &&

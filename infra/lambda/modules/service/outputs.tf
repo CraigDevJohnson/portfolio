@@ -26,12 +26,28 @@ output "lambda_alias_arn" {
   value = aws_lambda_alias.live.arn
 }
 
+output "lambda_execution_role_name" {
+  value = aws_iam_role.lambda.name
+}
+
+output "lambda_execution_permissions_boundary_arn" {
+  value = aws_iam_role.lambda.permissions_boundary
+}
+
+output "lambda_runtime_policy_name" {
+  value = aws_iam_role_policy.lambda.name
+}
+
 output "api_id" {
   value = aws_apigatewayv2_api.app.id
 }
 
 output "api_default_url" {
   value = aws_apigatewayv2_api.app.api_endpoint
+}
+
+output "api_name" {
+  value = aws_apigatewayv2_api.app.name
 }
 
 output "lambda_log_group_name" {
@@ -69,6 +85,16 @@ output "alarm_arns" {
     aws_cloudwatch_metric_alarm.lambda_duration.arn,
     aws_cloudwatch_metric_alarm.lambda_errors.arn,
     aws_cloudwatch_metric_alarm.lambda_throttles.arn,
+  ])
+}
+
+output "alarm_names" {
+  value = sort([
+    aws_cloudwatch_metric_alarm.api_5xx.alarm_name,
+    aws_cloudwatch_metric_alarm.api_latency.alarm_name,
+    aws_cloudwatch_metric_alarm.lambda_duration.alarm_name,
+    aws_cloudwatch_metric_alarm.lambda_errors.alarm_name,
+    aws_cloudwatch_metric_alarm.lambda_throttles.alarm_name,
   ])
 }
 

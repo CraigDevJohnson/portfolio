@@ -22,6 +22,15 @@
 - Every apply consumes the exact saved plan that was reviewed.
 - Every Lambda image URI contains `@sha256:` and every release is tied to a full Git SHA.
 - App Runner, `/portfolio/*`, both legacy DynamoDB tables, and `portfolio/terraform.tfstate` remain unchanged.
+- The account-root-owned execution boundary is
+  `arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+  Replacement roots may reference it, but never create, edit, or remove it.
+- A future Identity Center deployer may create or pass the deterministic
+  boundary-constrained execution roles. It cannot create unbounded roles,
+  attach managed policies, manage the boundary, or mutate legacy resources.
+  Its exact policy package requires separate review after this source contract
+  is stable. This plan does not authorize broad deployer policy, root commands,
+  secret-copy authority, or ECR creation/import during access bootstrap.
 - Cloudflare traffic is DNS-only during initial custom-domain proof.
 - Approval of this plan does not approve a future live mutation. At every
   **Approval gate**, stop and present the exact commands, resource identifiers,
@@ -184,11 +193,13 @@ Expected after Task 3: pass. Task 6 extends the same test with module and develo
 - Create: `infra/lambda/artifacts/providers.tf`
 - Create: `infra/lambda/artifacts/main.tf`
 - Create: `infra/lambda/artifacts/outputs.tf`
+- Create: `infra/lambda/artifacts/tests/artifact_contract.tftest.hcl`
 - Generate and commit: `infra/lambda/artifacts/.terraform.lock.hcl`
 
 **Interfaces:**
 
-- Produces: `ecr_repository_name`, `ecr_repository_arn`, `ecr_repository_url`
+- Produces: the repository, lifecycle policy, repository policy,
+  `ecr_repository_name`, `ecr_repository_arn`, and `ecr_repository_url`
 - Consumed by: image push task and both environment roots
 
 - [ ] **Step 1: Define the exact backend and provider floor**
@@ -255,9 +266,39 @@ resource "aws_ecr_lifecycle_policy" "lambda_releases" {
     }]
   })
 }
+
+resource "aws_ecr_repository_policy" "lambda_releases" {
+  repository = aws_ecr_repository.lambda_releases.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "LambdaPull"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+      Action = [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount" = "180294223248"
+        }
+        ArnLike = {
+          "aws:SourceArn" = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"
+        }
+      }
+    }]
+  })
+}
 ```
 
-Do not add a tagged-image expiration rule.
+Do not add a tagged-image expiration rule. The artifact mock-provider contract
+must fail if the repository policy is absent, uses another principal, grants
+another action, or loses either source condition. The later access bootstrap
+must not create or import the repository, lifecycle policy, or repository
+policy.
 
 - [ ] **Step 3: Add non-sensitive outputs**
 
@@ -362,6 +403,14 @@ string hash key `session_id` and TTL attribute `ttl`. Both set
 `billing_mode = "PAY_PER_REQUEST"`, `deletion_protection_enabled` from the input,
 PITR from the input, and explicit server-side encryption.
 
+The execution role name is exactly `${local.function_name}-execution`; its
+single inline runtime policy is `${local.function_name}-runtime`. Set
+`permissions_boundary` to the ARN formed from
+`data.aws_partition.current.partition` and
+`data.aws_caller_identity.current.account_id` with the fixed policy path
+`portfolio/boundaries/PortfolioLambdaExecutionBoundary`. The deployer does not
+manage this root-owned policy.
+
 - [ ] **Step 4: Write a single role-specific inline policy**
 
 Use `data.aws_caller_identity.current`, `data.aws_partition.current`, and
@@ -390,7 +439,10 @@ statement {
 ```
 
 Task 5 adds the exact log-group actions after creating their ARNs. The trust
-policy allows only `lambda.amazonaws.com` to call `sts:AssumeRole`.
+policy allows only `lambda.amazonaws.com` to call `sts:AssumeRole`. Keep the
+runtime actions exactly as listed plus the two Task 5 log actions. Do not add
+legacy paths, deployment privileges, managed-policy attachments,
+`logs:CreateLogGroup`, or boundary-management actions.
 
 - [ ] **Step 5: Format the module files**
 
@@ -484,7 +536,7 @@ resource "aws_lambda_alias" "live" {
 
 - [ ] **Step 3: Route the HTTP API only through the alias**
 
-Create one HTTP API, an `AWS_PROXY` integration using
+Create HTTP API `${local.function_name}-http`, an `AWS_PROXY` integration using
 `aws_lambda_alias.live.invoke_arn`, payload version `2.0`, a `$default` route,
 and a `$default` stage with `auto_deploy=true`.
 
@@ -507,6 +559,11 @@ Create alarms with `treat_missing_data = "notBreaching"` and the supplied action
 
 Use the exact Lambda function-name and API-ID dimensions.
 
+The alarm names are exactly `${local.function_name}-lambda-errors`,
+`${local.function_name}-lambda-throttles`,
+`${local.function_name}-lambda-duration`, `${local.function_name}-api-5xx`, and
+`${local.function_name}-api-latency`.
+
 - [ ] **Step 5: Stage certificate request separately from activation**
 
 When `request_custom_domain` is true, request one DNS-validated ACM certificate
@@ -525,7 +582,9 @@ an interface:
 
 - strings: `environment`, `image_uri`, `lambda_function_name`,
   `lambda_function_arn`, `lambda_published_version`, `lambda_alias_name`,
-  `lambda_alias_arn`, `api_id`, `api_default_url`,
+  `lambda_alias_arn`, `lambda_execution_role_name`,
+  `lambda_execution_permissions_boundary_arn`, `lambda_runtime_policy_name`,
+  `api_id`, `api_default_url`, `api_name`,
   `lambda_log_group_name`, `api_access_log_group_name`,
   `google_connection_table_name`, `google_connection_table_arn`,
   `soccer_session_table_name`, and `soccer_session_table_arn`;
@@ -533,6 +592,8 @@ an interface:
   names;
 - `alarm_arns`: a sorted `list(string)` containing exactly the five named alarm
   ARNs;
+- `alarm_names`: a sorted `list(string)` containing exactly the five fixed
+  alarm names;
 - `certificate_arn`: a nullable string;
 - `acm_validation_records`: a sorted list of objects with `domain_name`,
   `resource_record_name`, `resource_record_type`, and
@@ -935,7 +996,8 @@ Expected: application and infrastructure jobs succeed.
 
 **Interfaces:**
 
-- Produces: ECR repository `portfolio-lambda-releases`
+- Produces: ECR repository `portfolio-lambda-releases`, its lifecycle policy,
+  and its Lambda pull repository policy
 - Preserves: all legacy ECR repositories and state
 
 - [ ] **Step 1: Re-run identity and legacy-state gates**
@@ -964,7 +1026,10 @@ tofu -chdir=infra/lambda/artifacts show -json "$artifact_plan" | \
   jq -r '.resource_changes[] | [.address, (.change.actions | join(","))] | @tsv'
 ```
 
-Expected: create actions only for `aws_ecr_repository.lambda_releases` and its lifecycle policy; no delete, replace, App Runner, Amplify, DynamoDB, IAM, Lambda, or API address.
+Expected: create actions only for `aws_ecr_repository.lambda_releases`,
+`aws_ecr_lifecycle_policy.lambda_releases`, and
+`aws_ecr_repository_policy.lambda_releases`; no delete, replace, App Runner,
+Amplify, DynamoDB, IAM, Lambda, or API address.
 
 - [ ] **Step 4: Apply only the approved saved plan**
 
@@ -1446,7 +1511,7 @@ redirect construction before changing traffic.
 Export the `dev.craigdevjohnson.com` Cloudflare traffic record including record
 ID, type, name, content, TTL, and proxy state. Also record the App Runner default
 service URL. Verify that rollback origin returns 200 at `/`, `/soccer`, and one
-static asset. Before any DNS mutation, use `apply_patch` to create
+static asset. Before any development traffic-record mutation, use `apply_patch` to create
 `docs/deployment/evidence/development-precutover.json` with:
 
 ```bash

@@ -43,7 +43,7 @@ resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "lambda_duration" {
-  alarm_name          = "${local.function_name}-lambda-duration-p95"
+  alarm_name          = "${local.function_name}-lambda-duration"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "Duration"
@@ -77,7 +77,7 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "api_latency" {
-  alarm_name          = "${local.function_name}-api-latency-p95"
+  alarm_name          = "${local.function_name}-api-latency"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "Latency"
