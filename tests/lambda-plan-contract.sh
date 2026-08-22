@@ -118,6 +118,32 @@ make_environment_plan() {
 			policy_statement(["kms:Decrypt"]; ["arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000"]),
 			policy_statement(["logs:CreateLogStream", "logs:PutLogEvents"]; ["arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix + ":*"])
 		];
+		def policy_statement_expression($actions; $references): {
+			actions: {constant_value: $actions},
+			resources: {references: $references}
+		};
+		def policy_statement_expressions: [
+			policy_statement_expression(
+				["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"];
+				["aws_dynamodb_table.google_connections.arn", "aws_dynamodb_table.google_connections"]
+			),
+			policy_statement_expression(
+				["dynamodb:PutItem"];
+				["aws_dynamodb_table.soccer_sessions.arn", "aws_dynamodb_table.soccer_sessions"]
+			),
+			policy_statement_expression(
+				["ssm:GetParameters"];
+				["local.ssm_paths", "data.aws_partition.current.partition", "data.aws_partition.current", "var.aws_region", "data.aws_caller_identity.current.account_id", "data.aws_caller_identity.current"]
+			),
+			policy_statement_expression(
+				["kms:Decrypt"];
+				["data.aws_kms_alias.ssm.target_key_arn", "data.aws_kms_alias.ssm"]
+			),
+			policy_statement_expression(
+				["logs:CreateLogStream", "logs:PutLogEvents"];
+				["aws_cloudwatch_log_group.lambda.arn", "aws_cloudwatch_log_group.lambda"]
+			)
+		];
 		def lambda_variables: {
 			CLIENT_ID_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY"),
 			CLIENT_SECRET_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY"),
@@ -161,7 +187,15 @@ make_environment_plan() {
 					change: {
 						actions: ["read"],
 						before: null,
-						after: {statement: policy_statements},
+						after: {
+							override_json: null,
+							override_policy_documents: null,
+							policy_id: null,
+							source_json: null,
+							source_policy_documents: null,
+							statement: policy_statements,
+							version: null
+						},
 						after_unknown: {id: true, json: true, minified_json: true},
 						before_sensitive: false,
 						after_sensitive: {}
@@ -181,6 +215,18 @@ make_environment_plan() {
 									expressions: {
 										policy: {references: ["data.aws_iam_policy_document.lambda.json", "data.aws_iam_policy_document.lambda"]}
 									}
+								}, {
+									address: "data.aws_iam_policy_document.lambda",
+									mode: "data",
+									type: "aws_iam_policy_document",
+									name: "lambda",
+									expressions: {statement: policy_statement_expressions}
+								}, {
+									address: "data.aws_kms_alias.ssm",
+									mode: "data",
+									type: "aws_kms_alias",
+									name: "ssm",
+									expressions: {name: {constant_value: "alias/aws/ssm"}}
 								}]
 							}
 						}
@@ -234,10 +280,21 @@ jq '
 	del(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown.policy)
 ' "$dev_plan" >"$dev_known_policy_plan"
 
+dev_empty_policy_composition_plan="$tmp_dir/dev-empty-policy-composition.json"
+jq '
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after) |= (
+		.source_json = "" |
+		.override_json = "" |
+		.source_policy_documents = [] |
+		.override_policy_documents = []
+	)
+' "$dev_plan" >"$dev_empty_policy_composition_plan"
+
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
+expect_pass "development plan with empty policy composition inputs" run_check "$dev_empty_policy_composition_plan" dev
 
 mutate_and_reject() {
 	name=$1
@@ -283,6 +340,22 @@ mutate_and_reject "runtime policy rejects altered actions" "$dev_plan" '(.resour
 mutate_and_reject "runtime policy rejects an unbound deferred value" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "aws_iam_role_policy.lambda") | .expressions.policy.references) = ["var.unreviewed_policy"]'
 mutate_and_reject "Lambda environment rejects an extra variable" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change.after.environment[0].variables.UNREVIEWED) = "value"'
 mutate_and_reject "decoded runtime policy rejects altered actions" "$dev_known_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after.policy) |= (fromjson | (.Statement[] | select(.Action == "ssm:GetParameters") | .Action) = ["ssm:GetParameter", "ssm:GetParameters"] | tojson)'
+mutate_and_reject "runtime policy rejects injected source policy documents" "$dev_plan" '
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.source_policy_documents) = [({Version: "2012-10-17", Statement: [{Effect: "Allow", Action: "kms:Decrypt", Resource: "*"}]} | tojson)] |
+	(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.source_policy_documents) = {constant_value: [({Version: "2012-10-17", Statement: [{Effect: "Allow", Action: "kms:Decrypt", Resource: "*"}]} | tojson)]}'
+mutate_and_reject "runtime policy rejects injected source JSON" "$dev_plan" '
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.source_json) = ({Version: "2012-10-17", Statement: []} | tojson) |
+	(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.source_json) = {constant_value: "injected"}'
+mutate_and_reject "runtime policy rejects injected override JSON" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.override_json) = ({Version: "2012-10-17", Statement: []} | tojson)'
+mutate_and_reject "runtime policy rejects injected override policy documents" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.override_policy_documents) = [({Version: "2012-10-17", Statement: []} | tojson)]'
+mutate_and_reject "runtime policy rejects unknown source or override composition" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after_unknown) += {source_json: true, override_json: true, source_policy_documents: true, override_policy_documents: true}'
+mutate_and_reject "runtime policy rejects configured override composition" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.override_policy_documents) = {references: ["var.unreviewed_policy"]}'
+mutate_and_reject "runtime policy rejects duplicate KMS alias configuration" "$dev_plan" '.configuration.root_module.module_calls.service.module.resources += [{address: "data.aws_kms_alias.ssm", mode: "data", type: "aws_kms_alias", name: "ssm", expressions: {name: {constant_value: "alias/customer-managed"}}}]'
+mutate_and_reject "runtime policy rejects changed KMS alias and resource" "$dev_plan" '
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.statement[] | select(.actions == ["kms:Decrypt"]) | .resources) = ["arn:aws:kms:us-west-2:180294223248:key/11111111-1111-1111-1111-111111111111"] |
+	(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_kms_alias.ssm") | .expressions.name.constant_value) = "alias/customer-managed"'
+mutate_and_reject "runtime policy rejects changed structured KMS reference" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["kms:Decrypt"]) | .resources.references) = ["var.unreviewed_kms_key"]'
+mutate_and_reject "runtime policy rejects changed structured action" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["ssm:GetParameters"]) | .actions.constant_value) = ["ssm:GetParameter", "ssm:GetParameters"]'
 
 dev_domain_plan="$tmp_dir/dev-domain.json"
 jq '.resource_changes += [

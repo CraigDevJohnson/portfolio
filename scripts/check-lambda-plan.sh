@@ -194,8 +194,8 @@ jq -e \
 	--arg prefix "$NAME_PREFIX" '
 	def exact_keys($expected): (keys | sort) == ($expected | sort);
 	def by_address($address): first(.resource_changes[] | select(.address == $address));
-	def service_configuration_resource($address):
-		first(.configuration.root_module.module_calls.service.module.resources[] | select(.address == $address));
+	def service_configuration_resources($address):
+		[.configuration.root_module.module_calls.service.module.resources[] | select(.address == $address)];
 	def exact_data_statement:
 		type == "object" and
 		exact_keys(["actions", "condition", "effect", "not_actions", "not_principals", "not_resources", "principals", "resources", "sid"]) and
@@ -210,6 +210,10 @@ jq -e \
 		.sid == null;
 	def normalized_data_statement:
 		{actions: (.actions | sort), resources: (.resources | sort)};
+	def empty_optional_json:
+		. == null or . == "";
+	def empty_optional_documents:
+		. == null or . == [];
 	def values_array: if type == "array" then . else [.] end;
 	def exact_known_policy($value; $expected):
 		(try ($value | fromjson) catch null) as $document |
@@ -243,9 +247,25 @@ jq -e \
 				.type == "aws_iam_policy_document"
 			)
 		] as $policy_data_changes |
-		service_configuration_resource("aws_iam_role_policy.lambda") as $runtime_policy_configuration |
+		service_configuration_resources("aws_iam_role_policy.lambda") as $runtime_policy_configurations |
+		service_configuration_resources("data.aws_iam_policy_document.lambda") as $policy_data_configurations |
+		service_configuration_resources("data.aws_kms_alias.ssm") as $kms_alias_configurations |
+		$runtime_policy_configurations[0] as $runtime_policy_configuration |
+		$policy_data_configurations[0] as $policy_data_configuration |
+		$kms_alias_configurations[0] as $kms_alias_configuration |
 		($policy_data_changes | length) == 1 and
+		($runtime_policy_configurations | length) == 1 and
+		($policy_data_configurations | length) == 1 and
+		($kms_alias_configurations | length) == 1 and
 		($policy_data_changes[0].change.actions == ["read"]) and
+		($policy_data_changes[0].change.after.source_json | empty_optional_json) and
+		($policy_data_changes[0].change.after.override_json | empty_optional_json) and
+		($policy_data_changes[0].change.after.source_policy_documents | empty_optional_documents) and
+		($policy_data_changes[0].change.after.override_policy_documents | empty_optional_documents) and
+		(($policy_data_changes[0].change.after_unknown.source_json // false) == false) and
+		(($policy_data_changes[0].change.after_unknown.override_json // false) == false) and
+		(($policy_data_changes[0].change.after_unknown.source_policy_documents // false) == false) and
+		(($policy_data_changes[0].change.after_unknown.override_policy_documents // false) == false) and
 		($policy_data_changes[0].change.after.statement | type == "array" and length == 5) and
 		all($policy_data_changes[0].change.after.statement[]; exact_data_statement) and
 		[
@@ -279,6 +299,49 @@ jq -e \
 			resources: [$lambda_log_arn + ":*"]
 		}] | map(.actions |= sort | .resources |= sort) | sort_by(tojson)) as $expected_statements |
 		([$policy_data_changes[0].change.after.statement[] | normalized_data_statement] | sort_by(tojson)) == $expected_statements and
+		($policy_data_configuration.mode == "data") and
+		($policy_data_configuration.type == "aws_iam_policy_document") and
+		($policy_data_configuration.name == "lambda") and
+		($policy_data_configuration.expressions | exact_keys(["statement"])) and
+		($policy_data_configuration.expressions.statement == [{
+			actions: {constant_value: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]},
+			resources: {references: [
+				"aws_dynamodb_table.google_connections.arn",
+				"aws_dynamodb_table.google_connections"
+			]}
+		}, {
+			actions: {constant_value: ["dynamodb:PutItem"]},
+			resources: {references: [
+				"aws_dynamodb_table.soccer_sessions.arn",
+				"aws_dynamodb_table.soccer_sessions"
+			]}
+		}, {
+			actions: {constant_value: ["ssm:GetParameters"]},
+			resources: {references: [
+				"local.ssm_paths",
+				"data.aws_partition.current.partition",
+				"data.aws_partition.current",
+				"var.aws_region",
+				"data.aws_caller_identity.current.account_id",
+				"data.aws_caller_identity.current"
+			]}
+		}, {
+			actions: {constant_value: ["kms:Decrypt"]},
+			resources: {references: [
+				"data.aws_kms_alias.ssm.target_key_arn",
+				"data.aws_kms_alias.ssm"
+			]}
+		}, {
+			actions: {constant_value: ["logs:CreateLogStream", "logs:PutLogEvents"]},
+			resources: {references: [
+				"aws_cloudwatch_log_group.lambda.arn",
+				"aws_cloudwatch_log_group.lambda"
+			]}
+		}]) and
+		($kms_alias_configuration.mode == "data") and
+		($kms_alias_configuration.type == "aws_kms_alias") and
+		($kms_alias_configuration.name == "ssm") and
+		($kms_alias_configuration.expressions == {name: {constant_value: "alias/aws/ssm"}}) and
 		($runtime_policy_configuration.mode == "managed") and
 		($runtime_policy_configuration.type == "aws_iam_role_policy") and
 		($runtime_policy_configuration.name == "lambda") and

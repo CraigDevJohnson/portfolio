@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
+
 fail() {
 	printf 'Lambda observation gate failed: %s\n' "$1" >&2
 	exit 1
@@ -34,6 +36,9 @@ declared_evidence_path=$(canonical_file "$declared_evidence") || fail "release o
 supplied_evidence_path=$(canonical_file "$EVIDENCE_FILE") || fail "supplied observation evidence path is invalid"
 test "$declared_evidence_path" = "$supplied_evidence_path" || fail "evidence file does not match the release record"
 EVIDENCE_FILE=$supplied_evidence_path
+if ! (cd "$repo_root" && GOTOOLCHAIN=local GOPROXY=off go run -mod=readonly ./cmd/jsonl-no-duplicates <"$EVIDENCE_FILE"); then
+	fail "evidence JSONL contains invalid or duplicate object members"
+fi
 cutover_epoch=$(printf '%s\n' "$environment_record" | jq -er '.dns_cutover_at | fromdateiso8601') ||
 	fail "DNS cutover timestamp is invalid"
 rollback_evidence=$(printf '%s\n' "$environment_record" | jq -er '.rollback_evidence | select(type == "string" and length > 0)') ||

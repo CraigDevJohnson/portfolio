@@ -193,6 +193,24 @@ mismatched_evidence_release="$tmp_dir/mismatched-evidence-release.json"
 jq --arg evidence "$prod_evidence" '.development.observation_evidence = $evidence' "$dev_release" >"$mismatched_evidence_release"
 expect_fail "release record binds the exact observation evidence file" run_gate "$mismatched_evidence_release" "$dev_evidence" development
 
+mutate_raw_evidence_and_reject() {
+	name=$1
+	expression=$2
+	mutated="$tmp_dir/mutated-raw.jsonl"
+	mutated_release="$tmp_dir/mutated-raw-release.json"
+	sed "$expression" "$dev_evidence" >"$mutated"
+	jq --arg evidence "$mutated" '.development.observation_evidence = $evidence' "$dev_release" >"$mutated_release"
+	expect_fail "$name" run_gate "$mutated_release" "$mutated" development
+	if grep -Eq 'oauth_token|durable-secret' "$tmp_dir/output"; then
+		printf 'FAIL: duplicate-member validation exposed evidence content\n' >&2
+		exit 1
+	fi
+}
+
+mutate_raw_evidence_and_reject "duplicate health member cannot shadow a secret value" '1s/"health":{/"health":{"oauth_token":"durable-secret"},"health":{/'
+mutate_raw_evidence_and_reject "nested duplicate member is rejected" '1s/"status":200,"content_type":"application\/json"/"status":500,"status":200,"content_type":"application\/json"/'
+mutate_raw_evidence_and_reject "duplicate member inside an array object is rejected" '1s/"path":"\/","status":200/"path":"\/private","path":"\/","status":200/'
+
 mutate_evidence_and_reject() {
 	name=$1
 	filter=$2
