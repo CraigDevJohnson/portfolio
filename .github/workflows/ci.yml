@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install repository tools
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.53.1
+          go install github.com/a-h/templ/cmd/templ@v0.3.1020
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0
+          task install-tailwind
+
+      - name: Run repository gate
+        run: |
+          task ci
+          git diff --exit-code
+
+      - name: Verify module graph
+        run: |
+          go mod tidy -diff
+          go mod verify
