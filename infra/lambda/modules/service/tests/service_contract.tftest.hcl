@@ -263,6 +263,14 @@ run "published_service_contract" {
 
   assert {
     condition = (
+      data.aws_iam_policy_document.lambda.source_policy_documents == null &&
+      data.aws_iam_policy_document.lambda.override_policy_documents == null
+    )
+    error_message = "the reviewed runtime document must not merge source or override policies"
+  }
+
+  assert {
+    condition = (
       aws_cloudwatch_metric_alarm.lambda_errors.metric_name == "Errors" &&
       aws_cloudwatch_metric_alarm.lambda_errors.alarm_name == "portfolio-lambda-dev-lambda-errors" &&
       aws_cloudwatch_metric_alarm.lambda_errors.namespace == "AWS/Lambda" &&
@@ -408,5 +416,18 @@ run "staged_custom_domain_contract" {
   assert {
     condition     = toset(keys(output.api_gateway_domain_targets)) == toset(["api.example.com", "www.example.com"])
     error_message = "activated custom domains must expose one Regional API target per hostname"
+  }
+}
+
+run "runtime_policy_attachment_contract" {
+  command = apply
+
+  assert {
+    condition = (
+      aws_iam_role_policy.lambda.policy == data.aws_iam_policy_document.lambda.json &&
+      data.aws_iam_policy_document.lambda.source_policy_documents == null &&
+      data.aws_iam_policy_document.lambda.override_policy_documents == null
+    )
+    error_message = "the attached runtime policy must be only the reviewed document without source or override merges"
   }
 }
