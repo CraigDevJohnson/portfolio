@@ -39,7 +39,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 func gitPathIsIgnored(t *testing.T, path string) bool {
 	t.Helper()
 
-	command := exec.Command("git", "check-ignore", "--quiet", path)
+	command := exec.Command("git", "check-ignore", "--no-index", "--quiet", path)
 	command.Dir = "../.."
 	err := command.Run()
 	if err == nil {
