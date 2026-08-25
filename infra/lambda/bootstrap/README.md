@@ -6,13 +6,14 @@ does not approve any live use. Provisioning, assignment, migration, planning,
 applying, tightening, and reprovisioning each require their own current-session
 review and approval.
 
-The tracked files are the authoritative initial inputs:
+The tracked files are the authoritative current reviewed inputs. Git history
+preserves each earlier candidate:
 
-- `portfolio-deployer-development-bootstrap-policy.json` is the
-  development-only IAM Identity Center inline policy. It contains temporary
-  controlled statements and no production or custom-domain authority. Its
-  reviewed non-whitespace count must remain within the 10,240-byte Identity
-  Center quota enforced by `policy_contract_test.go`.
+- `portfolio-deployer-development-bootstrap-policy.json` is the current
+  development-only IAM Identity Center inline-policy candidate. It contains
+  temporary controlled statements and no production or custom-domain
+  authority. Its reviewed non-whitespace count must remain within the
+  10,240-byte Identity Center quota enforced by `policy_contract_test.go`.
 - `portfolio-lambda-execution-boundary-policy.json` is the root-owned
   permissions boundary for deterministic Lambda execution roles. The boundary
   is a ceiling, not a grant; its production statements remain dormant until a
@@ -28,11 +29,16 @@ The development bootstrap policy is intentionally not a standing final policy.
 Remove or replace its controlled SIDs as soon as each reviewed purpose is
 complete:
 
-- remove `TJ` after the exact legacy-state metadata check and before remote
-  OpenTofu initialization;
-- remove `T1` after state-bucket versioning is verified `Enabled`;
-- remove `T2` and `T3` after the artifact apply, read-back, and empty
-  convergence plan;
+- `TJ` was removed after the exact legacy-state metadata check; never restore
+  it. The replacement backend list grant is limited to `env:/` and the exact
+  artifacts and development state keys. Do not gate that statement with
+  `s3:max-keys`: the missing-object `HeadObject` authorization check requires
+  `s3:ListBucket` but does not supply that request field;
+- `T1` was removed after state-bucket versioning was verified `Enabled`; never
+  restore it;
+- `T2` and `T3` were removed after the artifact apply, live read-back, and
+  empty convergence plan; the permission set was reprovisioned and its
+  effective role verified, so never restore them;
 - remove `TD`, `TE`, `TF`, `TG`, `TH`, and `D` after the exact development
   SecureString migration and metadata/application verification;
 - replace `T8` with exact API-ID child resources after the API ID is captured;
@@ -40,10 +46,10 @@ complete:
   direct development service, tags, policies, logging, alarms, and read-backs
   pass their gates.
 
-Every tightened or post-bootstrap candidate is a new policy artifact. Recompute
-its SHA-256 and byte counts, repeat static and live IAM Access Analyzer review,
-obtain approval, update the permission set, reprovision it, wait for
-`SUCCEEDED`, and verify effective access before using it.
+Every tightened or post-bootstrap file revision is a new policy artifact.
+Recompute its SHA-256 and byte counts, repeat static and live IAM Access
+Analyzer review, obtain approval, update the permission set, reprovision it,
+wait for `SUCCEEDED`, and verify effective access before using it.
 Never restore this initial document after a temporary statement has been
 removed. Custom-domain work requires its own just-in-time development-only
 candidate and approval.

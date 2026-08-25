@@ -15,21 +15,16 @@
       "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
     },
     {
-      "Sid": "T1",
-      "Effect": "Allow",
-      "Action": "s3:PutBucketVersioning",
-      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
-    },
-    {
       "Effect": "Allow",
       "Action": "s3:ListBucket",
       "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248",
       "Condition": {
         "StringEquals": {
-          "s3:prefix": "env:/"
-        },
-        "NumericLessThanEquals": {
-          "s3:max-keys": "1000"
+          "s3:prefix": [
+            "env:/",
+            "portfolio-lambda-http-api/artifacts/terraform.tfstate",
+            "portfolio-lambda-http-api/dev/terraform.tfstate"
+          ]
         }
       }
     },
@@ -48,12 +43,6 @@
       ]
     },
     {
-      "Sid": "TJ",
-      "Effect": "Allow",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio/terraform.tfstate"
-    },
-    {
       "Effect": "Allow",
       "Action": "ecr:GetAuthorizationToken",
       "Resource": "*",
@@ -62,26 +51,6 @@
           "aws:RequestedRegion": "us-west-2"
         }
       }
-    },
-    {
-      "Sid": "T2",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:CreateRepository",
-        "ecr:TagResource"
-      ],
-      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
-    },
-    {
-      "Sid": "T3",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:PutImageScanningConfiguration",
-        "ecr:PutImageTagMutability",
-        "ecr:PutLifecyclePolicy",
-        "ecr:SetRepositoryPolicy"
-      ],
-      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
     },
     {
       "Effect": "Allow",

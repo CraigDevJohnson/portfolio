@@ -82,6 +82,35 @@ The 2026-08-22 read-only preflight found:
 - the account-owned Identity Center organization instance was active; and
 - root MFA was enabled, but a root access key still existed.
 
+The 2026-08-24 non-root retry verified the legacy state metadata was unchanged
+and consumed the temporary `TJ` legacy-state read grant. Artifact backend
+initialization then stopped before any bucket mutation because the initial
+policy did not allow `s3:ListBucket` for the absent artifact state key. The
+first replacement grant was validated and reprovisioned but still returned
+`403` because its retained `s3:max-keys` condition was absent from the
+missing-object `HeadObject` authorization context. The approved replacement
+removed `TJ` and that incompatible condition while limiting the backend list
+grant to `env:/` plus the exact artifacts and development state keys. It was
+reprovisioned and verified before retrying this section.
+
+The 2026-08-25 retry initialized the artifact backend successfully under the
+non-root deployer, enabled bucket versioning, read it back as `Enabled`, and
+verified the artifact state prefix still contained zero objects. The approved
+tightening then removed the consumed `T1` `s3:PutBucketVersioning` grant,
+reprovisioned `PortfolioDeployer`, and verified the effective role before
+creating an artifact plan.
+
+The 2026-08-25 artifact apply created the immutable, scan-on-push ECR
+repository, its untagged-image lifecycle policy, and its Lambda pull policy.
+Live read-back found zero images, versioned state containing exactly those
+three resources, and no remaining lock object. A subsequent saved convergence
+plan reported `0 add, 0 change, 0 destroy`. The approved tightening then
+removed the consumed `T2` and `T3` repository-administration grants and
+reprovisioned `PortfolioDeployer` successfully. The effective role denies all
+six retired repository-setup actions, retains the reviewed image push/read
+actions and artifact-state access, and still denies production state. Do not
+restore `T2` or `T3`; the next gate is the first immutable image push.
+
 Do not create replacement state until bucket versioning reports `Enabled`.
 After `portfolio-deployer` exists, the controller must present the exact bucket
 and non-root command and obtain separate current-session approval for the one

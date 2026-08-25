@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "e5230f6705f47b7a45d01efa6ecea42b31738b505efdedbc0f6a33657102a9f9",
-			bytes:              13_900,
-			nonWhitespaceBytes: 10_206,
+			sha256:             "1e61a6a4acd453d3140e4fbf4f9f8094720b57cfca247dc8fdd22c1e32f2aaa7",
+			bytes:              13_070,
+			nonWhitespaceBytes: 9_593,
 			identityCenter:     true,
 		},
 		{
@@ -97,8 +97,8 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"D", "T1", "T2", "T3", "T4", "T5", "T7", "T8", "T9", "TA",
-		"TB", "TD", "TE", "TF", "TG", "TH", "TI", "TJ", "TK",
+		"D", "T4", "T5", "T7", "T8", "T9", "TA",
+		"TB", "TD", "TE", "TF", "TG", "TH", "TI", "TK",
 	)
 	controlledSIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -161,7 +161,6 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	legacyStatementActions := map[string]map[string]struct{}{
 		"TD": stringSet("ssm:GetParameter"),
 		"TG": stringSet("kms:Decrypt"),
-		"TJ": stringSet("s3:GetObject"),
 	}
 	gotLegacySIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -180,7 +179,104 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 		}
 		assertStringSet(t, "legacy actions for "+statement.Sid, stringSet(statement.Action...), allowedActions)
 	}
-	assertStringSet(t, "legacy source Sids", gotLegacySIDs, stringSet("TD", "TG", "TJ"))
+	assertStringSet(t, "legacy source Sids", gotLegacySIDs, stringSet("TD", "TG"))
+}
+
+func TestDevelopmentBootstrapPolicyListsOnlyReviewedStatePrefixes(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	var prefixes map[string]struct{}
+	for _, statement := range policy.Statement {
+		if !stringSetContains(stringSet(statement.Action...), "s3:ListBucket") {
+			continue
+		}
+		if !stringSetContains(stringSet(statement.Resource...), "arn:aws:s3:::portfolio-tofu-state-180294223248") {
+			continue
+		}
+
+		stringEquals, ok := statement.Condition["StringEquals"].(map[string]any)
+		if !ok {
+			t.Fatalf("state bucket ListBucket statement lacks StringEquals conditions")
+		}
+		switch value := stringEquals["s3:prefix"].(type) {
+		case string:
+			prefixes = stringSet(value)
+		case []any:
+			prefixes = make(map[string]struct{}, len(value))
+			for _, item := range value {
+				prefix, ok := item.(string)
+				if !ok {
+					t.Fatalf("state bucket ListBucket prefix contains non-string %T", item)
+				}
+				prefixes[prefix] = struct{}{}
+			}
+		default:
+			t.Fatalf("state bucket ListBucket prefix has unsupported type %T", value)
+		}
+	}
+
+	assertStringSet(t, "reviewed state ListBucket prefixes", prefixes, stringSet(
+		"env:/",
+		"portfolio-lambda-http-api/artifacts/terraform.tfstate",
+		"portfolio-lambda-http-api/dev/terraform.tfstate",
+	))
+}
+
+func TestDevelopmentBootstrapPolicyAllowsMissingStateDiscoveryWithoutMaxKeys(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	found := false
+	for _, statement := range policy.Statement {
+		if !stringSetContains(stringSet(statement.Action...), "s3:ListBucket") {
+			continue
+		}
+		if !stringSetContains(stringSet(statement.Resource...), "arn:aws:s3:::portfolio-tofu-state-180294223248") {
+			continue
+		}
+
+		found = true
+		if numeric, ok := statement.Condition["NumericLessThanEquals"].(map[string]any); ok {
+			if _, gated := numeric["s3:max-keys"]; gated {
+				t.Fatal("state discovery is gated by s3:max-keys, which HeadObject does not supply for a missing object")
+			}
+		}
+	}
+
+	if !found {
+		t.Fatal("state bucket ListBucket statement not found")
+	}
+}
+
+func TestDevelopmentBootstrapPolicyCannotChangeBucketVersioningAfterGate(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	for _, statement := range policy.Statement {
+		for _, action := range statement.Action {
+			if action == "s3:PutBucketVersioning" {
+				t.Fatalf("statement %q retains the consumed bucket-versioning permission", statement.Sid)
+			}
+		}
+	}
+}
+
+func TestDevelopmentBootstrapPolicyCannotAdministerArtifactsAfterConvergence(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	consumedActions := stringSet(
+		"ecr:CreateRepository",
+		"ecr:PutImageScanningConfiguration",
+		"ecr:PutImageTagMutability",
+		"ecr:PutLifecyclePolicy",
+		"ecr:SetRepositoryPolicy",
+		"ecr:TagResource",
+	)
+	for _, statement := range policy.Statement {
+		for _, action := range statement.Action {
+			if stringSetContains(consumedActions, action) {
+				t.Fatalf("statement %q retains consumed artifact administration action %q", statement.Sid, action)
+			}
+		}
+	}
 }
 
 func TestExecutionBoundarySeparatesDevelopmentAndProductionRoles(t *testing.T) {
