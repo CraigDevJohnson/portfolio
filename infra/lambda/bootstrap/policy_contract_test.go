@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "1e61a6a4acd453d3140e4fbf4f9f8094720b57cfca247dc8fdd22c1e32f2aaa7",
-			bytes:              13_070,
-			nonWhitespaceBytes: 9_593,
+			sha256:             "92f2be372550003c3baa34a7a5c961b2973b0c785cfc37fd971d0574b4bd6792",
+			bytes:              13_099,
+			nonWhitespaceBytes: 9_613,
 			identityCenter:     true,
 		},
 		{
@@ -276,6 +276,43 @@ func TestDevelopmentBootstrapPolicyCannotAdministerArtifactsAfterConvergence(t *
 				t.Fatalf("statement %q retains consumed artifact administration action %q", statement.Sid, action)
 			}
 		}
+	}
+}
+
+func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	repositoryARN := "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+	wantActions := stringSet(
+		"ecr:BatchCheckLayerAvailability",
+		"ecr:BatchGetImage",
+		"ecr:CompleteLayerUpload",
+		"ecr:DescribeImages",
+		"ecr:DescribeRepositories",
+		"ecr:GetLifecyclePolicy",
+		"ecr:GetRepositoryPolicy",
+		"ecr:InitiateLayerUpload",
+		"ecr:ListTagsForResource",
+		"ecr:PutImage",
+		"ecr:UploadLayerPart",
+	)
+
+	found := 0
+	for _, statement := range policy.Statement {
+		if !stringSetContains(stringSet(statement.Resource...), repositoryARN) {
+			continue
+		}
+
+		found++
+		if statement.Effect != "Allow" {
+			t.Errorf("release repository statement effect = %q, want Allow", statement.Effect)
+		}
+		assertStringSet(t, "release repository resources", stringSet(statement.Resource...), stringSet(repositoryARN))
+		assertStringSet(t, "release repository actions", stringSet(statement.Action...), wantActions)
+	}
+
+	if found != 1 {
+		t.Fatalf("release repository statement count = %d, want 1", found)
 	}
 }
 

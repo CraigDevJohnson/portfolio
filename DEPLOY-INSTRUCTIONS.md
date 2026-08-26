@@ -107,9 +107,19 @@ three resources, and no remaining lock object. A subsequent saved convergence
 plan reported `0 add, 0 change, 0 destroy`. The approved tightening then
 removed the consumed `T2` and `T3` repository-administration grants and
 reprovisioned `PortfolioDeployer` successfully. The effective role denies all
-six retired repository-setup actions, retains the reviewed image push/read
-actions and artifact-state access, and still denies production state. Do not
-restore `T2` or `T3`; the next gate is the first immutable image push.
+six retired repository-setup actions, retains artifact-state access, and still
+denies production state. Do not restore `T2` or `T3`.
+
+The first immutable image attempt built the exact commit successfully and
+uploaded its layers, but ECR rejected manifest resolution because the
+then-reviewed deployer policy omitted the documented `ecr:BatchGetImage` push
+action. An authoritative `DescribeImages` lookup afterward returned
+`ImageNotFoundException`, so the immutable tag was never created and remains
+safe to reuse. The replacement candidate adds only `ecr:BatchGetImage` on the
+exact `portfolio-lambda-releases` repository and adds a positive contract test
+for the complete repository action set. Analyze, review, approve, update, and
+reprovision this candidate before retrying the same full-SHA tag; do not restore
+any retired repository-administration grant.
 
 Do not create replacement state until bucket versioning reports `Enabled`.
 After `portfolio-deployer` exists, the controller must present the exact bucket

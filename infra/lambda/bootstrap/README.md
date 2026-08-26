@@ -14,6 +14,9 @@ preserves each earlier candidate:
   temporary controlled statements and no production or custom-domain
   authority. Its reviewed non-whitespace count must remain within the
   10,240-byte Identity Center quota enforced by `policy_contract_test.go`.
+  Its release-repository statement is also exact: it includes the documented
+  ECR push contract, including `ecr:BatchGetImage`, plus only the read actions
+  used by the artifact plan and immutable-release guard.
 - `portfolio-lambda-execution-boundary-policy.json` is the root-owned
   permissions boundary for deterministic Lambda execution roles. The boundary
   is a ceiling, not a grant; its production statements remain dormant until a
