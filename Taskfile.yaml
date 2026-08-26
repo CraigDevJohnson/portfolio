@@ -138,7 +138,7 @@ tasks:
         fi
         build_ca_digest=$(shasum -a 256 "$build_ca_bundle" | awk '{print $1}')
 
-        docker build --platform linux/amd64 \
+        docker build --provenance=false --sbom=false --platform linux/amd64 \
           --secret "id=build_ca_bundle,src=$build_ca_bundle" \
           --build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
           --build-arg "BUILD_REVISION=$BUILD_REVISION" \

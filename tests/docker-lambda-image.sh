@@ -43,11 +43,17 @@ if grep -F -q 'tailwindcss: not found' "$invalid_tailwind_log" \
 	exit 1
 fi
 
-docker build --platform linux/amd64 \
-	--secret "id=build_ca_bundle,src=$tmp_dir/build-ca.pem" \
-	--build-arg "BUILD_CA_BUNDLE_DIGEST=$build_ca_digest" \
-	--build-arg "BUILD_REVISION=$contract_revision" \
-	-f Dockerfile.lambda -t "$image" .
+DOCKER_BUILD_CA_CERT_PATH="$tmp_dir/build-ca.pem" \
+	task build-lambda-image BUILD_REVISION="$contract_revision" IMAGE_TAG="$image"
+
+image_media_type=$(docker image inspect --format '{{.Descriptor.mediaType}}' "$image")
+case "$image_media_type" in
+	application/vnd.oci.image.manifest.v1+json | application/vnd.docker.distribution.manifest.v2+json) ;;
+	*)
+		echo "Lambda image must be a single image manifest, got $image_media_type" >&2
+		exit 1
+		;;
+esac
 
 test "$(docker image inspect --format '{{.Architecture}}' "$image")" = "amd64"
 docker run -d --platform linux/amd64 --name "$container" \
