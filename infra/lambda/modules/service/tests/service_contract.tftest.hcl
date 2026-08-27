@@ -107,7 +107,7 @@ variables {
   image_digest               = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   lambda_memory_mb           = 512
   lambda_timeout_seconds     = 29
-  reserved_concurrency       = 5
+  reserved_concurrency       = -1
   log_retention_days         = 14
   enable_pitr                = false
   enable_deletion_protection = false
@@ -131,7 +131,7 @@ run "published_service_contract" {
       aws_lambda_function.app.package_type == "Image" &&
       aws_lambda_function.app.memory_size == 512 &&
       aws_lambda_function.app.timeout == 29 &&
-      aws_lambda_function.app.reserved_concurrent_executions == 5 &&
+      aws_lambda_function.app.reserved_concurrent_executions == -1 &&
       aws_lambda_function.app.publish
     )
     error_message = "the Lambda runtime must use the reviewed image, architecture, sizing, and published-version settings"

@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "13995ee9b80fdaf43dd920f5b9db5f206e1d33a8693d02a4e6e8d7d5b004ae33",
-			bytes:              13_362,
-			nonWhitespaceBytes: 9_967,
+			sha256:             "b5236b3201232e1af97109d5eab6f514990dcfdb77336c867aff5bcc25b1bba4",
+			bytes:              13_535,
+			nonWhitespaceBytes: 10_098,
 			identityCenter:     true,
 		},
 		{
@@ -98,7 +98,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 
 	expectedControlledSIDs := stringSet(
 		"D", "P", "T4", "T5", "T8", "T9", "TA", "TB",
-		"TD", "TE", "TF", "TG", "TH", "TI", "TK", "TM",
+		"TD", "TE", "TF", "TG", "TH", "TI", "TK", "TM", "TN",
 	)
 	controlledSIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -335,6 +335,12 @@ func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t
 			actions: stringSet("apigateway:PUT"),
 			resources: stringSet(
 				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default",
+			),
+		},
+		"TN": {
+			actions: stringSet("apigateway:TagResource"),
+			resources: stringSet(
+				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/stages",
 			),
 		},
 	}

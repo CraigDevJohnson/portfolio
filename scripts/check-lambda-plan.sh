@@ -135,9 +135,11 @@ fi
 expected_boundary=arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary
 expected_retention=14
 expected_protection=false
+expected_reserved_concurrency=-1
 if [ "$ENVIRONMENT" = prod ]; then
 	expected_retention=90
 	expected_protection=true
+	expected_reserved_concurrency=10
 fi
 
 jq -e --arg environment "$ENVIRONMENT" '
@@ -473,6 +475,7 @@ jq -e \
 	--arg boundary "$expected_boundary" \
 	--argjson retention "$expected_retention" \
 	--argjson protection "$expected_protection" \
+	--argjson reserved_concurrency "$expected_reserved_concurrency" \
 	--argjson expected_actions "$EXPECTED_ALARM_ACTIONS_JSON" '
 	def resources($type): [.resource_changes[] | select(.type == $type)];
 	def planned($type; $name): first(.resource_changes[] | select(.type == $type and .name == $name));
@@ -532,7 +535,10 @@ jq -e \
 	(resources("aws_iam_role_policy") | length) == 1 and
 	all(resources("aws_iam_role_policy")[]; .change.after.name == ($prefix + "-runtime")) and
 	(resources("aws_lambda_function") | length) == 1 and
-	all(resources("aws_lambda_function")[]; .change.after.function_name == $prefix and .change.after.image_uri == $image) and
+	all(resources("aws_lambda_function")[];
+		.change.after.function_name == $prefix and
+		.change.after.image_uri == $image and
+		.change.after.reserved_concurrent_executions == $reserved_concurrency) and
 	(resources("aws_apigatewayv2_api") | length) == 1 and
 	all(resources("aws_apigatewayv2_api")[]; .change.after.name == ($prefix + "-http")) and
 	(resources("aws_cloudwatch_log_group") | length) == 2 and

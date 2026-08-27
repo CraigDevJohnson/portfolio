@@ -80,10 +80,12 @@ make_environment_plan() {
 	if [ "$environment" = prod ]; then
 		protection=true
 		retention=90
+		reserved_concurrency=10
 		alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
 	else
 		protection=false
 		retention=14
+		reserved_concurrency=-1
 		alarm_actions='[]'
 	fi
 	jq -n \
@@ -93,6 +95,7 @@ make_environment_plan() {
 		--arg boundary "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" \
 		--argjson protection "$protection" \
 		--argjson retention "$retention" \
+		--argjson reserved_concurrency "$reserved_concurrency" \
 		--argjson alarm_actions "$alarm_actions" '
 		def change($after): {actions: ["create"], before: null, after: $after, after_unknown: {}, before_sensitive: false, after_sensitive: {}};
 		def resource($address; $type; $name; $after): {mode: "managed", address: $address, type: $type, name: $name, change: change($after)};
@@ -176,7 +179,7 @@ make_environment_plan() {
 			resource_changes: [
 				resource("module.service.aws_iam_role.lambda"; "aws_iam_role"; "lambda"; {name: ($prefix + "-execution"), permissions_boundary: $boundary}),
 				(resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}) | .change.after_unknown = {id: true, name_prefix: true, policy: true, role: true}),
-				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image, environment: [{variables: lambda_variables}]}),
+				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image, reserved_concurrent_executions: $reserved_concurrency, environment: [{variables: lambda_variables}]}),
 				resource("module.service.aws_apigatewayv2_api.app"; "aws_apigatewayv2_api"; "app"; {name: ($prefix + "-http")}),
 				resource("module.service.aws_cloudwatch_log_group.lambda"; "aws_cloudwatch_log_group"; "lambda"; {name: ("/aws/lambda/" + $prefix), arn: ("arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix), retention_in_days: $retention}),
 				resource("module.service.aws_cloudwatch_log_group.api_access"; "aws_cloudwatch_log_group"; "api_access"; {name: ("/aws/apigateway/" + $prefix + "/access"), retention_in_days: $retention}),
@@ -417,6 +420,8 @@ mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.acti
 mutate_and_reject "legacy App Runner address" "$dev_plan" '.resource_changes[0].address = "module.service.aws_apprunner_service.legacy"'
 mutate_and_reject "legacy resource name" "$dev_plan" '.resource_changes[2].change.after.function_name = "portfolio"'
 mutate_and_reject "mutable image tag" "$dev_plan" '.resource_changes[2].change.after.image_uri = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases:latest"'
+mutate_and_reject "development reserved concurrency drift" "$dev_plan" '.resource_changes[2].change.after.reserved_concurrent_executions = 5'
+mutate_and_reject "production reserved concurrency drift" "$prod_plan" '.resource_changes[2].change.after.reserved_concurrent_executions = -1'
 mutate_and_reject "secret plan value" "$dev_plan" '.resource_changes[2].change.after.oauth_token = "do-not-store-this"'
 mutate_and_reject "secret prior-state value" "$dev_plan" '.resource_changes[2].change.before = {oauth_token: "do-not-store-this"}'
 mutate_and_reject "missing execution boundary" "$dev_plan" '.resource_changes[0].change.after.permissions_boundary = null'

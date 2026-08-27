@@ -37,8 +37,8 @@ variable "reserved_concurrency" {
   type = number
 
   validation {
-    condition     = var.reserved_concurrency >= 1
-    error_message = "reserved_concurrency must be at least 1"
+    condition     = var.reserved_concurrency == -1 || var.reserved_concurrency >= 1
+    error_message = "reserved_concurrency must be -1 for unreserved mode or at least 1"
   }
 }
 

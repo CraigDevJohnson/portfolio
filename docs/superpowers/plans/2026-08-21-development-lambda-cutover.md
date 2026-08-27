@@ -450,7 +450,7 @@ variable "live_version_override" {
 }
 ```
 
-Add cross-variable preconditions so activation requires certificate request and at least one domain. Validate `lambda_timeout_seconds <= 29` and `reserved_concurrency >= 1`.
+Add cross-variable preconditions so activation requires certificate request and at least one domain. Validate `lambda_timeout_seconds <= 29` and allow `reserved_concurrency` to be either `-1` for unreserved mode or at least `1`.
 
 - [ ] **Step 2: Define deterministic names and SSM paths**
 
@@ -740,7 +740,7 @@ name_prefix                = "portfolio-lambda-dev"
 aws_region                 = "us-west-2"
 lambda_memory_mb           = 512
 lambda_timeout_seconds     = 29
-reserved_concurrency       = 5
+reserved_concurrency       = -1
 log_retention_days         = 14
 enable_pitr                = false
 enable_deletion_protection = false
@@ -752,6 +752,9 @@ activate_custom_domain     = false
 
 `ecr_repository_url` and `image_digest` are required variables with no defaults
 and are supplied at plan time. Do not put a mutable tag in this root.
+Development uses unreserved mode because the account's current concurrency
+quota is 10 and Lambda requires at least 10 unreserved executions. Production
+retains its reviewed reservation but requires a quota increase before apply.
 
 Create `prod.auto.tfvars` in the same reviewed PR with:
 

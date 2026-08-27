@@ -46,12 +46,18 @@ complete:
   SecureString migration and metadata/application verification;
 - `T7` and `TL` were removed after API `048o6alxh8` was created and captured;
   `T8` and `TK` now bind only that exact API;
+- `TN` grants `apigateway:TagResource` only on the exact captured API stage
+  collection because API Gateway evaluates that collection while authorizing
+  `CreateStage` with tags. Remove it after the `$default` stage is created and
+  verified. The live denial and IAM simulator use this literal action even
+  though the current Access Analyzer action catalog reports it as invalid;
+  preserve that discrepancy in the approval evidence;
 - `T9` uses both exact ARN forms for `logs:TagResource`: the base form required
   by the direct tagging API and the trailing-`:*` form that CloudWatch Logs
   evaluated while authorizing `CreateLogGroup` with tags. `TM` grants only
   `logs:CreateLogGroup` on those trailing-`:*` ARNs. Remove both after the
   exact groups are created and verified; and
-- remove `T4`, `T5`, `T8`, `TA`, `TB`, `TI`, and `TK` after the direct
+- remove `T4`, `T5`, `T8`, `TA`, `TB`, `TI`, `TK`, and `TN` after the direct
   development service, tags, policies, logging, alarms, and read-backs pass
   their gates.
 

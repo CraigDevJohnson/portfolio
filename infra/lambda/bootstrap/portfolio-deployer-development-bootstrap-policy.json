@@ -180,6 +180,12 @@
       "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default"
     },
     {
+      "Sid": "TN",
+      "Effect": "Allow",
+      "Action": "apigateway:TagResource",
+      "Resource": "arn:aws:apigateway:us-west-2::/apis/048o6alxh8/stages"
+    },
+    {
       "Sid": "T9",
       "Effect": "Allow",
       "Action": "logs:TagResource",
