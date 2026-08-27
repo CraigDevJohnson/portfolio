@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"reflect"
 	"sort"
@@ -58,9 +59,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "9ac6fc2fa72b67c04f163391bf3658069f0a3798af48d80532f0dcb6e386e743",
-			bytes:              9_768,
-			nonWhitespaceBytes: 7_103,
+			sha256:             "af34fe32578ce9d7e034a148dd32b8a655830b4d3f44ac7ea95b1e274e7c70c2",
+			bytes:              9_763,
+			nonWhitespaceBytes: 7_098,
 			identityCenter:     true,
 		},
 		{
@@ -354,7 +355,7 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 		"DomainCreateTagAuthorization": {
 			actions: stringSet("apigateway:POST"),
 			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fv2%2Fdomainnames%2Fdev.craigdevjohnson.com",
+				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fdomainnames%2Fdev.craigdevjohnson.com",
 			),
 			conditions: map[string]any{
 				"ForAllValues:StringEquals": map[string]any{
@@ -440,6 +441,23 @@ func TestDevelopmentBootstrapPolicyDoesNotUseTagConditionsOnDomainNamesCollectio
 	}
 
 	t.Fatal("DomainCreate statement not found")
+}
+
+func TestDevelopmentBootstrapPolicyTagAuthorizationUsesEncodedDomainARN(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	domainARN := "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"
+	wantResource := "arn:aws:apigateway:us-west-2::/tags/" + url.QueryEscape(domainARN)
+	for _, statement := range policy.Statement {
+		if statement.Sid != "DomainCreateTagAuthorization" {
+			continue
+		}
+
+		assertStringSet(t, "domain tag authorization resources", stringSet(statement.Resource...), stringSet(wantResource))
+		return
+	}
+
+	t.Fatal("DomainCreateTagAuthorization statement not found")
 }
 
 func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T) {

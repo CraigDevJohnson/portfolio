@@ -62,7 +62,9 @@ complete:
   `DomainNames` collection resource used by `DomainCreate`; live IAM rejected
   the exact provider request when those unsupported conditions were attached.
   Keep the exact four development tag conditions on the separate, exact encoded
-  `DomainCreateTagAuthorization` resource. `DomainCreate` constrains every
+  `DomainCreateTagAuthorization` resource. That resource encodes the public
+  domain ARN `/domainnames/dev.craigdevjohnson.com`; the API's HTTP `/v2` prefix
+  is not part of the resource ARN. `DomainCreate` constrains every
   supplied endpoint and security-policy value to Regional and TLS 1.2, requires
   no mutual-TLS trust store, and requires `us-west-2`. Because the collection
   resource also has no request-domain condition key, this short-lived statement
