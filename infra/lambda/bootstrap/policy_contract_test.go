@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "70a6fa7492d7623f5d7e20d494e6cf888227e0f83a2ffe922ddeedec0a69a249",
-			bytes:              10_218,
-			nonWhitespaceBytes: 7_406,
+			sha256:             "017c51a0ccf2a5ce3595ee19c05eb1a5afc1a3120321b87cae0e4ffbf99665c5",
+			bytes:              10_108,
+			nonWhitespaceBytes: 7_320,
 			identityCenter:     true,
 		},
 		{
@@ -344,10 +344,8 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 					"aws:TagKeys":                       []any{"Environment", "ManagedBy", "Platform", "Project"},
 				},
 				"Null": map[string]any{
-					"apigateway:Request/EndpointType":          "false",
 					"apigateway:Request/MtlsTrustStoreUri":     "true",
 					"apigateway:Request/MtlsTrustStoreVersion": "true",
-					"apigateway:Request/SecurityPolicy":        "false",
 				},
 				"StringEquals": map[string]any{
 					"aws:RequestedRegion":        "us-west-2",

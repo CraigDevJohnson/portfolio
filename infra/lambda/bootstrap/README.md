@@ -58,8 +58,13 @@ complete:
   statement grants certificate mutation or deletion; and
 - `DomainCreate` and `DomainCreateTagAuthorization` are just-in-time grants for
   the provider's tagged `CreateDomainName` request. They require the exact four
-  development tags, a Regional endpoint, TLS 1.2, no mutual-TLS trust store,
-  and `us-west-2`. `DomainRead` can read only
+  development tags, constrain every supplied endpoint and security-policy
+  value to Regional and TLS 1.2, require no mutual-TLS trust store, and require
+  `us-west-2`. The provider request and saved plan must contain both endpoint
+  and security-policy fields. Do not add `Null=false` presence checks for those
+  two documented `ArrayOfString` keys: live IAM and the policy simulator both
+  rejected the otherwise exact provider request when those checks were present.
+  `DomainRead` can read only
   `dev.craigdevjohnson.com`. `ApiMappingCreate` can create a mapping only under
   that hostname, and `ApiMappingRead` can read only its service-generated
   mapping IDs. The API Gateway IAM model cannot constrain the mapping request

@@ -156,10 +156,8 @@
           ]
         },
         "Null": {
-          "apigateway:Request/EndpointType": "false",
           "apigateway:Request/MtlsTrustStoreUri": "true",
-          "apigateway:Request/MtlsTrustStoreVersion": "true",
-          "apigateway:Request/SecurityPolicy": "false"
+          "apigateway:Request/MtlsTrustStoreVersion": "true"
         },
         "StringEquals": {
           "aws:RequestedRegion": "us-west-2",
