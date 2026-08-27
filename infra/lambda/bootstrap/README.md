@@ -45,7 +45,7 @@ complete:
 - remove `TD`, `TE`, `TF`, `TG`, `TH`, and `D` after the exact development
   SecureString migration and metadata/application verification;
 - replace `T8` with exact API-ID child resources after the API ID is captured;
-  then remove `T4`, `T5`, `T7`, `T9`, `TA`, `TB`, `TI`, and `TK` after the
+  then remove `T4`, `T5`, `T7`, `T9`, `TA`, `TB`, `TI`, `TK`, and `TL` after the
   direct development service, tags, policies, logging, alarms, and read-backs
   pass their gates.
 
