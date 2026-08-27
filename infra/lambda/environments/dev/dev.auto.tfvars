@@ -10,4 +10,4 @@ enable_deletion_protection = false
 alarm_action_arns          = []
 domain_names               = ["dev.craigdevjohnson.com"]
 request_custom_domain      = true
-activate_custom_domain     = false
+activate_custom_domain     = true

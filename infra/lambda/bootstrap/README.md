@@ -11,8 +11,8 @@ preserves each earlier candidate:
 
 - `portfolio-deployer-development-bootstrap-policy.json` is the current
   development-only IAM Identity Center inline-policy candidate. It contains
-  temporary controlled statements, including certificate-request authority
-  for only `dev.craigdevjohnson.com`, and no production authority. Its reviewed
+  temporary controlled statements for activating only the reviewed development
+  API Gateway custom domain, and no production authority. Its reviewed
   non-whitespace count must remain within the 10,240-byte Identity Center quota
   enforced by `policy_contract_test.go`.
   Its release-repository statement is also exact: it includes the documented
@@ -51,15 +51,27 @@ complete:
 - direct-stack gates `T4`, `T5`, `TI`, `TK`, `TN`, `T9`, `TM`, `TA`, and `TB`
   were removed after the development service, tags, policies, logging, alarms,
   and read-backs passed their gates; and
-- `TCRequest` and `TCTags` are just-in-time ACM grants for the exact public,
-  DNS-validated, AWS-managed development certificate and exact provider tags.
-  `TCRequest` enforces the key-pair origin; `TCTags` cannot repeat that
-  condition because ACM authorizes the dependent tag action before the new
-  certificate exists, so it remains constrained by account/region resource
-  scope and the exact tag keys and values.
-  Remove them after the certificate ARN is captured, then replace `TCRead`'s
-  tag-gated wildcard with that exact ARN. No statement grants certificate
-  deletion.
+- `TCRequest` and `TCTags` were removed after the public, DNS-validated,
+  AWS-managed certificate was issued and captured. `TCRead` now grants only
+  `DescribeCertificate` and `ListTagsForCertificate` on that exact certificate
+  ARN, with the reviewed development tags and region still required. No
+  statement grants certificate mutation or deletion; and
+- `DomainCreate` and `DomainCreateTagAuthorization` are just-in-time grants for
+  the provider's tagged `CreateDomainName` request. They require the exact four
+  development tags, a Regional endpoint, TLS 1.2, no mutual-TLS trust store,
+  and `us-west-2`. `DomainRead` can read only
+  `dev.craigdevjohnson.com`. `ApiMappingCreate` can create a mapping only under
+  that hostname, and `ApiMappingRead` can read only its service-generated
+  mapping IDs. The API Gateway IAM model cannot constrain the mapping request
+  body to API `048o6alxh8` and stage `$default`, so the checked HCL, environment
+  contract, fresh saved-plan review, and checksum-bound apply are mandatory
+  compensating controls. No statement grants domain or mapping update, policy,
+  certificate-attachment, or delete actions.
+
+After the exact custom domain and mapping ID are captured, remove
+`DomainCreate`, `DomainCreateTagAuthorization`, and `ApiMappingCreate`, and
+replace the mapping read wildcard with the exact captured mapping ARN before
+any later plan.
 
 Every tightened or post-bootstrap file revision is a new policy artifact.
 Recompute its SHA-256 and byte counts, repeat static and live IAM Access

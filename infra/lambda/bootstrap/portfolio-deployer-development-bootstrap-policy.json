@@ -136,6 +136,97 @@
       ]
     },
     {
+      "Sid": "DomainCreate",
+      "Effect": "Allow",
+      "Action": "apigateway:POST",
+      "Resource": "arn:aws:apigateway:us-west-2::/domainnames",
+      "Condition": {
+        "ForAllValues:StringEquals": {
+          "apigateway:Request/EndpointType": [
+            "REGIONAL"
+          ],
+          "apigateway:Request/SecurityPolicy": [
+            "TLS_1_2"
+          ],
+          "aws:TagKeys": [
+            "Environment",
+            "ManagedBy",
+            "Platform",
+            "Project"
+          ]
+        },
+        "Null": {
+          "apigateway:Request/EndpointType": "false",
+          "apigateway:Request/MtlsTrustStoreUri": "true",
+          "apigateway:Request/MtlsTrustStoreVersion": "true",
+          "apigateway:Request/SecurityPolicy": "false"
+        },
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/ManagedBy": "opentofu",
+          "aws:RequestTag/Platform": "lambda-http-api",
+          "aws:RequestTag/Project": "portfolio"
+        }
+      }
+    },
+    {
+      "Sid": "DomainCreateTagAuthorization",
+      "Effect": "Allow",
+      "Action": "apigateway:POST",
+      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fv2%2Fdomainnames%2Fdev.craigdevjohnson.com",
+      "Condition": {
+        "ForAllValues:StringEquals": {
+          "aws:TagKeys": [
+            "Environment",
+            "ManagedBy",
+            "Platform",
+            "Project"
+          ]
+        },
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/ManagedBy": "opentofu",
+          "aws:RequestTag/Platform": "lambda-http-api",
+          "aws:RequestTag/Project": "portfolio"
+        }
+      }
+    },
+    {
+      "Sid": "DomainRead",
+      "Effect": "Allow",
+      "Action": "apigateway:GET",
+      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "ApiMappingCreate",
+      "Effect": "Allow",
+      "Action": "apigateway:POST",
+      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "ApiMappingRead",
+      "Effect": "Allow",
+      "Action": "apigateway:GET",
+      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
       "Effect": "Allow",
       "Action": [
         "logs:FilterLogEvents",
@@ -196,68 +287,13 @@
       }
     },
     {
-      "Sid": "TCRequest",
-      "Effect": "Allow",
-      "Action": "acm:RequestCertificate",
-      "Resource": "*",
-      "Condition": {
-        "ForAllValues:StringEquals": {
-          "acm:DomainNames": "dev.craigdevjohnson.com",
-          "aws:TagKeys": [
-            "Environment",
-            "ManagedBy",
-            "Platform",
-            "Project"
-          ]
-        },
-        "ForAnyValue:StringEquals": {
-          "acm:DomainNames": "dev.craigdevjohnson.com"
-        },
-        "Null": {
-          "acm:CertificateAuthority": "true"
-        },
-        "StringEquals": {
-          "acm:CertificateKeyPairOrigin": "AWS_MANAGED",
-          "acm:ValidationMethod": "DNS",
-          "aws:RequestedRegion": "us-west-2",
-          "aws:RequestTag/Environment": "dev",
-          "aws:RequestTag/ManagedBy": "opentofu",
-          "aws:RequestTag/Platform": "lambda-http-api",
-          "aws:RequestTag/Project": "portfolio"
-        }
-      }
-    },
-    {
-      "Sid": "TCTags",
-      "Effect": "Allow",
-      "Action": "acm:AddTagsToCertificate",
-      "Resource": "arn:aws:acm:us-west-2:180294223248:certificate/*",
-      "Condition": {
-        "ForAllValues:StringEquals": {
-          "aws:TagKeys": [
-            "Environment",
-            "ManagedBy",
-            "Platform",
-            "Project"
-          ]
-        },
-        "StringEquals": {
-          "aws:RequestedRegion": "us-west-2",
-          "aws:RequestTag/Environment": "dev",
-          "aws:RequestTag/ManagedBy": "opentofu",
-          "aws:RequestTag/Platform": "lambda-http-api",
-          "aws:RequestTag/Project": "portfolio"
-        }
-      }
-    },
-    {
       "Sid": "TCRead",
       "Effect": "Allow",
       "Action": [
         "acm:DescribeCertificate",
         "acm:ListTagsForCertificate"
       ],
-      "Resource": "arn:aws:acm:us-west-2:180294223248:certificate/*",
+      "Resource": "arn:aws:acm:us-west-2:180294223248:certificate/7f8a684b-7234-4d9c-819d-fa35ec0b43da",
       "Condition": {
         "StringEquals": {
           "aws:RequestedRegion": "us-west-2",

@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "1260412497a8e7fca45c3cbb89e0784bba3362ac6e9d930df665fa850f92532a",
-			bytes:              9_039,
-			nonWhitespaceBytes: 6_532,
+			sha256:             "70a6fa7492d7623f5d7e20d494e6cf888227e0f83a2ffe922ddeedec0a69a249",
+			bytes:              10_218,
+			nonWhitespaceBytes: 7_406,
 			identityCenter:     true,
 		},
 		{
@@ -97,7 +97,13 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"RAPI", "TCRead", "TCRequest", "TCTags",
+		"ApiMappingCreate",
+		"ApiMappingRead",
+		"DomainCreate",
+		"DomainCreateTagAuthorization",
+		"DomainRead",
+		"RAPI",
+		"TCRead",
 	)
 	controlledSIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -313,12 +319,13 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t 
 	}
 }
 
-func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t *testing.T) {
+func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	want := map[string]struct {
-		actions   map[string]struct{}
-		resources map[string]struct{}
+		actions    map[string]struct{}
+		resources  map[string]struct{}
+		conditions map[string]any
 	}{
 		"RAPI": {
 			actions: stringSet("apigateway:GET"),
@@ -326,6 +333,63 @@ func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t
 				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8",
 				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*",
 			),
+		},
+		"DomainCreate": {
+			actions:   stringSet("apigateway:POST"),
+			resources: stringSet("arn:aws:apigateway:us-west-2::/domainnames"),
+			conditions: map[string]any{
+				"ForAllValues:StringEquals": map[string]any{
+					"apigateway:Request/EndpointType":   []any{"REGIONAL"},
+					"apigateway:Request/SecurityPolicy": []any{"TLS_1_2"},
+					"aws:TagKeys":                       []any{"Environment", "ManagedBy", "Platform", "Project"},
+				},
+				"Null": map[string]any{
+					"apigateway:Request/EndpointType":          "false",
+					"apigateway:Request/MtlsTrustStoreUri":     "true",
+					"apigateway:Request/MtlsTrustStoreVersion": "true",
+					"apigateway:Request/SecurityPolicy":        "false",
+				},
+				"StringEquals": map[string]any{
+					"aws:RequestedRegion":        "us-west-2",
+					"aws:RequestTag/Environment": "dev",
+					"aws:RequestTag/ManagedBy":   "opentofu",
+					"aws:RequestTag/Platform":    "lambda-http-api",
+					"aws:RequestTag/Project":     "portfolio",
+				},
+			},
+		},
+		"DomainCreateTagAuthorization": {
+			actions: stringSet("apigateway:POST"),
+			resources: stringSet(
+				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fv2%2Fdomainnames%2Fdev.craigdevjohnson.com",
+			),
+			conditions: map[string]any{
+				"ForAllValues:StringEquals": map[string]any{
+					"aws:TagKeys": []any{"Environment", "ManagedBy", "Platform", "Project"},
+				},
+				"StringEquals": map[string]any{
+					"aws:RequestedRegion":        "us-west-2",
+					"aws:RequestTag/Environment": "dev",
+					"aws:RequestTag/ManagedBy":   "opentofu",
+					"aws:RequestTag/Platform":    "lambda-http-api",
+					"aws:RequestTag/Project":     "portfolio",
+				},
+			},
+		},
+		"DomainRead": {
+			actions:    stringSet("apigateway:GET"),
+			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"),
+			conditions: requestedRegionCondition(),
+		},
+		"ApiMappingCreate": {
+			actions:    stringSet("apigateway:POST"),
+			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings"),
+			conditions: requestedRegionCondition(),
+		},
+		"ApiMappingRead": {
+			actions:    stringSet("apigateway:GET"),
+			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/*"),
+			conditions: requestedRegionCondition(),
 		},
 	}
 	found := make(map[string]int, len(want))
@@ -345,14 +409,17 @@ func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t
 		}
 		found[statement.Sid]++
 		if statement.Effect != "Allow" {
-			t.Errorf("API Gateway tag statement %q effect = %q, want Allow", statement.Sid, statement.Effect)
+			t.Errorf("API Gateway statement %q effect = %q, want Allow", statement.Sid, statement.Effect)
 		}
-		assertStringSet(t, "API Gateway tag actions for "+statement.Sid, stringSet(statement.Action...), expected.actions)
-		assertStringSet(t, "API Gateway tag resources for "+statement.Sid, stringSet(statement.Resource...), expected.resources)
+		assertStringSet(t, "API Gateway actions for "+statement.Sid, stringSet(statement.Action...), expected.actions)
+		assertStringSet(t, "API Gateway resources for "+statement.Sid, stringSet(statement.Resource...), expected.resources)
+		if !reflect.DeepEqual(statement.Condition, expected.conditions) {
+			t.Errorf("API Gateway conditions for %q = %#v, want %#v", statement.Sid, statement.Condition, expected.conditions)
+		}
 	}
 	for sid := range want {
 		if found[sid] != 1 {
-			t.Errorf("API Gateway tag statement %q count = %d, want 1", sid, found[sid])
+			t.Errorf("API Gateway statement %q count = %d, want 1", sid, found[sid])
 		}
 	}
 }
@@ -361,10 +428,14 @@ func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	consumedActions := stringSet(
+		"apigateway:AddCertificateToDomain",
+		"apigateway:DELETE",
 		"apigateway:PATCH",
-		"apigateway:POST",
-		"apigateway:PUT",
+		"apigateway:RemoveCertificateFromDomain",
 		"apigateway:TagResource",
+		"apigateway:PUT",
+		"apigateway:UpdateDomainNameManagementPolicy",
+		"apigateway:UpdateDomainNamePolicy",
 		"dynamodb:CreateTable",
 		"dynamodb:TagResource",
 		"iam:CreateRole",
@@ -395,19 +466,15 @@ func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T
 	}
 }
 
-func TestDevelopmentBootstrapPolicyRequestsOnlyExactDevelopmentCertificate(t *testing.T) {
+func TestDevelopmentBootstrapPolicyReadsOnlyCapturedDevelopmentCertificate(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
-	certificateARN := "arn:aws:acm:us-west-2:180294223248:certificate/*"
+	certificateARN := "arn:aws:acm:us-west-2:180294223248:certificate/7f8a684b-7234-4d9c-819d-fa35ec0b43da"
 	wantActions := map[string]map[string]struct{}{
-		"TCRead":    stringSet("acm:DescribeCertificate", "acm:ListTagsForCertificate"),
-		"TCRequest": stringSet("acm:RequestCertificate"),
-		"TCTags":    stringSet("acm:AddTagsToCertificate"),
+		"TCRead": stringSet("acm:DescribeCertificate", "acm:ListTagsForCertificate"),
 	}
 	wantResources := map[string]map[string]struct{}{
-		"TCRead":    stringSet(certificateARN),
-		"TCRequest": stringSet("*"),
-		"TCTags":    stringSet(certificateARN),
+		"TCRead": stringSet(certificateARN),
 	}
 	wantConditions := map[string]map[string]any{
 		"TCRead": {
@@ -417,39 +484,6 @@ func TestDevelopmentBootstrapPolicyRequestsOnlyExactDevelopmentCertificate(t *te
 				"aws:ResourceTag/ManagedBy":   "opentofu",
 				"aws:ResourceTag/Platform":    "lambda-http-api",
 				"aws:ResourceTag/Project":     "portfolio",
-			},
-		},
-		"TCRequest": {
-			"ForAllValues:StringEquals": map[string]any{
-				"acm:DomainNames": "dev.craigdevjohnson.com",
-				"aws:TagKeys":     []any{"Environment", "ManagedBy", "Platform", "Project"},
-			},
-			"ForAnyValue:StringEquals": map[string]any{
-				"acm:DomainNames": "dev.craigdevjohnson.com",
-			},
-			"Null": map[string]any{
-				"acm:CertificateAuthority": "true",
-			},
-			"StringEquals": map[string]any{
-				"acm:CertificateKeyPairOrigin": "AWS_MANAGED",
-				"acm:ValidationMethod":         "DNS",
-				"aws:RequestedRegion":          "us-west-2",
-				"aws:RequestTag/Environment":   "dev",
-				"aws:RequestTag/ManagedBy":     "opentofu",
-				"aws:RequestTag/Platform":      "lambda-http-api",
-				"aws:RequestTag/Project":       "portfolio",
-			},
-		},
-		"TCTags": {
-			"ForAllValues:StringEquals": map[string]any{
-				"aws:TagKeys": []any{"Environment", "ManagedBy", "Platform", "Project"},
-			},
-			"StringEquals": map[string]any{
-				"aws:RequestedRegion":        "us-west-2",
-				"aws:RequestTag/Environment": "dev",
-				"aws:RequestTag/ManagedBy":   "opentofu",
-				"aws:RequestTag/Platform":    "lambda-http-api",
-				"aws:RequestTag/Project":     "portfolio",
 			},
 		},
 	}
@@ -631,6 +665,14 @@ func normalizedResources(resources []string, environment string) []string {
 		normalized = append(normalized, resource)
 	}
 	return sortedStrings(normalized)
+}
+
+func requestedRegionCondition() map[string]any {
+	return map[string]any{
+		"StringEquals": map[string]any{
+			"aws:RequestedRegion": "us-west-2",
+		},
+	}
 }
 
 func stringSet(values ...string) map[string]struct{} {

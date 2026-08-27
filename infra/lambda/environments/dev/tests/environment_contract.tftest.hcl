@@ -53,6 +53,14 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_apigatewayv2_domain_name" {
+    defaults = {
+      domain_name_configuration = {
+        target_domain_name = "example.execute-api.us-west-2.amazonaws.com"
+      }
+    }
+  }
+
   mock_resource "aws_lambda_function" {
     defaults = {
       arn        = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev"
@@ -88,7 +96,7 @@ run "development_environment_contract" {
       length(var.alarm_action_arns) == 0 &&
       toset(var.domain_names) == toset(["dev.craigdevjohnson.com"]) &&
       var.request_custom_domain &&
-      !var.activate_custom_domain
+      var.activate_custom_domain
     )
     error_message = "development must use the reviewed isolated environment values"
   }
@@ -161,9 +169,11 @@ run "development_environment_contract" {
       output.acm_validation_records[0].resource_record_name == "_dev.craigdevjohnson.com" &&
       output.acm_validation_records[0].resource_record_type == "CNAME" &&
       output.acm_validation_records[0].resource_record_value == "_dev.acm-validations.aws" &&
-      length(output.api_gateway_domain_targets) == 0 &&
+      output.api_gateway_domain_targets == tomap({
+        "dev.craigdevjohnson.com" = "example.execute-api.us-west-2.amazonaws.com"
+      }) &&
       output.oauth_redirect_uris == tolist(["https://dev.craigdevjohnson.com/soccer"])
     )
-    error_message = "development certificate-request outputs must expose DNS validation without active API targets"
+    error_message = "development custom-domain outputs must expose DNS validation and the active Regional API target"
   }
 }
