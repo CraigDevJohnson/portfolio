@@ -1,704 +1,549 @@
-# Deployment Instructions
+# Deployment instructions
 
-This guide walks you through deploying the portfolio site to **AWS App Runner** using
-**OpenTofu** for infrastructure and **Amazon ECR** for container images.
+> [!WARNING]
+> This file preserves legacy shared-stack and rollback procedures. The
+> checked-in `infra/` directory and the existing `task deploy`, `task redeploy`,
+> `task deploy-lambda`, and `task redeploy-lambda` commands operate on the
+> legacy state that combines App Runner and Lambda. Do not use them for the
+> replacement release. The new release must not be deployed to App Runner.
 
----
+The legacy stack deploys container images from one Amazon ECR repository to
+both AWS App Runner and AWS Lambda with API Gateway. OpenTofu manages both
+runtimes, their shared DynamoDB tables, and their IAM roles in one state.
 
-## Table of Contents
+> [!IMPORTANT]
+> AWS App Runner is closed to new customers. Existing customers can continue
+> using it. New AWS accounts should use the Lambda path or choose another
+> container service. See the
+> [AWS App Runner availability change](https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html).
 
-1. [Why App Runner?](#why-app-runner)
-2. [Prerequisites](#prerequisites)
-3. [Cost Estimate](#cost-estimate)
-4. [Step 1 — Install Tools](#step-1--install-tools)
-5. [Step 2 — Configure AWS Credentials](#step-2--configure-aws-credentials)
-6. [Step 3 — Deploy Infrastructure with OpenTofu](#step-3--deploy-infrastructure-with-opentofu)
-7. [Step 4 — Build and Push the Docker Image](#step-4--build-and-push-the-docker-image)
-8. [Step 5 — Deploy to App Runner](#step-5--deploy-to-app-runner)
-9. [Step 6 — Configure CloudFlare DNS](#step-6--configure-cloudflare-dns)
-10. [Updating the Site](#updating-the-site)
-11. [Future Integrations](#future-integrations)
-12. [Tearing Down](#tearing-down)
-13. [Troubleshooting](#troubleshooting)
+## Legacy shared-stack infrastructure
 
----
+`infra/*.tf` remains the source of truth for the legacy shared stack and its
+rollback procedures. A full apply manages:
 
-## Why App Runner?
+- one ECR repository with mutable `latest` and `lambda-latest` tags;
+- an App Runner service using `latest`;
+- a Lambda container function and API Gateway HTTP API using `lambda-latest`;
+- DynamoDB tables for Google connections and imported Soccer session baselines;
+- App Runner and Lambda IAM roles for DynamoDB and SSM Parameter Store access.
 
-| Factor | App Runner | ECS Fargate | Lightsail Containers | EC2 |
-| --- | --- | --- | --- | --- |
-| **Monthly cost (< 100 visits)** | **~$5–7** | ~$10–15 | $7 (fixed) | $3–8 |
-| **Setup complexity** | Very low | Medium | Low | High |
-| **Auto-scaling** | ✅ Built-in | Manual config | ❌ | ❌ |
-| **TLS/HTTPS** | ✅ Automatic | Manual (ALB+ACM) | ✅ Automatic | Manual |
-| **Custom domain** | ✅ Built-in | Manual (Route53/ALB) | ✅ Built-in | Manual |
-| **IAM role support** | ✅ Instance role | ✅ Task role | ❌ | ✅ Instance profile |
-| **DynamoDB/SES/Lambda ready** | ✅ Via instance role | ✅ Via task role | ❌ Limited | ✅ Via instance profile |
+The default AWS region is `us-west-2`. The S3 backend in
+`infra/versions.tf` is pinned to Craig's existing state bucket and key. Change
+that backend before `tofu init` if you are deploying from another AWS account.
 
-**App Runner wins** for this use case because:
+AWS charges vary by region and traffic. Check the current
+[App Runner pricing](https://aws.amazon.com/apprunner/pricing/) and
+[Lambda pricing](https://aws.amazon.com/lambda/pricing/) instead of relying on
+a fixed monthly estimate.
 
-- **Cheapest for low traffic** — you pay per compute-second; an idle site costs almost nothing
-  beyond the minimum.
-- **Zero ops** — no load balancers, VPCs, or security groups to manage.
-- **Auto TLS** — HTTPS is provided automatically on the `*.awsapprunner.com` domain and on
-  custom domains.
-- **Future-proof** — the instance IAM role lets you add DynamoDB, SES, and Lambda access by
-  simply attaching policies (no architecture changes needed).
+## Replacement Lambda deployment
 
----
+The replacement source is under `infra/lambda/`. It has three independent
+OpenTofu roots and never initializes the legacy `infra/` root:
 
-## Prerequisites
+<!-- markdownlint-disable MD013 -->
 
-Before you begin, make sure you have:
+| Root | State key | Lock acknowledgement |
+| --- | --- | --- |
+| `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
+| `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
+| `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
 
-- An **AWS account** with admin access (or at least permission to create IAM roles, ECR repos,
-  and App Runner services).
-- **Docker** installed and running — [Install Docker](https://docs.docker.com/get-docker/).
-- **AWS CLI v2** installed — [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
-- **OpenTofu** installed (see [Step 1](#step-1--install-tools) below).
-- A **CloudFlare account** managing DNS for your domain.
+<!-- markdownlint-enable MD013 -->
 
----
+The reviewed non-secret initial policy inputs are the
+[development deployer policy](./infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json)
+and the
+[root-owned execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json).
+They are authoritative for their initial policy content, but grant nothing
+merely by being checked in. The deployer document contains temporary grants;
+never restore it after a removal and reprovisioning gate. Keep exact Identity
+Center ownership, assignment, MFA, provisioning results, and live approval
+evidence private. Every live create, update, assignment, and use remains
+separately approval-gated.
 
-## Cost Estimate
+The lock acknowledgement is mechanical evidence that the controller approved
+the exact native S3 lock-object write in the current session. It does not
+authorize the plan or apply. Every changed lock path needs new approval.
 
-For a site with fewer than 100 visits per month:
+### Replacement preflight status
 
-| Resource | Monthly Cost |
-| --- | --- |
-| App Runner (0.25 vCPU / 512 MB, minimal traffic) | ~$5.00 |
-| ECR storage (< 500 MB image) | ~$0.05 |
-| Data transfer (< 1 GB) | Free tier |
-| **Total** | **~$5/month** |
+The 2026-08-22 read-only preflight found:
 
-> **Note:** App Runner charges per compute-second when handling requests. An idle service with
-> near-zero traffic costs approximately $5/month for the provisioned minimum. This is
-> significantly cheaper than running an always-on ECS task or EC2 instance.
+- the state bucket uses AES256 encryption, but versioning status was absent;
+- legacy state metadata was ETag
+  `99f293c374a751614c92f83934ad6a3b`, null `VersionId`, and
+  `2026-04-28T10:08:47Z` `LastModified`;
+- all three replacement state keys and ECR repository
+  `portfolio-lambda-releases` were absent;
+- the API Gateway service-linked role existed and the account had zero HTTP
+  APIs;
+- the account-owned Identity Center organization instance was active; and
+- root MFA was enabled, but a root access key still existed.
 
----
+The 2026-08-24 non-root retry verified the legacy state metadata was unchanged
+and consumed the temporary `TJ` legacy-state read grant. Artifact backend
+initialization then stopped before any bucket mutation because the initial
+policy did not allow `s3:ListBucket` for the absent artifact state key. The
+first replacement grant was validated and reprovisioned but still returned
+`403` because its retained `s3:max-keys` condition was absent from the
+missing-object `HeadObject` authorization context. The approved replacement
+removed `TJ` and that incompatible condition while limiting the backend list
+grant to `env:/` plus the exact artifacts and development state keys. It was
+reprovisioned and verified before retrying this section.
 
-## Step 1 — Install Tools
+The 2026-08-25 retry initialized the artifact backend successfully under the
+non-root deployer, enabled bucket versioning, read it back as `Enabled`, and
+verified the artifact state prefix still contained zero objects. The approved
+tightening then removed the consumed `T1` `s3:PutBucketVersioning` grant,
+reprovisioned `PortfolioDeployer`, and verified the effective role before
+creating an artifact plan.
 
-### OpenTofu
+The 2026-08-25 artifact apply created the immutable, scan-on-push ECR
+repository, its untagged-image lifecycle policy, and its Lambda pull policy.
+Live read-back found zero images, versioned state containing exactly those
+three resources, and no remaining lock object. A subsequent saved convergence
+plan reported `0 add, 0 change, 0 destroy`. The approved tightening then
+removed the consumed `T2` and `T3` repository-administration grants and
+reprovisioned `PortfolioDeployer` successfully. The effective role denies all
+six retired repository-setup actions, retains artifact-state access, and still
+denies production state. Do not restore `T2` or `T3`.
 
-OpenTofu is an open-source fork of Terraform. Install it for your platform:
+The first immutable image attempt built the exact commit successfully and
+uploaded its layers, but ECR rejected manifest resolution because the
+then-reviewed deployer policy omitted the documented `ecr:BatchGetImage` push
+action. An authoritative `DescribeImages` lookup afterward returned
+`ImageNotFoundException`, so the immutable tag was never created and remains
+safe to reuse. The replacement candidate adds only `ecr:BatchGetImage` on the
+exact `portfolio-lambda-releases` repository and adds a positive contract test
+for the complete repository action set. Analyze, review, approve, update, and
+reprovision this candidate before retrying the same full-SHA tag; do not restore
+any retired repository-administration grant.
 
-**macOS (Homebrew):**
+Do not create replacement state until bucket versioning reports `Enabled`.
+After `portfolio-deployer` exists, the controller must present the exact bucket
+and non-root command and obtain separate current-session approval for the one
+`s3api put-bucket-versioning` mutation:
 
 ```bash
-brew install opentofu
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+task lambda-artifacts-init
+aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  s3api put-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --versioning-configuration Status=Enabled
+test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  s3api get-bucket-versioning \
+  --bucket portfolio-tofu-state-180294223248 \
+  --query Status --output text)" = "Enabled"
 ```
 
-**Linux (Debian/Ubuntu):**
+`lambda-artifacts-init` runs the full same-session identity guard immediately
+before the approved mutation: exact profile, region, account, SSO-role ARN,
+non-root principal, and absence of ambient static or session credentials.
+
+If the deployer needs `s3:PutBucketVersioning`, grant only that exact bucket
+action for this step and remove it after verification. Never run this mutation
+as root.
+
+### Identity and saved-plan rules
+
+Every replacement command requires exactly `AWS_PROFILE=portfolio-deployer`
+and `AWS_REGION=us-west-2`. The private guard rejects ambient
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other
+account, root, and any assumed role that does not contain
+`AWSReservedSSO_PortfolioDeployer_`.
+
+Initialization, planning, and apply are separate commands. Initialization uses
+the root's `backend.hcl`, reconfigures the backend without interactive input,
+and refuses any workspace other than `default`. A plan requires a new absolute
+`PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
+and prints the human-readable plan. An apply accepts only an existing absolute
+saved plan whose SHA-256 digest equals the separately approved
+`APPROVED_PLAN_SHA256`. Replacement commands contain no `--auto-approve`,
+`-target`, or mutable image tag.
+
+For example, create and inspect the artifact plan only after the controller
+approves the exact artifact lock write:
 
 ```bash
-curl -fsSL https://get.opentofu.org/install-opentofu.sh -o install-opentofu.sh
-chmod +x install-opentofu.sh
-./install-opentofu.sh --install-method deb
-rm install-opentofu.sh
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+task lambda-artifacts-init
+plan_dir=$(mktemp -d)
+artifact_plan="$plan_dir/artifacts.tfplan"
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
+artifact_plan_sha256=$(shasum -a 256 "$artifact_plan" | awk '{print $1}')
+printf 'artifact_plan_sha256=%s\n' "$artifact_plan_sha256"
 ```
 
-**Windows (Chocolatey):**
-
-```powershell
-choco install opentofu
-```
-
-Verify the installation:
+The artifact checker permits exactly the immutable ECR repository, its
+untagged-image lifecycle policy, and the Lambda pull repository policy. Before
+applying, present the absolute saved-plan path, checksum, complete action list,
+and exact lock URI. Obtain separate current-session apply and lock-write
+approval, then run:
 
 ```bash
-tofu --version
+: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
+task lambda-artifacts-apply \
+  PLAN_FILE="$artifact_plan" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 ```
 
-### AWS CLI v2
+Development and production use the same split with `lambda-dev-*` and
+`lambda-prod-*`. Development requires `IMAGE_DIGEST`; production also requires
+the reviewed `ALARM_ACTION_ARNS_JSON`. The checker rejects delete or replace
+actions, legacy resources, mutable tags, sensitive values, wrong execution
+boundaries or deterministic names, protection and retention drift, and alarm
+action drift.
 
-If not already installed:
+### Immutable image and runtime parameters
+
+After the artifact root exists, obtain a separate approval for the exact ECR
+push. `task lambda-release-push` requires a clean worktree, builds with the full
+`git rev-parse HEAD`, and pushes only
+`portfolio-lambda-releases:git-<40-character-SHA>`. It first requires repository
+tag immutability and an authoritative `ImageNotFoundException`; every other
+lookup failure and every existing tag stops before push. Record the returned
+digest, push time, completed scan status, severity counts, and digest-qualified
+URI. The task waits with ECR's image-scan waiter and reads findings through
+`DescribeImageScanFindings`; current Basic Scanning does not populate the old
+scan fields on `DescribeImages`. ECR can briefly return `ScanNotFoundException`
+before it creates a new image's scan record; the task retries only that exact
+condition for a bounded interval and fails closed on every other error.
+Environment plans consume only `repository-url@sha256:<64 lowercase hex
+characters>`.
+
+The environment-owned SecureString paths are:
+
+- development: `/portfolio/lambda/dev/CLIENT_ID_KEY`,
+  `/portfolio/lambda/dev/CLIENT_SECRET_KEY`, and
+  `/portfolio/lambda/dev/LPS_SESSION_KEY`;
+- production: `/portfolio/lambda/prod/CLIENT_ID_KEY`,
+  `/portfolio/lambda/prod/CLIENT_SECRET_KEY`, and
+  `/portfolio/lambda/prod/LPS_SESSION_KEY`.
+
+Copying or creating their values is a separate approved mutation. OpenTofu
+stores only these paths, never decrypted values. The legacy `/portfolio/*`
+parameters remain unchanged.
+
+### Development proof and custom domain
+
+The initial development deployer policy excludes ACM and custom-domain
+authority. Before either custom-domain stage, review and approve the exact
+just-in-time development-only permission-set candidate and reprovisioning.
+
+For the first development plan, set the approved dev lock URI and pass the
+recorded digest:
 
 ```bash
-# macOS
-brew install awscli
+task lambda-dev-init
+dev_plan_dir=$(mktemp -d)
+dev_plan="$dev_plan_dir/dev.tfplan"
+task lambda-dev-plan \
+  PLAN_FILE="$dev_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+```
 
-# Linux
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip && sudo ./aws/install && rm -rf aws awscliv2.zip
+After separate plan and lock approval, apply that exact file with
+`lambda-dev-apply`. Before any custom-domain work, prove the direct API endpoint
+returns the release SHA at `/healthz` and returns 200 with the expected content
+types for `/`, `/soccer`, `/static/css/tailwind.css`, and a binary image asset.
+Also verify the published version, `live` alias target, exactly five alarms,
+logs, and a no-change saved convergence plan.
 
-# Verify
+Custom-domain setup has two saved-plan stages:
+
+1. Set only `request_custom_domain = true`, plan and approve the ACM certificate
+   create, apply it, then add the exact DNS-only validation CNAMEs after a
+   separate Cloudflare approval.
+2. After ACM reports `ISSUED`, set only `activate_custom_domain = true`, plan and
+   approve certificate validation, Regional API Gateway domains, and API
+   mappings, then apply that exact file.
+
+Each stage requires the dev lock URI and a fresh current-session lock-write and
+apply approval. Prove OAuth against the API Gateway target before changing the
+traffic record. Record the legacy origin and complete DNS rollback coordinates
+before that traffic mutation.
+
+Observation commands reinitialize artifact and environment roots before reading
+outputs. They append sanitized samples and workflow request IDs to the release
+record's evidence path. Production stays blocked unless the first sample and
+every later gap are within 26 hours, all timestamps are current and internally
+consistent, and the window spans seven full days. It also requires stable
+release coordinates, distinct request IDs for two complete workflows, five
+non-ALARM alarm states, no blocker, and a strict HTTPS rollback origin.
+
+The application behavior and direct-endpoint checks are also documented in
+[`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).
+
+## Local image verification
+
+These Linux amd64 tasks are local-only and do not push or deploy images:
+
+```bash
+task build-image
+task build-lambda-image
+task test-images
+```
+
+The build tasks accept optional `IMAGE_TAG` and `BUILD_REVISION` values. They
+default to local tags and the current Git revision.
+
+## Legacy shared-stack prerequisites
+
+Install and configure:
+
+- Docker;
+- AWS CLI v2;
+- OpenTofu 1.6 or newer;
+- Task;
+- AWS credentials that can manage ECR, App Runner, Lambda, API Gateway,
+  DynamoDB, IAM, SSM Parameter Store, KMS, and the configured S3 state backend.
+
+Verify the local tools and identity:
+
+```bash
+docker version
 aws --version
-```
-
----
-
-## Step 2 — Configure AWS Credentials
-
-Set up your AWS credentials so both the AWS CLI and OpenTofu can authenticate:
-
-```bash
-aws configure
-```
-
-You will be prompted for:
-
-| Prompt | What to enter |
-| --- | --- |
-| AWS Access Key ID | Your IAM access key |
-| AWS Secret Access Key | Your IAM secret key |
-| Default region name | `us-east-1` (or your preferred region) |
-| Default output format | `json` |
-
-> **Tip:** If you use AWS SSO, run `aws sso login --profile your-profile` and set
-> `export AWS_PROFILE=your-profile` instead.
-
-Verify your credentials:
-
-```bash
+tofu --version
+task --version
 aws sts get-caller-identity
 ```
 
-You should see your account ID, user ARN, and user ID.
+The OpenTofu default is `us-west-2`. Set `AWS_PROFILE` when you do not want the
+AWS CLI's default profile.
 
----
+## Configure legacy shared-stack runtime secrets
 
-## Step 3 — Deploy Infrastructure with OpenTofu
+With the default `app_name = "portfolio"`, both deployed runtimes expect these
+SecureString parameters:
 
-The `infra/` directory contains all the OpenTofu configuration files:
+- `/portfolio/LPS_SESSION_KEY`
+- `/portfolio/CLIENT_ID_KEY`
+- `/portfolio/CLIENT_SECRET_KEY`
 
-| File | Purpose |
-| --- | --- |
-| `versions.tf` | Provider and backend configuration |
-| `variables.tf` | Input variables (region, app name, CPU/memory) |
-| `main.tf` | ECR repository, IAM roles, App Runner service |
-| `outputs.tf` | Outputs (ECR URL, App Runner URL, etc.) |
+`LPS_SESSION_KEY` must be a 64-character hexadecimal value. Create or
+update the parameters in the infrastructure region before the first full apply:
 
-### 3a. Initialize OpenTofu
+```bash
+AWS_REGION=us-west-2
+APP_NAME=portfolio
+
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "/$APP_NAME/LPS_SESSION_KEY" \
+  --type SecureString \
+  --value "$(openssl rand -hex 32)" \
+  --overwrite
+
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "/$APP_NAME/CLIENT_ID_KEY" \
+  --type SecureString \
+  --value "YOUR_GOOGLE_CLIENT_ID" \
+  --overwrite
+
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "/$APP_NAME/CLIENT_SECRET_KEY" \
+  --type SecureString \
+  --value "YOUR_GOOGLE_CLIENT_SECRET" \
+  --overwrite
+```
+
+The infrastructure supplies `GOOGLE_CONNECTION_TABLE_NAME` and
+`SOCCER_SESSION_TABLE_NAME`. Do not duplicate those values in SSM.
+
+Register each deployed `/soccer` URL in the Google OAuth client. Include the
+App Runner custom domain, the API Gateway URL if Lambda is used directly, and
+`http://localhost:8080/soccer` for local testing.
+
+## Legacy shared-stack first deployment
+
+From the repository root:
+
+```bash
+task deploy
+```
+
+The task performs these steps:
+
+1. checks AWS, Docker, and OpenTofu access;
+2. creates the ECR repository and lifecycle policy if needed;
+3. builds and pushes the App Runner image as `latest`;
+4. builds and pushes the Lambda image as `lambda-latest`;
+5. runs a full `tofu apply --auto-approve`.
+
+Both images must exist before the full apply because the same OpenTofu state
+declares both runtimes.
+
+Inspect the deployed endpoints:
 
 ```bash
 cd infra
-tofu init
+tofu output -raw app_runner_service_url
+tofu output -raw lambda_api_url
 ```
 
-This downloads the AWS provider plugin. You should see:
+Open each URL and confirm the home page loads. Confirm `/soccer` separately if
+you configured Google OAuth and Soccer authentication.
+
+## Legacy shared-stack updates
+
+The commands below update the legacy shared stack after its first deployment.
+Keep them for rollback only; do not use them for the replacement release.
 
 ```bash
-OpenTofu has been successfully initialized!
+# Push latest and trigger App Runner.
+task redeploy
+
+# Push lambda-latest and update the Lambda function.
+task redeploy-lambda
 ```
 
-### 3b. Preview the changes
+`task deploy-lambda` is a targeted first-deploy helper for Lambda resources. It
+does not replace a full infrastructure reconciliation with `task deploy`. Both
+commands target the legacy shared OpenTofu state.
+
+## EC2 management portal
+
+The portal routes are disabled unless the session key, Cognito domain, and
+client ID are valid. A working sign-in also requires a registered redirect URI.
+Local mock review uses:
 
 ```bash
-tofu plan
+task portal-preview
 ```
 
-Review the output. It should show the creation of:
+The current OpenTofu files do not provision Cognito, portal IAM permissions, or
+`MGMT_*` runtime values. To enable the portal on App Runner, configure these
+values in the service runtime and add least-privilege permissions to the App
+Runner instance role:
 
-- 1 ECR repository
-- 1 ECR lifecycle policy
-- 2 IAM roles (ECR access + instance role)
-- 1 IAM role policy attachment
-- 1 App Runner service
+- `MGMT_SESSION_KEY`
+- `MGMT_COGNITO_DOMAIN`
+- `MGMT_COGNITO_CLIENT_ID`
+- `MGMT_COGNITO_REDIRECT_URI`, required for sign-in and registered with Cognito
+- `MGMT_COGNITO_LOGOUT_URI`, optional
+- `MGMT_AWS_REGION`, defaults to `us-east-1`
 
-### 3c. Build and push the Docker image first
+Required AWS actions are:
 
-**Important:** The App Runner service references the ECR image, so the image must exist in ECR
-before `tofu apply` can succeed. You have two options:
+- `ec2:DescribeInstances`
+- `ec2:StartInstances`
+- `ec2:StopInstances`
+- `cloudwatch:GetMetricStatistics`
+- `logs:FilterLogEvents`
 
-**Option A — Create ECR first, then apply everything:**
+The Terraform-managed Lambda deployment does not pass or resolve `MGMT_*`
+values, so the portal is not currently supported on that path.
 
-```bash
-# Create just the ECR repository
-tofu apply -target=aws_ecr_repository.app -target=aws_ecr_lifecycle_policy.app
+## Legacy App Runner custom domain and rollback reference
 
-# Now build and push the image (see Step 4 below)
-# ...
+This legacy section applies only to accounts that already have App Runner
+access. It is retained for rollback and must not be used to put the new release
+on App Runner.
 
-# Then apply the rest
-tofu apply
-```
-
-**Option B — Apply all at once** (requires the image to already be in ECR):
-
-If you've already pushed an image, simply run:
-
-```bash
-tofu apply
-```
-
-### 3d. Apply the infrastructure
-
-When prompted, type `yes` to confirm:
+Associate the domain:
 
 ```bash
-tofu apply
-```
-
-After a few minutes, you'll see the outputs:
-
-```bash
-Outputs:
-
-app_runner_service_url = "https://xxxxxxxxxx.us-east-1.awsapprunner.com"
-ecr_repository_url     = "123456789012.dkr.ecr.us-east-1.amazonaws.com/portfolio"
-google_connection_table_name = "portfolio-dev-google-connections"
-instance_role_arn      = "arn:aws:iam::123456789012:role/portfolio-apprunner-instance"
-```
-
-Save the `ecr_repository_url` — you'll need it in the next step.
-
----
-
-## Step 4 — Build and Push the Docker Image
-
-### 4a. Authenticate Docker with ECR
-
-```bash
-# Get your AWS account ID
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-AWS_REGION="us-east-1"  # Change if using a different region
-
-# Log in to ECR
-aws ecr get-login-password --region $AWS_REGION | \
-  docker login --username AWS --password-stdin \
-  $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-```
-
-You should see `Login Succeeded`.
-
-### 4b. Build the Docker image
-
-From the **repository root** (not the `infra/` directory):
-
-```bash
-cd ..  # Back to repository root, if you were in infra/
-docker build --platform linux/amd64 -t portfolio .
-```
-
-### 4c. Tag and push to ECR
-
-```bash
-# Tag the image for ECR
-ECR_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/portfolio"
-docker tag portfolio:latest $ECR_URL:latest
-
-# Push to ECR
-docker push $ECR_URL:latest
-```
-
----
-
-## Step 5 — Deploy to App Runner
-
-If you followed **Option A** in Step 3, the App Runner service was already created. If not,
-return to the `infra/` directory and apply:
-
-```bash
-cd infra
-tofu apply
-```
-
-### Verify the deployment
-
-1. Get the service URL from the OpenTofu output:
-
-   ```bash
-   tofu output app_runner_service_url
-   ```
-
-2. Open the URL in your browser. You should see your portfolio site.
-
-3. You can also verify in the AWS Console:
-   - Go to **App Runner** > **Services** > **portfolio**
-   - Check the status is **Running**
-   - Click the default domain link to view the site
-
-### Configure runtime environment variables
-
-The Google Calendar integration needs these App Runner runtime environment
-variables in addition to `LPS_SESSION_KEY`:
-
-- `CLIENT_ID_KEY`
-- `CLIENT_SECRET_KEY`
-- `GOOGLE_CONNECTION_TABLE_NAME`
-
-`GOOGLE_CONNECTION_TABLE_NAME` is now supplied automatically from Terraform via
-the App Runner service configuration. The Google client ID and client secret
-still need to be set in the App Runner service runtime configuration.
-
-### Configure Google OAuth redirect URIs
-
-The Google OAuth client must allow these redirect URIs:
-
-- `https://craigdevjohnson.com/soccer`
-- `https://dev.craigdevjohnson.com/soccer`
-- `http://localhost:8080/soccer`
-
----
-
-## Step 6 — Configure CloudFlare DNS
-
-To point your custom domain (`craigdevjohnson.com`) at the App Runner service:
-
-### 6a. Add a custom domain in App Runner
-
-```bash
-# Get the App Runner service ARN
 SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
 
-# Associate your custom domain
 aws apprunner associate-custom-domain \
   --service-arn "$SERVICE_ARN" \
-  --domain-name "craigdevjohnson.com" \
+  --domain-name craigdevjohnson.com \
   --enable-www-subdomain
 ```
 
-This returns **DNS validation records** you'll need in CloudFlare. Note the CNAME records
-from the output.
+Use the DNS target and certificate-validation records returned by AWS. Do not
+copy a region-specific hostname from an example. In Cloudflare, keep the AWS
+certificate-validation records set to DNS only. Keep those records after
+activation so ACM can renew the certificate.
 
-### 6b. Add DNS records in CloudFlare
-
-1. Log in to [CloudFlare Dashboard](https://dash.cloudflare.com/).
-2. Select your domain (`craigdevjohnson.com`).
-3. Go to **DNS** > **Records**.
-
-**Add the validation CNAME records** (from the AWS CLI output above):
-
-| Type | Name | Content | Proxy status |
-| --- | --- | --- | --- |
-| CNAME | `_xxxxxxxxxx.craigdevjohnson.com` | `_yyyyyyyyyy.acm-validations.aws` | DNS only (grey cloud) |
-
-> **Important:** Set proxy status to **DNS only** (grey cloud icon) for validation records.
-> AWS needs to reach the CNAME directly.
-
-**Add the domain CNAME record:**
-
-| Type | Name | Content | Proxy status |
-| --- | --- | --- | --- |
-| CNAME | `@` (or `craigdevjohnson.com`) | `xxxxxxxxxx.us-east-1.awsapprunner.com` | DNS only (grey cloud) |
-| CNAME | `www` | `xxxxxxxxxx.us-east-1.awsapprunner.com` | DNS only (grey cloud) |
-
-> **Note:** If you're using CloudFlare's root CNAME flattening, the `@` CNAME record will
-> work for the apex domain. CloudFlare automatically handles CNAME flattening at the zone
-> apex.
-
-### 6c. Wait for validation
-
-DNS validation typically takes 5–30 minutes. Check the status:
+Check status with:
 
 ```bash
 aws apprunner describe-custom-domains --service-arn "$SERVICE_ARN"
 ```
 
-Look for `"Status": "active"` on your domain entries.
+AWS says activation can take up to 24 to 48 hours. See
+[Managing App Runner custom domains](https://docs.aws.amazon.com/apprunner/latest/dg/manage-custom-domains.html).
 
-### 6d. CloudFlare SSL/TLS settings
+## Legacy shared-stack teardown
 
-Since App Runner provides its own publicly trusted TLS certificate, configure CloudFlare's SSL mode:
-
-1. In CloudFlare, go to **SSL/TLS** > **Overview**.
-2. Set the encryption mode to **Full (strict)** so CloudFlare fully validates the App Runner
-   ACM certificate while still terminating TLS at the edge.
-
-> **Note:** If you keep the CloudFlare proxy enabled (orange cloud), you should use
-> **Full (strict)** so CloudFlare validates the origin certificate. If you use **DNS only**
-> (grey cloud), CloudFlare won't terminate TLS and the App Runner certificate handles
-> everything directly between the browser and App Runner.
-
----
-
-## Updating the Site
-
-When you make changes to the site, redeploy with these steps:
+Disassociate an App Runner custom domain before destroying its service:
 
 ```bash
-# 1. Build the new Docker image
-docker build --platform linux/amd64 -t portfolio .
-
-# 2. Tag and push to ECR
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-AWS_REGION="us-east-1"
-ECR_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/portfolio"
-
-docker tag portfolio:latest $ECR_URL:latest
-docker push $ECR_URL:latest
-
-# 3. Trigger a new deployment in App Runner
 SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
-aws apprunner start-deployment --service-arn "$SERVICE_ARN"
+
+aws apprunner disassociate-custom-domain \
+  --service-arn "$SERVICE_ARN" \
+  --domain-name craigdevjohnson.com
 ```
 
-The deployment takes 2–3 minutes. Monitor progress:
-
-```bash
-aws apprunner describe-service --service-arn "$SERVICE_ARN" \
-  --query 'Service.Status' --output text
-```
-
-Wait until the status is `RUNNING`.
-
-> **Tip:** You can automate this with a GitHub Actions workflow. See [Future
-> Integrations](#future-integrations) for a CI/CD example.
-
----
-
-## Future Integrations
-
-The infrastructure is designed to easily support the integrations mentioned in the issue.
-Here's how to add each one:
-
-### DynamoDB
-
-1. Create a DynamoDB table in `infra/main.tf`:
-
-   ```hcl
-   resource "aws_dynamodb_table" "app_data" {
-     name         = "${var.app_name}-data"
-     billing_mode = "PAY_PER_REQUEST"  # No cost when idle
-     hash_key     = "PK"
-     range_key    = "SK"
-
-     attribute {
-       name = "PK"
-       type = "S"
-     }
-     attribute {
-       name = "SK"
-       type = "S"
-     }
-   }
-   ```
-
-2. Attach a DynamoDB policy to the instance role:
-
-   ```hcl
-   resource "aws_iam_role_policy" "dynamodb_access" {
-     name = "${var.app_name}-dynamodb-access"
-     role = aws_iam_role.apprunner_instance.id
-
-     policy = jsonencode({
-       Version = "2012-10-17"
-       Statement = [
-         {
-           Effect   = "Allow"
-           Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan"]
-           Resource = aws_dynamodb_table.app_data.arn
-         }
-       ]
-     })
-   }
-   ```
-
-3. Use the AWS SDK for Go in your application to interact with DynamoDB. The instance role
-   credentials are automatically available.
-
-### AWS SES (Email)
-
-1. Attach an SES policy to the instance role:
-
-   ```hcl
-   resource "aws_iam_role_policy" "ses_access" {
-     name = "${var.app_name}-ses-access"
-     role = aws_iam_role.apprunner_instance.id
-
-     policy = jsonencode({
-       Version = "2012-10-17"
-       Statement = [
-         {
-           Effect   = "Allow"
-           Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-           Resource = [
-             "arn:aws:ses:REGION:ACCOUNT_ID:identity/yourdomain.com",
-             "arn:aws:ses:REGION:ACCOUNT_ID:identity/verified@example.com",
-           ]
-         }
-       ]
-     })
-   }
-   ```
-
-2. Verify your domain or email address in the SES console.
-
-3. Use the AWS SDK for Go to send emails from your contact form handler.
-
-### Lambda Functions
-
-1. Create a Lambda execution IAM role and function in `infra/main.tf`:
-
-   ```hcl
-   resource "aws_iam_role" "lambda_exec" {
-     name = "${var.app_name}-lambda-exec"
-
-     assume_role_policy = jsonencode({
-       Version = "2012-10-17"
-       Statement = [
-         {
-           Effect = "Allow"
-           Principal = {
-             Service = "lambda.amazonaws.com"
-           }
-           Action = "sts:AssumeRole"
-         }
-       ]
-     })
-   }
-
-   resource "aws_iam_role_policy_attachment" "lambda_basic" {
-     role       = aws_iam_role.lambda_exec.name
-     policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-   }
-
-   resource "aws_lambda_function" "example" {
-     function_name = "${var.app_name}-example"
-     runtime       = "provided.al2023"
-     handler       = "bootstrap"
-     role          = aws_iam_role.lambda_exec.arn
-     filename      = "lambda.zip"
-   }
-   ```
-
-2. Invoke Lambda from your Go backend using the AWS SDK, or trigger it via API Gateway,
-   DynamoDB streams, or SES receipt rules.
-
-### CI/CD with GitHub Actions
-
-Add a `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
-env:
-  APP_NAME: portfolio  # Must match var.app_name in infra/variables.tf
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::YOUR_ACCOUNT_ID:role/github-actions-deploy
-          aws-region: us-east-1
-
-      - name: Login to ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-        run: |
-          docker build -t $ECR_REGISTRY/$APP_NAME:latest .
-          docker push $ECR_REGISTRY/$APP_NAME:latest
-
-      - name: Deploy to App Runner
-        run: |
-          SERVICE_ARN=$(aws apprunner list-services \
-            --query "ServiceSummaryList[?ServiceName=='$APP_NAME'].ServiceArn" \
-            --output text)
-          aws apprunner start-deployment --service-arn "$SERVICE_ARN"
-```
-
-> **Note:** You'll need to create an IAM role for GitHub Actions OIDC federation. See the
-> [AWS docs on GitHub OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html).
-
----
-
-## Tearing Down
-
-To completely remove all AWS resources:
+Then review the destroy plan:
 
 ```bash
 cd infra
-
-# Remove the custom domain association first (if configured)
-SERVICE_ARN=$(tofu output -raw app_runner_service_arn)
-aws apprunner disassociate-custom-domain \
-  --service-arn "$SERVICE_ARN" \
-  --domain-name "craigdevjohnson.com"
-
-# Destroy all infrastructure
+tofu plan -destroy
 tofu destroy
 ```
 
-When prompted, type `yes` to confirm. This removes:
+The ECR repository uses `force_delete = false`. OpenTofu will refuse to delete
+it while images remain. Emptying ECR is a separate destructive decision; do
+not change that guard or delete images without confirming the exact repository
+and recovery impact.
 
-- The App Runner service
-- The ECR repository (and all images)
-- The IAM roles
+## Legacy shared-stack troubleshooting
 
-> **Note:** Remove the CloudFlare DNS records manually after destroying the infrastructure.
+### Image not found
 
----
+Run `task deploy`, not a bare full `tofu apply`, for the first deployment. The
+full state needs both `latest` and `lambda-latest` in ECR.
 
-## Troubleshooting
+### Legacy App Runner does not become healthy
 
-### App Runner service fails to start
+The service expects an `amd64` container listening on port `8080`. Reproduce the
+runtime locally:
 
-**Check the App Runner logs:**
+```bash
+docker build --platform linux/amd64 -t portfolio .
+docker run --rm -e APP_BIND_ALL=true -p 8080:8080 portfolio
+```
+
+Then inspect App Runner operations:
 
 ```bash
 SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
 aws apprunner list-operations --service-arn "$SERVICE_ARN"
 ```
 
-**Common issues:**
+Follow application logs from the legacy service's CloudWatch Logs group with
+`task logs`. This command is legacy App Runner guidance, not a replacement
+Lambda log command.
 
-- **Image not found in ECR** — make sure you pushed the image before running `tofu apply`.
-- **Health check failing** — App Runner expects an `amd64` image. Build with
-  `docker build --platform linux/amd64 -t portfolio .` and then test locally with
-  `docker run -p 8080:8080 portfolio` before redeploying.
+### Legacy Lambda fails during cold start
 
-### Docker build fails
-
-```bash
-# Make sure you're in the repository root (where the Dockerfile is)
-docker build --platform linux/amd64 -t portfolio .
-
-# Test the image locally
-docker run -p 8080:8080 portfolio
-# Visit http://localhost:8080 in your browser
-```
-
-### OpenTofu state issues
-
-If you need to refresh state:
-
-```bash
-cd infra
-tofu refresh
-```
-
-If a resource was manually deleted:
-
-```bash
-# Remove it from state
-tofu state rm aws_apprunner_service.app
-
-# Re-create it
-tofu apply
-```
+Confirm all three SSM parameter paths exist in the configured `aws_region`
+(`us-west-2` by default) and the Lambda role can call `ssm:GetParameters` and
+`kms:Decrypt`. The cold-start resolver treats a missing configured parameter as
+an error.
 
 ### ECR login expired
 
-ECR tokens expire after 12 hours. Re-authenticate:
+Derive the region and registry from OpenTofu instead of hard-coding them:
 
 ```bash
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-aws ecr get-login-password --region us-east-1 | \
-  docker login --username AWS --password-stdin \
-  $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+ECR_URL=$(cd infra && tofu output -raw ecr_repository_url)
+AWS_REGION=$(echo "$ECR_URL" | sed 's/.*\.ecr\.\(.*\)\.amazonaws\.com.*/\1/')
+ECR_REGISTRY=${ECR_URL%%/*}
+
+aws ecr get-login-password --region "$AWS_REGION" | \
+  docker login --username AWS --password-stdin "$ECR_REGISTRY"
 ```
-
-### CloudFlare DNS not resolving
-
-- Ensure validation CNAME records are set to **DNS only** (grey cloud), not proxied.
-- Wait up to 30 minutes for DNS propagation.
-- Check `aws apprunner describe-custom-domains --service-arn "$SERVICE_ARN"` for validation
-  status.

@@ -1,14 +1,42 @@
 .git
 .gitignore
 .github
+.playwright-cli
+.playwright-mcp
+.tools
+.tmp
+.venv
 .vscode
 .idea
 
+chrome-extension/
+docs/
+infra/
+
+.dockerignore
+.air.toml
+.editorconfig
+.env
+.env.example
+.golangci.toml
+.hintrc
+
+AGENTS.md
 README.md
-Makefile
+DEPLOY-INSTRUCTIONS.md
+Taskfile.yaml
+docker-compose.yml
 
 portfolio-server
+lambda
 
 *.log
 *.tmp
+node_modules/
+output/
+tests/
+**/*_test.go
+**/*_templ.go
+**/testdata/
+cmd/web/static/css/tailwind.css
 tmp/

@@ -1,0 +1,98 @@
+package partials
+
+type SoccerLoginModalProps struct {
+	Preview  bool
+	Open     bool
+	Feedback *SoccerLoginFeedbackProps
+}
+
+templ SoccerLoginModal(props SoccerLoginModalProps) {
+	<div
+		id="soccer-login-modal"
+		class="soccer-login-modal"
+		if !props.Open {
+			hidden
+			aria-hidden="true"
+		} else {
+			aria-hidden="false"
+		}
+	>
+		<div class="soccer-login-backdrop" role="presentation" aria-hidden="true" data-close-login-modal></div>
+		<div
+			class="soccer-login-dialog"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="soccer-login-title"
+			aria-describedby="soccer-login-description"
+			tabindex="-1"
+		>
+			<div class="soccer-login-header sticky top-0 z-10 bg-[var(--bg-secondary)] pb-3">
+				<h2 id="soccer-login-title">Import Let&apos;s Play Soccer access</h2>
+				<button type="button" class="soccer-modal-close" aria-label="Close import dialog" data-close-login-modal>
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<p id="soccer-login-description" class="soccer-login-description">
+				Paste the JWT from your signed-in Let&apos;s Play Soccer browser session. After import, you&apos;ll choose players and then confirm which teams to include.
+			</p>
+			<ol class="soccer-login-instructions">
+				<li>Sign in on letsplaysoccer.com in another tab.</li>
+				<li>Open browser DevTools, inspect an authenticated request, and copy the JWT.</li>
+				<li>Click Import access to load your players, then continue to team selection.</li>
+			</ol>
+			<form
+				id="soccer-login-form"
+				class="soccer-login-form"
+				if !props.Preview {
+					hx-post="/soccer/import"
+					hx-target="#soccer-login-feedback"
+					hx-swap="innerHTML"
+					hx-indicator=".soccer-login-submit-indicator"
+					hx-disabled-elt="find button[type='submit']"
+				}
+			>
+				<div id="soccer-login-feedback" class="soccer-login-feedback">
+					if props.Feedback != nil {
+						@SoccerLoginFeedback(*props.Feedback)
+					}
+				</div>
+				<div class="soccer-login-jwt-field">
+					<label for="soccer-import-jwt" class="form-label">JWT</label>
+					<textarea
+						id="soccer-import-jwt"
+						name="jwt"
+						class="text-input min-h-28 resize-y"
+						rows="5"
+						spellcheck="false"
+						required
+						aria-required="true"
+						aria-describedby="soccer-import-jwt-hint"
+						placeholder="Bearer eyJhbGciOi..."
+					></textarea>
+					<p id="soccer-import-jwt-hint" class="soccer-login-note">You can paste the full Authorization header value or only the JWT.</p>
+				</div>
+				<p class="soccer-login-note">
+					This server stores the imported JWT only in an encrypted HttpOnly cookie for the current browser session and clears it when you choose Clear import.
+				</p>
+				@SoccerSecurityNotice(SoccerSecurityNoticeProps{Compact: false})
+				<div class="soccer-login-actions sticky bottom-0 z-10 bg-[var(--bg-secondary)] pt-3">
+					<button type="button" class="btn soccer-secondary-btn" data-close-login-modal>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						class="btn btn-primary btn-loading"
+						data-loading-button
+						if props.Preview {
+							disabled
+							aria-disabled="true"
+						}
+					>
+						<span class="btn-text">Import access</span>
+						<span class="btn-loading-indicator soccer-login-submit-indicator htmx-indicator" aria-hidden="true"></span>
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}

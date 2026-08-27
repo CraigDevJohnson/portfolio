@@ -1,0 +1,108 @@
+package pages
+
+import "fmt"
+import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
+import "portfolio/types"
+
+type DashboardProps struct {
+	Username       string
+	Instances      []types.InstanceSummary
+	RetrievalError string
+	Preview        bool
+}
+
+templ PortalDashboard(props DashboardProps) {
+	@layouts.Base(layouts.BaseProps{Title: "Management portal - Craig Johnson", Page: "portal", Shell: layouts.ShellOperator}) {
+		<div class="page-kit-page portal-page portal-console-page" data-layout="operator-workspace">
+			@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailOperator, ExtraClass: "portal-operator-trail"})
+			<section class="portal-operator-header" data-region="overview" aria-labelledby="portal-console-title">
+				<div class="portal-hero-copy portal-console-context">
+					if props.Preview {
+						<div class="portal-preview-badge"><span aria-hidden="true"></span> Local preview — no AWS actions are sent</div>
+					}
+					<p class="page-kit-eyebrow">EC2 management</p>
+					<h1 id="portal-console-title" class="page-hero-title">Management portal</h1>
+					<p class="page-hero-description">Signed in as { props.Username }</p>
+				</div>
+				<div class="portal-console-session" aria-label="Operator session">
+					<div class="portal-session-status">
+						<span class="portal-session-signal" aria-hidden="true"></span>
+						<div>
+							<span class="portal-operational-note">Operational workspace</span>
+							<p>Review state before sending an instance command.</p>
+						</div>
+					</div>
+					if props.Preview {
+						@partials.ActionLink(partials.ActionLinkProps{
+							Href:       "/",
+							Label:      "Exit preview",
+							Variant:    partials.ActionSecondary,
+							ExtraClass: "portal-session-action",
+						})
+					} else {
+						<form method="POST" action="/logout">
+							@partials.ActionButton(partials.ActionButtonProps{
+								Type:       "submit",
+								Label:      "Log out",
+								Variant:    partials.ActionSecondary,
+								ExtraClass: "portal-session-action",
+							})
+						</form>
+					}
+				</div>
+			</section>
+			<section class="page-section-tight portal-console-main portal-instances-section" data-region="instances" aria-labelledby="instances-heading">
+				<div class="portal-section-heading portal-console-section-heading">
+					<div>
+						<p class="page-kit-eyebrow">Infrastructure</p>
+						<h2 id="instances-heading" class="page-section-title">Instances</h2>
+					</div>
+					<span class="portal-instance-count">{ fmt.Sprintf("%d total", len(props.Instances)) }</span>
+				</div>
+				if props.RetrievalError != "" {
+					@partials.Feedback(partials.FeedbackProps{
+						Kind:       partials.FeedbackError,
+						Title:      "Unable to load instances.",
+						Message:    props.RetrievalError,
+						ExtraClass: "portal-console-feedback",
+					})
+				} else if len(props.Instances) == 0 {
+					@partials.Feedback(partials.FeedbackProps{
+						Kind:       partials.FeedbackInfo,
+						Title:      "No instances found",
+						Message:    "Instances will appear here when the selected AWS account returns an inventory.",
+						ExtraClass: "portal-console-feedback portal-empty-state",
+					})
+				} else {
+					@partials.OverflowRegion(partials.OverflowRegionProps{
+						ID:         "portal-instance-overflow",
+						Label:      "EC2 instances and management actions",
+						Hint:       "All instance fields and controls are available in this table; scroll horizontally when needed.",
+						ExtraClass: "portal-instance-table-shell",
+					}) {
+						<table class="portal-table">
+							<thead>
+								<tr>
+									<th scope="col">ID</th>
+									<th scope="col">Name</th>
+									<th scope="col">State</th>
+									<th scope="col">Type</th>
+									<th scope="col">AZ</th>
+									<th scope="col">Actions</th>
+									<th scope="col">Metrics</th>
+									<th scope="col">Logs</th>
+								</tr>
+							</thead>
+							<tbody id="instance-rows" class="portal-instance-rows">
+								for _, instance := range props.Instances {
+									@partials.InstanceRow(instance)
+								}
+							</tbody>
+						</table>
+					}
+				}
+			</section>
+		</div>
+	}
+}

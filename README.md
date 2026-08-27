@@ -1,325 +1,311 @@
-# Craig Johnson Portfolio - Go + Templ + HTMX
+# Craig Johnson portfolio
 
-A modern, responsive personal portfolio website built with **Go**, **Templ**, and **HTMX** for server-side rendering with dynamic client interactions.
+This repository contains a server-rendered Go application built with Templ,
+HTMX, and Tailwind CSS. It serves the public portfolio, a soccer schedule tool,
+and an optional EC2 management portal. The same application can run as a
+regular HTTP server or behind API Gateway on AWS Lambda.
 
-![Go](https://img.shields.io/badge/Go-1.26.1-00ADD8?style=flat-square&logo=go&logoColor=white)
-![Templ](https://img.shields.io/badge/Templ-0.3-FF6B6B?style=flat-square)
-![HTMX](https://img.shields.io/badge/HTMX-1.9-3366CC?style=flat-square)
+Pinned versions:
 
-## Overview
+- Go 1.27.0
+- Templ 0.3.1020
+- HTMX 1.9.10
+- Tailwind CSS 4.2.4 standalone CLI
 
-A server-rendered Go application using Templ for type-safe component-based templates and HTMX for dynamic interactions. The site maintains a professional design and functionality while leveraging server-side rendering for improved performance and SEO.
+## What is included
 
-## Features
+The public site has Home, About, Experience, Skills, Projects, Education,
+Contact, and Soccer pages. The Skills and Soccer pages use HTMX fragments while
+keeping the main content server-rendered.
 
-- **Type-Safe Templates**: Templ provides compile-time type checking and component-based architecture
-- **Server-Side Rendering**: Fast initial page loads with targeted client-side behavior
-- **HTMX Interactions**: Dynamic content loading without full page refreshes
-- **Responsive Design**: Mobile-first approach with beautiful desktop layouts
-- **Professional UI**: Modern design with smooth animations and polish
-- **Soccer Tool**: JWT import, automatic player discovery, schedule fetch, direct Google Calendar add, and ICS download
+The Soccer tool supports:
 
-## Pages
+- JWT import from an authenticated Let's Play Soccer browser session
+- linked-player and team discovery
+- schedule lookup and ICS download
+- optional Google Calendar add and result sync
+- optional DynamoDB audit baselines for imported sessions
 
-- **Home** - Hero section with profile, stats, and quick links
-- **About** - Personal background and values
-- **Experience** - Career timeline with HTMX lazy loading
-- **Skills** - Technical proficiencies by category
-- **Projects** - Project showcase with links
-- **Education** - Academic background and certifications
-- **Contact** - Professional contact information
-- **Soccer** - Interactive schedule download tool
+The management portal routes are disabled unless their Cognito and session
+settings are valid. A registered OAuth redirect URI is also required for sign-in.
+When enabled, the portal can list EC2 instances, request start, stop, and restart
+actions, and load CloudWatch metrics and logs.
 
-## Tech Stack
+## Requirements
 
-- **Backend**: Go 1.26.1
-- **Templating**: [Templ](https://templ.guide/) - Type-safe Go templating engine
-- **Frontend Interactivity**: HTMX 1.9
-- **Styling**: Custom CSS with CSS Variables
-- **Fonts**: Inter (Google Fonts)
+- Go 1.27.0
+- [Task](https://taskfile.dev/)
+- `curl`, used to install the pinned Tailwind CLI
 
-## Getting Started
-
-### Prerequisites
-
-- Go 1.26.1
-- Just command runner
-
-### Installation
+Install the development tools and build the server:
 
 ```bash
-# Install dependencies
 go mod download
-
-# Build the project (generates Templ components and compiles)
-just build
+task install-tools
+task build
 ```
 
-`just build` uses the Templ version pinned in `go.mod` via `go tool templ`, so no separate Templ install step is required.
-
-### Running
+Run the application:
 
 ```bash
-# Run the server
-./portfolio-server
-
-# Or use just
-just run
+task run
 ```
 
-The server will start at `http://localhost:8080`
+`task run` loads `.env` when it exists. The server listens on
+`127.0.0.1:8080` by default. Set `APP_BIND_ALL=true` to listen on all network
+interfaces.
 
-### Development
+## Development
 
-For development with hot reload, use `just dev` which requires [air](https://github.com/air-verse/air):
+Run Tailwind and Go reload loops in separate terminals:
 
 ```bash
-# Install air
-just install-air
-
-# Start development server with hot reload
-just dev
+task tailwind-watch
 ```
 
-**Note**: When Templ files (`*.templ`) are modified, run `just generate` before building unless another command already does it.
+```bash
+task dev
+```
 
-### Google Calendar Configuration
+Air watches Go files only. After changing a `.templ` file, run
+`task generate`; `task build` also regenerates Templ output. Generated
+`*_templ.go` files and `cmd/web/static/css/tailwind.css` are ignored.
 
-Direct Google Calendar add requires these runtime environment variables:
+The main repository commands are:
+
+| Command | Purpose |
+| --- | --- |
+| `task generate` | Generate Go files from `.templ` sources |
+| `task tailwind-build` | Compile Tailwind source CSS |
+| `task build` | Generate templates, compile CSS, and build `portfolio-server` |
+| `task test` | Generate templates, then run the Go test suite |
+| `task vet` | Generate templates, then run `go vet ./...` |
+| `task fmt` | Format with `golangci-lint fmt` |
+| `task lint` | Generate templates, format, then run `golangci-lint run` |
+| `task ci` | Clean, generate, format, vet, lint, test, and build |
+| `task build-image` | Build a local amd64 server image; no push or deploy |
+| `task build-lambda-image` | Build amd64 Lambda image; no push or deploy |
+| `task test-images` | Verify both local Linux amd64 image contracts |
+| `task portal-preview` | Run the mock portal on loopback |
+| `task compose` | Build and start the Compose service |
+| `task logs` | Follow logs for the legacy shared-stack App Runner service |
+
+`Taskfile.yaml` is the command source of truth. In particular, use `task fmt`
+instead of `go fmt ./...` for the repository formatting gate.
+
+## Local configuration
+
+Copy the example file before using Docker Compose or optional features:
+
+```bash
+cp .env.example .env
+```
+
+Do not commit `.env`.
+
+### Soccer authentication
+
+Set `LPS_SESSION_KEY` to a 64-character hexadecimal value. Generate one with:
+
+```bash
+openssl rand -hex 32
+```
+
+Without a valid key, JWT import is disabled. `LPS_API_BASE_URL` can override the
+upstream API for local testing. The application accepts HTTPS endpoints and
+loopback HTTP endpoints.
+
+### Google Calendar
+
+Direct calendar actions require soccer authentication plus:
 
 - `CLIENT_ID_KEY`
 - `CLIENT_SECRET_KEY`
 - `GOOGLE_CONNECTION_TABLE_NAME`
 
-For local OAuth testing, add `http://localhost:8080/soccer` as an authorized
-redirect URI in the Google Cloud OAuth client alongside the production
-`https://craigdevjohnson.com/soccer` redirect.
+Register each application URL ending in `/soccer` as an authorized redirect
+URI in the Google OAuth client. Local DynamoDB access uses the standard AWS
+credential chain.
 
-Because the Google connection is stored server-side, local runs also need AWS
-credentials or another valid AWS auth source that can reach the configured
-DynamoDB table.
+The encrypted browser cookie is the Soccer workflow source of truth. When
+`SOCCER_SESSION_TABLE_NAME` is set, the application also writes an import
+baseline containing the username and discovered players; it does not restore
+workflow state from that table.
 
-## Project Structure
+### EC2 management portal
 
-```filetree
-portfolio/
-├── main.go                 # Main application, routes, handlers, data
-├── go.mod                  # Go module definition
-├── components/             # Templ components (replaces templates/)
-│   ├── layouts/
-│   │   └── base.templ      # Base layout component
-│   ├── pages/
-│   │   ├── home.templ      # Home page component
-│   │   ├── about.templ     # About page component
-│   │   ├── experience.templ # Experience page component
-│   │   ├── skills.templ    # Skills page component
-│   │   ├── projects.templ  # Projects page component
-│   │   ├── education.templ # Education page component
-│   │   ├── contact.templ   # Contact page component
-│   │   └── soccer.templ    # Soccer tool page component
-│   └── partials/
-│       ├── header.templ    # Header partial component
-│       ├── nav.templ       # Navigation partial component
-│       ├── footer.templ    # Footer partial component
-│       ├── experience_timeline.templ  # HTMX fragment
-│       ├── skills_grid.templ          # HTMX fragment
-│       ├── projects_grid.templ        # HTMX fragment
-│       └── soccer_table_fragment.templ # HTMX fragment
-└── static/
-    ├── css/
-    │   ├── styles.css      # Global styles
-    │   ├── home.css        # Home page styles
-    │   ├── about.css       # About page styles
-    │   └── ...             # Other page styles
-    ├── js/
-    │   └── main.js         # Main JavaScript
-    └── images/
-        └── ...             # Static images
+The portal requires:
+
+- `MGMT_SESSION_KEY`, generated with `openssl rand -hex 32`
+- `MGMT_COGNITO_DOMAIN`
+- `MGMT_COGNITO_CLIENT_ID`
+
+`MGMT_COGNITO_REDIRECT_URI` must be a callback registered with Cognito for
+sign-in to work. The optional
+`MGMT_COGNITO_LOGOUT_URI` sets the post-logout return URL.
+`MGMT_AWS_REGION` defaults to `us-east-1`.
+
+The runtime AWS identity needs these actions:
+
+- `ec2:DescribeInstances`
+- `ec2:StartInstances`
+- `ec2:StopInstances`
+- `cloudwatch:GetMetricStatistics`
+- `logs:FilterLogEvents`
+
+For a mock review that constructs no Cognito or AWS clients, run:
+
+```bash
+task portal-preview
 ```
 
-**Note**: `*_templ.go` files are auto-generated by Templ and are gitignored.
+Then open the `/mgmt` URL printed at startup (port `8080` by default). Preview
+mode requires a loopback listener and is unavailable in the Lambda handler.
 
-## API Endpoints
-<!-- markdownlint-disable MD024  -->
-### Pages
+## Soccer import flow
 
-- `GET /` - Home page
-- `GET /about` - About page
-- `GET /experience` - Experience page
-- `GET /skills` - Skills page
-- `GET /projects` - Projects page
-- `GET /education` - Education page
-- `GET /contact` - Contact page
-- `GET /soccer` - Soccer tool page
+1. Sign in to Let's Play Soccer in a browser.
+2. Copy the bearer JWT from the authenticated session. The helper extension in
+   `chrome-extension/` can capture and copy it.
+3. Import the JWT on `/soccer`.
+4. The server calls `/users/check`, filters deleted players, and shows the
+   linked players.
+5. Select players and teams, then fetch schedules.
+6. Download an ICS file or use the configured Google Calendar actions.
 
-### HTMX Fragments
+A new JWT import or explicit logout clears downstream workflow state. Google
+connect, reconnect, disconnect, and calendar selection preserve the current
+player and team workflow.
 
-- `GET /experience/timeline` - Experience timeline fragment
-- `GET /skills/grid` - Skills grid fragment
-- `GET /skills/filtered` - Filtered skills grid fragment
-- `GET /skills/detail` - Skill detail fragment
-- `GET /projects/grid` - Projects grid fragment
-- `GET /soccer/session` - Current soccer auth state fragment
-- `GET /soccer/google/connect` - Start Google OAuth for calendar access
-- `POST /soccer/google/calendar` - Save the selected Google Calendar
-- `POST /soccer/google/disconnect` - Remove the persisted Google Calendar connection
-- `POST /soccer/google/add` - Add selected games directly to Google Calendar
-- `POST /soccer/import` - Import JWT and auto-discover linked players
-- `POST /soccer/logout` - Clear imported soccer session
-- `POST /soccer/fetch` - Fetch soccer schedules
-- `POST /soccer/download` - Download ICS file
-- `POST /soccer/subscribe` - Subscribe to updates
+## Source layout
 
-## Design Principles
+```text
+portfolio/
+├── chrome-extension/       Chrome helper for Soccer JWT import
+├── cmd/
+│   ├── lambda/             Lambda adapter and SSM secret resolution
+│   ├── server/             HTTP server entry point
+│   └── web/                Templ, Tailwind, JavaScript, and static assets
+├── docs/deployment/        Runtime-specific deployment notes
+├── infra/                  Legacy shared-stack OpenTofu and rollback material
+├── internal/
+│   ├── app/                Startup, dependency injection, and routes
+│   ├── config/             Environment parsing and feature flags
+│   ├── google/             OAuth, Calendar API, and connection storage
+│   ├── httpx/              Request and cookie helpers
+│   ├── lps/                Let's Play Soccer API client
+│   ├── portal/             Cognito, EC2, metrics, and logs
+│   ├── portfolio/          Portfolio handlers and embedded data
+│   ├── schedule/           Schedule normalization and ICS output
+│   ├── session/            Encryption and login rate limiting
+│   └── soccer/             Soccer auth and schedule handlers
+└── types/                  Shared application models
+```
 
-1. **Type-Safe Components**: Templ provides compile-time type checking for templates
-2. **Progressive Enhancement**: Core content works without JavaScript
-3. **HTMX for Interactivity**: Dynamic updates without SPA complexity
-4. **Server-Rendered**: Fast initial loads, great SEO
-5. **Mobile-First**: Responsive design starting from mobile
-6. **Accessible**: Semantic HTML, ARIA labels, keyboard navigation
-7. **Component-Oriented**: Templ pages and partials keep server-rendered UI explicit
+The source-of-truth order is:
 
-## Customization
+1. `Taskfile.yaml` for commands
+2. `cmd/server/main.go` and `internal/app/` for application wiring
+3. this README for local usage and architecture
+4. `DEPLOY-INSTRUCTIONS.md` and `infra/*.tf` for deployment
 
-### Updating Content
+Edit `.templ` and `cmd/web/tailwind/` sources. Do not hand-edit generated
+`*_templ.go` files or `cmd/web/static/css/tailwind.css`.
 
-Content is defined in `main.go` in the data functions:
+Dated files under `docs/superpowers/` are historical design and QA records, not
+current runtime documentation. Validate operational behavior against the source
+of truth above.
 
-- `experienceData()` - Work experience entries
-- `skillsData()` - Skills by category
-- `projectsData()` - Project showcase
-- `educationData()` - Education entries
+Portfolio content lives in embedded JSON under `internal/portfolio/data/`.
+Education credentials live in `cmd/web/pages/education_viewmodels.go`.
 
-### Updating Templates
+## Routes
 
-Templates are written in Templ (`.templ` files):
+Public pages:
 
-1. Edit the `.templ` files in `components/` directory
-2. Run `just generate` to regenerate Go code
-3. Build and run: `just build && ./portfolio-server`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/healthz` | JSON health and revision; no dependency probes |
+| `GET` | `/` | Home |
+| `GET` | `/home` | Permanent redirect to `/` |
+| `GET` | `/about` | About |
+| `GET` | `/experience` | Experience |
+| `GET` | `/skills` | Skills |
+| `GET` | `/projects` | Projects |
+| `GET` | `/education` | Education |
+| `GET` | `/contact` | Contact |
+| Any | `/soccer` | Soccer page and Google OAuth callback |
 
-For more information on Templ syntax, see the [Templ documentation](https://templ.guide/).
+HTMX and form endpoints:
 
-### Styling
+| Method | Path |
+| --- | --- |
+| `GET` | `/skills/filtered` |
+| `GET` | `/skills/detail` |
+| `POST` | `/soccer/import` |
+| `POST` | `/soccer/logout` |
+| `POST` | `/soccer/discover-teams` |
+| `POST` | `/soccer/fetch` |
+| `POST` | `/soccer/download` |
+| `GET` | `/soccer/google/connect` |
+| `POST` | `/soccer/google/calendar` |
+| `POST` | `/soccer/google/disconnect` |
+| `POST` | `/soccer/google/add` |
+| `POST` | `/soccer/google/sync-results` |
 
-CSS variables are defined in `static/css/styles.css`:
+Portal routes are registered only in valid production configuration or local
+preview mode. They include `/login`, `/auth/callback`, `/logout`, `/mgmt`, and
+the instance action, metrics, and logs paths under `/mgmt/instances/{id}/`.
 
-- Colors (light and dark themes)
-- Spacing
-- Typography
-- Shadows
-- Animations
+## Chrome extension
+
+`chrome-extension/` contains a Manifest V3 extension for the Soccer import
+flow. Its service worker captures Let's Play Soccer bearer credentials from an
+authenticated browser session. The content script fills the import field, and
+the popup shows capture status and copy controls.
+
+Load it from `chrome://extensions/` with Developer mode and "Load unpacked."
+Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The application is designed to be deployed as a standalone binary:
+The current release candidate prepares the application for a replacement AWS
+Lambda and API Gateway environment, but it does not create or deploy that
+environment. The replacement deployment contract is a 29-second Lambda timeout.
+The Google add and result-sync handlers reserve 24 seconds of that window, which
+leaves five seconds outside their application work budget. A later environment
+plan must implement the 29-second setting before release.
 
-```bash
-# Generate Templ components
-just generate
+The checked-in `infra/` directory still describes the legacy shared App Runner
+and Lambda stack. Its Lambda timeout defaults to 30 seconds. Treat `infra/`,
+`task deploy`, `task redeploy`, `task deploy-lambda`, `task redeploy-lambda`,
+`task logs`, and the App Runner custom-domain instructions as legacy
+shared-stack and rollback material. Do not use them to deploy this release, and
+do not deploy the new release to App Runner.
 
-# Build for production
-CGO_ENABLED=0 GOOS=linux go build -o portfolio-server .
+At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
+typed request context. That context controls secure cookies and generated URLs;
+client-supplied host and forwarding headers cannot override it. Cold-start
+initialization has an eight-second bound. It reads configured SSM paths in one
+decrypted batch, validates the complete response before changing the
+environment, constructs the application once, and reuses the proxy on warm
+invocations.
 
-# Run
-./portfolio-server
-```
+Both Google Calendar add and result-sync operations have a 24-second request
+budget. If the deadline interrupts a batch, the response includes counts for
+completed work and tells the user to retry. Retries match existing games and
+update them instead of duplicating completed inserts.
 
-For containerized deployment, use the included `Dockerfile`, `.dockerignore`, and `docker-compose.yml`.
+`task build-image` and `task build-lambda-image` build local Linux amd64 images.
+By default, they inject the current full Git SHA as the build revision; a
+supplied `BUILD_REVISION` overrides it. An exact `/healthz` comparison against
+that expected value proves the identity of those artifacts. Legacy deployment
+helpers and direct builds that omit `BUILD_REVISION` may report `development`,
+which is not immutable provenance proof. `task test-images` verifies the image
+contracts. These tasks do not push an image, apply infrastructure, or deploy a
+service.
 
-### Docker
-
-```bash
-# Build image
-docker build -t portfolio-app .
-
-# Run container
-docker run --rm -p 8080:8080 portfolio-app
-```
-
-### Docker Compose
-
-```bash
-# Create a local env file and set a 64-character hex session key
-cp .env.example .env
-openssl rand -hex 32
-
-# Build and start in background
-docker compose up --build -d
-
-# Follow logs
-docker compose logs -f
-
-# Stop and remove containers/network
-docker compose down
-```
-
-The app is available at `http://localhost:8080`.
-
-Compose reads the local `.env` file automatically. Set `LPS_SESSION_KEY` in `.env` to a 64-character hex string before starting the stack. This key is used to encrypt soccer session cookies, so rotating it invalidates existing sessions. `LPS_API_BASE_URL` is optional if you need to point the app at a non-default upstream API.
-
-### Authenticated Soccer Workflow
-
-The authenticated soccer import flow requires `LPS_SESSION_KEY` to be set before the server starts. Without it, the app cannot encrypt the current-session cookie that stores the imported bearer token and discovered players.
-
-Current import flow:
-
-1. Sign in on letsplaysoccer.com in your browser.
-2. Open DevTools and inspect an authenticated network request.
-3. Copy the bearer JWT from the `Authorization` header value or request details.
-4. Open the soccer page in this app and import the JWT.
-5. The server calls `/users/check`, discovers linked players, filters deleted players, and shows the player selector with all discovered players pre-selected.
-6. Fetch schedules or export ICS for the selected players.
-7. If the server reports that the token was expired or rejected, repeat the import with a fresh JWT from a current Let's Play Soccer session.
-
-#### Chrome Extension snippet for easy JWT copying
-
-**Manafest**:
-
-```json
-{
-  "manifest_version": 3,
-  "name": "JWT Extractor",
-  "version": "1.0",
-  "permissions": ["webRequest", "webRequestBlocking"],
-  "host_permissions": ["https://example.com/*"],
-  "background": {
-    "service_worker": "background.js"
-  }
-}
-```
-
-**Script**:
-
-```javascript
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  function (details) {
-    const headers = details.requestHeaders;
-
-    for (let h of headers) {
-      if (h.name.toLowerCase() === "authorization") {
-        console.log("JWT:", h.value);
-
-        // Optionally store it
-        chrome.storage.local.set({ jwt: h.value });
-      }
-    }
-
-    return { requestHeaders: headers };
-  },
-  { urls: ["https://example.com/*"] },
-  ["requestHeaders"]
-);
-```
-
-### Container Notes
-
-- Runtime image uses distroless and runs as a non-root user.
-- Static assets are copied into the image at build time.
-- Regenerate Templ output (`just generate`) before building if `.templ` files were changed.
-**Note**: Templates are not needed in the runtime image because Templ components are compiled into the binary.
-
-## License
-
-MIT License - feel free to use this as a template for your own portfolio!
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the boundary
+between pending replacement work and preserved legacy rollback procedures.
+Lambda runtime details are in
+[`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

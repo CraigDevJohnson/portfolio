@@ -1,0 +1,74 @@
+package partials
+
+import "time"
+
+templ Footer() {
+	<footer class="site-footer site-chrome-footer">
+		<div class="footer-content site-footer-shell mx-auto max-w-[var(--container-max)] px-4 pb-5 pt-12 sm:px-6 md:pb-6">
+			<div class="footer-main site-chrome-footer-main">
+				<div class="footer-brand site-footer-brand flex flex-col gap-4">
+					<div class="flex items-center gap-3">
+						<span class="site-logo-mark" aria-hidden="true">CJ</span>
+						<div>
+							<span class="footer-logo block text-xl font-extrabold text-copy-primary">Craig Johnson</span>
+							<p class="footer-tagline text-sm text-copy-muted">Cloud Engineer Principal</p>
+						</div>
+					</div>
+					<p class="max-w-sm text-sm leading-6 text-copy-secondary">Building cloud platforms that are easier to change, understand, and trust.</p>
+				</div>
+				<nav class="footer-nav site-footer-links" aria-label="Footer navigation">
+					for _, group := range footerNavGroups() {
+						<div class="footer-nav-section">
+							<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">{ group.Label }</h3>
+							<div class={ footerNavListClasses(group.Label) }>
+								for _, item := range group.Items {
+									<a class="site-chrome-footer-link focus-ring" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+								}
+							</div>
+						</div>
+					}
+					<div class="footer-nav-section footer-nav-connect">
+						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Connect</h3>
+						<div class="footer-nav-list">
+							<a class="site-chrome-footer-link focus-ring" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only">(opens in a new tab)</span></a>
+							<a
+								class="site-chrome-footer-link focus-ring"
+								href="https://linkedin.com/in/craigdevjohnson"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								LinkedIn<span class="sr-only">(opens in a new tab)</span>
+							</a>
+							<a class="site-chrome-footer-link focus-ring" href="mailto:opportunity@craigdevjohnson.com">Email</a>
+						</div>
+					</div>
+				</nav>
+			</div>
+			<div class="footer-bottom site-footer-meta flex flex-col items-start justify-between gap-5 pt-6 text-left text-sm text-copy-muted md:flex-row">
+				<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
+				<div class="tech-stack flex w-full max-w-full flex-col gap-3 md:w-auto md:items-end">
+					<span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Built with</span>
+					<div class="flex flex-wrap justify-start gap-2 md:justify-end">
+						<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go<span class="sr-only">programming language (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ<span class="sr-only">framework (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX<span class="sr-only">library (opens in a new tab)</span></a>
+						<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot<span class="sr-only">assistant (opens in a new tab)</span></a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</footer>
+}
+
+templ OperatorFooter() {
+	<footer class="site-footer site-chrome-footer site-operator-footer">
+		<div class="site-operator-footer-shell mx-auto flex flex-col gap-4 px-4 py-6 text-sm text-copy-muted sm:px-6 md:flex-row md:items-center md:justify-between">
+			<a href="/" class="site-operator-identity site-chrome-footer-link focus-ring" aria-label="Craig Johnson, portfolio home">
+				<span class="site-logo-mark" aria-hidden="true">CJ</span>
+				<span>Craig Johnson</span>
+			</a>
+			<a href="/" class="site-chrome-footer-link focus-ring">Back to portfolio</a>
+			<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
+		</div>
+	</footer>
+}

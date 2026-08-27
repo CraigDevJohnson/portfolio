@@ -1,0 +1,45 @@
+package partials
+
+type SoccerLoginFeedbackProps struct {
+	Kind    string
+	Title   string
+	Message string
+}
+
+func soccerFeedbackKind(kind string) FeedbackKind {
+	switch kind {
+	case "success":
+		return FeedbackSuccess
+	case "warning":
+		return FeedbackWarning
+	case "error", "invalid", "rejected", "upstream", "google-error":
+		return FeedbackError
+	default:
+		return FeedbackInfo
+	}
+}
+
+func soccerFeedbackTitle(props SoccerLoginFeedbackProps) string {
+	if props.Title != "" {
+		return props.Title
+	}
+	switch soccerFeedbackKind(props.Kind) {
+	case FeedbackSuccess:
+		return "Calendar update complete"
+	case FeedbackWarning:
+		return "Action needed"
+	case FeedbackError:
+		return "This step could not be completed"
+	default:
+		return "Matchday update"
+	}
+}
+
+templ SoccerLoginFeedback(props SoccerLoginFeedbackProps) {
+	@Feedback(FeedbackProps{
+		Kind:       soccerFeedbackKind(props.Kind),
+		Title:      soccerFeedbackTitle(props),
+		Message:    props.Message,
+		ExtraClass: "soccer-feedback",
+	})
+}

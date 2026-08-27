@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+VERIFY_BASE="$REPO_ROOT/output/playwright/verify-portfolio"
+PWCLI_DEFAULT="/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh"
+
+fail() {
+  printf 'verify-portfolio: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+require_run_id() {
+  : "${VERIFY_RUN_ID:?set VERIFY_RUN_ID once and reuse it for launch, doctor, proof, and cleanup}"
+  [[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "VERIFY_RUN_ID must contain only letters, numbers, dot, underscore, and dash"
+  RUN_ROOT="$VERIFY_BASE/$VERIFY_RUN_ID"
+  STATE_DIR="$RUN_ROOT/state"
+  EVIDENCE_DIR="$RUN_ROOT/evidence"
+}
+
+file_sha256() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+read_state() {
+  local name="$1"
+  [[ -f "$STATE_DIR/$name" ]] || fail "missing run state: $STATE_DIR/$name"
+  local value
+  value="$(<"$STATE_DIR/$name")"
+  printf '%s' "$value"
+}
+
+process_command() {
+  ps -p "$1" -o command= 2>/dev/null || true
+}
+
+owned_process() {
+  local pid="$1"
+  local command
+  command="$(process_command "$pid")"
+  [[ "$command" == "$REPO_ROOT/portfolio-server"* ]]
+}
+
+port_is_listening() {
+  local pid="$1"
+  local port="$2"
+  lsof -nP -a -p "$pid" -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | rg -q "TCP 127\\.0\\.0\\.1:$port \\(LISTEN\\)"
+}
+
+launch() {
+  require_run_id
+  require_command task
+  require_command lsof
+  require_command rg
+  require_command shasum
+
+  local port="${VERIFY_PORT:-18181}"
+  [[ "$port" =~ ^[0-9]+$ ]] || fail "VERIFY_PORT must be numeric"
+  (( port >= 1024 && port <= 65535 )) || fail "VERIFY_PORT must be between 1024 and 65535"
+
+  if [[ -f "$STATE_DIR/pid" ]]; then
+    local prior_pid
+    prior_pid="$(<"$STATE_DIR/pid")"
+    if kill -0 "$prior_pid" 2>/dev/null; then
+      fail "run $VERIFY_RUN_ID already owns live PID $prior_pid"
+    fi
+    fail "stale state exists for $VERIFY_RUN_ID; run cleanup before relaunching"
+  fi
+
+  if lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | rg -q .; then
+    fail "loopback port $port is already occupied; choose another VERIFY_PORT"
+  fi
+
+  mkdir -p "$STATE_DIR" "$EVIDENCE_DIR"
+  printf 'Building portfolio with task build...\n'
+  if ! (cd "$REPO_ROOT" && task build) >"$EVIDENCE_DIR/build.log" 2>&1; then
+    printf 'Build failed; see %s\n' "$EVIDENCE_DIR/build.log" >&2
+    exit 1
+  fi
+
+  local binary="$REPO_ROOT/portfolio-server"
+  [[ -x "$binary" ]] || fail "task build did not produce executable $binary"
+  local digest
+  digest="$(file_sha256 "$binary")"
+  local revision
+  revision="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+
+  printf '%s\n' "$port" >"$STATE_DIR/port"
+  printf 'http://127.0.0.1:%s\n' "$port" >"$STATE_DIR/url"
+  printf '%s\n' "$digest" >"$STATE_DIR/binary-sha256"
+  printf '%s\n' "$revision" >"$STATE_DIR/revision"
+
+  {
+    printf 'run_id=%s\n' "$VERIFY_RUN_ID"
+    printf 'url=http://127.0.0.1:%s\n' "$port"
+    printf 'binary=%s\n' "$binary"
+    printf 'binary_sha256=%s\n' "$digest"
+    printf 'revision=%s\n' "$revision"
+    printf 'launch_mode=loopback portal preview with empty inherited environment\n'
+    if [[ -n "$(git -C "$REPO_ROOT" status --porcelain=v1)" ]]; then
+      printf 'worktree=dirty\n'
+    else
+      printf 'worktree=clean\n'
+    fi
+  } >"$EVIDENCE_DIR/launch-metadata.txt"
+
+  printf '%s\n' "$$" >"$STATE_DIR/pid"
+  printf 'Starting run %s at http://127.0.0.1:%s; keep this command session running.\n' "$VERIFY_RUN_ID" "$port"
+
+  exec > >(tee -a "$EVIDENCE_DIR/server.log") 2>&1
+  exec env -i \
+    PATH="$PATH" \
+    PORT="$port" \
+    HOST=127.0.0.1 \
+    APP_BIND_ALL=false \
+    MGMT_LOCAL_PREVIEW=true \
+    LOG_FORMAT=text \
+    LOG_LEVEL=info \
+    "$binary"
+}
+
+doctor() {
+  require_run_id
+  require_command curl
+  require_command lsof
+  require_command rg
+  require_command shasum
+
+  local pid port url expected_digest current_digest command home_body portal_body
+  pid="$(read_state pid)"
+  port="$(read_state port)"
+  url="$(read_state url)"
+  expected_digest="$(read_state binary-sha256)"
+
+  kill -0 "$pid" 2>/dev/null || fail "recorded PID $pid is not running"
+  command="$(process_command "$pid")"
+  [[ "$command" == "$REPO_ROOT/portfolio-server"* ]] || fail "recorded PID $pid is not the launched repository binary: $command"
+  port_is_listening "$pid" "$port" || fail "PID $pid does not own loopback listener 127.0.0.1:$port"
+
+  current_digest="$(file_sha256 "$REPO_ROOT/portfolio-server")"
+  [[ "$current_digest" == "$expected_digest" ]] || fail "portfolio-server changed after launch; cleanup and start a fresh run"
+
+  home_body="$(curl -fsS "$url/")" || fail "Home did not return HTTP success at $url/"
+  rg -Fq '<title>Craig Johnson - Cloud Engineer Principal</title>' <<<"$home_body" || fail "Home identity marker is missing"
+  rg -Fq 'data-layout="systems-overlook"' <<<"$home_body" || fail "Home layout marker is missing"
+
+  portal_body="$(curl -fsS "$url/mgmt")" || fail "management preview did not return HTTP success at $url/mgmt"
+  rg -Fq 'Local preview — no AWS actions are sent' <<<"$portal_body" || fail "management preview safety banner is missing"
+  rg -Fq 'data-layout="operator-workspace"' <<<"$portal_body" || fail "management preview layout marker is missing"
+
+  printf 'doctor: healthy run=%s pid=%s url=%s sha256=%s\n' "$VERIFY_RUN_ID" "$pid" "$url" "$current_digest"
+}
+
+cleanup() {
+  require_run_id
+  local evidence="$EVIDENCE_DIR"
+
+  if [[ -f "$STATE_DIR/browser-session" ]]; then
+    local session pwcli
+    session="$(<"$STATE_DIR/browser-session")"
+    pwcli="${PORTFOLIO_PWCLI:-$PWCLI_DEFAULT}"
+    if [[ -x "$pwcli" ]]; then
+      "$pwcli" --session "$session" close >>"$evidence/cleanup.log" 2>&1 || true
+    fi
+  fi
+
+  if [[ -f "$STATE_DIR/pid" ]]; then
+    local pid
+    pid="$(<"$STATE_DIR/pid")"
+    if kill -0 "$pid" 2>/dev/null; then
+      if ! owned_process "$pid"; then
+        fail "refusing to signal PID $pid because it is not the recorded repository binary"
+      fi
+      kill "$pid"
+      for _ in {1..50}; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        owned_process "$pid" || fail "PID $pid changed identity while cleanup was waiting"
+        kill -KILL "$pid"
+      fi
+    fi
+  fi
+
+  rm -rf -- "$STATE_DIR"
+  [[ -d "$evidence" ]] || fail "evidence directory disappeared during cleanup: $evidence"
+  printf 'cleanup: stopped run %s; evidence retained at %s\n' "$VERIFY_RUN_ID" "$evidence"
+}
+
+usage() {
+  printf 'usage: %s {launch|doctor|cleanup}\n' "$0" >&2
+  exit 2
+}
+
+case "${1:-}" in
+  launch) launch ;;
+  doctor) doctor ;;
+  cleanup) cleanup ;;
+  *) usage ;;
+esac

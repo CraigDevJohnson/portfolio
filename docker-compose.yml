@@ -2,19 +2,43 @@ services:
   portfolio:
     build:
       context: .
-      dockerfile: Dockerfile
+      args:
+        BUILD_CA_BUNDLE_DIGEST: ${DOCKER_BUILD_CA_BUNDLE_DIGEST:-empty}
+        BUILD_REVISION: ${BUILD_REVISION:-development}
+        RUNTIME_CA_BUNDLE_DIGEST: ${DOCKER_RUNTIME_CA_BUNDLE_DIGEST:-empty}
+      secrets:
+        - build_ca_bundle
+        - runtime_ca_bundle
     image: portfolio-app:latest
     container_name: portfolio-app
+    platform: linux/amd64
     environment:
       APP_BIND_ALL: ${APP_BIND_ALL:-true}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_REGION: ${AWS_REGION}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       CLIENT_ID_KEY: ${CLIENT_ID_KEY}
       CLIENT_SECRET_KEY: ${CLIENT_SECRET_KEY}
       GOOGLE_CONNECTION_TABLE_NAME: ${GOOGLE_CONNECTION_TABLE_NAME}
+      LOG_ADD_SOURCE: ${LOG_ADD_SOURCE:-false}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LPS_API_BASE_URL: ${LPS_API_BASE_URL:-}
       LPS_SESSION_KEY: ${LPS_SESSION_KEY}
+      MGMT_AWS_REGION: ${MGMT_AWS_REGION:-}
+      MGMT_COGNITO_CLIENT_ID: ${MGMT_COGNITO_CLIENT_ID:-}
+      MGMT_COGNITO_DOMAIN: ${MGMT_COGNITO_DOMAIN:-}
+      MGMT_COGNITO_LOGOUT_URI: ${MGMT_COGNITO_LOGOUT_URI:-}
+      MGMT_COGNITO_REDIRECT_URI: ${MGMT_COGNITO_REDIRECT_URI:-}
+      MGMT_SESSION_KEY: ${MGMT_SESSION_KEY:-}
+      SOCCER_SESSION_TABLE_NAME: ${SOCCER_SESSION_TABLE_NAME:-}
     ports:
-      - "8080:8080"
+      - 8080:8080
     restart: unless-stopped
+
+secrets:
+  build_ca_bundle:
+    file: ${DOCKER_BUILD_CA_CERT_PATH:-/dev/null}
+  runtime_ca_bundle:
+    file: ${DOCKER_RUNTIME_CA_CERT_PATH:-/dev/null}

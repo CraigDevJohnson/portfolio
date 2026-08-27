@@ -1,0 +1,77 @@
+package partials
+
+import (
+	"fmt"
+	"portfolio/types"
+)
+
+type SoccerTeamSelectProps struct {
+	PlayerGroups    []types.PlayerTeamGroup
+	PlayerIDs       []int
+	SelectedTeamIDs []int
+	Preview         bool
+}
+
+templ SoccerTeamSelect(props SoccerTeamSelectProps) {
+	<form
+		id="soccer-team-select-form"
+		class="page-kit-panel mt-4 px-6 py-4 max-md:p-4"
+		if !props.Preview {
+			hx-post="/soccer/fetch"
+			hx-target="#games-container"
+			hx-swap="innerHTML"
+			hx-indicator="#loading-indicator, .soccer-team-submit-indicator"
+			hx-disabled-elt="find button[type='submit']"
+		}
+	>
+		<input type="hidden" name="selection_mode" value="teams"/>
+		for _, playerID := range props.PlayerIDs {
+			<input type="hidden" name="player_ids" value={ fmt.Sprintf("%d", playerID) }/>
+		}
+		<p class="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary-200">Final selection</p>
+		<fieldset class="m-0 flex flex-col gap-4 border-0 p-0">
+			<legend class="mb-1 font-semibold text-copy-primary">Select teams to include</legend>
+			<p class="text-sm leading-relaxed text-copy-muted">Choose which currently discovered teams to include in this fetch. All teams are selected by default.</p>
+			for _, group := range props.PlayerGroups {
+				<div class="page-kit-panel p-4">
+					<span class="block font-semibold text-copy-primary [overflow-wrap:anywhere]">{ group.Player.FirstName } { group.Player.LastName }</span>
+					<div class="mt-3 grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-2">
+						for _, team := range group.Teams {
+							<label
+								class="page-kit-panel flex cursor-pointer items-start gap-2 px-4 py-2 transition duration-200 hover:border-primary-500/25 hover:-translate-y-0.5"
+								title={ fmt.Sprintf("Team ID: %d | Season: %d", team.TeamID, team.Season) }
+							>
+								<input
+									class="mt-0.5 accent-primary-500"
+									type="checkbox"
+									name="team_ids"
+									value={ fmt.Sprintf("%d", team.TeamID) }
+									if len(props.SelectedTeamIDs) == 0 || soccerIDSelected(props.SelectedTeamIDs, team.TeamID) {
+										checked
+									}
+									aria-label={ team.TeamName }
+								/>
+								<span class="flex min-w-0 flex-col gap-1">
+									<span class="text-sm text-copy-primary [overflow-wrap:anywhere]">{ team.TeamName }</span>
+									<span class="text-xs text-copy-muted">{ fmt.Sprintf("Season %d", team.Season) }</span>
+								</span>
+							</label>
+						}
+					</div>
+				</div>
+			}
+			<button
+				type="submit"
+				class="btn btn-primary btn-loading mt-2 self-start max-md:w-full"
+				data-loading-button
+				if props.Preview {
+					disabled
+					aria-disabled="true"
+				}
+			>
+				<span class="btn-text">Fetch selected schedules</span>
+				<span class="btn-loading-indicator soccer-team-submit-indicator htmx-indicator" aria-hidden="true"></span>
+			</button>
+		</fieldset>
+	</form>
+}

@@ -1,0 +1,12 @@
+environment                = "prod"
+name_prefix                = "portfolio-lambda-prod"
+aws_region                 = "us-west-2"
+lambda_memory_mb           = 512
+lambda_timeout_seconds     = 29
+reserved_concurrency       = 10
+log_retention_days         = 90
+enable_pitr                = true
+enable_deletion_protection = true
+domain_names               = ["craigdevjohnson.com", "www.craigdevjohnson.com"]
+request_custom_domain      = false
+activate_custom_domain     = false

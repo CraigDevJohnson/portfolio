@@ -1,0 +1,60 @@
+package partials
+
+templ PageHero(props PageHeroProps) {
+	<section class={ pageHeroClasses(&props) } data-hero-variant={ string(props.Variant) }>
+		<div class="page-kit-hero-backdrop" aria-hidden="true"></div>
+		if props.ImageURL != "" {
+			<figure class="page-kit-hero-photo" style={ pageHeroPhotoStyle(&props) } aria-hidden="true">
+				<img src={ props.ImageURL } alt="" class="page-kit-hero-photo-image" width={ pageHeroImageDimension(props.ImageWidth, 1920) } height={ pageHeroImageDimension(props.ImageHeight, 1280) } loading="eager"/>
+				if props.Caption != "" {
+					<figcaption class="page-kit-hero-caption" aria-hidden="true">{ props.Caption }</figcaption>
+				}
+			</figure>
+		} else {
+			<div class="page-kit-hero-fallback" aria-hidden="true">
+				<span></span><span></span><span></span>
+			</div>
+		}
+		<div class="page-kit-hero-glow page-kit-hero-glow-primary" aria-hidden="true"></div>
+		<div class="page-kit-hero-glow page-kit-hero-glow-secondary" aria-hidden="true"></div>
+		<div class={ mergeClasses("page-kit-hero-content relative z-10", props.ContentClass) }>
+			{ children... }
+		</div>
+	</section>
+}
+
+templ PageHeroIntro(props PageHeroIntroProps) {
+	<div class={ pageHeroIntroClasses(&props) }>
+		if props.Status != "" {
+			<div class="page-kit-status-pill">
+				<span class={ pageHeroStatusDotClasses(props.AnimatedStatus) } aria-hidden="true"></span>
+				{ props.Status }
+			</div>
+		}
+		<p class="page-kit-eyebrow">{ props.Eyebrow }</p>
+		<h1 class={ mergeClasses("page-hero-title", props.TitleClass) }>{ props.Title }</h1>
+		{ children... }
+	</div>
+}
+
+templ SectionLabel(label string) {
+	<div class="page-kit-section-label">
+		<span class="page-kit-section-label-line" aria-hidden="true"></span>
+		<span class="page-kit-eyebrow">{ label }</span>
+	</div>
+}
+
+templ SectionIntro(props SectionIntroProps) {
+	<div class={ mergeClasses("page-kit-section-intro max-w-3xl space-y-3", props.ExtraClass) }>
+		@SectionLabel(props.Label)
+		<h2
+			class="page-section-title"
+			if props.HeadingID != "" {
+				id={ props.HeadingID }
+			}
+		>{ props.Title }</h2>
+		if props.Description != "" {
+			<p class="page-section-subtitle">{ props.Description }</p>
+		}
+	</div>
+}

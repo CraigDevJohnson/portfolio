@@ -1,0 +1,18 @@
+package partials
+
+templ SignalTrail(props SignalTrailProps) {
+	<div class={ mergeClasses("signal-trail "+signalTrailVariantClass(props.Variant), props.ExtraClass) } data-signal-trail aria-hidden="true">
+		<svg class="signal-trail-svg" viewBox="0 0 960 240" preserveAspectRatio="none" fill="none" focusable="false">
+			<defs>
+				<linearGradient id={ signalTrailGradientID(props.Variant) } x1="0" y1="0" x2="1" y2="0">
+					<stop class="signal-trail-stop-apricot" offset="0%"></stop>
+					<stop class="signal-trail-stop-rose" offset="38%"></stop>
+					<stop class="signal-trail-stop-gold" offset="68%"></stop>
+					<stop class="signal-trail-stop-mint" offset="100%"></stop>
+				</linearGradient>
+			</defs>
+			<path class="signal-trail-shadow" pathLength="100" stroke={ signalTrailGradientURL(props.Variant) } d="M-24 188 C128 174 180 56 340 78 C486 98 510 202 660 170 C780 144 838 56 984 72"></path>
+			<path class="signal-trail-line" pathLength="100" stroke={ signalTrailGradientURL(props.Variant) } d="M-24 188 C128 174 180 56 340 78 C486 98 510 202 660 170 C780 144 838 56 984 72"></path>
+		</svg>
+	</div>
+}

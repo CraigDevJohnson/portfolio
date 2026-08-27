@@ -1,0 +1,57 @@
+package partials
+
+import (
+	"fmt"
+	"portfolio/types"
+)
+
+type SkillDetailProps struct {
+	Skill types.Skill
+}
+
+templ SkillDetail(props SkillDetailProps) {
+	<div class="page-kit-detail-card skill-detail-card">
+		<div class="skill-detail-content">
+			<div class="skill-detail-icon">
+				@skillAsset(props.Skill, "", "skill-detail-asset-frame", "skill-detail-asset")
+			</div>
+			<div class="skill-detail-info">
+				<h4
+					id={ fmt.Sprintf("skill-detail-heading-%d", props.Skill.ID) }
+					class="skill-detail-name"
+					data-skill-detail-heading
+					tabindex="-1"
+				>{ props.Skill.Name }</h4>
+				<button id={ fmt.Sprintf("skill-detail-close-%d", props.Skill.ID) } class="page-kit-icon-button skill-detail-close" aria-label="Close detail" type="button" data-close-detail>&times;</button>
+				if props.Skill.Category != "" {
+					<span class={ categoryTagClasses(props.Skill.Category) }>{ props.Skill.Category }</span>
+				}
+				if len(props.Skill.Tags) > 0 {
+					<ul class="skill-detail-tags" aria-label="Related areas">
+						for _, tag := range props.Skill.Tags {
+							<li><span class="skill-tag skill-tag-neutral">{ tag }</span></li>
+						}
+					</ul>
+				}
+				<div class="skill-detail-proficiency">
+					<div class={ proficiencyBadgeClasses(props.Skill.Proficiency, false) }>
+						{ props.Skill.Proficiency }
+					</div>
+					<div class="proficiency-bar" aria-hidden="true">
+						<div class={ proficiencyFillClasses(props.Skill.Proficiency) }></div>
+					</div>
+				</div>
+				if props.Skill.Description != "" {
+					<p class="skill-detail-desc">{ props.Skill.Description }</p>
+				}
+				if props.Skill.Link != "" {
+					<a id={ fmt.Sprintf("skill-detail-learn-%d", props.Skill.ID) } href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link">
+						Learn More
+						<span class="sr-only">(opens in a new tab)</span>
+						<span class="link-arrow" aria-hidden="true">↗</span>
+					</a>
+				}
+			</div>
+		</div>
+	</div>
+}

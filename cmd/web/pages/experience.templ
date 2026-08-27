@@ -1,0 +1,21 @@
+package pages
+
+import (
+	"portfolio/cmd/web/layouts"
+	"portfolio/cmd/web/partials"
+	"portfolio/types"
+)
+
+type ExperienceProps struct {
+	Experiences []types.Experience
+}
+
+templ Experience(props ExperienceProps) {
+	@layouts.Base(layouts.BaseProps{
+		Title:       "Experience - Craig Johnson",
+		Page:        "experience",
+		Description: "Craig Johnson's experience page, organized into career stages spanning foundational support, systems growth, and cloud leadership.",
+	}) {
+		@partials.ExperienceKitStages(partials.ExperienceKitStagesProps{Experiences: props.Experiences})
+	}
+}

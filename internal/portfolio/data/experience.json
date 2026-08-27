@@ -1,0 +1,95 @@
+[
+  {
+    "id": 1,
+    "position": "Cloud Engineer Principal",
+    "company": "COMPANY REDACTED - A",
+    "duration": "2022 – Present",
+    "responsibilities": "Lead infrastructure automation initiatives using IaC principles. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.",
+    "technologies": [
+      "AWS",
+      "Go",
+      "Terraform",
+      "Ansible"
+    ],
+    "skill_areas": "cloud,automation,devops,scripting,security"
+  },
+  {
+    "id": 2,
+    "position": "System Administrator",
+    "company": "COMPANY REDACTED - B",
+    "duration": "2021 – 2022",
+    "responsibilities": "Managed enterprise SCADA systems and infrastructure automation. Implemented monitoring solutions and maintained high-availability environments. Established IT/OT integration practices while ensuring regulatory compliance. Orchestrated application deployments and infrastructure upgrades in critical environments.",
+    "technologies": [
+      "IoT",
+      "SCADA",
+      "RHEL",
+      "Bash"
+    ],
+    "skill_areas": "systems,automation,security,scripting"
+  },
+  {
+    "id": 3,
+    "position": "IT Systems Engineer Sr",
+    "company": "COMPANY REDACTED - C",
+    "duration": "2020 – 2021",
+    "responsibilities": "Architected and implemented cloud infrastructure solutions in healthcare environments. Led technical projects involving cross-functional teams and vendor integration. Developed automation frameworks for critical systems and established best practices for infrastructure management.",
+    "technologies": [
+      "Azure",
+      "AD DS",
+      "PowerShell"
+    ],
+    "skill_areas": "cloud,systems,automation,scripting"
+  },
+  {
+    "id": 4,
+    "position": "IT Systems Engineer",
+    "company": "COMPANY REDACTED - C",
+    "duration": "2018 – 2020",
+    "responsibilities": "Managed enterprise Active Directory and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.",
+    "technologies": [
+      "PowerShell",
+      "AD DS",
+      "O365/Exchange"
+    ],
+    "skill_areas": "systems,automation,scripting"
+  },
+  {
+    "id": 5,
+    "position": "IT Desktop Engineer",
+    "company": "COMPANY REDACTED - C",
+    "duration": "2017 – 2018",
+    "responsibilities": "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using ITIL methodologies. Established standardized deployment procedures for enterprise endpoints.",
+    "technologies": [
+      "PowerShell",
+      "SCCM",
+      "Intune"
+    ],
+    "skill_areas": "systems,automation,scripting"
+  },
+  {
+    "id": 6,
+    "position": "IT Service Desk Associate",
+    "company": "COMPANY REDACTED - C",
+    "duration": "2016 – 2017",
+    "responsibilities": "Utilized ITSM platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.",
+    "technologies": [
+      "ServiceNow",
+      "O365",
+      "Windows"
+    ],
+    "skill_areas": "systems"
+  },
+  {
+    "id": 7,
+    "position": "Service Desk Student Analyst",
+    "company": "COMPANY REDACTED - D",
+    "duration": "2012 – 2016",
+    "responsibilities": "Managed incident tracking through enterprise ITSM systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.",
+    "technologies": [
+      "Windows",
+      "MacOS",
+      "GoogleApps"
+    ],
+    "skill_areas": "systems"
+  }
+]

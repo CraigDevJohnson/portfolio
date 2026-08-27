@@ -1,0 +1,77 @@
+package partials
+
+import "fmt"
+import "portfolio/types"
+
+type SoccerPlayerSelectProps struct {
+	Players           []types.LPSPlayer
+	SelectedPlayerIDs []int
+	Preview           bool
+}
+
+func soccerIDSelected(selected []int, id int) bool {
+	for _, selectedID := range selected {
+		if selectedID == id {
+			return true
+		}
+	}
+	return false
+}
+
+templ SoccerPlayerSelect(props SoccerPlayerSelectProps) {
+	<form
+		id="soccer-player-select-form"
+		class="page-kit-panel mt-4 px-6 py-4 max-md:p-4"
+		if !props.Preview {
+			hx-post="/soccer/discover-teams"
+			hx-target="#soccer-team-stage-content"
+			hx-swap="innerHTML"
+			hx-indicator=".soccer-player-submit-indicator"
+			hx-disabled-elt="find button[type='submit']"
+		}
+	>
+		<p class="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary-200">Next step</p>
+		<fieldset class="m-0 flex flex-col gap-4 border-0 p-0">
+			<legend class="mb-1 font-semibold text-copy-primary">Choose players to continue</legend>
+			<p class="text-sm text-copy-muted">Select one or more discovered players. Next you&apos;ll confirm which teams to include before schedules load.</p>
+			<div class="grid grid-cols-2 gap-2 max-md:grid-cols-1">
+				for _, player := range props.Players {
+					<label
+						class="soccer-player-option page-kit-panel flex cursor-pointer items-start gap-2 px-4 py-2 transition duration-200 hover:border-primary-400/35 hover:-translate-y-0.5"
+						if player.IsMainPlayer {
+							data-primary-player="true"
+						}
+					>
+						<input
+							class="mt-0.5 accent-primary-500"
+							type="checkbox"
+							name="player_ids"
+							value={ fmt.Sprintf("%d", player.UPlayerID) }
+							if len(props.SelectedPlayerIDs) == 0 || soccerIDSelected(props.SelectedPlayerIDs, player.UPlayerID) {
+								checked
+							}
+						/>
+						<span class="flex min-w-0 flex-col gap-1">
+							<span class="font-medium text-copy-primary [overflow-wrap:anywhere]">{ player.FirstName + " " + player.LastName }</span>
+							if player.IsMainPlayer {
+								<span class="soccer-primary-player-note">Primary player</span>
+							}
+						</span>
+					</label>
+				}
+			</div>
+			<button
+				type="submit"
+				class="btn btn-primary btn-loading self-start max-md:w-full"
+				data-loading-button
+				if props.Preview {
+					disabled
+					aria-disabled="true"
+				}
+			>
+				<span class="btn-text">Continue to Team Selection</span>
+				<span class="btn-loading-indicator soccer-player-submit-indicator htmx-indicator" aria-hidden="true"></span>
+			</button>
+		</fieldset>
+	</form>
+}

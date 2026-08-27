@@ -1,0 +1,325 @@
+package partials
+
+import "fmt"
+import "portfolio/types"
+
+type SoccerLoginStateProps struct {
+	Authenticated            bool
+	Players                  []types.LPSPlayer
+	SelectedPlayerIDs        []int
+	SelectedTeamIDs          []int
+	ConfirmedTeamCount       int
+	LoginAvailable           bool
+	GoogleAvailable          bool
+	GoogleConnected          bool
+	GoogleCalendarSummary    string
+	SelectedGoogleCalendarID string
+	GoogleCalendars          []types.GoogleCalendarOption
+	SwapOOB                  bool
+	RefreshCalendar          bool
+	ResetWorkflow            bool
+	Preview                  bool
+}
+
+func soccerCountLabel(count int, singular, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %s", count, plural)
+}
+
+templ SoccerLPSConnection(props SoccerLoginStateProps) {
+	<div
+		id="soccer-lps-connection"
+		class="soccer-connection-card soccer-lps-connection"
+		data-connection-state={ soccerConnectionAvailabilityState(props.SupportsDiscovery(), props.Authenticated) }
+		if props.SwapOOB {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		if props.SupportsDiscovery() {
+			<div class="soccer-connection-header">
+				<span class="soccer-connection-mark" aria-hidden="true">{ soccerConnectionMark(props.Authenticated) }</span>
+				<div><p class="soccer-stage-kicker">LPS source</p><h4>Player access</h4></div>
+			</div>
+			if props.Authenticated {
+				<div class="soccer-connection-copy">
+					<p class="soccer-connection-status">Imported for this session</p>
+					<p>Your linked players are ready. Continue below to choose players and confirm teams.</p>
+				</div>
+				<ul class="soccer-connection-meta" aria-label="LPS workflow status">
+					<li>{ soccerCountLabel(len(props.Players), "linked player", "linked players") }</li>
+					<li>{ soccerCountLabel(len(props.SelectedPlayerIDs), "selected player", "selected players") }</li>
+					<li>{ soccerCountLabel(soccerConfirmedTeamCount(props), "confirmed team", "confirmed teams") }</li>
+				</ul>
+				<div class="soccer-connection-actions">
+					<a class="soccer-inline-link" href="#soccer-player-stage">Continue workflow</a>
+					<button
+						type="button"
+						class="btn soccer-secondary-btn btn-loading"
+						data-loading-button
+						if props.Preview {
+							disabled
+							aria-disabled="true"
+						} else {
+							hx-post="/soccer/logout"
+							hx-target="#soccer-lps-connection"
+							hx-swap="outerHTML"
+							hx-disabled-elt="this"
+						}
+					>
+						<span class="btn-text">Clear import</span>
+						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+					</button>
+				</div>
+			} else {
+				<div class="soccer-connection-copy">
+					<p class="soccer-connection-status">Not imported</p>
+					<p>Import temporary LPS access here to discover linked players and their current teams.</p>
+				</div>
+				<div class="soccer-connection-actions">
+					<button type="button" class="btn btn-primary" data-open-login-modal>Import access</button>
+				</div>
+			}
+		}
+		if !props.SupportsDiscovery() {
+			<div class="soccer-unavailable-connection">
+				<span class="soccer-connection-mark" aria-hidden="true">—</span>
+				<div>
+					<p class="soccer-stage-kicker">Player discovery</p>
+					<h4>Not enabled on this server</h4>
+					<p>Use manual team IDs below to fetch schedules directly.</p>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+func soccerConnectionState(connected bool) string {
+	if connected {
+		return "connected"
+	}
+	return "disconnected"
+}
+
+func soccerConnectionMark(connected bool) string {
+	if connected {
+		return "✓"
+	}
+	return "○"
+}
+
+func soccerConnectionAvailabilityState(available, connected bool) string {
+	if !available {
+		return "unavailable"
+	}
+	return soccerConnectionState(connected)
+}
+
+func soccerConfirmedTeamCount(props SoccerLoginStateProps) int {
+	if props.ConfirmedTeamCount > 0 {
+		return props.ConfirmedTeamCount
+	}
+	return len(props.SelectedTeamIDs)
+}
+
+templ SoccerConnections(props SoccerLoginStateProps) {
+	<div class="soccer-connections-grid">
+		@SoccerLPSConnection(props)
+		@SoccerGoogleConnection(props)
+	</div>
+}
+
+templ SoccerLoginState(props SoccerLoginStateProps) {
+	@SoccerLPSConnection(props)
+	if props.RefreshCalendar {
+		@SoccerGoogleConnection(props)
+	}
+	if props.ResetWorkflow {
+		<div id="soccer-player-stage-content" hx-swap-oob="innerHTML">
+			@SoccerPlayerStageContent(props)
+		</div>
+		<div id="soccer-team-stage-content" hx-swap-oob="innerHTML">
+			@SoccerTeamStagePlaceholder()
+		</div>
+		<div id="games-container" hx-swap-oob="innerHTML">
+			@SoccerResultsInvitation(props.SupportsGoogle())
+		</div>
+	}
+}
+
+templ SoccerPlayerStageContent(props SoccerLoginStateProps) {
+	if props.Authenticated && len(props.Players) > 0 {
+		@SoccerPlayerSelect(SoccerPlayerSelectProps{Players: props.Players, SelectedPlayerIDs: props.SelectedPlayerIDs, Preview: props.Preview})
+	} else if props.Authenticated {
+		<div class="soccer-recovery-state">
+			@Feedback(FeedbackProps{
+				Kind:       FeedbackError,
+				Title:      "No linked players found",
+				Message:    "No linked players were found for this account. Clear the current access and try again.",
+				ExtraClass: "soccer-stage-feedback",
+			})
+			<button type="button" class="btn soccer-secondary-btn" data-open-login-modal>Replace access</button>
+		</div>
+	} else if props.SupportsDiscovery() {
+		@Feedback(FeedbackProps{
+			Kind:       FeedbackInfo,
+			Title:      "Players unlock after LPS setup",
+			Message:    "Set up LPS access in Connections above, then return here to choose linked players.",
+			ExtraClass: "soccer-stage-feedback",
+		})
+	} else {
+		@Feedback(FeedbackProps{
+			Kind:       FeedbackInfo,
+			Title:      "Player discovery is optional",
+			Message:    "Continue with manual team IDs when import is not available.",
+			ExtraClass: "soccer-stage-feedback",
+		})
+	}
+}
+
+templ SoccerCalendarState(props SoccerLoginStateProps) {
+	if props.SupportsGoogle() {
+		<div class="soccer-connection-header">
+			<span class="soccer-connection-mark" aria-hidden="true">{ soccerConnectionMark(props.GoogleConnected) }</span>
+			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Google Calendar</h4></div>
+		</div>
+		if props.GoogleConnected {
+			<div class="soccer-connection-copy">
+				<p class="soccer-connection-status">Calendar ready</p>
+				if props.GoogleCalendarSummary != "" {
+					<p>Connected to { props.GoogleCalendarSummary }. Loaded matches can be added or synced directly.</p>
+				} else {
+					<p>Connected — choose a destination calendar below.</p>
+				}
+			</div>
+			if props.GoogleCalendarSummary != "" {
+				<ul class="soccer-connection-meta" aria-label="Calendar connection status"><li>{ props.GoogleCalendarSummary }</li></ul>
+			}
+			if len(props.GoogleCalendars) > 0 {
+				<form
+					class="soccer-calendar-form"
+					if !props.Preview {
+						hx-post="/soccer/google/calendar"
+						hx-target="#soccer-google-connection"
+						hx-swap="outerHTML"
+						hx-indicator=".soccer-google-save-indicator"
+						hx-disabled-elt="find select, find button[type='submit']"
+					}
+				>
+					<label for="soccer-google-calendar" class="form-label">Destination calendar</label>
+					<div class="soccer-calendar-controls">
+						<select
+							id="soccer-google-calendar"
+							name="calendar_id"
+							class="text-input"
+							if props.Preview {
+								disabled
+								aria-disabled="true"
+							}
+						>
+							for _, calendar := range props.GoogleCalendars {
+								<option
+									value={ calendar.ID }
+									if calendar.ID == props.SelectedGoogleCalendarID {
+										selected
+									}
+								>
+									if calendar.Primary {
+										{ calendar.Summary + " (Primary)" }
+									} else {
+										{ calendar.Summary }
+									}
+								</option>
+							}
+						</select>
+						<button
+							type="submit"
+							class="btn soccer-secondary-btn btn-loading"
+							data-loading-button
+							if props.Preview {
+								disabled
+								aria-disabled="true"
+							}
+						>
+							<span class="btn-text">Save calendar</span>
+							<span class="btn-loading-indicator soccer-google-save-indicator htmx-indicator" aria-hidden="true"></span>
+						</button>
+					</div>
+				</form>
+			}
+			<div class="soccer-connection-actions">
+				if props.Preview {
+					<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Reconnect Google</button>
+				} else {
+					<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link><span class="btn-text">Reconnect Google</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></a>
+				}
+				<button
+					type="button"
+					class="btn soccer-secondary-btn btn-loading"
+					data-loading-button
+					if props.Preview {
+						disabled
+						aria-disabled="true"
+					} else {
+						hx-post="/soccer/google/disconnect"
+						hx-target="#soccer-google-connection"
+						hx-swap="outerHTML"
+						hx-disabled-elt="this"
+					}
+				><span class="btn-text">Disconnect</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></button>
+			</div>
+		} else {
+			<div class="soccer-connection-copy">
+				<p class="soccer-connection-status">Not connected</p>
+				<p>Connect once to add selected matches directly. ICS download remains available without Google.</p>
+			</div>
+			<div class="soccer-connection-actions">
+				if props.Preview {
+					<button type="button" class="btn btn-primary" disabled aria-disabled="true">Connect Google Calendar</button>
+				} else {
+					<a href="/soccer/google/connect" class="btn btn-primary btn-loading" data-loading-link><span class="btn-text">Connect Google Calendar</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></a>
+				}
+			</div>
+		}
+	} else {
+		<div class="soccer-unavailable-connection">
+			<span class="soccer-connection-mark" aria-hidden="true">—</span>
+			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>ICS download is ready and does not require a Google connection.</p></div>
+		</div>
+	}
+}
+
+templ SoccerGoogleConnection(props SoccerLoginStateProps) {
+	<div
+		id="soccer-google-connection"
+		class="soccer-connection-card soccer-google-connection"
+		data-connection-state={ soccerConnectionAvailabilityState(props.SupportsGoogle(), props.GoogleConnected) }
+		if props.RefreshCalendar {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		@SoccerCalendarState(props)
+	</div>
+}
+
+templ SoccerTeamStagePlaceholder() {
+	@Feedback(FeedbackProps{Kind: FeedbackInfo, Title: "Teams unlock after player selection", Message: "Choose linked players first, then review their current teams here.", ExtraClass: "soccer-stage-feedback"})
+}
+
+templ SoccerResultsInvitation(google bool) {
+	<div class="empty-state soccer-results-empty">
+		<div class="empty-state-icon" aria-hidden="true">⚽</div>
+		<h4>Your next matchday starts here</h4>
+		<p>Choose a workflow above, then load the schedule you want so you can export or sync the matches that matter.</p>
+		<ul class="empty-state-list">
+			<li>Fetch one or more team schedules</li>
+			<li>Select the matches you want to keep</li>
+			if google {
+				<li>Download an ICS file or use the available calendar connection</li>
+			} else {
+				<li>Download an ICS file for your calendar app</li>
+			}
+		</ul>
+	</div>
+}

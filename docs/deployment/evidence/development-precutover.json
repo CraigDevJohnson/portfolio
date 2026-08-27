@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "environment": "development",
+  "captured_at": "2026-08-27T07:51:56Z",
+  "public_hostname": "dev.craigdevjohnson.com",
+  "rollback_origin_url": "https://vafw855pvk.us-west-2.awsapprunner.com",
+  "dns_record": {
+    "id": "095ad3e5bcfa7ca4e090c80b486de96a",
+    "type": "CNAME",
+    "name": "dev.craigdevjohnson.com",
+    "content": "vafw855pvk.us-west-2.awsapprunner.com",
+    "ttl": 1,
+    "proxied": true
+  }
+}

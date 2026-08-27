@@ -1,0 +1,184 @@
+package partials
+
+import (
+	"fmt"
+	"sort"
+	"time"
+
+	"portfolio/types"
+)
+
+type ActionResultProps struct {
+	Success bool
+	Message string
+}
+
+func portalActionDisabled(state, action string) bool {
+	switch state {
+	case "stopped":
+		return action != "start"
+	case "running":
+		return action != "stop" && action != "restart"
+	default:
+		return true
+	}
+}
+
+func portalActionFeedbackKind(success bool) FeedbackKind {
+	if success {
+		return FeedbackSuccess
+	}
+	return FeedbackError
+}
+
+func portalActionFeedbackTitle(success bool) string {
+	if success {
+		return "Request accepted"
+	}
+	return "Request could not be completed"
+}
+
+func portalActionButtonProps(instance types.InstanceSummary, action string) ActionButtonProps {
+	return ActionButtonProps{
+		Type:       "button",
+		Label:      action,
+		Variant:    ActionSecondary,
+		Disabled:   portalActionDisabled(instance.State, action),
+		ExtraClass: "portal-control portal-action-control",
+		Attributes: templ.Attributes{
+			"hx-post":             "/mgmt/instances/" + instance.ID + "/" + action,
+			"hx-target":           "#action-status-" + instance.ID,
+			"hx-swap":             "innerHTML",
+			"hx-disabled-elt":     "this",
+			"data-loading-button": true,
+			"aria-label":          fmt.Sprintf("%s instance %s (%s)", action, instance.Name, instance.ID),
+		},
+	}
+}
+
+func portalDetailButtonProps(instance types.InstanceSummary, kind string) ActionButtonProps {
+	label := "Load " + kind
+	target := kind + "-" + instance.ID
+	return ActionButtonProps{
+		Type:       "button",
+		Label:      label,
+		Variant:    ActionSecondary,
+		ExtraClass: "portal-control portal-detail-control",
+		Attributes: templ.Attributes{
+			"hx-get":                     "/mgmt/instances/" + instance.ID + "/" + kind,
+			"hx-target":                  "#" + target,
+			"hx-swap":                    "innerHTML",
+			"hx-disabled-elt":            "this",
+			"data-loading-button":        true,
+			"data-portal-detail-control": true,
+			"data-portal-detail-kind":    kind,
+			"aria-label":                 fmt.Sprintf("%s for %s (%s)", label, instance.Name, instance.ID),
+			"aria-controls":              target,
+			"aria-expanded":              "false",
+		},
+	}
+}
+
+func portalLogEvents(events []types.LogEvent) []types.LogEvent {
+	ordered := append([]types.LogEvent(nil), events...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].Timestamp.After(ordered[j].Timestamp)
+	})
+	if len(ordered) > 100 {
+		ordered = ordered[:100]
+	}
+	return ordered
+}
+
+templ InstanceRow(instance types.InstanceSummary) {
+	{{ stateView := portalStatePresentation(instance.State) }}
+	<tr id={ "instance-" + instance.ID } class="portal-instance-row" data-portal-instance={ instance.ID }>
+		<td class="portal-instance-id" data-label="ID">{ instance.ID }</td>
+		<th id={ "instance-name-" + instance.ID } scope="row" class="portal-instance-name" data-label="Name">{ instance.Name }</th>
+		<td class="portal-instance-state" data-label="State">
+			<span class={ mergeClasses("portal-state", stateView.Class) } data-portal-state-raw={ instance.State }>
+				<span class="portal-state-label">{ stateView.Label }</span>
+				<span class="portal-state-description sr-only">. { stateView.Description }</span>
+			</span>
+		</td>
+		<td class="portal-instance-type" data-label="Type">{ instance.InstanceType }</td>
+		<td class="portal-instance-az" data-label="AZ">{ instance.AZ }</td>
+		<td class="portal-instance-actions" data-label="Actions">
+			<div class="portal-action-controls">
+				for _, action := range []string{"start", "stop", "restart"} {
+					@ActionButton(portalActionButtonProps(instance, action))
+				}
+			</div>
+			<div id={ "action-status-" + instance.ID } class="portal-inline-result" aria-live="polite" aria-atomic="true"></div>
+		</td>
+		<td class="portal-instance-metrics" data-label="Metrics">
+			@ActionButton(portalDetailButtonProps(instance, "metrics"))
+		</td>
+		<td class="portal-instance-logs" data-label="Logs">
+			@ActionButton(portalDetailButtonProps(instance, "logs"))
+		</td>
+	</tr>
+	<tr class="portal-instance-detail-row" data-portal-instance-detail={ instance.ID } aria-labelledby={ "instance-name-" + instance.ID }>
+		<td colspan="8" class="portal-instance-detail-cell">
+			<div class="portal-instance-detail-grid">
+				<div class="portal-instance-detail-panel" data-portal-detail-panel data-portal-detail-kind="metrics">
+					<h3 id={ "metrics-heading-" + instance.ID } class="portal-instance-detail-heading">Metrics</h3>
+					<p class="portal-instance-detail-loading" data-portal-detail-loading hidden>Loading metrics…</p>
+					<div id={ "metrics-" + instance.ID } class="portal-instance-detail-content" role="region" aria-labelledby={ "metrics-heading-" + instance.ID } aria-live="polite" aria-busy="false" tabindex="-1" data-portal-detail-kind="metrics"></div>
+				</div>
+				<div class="portal-instance-detail-panel" data-portal-detail-panel data-portal-detail-kind="logs">
+					<h3 id={ "logs-heading-" + instance.ID } class="portal-instance-detail-heading">Logs</h3>
+					<p class="portal-instance-detail-loading" data-portal-detail-loading hidden>Loading logs…</p>
+					<div id={ "logs-" + instance.ID } class="portal-instance-detail-content" role="region" aria-labelledby={ "logs-heading-" + instance.ID } aria-live="polite" aria-busy="false" tabindex="-1" data-portal-detail-kind="logs"></div>
+				</div>
+			</div>
+		</td>
+	</tr>
+}
+
+templ ActionResult(props ActionResultProps) {
+	@Feedback(FeedbackProps{
+		Kind:       portalActionFeedbackKind(props.Success),
+		Title:      portalActionFeedbackTitle(props.Success),
+		Message:    props.Message,
+		ExtraClass: "portal-action-result",
+	})
+}
+
+templ MetricsTable(points []types.MetricPoint) {
+	if len(points) == 0 {
+		@Feedback(FeedbackProps{
+			Kind:       FeedbackInfo,
+			Title:      "No metric samples",
+			Message:    "No data available for the last hour.",
+			ExtraClass: "portal-fragment-feedback",
+		})
+	} else {
+		<table class="portal-metrics-table">
+			<caption class="sr-only">CPU utilization metrics</caption>
+			<thead><tr><th scope="col">Time</th><th scope="col">CPU %</th></tr></thead>
+			<tbody>
+				for _, point := range points {
+					<tr><td>{ point.Timestamp.UTC().Format(time.RFC3339) }</td><td>{ fmt.Sprintf("%.2f", point.CPUPercent) }</td></tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+templ LogsList(events []types.LogEvent) {
+	if len(portalLogEvents(events)) == 0 {
+		@Feedback(FeedbackProps{
+			Kind:       FeedbackInfo,
+			Title:      "No recent activity",
+			Message:    "No recent log events were found.",
+			ExtraClass: "portal-fragment-feedback",
+		})
+	} else {
+		<ul class="portal-log-list">
+			for _, event := range portalLogEvents(events) {
+				<li class="portal-log-event"><time datetime={ event.Timestamp.UTC().Format(time.RFC3339) }>{ event.Timestamp.UTC().Format(time.RFC3339) }</time><p>{ event.Message }</p></li>
+			}
+		</ul>
+	}
+}

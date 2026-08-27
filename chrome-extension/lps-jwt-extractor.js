@@ -5,11 +5,16 @@ const CAPTURE_URLS = [
   'https://*.lps-test.com/*',
 ]
 const JWT_PATTERN = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/
+const BADGE_COLOR = '#146356'
+
+function logStorageWarning(action, error) {
+  console.warn(`Unable to ${action} LPS JWT capture.`, error)
+}
 
 function syncBadge(hasCapture) {
   chrome.action.setBadgeText({ text: hasCapture ? 'JWT' : '' })
   if (hasCapture) {
-    chrome.action.setBadgeBackgroundColor({ color: '#146356' })
+    chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR })
   }
 }
 
@@ -46,7 +51,7 @@ function extractTokenFromCookie(value) {
   return ''
 }
 
-function saveCapture(token, sourceType, details) {
+async function saveCapture(token, sourceType, details) {
   const capture = {
     token,
     importValue: `Bearer ${token}`,
@@ -55,18 +60,27 @@ function saveCapture(token, sourceType, details) {
     capturedAt: new Date().toISOString(),
   }
 
-  chrome.storage.local.set({ [CAPTURE_KEY]: capture })
+  try {
+    await chrome.storage.local.set({ [CAPTURE_KEY]: capture })
+  } catch (error) {
+    logStorageWarning('save', error)
+    return
+  }
+
   syncBadge(true)
-  console.info('Captured LPS JWT from', sourceType, details.url)
 }
 
 chrome.runtime.onInstalled.addListener(() => {
   syncBadge(false)
 })
 
-chrome.storage.local.get(CAPTURE_KEY).then(result => {
-  syncBadge(Boolean(result[CAPTURE_KEY]?.importValue))
-})
+chrome.storage.local.get(CAPTURE_KEY)
+  .then(result => {
+    syncBadge(Boolean(result[CAPTURE_KEY]?.importValue))
+  })
+  .catch(error => {
+    logStorageWarning('read', error)
+  })
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
   details => {
@@ -81,7 +95,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
       if (name === 'authorization') {
         const token = extractTokenFromAuthorization(value)
         if (token) {
-          saveCapture(token, 'authorization', details)
+          void saveCapture(token, 'authorization', details)
           return
         }
       }
@@ -89,7 +103,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
       if (name === 'cookie') {
         const token = extractTokenFromCookie(value)
         if (token) {
-          saveCapture(token, 'cookie', details)
+          void saveCapture(token, 'cookie', details)
           return
         }
       }

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+  printf 'prove-skills-search: invalid VERIFY_RUN_ID\n' >&2
+  exit 1
+}
+command -v npx >/dev/null 2>&1 || {
+  printf 'prove-skills-search: npx is required by the Playwright CLI wrapper\n' >&2
+  exit 1
+}
+[[ -x "$PWCLI" ]] || {
+  printf 'prove-skills-search: Playwright CLI wrapper is not executable: %s\n' "$PWCLI" >&2
+  exit 1
+}
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/skills-search"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+
+run_pw open "$VERIFY_URL/"
+run_pw resize 1440 1000
+run_pw run-code "async (page) => { const kind = await page.evaluate(() => typeof window.htmx); if (kind === 'undefined') throw new Error('HTMX did not load'); }"
+run_pw snapshot --filename "$EVIDENCE_DIR/01-home-before.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/01-home-before.png" --full-page
+
+run_pw click "nav[aria-label='Main navigation'] a[data-nav-page='skills']"
+run_pw snapshot --filename "$EVIDENCE_DIR/02-skills-landing.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/02-skills-landing.png" --full-page
+
+run_pw fill "#skills-search" "Terraform"
+run_pw screenshot --filename "$EVIDENCE_DIR/03-query-entered.png"
+run_pw run-code "async (page) => { await page.waitForFunction(() => location.pathname === '/skills' && new URLSearchParams(location.search).get('q') === 'Terraform' && document.querySelector('.skills-result-summary')?.textContent?.trim() === '1 skill shown' && document.querySelectorAll('[data-skill-detail-trigger]').length === 1); }"
+run_pw snapshot --filename "$EVIDENCE_DIR/04-filtered-result.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/04-filtered-result.png" --full-page
+
+{
+  "$PWCLI" --session "$SESSION" eval "() => { const summary = document.querySelector('.skills-result-summary')?.textContent?.trim(); const skills = [...document.querySelectorAll('[data-skill-detail-trigger]')].map(element => element.querySelector('.skill-card-name')?.textContent?.trim()); const activeNav = document.querySelector(\"nav[aria-label='Main navigation'] [aria-current='page']\")?.textContent?.trim(); const query = new URLSearchParams(location.search).get('q'); const failures = []; if (location.pathname !== '/skills') failures.push('path'); if (query !== 'Terraform') failures.push('query'); if (summary !== '1 skill shown') failures.push('summary'); if (skills.length !== 1 || skills[0] !== 'Terraform') failures.push('visible skills'); if (activeNav !== 'Skills') failures.push('active navigation'); if (failures.length) throw new Error('skills proof failed: ' + failures.join(', ')); return { title: document.title, url: location.href, summary, skills, activeNav }; }"
+} 2>&1 | tee -a "$TRANSCRIPT" "$EVIDENCE_DIR/assertions.txt"
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt"
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt"
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'skills-search proof captured at %s\n' "$EVIDENCE_DIR"
