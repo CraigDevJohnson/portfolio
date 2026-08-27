@@ -56,45 +56,42 @@ complete:
   `DescribeCertificate` and `ListTagsForCertificate` on that exact certificate
   ARN, with the reviewed development tags and region still required. No
   statement grants certificate mutation or deletion; and
-- `DomainCreate` and `DomainCreateTagAuthorization` are just-in-time grants for
-  the provider's tagged `CreateDomainName` request. The API Gateway V2 service
+- `DomainCreate`, `DomainCreateTagAuthorization`, and `ApiMappingCreate` were
+  removed immediately after `dev.craigdevjohnson.com` reached `AVAILABLE` and
+  target `d-vgozrre45c.execute-api.us-west-2.amazonaws.com` and root mapping
+  `u1ettj` were captured. During activation, the API Gateway V2 service
   authorization table does not support `aws:RequestTag` or `aws:TagKeys` on the
   `DomainNames` collection resource used by `DomainCreate`; live IAM rejected
   the exact provider request when those unsupported conditions were attached.
-  Keep the exact four development tag conditions on the separate, exact encoded
-  `DomainCreateTagAuthorization` resource. That resource encodes the public
+  The tagged create required the exact four development tag conditions on the
+  separate, exact encoded `DomainCreateTagAuthorization` resource. That resource
+  encodes the public
   domain ARN `/domainnames/dev.craigdevjohnson.com`; the API's HTTP `/v2` prefix
   is not part of the resource ARN. The live `CreateDomainName` request also
-  requires `apigateway:PUT` on that exact tag resource, so the same just-in-time
-  statement grants only `POST` and `PUT` there; no domain or mapping resource
-  receives `PUT`. `DomainCreate` constrains every supplied
-  endpoint and security-policy value to Regional and TLS 1.2 and requires
+  required `apigateway:PUT` on that exact tag resource, so the temporary
+  statement granted only `POST` and `PUT` there; no domain or mapping resource
+  received `PUT`. `DomainCreate` constrained every supplied
+  endpoint and security-policy value to Regional and TLS 1.2 and required
   `us-west-2`. Do not add `Null` checks for the optional mTLS request keys: the
-  provider emits `mutualTlsAuthentication: null`, and live IAM rejected the
-  otherwise exact request while those checks were attached. The policy does not
-  grant `AddCertificateToDomain`, and the checked HCL and saved plan must contain
-  no mTLS configuration. Because the collection resource also has no
-  request-domain condition key, this short-lived statement could authorize an
+  provider emitted `mutualTlsAuthentication: null`, and live IAM rejected the
+  otherwise exact request while those checks were attached. No candidate granted
+  `AddCertificateToDomain`, and the checked HCL and saved plan contained no mTLS
+  configuration. Because the collection resource also has no
+  request-domain condition key, that short-lived statement could authorize an
   untagged domain create elsewhere in the region. The exact HCL hostname and
   certificate, fresh checked saved plan, checksum-bound apply, and immediate
-  post-create removal are mandatory compensating controls. The provider request
-  and saved plan must contain both endpoint and security-policy fields. Do not
+  post-create removal were mandatory compensating controls. The provider request
+  and saved plan contained both endpoint and security-policy fields. Do not
   add `Null=false` presence checks for those two documented
   `ArrayOfString` keys: live IAM and the policy simulator both rejected the
-  otherwise exact provider request when those checks were present. `DomainRead`
-  can read only
-  `dev.craigdevjohnson.com`. `ApiMappingCreate` can create a mapping only under
-  that hostname, and `ApiMappingRead` can read only its service-generated
-  mapping IDs. The API Gateway IAM model cannot constrain the mapping request
+  otherwise exact provider request when those checks were present. The current
+  `DomainRead` can read only `dev.craigdevjohnson.com`, and `ApiMappingRead` can
+  read only captured mapping `u1ettj`. The API Gateway IAM model could not
+  constrain the mapping request
   body to API `048o6alxh8` and stage `$default`, so the checked HCL, environment
   contract, fresh saved-plan review, and checksum-bound apply are mandatory
-  compensating controls. No statement grants domain or mapping update, policy,
-  certificate-attachment, or delete actions.
-
-After the exact custom domain and mapping ID are captured, remove
-`DomainCreate`, `DomainCreateTagAuthorization`, and `ApiMappingCreate`, and
-replace the mapping read wildcard with the exact captured mapping ARN before
-any later plan.
+  compensating controls. No statement now grants domain or mapping create,
+  update, tag, policy, certificate-attachment, or delete actions.
 
 Every tightened or post-bootstrap file revision is a new policy artifact.
 Recompute its SHA-256 and byte counts, repeat static and live IAM Access

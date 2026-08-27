@@ -136,51 +136,6 @@
       ]
     },
     {
-      "Sid": "DomainCreate",
-      "Effect": "Allow",
-      "Action": "apigateway:POST",
-      "Resource": "arn:aws:apigateway:us-west-2::/domainnames",
-      "Condition": {
-        "ForAllValues:StringEquals": {
-          "apigateway:Request/EndpointType": [
-            "REGIONAL"
-          ],
-          "apigateway:Request/SecurityPolicy": [
-            "TLS_1_2"
-          ]
-        },
-        "StringEquals": {
-          "aws:RequestedRegion": "us-west-2"
-        }
-      }
-    },
-    {
-      "Sid": "DomainCreateTagAuthorization",
-      "Effect": "Allow",
-      "Action": [
-        "apigateway:POST",
-        "apigateway:PUT"
-      ],
-      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fdomainnames%2Fdev.craigdevjohnson.com",
-      "Condition": {
-        "ForAllValues:StringEquals": {
-          "aws:TagKeys": [
-            "Environment",
-            "ManagedBy",
-            "Platform",
-            "Project"
-          ]
-        },
-        "StringEquals": {
-          "aws:RequestedRegion": "us-west-2",
-          "aws:RequestTag/Environment": "dev",
-          "aws:RequestTag/ManagedBy": "opentofu",
-          "aws:RequestTag/Platform": "lambda-http-api",
-          "aws:RequestTag/Project": "portfolio"
-        }
-      }
-    },
-    {
       "Sid": "DomainRead",
       "Effect": "Allow",
       "Action": "apigateway:GET",
@@ -192,21 +147,10 @@
       }
     },
     {
-      "Sid": "ApiMappingCreate",
-      "Effect": "Allow",
-      "Action": "apigateway:POST",
-      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestedRegion": "us-west-2"
-        }
-      }
-    },
-    {
       "Sid": "ApiMappingRead",
       "Effect": "Allow",
       "Action": "apigateway:GET",
-      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/*",
+      "Resource": "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/u1ettj",
       "Condition": {
         "StringEquals": {
           "aws:RequestedRegion": "us-west-2"

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"reflect"
 	"sort"
@@ -59,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "f78d5d3cd0c5d8f24e1cb7908b23dcd97672765f2c07be08115aaebac02a18e7",
-			bytes:              9_659,
-			nonWhitespaceBytes: 7_012,
+			sha256:             "f834e28f4707bbcb3cf27c9de8305248dba8a1d2e608e2c114e0e865d0946590",
+			bytes:              8_057,
+			nonWhitespaceBytes: 5_932,
 			identityCenter:     true,
 		},
 		{
@@ -98,10 +97,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"ApiMappingCreate",
 		"ApiMappingRead",
-		"DomainCreate",
-		"DomainCreateTagAuthorization",
 		"DomainRead",
 		"RAPI",
 		"TCRead",
@@ -320,7 +316,7 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t 
 	}
 }
 
-func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *testing.T) {
+func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedConvergedCustomDomainAccess(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	want := map[string]struct {
@@ -335,50 +331,14 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*",
 			),
 		},
-		"DomainCreate": {
-			actions:   stringSet("apigateway:POST"),
-			resources: stringSet("arn:aws:apigateway:us-west-2::/domainnames"),
-			conditions: map[string]any{
-				"ForAllValues:StringEquals": map[string]any{
-					"apigateway:Request/EndpointType":   []any{"REGIONAL"},
-					"apigateway:Request/SecurityPolicy": []any{"TLS_1_2"},
-				},
-				"StringEquals": map[string]any{
-					"aws:RequestedRegion": "us-west-2",
-				},
-			},
-		},
-		"DomainCreateTagAuthorization": {
-			actions: stringSet("apigateway:POST", "apigateway:PUT"),
-			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fdomainnames%2Fdev.craigdevjohnson.com",
-			),
-			conditions: map[string]any{
-				"ForAllValues:StringEquals": map[string]any{
-					"aws:TagKeys": []any{"Environment", "ManagedBy", "Platform", "Project"},
-				},
-				"StringEquals": map[string]any{
-					"aws:RequestedRegion":        "us-west-2",
-					"aws:RequestTag/Environment": "dev",
-					"aws:RequestTag/ManagedBy":   "opentofu",
-					"aws:RequestTag/Platform":    "lambda-http-api",
-					"aws:RequestTag/Project":     "portfolio",
-				},
-			},
-		},
 		"DomainRead": {
 			actions:    stringSet("apigateway:GET"),
 			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"),
 			conditions: requestedRegionCondition(),
 		},
-		"ApiMappingCreate": {
-			actions:    stringSet("apigateway:POST"),
-			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings"),
-			conditions: requestedRegionCondition(),
-		},
 		"ApiMappingRead": {
 			actions:    stringSet("apigateway:GET"),
-			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/*"),
+			resources:  stringSet("arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com/apimappings/u1ettj"),
 			conditions: requestedRegionCondition(),
 		},
 	}
@@ -414,86 +374,15 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 	}
 }
 
-func TestDevelopmentBootstrapPolicyDoesNotUseTagConditionsOnDomainNamesCollection(t *testing.T) {
+func TestDevelopmentBootstrapPolicyDoesNotRetainCustomDomainBootstrapAuthority(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
+	consumedSIDs := stringSet("ApiMappingCreate", "DomainCreate", "DomainCreateTagAuthorization")
 	for _, statement := range policy.Statement {
-		if statement.Sid != "DomainCreate" {
-			continue
+		if stringSetContains(consumedSIDs, statement.Sid) {
+			t.Errorf("policy retains consumed custom-domain statement %q", statement.Sid)
 		}
-
-		for operator, rawConditions := range statement.Condition {
-			conditions, ok := rawConditions.(map[string]any)
-			if !ok {
-				t.Fatalf("DomainCreate %q conditions have type %T, want map[string]any", operator, rawConditions)
-			}
-			for key := range conditions {
-				if key == "aws:TagKeys" || strings.HasPrefix(key, "aws:RequestTag/") {
-					t.Errorf("DomainCreate collection resource uses unsupported %q condition %q", operator, key)
-				}
-			}
-		}
-		return
 	}
-
-	t.Fatal("DomainCreate statement not found")
-}
-
-func TestDevelopmentBootstrapPolicyTagAuthorizationUsesEncodedDomainARN(t *testing.T) {
-	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
-
-	domainARN := "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"
-	wantResource := "arn:aws:apigateway:us-west-2::/tags/" + url.QueryEscape(domainARN)
-	for _, statement := range policy.Statement {
-		if statement.Sid != "DomainCreateTagAuthorization" {
-			continue
-		}
-
-		assertStringSet(t, "domain tag authorization resources", stringSet(statement.Resource...), stringSet(wantResource))
-		return
-	}
-
-	t.Fatal("DomainCreateTagAuthorization statement not found")
-}
-
-func TestDevelopmentBootstrapPolicyPutIsLimitedToExactDomainTagAuthorization(t *testing.T) {
-	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
-
-	domainARN := "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"
-	wantResource := "arn:aws:apigateway:us-west-2::/tags/" + url.QueryEscape(domainARN)
-	found := 0
-	for _, statement := range policy.Statement {
-		if !stringSetContains(stringSet(statement.Action...), "apigateway:PUT") {
-			continue
-		}
-
-		found++
-		if statement.Sid != "DomainCreateTagAuthorization" {
-			t.Errorf("apigateway:PUT is owned by unreviewed statement %q", statement.Sid)
-		}
-		assertStringSet(t, "domain PUT resources", stringSet(statement.Resource...), stringSet(wantResource))
-	}
-
-	if found != 1 {
-		t.Fatalf("apigateway:PUT statement count = %d, want 1", found)
-	}
-}
-
-func TestDevelopmentBootstrapPolicyDoesNotNullCheckOptionalMTLSFields(t *testing.T) {
-	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
-
-	for _, statement := range policy.Statement {
-		if statement.Sid != "DomainCreate" {
-			continue
-		}
-
-		if nullConditions, ok := statement.Condition["Null"]; ok {
-			t.Fatalf("DomainCreate has Null conditions %#v; optional mTLS fields can be explicit null in the live request", nullConditions)
-		}
-		return
-	}
-
-	t.Fatal("DomainCreate statement not found")
 }
 
 func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T) {
@@ -503,6 +392,7 @@ func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T
 		"apigateway:AddCertificateToDomain",
 		"apigateway:DELETE",
 		"apigateway:PATCH",
+		"apigateway:POST",
 		"apigateway:RemoveCertificateFromDomain",
 		"apigateway:TagResource",
 		"apigateway:PUT",
@@ -531,9 +421,6 @@ func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T
 	)
 	for _, statement := range policy.Statement {
 		for _, action := range statement.Action {
-			if statement.Sid == "DomainCreateTagAuthorization" && action == "apigateway:PUT" {
-				continue
-			}
 			if stringSetContains(consumedActions, action) {
 				t.Errorf("statement %q retains consumed bootstrap action %q", statement.Sid, action)
 			}
