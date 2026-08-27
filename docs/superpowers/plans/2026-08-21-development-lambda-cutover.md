@@ -917,6 +917,7 @@ aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr wait image-scan-complete
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
   --repository-name portfolio-lambda-releases \
   --image-id imageTag="$release_tag" \
+  --no-paginate \
   --query '{ScanStatus:imageScanStatus.status,FindingSeverityCounts:imageScanFindings.findingSeverityCounts}' \
   --output json
 ```
@@ -928,6 +929,10 @@ fails if the current scan cannot be read or does not complete successfully.
 Immediately after push, it may retry only the exact `ScanNotFoundException`
 from `DescribeImageScanFindings` for a bounded interval while ECR creates the
 scan record; every other scan lookup error fails immediately.
+Both metadata-only `DescribeImageScanFindings` reads use `--no-paginate` so the
+AWS CLI does not try to reconstruct optional nested finding lists while the
+scan record is still incomplete. The native waiter remains responsible for
+polling the scan to `COMPLETE` or failing on `FAILED`.
 
 - [ ] **Step 4: Extend CI with offline infrastructure validation**
 

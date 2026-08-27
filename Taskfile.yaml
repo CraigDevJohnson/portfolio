@@ -593,6 +593,7 @@ tasks:
           if aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
             --repository-name portfolio-lambda-releases \
             --image-id imageTag="$release_tag" \
+            --no-paginate \
             --query 'imageScanStatus.status' \
             --output text >/dev/null 2>"$lookup_error"; then
             scan_visible=true
@@ -622,6 +623,7 @@ tasks:
         scan_record=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
           --repository-name portfolio-lambda-releases \
           --image-id imageTag="$release_tag" \
+          --no-paginate \
           --query '{ScanStatus:imageScanStatus.status,FindingSeverityCounts:imageScanFindings.findingSeverityCounts}' \
           --output json)
         printf '%s\n' "$scan_record" | jq -e '.ScanStatus == "COMPLETE"' >/dev/null

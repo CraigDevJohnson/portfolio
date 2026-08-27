@@ -619,6 +619,12 @@ grep -F 'ecr describe-image-scan-findings --repository-name portfolio-lambda-rel
 	exit 1
 }
 pass "release uses the current ECR scan findings API"
+scan_metadata_calls=$(grep ' ecr describe-image-scan-findings ' "$command_log")
+if [ -z "$scan_metadata_calls" ] || printf '%s\n' "$scan_metadata_calls" | grep -v -- ' --no-paginate ' >/dev/null; then
+	printf 'FAIL: release allowed pagination while reading ECR scan metadata\n' >&2
+	exit 1
+fi
+pass "release disables pagination for ECR scan metadata reads"
 sleeps_before=$(grep -c '^sleep 5$' "$command_log" || true)
 FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=missing-once expect_pass "release tolerates one initial missing scan record" run_task lambda-release-push
 sleeps_after=$(grep -c '^sleep 5$' "$command_log" || true)
