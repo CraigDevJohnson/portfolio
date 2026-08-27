@@ -185,7 +185,9 @@
       "Action": "logs:TagResource",
       "Resource": [
         "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev"
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*"
       ]
     },
     {

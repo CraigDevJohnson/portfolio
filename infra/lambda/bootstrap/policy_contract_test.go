@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "52b7569a8d605711a3ab378ad8097c9aa3e5cc1aa33ddd63f6ab65a1f45d4bae",
-			bytes:              13_167,
-			nonWhitespaceBytes: 9_790,
+			sha256:             "13995ee9b80fdaf43dd920f5b9db5f206e1d33a8693d02a4e6e8d7d5b004ae33",
+			bytes:              13_362,
+			nonWhitespaceBytes: 9_967,
 			identityCenter:     true,
 		},
 		{
@@ -378,7 +378,9 @@ func TestDevelopmentBootstrapPolicyUsesExactCloudWatchLogARNForms(t *testing.T) 
 			actions: stringSet("logs:TagResource"),
 			resources: stringSet(
 				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
 				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*",
 			),
 		},
 		"TM": {

@@ -46,10 +46,11 @@ complete:
   SecureString migration and metadata/application verification;
 - `T7` and `TL` were removed after API `048o6alxh8` was created and captured;
   `T8` and `TK` now bind only that exact API;
-- `T9` uses the base log-group ARNs required by `logs:TagResource`, while `TM`
-  uses the corresponding trailing-`:*` IAM ARNs required by
-  `logs:CreateLogGroup`; remove both after the exact groups are created and
-  verified; and
+- `T9` uses both exact ARN forms for `logs:TagResource`: the base form required
+  by the direct tagging API and the trailing-`:*` form that CloudWatch Logs
+  evaluated while authorizing `CreateLogGroup` with tags. `TM` grants only
+  `logs:CreateLogGroup` on those trailing-`:*` ARNs. Remove both after the
+  exact groups are created and verified; and
 - remove `T4`, `T5`, `T8`, `TA`, `TB`, `TI`, and `TK` after the direct
   development service, tags, policies, logging, alarms, and read-backs pass
   their gates.
