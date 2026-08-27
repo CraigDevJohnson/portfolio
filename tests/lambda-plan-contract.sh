@@ -298,6 +298,24 @@ jq '
 	del(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown.policy)
 ' "$dev_plan" >"$dev_known_policy_plan"
 
+dev_converged_runtime_policy_plan="$tmp_dir/dev-converged-runtime-policy.json"
+jq '
+	del(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda")) |
+	(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change) |= (
+		.after.policy as $policy |
+		.actions = ["no-op"] |
+		.after = {
+			id: "portfolio-lambda-dev-execution:portfolio-lambda-dev-runtime",
+			name: "portfolio-lambda-dev-runtime",
+			name_prefix: "",
+			policy: $policy,
+			role: "portfolio-lambda-dev-execution"
+		} |
+		.before = .after |
+		.after_unknown = {}
+	)
+' "$dev_known_policy_plan" >"$dev_converged_runtime_policy_plan"
+
 dev_empty_policy_composition_plan="$tmp_dir/dev-empty-policy-composition.json"
 jq '
 	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after) |= (
@@ -396,6 +414,7 @@ expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$a
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
+expect_pass "development plan with converged runtime policy" run_check "$dev_converged_runtime_policy_plan" dev
 expect_pass "development plan with empty policy composition inputs" run_check "$dev_empty_policy_composition_plan" dev
 expect_pass "development plan with provider-deferred runtime resources" run_check "$dev_deferred_runtime_policy_plan" dev
 expect_pass "development plan after partial role and table creation" run_check "$dev_partial_state_runtime_policy_plan" dev
@@ -453,6 +472,9 @@ mutate_and_reject "runtime policy rejects altered actions" "$dev_plan" '(.resour
 mutate_and_reject "runtime policy rejects an unbound deferred value" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "aws_iam_role_policy.lambda") | .expressions.policy.references) = ["var.unreviewed_policy"]'
 mutate_and_reject "Lambda environment rejects an extra variable" "$dev_plan" '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change.after.environment[0].variables.UNREVIEWED) = "value"'
 mutate_and_reject "decoded runtime policy rejects altered actions" "$dev_known_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after.policy) |= (fromjson | (.Statement[] | select(.Action == "ssm:GetParameters") | .Action) = ["ssm:GetParameter", "ssm:GetParameters"] | tojson)'
+mutate_and_reject "converged runtime policy rejects altered actions" "$dev_converged_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change) |= ((.after.policy |= (fromjson | (.Statement[] | select(.Action == "ssm:GetParameters") | .Action) = ["ssm:GetParameter", "ssm:GetParameters"] | tojson)) | .before.policy = .after.policy)'
+mutate_and_reject "converged runtime policy rejects mismatched prior state" "$dev_converged_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.before.role) = "unreviewed-role"'
+mutate_and_reject "converged runtime policy rejects partial unknown fields without its data read" "$dev_converged_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change) |= (.before.role = "unreviewed-role" | .after = {name: .after.name, policy: .after.policy} | .after_unknown = {id: true, name_prefix: true, role: true})'
 mutate_and_reject "runtime policy rejects injected source policy documents" "$dev_plan" '
 	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after.source_policy_documents) = [({Version: "2012-10-17", Statement: [{Effect: "Allow", Action: "kms:Decrypt", Resource: "*"}]} | tojson)] |
 	(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.source_policy_documents) = {constant_value: [({Version: "2012-10-17", Statement: [{Effect: "Allow", Action: "kms:Decrypt", Resource: "*"}]} | tojson)]}'

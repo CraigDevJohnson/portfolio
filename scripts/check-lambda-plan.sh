@@ -241,6 +241,17 @@ jq -e \
 	def empty_optional_documents:
 		. == null or . == [];
 	def values_array: if type == "array" then . else [.] end;
+	def decoded_data_statement($statement): {
+		actions: ($statement.Action | values_array),
+		condition: [],
+		effect: null,
+		not_actions: null,
+		not_principals: [],
+		not_resources: null,
+		principals: [],
+		resources: ($statement.Resource | values_array),
+		sid: null
+	};
 	def exact_known_policy($value; $expected):
 		(try ($value | fromjson) catch null) as $document |
 		($value | type) == "string" and
@@ -279,6 +290,37 @@ jq -e \
 				.type == "aws_iam_policy_document"
 			)
 		] as $policy_data_changes |
+		(try ($runtime_policy.change.after.policy | fromjson) catch null) as $runtime_policy_document |
+		(
+			if ($policy_data_changes | length) == 1 then
+				$policy_data_changes[0]
+			elif
+				($policy_data_changes | length) == 0 and
+				$runtime_policy.change.actions == ["no-op"] and
+				($runtime_policy_document | type) == "object"
+			then
+				{
+					change: {
+						actions: ["read"],
+						after: {
+							override_json: null,
+							override_policy_documents: null,
+							policy_id: null,
+							source_json: null,
+							source_policy_documents: null,
+							statement: [
+								$runtime_policy_document.Statement[] |
+								decoded_data_statement(.)
+							],
+							version: null
+						},
+						after_unknown: {}
+					}
+				}
+			else
+				null
+			end
+		) as $policy_data_change |
 		service_configuration_resources("aws_iam_role_policy.lambda") as $runtime_policy_configurations |
 		service_configuration_resources("data.aws_iam_policy_document.lambda") as $policy_data_configurations |
 		service_configuration_resources("data.aws_kms_alias.ssm") as $kms_alias_configurations |
@@ -286,31 +328,31 @@ jq -e \
 		$policy_data_configurations[0] as $policy_data_configuration |
 		$kms_alias_configurations[0] as $kms_alias_configuration |
 		(
-			$policy_data_changes[0].change.after_unknown.statement //
-			[$policy_data_changes[0].change.after.statement[] | default_unknown_data_statement(.)]
+			$policy_data_change.change.after_unknown.statement //
+			[$policy_data_change.change.after.statement[] | default_unknown_data_statement(.)]
 		) as $policy_unknown_statements |
-		($policy_data_changes | length) == 1 and
+		($policy_data_change != null) and
 		($runtime_policy_configurations | length) == 1 and
 		($policy_data_configurations | length) == 1 and
 		($kms_alias_configurations | length) == 1 and
-		($policy_data_changes[0].change.actions == ["read"]) and
-		($policy_data_changes[0].change.after.source_json | empty_optional_json) and
-		($policy_data_changes[0].change.after.override_json | empty_optional_json) and
-		($policy_data_changes[0].change.after.source_policy_documents | empty_optional_documents) and
-		($policy_data_changes[0].change.after.override_policy_documents | empty_optional_documents) and
-		(($policy_data_changes[0].change.after_unknown.source_json // false) == false) and
-		(($policy_data_changes[0].change.after_unknown.override_json // false) == false) and
-		(($policy_data_changes[0].change.after_unknown.source_policy_documents // false) == false) and
-		(($policy_data_changes[0].change.after_unknown.override_policy_documents // false) == false) and
-		($policy_data_changes[0].change.after.statement | type == "array" and length == 5) and
+		($policy_data_change.change.actions == ["read"]) and
+		($policy_data_change.change.after.source_json | empty_optional_json) and
+		($policy_data_change.change.after.override_json | empty_optional_json) and
+		($policy_data_change.change.after.source_policy_documents | empty_optional_documents) and
+		($policy_data_change.change.after.override_policy_documents | empty_optional_documents) and
+		(($policy_data_change.change.after_unknown.source_json // false) == false) and
+		(($policy_data_change.change.after_unknown.override_json // false) == false) and
+		(($policy_data_change.change.after_unknown.source_policy_documents // false) == false) and
+		(($policy_data_change.change.after_unknown.override_policy_documents // false) == false) and
+		($policy_data_change.change.after.statement | type == "array" and length == 5) and
 		($policy_unknown_statements | type == "array" and length == 5) and
-		all($policy_data_changes[0].change.after.statement[]; exact_data_statement) and
+		all($policy_data_change.change.after.statement[]; exact_data_statement) and
 		([
 			range(0; 5) as $index |
-			($policy_unknown_statements[$index] | exact_unknown_data_statement($policy_data_changes[0].change.after.statement[$index]))
+			($policy_unknown_statements[$index] | exact_unknown_data_statement($policy_data_change.change.after.statement[$index]))
 		] | all) and
 		[
-			$policy_data_changes[0].change.after.statement[] |
+			$policy_data_change.change.after.statement[] |
 			select((.actions | sort) == ["kms:Decrypt"]) |
 			.resources[]
 		] as $kms_resources |
@@ -374,7 +416,7 @@ jq -e \
 		}] | map(.actions |= sort) | sort_by(tojson)) as $expected_statement_slots |
 		([
 			range(0; 5) as $index |
-			($policy_data_changes[0].change.after.statement[$index] |
+			($policy_data_change.change.after.statement[$index] |
 				normalized_data_statement($policy_unknown_statements[$index]))
 		] | sort_by(tojson)) == $expected_statement_slots and
 		($policy_data_configuration.mode == "data") and
@@ -430,6 +472,7 @@ jq -e \
 		] | sort)) and
 		(
 			(
+				($policy_data_changes | length) == 1 and
 				($runtime_policy.change.after | exact_keys(["name", "policy"])) and
 				($runtime_policy.change.after.policy | type) == "string" and
 				$runtime_policy.change.after_unknown == {
@@ -439,6 +482,7 @@ jq -e \
 				} and
 				exact_known_policy($runtime_policy.change.after.policy; $expected_statements)
 			) or (
+				($policy_data_changes | length) == 1 and
 				($runtime_policy.change.after | exact_keys(["name"])) and
 				$runtime_policy.change.after_unknown == {
 					id: true,
@@ -447,6 +491,7 @@ jq -e \
 					role: true
 				}
 			) or (
+				($policy_data_changes | length) == 1 and
 				($runtime_policy.change.after | exact_keys(["name", "role"])) and
 				$runtime_policy.change.after.role == ($prefix + "-execution") and
 				$runtime_policy.change.after_unknown == {
@@ -454,6 +499,17 @@ jq -e \
 					name_prefix: true,
 					policy: true
 				}
+			) or (
+				($policy_data_changes | length) == 0 and
+				$runtime_policy.change.actions == ["no-op"] and
+				$runtime_policy.change.before == $runtime_policy.change.after and
+				($runtime_policy.change.after | exact_keys(["id", "name", "name_prefix", "policy", "role"])) and
+				$runtime_policy.change.after.id == (($prefix + "-execution") + ":" + ($prefix + "-runtime")) and
+				$runtime_policy.change.after.name == ($prefix + "-runtime") and
+				$runtime_policy.change.after.name_prefix == "" and
+				$runtime_policy.change.after.role == ($prefix + "-execution") and
+				$runtime_policy.change.after_unknown == {} and
+				exact_known_policy($runtime_policy.change.after.policy; $expected_statements)
 			)
 		) and
 		$lambda.change.after.environment == [{variables: {
