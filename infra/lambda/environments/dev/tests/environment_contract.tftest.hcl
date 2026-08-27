@@ -19,6 +19,20 @@ mock_provider "aws" {
     defaults = { arn = "arn:aws:logs:us-west-2:180294223248:log-group:portfolio-test" }
   }
 
+  mock_resource "aws_acm_certificate" {
+    defaults = {
+      arn = "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000"
+      domain_validation_options = [
+        {
+          domain_name           = "dev.craigdevjohnson.com"
+          resource_record_name  = "_dev.craigdevjohnson.com"
+          resource_record_type  = "CNAME"
+          resource_record_value = "_dev.acm-validations.aws"
+        },
+      ]
+    }
+  }
+
   mock_resource "aws_cloudwatch_metric_alarm" {
     defaults = { arn = "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test" }
   }
@@ -73,7 +87,7 @@ run "development_environment_contract" {
       !var.enable_deletion_protection &&
       length(var.alarm_action_arns) == 0 &&
       toset(var.domain_names) == toset(["dev.craigdevjohnson.com"]) &&
-      !var.request_custom_domain &&
+      var.request_custom_domain &&
       !var.activate_custom_domain
     )
     error_message = "development must use the reviewed isolated environment values"
@@ -141,11 +155,15 @@ run "development_environment_contract" {
         "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
         "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
       ]) &&
-      output.certificate_arn == tostring(null) &&
-      length(output.acm_validation_records) == 0 &&
+      output.certificate_arn == "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000" &&
+      length(output.acm_validation_records) == 1 &&
+      output.acm_validation_records[0].domain_name == "dev.craigdevjohnson.com" &&
+      output.acm_validation_records[0].resource_record_name == "_dev.craigdevjohnson.com" &&
+      output.acm_validation_records[0].resource_record_type == "CNAME" &&
+      output.acm_validation_records[0].resource_record_value == "_dev.acm-validations.aws" &&
       length(output.api_gateway_domain_targets) == 0 &&
       output.oauth_redirect_uris == tolist(["https://dev.craigdevjohnson.com/soccer"])
     )
-    error_message = "development collection and nullable outputs must keep their reviewed values and shapes"
+    error_message = "development certificate-request outputs must expose DNS validation without active API targets"
   }
 }
