@@ -209,8 +209,11 @@ push. `task lambda-release-push` requires a clean worktree, builds with the full
 `portfolio-lambda-releases:git-<40-character-SHA>`. It first requires repository
 tag immutability and an authoritative `ImageNotFoundException`; every other
 lookup failure and every existing tag stops before push. Record the returned
-digest, push time, scan status, and digest-qualified URI. Environment plans
-consume only `repository-url@sha256:<64 lowercase hex characters>`.
+digest, push time, completed scan status, severity counts, and digest-qualified
+URI. The task waits with ECR's image-scan waiter and reads findings through
+`DescribeImageScanFindings`; current Basic Scanning does not populate the old
+scan fields on `DescribeImages`. Environment plans consume only
+`repository-url@sha256:<64 lowercase hex characters>`.
 
 The environment-owned SecureString paths are:
 

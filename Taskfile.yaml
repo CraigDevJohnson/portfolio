@@ -586,13 +586,23 @@ tasks:
           docker login --username AWS --password-stdin "$registry"
         docker push "$image_uri"
         : "${release_tag:?derive the immutable release tag first}"
+        aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr wait image-scan-complete \
+          --repository-name portfolio-lambda-releases \
+          --image-id imageTag="$release_tag"
         release_record=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
           --repository-name portfolio-lambda-releases \
           --image-ids imageTag="$release_tag" \
-          --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt,ScanStatus:imageScanStatus.status}' \
+          --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt}' \
           --output json)
         printf '%s\n' "$release_record" | jq -e '.Digest | test("^sha256:[0-9a-f]{64}$")' >/dev/null
-        printf '%s\n' "$release_record"
+        scan_record=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
+          --repository-name portfolio-lambda-releases \
+          --image-id imageTag="$release_tag" \
+          --query '{ScanStatus:imageScanStatus.status,FindingSeverityCounts:imageScanFindings.findingSeverityCounts}' \
+          --output json)
+        printf '%s\n' "$scan_record" | jq -e '.ScanStatus == "COMPLETE"' >/dev/null
+        printf '%s\n%s\n' "$release_record" "$scan_record" | \
+          jq -s '.[0] * .[1] | .FindingSeverityCounts //= {}'
 
   lambda-plan-check:
     desc: Check a saved replacement Lambda plan JSON offline

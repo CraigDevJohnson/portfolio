@@ -901,20 +901,30 @@ No command contains `--auto-approve`, `-target`, or an implicit plan-and-apply s
 Require a clean Git worktree and full `BUILD_REVISION=$(git rev-parse HEAD)`.
 Derive `release_tag=git-${BUILD_REVISION}`. Read the repository URL from the
 artifact root output, build with `task build-lambda-image`, log into the derived
-registry, push the immutable tag, and print only this query:
+registry, push the immutable tag, wait for ECR's scan to complete, and print a
+release record built from these current APIs:
 
 ```bash
 : "${release_tag:?derive the immutable release tag first}"
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-images \
   --repository-name portfolio-lambda-releases \
   --image-ids imageTag="$release_tag" \
-  --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt,ScanStatus:imageScanStatus.status}' \
+  --query 'imageDetails[0].{Digest:imageDigest,PushedAt:imagePushedAt}' \
+  --output json
+aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr wait image-scan-complete \
+  --repository-name portfolio-lambda-releases \
+  --image-id imageTag="$release_tag"
+aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
+  --repository-name portfolio-lambda-releases \
+  --image-id imageTag="$release_tag" \
+  --query '{ScanStatus:imageScanStatus.status,FindingSeverityCounts:imageScanFindings.findingSeverityCounts}' \
   --output json
 ```
 
 Before build or push, the task verifies repository tag immutability and proves
 the tag is absent. It fails closed on every lookup error except the specific
-`ImageNotFoundException`, and stops without pushing if the tag already exists.
+`ImageNotFoundException`, stops without pushing if the tag already exists, and
+fails if the current scan cannot be read or does not complete successfully.
 
 - [ ] **Step 4: Extend CI with offline infrastructure validation**
 

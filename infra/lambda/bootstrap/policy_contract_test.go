@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "92f2be372550003c3baa34a7a5c961b2973b0c785cfc37fd971d0574b4bd6792",
-			bytes:              13_099,
-			nonWhitespaceBytes: 9_613,
+			sha256:             "6c150fb5613dd50b69044e3a77a31bb6de070af65b0c92f43f1ea8491c63a5ee",
+			bytes:              13_140,
+			nonWhitespaceBytes: 9_645,
 			identityCenter:     true,
 		},
 		{
@@ -287,6 +287,7 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t 
 		"ecr:BatchCheckLayerAvailability",
 		"ecr:BatchGetImage",
 		"ecr:CompleteLayerUpload",
+		"ecr:DescribeImageScanFindings",
 		"ecr:DescribeImages",
 		"ecr:DescribeRepositories",
 		"ecr:GetLifecyclePolicy",

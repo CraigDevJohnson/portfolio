@@ -412,6 +412,41 @@ case "$*" in
 	*"ecr describe-repositories"*)
 		printf '%s\n' "${FAKE_REPOSITORY_MUTABILITY:-IMMUTABLE}"
 		;;
+	*"ecr wait image-scan-complete"*)
+		case "${FAKE_WAITER_MODE:-complete}" in
+			complete) ;;
+			denied)
+				printf 'An error occurred (AccessDeniedException) while waiting for image scan completion: denied\n' >&2
+				exit 254
+				;;
+			failed)
+				printf 'Waiter ImageScanComplete failed: terminal scan status FAILED\n' >&2
+				exit 255
+				;;
+			*)
+				printf 'invalid FAKE_WAITER_MODE\n' >&2
+				exit 1
+				;;
+		esac
+		;;
+	*"ecr describe-image-scan-findings"*)
+		case "${FAKE_SCAN_MODE:-complete}" in
+			complete)
+				printf '%s\n' '{"ScanStatus":"COMPLETE","FindingSeverityCounts":{"CRITICAL":0,"HIGH":0}}'
+				;;
+			denied)
+				printf 'An error occurred (AccessDeniedException) when calling the DescribeImageScanFindings operation: denied\n' >&2
+				exit 254
+				;;
+			failed)
+				printf '%s\n' '{"ScanStatus":"FAILED","FindingSeverityCounts":{}}'
+				;;
+			*)
+				printf 'invalid FAKE_SCAN_MODE\n' >&2
+				exit 1
+				;;
+		esac
+		;;
 	*"ecr describe-images"*"{Digest:imageDigest"*)
 		printf '%s\n' '{"Digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","PushedAt":"2026-08-22T00:00:00Z","ScanStatus":"COMPLETE"}'
 		;;
@@ -518,6 +553,8 @@ run_task() {
 		FAKE_PUSHED_DIGEST="${FAKE_PUSHED_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
 		FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-false}" \
 		FAKE_REPOSITORY_MUTABILITY="${FAKE_REPOSITORY_MUTABILITY:-IMMUTABLE}" \
+		FAKE_SCAN_MODE="${FAKE_SCAN_MODE:-complete}" \
+		FAKE_WAITER_MODE="${FAKE_WAITER_MODE:-complete}" \
 		AWS_PROFILE=portfolio-deployer \
 		AWS_REGION=us-west-2 \
 		"$real_task" --dir "$repo_root" "$@"
@@ -548,6 +585,20 @@ prod_plan_file="$tmp_dir/prod.tfplan"
 TASK7_PLAN_JSON="$prod_plan" expect_pass "production plan accepts only its exact lock acknowledgement" run_task lambda-prod-plan PLAN_FILE="$prod_plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
 
 expect_pass "immutable full-SHA release push" run_task lambda-release-push
+grep -F 'ecr wait image-scan-complete --repository-name portfolio-lambda-releases --image-id imageTag=git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {
+	printf 'FAIL: release did not wait for the current ECR scan to complete\n' >&2
+	exit 1
+}
+pass "release waits for the current ECR scan"
+grep -F 'ecr describe-image-scan-findings --repository-name portfolio-lambda-releases --image-id imageTag=git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {
+	printf 'FAIL: release did not retrieve findings through the current ECR scan API\n' >&2
+	exit 1
+}
+pass "release uses the current ECR scan findings API"
+FAKE_WAITER_MODE=denied FAKE_SCAN_MODE=complete expect_fail "release fails closed when the scan waiter is denied" run_task lambda-release-push
+FAKE_WAITER_MODE=failed FAKE_SCAN_MODE=complete expect_fail "release fails closed when the scan waiter reports failure" run_task lambda-release-push
+FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=denied expect_fail "release fails closed when scan findings are unreadable" run_task lambda-release-push
+FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=failed expect_fail "release fails closed when the findings status is not complete" run_task lambda-release-push
 pushes_before=$(grep -c '^docker push ' "$command_log" || true)
 FAKE_LOOKUP_MODE=denied expect_fail "release push fails closed on tag lookup denial" run_task lambda-release-push
 pushes_after=$(grep -c '^docker push ' "$command_log" || true)
