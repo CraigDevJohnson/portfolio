@@ -71,17 +71,6 @@
       "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
     },
     {
-      "Sid": "T4",
-      "Effect": "Allow",
-      "Action": "iam:CreateRole",
-      "Resource": "arn:aws:iam::180294223248:role/portfolio-lambda-dev-execution",
-      "Condition": {
-        "StringEquals": {
-          "iam:PermissionsBoundary": "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary"
-        }
-      }
-    },
-    {
       "Effect": "Allow",
       "Action": [
         "iam:GetRole",
@@ -114,15 +103,6 @@
       }
     },
     {
-      "Sid": "T5",
-      "Effect": "Allow",
-      "Action": [
-        "lambda:CreateFunction",
-        "lambda:TagResource"
-      ],
-      "Resource": "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev"
-    },
-    {
       "Effect": "Allow",
       "Action": [
         "lambda:CreateAlias",
@@ -147,62 +127,12 @@
       ]
     },
     {
-      "Sid": "TI",
+      "Sid": "RAPI",
       "Effect": "Allow",
-      "Action": "lambda:AddPermission",
-      "Resource": [
-        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev",
-        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:*"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "lambda:Principal": "apigateway.amazonaws.com"
-        }
-      }
-    },
-    {
-      "Sid": "T8",
-      "Effect": "Allow",
-      "Action": [
-        "apigateway:GET",
-        "apigateway:PATCH",
-        "apigateway:POST"
-      ],
+      "Action": "apigateway:GET",
       "Resource": [
         "arn:aws:apigateway:us-west-2::/apis/048o6alxh8",
         "arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*"
-      ]
-    },
-    {
-      "Sid": "TK",
-      "Effect": "Allow",
-      "Action": "apigateway:PUT",
-      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default"
-    },
-    {
-      "Sid": "TN",
-      "Effect": "Allow",
-      "Action": "apigateway:TagResource",
-      "Resource": "arn:aws:apigateway:us-west-2::/apis/048o6alxh8/stages"
-    },
-    {
-      "Sid": "T9",
-      "Effect": "Allow",
-      "Action": "logs:TagResource",
-      "Resource": [
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*"
-      ]
-    },
-    {
-      "Sid": "TM",
-      "Effect": "Allow",
-      "Action": "logs:CreateLogGroup",
-      "Resource": [
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
-        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*"
       ]
     },
     {
@@ -230,37 +160,6 @@
       }
     },
     {
-      "Sid": "TA",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogDelivery",
-        "logs:DeleteLogDelivery",
-        "logs:DescribeResourcePolicies",
-        "logs:GetLogDelivery",
-        "logs:ListLogDeliveries",
-        "logs:PutResourcePolicy",
-        "logs:UpdateLogDelivery"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestedRegion": "us-west-2"
-        }
-      }
-    },
-    {
-      "Sid": "TB",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:CreateTable",
-        "dynamodb:TagResource"
-      ],
-      "Resource": [
-        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-google-connections",
-        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-soccer-sessions"
-      ]
-    },
-    {
       "Effect": "Allow",
       "Action": [
         "dynamodb:DescribeContinuousBackups",
@@ -275,65 +174,6 @@
         "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-google-connections",
         "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-lambda-dev-soccer-sessions"
       ]
-    },
-    {
-      "Sid": "TD",
-      "Effect": "Allow",
-      "Action": "ssm:GetParameter",
-      "Resource": [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_SECRET_KEY"
-      ]
-    },
-    {
-      "Sid": "TE",
-      "Effect": "Allow",
-      "Action": "ssm:GetParameter",
-      "Resource": [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
-      ]
-    },
-    {
-      "Sid": "TF",
-      "Effect": "Allow",
-      "Action": "ssm:PutParameter",
-      "Resource": [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
-      ]
-    },
-    {
-      "Sid": "D",
-      "Effect": "Deny",
-      "Action": "ssm:PutParameter",
-      "Resource": [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "ssm:Overwrite": "true"
-        }
-      }
-    },
-    {
-      "Sid": "P",
-      "Effect": "Deny",
-      "Action": "ssm:PutParameter",
-      "Resource": [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "ssm:Policies": "true"
-        }
-      }
     },
     {
       "Effect": "Allow",
@@ -356,44 +196,76 @@
       }
     },
     {
-      "Sid": "TG",
+      "Sid": "TCRequest",
       "Effect": "Allow",
-      "Action": "kms:Decrypt",
-      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Action": "acm:RequestCertificate",
+      "Resource": "*",
       "Condition": {
-        "StringEquals": {
-          "kms:CallerAccount": "180294223248",
-          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
-          "kms:EncryptionContext:PARAMETER_ARN": [
-            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_ID_KEY",
-            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/CLIENT_SECRET_KEY"
+        "ForAllValues:StringEquals": {
+          "acm:DomainNames": "dev.craigdevjohnson.com",
+          "aws:TagKeys": [
+            "Environment",
+            "ManagedBy",
+            "Platform",
+            "Project"
           ]
         },
         "ForAnyValue:StringEquals": {
-          "kms:ResourceAliases": "alias/aws/ssm"
+          "acm:DomainNames": "dev.craigdevjohnson.com"
+        },
+        "Null": {
+          "acm:CertificateAuthority": "true"
+        },
+        "StringEquals": {
+          "acm:CertificateKeyPairOrigin": "AWS_MANAGED",
+          "acm:ValidationMethod": "DNS",
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/ManagedBy": "opentofu",
+          "aws:RequestTag/Platform": "lambda-http-api",
+          "aws:RequestTag/Project": "portfolio"
         }
       }
     },
     {
-      "Sid": "TH",
+      "Sid": "TCTags",
       "Effect": "Allow",
-      "Action": [
-        "kms:Encrypt",
-        "kms:GenerateDataKey"
-      ],
-      "Resource": "arn:aws:kms:us-west-2:180294223248:key/*",
+      "Action": "acm:AddTagsToCertificate",
+      "Resource": "arn:aws:acm:us-west-2:180294223248:certificate/*",
       "Condition": {
-        "StringEquals": {
-          "kms:CallerAccount": "180294223248",
-          "kms:ViaService": "ssm.us-west-2.amazonaws.com",
-          "kms:EncryptionContext:PARAMETER_ARN": [
-            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-            "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+        "ForAllValues:StringEquals": {
+          "aws:TagKeys": [
+            "Environment",
+            "ManagedBy",
+            "Platform",
+            "Project"
           ]
         },
-        "ForAnyValue:StringEquals": {
-          "kms:ResourceAliases": "alias/aws/ssm"
+        "StringEquals": {
+          "acm:CertificateKeyPairOrigin": "AWS_MANAGED",
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/ManagedBy": "opentofu",
+          "aws:RequestTag/Platform": "lambda-http-api",
+          "aws:RequestTag/Project": "portfolio"
+        }
+      }
+    },
+    {
+      "Sid": "TCRead",
+      "Effect": "Allow",
+      "Action": [
+        "acm:DescribeCertificate",
+        "acm:ListTagsForCertificate"
+      ],
+      "Resource": "arn:aws:acm:us-west-2:180294223248:certificate/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2",
+          "aws:ResourceTag/Environment": "dev",
+          "aws:ResourceTag/ManagedBy": "opentofu",
+          "aws:ResourceTag/Platform": "lambda-http-api",
+          "aws:ResourceTag/Project": "portfolio"
         }
       }
     },

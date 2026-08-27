@@ -11,9 +11,10 @@ preserves each earlier candidate:
 
 - `portfolio-deployer-development-bootstrap-policy.json` is the current
   development-only IAM Identity Center inline-policy candidate. It contains
-  temporary controlled statements and no production or custom-domain
-  authority. Its reviewed non-whitespace count must remain within the
-  10,240-byte Identity Center quota enforced by `policy_contract_test.go`.
+  temporary controlled statements, including certificate-request authority
+  for only `dev.craigdevjohnson.com`, and no production authority. Its reviewed
+  non-whitespace count must remain within the 10,240-byte Identity Center quota
+  enforced by `policy_contract_test.go`.
   Its release-repository statement is also exact: it includes the documented
   ECR push contract, including `ecr:BatchGetImage`, plus only the read actions
   used by the artifact plan and immutable-release guard.
@@ -42,32 +43,27 @@ complete:
 - `T2` and `T3` were removed after the artifact apply, live read-back, and
   empty convergence plan; the permission set was reprovisioned and its
   effective role verified, so never restore them;
-- remove `TD`, `TE`, `TF`, `TG`, `TH`, and `D` after the exact development
-  SecureString migration and metadata/application verification;
+- `TD`, `TE`, `TF`, `TG`, `TH`, `D`, and `P` were removed after the exact
+  development SecureString migration and metadata/application verification;
 - `T7` and `TL` were removed after API `048o6alxh8` was created and captured;
-  `T8` and `TK` now bind only that exact API;
-- `TN` grants `apigateway:TagResource` only on the exact captured API stage
-  collection because API Gateway evaluates that collection while authorizing
-  `CreateStage` with tags. Remove it after the `$default` stage is created and
-  verified. The live denial and IAM simulator use this literal action even
-  though the current Access Analyzer action catalog reports it as invalid;
-  preserve that discrepancy in the approval evidence;
-- `T9` uses both exact ARN forms for `logs:TagResource`: the base form required
-  by the direct tagging API and the trailing-`:*` form that CloudWatch Logs
-  evaluated while authorizing `CreateLogGroup` with tags. `TM` grants only
-  `logs:CreateLogGroup` on those trailing-`:*` ARNs. Remove both after the
-  exact groups are created and verified; and
-- remove `T4`, `T5`, `T8`, `TA`, `TB`, `TI`, `TK`, and `TN` after the direct
-  development service, tags, policies, logging, alarms, and read-backs pass
-  their gates.
+  `T8` was replaced by `RAPI`, which grants only `apigateway:GET` on that exact
+  API and its subresources;
+- direct-stack gates `T4`, `T5`, `TI`, `TK`, `TN`, `T9`, `TM`, `TA`, and `TB`
+  were removed after the development service, tags, policies, logging, alarms,
+  and read-backs passed their gates; and
+- `TCRequest` and `TCTags` are just-in-time ACM grants for the exact public,
+  DNS-validated, AWS-managed development certificate and exact provider tags.
+  Remove them after the certificate ARN is captured, then replace `TCRead`'s
+  tag-gated wildcard with that exact ARN. No statement grants certificate
+  deletion.
 
 Every tightened or post-bootstrap file revision is a new policy artifact.
 Recompute its SHA-256 and byte counts, repeat static and live IAM Access
 Analyzer review, obtain approval, update the permission set, reprovision it,
 wait for `SUCCEEDED`, and verify effective access before using it.
 Never restore this initial document after a temporary statement has been
-removed. Custom-domain work requires its own just-in-time development-only
-candidate and approval.
+removed. Each later custom-domain phase requires its own just-in-time,
+development-only candidate and approval.
 
 Do not store an IAM Identity Center user ID, ownership or MFA evidence, live
 assignment coordinates, decrypted parameter value, saved plan, session data,

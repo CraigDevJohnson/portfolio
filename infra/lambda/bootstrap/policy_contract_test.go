@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "b5236b3201232e1af97109d5eab6f514990dcfdb77336c867aff5bcc25b1bba4",
-			bytes:              13_535,
-			nonWhitespaceBytes: 10_098,
+			sha256:             "353905214c0baa67bc6696c1869aaaadb2a71acb8d1bebf271cd5d91569d9bff",
+			bytes:              9_096,
+			nonWhitespaceBytes: 6_577,
 			identityCenter:     true,
 		},
 		{
@@ -97,8 +97,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"D", "P", "T4", "T5", "T8", "T9", "TA", "TB",
-		"TD", "TE", "TF", "TG", "TH", "TI", "TK", "TM", "TN",
+		"RAPI", "TCRead", "TCRequest", "TCTags",
 	)
 	controlledSIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -158,10 +157,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 		}
 	}
 
-	legacyStatementActions := map[string]map[string]struct{}{
-		"TD": stringSet("ssm:GetParameter"),
-		"TG": stringSet("kms:Decrypt"),
-	}
+	legacyStatementActions := map[string]map[string]struct{}{}
 	gotLegacySIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
 		encoded, err := json.Marshal(statement)
@@ -179,7 +175,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 		}
 		assertStringSet(t, "legacy actions for "+statement.Sid, stringSet(statement.Action...), allowedActions)
 	}
-	assertStringSet(t, "legacy source Sids", gotLegacySIDs, stringSet("TD", "TG"))
+	assertStringSet(t, "legacy source Sids", gotLegacySIDs, stringSet())
 }
 
 func TestDevelopmentBootstrapPolicyListsOnlyReviewedStatePrefixes(t *testing.T) {
@@ -324,23 +320,11 @@ func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t
 		actions   map[string]struct{}
 		resources map[string]struct{}
 	}{
-		"T8": {
-			actions: stringSet("apigateway:GET", "apigateway:PATCH", "apigateway:POST"),
+		"RAPI": {
+			actions: stringSet("apigateway:GET"),
 			resources: stringSet(
 				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8",
 				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*",
-			),
-		},
-		"TK": {
-			actions: stringSet("apigateway:PUT"),
-			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default",
-			),
-		},
-		"TN": {
-			actions: stringSet("apigateway:TagResource"),
-			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/stages",
 			),
 		},
 	}
@@ -373,119 +357,135 @@ func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t
 	}
 }
 
-func TestDevelopmentBootstrapPolicyUsesExactCloudWatchLogARNForms(t *testing.T) {
+func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
-	want := map[string]struct {
-		actions   map[string]struct{}
-		resources map[string]struct{}
-	}{
-		"T9": {
-			actions: stringSet("logs:TagResource"),
-			resources: stringSet(
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*",
-			),
-		},
-		"TM": {
-			actions: stringSet("logs:CreateLogGroup"),
-			resources: stringSet(
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
-				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*",
-			),
-		},
-	}
-	found := make(map[string]int, len(want))
+	consumedActions := stringSet(
+		"apigateway:PATCH",
+		"apigateway:POST",
+		"apigateway:PUT",
+		"apigateway:TagResource",
+		"dynamodb:CreateTable",
+		"dynamodb:TagResource",
+		"iam:CreateRole",
+		"kms:Decrypt",
+		"kms:Encrypt",
+		"kms:GenerateDataKey",
+		"lambda:AddPermission",
+		"lambda:CreateFunction",
+		"lambda:TagResource",
+		"logs:CreateLogDelivery",
+		"logs:CreateLogGroup",
+		"logs:DeleteLogDelivery",
+		"logs:DescribeResourcePolicies",
+		"logs:GetLogDelivery",
+		"logs:ListLogDeliveries",
+		"logs:PutResourcePolicy",
+		"logs:TagResource",
+		"logs:UpdateLogDelivery",
+		"ssm:GetParameter",
+		"ssm:PutParameter",
+	)
 	for _, statement := range policy.Statement {
 		for _, action := range statement.Action {
-			switch action {
-			case "logs:TagResource":
-				if statement.Sid != "T9" {
-					t.Errorf("CloudWatch Logs action %q is owned by statement %q, want T9", action, statement.Sid)
+			if stringSetContains(consumedActions, action) {
+				t.Errorf("statement %q retains consumed bootstrap action %q", statement.Sid, action)
+			}
+		}
+	}
+}
+
+func TestDevelopmentBootstrapPolicyRequestsOnlyExactDevelopmentCertificate(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	certificateARN := "arn:aws:acm:us-west-2:180294223248:certificate/*"
+	wantActions := map[string]map[string]struct{}{
+		"TCRead":    stringSet("acm:DescribeCertificate", "acm:ListTagsForCertificate"),
+		"TCRequest": stringSet("acm:RequestCertificate"),
+		"TCTags":    stringSet("acm:AddTagsToCertificate"),
+	}
+	wantResources := map[string]map[string]struct{}{
+		"TCRead":    stringSet(certificateARN),
+		"TCRequest": stringSet("*"),
+		"TCTags":    stringSet(certificateARN),
+	}
+	wantConditions := map[string]map[string]any{
+		"TCRead": {
+			"StringEquals": map[string]any{
+				"aws:RequestedRegion":         "us-west-2",
+				"aws:ResourceTag/Environment": "dev",
+				"aws:ResourceTag/ManagedBy":   "opentofu",
+				"aws:ResourceTag/Platform":    "lambda-http-api",
+				"aws:ResourceTag/Project":     "portfolio",
+			},
+		},
+		"TCRequest": {
+			"ForAllValues:StringEquals": map[string]any{
+				"acm:DomainNames": "dev.craigdevjohnson.com",
+				"aws:TagKeys":     []any{"Environment", "ManagedBy", "Platform", "Project"},
+			},
+			"ForAnyValue:StringEquals": map[string]any{
+				"acm:DomainNames": "dev.craigdevjohnson.com",
+			},
+			"Null": map[string]any{
+				"acm:CertificateAuthority": "true",
+			},
+			"StringEquals": map[string]any{
+				"acm:CertificateKeyPairOrigin": "AWS_MANAGED",
+				"acm:ValidationMethod":         "DNS",
+				"aws:RequestedRegion":          "us-west-2",
+				"aws:RequestTag/Environment":   "dev",
+				"aws:RequestTag/ManagedBy":     "opentofu",
+				"aws:RequestTag/Platform":      "lambda-http-api",
+				"aws:RequestTag/Project":       "portfolio",
+			},
+		},
+		"TCTags": {
+			"ForAllValues:StringEquals": map[string]any{
+				"aws:TagKeys": []any{"Environment", "ManagedBy", "Platform", "Project"},
+			},
+			"StringEquals": map[string]any{
+				"acm:CertificateKeyPairOrigin": "AWS_MANAGED",
+				"aws:RequestedRegion":          "us-west-2",
+				"aws:RequestTag/Environment":   "dev",
+				"aws:RequestTag/ManagedBy":     "opentofu",
+				"aws:RequestTag/Platform":      "lambda-http-api",
+				"aws:RequestTag/Project":       "portfolio",
+			},
+		},
+	}
+
+	found := make(map[string]int, len(wantActions))
+	for _, statement := range policy.Statement {
+		for _, action := range statement.Action {
+			if strings.HasPrefix(action, "acm:") {
+				if _, ok := wantActions[statement.Sid]; !ok {
+					t.Errorf("ACM action %q is owned by unreviewed statement %q", action, statement.Sid)
 				}
-			case "logs:CreateLogGroup":
-				if statement.Sid != "TM" {
-					t.Errorf("CloudWatch Logs action %q is owned by statement %q, want TM", action, statement.Sid)
+				if action == "acm:DeleteCertificate" {
+					t.Errorf("statement %q grants destructive ACM action %q", statement.Sid, action)
 				}
-			case "logs:TagLogGroup":
-				t.Errorf("statement %q retains deprecated CloudWatch Logs action %q", statement.Sid, action)
 			}
 		}
 
-		expected, ok := want[statement.Sid]
+		want, ok := wantActions[statement.Sid]
 		if !ok {
 			continue
 		}
 		found[statement.Sid]++
 		if statement.Effect != "Allow" {
-			t.Errorf("CloudWatch Logs statement %q effect = %q, want Allow", statement.Sid, statement.Effect)
+			t.Errorf("ACM statement %q effect = %q, want Allow", statement.Sid, statement.Effect)
 		}
-		assertStringSet(t, "CloudWatch Logs actions for "+statement.Sid, stringSet(statement.Action...), expected.actions)
-		assertStringSet(t, "CloudWatch Logs resources for "+statement.Sid, stringSet(statement.Resource...), expected.resources)
+		assertStringSet(t, "ACM actions for "+statement.Sid, stringSet(statement.Action...), want)
+		assertStringSet(t, "ACM resources for "+statement.Sid, stringSet(statement.Resource...), wantResources[statement.Sid])
+		if !reflect.DeepEqual(statement.Condition, wantConditions[statement.Sid]) {
+			t.Errorf("ACM conditions for %q = %#v, want %#v", statement.Sid, statement.Condition, wantConditions[statement.Sid])
+		}
 	}
-	for sid := range want {
+	for sid := range wantActions {
 		if found[sid] != 1 {
-			t.Errorf("CloudWatch Logs statement %q count = %d, want 1", sid, found[sid])
+			t.Errorf("ACM statement %q count = %d, want 1", sid, found[sid])
 		}
-	}
-}
-
-func TestDevelopmentBootstrapPolicyAllowsOnlyParameterCreatesWithoutOverwriteOrPolicies(t *testing.T) {
-	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
-
-	wantResources := stringSet(
-		"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-		"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-		"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
-	)
-	allowCount := 0
-	overwriteDenyCount := 0
-	policiesDenyCount := 0
-	for i := range policy.Statement {
-		statement := &policy.Statement[i]
-		if !stringSetContains(stringSet(statement.Action...), "ssm:PutParameter") {
-			continue
-		}
-		assertStringSet(t, "PutParameter actions", stringSet(statement.Action...), stringSet("ssm:PutParameter"))
-		assertStringSet(t, "PutParameter resources", stringSet(statement.Resource...), wantResources)
-		switch statement.Effect {
-		case "Allow":
-			allowCount++
-			if len(statement.Condition) != 0 {
-				t.Errorf("PutParameter allow condition = %#v, want unconditional exact-resource allow", statement.Condition)
-			}
-		case "Deny":
-			if len(statement.Condition) != 1 {
-				t.Errorf("PutParameter deny condition = %#v, want one StringEquals condition", statement.Condition)
-				continue
-			}
-			denyEquals, ok := statement.Condition["StringEquals"].(map[string]any)
-			if !ok || len(denyEquals) != 1 {
-				t.Errorf("PutParameter deny condition = %#v, want one exact StringEquals key", statement.Condition)
-				continue
-			}
-			switch {
-			case reflect.DeepEqual(denyEquals, map[string]any{"ssm:Overwrite": "true"}):
-				overwriteDenyCount++
-			case reflect.DeepEqual(denyEquals, map[string]any{"ssm:Policies": "true"}):
-				policiesDenyCount++
-			default:
-				t.Errorf("PutParameter deny condition = %#v, want overwrite=true or policies=true", statement.Condition)
-			}
-		default:
-			t.Errorf("PutParameter statement effect = %q, want Allow or Deny", statement.Effect)
-		}
-	}
-
-	if allowCount != 1 || overwriteDenyCount != 1 || policiesDenyCount != 1 {
-		t.Fatalf(
-			"PutParameter statement counts = allow %d, overwrite deny %d, policies deny %d; want exactly one each",
-			allowCount,
-			overwriteDenyCount,
-			policiesDenyCount,
-		)
 	}
 }
 
