@@ -925,6 +925,9 @@ Before build or push, the task verifies repository tag immutability and proves
 the tag is absent. It fails closed on every lookup error except the specific
 `ImageNotFoundException`, stops without pushing if the tag already exists, and
 fails if the current scan cannot be read or does not complete successfully.
+Immediately after push, it may retry only the exact `ScanNotFoundException`
+from `DescribeImageScanFindings` for a bounded interval while ECR creates the
+scan record; every other scan lookup error fails immediately.
 
 - [ ] **Step 4: Extend CI with offline infrastructure validation**
 

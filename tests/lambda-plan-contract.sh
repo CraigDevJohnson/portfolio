@@ -434,6 +434,22 @@ case "$*" in
 			complete)
 				printf '%s\n' '{"ScanStatus":"COMPLETE","FindingSeverityCounts":{"CRITICAL":0,"HIGH":0}}'
 				;;
+			missing-once)
+				if [ ! -f "$FAKE_SCAN_LOOKUP_STATE" ]; then
+					: >"$FAKE_SCAN_LOOKUP_STATE"
+					printf 'An error occurred (ScanNotFoundException) when calling the DescribeImageScanFindings operation: scan does not exist yet\n' >&2
+					exit 254
+				fi
+				printf '%s\n' '{"ScanStatus":"COMPLETE","FindingSeverityCounts":{}}'
+				;;
+			missing)
+				printf 'An error occurred (ScanNotFoundException) when calling the DescribeImageScanFindings operation: scan does not exist yet\n' >&2
+				exit 254
+				;;
+			ambiguous)
+				printf 'AccessDeniedException included the words ScanNotFoundException\n' >&2
+				exit 254
+				;;
 			denied)
 				printf 'An error occurred (AccessDeniedException) when calling the DescribeImageScanFindings operation: denied\n' >&2
 				exit 254
@@ -537,12 +553,19 @@ set -eu
 printf 'task %s\n' "$*" >>"$COMMAND_LOG"
 test "$1" = build-lambda-image
 EOF
+cat >"$fake_bin/sleep" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'sleep %s\n' "$*" >>"$COMMAND_LOG"
+EOF
 chmod +x "$fake_bin"/*
 
 real_task=$(command -v task)
 lookup_state="$tmp_dir/ecr-lookup-state"
+scan_lookup_state="$tmp_dir/ecr-scan-lookup-state"
 run_task() {
 	rm -f "$lookup_state"
+	rm -f "$scan_lookup_state"
 	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
 		PATH="$fake_bin:$PATH" \
 		COMMAND_LOG="$command_log" \
@@ -554,6 +577,7 @@ run_task() {
 		FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-false}" \
 		FAKE_REPOSITORY_MUTABILITY="${FAKE_REPOSITORY_MUTABILITY:-IMMUTABLE}" \
 		FAKE_SCAN_MODE="${FAKE_SCAN_MODE:-complete}" \
+		FAKE_SCAN_LOOKUP_STATE="$scan_lookup_state" \
 		FAKE_WAITER_MODE="${FAKE_WAITER_MODE:-complete}" \
 		AWS_PROFILE=portfolio-deployer \
 		AWS_REGION=us-west-2 \
@@ -595,9 +619,44 @@ grep -F 'ecr describe-image-scan-findings --repository-name portfolio-lambda-rel
 	exit 1
 }
 pass "release uses the current ECR scan findings API"
+sleeps_before=$(grep -c '^sleep 5$' "$command_log" || true)
+FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=missing-once expect_pass "release tolerates one initial missing scan record" run_task lambda-release-push
+sleeps_after=$(grep -c '^sleep 5$' "$command_log" || true)
+test "$((sleeps_after - sleeps_before))" -eq 1 || {
+	printf 'FAIL: release did not retry a one-time missing scan exactly once\n' >&2
+	exit 1
+}
+pass "release retries a one-time missing scan exactly once"
+sleeps_before=$sleeps_after
+FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=missing expect_fail "release bounds a persistently missing scan record" run_task lambda-release-push
+sleeps_after=$(grep -c '^sleep 5$' "$command_log" || true)
+test "$((sleeps_after - sleeps_before))" -eq 11 || {
+	printf 'FAIL: release did not use the exact bounded scan-discovery wait\n' >&2
+	exit 1
+}
+pass "release uses exactly eleven bounded scan-discovery sleeps"
 FAKE_WAITER_MODE=denied FAKE_SCAN_MODE=complete expect_fail "release fails closed when the scan waiter is denied" run_task lambda-release-push
 FAKE_WAITER_MODE=failed FAKE_SCAN_MODE=complete expect_fail "release fails closed when the scan waiter reports failure" run_task lambda-release-push
+sleeps_before=$(grep -c '^sleep 5$' "$command_log" || true)
+scan_lookups_before=$(grep -c ' ecr describe-image-scan-findings ' "$command_log" || true)
 FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=denied expect_fail "release fails closed when scan findings are unreadable" run_task lambda-release-push
+sleeps_after=$(grep -c '^sleep 5$' "$command_log" || true)
+scan_lookups_after=$(grep -c ' ecr describe-image-scan-findings ' "$command_log" || true)
+test "$((sleeps_after - sleeps_before))" -eq 0 && test "$((scan_lookups_after - scan_lookups_before))" -eq 1 || {
+	printf 'FAIL: release did not fail immediately on a denied scan lookup\n' >&2
+	exit 1
+}
+pass "release performs one lookup and no sleep after scan denial"
+sleeps_before=$sleeps_after
+scan_lookups_before=$scan_lookups_after
+FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=ambiguous expect_fail "release rejects an ambiguous scan lookup error" run_task lambda-release-push
+sleeps_after=$(grep -c '^sleep 5$' "$command_log" || true)
+scan_lookups_after=$(grep -c ' ecr describe-image-scan-findings ' "$command_log" || true)
+test "$((sleeps_after - sleeps_before))" -eq 0 && test "$((scan_lookups_after - scan_lookups_before))" -eq 1 || {
+	printf 'FAIL: release retried an ambiguous scan lookup error\n' >&2
+	exit 1
+}
+pass "release performs one lookup and no sleep for ambiguous scan errors"
 FAKE_WAITER_MODE=complete FAKE_SCAN_MODE=failed expect_fail "release fails closed when the findings status is not complete" run_task lambda-release-push
 pushes_before=$(grep -c '^docker push ' "$command_log" || true)
 FAKE_LOOKUP_MODE=denied expect_fail "release push fails closed on tag lookup denial" run_task lambda-release-push

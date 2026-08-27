@@ -586,6 +586,30 @@ tasks:
           docker login --username AWS --password-stdin "$registry"
         docker push "$image_uri"
         : "${release_tag:?derive the immutable release tag first}"
+        scan_visible=false
+        scan_attempt=0
+        while [ "$scan_attempt" -lt 12 ]; do
+          scan_attempt=$((scan_attempt + 1))
+          if aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr describe-image-scan-findings \
+            --repository-name portfolio-lambda-releases \
+            --image-id imageTag="$release_tag" \
+            --query 'imageScanStatus.status' \
+            --output text >/dev/null 2>"$lookup_error"; then
+            scan_visible=true
+            break
+          fi
+          grep -Fq 'An error occurred (ScanNotFoundException) when calling the DescribeImageScanFindings operation:' "$lookup_error" || {
+            cat "$lookup_error" >&2
+            exit 1
+          }
+          if [ "$scan_attempt" -lt 12 ]; then
+            sleep 5
+          fi
+        done
+        test "$scan_visible" = true || {
+          echo "ECR scan record did not appear within the bounded release wait" >&2
+          exit 1
+        }
         aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ecr wait image-scan-complete \
           --repository-name portfolio-lambda-releases \
           --image-id imageTag="$release_tag"

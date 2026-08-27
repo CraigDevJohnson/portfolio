@@ -212,8 +212,11 @@ lookup failure and every existing tag stops before push. Record the returned
 digest, push time, completed scan status, severity counts, and digest-qualified
 URI. The task waits with ECR's image-scan waiter and reads findings through
 `DescribeImageScanFindings`; current Basic Scanning does not populate the old
-scan fields on `DescribeImages`. Environment plans consume only
-`repository-url@sha256:<64 lowercase hex characters>`.
+scan fields on `DescribeImages`. ECR can briefly return `ScanNotFoundException`
+before it creates a new image's scan record; the task retries only that exact
+condition for a bounded interval and fails closed on every other error.
+Environment plans consume only `repository-url@sha256:<64 lowercase hex
+characters>`.
 
 The environment-owned SecureString paths are:
 

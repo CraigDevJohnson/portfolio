@@ -114,10 +114,12 @@ Production plans also require the reviewed `ALARM_ACTION_ARNS_JSON`.
 `git-<full-source-SHA>`, pushes it to `portfolio-lambda-releases`, and reports
 the digest, push time, completed scan state, and severity counts. It uses the
 current ECR scan-findings API rather than the deprecated scan fields on
-`DescribeImages`. Before pushing, it verifies repository tag immutability and
-accepts only `ImageNotFoundException` as proof that the tag is absent. Release
-records bind that SHA and tag to the digest-qualified image URI, published
-Lambda version, and `live` alias.
+`DescribeImages`. After push, it tolerates only a bounded initial
+`ScanNotFoundException` while ECR creates the scan record, then uses the ECR
+waiter and fails closed on any other error. Before pushing, it verifies
+repository tag immutability and accepts only `ImageNotFoundException` as proof
+that the tag is absent. Release records bind that SHA and tag to the
+digest-qualified image URI, published Lambda version, and `live` alias.
 
 The replacement runtime resolves exactly these environment-owned SSM paths:
 
