@@ -59,9 +59,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "6d5842ccb6122ff5d5e9f26e255e3c82acdd75297aef0860e8ae990202599745",
-			bytes:              9_615,
-			nonWhitespaceBytes: 6_993,
+			sha256:             "f78d5d3cd0c5d8f24e1cb7908b23dcd97672765f2c07be08115aaebac02a18e7",
+			bytes:              9_659,
+			nonWhitespaceBytes: 7_012,
 			identityCenter:     true,
 		},
 		{
@@ -349,7 +349,7 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 			},
 		},
 		"DomainCreateTagAuthorization": {
-			actions: stringSet("apigateway:POST"),
+			actions: stringSet("apigateway:POST", "apigateway:PUT"),
 			resources: stringSet(
 				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fdomainnames%2Fdev.craigdevjohnson.com",
 			),
@@ -456,6 +456,29 @@ func TestDevelopmentBootstrapPolicyTagAuthorizationUsesEncodedDomainARN(t *testi
 	t.Fatal("DomainCreateTagAuthorization statement not found")
 }
 
+func TestDevelopmentBootstrapPolicyPutIsLimitedToExactDomainTagAuthorization(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	domainARN := "arn:aws:apigateway:us-west-2::/domainnames/dev.craigdevjohnson.com"
+	wantResource := "arn:aws:apigateway:us-west-2::/tags/" + url.QueryEscape(domainARN)
+	found := 0
+	for _, statement := range policy.Statement {
+		if !stringSetContains(stringSet(statement.Action...), "apigateway:PUT") {
+			continue
+		}
+
+		found++
+		if statement.Sid != "DomainCreateTagAuthorization" {
+			t.Errorf("apigateway:PUT is owned by unreviewed statement %q", statement.Sid)
+		}
+		assertStringSet(t, "domain PUT resources", stringSet(statement.Resource...), stringSet(wantResource))
+	}
+
+	if found != 1 {
+		t.Fatalf("apigateway:PUT statement count = %d, want 1", found)
+	}
+}
+
 func TestDevelopmentBootstrapPolicyDoesNotNullCheckOptionalMTLSFields(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
@@ -508,6 +531,9 @@ func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T
 	)
 	for _, statement := range policy.Statement {
 		for _, action := range statement.Action {
+			if statement.Sid == "DomainCreateTagAuthorization" && action == "apigateway:PUT" {
+				continue
+			}
 			if stringSetContains(consumedActions, action) {
 				t.Errorf("statement %q retains consumed bootstrap action %q", statement.Sid, action)
 			}

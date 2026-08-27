@@ -157,7 +157,10 @@
     {
       "Sid": "DomainCreateTagAuthorization",
       "Effect": "Allow",
-      "Action": "apigateway:POST",
+      "Action": [
+        "apigateway:POST",
+        "apigateway:PUT"
+      ],
       "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fdomainnames%2Fdev.craigdevjohnson.com",
       "Condition": {
         "ForAllValues:StringEquals": {

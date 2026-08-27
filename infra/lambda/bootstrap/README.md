@@ -64,7 +64,10 @@ complete:
   Keep the exact four development tag conditions on the separate, exact encoded
   `DomainCreateTagAuthorization` resource. That resource encodes the public
   domain ARN `/domainnames/dev.craigdevjohnson.com`; the API's HTTP `/v2` prefix
-  is not part of the resource ARN. `DomainCreate` constrains every supplied
+  is not part of the resource ARN. The live `CreateDomainName` request also
+  requires `apigateway:PUT` on that exact tag resource, so the same just-in-time
+  statement grants only `POST` and `PUT` there; no domain or mapping resource
+  receives `PUT`. `DomainCreate` constrains every supplied
   endpoint and security-policy value to Regional and TLS 1.2 and requires
   `us-west-2`. Do not add `Null` checks for the optional mTLS request keys: the
   provider emits `mutualTlsAuthentication: null`, and live IAM rejected the
