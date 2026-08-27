@@ -147,12 +147,6 @@
           ],
           "apigateway:Request/SecurityPolicy": [
             "TLS_1_2"
-          ],
-          "aws:TagKeys": [
-            "Environment",
-            "ManagedBy",
-            "Platform",
-            "Project"
           ]
         },
         "Null": {
@@ -160,11 +154,7 @@
           "apigateway:Request/MtlsTrustStoreVersion": "true"
         },
         "StringEquals": {
-          "aws:RequestedRegion": "us-west-2",
-          "aws:RequestTag/Environment": "dev",
-          "aws:RequestTag/ManagedBy": "opentofu",
-          "aws:RequestTag/Platform": "lambda-http-api",
-          "aws:RequestTag/Project": "portfolio"
+          "aws:RequestedRegion": "us-west-2"
         }
       }
     },

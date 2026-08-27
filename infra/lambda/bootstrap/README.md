@@ -57,14 +57,23 @@ complete:
   ARN, with the reviewed development tags and region still required. No
   statement grants certificate mutation or deletion; and
 - `DomainCreate` and `DomainCreateTagAuthorization` are just-in-time grants for
-  the provider's tagged `CreateDomainName` request. They require the exact four
-  development tags, constrain every supplied endpoint and security-policy
-  value to Regional and TLS 1.2, require no mutual-TLS trust store, and require
-  `us-west-2`. The provider request and saved plan must contain both endpoint
-  and security-policy fields. Do not add `Null=false` presence checks for those
-  two documented `ArrayOfString` keys: live IAM and the policy simulator both
-  rejected the otherwise exact provider request when those checks were present.
-  `DomainRead` can read only
+  the provider's tagged `CreateDomainName` request. The API Gateway V2 service
+  authorization table does not support `aws:RequestTag` or `aws:TagKeys` on the
+  `DomainNames` collection resource used by `DomainCreate`; live IAM rejected
+  the exact provider request when those unsupported conditions were attached.
+  Keep the exact four development tag conditions on the separate, exact encoded
+  `DomainCreateTagAuthorization` resource. `DomainCreate` constrains every
+  supplied endpoint and security-policy value to Regional and TLS 1.2, requires
+  no mutual-TLS trust store, and requires `us-west-2`. Because the collection
+  resource also has no request-domain condition key, this short-lived statement
+  could authorize an untagged domain create elsewhere in the region. The exact
+  HCL hostname and certificate, fresh checked saved plan, checksum-bound apply,
+  and immediate post-create removal are mandatory compensating controls. The
+  provider request and saved plan must contain both endpoint and security-policy
+  fields. Do not add `Null=false` presence checks for those two documented
+  `ArrayOfString` keys: live IAM and the policy simulator both rejected the
+  otherwise exact provider request when those checks were present. `DomainRead`
+  can read only
   `dev.craigdevjohnson.com`. `ApiMappingCreate` can create a mapping only under
   that hostname, and `ApiMappingRead` can read only its service-generated
   mapping IDs. The API Gateway IAM model cannot constrain the mapping request

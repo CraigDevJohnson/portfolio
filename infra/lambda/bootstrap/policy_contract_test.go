@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "017c51a0ccf2a5ce3595ee19c05eb1a5afc1a3120321b87cae0e4ffbf99665c5",
-			bytes:              10_108,
-			nonWhitespaceBytes: 7_320,
+			sha256:             "9ac6fc2fa72b67c04f163391bf3658069f0a3798af48d80532f0dcb6e386e743",
+			bytes:              9_768,
+			nonWhitespaceBytes: 7_103,
 			identityCenter:     true,
 		},
 		{
@@ -341,18 +341,13 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 				"ForAllValues:StringEquals": map[string]any{
 					"apigateway:Request/EndpointType":   []any{"REGIONAL"},
 					"apigateway:Request/SecurityPolicy": []any{"TLS_1_2"},
-					"aws:TagKeys":                       []any{"Environment", "ManagedBy", "Platform", "Project"},
 				},
 				"Null": map[string]any{
 					"apigateway:Request/MtlsTrustStoreUri":     "true",
 					"apigateway:Request/MtlsTrustStoreVersion": "true",
 				},
 				"StringEquals": map[string]any{
-					"aws:RequestedRegion":        "us-west-2",
-					"aws:RequestTag/Environment": "dev",
-					"aws:RequestTag/ManagedBy":   "opentofu",
-					"aws:RequestTag/Platform":    "lambda-http-api",
-					"aws:RequestTag/Project":     "portfolio",
+					"aws:RequestedRegion": "us-west-2",
 				},
 			},
 		},
@@ -420,6 +415,31 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 			t.Errorf("API Gateway statement %q count = %d, want 1", sid, found[sid])
 		}
 	}
+}
+
+func TestDevelopmentBootstrapPolicyDoesNotUseTagConditionsOnDomainNamesCollection(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	for _, statement := range policy.Statement {
+		if statement.Sid != "DomainCreate" {
+			continue
+		}
+
+		for operator, rawConditions := range statement.Condition {
+			conditions, ok := rawConditions.(map[string]any)
+			if !ok {
+				t.Fatalf("DomainCreate %q conditions have type %T, want map[string]any", operator, rawConditions)
+			}
+			for key := range conditions {
+				if key == "aws:TagKeys" || strings.HasPrefix(key, "aws:RequestTag/") {
+					t.Errorf("DomainCreate collection resource uses unsupported %q condition %q", operator, key)
+				}
+			}
+		}
+		return
+	}
+
+	t.Fatal("DomainCreate statement not found")
 }
 
 func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T) {
