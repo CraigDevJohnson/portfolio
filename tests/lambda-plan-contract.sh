@@ -410,6 +410,25 @@ jq '
 	)
 ' "$dev_plan" >"$dev_provider_empty_alarm_actions_plan"
 
+dev_null_acm_private_key_plan="$tmp_dir/dev-null-acm-private-key.json"
+jq '.resource_changes += [{
+	mode: "managed",
+	address: "module.service.aws_acm_certificate.custom[0]",
+	type: "aws_acm_certificate",
+	name: "custom",
+	change: {
+		actions: ["create"],
+		before: null,
+		after: {
+			domain_name: "dev.craigdevjohnson.com",
+			private_key: null
+		},
+		after_unknown: {},
+		before_sensitive: false,
+		after_sensitive: {private_key: true}
+	}
+}]' "$dev_plan" >"$dev_null_acm_private_key_plan"
+
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
@@ -419,6 +438,7 @@ expect_pass "development plan with empty policy composition inputs" run_check "$
 expect_pass "development plan with provider-deferred runtime resources" run_check "$dev_deferred_runtime_policy_plan" dev
 expect_pass "development plan after partial role and table creation" run_check "$dev_partial_state_runtime_policy_plan" dev
 expect_pass "development plan with provider-normalized empty alarm actions" run_check "$dev_provider_empty_alarm_actions_plan" dev
+expect_pass "ACM plan with null provider-sensitive private key" run_check "$dev_null_acm_private_key_plan" dev
 
 mutate_and_reject() {
 	name=$1
@@ -443,6 +463,12 @@ mutate_and_reject "development reserved concurrency drift" "$dev_plan" '.resourc
 mutate_and_reject "production reserved concurrency drift" "$prod_plan" '.resource_changes[2].change.after.reserved_concurrent_executions = -1'
 mutate_and_reject "secret plan value" "$dev_plan" '.resource_changes[2].change.after.oauth_token = "do-not-store-this"'
 mutate_and_reject "secret prior-state value" "$dev_plan" '.resource_changes[2].change.before = {oauth_token: "do-not-store-this"}'
+mutate_and_reject "ACM plan with non-null sensitive private key" "$dev_null_acm_private_key_plan" '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.private_key) = "do-not-store-this"'
+mutate_and_reject "ACM plan with unmarked non-null private key" "$dev_null_acm_private_key_plan" '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change) |= (.after.private_key = "do-not-store-this" | del(.after_sensitive.private_key))'
+mutate_and_reject "ACM plan with missing sensitive private key" "$dev_null_acm_private_key_plan" '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change) |= del(.after.private_key)'
+mutate_and_reject "ACM plan with deferred sensitive private key" "$dev_null_acm_private_key_plan" '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after_unknown.private_key) = true'
+mutate_and_reject "ACM plan with unexpected null sensitive field" "$dev_null_acm_private_key_plan" '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change) |= (.after.unreviewed = null | .after_sensitive.unreviewed = true)'
+mutate_and_reject "root sensitive marker" "$dev_plan" '.resource_changes[0].change.after_sensitive = true'
 mutate_and_reject "missing execution boundary" "$dev_plan" '.resource_changes[0].change.after.permissions_boundary = null'
 mutate_and_reject "wrong deterministic API name" "$dev_plan" '.resource_changes[3].change.after.name = "portfolio-http"'
 mutate_and_reject "development table protection drift" "$dev_plan" '.resource_changes[6].change.after.deletion_protection_enabled = true'

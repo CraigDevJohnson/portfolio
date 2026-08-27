@@ -70,18 +70,40 @@ jq -e --arg environment "$ENVIRONMENT" '
 		| ..
 		| objects
 		| to_entries[]
-		| select(.key | test("secret|password|token"; "i"))
+		| select(
+			(.key | test("secret|password|token"; "i")) or
+			((.key | ascii_downcase) == "private_key")
+		)
 		| .value
 		| select(. != null and . != false and . != "" and (allowed_secret_path | not))
 	] | length == 0
 ' "$PLAN_JSON" >/dev/null || fail "secret value found in plan"
 
 jq -e '
+	def known_null_private_key($values; $unknown):
+		($values |
+			type == "object" and
+			has("private_key") and
+			.private_key == null) and
+		(($unknown // {}) |
+			type == "object" and
+			((has("private_key") | not) or .private_key == false));
+	def allowed_null_sensitive_marker($resource_type; $values; $unknown; $path):
+		$resource_type == "aws_acm_certificate" and
+		$path == ["private_key"] and
+		known_null_private_key($values; $unknown);
 	[
-		.resource_changes[].change
-		| [.before_sensitive, .after_sensitive][]
-		| ..
-		| select(type == "boolean" and .)
+		.resource_changes[]?
+		| .type as $resource_type
+		| .change as $change
+		| [
+			{values: $change.before, unknown: null, sensitive: $change.before_sensitive},
+			{values: $change.after, unknown: $change.after_unknown, sensitive: $change.after_sensitive}
+		][]
+		| . as $snapshot
+		| ($snapshot.sensitive // false)
+		| path(.. | select(type == "boolean" and .)) as $path
+		| select(allowed_null_sensitive_marker($resource_type; $snapshot.values; $snapshot.unknown; $path) | not)
 	] | length == 0
 ' "$PLAN_JSON" >/dev/null || fail "sensitive value found in plan"
 
