@@ -444,6 +444,14 @@ jq -e \
 					policy: true,
 					role: true
 				}
+			) or (
+				($runtime_policy.change.after | exact_keys(["name", "role"])) and
+				$runtime_policy.change.after.role == ($prefix + "-execution") and
+				$runtime_policy.change.after_unknown == {
+					id: true,
+					name_prefix: true,
+					policy: true
+				}
 			)
 		) and
 		$lambda.change.after.environment == [{variables: {

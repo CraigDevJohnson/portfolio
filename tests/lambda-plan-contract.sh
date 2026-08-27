@@ -359,6 +359,28 @@ jq '
 	}
 ' "$dev_plan" >"$dev_deferred_runtime_policy_plan"
 
+dev_partial_state_runtime_policy_plan="$tmp_dir/dev-partial-state-runtime-policy.json"
+jq '
+	(.resource_changes[] | select(.address == "module.service.aws_cloudwatch_log_group.lambda") | .change) |= (
+		.after.arn = null |
+		.after_unknown.arn = true
+	) |
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change) |= (
+		.after.statement[4].resources = [null] |
+		.after_unknown.statement = [
+			{actions: [false, false, false], condition: [], not_principals: [], principals: [], resources: [false]},
+			{actions: [false], condition: [], not_principals: [], principals: [], resources: [false]},
+			{actions: [false], condition: [], not_principals: [], principals: [], resources: [false, false, false]},
+			{actions: [false], condition: [], not_principals: [], principals: [], resources: [false]},
+			{actions: [false, false], condition: [], not_principals: [], principals: [], resources: [true]}
+		]
+	) |
+	(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change) |= (
+		.after.role = "portfolio-lambda-dev-execution" |
+		.after_unknown = {id: true, name_prefix: true, policy: true}
+	)
+' "$dev_plan" >"$dev_partial_state_runtime_policy_plan"
+
 dev_provider_empty_alarm_actions_plan="$tmp_dir/dev-provider-empty-alarm-actions.json"
 jq '
 	(.resource_changes[] | select(.type == "aws_cloudwatch_metric_alarm") | .change) |= (
@@ -373,6 +395,7 @@ expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
 expect_pass "development plan with empty policy composition inputs" run_check "$dev_empty_policy_composition_plan" dev
 expect_pass "development plan with provider-deferred runtime resources" run_check "$dev_deferred_runtime_policy_plan" dev
+expect_pass "development plan after partial role and table creation" run_check "$dev_partial_state_runtime_policy_plan" dev
 expect_pass "development plan with provider-normalized empty alarm actions" run_check "$dev_provider_empty_alarm_actions_plan" dev
 
 mutate_and_reject() {
@@ -446,6 +469,7 @@ mutate_and_reject "runtime policy rejects a deferred policy resource without its
 mutate_and_reject "runtime policy rejects a deferred statement effect" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after_unknown.statement[0].effect) = true'
 mutate_and_reject "runtime policy rejects extra deferred inline-policy fields" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown.unreviewed) = true'
 mutate_and_reject "runtime policy rejects an unbound deferred table ARN" "$dev_deferred_runtime_policy_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]) | .resources.references) = ["var.unreviewed_table_arn"]'
+mutate_and_reject "partial runtime policy rejects the wrong known role" "$dev_partial_state_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after.role) = "unreviewed-role"'
 
 dev_domain_plan="$tmp_dir/dev-domain.json"
 jq '.resource_changes += [
