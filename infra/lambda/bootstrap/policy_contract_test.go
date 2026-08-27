@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "353905214c0baa67bc6696c1869aaaadb2a71acb8d1bebf271cd5d91569d9bff",
-			bytes:              9_096,
-			nonWhitespaceBytes: 6_577,
+			sha256:             "1260412497a8e7fca45c3cbb89e0784bba3362ac6e9d930df665fa850f92532a",
+			bytes:              9_039,
+			nonWhitespaceBytes: 6_532,
 			identityCenter:     true,
 		},
 		{
@@ -445,12 +445,11 @@ func TestDevelopmentBootstrapPolicyRequestsOnlyExactDevelopmentCertificate(t *te
 				"aws:TagKeys": []any{"Environment", "ManagedBy", "Platform", "Project"},
 			},
 			"StringEquals": map[string]any{
-				"acm:CertificateKeyPairOrigin": "AWS_MANAGED",
-				"aws:RequestedRegion":          "us-west-2",
-				"aws:RequestTag/Environment":   "dev",
-				"aws:RequestTag/ManagedBy":     "opentofu",
-				"aws:RequestTag/Platform":      "lambda-http-api",
-				"aws:RequestTag/Project":       "portfolio",
+				"aws:RequestedRegion":        "us-west-2",
+				"aws:RequestTag/Environment": "dev",
+				"aws:RequestTag/ManagedBy":   "opentofu",
+				"aws:RequestTag/Platform":    "lambda-http-api",
+				"aws:RequestTag/Project":     "portfolio",
 			},
 		},
 	}

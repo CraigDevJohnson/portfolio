@@ -53,6 +53,10 @@ complete:
   and read-backs passed their gates; and
 - `TCRequest` and `TCTags` are just-in-time ACM grants for the exact public,
   DNS-validated, AWS-managed development certificate and exact provider tags.
+  `TCRequest` enforces the key-pair origin; `TCTags` cannot repeat that
+  condition because ACM authorizes the dependent tag action before the new
+  certificate exists, so it remains constrained by account/region resource
+  scope and the exact tag keys and values.
   Remove them after the certificate ARN is captured, then replace `TCRead`'s
   tag-gated wildcard with that exact ARN. No statement grants certificate
   deletion.

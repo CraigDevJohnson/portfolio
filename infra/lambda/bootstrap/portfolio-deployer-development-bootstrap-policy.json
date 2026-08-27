@@ -242,7 +242,6 @@
           ]
         },
         "StringEquals": {
-          "acm:CertificateKeyPairOrigin": "AWS_MANAGED",
           "aws:RequestedRegion": "us-west-2",
           "aws:RequestTag/Environment": "dev",
           "aws:RequestTag/ManagedBy": "opentofu",
