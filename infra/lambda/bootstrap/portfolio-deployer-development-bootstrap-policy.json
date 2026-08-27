@@ -309,15 +309,7 @@
         "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
         "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
         "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
-      ],
-      "Condition": {
-        "StringEqualsIfExists": {
-          "ssm:Overwrite": "false"
-        },
-        "Null": {
-          "ssm:Policies": "true"
-        }
-      }
+      ]
     },
     {
       "Sid": "D",
@@ -331,6 +323,21 @@
       "Condition": {
         "StringEquals": {
           "ssm:Overwrite": "true"
+        }
+      }
+    },
+    {
+      "Sid": "P",
+      "Effect": "Deny",
+      "Action": "ssm:PutParameter",
+      "Resource": [
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ssm:Policies": "true"
         }
       }
     },

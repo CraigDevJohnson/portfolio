@@ -1348,10 +1348,11 @@ instead of adding `Overwrite=true`.
 Each secret block fails before generation or decryption unless the selected
 profile's AWS CLI history setting is either unset or explicitly `disabled`, so
 request and response data cannot be persisted to the CLI history database.
-The deployer allow uses `StringEqualsIfExists` for `ssm:Overwrite=false`
-because the first create may omit that request context key; a separate explicit
-deny still rejects `ssm:Overwrite=true`, and all three commands also pass
-`--no-overwrite`.
+The deployer allow is unconditional only for the three exact target ARNs.
+Separate explicit denies reject `ssm:Overwrite=true` and `ssm:Policies=true`;
+this follows the Systems Manager condition model in which omitted request
+options can still be represented as `false`. All three commands also pass
+`--no-overwrite` and omit `--policies`.
 
 - [ ] **Step 4: Verify parameter metadata without values**
 

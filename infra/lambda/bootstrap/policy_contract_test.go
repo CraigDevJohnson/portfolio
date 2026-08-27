@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "59808ec748709bb039df5d1673b875e944fcf78bccf20cc935d4dcda8de6776c",
-			bytes:              13_148,
-			nonWhitespaceBytes: 9_653,
+			sha256:             "14392a5dc3a3cbcf70434ce469b447d69b02bac02bfa96424115d6f157f5f4a6",
+			bytes:              13_473,
+			nonWhitespaceBytes: 9_933,
 			identityCenter:     true,
 		},
 		{
@@ -97,7 +97,7 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"D", "T4", "T5", "T7", "T8", "T9", "TA",
+		"D", "P", "T4", "T5", "T7", "T8", "T9", "TA",
 		"TB", "TD", "TE", "TF", "TG", "TH", "TI", "TK",
 	)
 	controlledSIDs := make(map[string]struct{})
@@ -317,7 +317,7 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t 
 	}
 }
 
-func TestDevelopmentBootstrapPolicyAllowsOnlyNonOverwriteParameterCreates(t *testing.T) {
+func TestDevelopmentBootstrapPolicyAllowsOnlyParameterCreatesWithoutOverwriteOrPolicies(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	wantResources := stringSet(
@@ -325,41 +325,52 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyNonOverwriteParameterCreates(t *tes
 		"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
 		"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
 	)
-	var allow, deny *policyStatement
 	allowCount := 0
-	denyCount := 0
+	overwriteDenyCount := 0
+	policiesDenyCount := 0
 	for i := range policy.Statement {
 		statement := &policy.Statement[i]
 		if !stringSetContains(stringSet(statement.Action...), "ssm:PutParameter") {
 			continue
 		}
+		assertStringSet(t, "PutParameter actions", stringSet(statement.Action...), stringSet("ssm:PutParameter"))
 		assertStringSet(t, "PutParameter resources", stringSet(statement.Resource...), wantResources)
 		switch statement.Effect {
 		case "Allow":
 			allowCount++
-			allow = statement
+			if len(statement.Condition) != 0 {
+				t.Errorf("PutParameter allow condition = %#v, want unconditional exact-resource allow", statement.Condition)
+			}
 		case "Deny":
-			denyCount++
-			deny = statement
+			if len(statement.Condition) != 1 {
+				t.Errorf("PutParameter deny condition = %#v, want one StringEquals condition", statement.Condition)
+				continue
+			}
+			denyEquals, ok := statement.Condition["StringEquals"].(map[string]any)
+			if !ok || len(denyEquals) != 1 {
+				t.Errorf("PutParameter deny condition = %#v, want one exact StringEquals key", statement.Condition)
+				continue
+			}
+			switch {
+			case reflect.DeepEqual(denyEquals, map[string]any{"ssm:Overwrite": "true"}):
+				overwriteDenyCount++
+			case reflect.DeepEqual(denyEquals, map[string]any{"ssm:Policies": "true"}):
+				policiesDenyCount++
+			default:
+				t.Errorf("PutParameter deny condition = %#v, want overwrite=true or policies=true", statement.Condition)
+			}
 		default:
 			t.Errorf("PutParameter statement effect = %q, want Allow or Deny", statement.Effect)
 		}
 	}
 
-	if allowCount != 1 || denyCount != 1 {
-		t.Fatalf("PutParameter statement counts = allow %d, deny %d; want exactly one each", allowCount, denyCount)
-	}
-	allowIfExists, ok := allow.Condition["StringEqualsIfExists"].(map[string]any)
-	if !ok || allowIfExists["ssm:Overwrite"] != "false" {
-		t.Errorf("PutParameter allow must accept only absent-or-false ssm:Overwrite, got %#v", allow.Condition)
-	}
-	allowNull, ok := allow.Condition["Null"].(map[string]any)
-	if !ok || allowNull["ssm:Policies"] != "true" {
-		t.Errorf("PutParameter allow must reject parameter policies, got %#v", allow.Condition)
-	}
-	denyEquals, ok := deny.Condition["StringEquals"].(map[string]any)
-	if !ok || denyEquals["ssm:Overwrite"] != "true" {
-		t.Errorf("PutParameter deny must reject ssm:Overwrite=true, got %#v", deny.Condition)
+	if allowCount != 1 || overwriteDenyCount != 1 || policiesDenyCount != 1 {
+		t.Fatalf(
+			"PutParameter statement counts = allow %d, overwrite deny %d, policies deny %d; want exactly one each",
+			allowCount,
+			overwriteDenyCount,
+			policiesDenyCount,
+		)
 	}
 }
 
