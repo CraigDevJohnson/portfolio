@@ -64,15 +64,19 @@ complete:
   Keep the exact four development tag conditions on the separate, exact encoded
   `DomainCreateTagAuthorization` resource. That resource encodes the public
   domain ARN `/domainnames/dev.craigdevjohnson.com`; the API's HTTP `/v2` prefix
-  is not part of the resource ARN. `DomainCreate` constrains every
-  supplied endpoint and security-policy value to Regional and TLS 1.2, requires
-  no mutual-TLS trust store, and requires `us-west-2`. Because the collection
-  resource also has no request-domain condition key, this short-lived statement
-  could authorize an untagged domain create elsewhere in the region. The exact
-  HCL hostname and certificate, fresh checked saved plan, checksum-bound apply,
-  and immediate post-create removal are mandatory compensating controls. The
-  provider request and saved plan must contain both endpoint and security-policy
-  fields. Do not add `Null=false` presence checks for those two documented
+  is not part of the resource ARN. `DomainCreate` constrains every supplied
+  endpoint and security-policy value to Regional and TLS 1.2 and requires
+  `us-west-2`. Do not add `Null` checks for the optional mTLS request keys: the
+  provider emits `mutualTlsAuthentication: null`, and live IAM rejected the
+  otherwise exact request while those checks were attached. The policy does not
+  grant `AddCertificateToDomain`, and the checked HCL and saved plan must contain
+  no mTLS configuration. Because the collection resource also has no
+  request-domain condition key, this short-lived statement could authorize an
+  untagged domain create elsewhere in the region. The exact HCL hostname and
+  certificate, fresh checked saved plan, checksum-bound apply, and immediate
+  post-create removal are mandatory compensating controls. The provider request
+  and saved plan must contain both endpoint and security-policy fields. Do not
+  add `Null=false` presence checks for those two documented
   `ArrayOfString` keys: live IAM and the policy simulator both rejected the
   otherwise exact provider request when those checks were present. `DomainRead`
   can read only

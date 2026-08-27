@@ -59,9 +59,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "af34fe32578ce9d7e034a148dd32b8a655830b4d3f44ac7ea95b1e274e7c70c2",
-			bytes:              9_763,
-			nonWhitespaceBytes: 7_098,
+			sha256:             "6d5842ccb6122ff5d5e9f26e255e3c82acdd75297aef0860e8ae990202599745",
+			bytes:              9_615,
+			nonWhitespaceBytes: 6_993,
 			identityCenter:     true,
 		},
 		{
@@ -343,10 +343,6 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedCustomDomainActivation(t *t
 					"apigateway:Request/EndpointType":   []any{"REGIONAL"},
 					"apigateway:Request/SecurityPolicy": []any{"TLS_1_2"},
 				},
-				"Null": map[string]any{
-					"apigateway:Request/MtlsTrustStoreUri":     "true",
-					"apigateway:Request/MtlsTrustStoreVersion": "true",
-				},
 				"StringEquals": map[string]any{
 					"aws:RequestedRegion": "us-west-2",
 				},
@@ -458,6 +454,23 @@ func TestDevelopmentBootstrapPolicyTagAuthorizationUsesEncodedDomainARN(t *testi
 	}
 
 	t.Fatal("DomainCreateTagAuthorization statement not found")
+}
+
+func TestDevelopmentBootstrapPolicyDoesNotNullCheckOptionalMTLSFields(t *testing.T) {
+	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
+
+	for _, statement := range policy.Statement {
+		if statement.Sid != "DomainCreate" {
+			continue
+		}
+
+		if nullConditions, ok := statement.Condition["Null"]; ok {
+			t.Fatalf("DomainCreate has Null conditions %#v; optional mTLS fields can be explicit null in the live request", nullConditions)
+		}
+		return
+	}
+
+	t.Fatal("DomainCreate statement not found")
 }
 
 func TestDevelopmentBootstrapPolicyCannotRecreateConvergedResources(t *testing.T) {
