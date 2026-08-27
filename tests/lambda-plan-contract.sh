@@ -390,6 +390,39 @@ documented_versioning_mutation_is_guarded() {
 expect_pass "deployment guide guards bucket versioning immediately before mutation" documented_versioning_mutation_is_guarded "$repo_root/DEPLOY-INSTRUCTIONS.md"
 expect_pass "authoritative plan guards bucket versioning immediately before mutation" documented_versioning_mutation_is_guarded "$repo_root/docs/superpowers/plans/2026-08-21-development-lambda-cutover.md"
 
+documented_parameter_streams_are_fail_closed() {
+	document=$1
+	perl -0ne '
+		my ($task) = /(### Task 10:.*?)(?=\n---\n\n### Task 11:)/s;
+		exit 1 unless defined $task;
+		exit 1 if $task =~ /--cli-input-json file:\/\/\/dev\/stdin/;
+
+		my @blocks = grep { /ssm put-parameter/ } ($task =~ /```bash\n(.*?)```/sg);
+		exit 1 unless @blocks == 2;
+
+		for my $block (@blocks) {
+			exit 1 unless $block =~ /^set -euo pipefail$/m;
+			exit 1 unless $block =~ /^set \+x$/m;
+			exit 1 unless $block =~ /aws --profile "\$AWS_PROFILE" configure get cli_history/;
+			exit 1 unless $block =~ /\nassert_aws_cli_history_disabled\n.*(?:openssl rand|--with-decryption)/s;
+			exit 1 unless (() = $block =~ /ssm put-parameter/g) == 1;
+			exit 1 unless $block =~ /--no-overwrite/;
+			exit 1 unless $block =~ /--value file:\/\/\/dev\/stdin/;
+		}
+
+		my ($session) = grep { /openssl rand/ } @blocks;
+		my ($oauth) = grep { /--with-decryption/ } @blocks;
+		exit 1 unless defined $session && defined $oauth;
+		exit 1 unless $session =~ /--name \/portfolio\/lambda\/dev\/LPS_SESSION_KEY/;
+		exit 1 unless $oauth =~ /for name in CLIENT_ID_KEY CLIENT_SECRET_KEY; do/;
+		exit 1 unless $oauth =~ /--name "\/portfolio\/lambda\/dev\/\$name"/;
+		exit 1 unless $oauth =~ /--name "\/portfolio\/\$name"/;
+		exit 0;
+	' "$document"
+}
+
+expect_pass "parameter streams are non-overwriting and fail closed on CLI history" documented_parameter_streams_are_fail_closed "$repo_root/docs/superpowers/plans/2026-08-21-development-lambda-cutover.md"
+
 fake_bin="$tmp_dir/fake-bin"
 mkdir "$fake_bin"
 command_log="$tmp_dir/commands.log"

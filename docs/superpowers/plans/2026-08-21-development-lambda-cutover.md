@@ -1270,11 +1270,31 @@ set +x
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
 task lambda-artifacts-init
+assert_aws_cli_history_disabled() {
+  cli_history_value=
+  if cli_history_value=$(aws --profile "$AWS_PROFILE" configure get cli_history 2>/dev/null); then
+    test "$cli_history_value" = disabled || {
+      echo "AWS CLI history must be unset or disabled before handling secrets" >&2
+      return 1
+    }
+  else
+    cli_history_rc=$?
+    test "$cli_history_rc" -eq 1 && test -z "$cli_history_value" || {
+      echo "Unable to prove AWS CLI history is disabled" >&2
+      return 1
+    }
+  fi
+}
+assert_aws_cli_history_disabled
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm get-parameter \
   --name /portfolio/lambda/dev/LPS_SESSION_KEY --query Parameter.Name --output text 2>/dev/null || true)" = ""
 openssl rand -hex 32 | \
-  jq -Rn '{Name:"/portfolio/lambda/dev/LPS_SESSION_KEY",Type:"SecureString",Overwrite:false,Value:input}' | \
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm put-parameter --cli-input-json file:///dev/stdin >/dev/null
+  tr -d '\n' | \
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm put-parameter \
+    --name /portfolio/lambda/dev/LPS_SESSION_KEY \
+    --type SecureString \
+    --no-overwrite \
+    --value file:///dev/stdin >/dev/null
 ```
 
 - [ ] **Step 3: Copy the existing public OAuth client ID and secret through a pipe**
@@ -1290,6 +1310,22 @@ set +x
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
 task lambda-artifacts-init
+assert_aws_cli_history_disabled() {
+  cli_history_value=
+  if cli_history_value=$(aws --profile "$AWS_PROFILE" configure get cli_history 2>/dev/null); then
+    test "$cli_history_value" = disabled || {
+      echo "AWS CLI history must be unset or disabled before handling secrets" >&2
+      return 1
+    }
+  else
+    cli_history_rc=$?
+    test "$cli_history_rc" -eq 1 && test -z "$cli_history_value" || {
+      echo "Unable to prove AWS CLI history is disabled" >&2
+      return 1
+    }
+  fi
+}
+assert_aws_cli_history_disabled
 for name in CLIENT_ID_KEY CLIENT_SECRET_KEY; do
   test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm get-parameter \
     --name "/portfolio/lambda/dev/$name" --query Parameter.Name --output text 2>/dev/null || true)" = ""
@@ -1297,15 +1333,25 @@ for name in CLIENT_ID_KEY CLIENT_SECRET_KEY; do
     --name "/portfolio/$name" \
     --with-decryption \
     --output json | \
-  jq --arg target "/portfolio/lambda/dev/$name" \
-    '{Name:$target,Type:"SecureString",Overwrite:false,Value:.Parameter.Value}' | \
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm put-parameter --cli-input-json file:///dev/stdin >/dev/null
+  jq -je '.Parameter.Value | strings' | \
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" ssm put-parameter \
+    --name "/portfolio/lambda/dev/$name" \
+    --type SecureString \
+    --no-overwrite \
+    --value file:///dev/stdin >/dev/null
 done
 ```
 
 No command writes a decrypted value to the terminal, a file, process argument,
 OpenTofu state, or Git. If a target already exists, stop and inspect metadata
 instead of adding `Overwrite=true`.
+Each secret block fails before generation or decryption unless the selected
+profile's AWS CLI history setting is either unset or explicitly `disabled`, so
+request and response data cannot be persisted to the CLI history database.
+The deployer allow uses `StringEqualsIfExists` for `ssm:Overwrite=false`
+because the first create may omit that request context key; a separate explicit
+deny still rejects `ssm:Overwrite=true`, and all three commands also pass
+`--no-overwrite`.
 
 - [ ] **Step 4: Verify parameter metadata without values**
 
