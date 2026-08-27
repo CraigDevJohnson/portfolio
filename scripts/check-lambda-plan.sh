@@ -206,10 +206,34 @@ jq -e \
 		.not_principals == [] and
 		.not_resources == null and
 		.principals == [] and
-		(.resources | type == "array" and length > 0 and all(.[]; type == "string")) and
+		(.resources | type == "array" and length > 0 and all(.[]; . == null or type == "string")) and
 		.sid == null;
-	def normalized_data_statement:
-		{actions: (.actions | sort), resources: (.resources | sort)};
+	def default_unknown_data_statement($statement): {
+		actions: [range(0; ($statement.actions | length)) | false],
+		condition: [],
+		not_principals: [],
+		principals: [],
+		resources: [range(0; ($statement.resources | length)) | false]
+	};
+	def exact_unknown_data_statement($statement):
+		type == "object" and
+		((keys - ["actions", "condition", "effect", "not_actions", "not_principals", "not_resources", "principals", "resources", "sid"]) | length == 0) and
+		.actions == [range(0; ($statement.actions | length)) | false] and
+		.condition == [] and
+		((.effect // false) == false) and
+		((.not_actions // false) == false) and
+		.not_principals == [] and
+		((.not_resources // false) == false) and
+		.principals == [] and
+		(.resources | type == "array" and length == ($statement.resources | length) and all(.[]; type == "boolean")) and
+		((.sid // false) == false);
+	def resource_slots($values; $unknowns):
+		[range(0; ($values | length)) as $index | {value: $values[$index], unknown: $unknowns[$index]}] | sort_by(tojson);
+	def normalized_data_statement($unknown):
+		{actions: (.actions | sort), resources: resource_slots(.resources; $unknown.resources)};
+	def exact_arn_or_deferred($value; $unknown; $expected):
+		($value == $expected and $unknown == false) or
+		($value == null and $unknown == true);
 	def empty_optional_json:
 		. == null or . == "";
 	def empty_optional_documents:
@@ -234,9 +258,15 @@ jq -e \
 		] | sort_by(tojson)) == $expected;
 
 	try (
-		by_address("module.service.aws_dynamodb_table.google_connections").change.after.arn as $google_arn |
-		by_address("module.service.aws_dynamodb_table.soccer_sessions").change.after.arn as $soccer_arn |
-		by_address("module.service.aws_cloudwatch_log_group.lambda").change.after.arn as $lambda_log_arn |
+		by_address("module.service.aws_dynamodb_table.google_connections").change as $google_change |
+		by_address("module.service.aws_dynamodb_table.soccer_sessions").change as $soccer_change |
+		by_address("module.service.aws_cloudwatch_log_group.lambda").change as $lambda_log_change |
+		$google_change.after.arn as $google_arn |
+		($google_change.after_unknown.arn // false) as $google_arn_unknown |
+		$soccer_change.after.arn as $soccer_arn |
+		($soccer_change.after_unknown.arn // false) as $soccer_arn_unknown |
+		$lambda_log_change.after.arn as $lambda_log_arn |
+		($lambda_log_change.after_unknown.arn // false) as $lambda_log_arn_unknown |
 		by_address("module.service.aws_iam_role_policy.lambda") as $runtime_policy |
 		by_address("module.service.aws_lambda_function.app") as $lambda |
 		[
@@ -253,6 +283,10 @@ jq -e \
 		$runtime_policy_configurations[0] as $runtime_policy_configuration |
 		$policy_data_configurations[0] as $policy_data_configuration |
 		$kms_alias_configurations[0] as $kms_alias_configuration |
+		(
+			$policy_data_changes[0].change.after_unknown.statement //
+			[$policy_data_changes[0].change.after.statement[] | default_unknown_data_statement(.)]
+		) as $policy_unknown_statements |
 		($policy_data_changes | length) == 1 and
 		($runtime_policy_configurations | length) == 1 and
 		($policy_data_configurations | length) == 1 and
@@ -267,7 +301,12 @@ jq -e \
 		(($policy_data_changes[0].change.after_unknown.source_policy_documents // false) == false) and
 		(($policy_data_changes[0].change.after_unknown.override_policy_documents // false) == false) and
 		($policy_data_changes[0].change.after.statement | type == "array" and length == 5) and
+		($policy_unknown_statements | type == "array" and length == 5) and
 		all($policy_data_changes[0].change.after.statement[]; exact_data_statement) and
+		([
+			range(0; 5) as $index |
+			($policy_unknown_statements[$index] | exact_unknown_data_statement($policy_data_changes[0].change.after.statement[$index]))
+		] | all) and
 		[
 			$policy_data_changes[0].change.after.statement[] |
 			select((.actions | sort) == ["kms:Decrypt"]) |
@@ -275,9 +314,22 @@ jq -e \
 		] as $kms_resources |
 		($kms_resources | length) == 1 and
 		($kms_resources[0] | test("^arn:aws:kms:us-west-2:180294223248:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and
-		($google_arn | type) == "string" and
-		($soccer_arn | type) == "string" and
-		($lambda_log_arn | type) == "string" and
+		exact_arn_or_deferred(
+			$google_arn;
+			$google_arn_unknown;
+			"arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-google-connections"
+		) and
+		exact_arn_or_deferred(
+			$soccer_arn;
+			$soccer_arn_unknown;
+			"arn:aws:dynamodb:us-west-2:180294223248:table/" + $prefix + "-soccer-sessions"
+		) and
+		exact_arn_or_deferred(
+			$lambda_log_arn;
+			$lambda_log_arn_unknown;
+			"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix
+		) and
+		(if $lambda_log_arn_unknown then null else ($lambda_log_arn + ":*") end) as $lambda_policy_resource |
 		([{
 			actions: ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem"],
 			resources: [$google_arn]
@@ -296,9 +348,33 @@ jq -e \
 			resources: $kms_resources
 		}, {
 			actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
-			resources: [$lambda_log_arn + ":*"]
+			resources: [$lambda_policy_resource]
 		}] | map(.actions |= sort | .resources |= sort) | sort_by(tojson)) as $expected_statements |
-		([$policy_data_changes[0].change.after.statement[] | normalized_data_statement] | sort_by(tojson)) == $expected_statements and
+		([{
+			actions: ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem"],
+			resources: resource_slots([$google_arn]; [$google_arn_unknown])
+		}, {
+			actions: ["dynamodb:PutItem"],
+			resources: resource_slots([$soccer_arn]; [$soccer_arn_unknown])
+		}, {
+			actions: ["ssm:GetParameters"],
+			resources: resource_slots([
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY",
+				"arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"
+			]; [false, false, false])
+		}, {
+			actions: ["kms:Decrypt"],
+			resources: resource_slots($kms_resources; [false])
+		}, {
+			actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+			resources: resource_slots([$lambda_policy_resource]; [$lambda_log_arn_unknown])
+		}] | map(.actions |= sort) | sort_by(tojson)) as $expected_statement_slots |
+		([
+			range(0; 5) as $index |
+			($policy_data_changes[0].change.after.statement[$index] |
+				normalized_data_statement($policy_unknown_statements[$index]))
+		] | sort_by(tojson)) == $expected_statement_slots and
 		($policy_data_configuration.mode == "data") and
 		($policy_data_configuration.type == "aws_iam_policy_document") and
 		($policy_data_configuration.name == "lambda") and
@@ -352,12 +428,22 @@ jq -e \
 		] | sort)) and
 		(
 			(
+				($runtime_policy.change.after | exact_keys(["name", "policy"])) and
 				($runtime_policy.change.after.policy | type) == "string" and
-				(($runtime_policy.change.after_unknown.policy // false) == false) and
+				$runtime_policy.change.after_unknown == {
+					id: true,
+					name_prefix: true,
+					role: true
+				} and
 				exact_known_policy($runtime_policy.change.after.policy; $expected_statements)
 			) or (
-				($runtime_policy.change.after | has("policy") | not) and
-				$runtime_policy.change.after_unknown == {policy: true}
+				($runtime_policy.change.after | exact_keys(["name"])) and
+				$runtime_policy.change.after_unknown == {
+					id: true,
+					name_prefix: true,
+					policy: true,
+					role: true
+				}
 			)
 		) and
 		$lambda.change.after.environment == [{variables: {
@@ -381,18 +467,58 @@ jq -e \
 	--argjson protection "$expected_protection" \
 	--argjson expected_actions "$EXPECTED_ALARM_ACTIONS_JSON" '
 	def resources($type): [.resource_changes[] | select(.type == $type)];
-	def after($type; $name): first(.resource_changes[] | select(.type == $type and .name == $name) | .change.after);
+	def planned($type; $name): first(.resource_changes[] | select(.type == $type and .name == $name));
+	def configured_alarms:
+		[
+			.configuration.root_module.module_calls.service.module.resources[] |
+			select(.address | startswith("aws_cloudwatch_metric_alarm.")) |
+			{
+				address,
+				mode,
+				type,
+				name,
+				alarm_actions: .expressions.alarm_actions
+			}
+		] | sort_by(.address);
+	def normalized_string_array:
+		if . == null then []
+		elif type == "array" and all(.[]; type == "string") then .
+		else error("expected a string array or provider-normalized null")
+		end;
 	def exact_alarm($name; $metric; $threshold; $statistic):
-		after("aws_cloudwatch_metric_alarm"; $name) as $alarm |
+		planned("aws_cloudwatch_metric_alarm"; $name) as $planned_alarm |
+		$planned_alarm.change.after as $alarm |
+		($alarm | has("alarm_actions")) and
 		$alarm.alarm_name == ($prefix + "-" + ($name | gsub("_"; "-"))) and
 		$alarm.metric_name == $metric and
 		$alarm.period == 300 and
 		$alarm.evaluation_periods == 1 and
 		$alarm.threshold == $threshold and
 		$alarm.treat_missing_data == "notBreaching" and
-		($alarm.alarm_actions | sort) == ($expected_actions | sort) and
+		(
+			($planned_alarm.change.after_unknown | has("alarm_actions") | not) or
+			$planned_alarm.change.after_unknown.alarm_actions == false
+		) and
+		($alarm.alarm_actions | normalized_string_array | sort) == ($expected_actions | sort) and
 		(if $statistic == "p95" then $alarm.extended_statistic == "p95" else $alarm.statistic == $statistic end);
 
+	.variables.alarm_action_arns.value == $expected_actions and
+	.configuration.root_module.module_calls.service.expressions.alarm_action_arns == {
+		references: ["var.alarm_action_arns"]
+	} and
+	configured_alarms == ([
+		"api_5xx",
+		"api_latency",
+		"lambda_duration",
+		"lambda_errors",
+		"lambda_throttles"
+	] | map({
+		address: ("aws_cloudwatch_metric_alarm." + .),
+		mode: "managed",
+		type: "aws_cloudwatch_metric_alarm",
+		name: .,
+		alarm_actions: {references: ["var.alarm_action_arns"]}
+	}) | sort_by(.address)) and
 	(resources("aws_iam_role") | length) == 1 and
 	all(resources("aws_iam_role")[]; .change.after.name == ($prefix + "-execution") and .change.after.permissions_boundary == $boundary) and
 	(resources("aws_iam_role_policy") | length) == 1 and

@@ -164,10 +164,18 @@ make_environment_plan() {
 				treat_missing_data: "notBreaching",
 				alarm_actions: $alarm_actions
 			} + (if $statistic == "p95" then {extended_statistic: "p95"} else {statistic: $statistic} end));
+		def alarm_configuration($short): {
+			address: ("aws_cloudwatch_metric_alarm." + $short),
+			mode: "managed",
+			type: "aws_cloudwatch_metric_alarm",
+			name: $short,
+			expressions: {alarm_actions: {references: ["var.alarm_action_arns"]}}
+		};
 		{
+			variables: {alarm_action_arns: {value: $alarm_actions}},
 			resource_changes: [
 				resource("module.service.aws_iam_role.lambda"; "aws_iam_role"; "lambda"; {name: ($prefix + "-execution"), permissions_boundary: $boundary}),
-				(resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}) | .change.after_unknown = {policy: true}),
+				(resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}) | .change.after_unknown = {id: true, name_prefix: true, policy: true, role: true}),
 				resource("module.service.aws_lambda_function.app"; "aws_lambda_function"; "app"; {function_name: $prefix, image_uri: $image, environment: [{variables: lambda_variables}]}),
 				resource("module.service.aws_apigatewayv2_api.app"; "aws_apigatewayv2_api"; "app"; {name: ($prefix + "-http")}),
 				resource("module.service.aws_cloudwatch_log_group.lambda"; "aws_cloudwatch_log_group"; "lambda"; {name: ("/aws/lambda/" + $prefix), arn: ("arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $prefix), retention_in_days: $retention}),
@@ -206,6 +214,7 @@ make_environment_plan() {
 				root_module: {
 					module_calls: {
 						service: {
+							expressions: {alarm_action_arns: {references: ["var.alarm_action_arns"]}},
 							module: {
 								resources: [{
 									address: "aws_iam_role_policy.lambda",
@@ -227,7 +236,13 @@ make_environment_plan() {
 									type: "aws_kms_alias",
 									name: "ssm",
 									expressions: {name: {constant_value: "alias/aws/ssm"}}
-								}]
+								},
+								alarm_configuration("lambda_errors"),
+								alarm_configuration("lambda_throttles"),
+								alarm_configuration("lambda_duration"),
+								alarm_configuration("api_5xx"),
+								alarm_configuration("api_latency")
+								]
 							}
 						}
 					}
@@ -290,11 +305,75 @@ jq '
 	)
 ' "$dev_plan" >"$dev_empty_policy_composition_plan"
 
+dev_deferred_runtime_policy_plan="$tmp_dir/dev-deferred-runtime-policy.json"
+jq '
+	(.resource_changes[] | select(
+		.address == "module.service.aws_dynamodb_table.google_connections" or
+		.address == "module.service.aws_dynamodb_table.soccer_sessions" or
+		.address == "module.service.aws_cloudwatch_log_group.lambda"
+	) | .change) |= (
+		.after.arn = null |
+		.after_unknown.arn = true
+	) |
+	(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change) |= (
+		.after.statement[0].resources = [null] |
+		.after.statement[1].resources = [null] |
+		.after.statement[4].resources = [null] |
+		.after_unknown.statement = [{
+			actions: [false, false, false],
+			condition: [],
+			not_principals: [],
+			principals: [],
+			resources: [true]
+		}, {
+			actions: [false],
+			condition: [],
+			not_principals: [],
+			principals: [],
+			resources: [true]
+		}, {
+			actions: [false],
+			condition: [],
+			not_principals: [],
+			principals: [],
+			resources: [false, false, false]
+		}, {
+			actions: [false],
+			condition: [],
+			not_principals: [],
+			principals: [],
+			resources: [false]
+		}, {
+			actions: [false, false],
+			condition: [],
+			not_principals: [],
+			principals: [],
+			resources: [true]
+		}]
+	) |
+	(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown) = {
+		id: true,
+		name_prefix: true,
+		policy: true,
+		role: true
+	}
+' "$dev_plan" >"$dev_deferred_runtime_policy_plan"
+
+dev_provider_empty_alarm_actions_plan="$tmp_dir/dev-provider-empty-alarm-actions.json"
+jq '
+	(.resource_changes[] | select(.type == "aws_cloudwatch_metric_alarm") | .change) |= (
+		.after.alarm_actions = null |
+		del(.after_unknown.alarm_actions)
+	)
+' "$dev_plan" >"$dev_provider_empty_alarm_actions_plan"
+
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
 expect_pass "development plan with empty policy composition inputs" run_check "$dev_empty_policy_composition_plan" dev
+expect_pass "development plan with provider-deferred runtime resources" run_check "$dev_deferred_runtime_policy_plan" dev
+expect_pass "development plan with provider-normalized empty alarm actions" run_check "$dev_provider_empty_alarm_actions_plan" dev
 
 mutate_and_reject() {
 	name=$1
@@ -323,6 +402,12 @@ mutate_and_reject "development table protection drift" "$dev_plan" '.resource_ch
 mutate_and_reject "production table protection drift" "$prod_plan" '.resource_changes[6].change.after.deletion_protection_enabled = false'
 mutate_and_reject "log retention drift" "$dev_plan" '.resource_changes[4].change.after.retention_in_days = 7'
 mutate_and_reject "alarm action mismatch" "$prod_plan" '.resource_changes[8].change.after.alarm_actions = []'
+mutate_and_reject "unknown empty alarm actions" "$dev_provider_empty_alarm_actions_plan" '.resource_changes[8].change.after_unknown.alarm_actions = true'
+mutate_and_reject "malformed empty alarm actions" "$dev_provider_empty_alarm_actions_plan" '.resource_changes[8].change.after.alarm_actions = false'
+mutate_and_reject "missing empty alarm actions" "$dev_provider_empty_alarm_actions_plan" 'del(.resource_changes[8].change.after.alarm_actions)'
+mutate_and_reject "drifted root alarm action value" "$dev_provider_empty_alarm_actions_plan" '.variables.alarm_action_arns.value = null'
+mutate_and_reject "altered root alarm action reference" "$dev_provider_empty_alarm_actions_plan" '.configuration.root_module.module_calls.service.expressions.alarm_action_arns.references = ["var.unreviewed_alarm_actions"]'
+mutate_and_reject "altered resource alarm action reference" "$dev_provider_empty_alarm_actions_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "aws_cloudwatch_metric_alarm.lambda_errors") | .expressions.alarm_actions.references) = ["var.unreviewed_alarm_actions"]'
 mutate_and_reject "alarm threshold drift" "$dev_plan" '.resource_changes[10].change.after.threshold = 29000'
 mutate_and_reject "extra artifact resource" "$artifact_plan" '.resource_changes += [{address: "aws_iam_role.legacy", type: "aws_iam_role", name: "legacy", change: {actions: ["create"], after: {name: "legacy"}, after_sensitive: {}}}]'
 mutate_and_reject "artifact lifecycle drift" "$artifact_plan" '.resource_changes[1].change.after.policy = ({rules: []} | tojson)'
@@ -356,6 +441,11 @@ mutate_and_reject "runtime policy rejects changed KMS alias and resource" "$dev_
 	(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_kms_alias.ssm") | .expressions.name.constant_value) = "alias/customer-managed"'
 mutate_and_reject "runtime policy rejects changed structured KMS reference" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["kms:Decrypt"]) | .resources.references) = ["var.unreviewed_kms_key"]'
 mutate_and_reject "runtime policy rejects changed structured action" "$dev_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["ssm:GetParameters"]) | .actions.constant_value) = ["ssm:GetParameter", "ssm:GetParameters"]'
+mutate_and_reject "runtime policy rejects a deferred ARN without its provider unknown marker" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_dynamodb_table.google_connections") | .change.after_unknown.arn) = false'
+mutate_and_reject "runtime policy rejects a deferred policy resource without its paired unknown marker" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after_unknown.statement[0].resources) = [false]'
+mutate_and_reject "runtime policy rejects a deferred statement effect" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.data.aws_iam_policy_document.lambda") | .change.after_unknown.statement[0].effect) = true'
+mutate_and_reject "runtime policy rejects extra deferred inline-policy fields" "$dev_deferred_runtime_policy_plan" '(.resource_changes[] | select(.address == "module.service.aws_iam_role_policy.lambda") | .change.after_unknown.unreviewed) = true'
+mutate_and_reject "runtime policy rejects an unbound deferred table ARN" "$dev_deferred_runtime_policy_plan" '(.configuration.root_module.module_calls.service.module.resources[] | select(.address == "data.aws_iam_policy_document.lambda") | .expressions.statement[] | select(.actions.constant_value == ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]) | .resources.references) = ["var.unreviewed_table_arn"]'
 
 dev_domain_plan="$tmp_dir/dev-domain.json"
 jq '.resource_changes += [
