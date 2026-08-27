@@ -161,29 +161,6 @@
       }
     },
     {
-      "Sid": "T7",
-      "Effect": "Allow",
-      "Action": "apigateway:POST",
-      "Resource": "arn:aws:apigateway:us-west-2::/apis",
-      "Condition": {
-        "StringEquals": {
-          "apigateway:Request/ApiName": "portfolio-lambda-dev-http",
-          "aws:RequestTag/Environment": "dev",
-          "aws:RequestTag/ManagedBy": "opentofu",
-          "aws:RequestTag/Platform": "lambda-http-api",
-          "aws:RequestTag/Project": "portfolio"
-        },
-        "ForAllValues:StringEquals": {
-          "aws:TagKeys": [
-            "Environment",
-            "ManagedBy",
-            "Platform",
-            "Project"
-          ]
-        }
-      }
-    },
-    {
       "Sid": "T8",
       "Effect": "Allow",
       "Action": [
@@ -191,31 +168,33 @@
         "apigateway:PATCH",
         "apigateway:POST"
       ],
-      "Resource": "arn:aws:apigateway:us-west-2::/apis/*"
+      "Resource": [
+        "arn:aws:apigateway:us-west-2::/apis/048o6alxh8",
+        "arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*"
+      ]
     },
     {
       "Sid": "TK",
       "Effect": "Allow",
       "Action": "apigateway:PUT",
-      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F*%2Fstages%2F%24default"
-    },
-    {
-      "Sid": "TL",
-      "Effect": "Allow",
-      "Action": "apigateway:POST",
-      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fv2%2Fapis%2F*"
+      "Resource": "arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default"
     },
     {
       "Sid": "T9",
       "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:TagLogGroup",
-        "logs:TagResource"
-      ],
+      "Action": "logs:TagResource",
       "Resource": [
         "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
         "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev"
+      ]
+    },
+    {
+      "Sid": "TM",
+      "Effect": "Allow",
+      "Action": "logs:CreateLogGroup",
+      "Resource": [
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
+        "arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*"
       ]
     },
     {

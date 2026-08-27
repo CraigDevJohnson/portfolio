@@ -58,9 +58,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "development bootstrap",
 			path:               "portfolio-deployer-development-bootstrap-policy.json",
-			sha256:             "a587165d7b2e17ed364d6eed4c8bf378e3caf8dc0e1e67a12ebaf771559d1ec9",
-			bytes:              13_706,
-			nonWhitespaceBytes: 10_115,
+			sha256:             "52b7569a8d605711a3ab378ad8097c9aa3e5cc1aa33ddd63f6ab65a1f45d4bae",
+			bytes:              13_167,
+			nonWhitespaceBytes: 9_790,
 			identityCenter:     true,
 		},
 		{
@@ -97,8 +97,8 @@ func TestDevelopmentBootstrapPolicyKeepsReviewedScope(t *testing.T) {
 	data, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	expectedControlledSIDs := stringSet(
-		"D", "P", "T4", "T5", "T7", "T8", "T9", "TA",
-		"TB", "TD", "TE", "TF", "TG", "TH", "TI", "TK", "TL",
+		"D", "P", "T4", "T5", "T8", "T9", "TA", "TB",
+		"TD", "TE", "TF", "TG", "TH", "TI", "TK", "TM",
 	)
 	controlledSIDs := make(map[string]struct{})
 	for _, statement := range policy.Statement {
@@ -317,28 +317,38 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedReleaseRepositoryActions(t 
 	}
 }
 
-func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedAPIGatewayTagEndpoints(t *testing.T) {
+func TestDevelopmentBootstrapPolicyBindsRemainingAPIGatewayAccessToCapturedAPI(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
 	want := map[string]struct {
 		actions   map[string]struct{}
 		resources map[string]struct{}
 	}{
+		"T8": {
+			actions: stringSet("apigateway:GET", "apigateway:PATCH", "apigateway:POST"),
+			resources: stringSet(
+				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8",
+				"arn:aws:apigateway:us-west-2::/apis/048o6alxh8/*",
+			),
+		},
 		"TK": {
 			actions: stringSet("apigateway:PUT"),
 			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F*%2Fstages%2F%24default",
-			),
-		},
-		"TL": {
-			actions: stringSet("apigateway:POST"),
-			resources: stringSet(
-				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fv2%2Fapis%2F*",
+				"arn:aws:apigateway:us-west-2::/tags/arn%3Aaws%3Aapigateway%3Aus-west-2%3A%3A%2Fapis%2F048o6alxh8%2Fstages%2F%24default",
 			),
 		},
 	}
 	found := make(map[string]int, len(want))
 	for _, statement := range policy.Statement {
+		for _, action := range statement.Action {
+			if !strings.HasPrefix(action, "apigateway:") {
+				continue
+			}
+			if _, ok := want[statement.Sid]; !ok {
+				t.Errorf("API Gateway action %q is owned by unreviewed statement %q", action, statement.Sid)
+			}
+		}
+
 		expected, ok := want[statement.Sid]
 		if !ok {
 			continue
@@ -357,31 +367,60 @@ func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedAPIGatewayTagEndpoints(t *t
 	}
 }
 
-func TestDevelopmentBootstrapPolicyAllowsOnlyReviewedLogGroupCreationTags(t *testing.T) {
+func TestDevelopmentBootstrapPolicyUsesExactCloudWatchLogARNForms(t *testing.T) {
 	_, policy := loadPolicy(t, "portfolio-deployer-development-bootstrap-policy.json")
 
-	wantResources := stringSet(
-		"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
-		"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
-	)
-	found := 0
+	want := map[string]struct {
+		actions   map[string]struct{}
+		resources map[string]struct{}
+	}{
+		"T9": {
+			actions: stringSet("logs:TagResource"),
+			resources: stringSet(
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access",
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev",
+			),
+		},
+		"TM": {
+			actions: stringSet("logs:CreateLogGroup"),
+			resources: stringSet(
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/portfolio-lambda-dev/access:*",
+				"arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/portfolio-lambda-dev:*",
+			),
+		},
+	}
+	found := make(map[string]int, len(want))
 	for _, statement := range policy.Statement {
-		if statement.Sid != "T9" {
+		for _, action := range statement.Action {
+			switch action {
+			case "logs:TagResource":
+				if statement.Sid != "T9" {
+					t.Errorf("CloudWatch Logs action %q is owned by statement %q, want T9", action, statement.Sid)
+				}
+			case "logs:CreateLogGroup":
+				if statement.Sid != "TM" {
+					t.Errorf("CloudWatch Logs action %q is owned by statement %q, want TM", action, statement.Sid)
+				}
+			case "logs:TagLogGroup":
+				t.Errorf("statement %q retains deprecated CloudWatch Logs action %q", statement.Sid, action)
+			}
+		}
+
+		expected, ok := want[statement.Sid]
+		if !ok {
 			continue
 		}
-		found++
+		found[statement.Sid]++
 		if statement.Effect != "Allow" {
-			t.Errorf("log-group creation statement effect = %q, want Allow", statement.Effect)
+			t.Errorf("CloudWatch Logs statement %q effect = %q, want Allow", statement.Sid, statement.Effect)
 		}
-		assertStringSet(t, "log-group creation actions", stringSet(statement.Action...), stringSet(
-			"logs:CreateLogGroup",
-			"logs:TagLogGroup",
-			"logs:TagResource",
-		))
-		assertStringSet(t, "log-group creation resources", stringSet(statement.Resource...), wantResources)
+		assertStringSet(t, "CloudWatch Logs actions for "+statement.Sid, stringSet(statement.Action...), expected.actions)
+		assertStringSet(t, "CloudWatch Logs resources for "+statement.Sid, stringSet(statement.Resource...), expected.resources)
 	}
-	if found != 1 {
-		t.Fatalf("log-group creation statement count = %d, want 1", found)
+	for sid := range want {
+		if found[sid] != 1 {
+			t.Errorf("CloudWatch Logs statement %q count = %d, want 1", sid, found[sid])
+		}
 	}
 }
 

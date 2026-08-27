@@ -44,10 +44,15 @@ complete:
   effective role verified, so never restore them;
 - remove `TD`, `TE`, `TF`, `TG`, `TH`, and `D` after the exact development
   SecureString migration and metadata/application verification;
-- replace `T8` with exact API-ID child resources after the API ID is captured;
-  then remove `T4`, `T5`, `T7`, `T9`, `TA`, `TB`, `TI`, `TK`, and `TL` after the
-  direct development service, tags, policies, logging, alarms, and read-backs
-  pass their gates.
+- `T7` and `TL` were removed after API `048o6alxh8` was created and captured;
+  `T8` and `TK` now bind only that exact API;
+- `T9` uses the base log-group ARNs required by `logs:TagResource`, while `TM`
+  uses the corresponding trailing-`:*` IAM ARNs required by
+  `logs:CreateLogGroup`; remove both after the exact groups are created and
+  verified; and
+- remove `T4`, `T5`, `T8`, `TA`, `TB`, `TI`, and `TK` after the direct
+  development service, tags, policies, logging, alarms, and read-backs pass
+  their gates.
 
 Every tightened or post-bootstrap file revision is a new policy artifact.
 Recompute its SHA-256 and byte counts, repeat static and live IAM Access
