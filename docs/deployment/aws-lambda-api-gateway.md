@@ -1,10 +1,10 @@
 # AWS Lambda and API Gateway
 
 > [!WARNING]
-> The checked-in `infra/` directory and the `deploy`, `redeploy`,
-> `deploy-lambda`, and `redeploy-lambda` tasks target legacy shared state. Keep
-> them for rollback only. Replacement commands use `infra/lambda/` and must
-> never deploy the new release to App Runner.
+> The checked-in `infra/` directory retains legacy Lambda/API Gateway, shared
+> data, ECR, and SSM resources. Its pending App Runner-managed state may be
+> removed only through the approved saved-plan retirement workflow. Replacement
+> commands use `infra/lambda/`; App Runner is not a deployment or rollback path.
 
 The Lambda image runs the same Go HTTP handler as the regular server. The
 `aws-lambda-go-api-proxy` adapter converts API Gateway HTTP API events into
@@ -152,21 +152,61 @@ plan. Prove OAuth directly against the API Gateway target before changing the
 traffic record, and commit the legacy origin plus complete rollback DNS record
 before cutover.
 
-## Legacy deployment and rollback reference
+## Retained legacy Lambda and App Runner retirement
 
-`task deploy` and `task redeploy` operate on the legacy shared stack, including
-App Runner. `task deploy-lambda` can bootstrap the legacy targeted Lambda path
-by creating the ECR repository and initializing OpenTofu first, but it does not
-reconcile the full shared infrastructure. `task redeploy-lambda` updates that
-legacy function. Preserve these commands for rollback; do not use any of them
-to deploy the replacement release.
-
-Read the API endpoint after deployment:
+`task deploy-lambda` and `task redeploy-lambda` remain only for the retained
+legacy Lambda runtime, which has its own future retirement decision. They are
+not replacement-release commands. Read that runtime's API endpoint after an
+approved action:
 
 ```bash
 cd infra
 tofu output -raw lambda_api_url
 ```
+
+The accepted 2026-08-29 retirement decision waives only the former development
+App Runner retention and seven-day observation requirement. The historical
+failed observation remains evidence of the old rollback-origin stylesheet
+mismatch; it is not repaired or represented as passing. Production observation
+and Amplify retirement remain unchanged. See the
+[retirement design](../superpowers/specs/2026-08-29-development-app-runner-retirement-design.md).
+
+The only App Runner retirement interfaces are
+`legacy-apprunner-retirement-init`, `legacy-apprunner-retirement-plan`, and
+`legacy-apprunner-retirement-apply`. They require
+`AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, and acknowledgement of
+`s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`.
+The plan interface requires a new absolute `PLAN_FILE`, saves and checker-reviews
+that plan, and prints it for review. Apply accepts only that saved plan and its
+separately approved SHA-256 checksum.
+
+Before any apply, inventory the live App Runner custom-domain association,
+obtain separate current-session approval to disassociate it out of band, and
+verify it is absent. This local branch neither performs nor authorizes that
+provider mutation. Then, and only with separate approval for each live action:
+
+```bash
+export AWS_PROFILE=portfolio-deployer
+export AWS_REGION=us-west-2
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+
+task legacy-apprunner-retirement-init
+retirement_plan_dir=$(mktemp -d)
+retirement_plan="$retirement_plan_dir/legacy-apprunner-retirement.tfplan"
+task legacy-apprunner-retirement-plan PLAN_FILE="$retirement_plan"
+
+retirement_plan_sha256=$(shasum -a 256 "$retirement_plan" | awk '{print $1}')
+printf 'retirement_plan_sha256=%s\n' "$retirement_plan_sha256"
+
+: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
+task legacy-apprunner-retirement-apply \
+  PLAN_FILE="$retirement_plan" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
+  APPROVED_STATE_LOCK_URI="$APPROVED_STATE_LOCK_URI"
+```
+
+The retirement checker allows only the reviewed App Runner and dedicated-IAM
+removals plus their root outputs; no other infrastructure action is accepted.
 
 ## Runtime behavior
 
@@ -224,7 +264,7 @@ with that exact expected value proves the identity of those artifacts.
 They do not log in to ECR, push images, apply OpenTofu, or update a running
 service.
 
-## Verify locally and for legacy rollback
+## Verify locally and for the retained legacy Lambda
 
 Run the repository gate before any approved deployment:
 
@@ -232,7 +272,7 @@ Run the repository gate before any approved deployment:
 task ci
 ```
 
-After a legacy rollback deployment, verify these paths:
+After an approved retained-legacy-Lambda action, verify these paths:
 
 ```text
 GET /healthz
