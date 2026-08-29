@@ -63,3 +63,17 @@
 - `task test` after changes to verify tests pass
 - `task fmt` after editing Go code to maintain consistent formatting
 - `task lint` after changes to catch lint issues
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in this repository's GitHub Issues using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use their default, same-named GitHub labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses a single-context layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
