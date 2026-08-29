@@ -14,13 +14,16 @@ case "$PLAN_JSON" in
 esac
 test -f "$PLAN_JSON" || fail "PLAN_JSON does not exist"
 
-jq -e '.resource_changes | type == "array"' "$PLAN_JSON" >/dev/null ||
-	fail "plan JSON has no resource_changes array"
-jq -e '.output_changes | type == "object"' "$PLAN_JSON" >/dev/null ||
-	fail "plan JSON has no output_changes object"
+jq -se '
+	length == 1 and
+	(.[0].resource_changes | type == "array") and
+	(.[0].output_changes | type == "object")
+' "$PLAN_JSON" >/dev/null || fail "plan JSON must contain exactly one document with resource_changes and output_changes"
 
-jq -e '
-	def non_actionable: . == ["no-op"] or . == ["read"];
+jq -se '
+	def managed_non_actionable: . == ["no-op"];
+	def data_non_actionable: . == ["no-op"] or . == ["read"];
+	.[0] |
 	def expected_resources: [
 		"aws_apprunner_service.app",
 		"aws_iam_role.apprunner_ecr_access",
@@ -39,19 +42,21 @@ jq -e '
 	];
 	[
 		.resource_changes[]
-		| select(.mode == "managed" and (.change.actions | non_actionable | not))
+		| select(.mode == "managed" and (.change.actions | managed_non_actionable | not))
 	] as $resource_deletes |
 	[
 		.output_changes | to_entries[]
-		| select(.value.actions | non_actionable | not)
+		| select(.value.actions | managed_non_actionable | not)
 	] as $output_deletes |
-	all(.resource_changes[]; (.change.actions | non_actionable) or .change.actions == ["delete"]) and
-	all(.resource_changes[] | select(.mode != "managed"); .change.actions | non_actionable) and
+	([.resource_changes[].address] | length) == ([.resource_changes[].address] | unique | length) and
+	all(.resource_changes[];
+		(.mode == "managed" and ((.change.actions | managed_non_actionable) or .change.actions == ["delete"])) or
+		(.mode == "data" and (.change.actions | data_non_actionable))) and
 	([ $resource_deletes[].address ] | sort) == (expected_resources | sort) and
 	all($resource_deletes[];
 		.change.actions == ["delete"] and .change.before != null and .change.after == null) and
 	all(.output_changes | to_entries[];
-		(.value.actions | non_actionable) or .value.actions == ["delete"]) and
+		(.value.actions | managed_non_actionable) or .value.actions == ["delete"]) and
 	([ $output_deletes[].key ] | sort) == (expected_outputs | sort) and
 	all($output_deletes[];
 		.value.actions == ["delete"] and .value.before != null and .value.after == null)

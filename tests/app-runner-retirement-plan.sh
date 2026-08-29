@@ -85,8 +85,21 @@ mutate_and_reject "update action" '(.resource_changes[] | select(.address == "aw
 mutate_and_reject "replacement action" '(.resource_changes[] | select(.address == "aws_lambda_function.app").change.actions) = ["delete", "create"]'
 mutate_and_reject "expected address with a non-delete action" '(.resource_changes[] | select(.address == "aws_apprunner_service.app").change.actions) = ["no-op"]'
 mutate_and_reject "delete with a non-null after value" '(.resource_changes[] | select(.address == "aws_apprunner_service.app").change.after) = {service_name: "portfolio"}'
+mutate_and_reject "delete with a null before value" '(.resource_changes[] | select(.address == "aws_apprunner_service.app").change.before) = null'
+mutate_and_reject "managed resource read action" '(.resource_changes[] | select(.address == "aws_lambda_function.app").change.actions) = ["read"]'
+mutate_and_reject "data source delete action" '(.resource_changes[] | select(.mode == "data").change.actions) = ["delete"]'
+mutate_and_reject "unknown resource mode" '(.resource_changes[] | select(.address == "aws_lambda_function.app").mode) = "unknown"'
+mutate_and_reject "duplicate managed resource address" '.resource_changes += [(.resource_changes[] | select(.address == "aws_apprunner_service.app") | .change.actions = ["no-op"])]'
 mutate_and_reject "unexpected output delete" '.output_changes.unapproved = {actions: ["delete"], before: "value", after: null}'
 mutate_and_reject "missing expected output delete" 'del(.output_changes.app_runner_service_url)'
+mutate_and_reject "output read action" '.output_changes.lambda_function_name.actions = ["read"]'
+mutate_and_reject "output delete with a non-null after value" '.output_changes.app_runner_service_url.after = "https://example.awsapprunner.com"'
+
+{
+	jq '.resource_changes[0].address = "aws_iam_role.unapproved"' "$plan"
+	jq '.' "$plan"
+} >"$tmp_dir/multiple-documents.json"
+expect_fail "multiple top-level JSON documents" run_check "$tmp_dir/multiple-documents.json"
 
 expect_fail "relative PLAN_JSON path" env PLAN_JSON=tests/app-runner-retirement-plan.sh sh "$checker"
 expect_fail "missing PLAN_JSON file" env PLAN_JSON="$tmp_dir/missing.json" sh "$checker"
