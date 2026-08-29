@@ -169,7 +169,6 @@ a.tech-pill {
 }
 
 a.tech-pill:hover {
-  @apply -translate-y-px;
   border-color: color-mix(in srgb, var(--pond-mint) 62%, transparent);
   background: color-mix(in srgb, var(--pond-mint) 17%, var(--cocoa-cedar));
   color: var(--candle-oat);
@@ -402,6 +401,10 @@ a.tech-pill:hover {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .site-operator-footer-shell .site-chrome-footer-link {
+    align-self: center;
+  }
 }
 
 .site-chrome-footer-link {
@@ -447,12 +450,6 @@ body[data-shell='operator'] .site-operator-footer-shell {
   gap: var(--space-md);
   font-family: var(--font-display);
   font-weight: var(--font-semibold);
-}
-
-@media (min-width: 48rem) {
-  .site-operator-footer-shell .site-chrome-footer-link {
-    align-self: center;
-  }
 }
 
 @media (max-width: 69.999rem) {
