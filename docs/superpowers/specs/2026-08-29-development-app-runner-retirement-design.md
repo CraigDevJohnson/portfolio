@@ -76,10 +76,21 @@ Retirement plan creation and apply must:
 - reject root, ambient static credentials, and the wrong account or SSO role;
 - require explicit acknowledgement of
   `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`;
+- initialize the legacy root using its checked-in backend block with
+  `tofu -chdir=infra init -reconfigure -input=false`, never a nonexistent
+  `backend.hcl` override;
+- reject `TF_CLI_ARGS`, `TF_CLI_ARGS_init`, `TF_CLI_ARGS_workspace`,
+  `TF_CLI_ARGS_plan`, `TF_CLI_ARGS_show`, `TF_CLI_ARGS_apply`, `TF_WORKSPACE`,
+  and `TF_DATA_DIR`, and prove the workspace is `default` at initialization,
+  plan creation, and apply time;
 - use a new absolute saved-plan path;
 - validate the saved-plan JSON against the exact action allowlist above;
+- create plans with the normal full refresh and lock acquisition, without
+  `-target`, `-destroy`, or automatic approval;
 - reject `-target`, `-destroy`, and automatic approval;
-- apply only the reviewed saved plan whose SHA-256 checksum is supplied; and
+- before apply, verify the supplied SHA-256 checksum, inspect and checker-verify
+  fresh JSON from that exact saved plan, verify the checksum again, and apply
+  only the unchanged reviewed file; and
 - keep Git publication, App Runner domain disassociation, plan lock writes,
   plan apply, and later cleanup as separate approval boundaries.
 

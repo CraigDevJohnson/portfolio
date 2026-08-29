@@ -177,8 +177,13 @@ The only App Runner retirement interfaces are
 `AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, and acknowledgement of
 `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`.
 The plan interface requires a new absolute `PLAN_FILE`, saves and checker-reviews
-that plan, and prints it for review. Apply accepts only that saved plan and its
-separately approved SHA-256 checksum.
+that plan, and prints it for review. Initialization uses the legacy root's
+checked-in backend block with `-reconfigure -input=false` and no `backend.hcl`
+override. Every retirement entry point rejects `TF_CLI_ARGS`, the relevant
+command-specific `TF_CLI_ARGS_*` variables, `TF_WORKSPACE`, and `TF_DATA_DIR`,
+then proves the workspace is `default`. Apply verifies the reviewed checksum,
+re-runs the retirement checker against fresh saved-plan JSON, verifies the
+checksum again, and only then applies that exact file.
 
 Before any apply, inventory the live App Runner custom-domain association,
 obtain separate current-session approval to disassociate it out of band, and

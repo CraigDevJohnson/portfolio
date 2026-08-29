@@ -98,3 +98,4 @@ jobs:
           sh tests/lambda-observation-window.sh
           sh tests/lambda-plan-contract.sh
           sh tests/app-runner-retirement-plan.sh
+          sh tests/app-runner-retirement-tasks.sh

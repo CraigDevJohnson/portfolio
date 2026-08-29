@@ -44,6 +44,7 @@ make_plan() {
 		def deletion($before): {actions: ["delete"], before: $before, after: null};
 		def no_op($before): {actions: ["no-op"], before: $before, after: $before};
 		{
+			errored: false,
 			resource_changes: [
 				{mode: "managed", address: "aws_apprunner_service.app", change: deletion({service_name: "portfolio"})},
 				{mode: "managed", address: "aws_iam_role.apprunner_ecr_access", change: deletion({name: "portfolio-apprunner-ecr-access"})},
@@ -94,6 +95,7 @@ mutate_and_reject "unexpected output delete" '.output_changes.unapproved = {acti
 mutate_and_reject "missing expected output delete" 'del(.output_changes.app_runner_service_url)'
 mutate_and_reject "output read action" '.output_changes.lambda_function_name.actions = ["read"]'
 mutate_and_reject "output delete with a non-null after value" '.output_changes.app_runner_service_url.after = "https://example.awsapprunner.com"'
+mutate_and_reject "errored plan" '.errored = true'
 
 {
 	jq '.resource_changes[0].address = "aws_iam_role.unapproved"' "$plan"

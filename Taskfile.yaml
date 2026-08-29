@@ -442,6 +442,45 @@ tasks:
           exit 1
         }
 
+  _legacy-apprunner-retirement-environment-check:
+    internal: true
+    cmds:
+      - |
+        set -eu
+        for variable in \
+          TF_CLI_ARGS \
+          TF_CLI_ARGS_init \
+          TF_CLI_ARGS_workspace \
+          TF_CLI_ARGS_plan \
+          TF_CLI_ARGS_show \
+          TF_CLI_ARGS_apply \
+          TF_WORKSPACE \
+          TF_DATA_DIR; do
+          if printenv "$variable" >/dev/null 2>&1; then
+            echo "$variable must be unset for App Runner retirement" >&2
+            exit 1
+          fi
+        done
+
+  _legacy-apprunner-retirement-workspace-check:
+    internal: true
+    cmds:
+      - |
+        set -eu
+        workspace=$(tofu -chdir=infra workspace show)
+        test "$workspace" = "default" || {
+          echo "Refusing non-default OpenTofu workspace: $workspace" >&2
+          exit 1
+        }
+
+  _legacy-apprunner-retirement-init:
+    internal: true
+    cmds:
+      - |
+        set -eu
+        tofu -chdir=infra init -reconfigure -input=false
+      - task: _legacy-apprunner-retirement-workspace-check
+
   _lambda-root-init:
     internal: true
     env:
@@ -758,9 +797,8 @@ tasks:
     desc: Initialize the legacy state for reviewed App Runner retirement
     cmds:
       - task: _lambda-identity-check
-      - task: _lambda-root-init
-        vars:
-          ROOT: infra
+      - task: _legacy-apprunner-retirement-environment-check
+      - task: _legacy-apprunner-retirement-init
 
   legacy-apprunner-retirement-plan:
     desc: Create and check a saved legacy App Runner retirement plan
@@ -768,9 +806,11 @@ tasks:
       PLAN_FILE: '{{default "" .PLAN_FILE}}'
     cmds:
       - task: _lambda-identity-check
+      - task: _legacy-apprunner-retirement-environment-check
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+      - task: _legacy-apprunner-retirement-workspace-check
       - |
         set -eu
         case "$PLAN_FILE" in
@@ -782,22 +822,55 @@ tasks:
           exit 1
         }
         plan_json=$(mktemp)
+        chmod 600 "$plan_json"
         trap 'rm -f "$plan_json"' EXIT
-        tofu -chdir=infra plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out="$PLAN_FILE"
         tofu -chdir=infra show -json "$PLAN_FILE" > "$plan_json"
         PLAN_JSON="$plan_json" sh scripts/check-app-runner-retirement-plan.sh
         tofu -chdir=infra show -no-color "$PLAN_FILE"
 
   legacy-apprunner-retirement-apply:
     desc: Apply only an approved saved legacy App Runner retirement plan
+    env:
+      APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
     cmds:
       - task: _lambda-identity-check
+      - task: _legacy-apprunner-retirement-environment-check
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-      - task: _lambda-saved-plan-apply
-        vars:
-          ROOT: infra
+      - task: _legacy-apprunner-retirement-workspace-check
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test -f "$PLAN_FILE" || {
+          echo "PLAN_FILE does not exist: $PLAN_FILE" >&2
+          exit 1
+        }
+        printf '%s\n' "$APPROVED_PLAN_SHA256" | grep -Eq '^[0-9a-f]{64}$' || {
+          echo "APPROVED_PLAN_SHA256 must be the exact reviewed SHA-256 checksum" >&2
+          exit 1
+        }
+        initial_plan_sha256=$(shasum -a 256 "$PLAN_FILE" | awk '{print $1}')
+        test "$initial_plan_sha256" = "$APPROVED_PLAN_SHA256" || {
+          echo "PLAN_FILE checksum does not match APPROVED_PLAN_SHA256" >&2
+          exit 1
+        }
+        plan_json=$(mktemp)
+        chmod 600 "$plan_json"
+        trap 'rm -f "$plan_json"' EXIT
+        tofu -chdir=infra show -json "$PLAN_FILE" > "$plan_json"
+        PLAN_JSON="$plan_json" sh scripts/check-app-runner-retirement-plan.sh
+        final_plan_sha256=$(shasum -a 256 "$PLAN_FILE" | awk '{print $1}')
+        test "$final_plan_sha256" = "$APPROVED_PLAN_SHA256" || {
+          echo "PLAN_FILE changed during retirement plan inspection" >&2
+          exit 1
+        }
+        tofu -chdir=infra apply -input=false "$PLAN_FILE"
 
   lambda-prod-observation-sample:
     desc: Record one sanitized production Lambda observation sample

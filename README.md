@@ -293,6 +293,8 @@ approved SHA-256 checksum before apply. The live App Runner custom-domain
 inventory and disassociation are an out-of-band, separately approved boundary
 that must be complete before apply; this branch does not authorize it. See
 [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the complete contract.
+Each retirement entry point rejects `TF_CLI_ARGS`, its relevant command-specific
+variants, `TF_WORKSPACE`, and `TF_DATA_DIR`; it uses only the default workspace.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;

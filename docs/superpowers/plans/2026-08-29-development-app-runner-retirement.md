@@ -208,18 +208,23 @@ three production observation tasks, `_ecr-*`, `deploy-lambda`, and
 - [ ] **Step 3: Add the legacy retirement task interfaces**
 
 Add `legacy-apprunner-retirement-init` that runs `_lambda-identity-check`,
-initializes `infra` with `-reconfigure -input=false`, and rejects a non-default
-workspace.
+rejects OpenTofu CLI, workspace, and data-directory override variables, then
+initializes `infra` with `-reconfigure -input=false` using the checked-in
+backend block (not `backend.hcl`) and rejects a non-default workspace.
 
 Add `legacy-apprunner-retirement-plan` that runs the identity check, requires
 `APPROVED_STATE_LOCK_URI` to equal
 `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`,
-requires a new absolute `PLAN_FILE`, runs a saved `tofu -chdir=infra plan`,
-converts it to temporary JSON, invokes the checker, and prints the no-color plan.
+rejects the same OpenTofu override variables and non-default workspace, requires
+a new absolute `PLAN_FILE`, runs a full-refresh locked saved
+`tofu -chdir=infra plan`, converts it to temporary JSON, invokes the checker,
+and prints the no-color plan.
 
 Add `legacy-apprunner-retirement-apply` that runs the same identity and lock
-checks, then calls `_lambda-saved-plan-apply` with `ROOT: infra`. It requires the
-reviewed `APPROVED_PLAN_SHA256` and applies only `PLAN_FILE`.
+checks plus the override and default-workspace guards. It requires the reviewed
+`APPROVED_PLAN_SHA256`, validates it before inspecting fresh saved-plan JSON,
+runs the retirement checker, validates the checksum again, and applies only the
+unchanged `PLAN_FILE`.
 
 - [ ] **Step 4: Validate configuration and task parsing**
 
