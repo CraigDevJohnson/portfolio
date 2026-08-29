@@ -88,7 +88,6 @@ The main repository commands are:
 | `task test-images` | Verify both local Linux amd64 image contracts |
 | `task portal-preview` | Run the mock portal on loopback |
 | `task compose` | Build and start the Compose service |
-| `task logs` | Follow logs for the legacy shared-stack App Runner service |
 
 `Taskfile.yaml` is the command source of truth. In particular, use `task fmt`
 instead of `go fmt ./...` for the repository formatting gate.
@@ -187,7 +186,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Legacy shared-stack OpenTofu and rollback material
+├── infra/                  Legacy Lambda/API and shared-data OpenTofu state
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -276,12 +275,26 @@ The Google add and result-sync handlers reserve 24 seconds of that window, which
 leaves five seconds outside their application work budget. A later environment
 plan must implement the 29-second setting before release.
 
-The checked-in `infra/` directory still describes the legacy shared App Runner
-and Lambda stack. Its Lambda timeout defaults to 30 seconds. Treat `infra/`,
-`task deploy`, `task redeploy`, `task deploy-lambda`, `task redeploy-lambda`,
-`task logs`, and the App Runner custom-domain instructions as legacy
-shared-stack and rollback material. Do not use them to deploy this release, and
-do not deploy the new release to App Runner.
+The checked-in `infra/` directory retains the legacy Lambda/API Gateway
+resources, shared data, ECR, and SSM configuration. The state still contains
+the pending removal of App Runner-managed resources until an approved retirement
+plan is applied. Its Lambda timeout defaults to 30 seconds. The retired
+App Runner deployment and log interfaces are unavailable; the retained
+`task deploy-lambda` and `task redeploy-lambda` helpers concern only that legacy
+Lambda runtime and are not replacement-release commands.
+
+App Runner retirement uses only `legacy-apprunner-retirement-init`,
+`legacy-apprunner-retirement-plan`, and
+`legacy-apprunner-retirement-apply`. They require
+`AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, the exact state-lock
+URI `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`,
+a new absolute `PLAN_FILE`, the checker-reviewed saved plan, and a separately
+approved SHA-256 checksum before apply. The live App Runner custom-domain
+inventory and disassociation are an out-of-band, separately approved boundary
+that must be complete before apply; this branch does not authorize it. See
+[`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the complete contract.
+Each retirement entry point rejects `TF_CLI_ARGS`, its relevant command-specific
+variants, `TF_WORKSPACE`, and `TF_DATA_DIR`; it uses only the default workspace.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;
@@ -305,7 +318,7 @@ which is not immutable provenance proof. `task test-images` verifies the image
 contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
-Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the boundary
-between pending replacement work and preserved legacy rollback procedures.
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the retirement
+boundary and retained legacy Lambda guidance.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

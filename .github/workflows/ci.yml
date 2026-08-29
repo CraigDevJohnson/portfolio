@@ -77,10 +77,12 @@ jobs:
           tofu_wrapper: false
 
       - name: Check OpenTofu formatting
-        run: tofu fmt -check -recursive infra/lambda
+        run: tofu fmt -check -recursive infra
 
-      - name: Validate replacement roots without backends
+      - name: Validate infrastructure roots without backends
         run: |
+          tofu -chdir=infra init -backend=false -input=false
+          tofu -chdir=infra validate
           tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
           tofu -chdir=infra/lambda/artifacts validate
           tofu -chdir=infra/lambda/environments/dev init -backend=false -input=false
@@ -95,3 +97,5 @@ jobs:
         run: |
           sh tests/lambda-observation-window.sh
           sh tests/lambda-plan-contract.sh
+          sh tests/app-runner-retirement-plan.sh
+          sh tests/app-runner-retirement-tasks.sh
