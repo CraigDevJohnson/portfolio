@@ -7,6 +7,7 @@ trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 fake_bin="$tmp_dir/bin"
 command_log="$tmp_dir/commands.log"
 plan_json="$tmp_dir/retirement-plan.json"
+valid_plan_json="$tmp_dir/valid-retirement-plan.json"
 plan_file="$tmp_dir/retirement.tfplan"
 apply_marker="$tmp_dir/apply-ran"
 mkdir -p "$fake_bin"
@@ -68,6 +69,7 @@ jq -n '
 		}
 	}
 ' >"$plan_json"
+cp "$plan_json" "$valid_plan_json"
 
 cat >"$fake_bin/aws" <<'EOF'
 #!/bin/sh
@@ -209,11 +211,27 @@ pass "retirement apply checks before apply"
 
 : >"$command_log"
 rm -f "$apply_marker"
-expect_fail "retirement apply rejects a mismatched checksum" run_task \
+jq '.errored = true' "$valid_plan_json" >"$plan_json"
+expect_fail "retirement apply checker rejection blocks apply" run_apply
+grep -F 'App Runner retirement plan contract failed:' "$tmp_dir/output" >/dev/null || fail "retirement apply did not run the checker"
+test ! -f "$apply_marker" || fail "retirement apply ran after checker rejection"
+cp "$valid_plan_json" "$plan_json"
+
+: >"$command_log"
+rm -f "$apply_marker"
+actual_plan_sha256=$(shasum -a 256 "$plan_file" | awk '{print $1}')
+case "$actual_plan_sha256" in
+	0000000000000000000000000000000000000000000000000000000000000000)
+		mismatched_plan_sha256=1111111111111111111111111111111111111111111111111111111111111111
+		;;
+	*) mismatched_plan_sha256=0000000000000000000000000000000000000000000000000000000000000000 ;;
+esac
+expect_fail "retirement apply rejects a valid mismatched checksum" run_task \
 	legacy-apprunner-retirement-apply \
 	PLAN_FILE="$plan_file" \
-	APPROVED_PLAN_SHA256=wrong \
+	APPROVED_PLAN_SHA256="$mismatched_plan_sha256" \
 	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+grep -F 'PLAN_FILE checksum does not match APPROVED_PLAN_SHA256' "$tmp_dir/output" >/dev/null || fail "retirement apply did not reject the checksum mismatch"
 test ! -f "$apply_marker" || fail "retirement apply ran after checksum mismatch"
 
 : >"$command_log"
