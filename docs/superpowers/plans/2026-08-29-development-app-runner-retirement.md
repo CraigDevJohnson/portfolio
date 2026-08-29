@@ -6,7 +6,7 @@
 
 **Goal:** Make App Runner retirement reviewable and reproducible without the
 former seven-day development observation window, while retaining every shared
-or Lambda resource.
+data and replacement Lambda resource.
 
 **Architecture:** Preserve the historical failed observation unchanged, encode
 the accepted risk in a superseding design, remove App Runner from the legacy
@@ -19,13 +19,20 @@ development gate.
 
 **Spec:** `docs/superpowers/specs/2026-08-29-development-app-runner-retirement-design.md`
 
+> **Inventory correction:** Root inventory after the original implementation
+> confirmed that the legacy state and live account have no legacy Lambda/API,
+> execution role, or runtime policy. The follow-up authorization work removes
+> those unused declarations and helpers so the full-refresh plan cannot propose
+> creating them. This corrects the retention assumption below without changing
+> the eight-delete App Runner boundary.
+
 ## Global Constraints
 
 - Preserve commit `927a11835dc217cc228361b383e54565af73c2cb` and its two evidence files byte-for-byte.
 - Leave `development.observation_completed_at` as `null`; never relabel the failed sample as passed.
 - Permit exactly the eight managed-resource deletes and four root-output deletes named in the spec.
 - Permit data-source reads and no-op actions, but reject every other create, update, replacement, or delete action.
-- Retain both ECR repositories, both legacy DynamoDB tables, shared DynamoDB IAM policies, all SSM parameters, the legacy Lambda/API Gateway resources, every `infra/lambda/` resource, Cloudflare, Google OAuth configuration, and App Runner log groups.
+- Retain both ECR repositories, both legacy DynamoDB tables, shared DynamoDB IAM policies, all SSM parameters, every `infra/lambda/` resource, Cloudflare, Google OAuth configuration, and App Runner log groups.
 - Keep the shared production observation scripts, tests, and production tasks intact; retire only the development observation task entry points that require App Runner.
 - Do not run a remote OpenTofu plan, write a state lock, disassociate a custom domain, apply a plan, deploy, push, open a pull request, merge, or mutate Cloudflare/AWS during implementation.
 - Do not use `tofu destroy`, `-destroy`, `-target`, or automatic approval for retirement.
@@ -196,14 +203,16 @@ Expected: all validation commands exit zero before the commit.
 Delete the eight managed resource blocks and four output blocks listed in the
 spec. Delete variables `container_port`, `auto_deployments_enabled`,
 `ecr_image_tag`, `app_runner_cpu`, and `app_runner_memory`. Preserve the two
-shared DynamoDB IAM policy blocks and their legacy Lambda attachments.
+shared DynamoDB IAM policy blocks. The inventory correction removes the absent
+legacy Lambda/API declarations rather than allowing the plan to create them.
 
 - [ ] **Step 2: Retire unsafe or unusable task entry points**
 
 Remove `lambda-dev-observation-sample`, `lambda-dev-observation-workflow`,
 `lambda-dev-observation-gate`, `deploy`, `redeploy`, and `logs`. Preserve the
-three production observation tasks, `_ecr-*`, `deploy-lambda`, and
-`redeploy-lambda`.
+three production observation tasks and replacement `_ecr-*` helpers. Remove
+`deploy-lambda` and `redeploy-lambda` after inventory proves their targets do
+not exist in state or AWS.
 
 - [ ] **Step 3: Add the legacy retirement task interfaces**
 
@@ -272,7 +281,7 @@ separate custom-domain approval boundary.
 - [ ] **Step 2: Replace destructive legacy instructions**
 
 Rewrite `DEPLOY-INSTRUCTIONS.md` so the retained `infra/` root is described as
-legacy Lambda/shared data plus a pending App Runner deletion. Remove App Runner
+shared data plus a pending App Runner deletion. Remove App Runner
 association, deployment, troubleshooting, full-stack `tofu plan -destroy`, and
 `tofu destroy` instructions. Document the exact retirement sequence and state
 that live custom-domain disassociation is out-of-band and separately approved.
@@ -281,8 +290,8 @@ that live custom-domain disassociation is out-of-band and separately approved.
 
 Replace the App Runner rollback section in
 `docs/deployment/aws-lambda-api-gateway.md` with the accepted retirement design,
-retained legacy Lambda helpers, and saved-plan tasks. Remove legacy App Runner
-route-verification guidance.
+the absent-legacy-runtime inventory correction, and saved-plan tasks. Remove
+legacy App Runner route-verification guidance.
 
 - [ ] **Step 4: Mark prior constraints as narrowly superseded**
 

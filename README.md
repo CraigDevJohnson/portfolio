@@ -186,7 +186,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Legacy Lambda/API and shared-data OpenTofu state
+├── infra/                  Shared data and pending App Runner retirement state
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -268,24 +268,23 @@ Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The current release candidate prepares the application for a replacement AWS
-Lambda and API Gateway environment, but it does not create or deploy that
-environment. The replacement deployment contract is a 29-second Lambda timeout.
+The managed replacement Lambda/API Gateway environment contract uses a
+29-second Lambda timeout.
 The Google add and result-sync handlers reserve 24 seconds of that window, which
-leaves five seconds outside their application work budget. A later environment
-plan must implement the 29-second setting before release.
+leaves five seconds outside their application work budget.
 
-The checked-in `infra/` directory retains the legacy Lambda/API Gateway
-resources, shared data, ECR, and SSM configuration. The state still contains
-the pending removal of App Runner-managed resources until an approved retirement
-plan is applied. Its Lambda timeout defaults to 30 seconds. The retired
-App Runner deployment and log interfaces are unavailable; the retained
-`task deploy-lambda` and `task redeploy-lambda` helpers concern only that legacy
-Lambda runtime and are not replacement-release commands.
+The checked-in `infra/` directory retains the shared legacy ECR repository,
+DynamoDB tables, IAM policies, and SSM configuration. Root inventory on
+2026-08-29 confirmed that neither its remote state nor the live account contains
+the formerly declared legacy Lambda/API Gateway resources. Those declarations,
+outputs, and targeted deployment helpers are removed so an App Runner retirement
+plan cannot accidentally create them. The state still contains the pending
+removal of App Runner-managed resources until an approved retirement plan is
+applied.
 
 App Runner retirement uses only `legacy-apprunner-retirement-init`,
-`legacy-apprunner-retirement-plan`, and
-`legacy-apprunner-retirement-apply`. They require
+`legacy-apprunner-retirement-preflight`, `legacy-apprunner-retirement-plan`,
+and `legacy-apprunner-retirement-apply`. They require
 `AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, the exact state-lock
 URI `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`,
 a new absolute `PLAN_FILE`, the checker-reviewed saved plan, and a separately
@@ -319,6 +318,6 @@ contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
 Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the retirement
-boundary and retained legacy Lambda guidance.
+boundary and retained shared-resource guidance.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

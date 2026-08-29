@@ -22,6 +22,13 @@ preserves each earlier candidate:
   permissions boundary for deterministic Lambda execution roles. The boundary
   is a ceiling, not a grant; its production statements remain dormant until a
   separately authorized production role and runtime policy exist.
+- `portfolio-deployer-app-runner-retirement-policy.json` is a purpose-built,
+  short-lived IAM Identity Center inline-policy candidate for the exact legacy
+  App Runner retirement. It replaces the normal development bootstrap policy
+  only for the checked full-refresh plan and checksum-bound apply. It grants no
+  resource creation, update, PassRole, custom-domain disassociation, or
+  Identity Center administration. Restore the current development bootstrap
+  policy and reprovision the permission set immediately after retirement.
 
 The boundary is provisioned at the account-owned path
 `/portfolio/boundaries/PortfolioLambdaExecutionBoundary`. A deployer may never
@@ -100,6 +107,15 @@ wait for `SUCCEEDED`, and verify effective access before using it.
 Never restore this initial document after a temporary statement has been
 removed. Each later custom-domain phase requires its own just-in-time,
 development-only candidate and approval.
+
+The App Runner retirement candidate is intentionally separate from those
+development bootstrap phases. Do not merge its statements into
+`portfolio-deployer-development-bootstrap-policy.json`, install it as an
+additional customer-managed policy, or use the root profile for OpenTofu. The
+root profile may verify and temporarily replace the `PortfolioDeployer`
+permission-set inline policy, provision that permission set, and restore the
+canonical development policy. The guarded plan and apply continue to require
+the `portfolio-deployer` profile.
 
 Do not store an IAM Identity Center user ID, ownership or MFA evidence, live
 assignment coordinates, decrypted parameter value, saved plan, session data,

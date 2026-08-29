@@ -97,5 +97,8 @@ jobs:
         run: |
           sh tests/lambda-observation-window.sh
           sh tests/lambda-plan-contract.sh
+          sh tests/legacy-root-retirement-config.sh
+          sh tests/portfolio-deployer-retirement-policy.sh
           sh tests/app-runner-retirement-plan.sh
+          sh tests/app-runner-retirement-preflight.sh
           sh tests/app-runner-retirement-tasks.sh

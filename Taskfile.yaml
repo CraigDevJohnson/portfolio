@@ -461,6 +461,10 @@ tasks:
             exit 1
           fi
         done
+        if env | LC_ALL=C grep -q '^TF_VAR_'; then
+          echo "TF_VAR_* variables must be unset for App Runner retirement" >&2
+          exit 1
+        fi
 
   _legacy-apprunner-retirement-workspace-check:
     internal: true
@@ -478,7 +482,7 @@ tasks:
     cmds:
       - |
         set -eu
-        tofu -chdir=infra init -reconfigure -input=false
+        tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false
       - task: _legacy-apprunner-retirement-workspace-check
 
   _lambda-root-init:
@@ -800,6 +804,13 @@ tasks:
       - task: _legacy-apprunner-retirement-environment-check
       - task: _legacy-apprunner-retirement-init
 
+  legacy-apprunner-retirement-preflight:
+    desc: Verify the exact live App Runner and dedicated IAM retirement target
+    cmds:
+      - task: _lambda-identity-check
+      - task: _legacy-apprunner-retirement-environment-check
+      - sh scripts/check-app-runner-retirement-preflight.sh
+
   legacy-apprunner-retirement-plan:
     desc: Create and check a saved legacy App Runner retirement plan
     env:
@@ -810,21 +821,42 @@ tasks:
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-      - task: _legacy-apprunner-retirement-workspace-check
+      - task: _legacy-apprunner-retirement-init
       - |
         set -eu
         case "$PLAN_FILE" in
           /*) ;;
           *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
         esac
-        test ! -e "$PLAN_FILE" || {
+        test ! -e "$PLAN_FILE" && test ! -L "$PLAN_FILE" || {
           echo "Refusing existing PLAN_FILE: $PLAN_FILE" >&2
+          exit 1
+        }
+        plan_dir=$(dirname "$PLAN_FILE")
+        test -d "$plan_dir" && test ! -L "$plan_dir" || {
+          echo "PLAN_FILE parent must be an existing non-symlink directory" >&2
+          exit 1
+        }
+        plan_dir_owner=$(stat -f '%u' "$plan_dir" 2>/dev/null || stat -c '%u' "$plan_dir")
+        test "$plan_dir_owner" = "$(id -u)" || {
+          echo "PLAN_FILE parent must be owned by the current user" >&2
+          exit 1
+        }
+        plan_dir_mode=$(stat -f '%Lp' "$plan_dir" 2>/dev/null || stat -c '%a' "$plan_dir")
+        test "$plan_dir_mode" = 700 || {
+          echo "PLAN_FILE parent must have mode 700" >&2
           exit 1
         }
         plan_json=$(mktemp)
         chmod 600 "$plan_json"
         trap 'rm -f "$plan_json"' EXIT
+        sh scripts/check-app-runner-retirement-preflight.sh
         tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        test -f "$PLAN_FILE" && test ! -L "$PLAN_FILE" || {
+          echo "OpenTofu did not create a regular non-symlink PLAN_FILE" >&2
+          exit 1
+        }
+        chmod 400 "$PLAN_FILE"
         tofu -chdir=infra show -json "$PLAN_FILE" > "$plan_json"
         PLAN_JSON="$plan_json" sh scripts/check-app-runner-retirement-plan.sh
         tofu -chdir=infra show -no-color "$PLAN_FILE"
@@ -840,17 +872,43 @@ tasks:
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-      - task: _legacy-apprunner-retirement-workspace-check
+      - task: _legacy-apprunner-retirement-init
       - |
         set -eu
         case "$PLAN_FILE" in
           /*) ;;
           *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
         esac
-        test -f "$PLAN_FILE" || {
-          echo "PLAN_FILE does not exist: $PLAN_FILE" >&2
+        test -f "$PLAN_FILE" && test ! -L "$PLAN_FILE" || {
+          echo "PLAN_FILE must be an existing regular non-symlink file: $PLAN_FILE" >&2
           exit 1
         }
+        plan_dir=$(dirname "$PLAN_FILE")
+        test -d "$plan_dir" && test ! -L "$plan_dir" || {
+          echo "PLAN_FILE parent must be an existing non-symlink directory" >&2
+          exit 1
+        }
+        plan_dir_owner=$(stat -f '%u' "$plan_dir" 2>/dev/null || stat -c '%u' "$plan_dir")
+        test "$plan_dir_owner" = "$(id -u)" || {
+          echo "PLAN_FILE parent must be owned by the current user" >&2
+          exit 1
+        }
+        plan_dir_mode=$(stat -f '%Lp' "$plan_dir" 2>/dev/null || stat -c '%a' "$plan_dir")
+        test "$plan_dir_mode" = 700 || {
+          echo "PLAN_FILE parent must have mode 700" >&2
+          exit 1
+        }
+        plan_file_owner=$(stat -f '%u' "$PLAN_FILE" 2>/dev/null || stat -c '%u' "$PLAN_FILE")
+        test "$plan_file_owner" = "$(id -u)" || {
+          echo "PLAN_FILE must be owned by the current user" >&2
+          exit 1
+        }
+        plan_file_links=$(stat -f '%l' "$PLAN_FILE" 2>/dev/null || stat -c '%h' "$PLAN_FILE")
+        test "$plan_file_links" = 1 || {
+          echo "PLAN_FILE must have exactly one hard link" >&2
+          exit 1
+        }
+        chmod 400 "$PLAN_FILE"
         printf '%s\n' "$APPROVED_PLAN_SHA256" | grep -Eq '^[0-9a-f]{64}$' || {
           echo "APPROVED_PLAN_SHA256 must be the exact reviewed SHA-256 checksum" >&2
           exit 1
@@ -865,12 +923,13 @@ tasks:
         trap 'rm -f "$plan_json"' EXIT
         tofu -chdir=infra show -json "$PLAN_FILE" > "$plan_json"
         PLAN_JSON="$plan_json" sh scripts/check-app-runner-retirement-plan.sh
+        sh scripts/check-app-runner-retirement-preflight.sh
         final_plan_sha256=$(shasum -a 256 "$PLAN_FILE" | awk '{print $1}')
         test "$final_plan_sha256" = "$APPROVED_PLAN_SHA256" || {
           echo "PLAN_FILE changed during retirement plan inspection" >&2
           exit 1
         }
-        tofu -chdir=infra apply -input=false "$PLAN_FILE"
+        tofu -chdir=infra apply -lock-timeout=5m -input=false "$PLAN_FILE"
 
   lambda-prod-observation-sample:
     desc: Record one sanitized production Lambda observation sample
@@ -915,45 +974,6 @@ tasks:
       - task: lambda-artifacts-init
       - task: lambda-prod-init
       - sh scripts/check-lambda-observation-window.sh
-
-  deploy-lambda:
-    desc: LEGACY STATE - target Lambda resources in the shared stack
-    cmds:
-      - task: _check-aws
-      - task: _ecr-ensure-repo
-      - task: _ecr-docker-push
-        vars:
-          IMAGE_NAME: portfolio-lambda
-          DOCKERFILE: Dockerfile.lambda
-          IMAGE_TAG: lambda-latest
-      - |
-        set -eu
-        cd infra
-        tofu apply \
-          -target=aws_lambda_function.app \
-          -target=aws_apigatewayv2_integration.lambda_proxy \
-          -target=aws_apigatewayv2_route.lambda_default \
-          -target=aws_apigatewayv2_stage.lambda_default \
-          -target=aws_lambda_permission.allow_apigateway_invoke \
-          --auto-approve
-        echo "Lambda deployment complete!"
-        tofu output lambda_api_url
-
-  redeploy-lambda:
-    desc: LEGACY STATE - push lambda-latest and update function code
-    cmds:
-      - task: _ecr-docker-push
-        vars:
-          IMAGE_NAME: portfolio-lambda
-          DOCKERFILE: Dockerfile.lambda
-          IMAGE_TAG: lambda-latest
-      - |
-        set -eu
-        ECR_URL=$(cd infra && tofu output -raw ecr_repository_url)
-        FUNCTION_NAME=$(cd infra && tofu output -raw lambda_function_name)
-        aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$ECR_URL:lambda-latest" >/dev/null
-        echo "Lambda redeployment triggered. Check status with:"
-        echo "  aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.LastUpdateStatus'"
 
   local-logs:
     desc: Output logs from Docker container running via docker compose (useful with `task compose`)

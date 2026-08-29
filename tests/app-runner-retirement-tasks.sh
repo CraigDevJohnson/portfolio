@@ -48,23 +48,52 @@ jq -n '
 	def deletion($before): {actions: ["delete"], before: $before, after: null};
 	def no_op($before): {actions: ["no-op"], before: $before, after: $before};
 	{
+		applyable: true,
 		errored: false,
 		resource_changes: [
-			{mode: "managed", address: "aws_apprunner_service.app", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role.apprunner_ecr_access", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_ecr_access", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role.apprunner_instance", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role_policy_attachment.google_connections_dynamodb", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role_policy_attachment.soccer_sessions_dynamodb", change: deletion({})},
-			{mode: "managed", address: "aws_iam_policy.apprunner_runtime_secrets", change: deletion({})},
-			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_runtime_secrets", change: deletion({})},
+			{mode: "managed", address: "aws_apprunner_service.app", change: deletion({
+				id: "arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb",
+				arn: "arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb",
+				service_name: "portfolio"
+			})},
+			{mode: "managed", address: "aws_iam_role.apprunner_ecr_access", change: deletion({
+				id: "portfolio-apprunner-ecr-access",
+				arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
+				name: "portfolio-apprunner-ecr-access"
+			})},
+			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_ecr_access", change: deletion({
+				role: "portfolio-apprunner-ecr-access",
+				policy_arn: "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+			})},
+			{mode: "managed", address: "aws_iam_role.apprunner_instance", change: deletion({
+				id: "portfolio-apprunner-instance",
+				arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-instance",
+				name: "portfolio-apprunner-instance"
+			})},
+			{mode: "managed", address: "aws_iam_role_policy_attachment.google_connections_dynamodb", change: deletion({
+				role: "portfolio-apprunner-instance",
+				policy_arn: "arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb"
+			})},
+			{mode: "managed", address: "aws_iam_role_policy_attachment.soccer_sessions_dynamodb", change: deletion({
+				role: "portfolio-apprunner-instance",
+				policy_arn: "arn:aws:iam::180294223248:policy/portfolio-soccer-sessions-dynamodb"
+			})},
+			{mode: "managed", address: "aws_iam_policy.apprunner_runtime_secrets", change: deletion({
+				id: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
+				arn: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
+				name: "portfolio-apprunner-runtime-secrets"
+			})},
+			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_runtime_secrets", change: deletion({
+				role: "portfolio-apprunner-instance",
+				policy_arn: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"
+			})},
 			{mode: "managed", address: "aws_lambda_function.app", change: no_op({})}
 		],
 		output_changes: {
-			app_runner_service_url: deletion("url"),
-			app_runner_service_arn: deletion("arn"),
-			app_runner_service_id: deletion("id"),
-			instance_role_arn: deletion("role"),
+			app_runner_service_url: deletion("https://vafw855pvk.us-west-2.awsapprunner.com"),
+			app_runner_service_arn: deletion("arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb"),
+			app_runner_service_id: deletion("c5490e71b0e84aba90a9648e94d240fb"),
+			instance_role_arn: deletion("arn:aws:iam::180294223248:role/portfolio-apprunner-instance"),
 			lambda_function_name: no_op("portfolio")
 		}
 	}
@@ -80,6 +109,39 @@ case "$*" in
 		printf 'arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_123/test\n'
 		;;
 	*"sts get-caller-identity"*"--query Account"*) printf '180294223248\n' ;;
+	"sts get-caller-identity --output json --no-cli-pager")
+		printf '%s\n' '{"Account":"180294223248","Arn":"arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_123/test","UserId":"test"}'
+		;;
+	"apprunner describe-service --service-arn arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb --output json --no-cli-pager")
+		printf '%s\n' '{"Service":{"ServiceArn":"arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb","ServiceName":"portfolio","Status":"RUNNING","SourceConfiguration":{"AuthenticationConfiguration":{"AccessRoleArn":"arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access"},"ImageRepository":{"ImageIdentifier":"180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio:latest","ImageRepositoryType":"ECR"}},"InstanceConfiguration":{"InstanceRoleArn":"arn:aws:iam::180294223248:role/portfolio-apprunner-instance"}}}'
+		;;
+	"apprunner describe-custom-domains --service-arn arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb --output json --no-cli-pager")
+		if [ "${FAKE_PREFLIGHT_FAIL:-false}" = true ]; then
+			printf '%s\n' '{"ServiceArn":"arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb","CustomDomains":[{"DomainName":"dev.craigdevjohnson.com","Status":"ACTIVE"}]}'
+		else
+			printf '%s\n' '{"ServiceArn":"arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb","CustomDomains":[]}'
+		fi
+		;;
+	"apprunner list-tags-for-resource --resource-arn arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb --output json --no-cli-pager")
+		printf '%s\n' '{"Tags":[{"Key":"Environment","Value":"development"},{"Key":"ManagedBy","Value":"opentofu"},{"Key":"Name","Value":"portfolio"},{"Key":"Project","Value":"portfolio"}]}'
+		;;
+	"iam list-attached-role-policies --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager")
+		printf '%s\n' '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"}]}'
+		;;
+	"iam list-attached-role-policies --role-name portfolio-apprunner-instance --output json --no-cli-pager")
+		printf '%s\n' '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"},{"PolicyArn":"arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb"},{"PolicyArn":"arn:aws:iam::180294223248:policy/portfolio-soccer-sessions-dynamodb"}]}'
+		;;
+	"iam list-role-policies --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager"|\
+	"iam list-role-policies --role-name portfolio-apprunner-instance --output json --no-cli-pager")
+		printf '%s\n' '{"PolicyNames":[]}'
+		;;
+	"iam list-instance-profiles-for-role --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager"|\
+	"iam list-instance-profiles-for-role --role-name portfolio-apprunner-instance --output json --no-cli-pager")
+		printf '%s\n' '{"InstanceProfiles":[]}'
+		;;
+	"iam list-policy-versions --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
+		printf '%s\n' '{"Versions":[{"VersionId":"v1","IsDefaultVersion":true}]}'
+		;;
 	*) printf 'unexpected fake aws command: %s\n' "$*" >&2; exit 1 ;;
 esac
 EOF
@@ -89,7 +151,7 @@ cat >"$fake_bin/tofu" <<'EOF'
 set -eu
 printf 'tofu %s\n' "$*" >>"$COMMAND_LOG"
 case "$*" in
-	"-chdir=infra init -reconfigure -input=false") ;;
+	"-chdir=infra init -reconfigure -lockfile=readonly -input=false") ;;
 	"-chdir=infra workspace show") printf '%s\n' "${FAKE_WORKSPACE:-default}" ;;
 	*" plan "*)
 		for argument in "$@"; do
@@ -100,6 +162,7 @@ case "$*" in
 		cat "$FAKE_PLAN_JSON"
 		if [ "${FAKE_REPLACE_PLAN:-false}" = true ]; then
 			for argument in "$@"; do plan_file=$argument; done
+			chmod 600 "$plan_file"
 			printf 'replaced\n' >>"$plan_file"
 		fi
 		;;
@@ -143,9 +206,12 @@ run_plan() {
 
 run_apply() {
 	mode=${1:-false}
+	preflight_fail=${2:-false}
+	rm -f "$plan_file"
 	printf 'reviewed plan\n' >"$plan_file"
+	chmod 600 "$plan_file"
 	plan_sha256=$(shasum -a 256 "$plan_file" | awk '{print $1}')
-	task_env "FAKE_REPLACE_PLAN=$mode" "$real_task" --dir "$repo_root" \
+	task_env "FAKE_REPLACE_PLAN=$mode" "FAKE_PREFLIGHT_FAIL=$preflight_fail" "$real_task" --dir "$repo_root" \
 		legacy-apprunner-retirement-apply \
 		PLAN_FILE="$plan_file" \
 		APPROVED_PLAN_SHA256="$plan_sha256" \
@@ -176,11 +242,11 @@ run_workspace_rejection() {
 
 : >"$command_log"
 expect_pass "legacy init uses the root backend configuration" run_task legacy-apprunner-retirement-init
-grep -Fx "tofu -chdir=infra init -reconfigure -input=false" "$command_log" >/dev/null || fail "legacy init arguments"
+grep -Fx "tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false" "$command_log" >/dev/null || fail "legacy init arguments"
 if grep -Fq 'backend.hcl' "$command_log"; then fail "legacy init must not reference backend.hcl"; fi
 pass "legacy init has no backend.hcl override"
 
-for variable in TF_CLI_ARGS TF_CLI_ARGS_init TF_CLI_ARGS_workspace TF_CLI_ARGS_plan TF_CLI_ARGS_show TF_CLI_ARGS_apply TF_WORKSPACE TF_DATA_DIR; do
+for variable in TF_CLI_ARGS TF_CLI_ARGS_init TF_CLI_ARGS_workspace TF_CLI_ARGS_plan TF_CLI_ARGS_show TF_CLI_ARGS_apply TF_WORKSPACE TF_DATA_DIR TF_VAR_aws_region TF_VAR_app_name TF_VAR_environment TF_VAR_unexpected; do
 	for task_name in legacy-apprunner-retirement-init legacy-apprunner-retirement-plan legacy-apprunner-retirement-apply; do
 		: >"$command_log"
 		expect_fail "$task_name rejects $variable" run_task_with_env "$variable" unexpected "$task_name"
@@ -196,7 +262,15 @@ done
 
 : >"$command_log"
 expect_pass "retirement plan has locked full-refresh saved-plan arguments" run_plan
+grep -Fx "tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false" "$command_log" >/dev/null || fail "retirement plan did not initialize"
 grep -Fx "tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out=$plan_file" "$command_log" >/dev/null || fail "retirement plan arguments"
+init_line=$(grep -n -F 'tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false' "$command_log" | head -n 1 | cut -d: -f1)
+preflight_line=$(grep -n -F 'aws apprunner describe-service ' "$command_log" | head -n 1 | cut -d: -f1)
+plan_line=$(grep -n -F "tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out=$plan_file" "$command_log" | head -n 1 | cut -d: -f1)
+test -n "$init_line" && test -n "$preflight_line" && test -n "$plan_line" && \
+	test "$init_line" -lt "$preflight_line" && test "$preflight_line" -lt "$plan_line" || \
+	fail "retirement plan did not initialize and preflight before planning"
+pass "retirement plan preflights immediately before planning"
 if grep -Eq -- '(-target|-destroy|auto-approve)' "$command_log"; then fail "retirement plan used a forbidden argument"; fi
 pass "retirement plan has no forbidden arguments"
 
@@ -204,10 +278,54 @@ pass "retirement plan has no forbidden arguments"
 rm -f "$apply_marker"
 expect_pass "retirement apply revalidates the saved plan before applying" run_apply
 test -f "$apply_marker" || fail "retirement apply did not run"
+init_line=$(grep -n -F 'tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false' "$command_log" | head -n 1 | cut -d: -f1)
 show_line=$(grep -n -F "tofu -chdir=infra show -json $plan_file" "$command_log" | head -n 1 | cut -d: -f1)
-apply_line=$(grep -n -F "tofu -chdir=infra apply -input=false $plan_file" "$command_log" | head -n 1 | cut -d: -f1)
-test -n "$show_line" && test -n "$apply_line" && test "$show_line" -lt "$apply_line" || fail "retirement apply did not inspect before applying"
+preflight_line=$(grep -n -F 'aws apprunner describe-service ' "$command_log" | tail -n 1 | cut -d: -f1)
+apply_line=$(grep -n -F "tofu -chdir=infra apply -lock-timeout=5m -input=false $plan_file" "$command_log" | head -n 1 | cut -d: -f1)
+test -n "$init_line" && test -n "$show_line" && test -n "$preflight_line" && test -n "$apply_line" && \
+	test "$init_line" -lt "$show_line" && test "$show_line" -lt "$preflight_line" && test "$preflight_line" -lt "$apply_line" || \
+	fail "retirement apply did not inspect and preflight before applying"
 pass "retirement apply checks before apply"
+
+: >"$command_log"
+dangling_plan="$tmp_dir/dangling.tfplan"
+ln -s "$tmp_dir/missing-plan" "$dangling_plan"
+expect_fail "retirement plan rejects a dangling symlink" run_task \
+	legacy-apprunner-retirement-plan \
+	PLAN_FILE="$dangling_plan" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+if grep -Fq ' plan ' "$command_log"; then fail "retirement plan followed a dangling symlink"; fi
+
+: >"$command_log"
+symlink_target="$tmp_dir/symlink-target.tfplan"
+printf 'reviewed plan\n' >"$symlink_target"
+chmod 600 "$symlink_target"
+symlink_plan="$tmp_dir/symlink.tfplan"
+ln -s "$symlink_target" "$symlink_plan"
+symlink_sha256=$(shasum -a 256 "$symlink_target" | awk '{print $1}')
+rm -f "$apply_marker"
+expect_fail "retirement apply rejects a plan symlink" run_task \
+	legacy-apprunner-retirement-apply \
+	PLAN_FILE="$symlink_plan" \
+	APPROVED_PLAN_SHA256="$symlink_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+test ! -f "$apply_marker" || fail "retirement apply followed a plan symlink"
+
+public_dir="$tmp_dir/public"
+mkdir "$public_dir"
+chmod 755 "$public_dir"
+: >"$command_log"
+expect_fail "retirement plan rejects a non-private parent directory" run_task \
+	legacy-apprunner-retirement-plan \
+	PLAN_FILE="$public_dir/retirement.tfplan" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+if grep -Fq ' plan ' "$command_log"; then fail "retirement plan used a non-private parent"; fi
+
+: >"$command_log"
+rm -f "$apply_marker"
+expect_fail "retirement apply preflight failure blocks apply" run_apply false true
+grep -F 'custom-domain association remains' "$tmp_dir/output" >/dev/null || fail "retirement apply did not report preflight failure"
+test ! -f "$apply_marker" || fail "retirement apply ran after preflight failure"
 
 : >"$command_log"
 rm -f "$apply_marker"

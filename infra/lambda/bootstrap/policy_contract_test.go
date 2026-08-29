@@ -64,6 +64,14 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 			identityCenter:     true,
 		},
 		{
+			name:               "App Runner retirement",
+			path:               "portfolio-deployer-app-runner-retirement-policy.json",
+			sha256:             "2e6dfa287674fc29266b442c0d82cf4b36f1b5dee67b0cb5f462242d367d462f",
+			bytes:              5_680,
+			nonWhitespaceBytes: 4_103,
+			identityCenter:     true,
+		},
+		{
 			name:               "execution boundary",
 			path:               "portfolio-lambda-execution-boundary-policy.json",
 			sha256:             "540e803575f8235e3b6fec64900371cb7fb1556de7094ce8e97060403dd191f5",
