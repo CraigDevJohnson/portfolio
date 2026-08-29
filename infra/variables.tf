@@ -16,36 +16,6 @@ variable "environment" {
   default     = "development"
 }
 
-variable "container_port" {
-  description = "Port the container listens on"
-  type        = number
-  default     = 8080
-}
-
-variable "auto_deployments_enabled" {
-  description = "Enable automatic App Runner deployments when a new ECR image is pushed"
-  type        = bool
-  default     = false
-}
-
-variable "ecr_image_tag" {
-  description = "Tag for the container image in ECR"
-  type        = string
-  default     = "latest"
-}
-
-variable "app_runner_cpu" {
-  description = "CPU units for App Runner (1024 = 1 vCPU)"
-  type        = string
-  default     = "256"
-}
-
-variable "app_runner_memory" {
-  description = "Memory in MB for App Runner"
-  type        = string
-  default     = "512"
-}
-
 variable "lambda_image_tag" {
   description = "Tag for the Lambda container image in ECR"
   type        = string

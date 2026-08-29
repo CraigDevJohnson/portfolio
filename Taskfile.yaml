@@ -754,49 +754,50 @@ tasks:
         vars:
           ROOT: infra/lambda/environments/prod
 
-  lambda-dev-observation-sample:
-    desc: Record one sanitized development Lambda observation sample
-    env:
-      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
-      ENVIRONMENT: development
-      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+  legacy-apprunner-retirement-init:
+    desc: Initialize the legacy state for reviewed App Runner retirement
     cmds:
       - task: _lambda-identity-check
-      - task: lambda-artifacts-init
-      - task: lambda-dev-init
-      - sh scripts/record-lambda-observation.sh
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra
 
-  lambda-dev-observation-workflow:
-    desc: Record one sanitized development Lambda workflow proof
+  legacy-apprunner-retirement-plan:
+    desc: Create and check a saved legacy App Runner retirement plan
     env:
-      ADD_OK: '{{default "" .ADD_OK}}'
-      ADD_REQUEST_ID: '{{default "" .ADD_REQUEST_ID}}'
-      CONNECT_REQUEST_ID: '{{default "" .CONNECT_REQUEST_ID}}'
-      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
-      ENVIRONMENT: development
-      OAUTH_OK: '{{default "" .OAUTH_OK}}'
-      PUBLIC_HOST: '{{default "" .PUBLIC_HOST}}'
-      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
-      SECURE_COOKIES_OK: '{{default "" .SECURE_COOKIES_OK}}'
-      SYNC_OK: '{{default "" .SYNC_OK}}'
-      SYNC_REQUEST_ID: '{{default "" .SYNC_REQUEST_ID}}'
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
     cmds:
       - task: _lambda-identity-check
-      - task: lambda-artifacts-init
-      - task: lambda-dev-init
-      - sh scripts/record-lambda-workflow-proof.sh
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+      - |
+        set -eu
+        case "$PLAN_FILE" in
+          /*) ;;
+          *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
+        esac
+        test ! -e "$PLAN_FILE" || {
+          echo "Refusing existing PLAN_FILE: $PLAN_FILE" >&2
+          exit 1
+        }
+        plan_json=$(mktemp)
+        trap 'rm -f "$plan_json"' EXIT
+        tofu -chdir=infra plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
+        tofu -chdir=infra show -json "$PLAN_FILE" > "$plan_json"
+        PLAN_JSON="$plan_json" sh scripts/check-app-runner-retirement-plan.sh
+        tofu -chdir=infra show -no-color "$PLAN_FILE"
 
-  lambda-dev-observation-gate:
-    desc: Check the development Lambda observation window
-    env:
-      EVIDENCE_FILE: '{{default "" .EVIDENCE_FILE}}'
-      ENVIRONMENT: development
-      RELEASE_RECORD: '{{default "" .RELEASE_RECORD}}'
+  legacy-apprunner-retirement-apply:
+    desc: Apply only an approved saved legacy App Runner retirement plan
     cmds:
       - task: _lambda-identity-check
-      - task: lambda-artifacts-init
-      - task: lambda-dev-init
-      - sh scripts/check-lambda-observation-window.sh
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+      - task: _lambda-saved-plan-apply
+        vars:
+          ROOT: infra
 
   lambda-prod-observation-sample:
     desc: Record one sanitized production Lambda observation sample
@@ -842,35 +843,6 @@ tasks:
       - task: lambda-prod-init
       - sh scripts/check-lambda-observation-window.sh
 
-  deploy:
-    desc: LEGACY STATE - deploy the shared App Runner and Lambda stack
-    cmds:
-      - task: _check-aws
-      - task: _ecr-ensure-repo
-      - task: _ecr-docker-push
-      - task: _ecr-docker-push
-        vars:
-          IMAGE_NAME: portfolio-lambda
-          DOCKERFILE: Dockerfile.lambda
-          IMAGE_TAG: lambda-latest
-      - |
-        set -eu
-        cd infra
-        tofu apply --auto-approve
-        echo "Deployment complete!"
-        tofu output app_runner_service_url
-
-  redeploy:
-    desc: LEGACY STATE - push a mutable image and trigger App Runner
-    cmds:
-      - task: _ecr-docker-push
-      - |
-        set -eu
-        SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
-        aws apprunner start-deployment --service-arn "$SERVICE_ARN"
-        echo "Redeployment triggered. Check status with:"
-        echo "  aws apprunner describe-service --service-arn $SERVICE_ARN --query Service.Status"
-
   deploy-lambda:
     desc: LEGACY STATE - target Lambda resources in the shared stack
     cmds:
@@ -909,30 +881,6 @@ tasks:
         aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$ECR_URL:lambda-latest" >/dev/null
         echo "Lambda redeployment triggered. Check status with:"
         echo "  aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.LastUpdateStatus'"
-
-  # ── Troubleshoot ───────────────────────────────────────────────────────────
-
-  logs:
-    desc: Follow App Runner application logs
-    cmds:
-      - |
-        set -eu
-        SERVICE_ARN=$(cd infra && tofu output -raw app_runner_service_arn)
-        SERVICE_PATH=${SERVICE_ARN##*:service/}
-        AWS_REGION=$(printf '%s\n' "$SERVICE_ARN" | cut -d: -f4)
-        case "$SERVICE_PATH" in
-          */*) ;;
-          *)
-            echo "Could not derive the App Runner service path from: $SERVICE_ARN"
-            exit 1
-            ;;
-        esac
-        if [ -z "$AWS_REGION" ]; then
-          echo "Could not derive the AWS region from: $SERVICE_ARN"
-          exit 1
-        fi
-        aws logs tail "/aws/apprunner/$SERVICE_PATH/application" \
-          --region "$AWS_REGION" --since 10m --follow --format short
 
   local-logs:
     desc: Output logs from Docker container running via docker compose (useful with `task compose`)
