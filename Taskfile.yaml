@@ -485,11 +485,39 @@ tasks:
           echo "APPROVED_CI_ROLES_ADMIN must acknowledge portfolio-lambda-http-api/ci-roles" >&2
           exit 1
         }
-        test "${AWS_PROFILE:-}" != "portfolio-deployer" || {
-          echo "The portfolio-deployer policy is not authorized to administer the CI-role root" >&2
+        test "${AWS_PROFILE:-}" = "portfolio-ci-roles-administrator" || {
+          echo "AWS_PROFILE must be portfolio-ci-roles-administrator" >&2
           exit 1
         }
-        aws sts get-caller-identity >/dev/null
+        test "${AWS_REGION:-}" = "us-west-2" || {
+          echo "AWS_REGION must be us-west-2" >&2
+          exit 1
+        }
+        test -z "${AWS_ACCESS_KEY_ID+x}" || {
+          echo "AWS_ACCESS_KEY_ID must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SECRET_ACCESS_KEY+x}" || {
+          echo "AWS_SECRET_ACCESS_KEY must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SESSION_TOKEN+x}" || {
+          echo "AWS_SESSION_TOKEN must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        account=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Account --output text)
+        test "$account" = "180294223248" || {
+          echo "AWS account must be 180294223248" >&2
+          exit 1
+        }
+        arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Arn --output text)
+        case "$arn" in
+          arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_*/*) ;;
+          *)
+            echo "AWS identity must use AWSReservedSSO_PortfolioCIRolesAdministrator_" >&2
+            exit 1
+            ;;
+        esac
       - task: _lambda-root-init
         vars:
           ROOT: infra/lambda/ci-roles

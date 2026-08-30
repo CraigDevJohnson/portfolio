@@ -687,6 +687,11 @@ case "$*" in
 	*"sts get-caller-identity"*"--query Account"*)
 		printf '%s\n' "${FAKE_ACCOUNT:-180294223248}"
 		;;
+	*"sts get-caller-identity"*)
+		printf '{"Account":"%s","Arn":"%s","UserId":"synthetic-user"}\n' \
+			"${FAKE_ACCOUNT:-180294223248}" \
+			"${FAKE_ARN:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig}"
+		;;
 	*"ecr get-login-password"*)
 		printf 'fake-password\n'
 		;;
@@ -864,6 +869,92 @@ run_task() {
 		AWS_REGION=us-west-2 \
 		"$real_task" --dir "$repo_root" "$@"
 }
+
+run_ci_roles_init() {
+	ci_profile=${1:-portfolio-ci-roles-administrator}
+	ci_region=${2:-us-west-2}
+	ci_account=${3:-180294223248}
+	ci_arn=${4:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig}
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		PATH="$fake_bin:$PATH" \
+		COMMAND_LOG="$command_log" \
+		FAKE_ACCOUNT="$ci_account" \
+		FAKE_ARN="$ci_arn" \
+		AWS_PROFILE="$ci_profile" \
+		AWS_REGION="$ci_region" \
+		APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+		"$real_task" --dir "$repo_root" lambda-ci-roles-init
+}
+
+run_ci_roles_init_with_ambient_credential() {
+	credential_name=$1
+	credential_value=$2
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		"$credential_name=$credential_value" \
+		PATH="$fake_bin:$PATH" \
+		COMMAND_LOG="$command_log" \
+		FAKE_ACCOUNT=180294223248 \
+		FAKE_ARN=arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig \
+		AWS_PROFILE=portfolio-ci-roles-administrator \
+		AWS_REGION=us-west-2 \
+		APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+		"$real_task" --dir "$repo_root" lambda-ci-roles-init
+}
+
+expect_ci_roles_rejection() {
+	name=$1
+	shift
+	: >"$command_log"
+	expect_fail "$name" "$@"
+	if grep -q '^tofu ' "$command_log"; then
+		printf 'FAIL: %s invoked OpenTofu after rejecting the identity\n' "$name" >&2
+		exit 1
+	fi
+}
+
+expect_ci_roles_acceptance() {
+	name=$1
+	shift
+	: >"$command_log"
+	expect_pass "$name" "$@"
+	grep -Fq 'aws --profile portfolio-ci-roles-administrator --region us-west-2 sts get-caller-identity --query Account --output text' "$command_log" || {
+		printf 'FAIL: %s did not bind the account check to the reviewed profile and region\n' "$name" >&2
+		exit 1
+	}
+	grep -Fq 'aws --profile portfolio-ci-roles-administrator --region us-west-2 sts get-caller-identity --query Arn --output text' "$command_log" || {
+		printf 'FAIL: %s did not bind the ARN check to the reviewed profile and region\n' "$name" >&2
+		exit 1
+	}
+	grep -Fq 'tofu -chdir=infra/lambda/ci-roles init -backend-config=backend.hcl -reconfigure -input=false' "$command_log" || {
+		printf 'FAIL: %s did not initialize the CI-role root\n' "$name" >&2
+		exit 1
+	}
+}
+
+expect_ci_roles_rejection "CI roles guard rejects a deployer session through a profile alias" \
+	run_ci_roles_init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig
+expect_ci_roles_rejection "CI roles guard requires the reviewed administrator profile" \
+	run_ci_roles_init renamed-ci-roles-administrator
+expect_ci_roles_rejection "CI roles guard requires the reviewed region" \
+	run_ci_roles_init portfolio-ci-roles-administrator us-east-1
+expect_ci_roles_rejection "CI roles guard rejects the wrong AWS account" \
+	run_ci_roles_init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	111122223333 \
+	arn:aws:sts::111122223333:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
+expect_ci_roles_rejection "CI roles guard rejects ambient access-key credentials" \
+	run_ci_roles_init_with_ambient_credential AWS_ACCESS_KEY_ID AKIASTATIC
+expect_ci_roles_rejection "CI roles guard rejects ambient secret-key credentials" \
+	run_ci_roles_init_with_ambient_credential AWS_SECRET_ACCESS_KEY static-secret
+expect_ci_roles_rejection "CI roles guard rejects an ambient session token" \
+	run_ci_roles_init_with_ambient_credential AWS_SESSION_TOKEN static-session
+expect_ci_roles_acceptance "CI roles guard accepts only the reviewed administrator identity" \
+	run_ci_roles_init
 
 expect_pass "exact SSO identity guard" run_task lambda-dev-init
 expect_fail "identity guard rejects wrong profile" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=default AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
