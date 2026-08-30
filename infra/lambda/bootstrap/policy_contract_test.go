@@ -66,9 +66,9 @@ func TestReviewedPolicyFilesMatchApprovedArtifacts(t *testing.T) {
 		{
 			name:               "App Runner retirement",
 			path:               "portfolio-deployer-app-runner-retirement-policy.json",
-			sha256:             "2e6dfa287674fc29266b442c0d82cf4b36f1b5dee67b0cb5f462242d367d462f",
-			bytes:              5_680,
-			nonWhitespaceBytes: 4_103,
+			sha256:             "b00ac080aa4071a5a3da9f39955f73e70cdc363938b67ab957bccdb82b52e060",
+			bytes:              5_717,
+			nonWhitespaceBytes: 4_131,
 			identityCenter:     true,
 		},
 		{

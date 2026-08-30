@@ -191,6 +191,7 @@
       "Effect": "Allow",
       "Action": [
         "iam:DeletePolicy",
+        "iam:ListEntitiesForPolicy",
         "iam:ListPolicyVersions"
       ],
       "Resource": "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"

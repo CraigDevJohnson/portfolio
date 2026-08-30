@@ -153,6 +153,7 @@ func TestAppRunnerRetirementPolicyHasExactTemporaryScope(t *testing.T) {
 		"RetireAppRunnerRuntimePolicy": {
 			actions: stringSet(
 				"iam:DeletePolicy",
+				"iam:ListEntitiesForPolicy",
 				"iam:ListPolicyVersions",
 			),
 			resources: stringSet(

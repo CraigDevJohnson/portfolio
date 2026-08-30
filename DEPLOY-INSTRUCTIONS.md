@@ -72,11 +72,12 @@ export AWS_REGION=us-west-2
 task legacy-apprunner-retirement-preflight
 ```
 
-That guard checks the exact service ARN, source and instance roles, service
-tags, absence of App Runner custom domains, exact managed-policy attachments,
-zero inline policies, zero instance profiles, and the expected runtime-policy
-version. Both the plan and apply rerun it; a failure prevents the next OpenTofu
-operation.
+That guard checks the exact service ARN, inventoried role IDs and trust
+policies, service tags, absence of App Runner custom domains, exact
+managed-policy attachments, zero inline policies, zero instance profiles, the
+runtime policy's sole permissions attachment to the inventoried instance role,
+zero permissions-boundary use, and the expected runtime-policy version. Both
+the plan and apply rerun it; a failure prevents the next OpenTofu operation.
 
 Before any retirement plan is created, inventory the live App Runner custom
 domains and obtain separate current-session approval for their disassociation.

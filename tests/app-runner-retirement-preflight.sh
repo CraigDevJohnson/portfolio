@@ -182,6 +182,32 @@ case "$*" in
 			printf '%s\n' '{"InstanceProfiles":[]}'
 		fi
 		;;
+	"iam list-entities-for-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --policy-usage-filter PermissionsPolicy --output json --no-cli-pager")
+		case "$FAKE_CASE" in
+			external-policy-role)
+				printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ"},{"RoleName":"unexpected","RoleId":"AROAST6S7QWI000000002"}]}'
+				;;
+			external-policy-user)
+				printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[{"UserName":"unexpected","UserId":"AIDA00000000000000000"}],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ"}]}'
+				;;
+			external-policy-group)
+				printf '%s\n' '{"PolicyGroups":[{"GroupName":"unexpected","GroupId":"AGPA00000000000000000"}],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ"}]}'
+				;;
+			wrong-policy-role-id)
+				printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWI000000001"}]}'
+				;;
+			*)
+				printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ"}]}'
+				;;
+		esac
+		;;
+	"iam list-entities-for-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --policy-usage-filter PermissionsBoundary --output json --no-cli-pager")
+		if [ "$FAKE_CASE" = boundary-policy-entity ]; then
+			printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"unexpected","RoleId":"AROAST6S7QWI000000003"}]}'
+		else
+			printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[]}'
+		fi
+		;;
 	"iam list-policy-versions --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
 		if [ "$FAKE_CASE" = extra-policy-version ]; then
 			printf '%s\n' '{"Versions":[{"VersionId":"v2","IsDefaultVersion":true},{"VersionId":"v1","IsDefaultVersion":false}]}'
@@ -223,6 +249,11 @@ expect_fail "preflight rejects broadened instance trust" broadened-instance-trus
 expect_fail "preflight rejects an extra role attachment" extra-attachment "instance role attachment contract failed"
 expect_fail "preflight rejects inline role policies" inline-policy "inline role policies remain"
 expect_fail "preflight rejects instance profiles" instance-profile "instance profiles remain"
+expect_fail "preflight rejects an external runtime-policy role" external-policy-role "runtime policy attachment contract failed"
+expect_fail "preflight rejects an external runtime-policy user" external-policy-user "runtime policy attachment contract failed"
+expect_fail "preflight rejects an external runtime-policy group" external-policy-group "runtime policy attachment contract failed"
+expect_fail "preflight rejects a recreated runtime-policy role" wrong-policy-role-id "runtime policy attachment contract failed"
+expect_fail "preflight rejects runtime-policy boundary use" boundary-policy-entity "runtime policy boundary contract failed"
 expect_fail "preflight rejects extra managed-policy versions" extra-policy-version "runtime policy version contract failed"
 
 if grep -E ' (delete|detach|disassociate|create|update|put|apply)(-| |$)' "$command_log" >/dev/null; then

@@ -141,6 +141,30 @@ for role_name in "$access_role_name" "$instance_role_name"; do
 		>/dev/null || fail "instance profiles remain on $role_name"
 done
 
+policy_entities=$(aws iam list-entities-for-policy \
+	--policy-arn "$runtime_policy_arn" \
+	--policy-usage-filter PermissionsPolicy \
+	--output json \
+	--no-cli-pager) || fail "could not read runtime policy attachments"
+printf '%s\n' "$policy_entities" | jq -e \
+	--arg role_id "$instance_role_id" '
+	.PolicyGroups == [] and
+	.PolicyUsers == [] and
+	.PolicyRoles == [{
+		RoleName: "portfolio-apprunner-instance",
+		RoleId: $role_id
+	}]' >/dev/null || fail "runtime policy attachment contract failed"
+
+policy_boundaries=$(aws iam list-entities-for-policy \
+	--policy-arn "$runtime_policy_arn" \
+	--policy-usage-filter PermissionsBoundary \
+	--output json \
+	--no-cli-pager) || fail "could not read runtime policy boundary use"
+printf '%s\n' "$policy_boundaries" | jq -e '
+	.PolicyGroups == [] and
+	.PolicyUsers == [] and
+	.PolicyRoles == []' >/dev/null || fail "runtime policy boundary contract failed"
+
 policy_versions=$(aws iam list-policy-versions \
 	--policy-arn "$runtime_policy_arn" \
 	--output json \

@@ -158,6 +158,12 @@ case "$*" in
 	"iam list-instance-profiles-for-role --role-name portfolio-apprunner-instance --output json --no-cli-pager")
 		printf '%s\n' '{"InstanceProfiles":[]}'
 		;;
+	"iam list-entities-for-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --policy-usage-filter PermissionsPolicy --output json --no-cli-pager")
+		printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[{"RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ"}]}'
+		;;
+	"iam list-entities-for-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --policy-usage-filter PermissionsBoundary --output json --no-cli-pager")
+		printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[]}'
+		;;
 	"iam list-policy-versions --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
 		printf '%s\n' '{"Versions":[{"VersionId":"v1","IsDefaultVersion":true}]}'
 		;;
