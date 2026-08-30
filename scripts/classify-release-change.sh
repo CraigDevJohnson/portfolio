@@ -4,7 +4,9 @@ set -eu
 base=${1:?usage: classify-release-change.sh BASE HEAD}
 head=${2:?usage: classify-release-change.sh BASE HEAD}
 
-files=$(git diff --name-only "$base" "$head")
+# Treat renames as a deletion plus an addition so both policy domains are
+# classified. Otherwise Git reports only the destination path for a rename.
+files=$(git diff --no-renames --name-only "$base" "$head")
 test -n "$files" || { printf 'skip\n'; exit 0; }
 
 promotion=true

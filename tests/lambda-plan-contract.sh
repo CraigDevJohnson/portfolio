@@ -3,6 +3,7 @@ set -eu
 
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 checker="$repo_root/scripts/check-lambda-plan.sh"
+ci_roles_checker="$repo_root/scripts/check-ci-roles-plan.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 
@@ -70,6 +71,463 @@ make_artifact_plan() {
 			}
 		]
 	}' >"$1"
+}
+
+make_ci_roles_plan() {
+	jq -n '
+		def change($after; $after_unknown): {
+			actions: ["create"],
+			before: null,
+			after: $after,
+			after_unknown: $after_unknown,
+			before_sensitive: false,
+			after_sensitive: {}
+		};
+		def managed($address; $type; $name; $index; $after; $after_unknown):
+			{
+				mode: "managed",
+				address: $address,
+				type: $type,
+				name: $name,
+				provider_name: "registry.opentofu.org/hashicorp/aws",
+				change: change($after; $after_unknown)
+			} + (if $index == null then {} else {index: $index} end);
+		def trust($subject): ({
+			Version: "2012-10-17",
+			Statement: [{
+				Effect: "Allow",
+				Action: "sts:AssumeRoleWithWebIdentity",
+				Principal: {
+					Federated: "arn:aws:iam::180294223248:oidc-provider/token.actions.githubusercontent.com"
+				},
+				Condition: {
+					StringEquals: {
+						"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+						"token.actions.githubusercontent.com:sub": $subject
+					}
+				}
+			}]
+		} | tojson);
+		def role($address; $index; $name; $subject):
+			managed(
+				$address;
+				"aws_iam_role";
+				"ci";
+				$index;
+				{
+					arn: null,
+					assume_role_policy: trust($subject),
+					create_date: null,
+					description: null,
+					force_detach_policies: false,
+					id: null,
+					inline_policy: [],
+					managed_policy_arns: null,
+					max_session_duration: 3600,
+					name: $name,
+					name_prefix: null,
+					path: "/",
+					permissions_boundary: null,
+					tags: {
+						ManagedBy: "opentofu",
+						Project: "portfolio",
+						Purpose: "github-release"
+					},
+					tags_all: {
+						ManagedBy: "opentofu",
+						Project: "portfolio",
+						Purpose: "github-release"
+					},
+					unique_id: null
+				};
+				{arn: true, create_date: true, id: true, managed_policy_arns: true, unique_id: true}
+			);
+		def environment_statements($environment; $function_name; $state_key): [
+			{
+				Sid: "CallerIdentity",
+				Effect: "Allow",
+				Action: ["sts:GetCallerIdentity"],
+				Resource: "*"
+			},
+			{
+				Sid: "StateBucketMetadata",
+				Effect: "Allow",
+				Action: ["s3:GetBucketLocation", "s3:GetBucketVersioning"],
+				Resource: "arn:aws:s3:::portfolio-tofu-state-180294223248"
+			},
+			{
+				Sid: "StatePrefix",
+				Effect: "Allow",
+				Action: ["s3:ListBucket"],
+				Resource: "arn:aws:s3:::portfolio-tofu-state-180294223248",
+				Condition: {StringLike: {"s3:prefix": [($state_key + "*")]}}
+			},
+			{
+				Sid: "StateRead",
+				Effect: "Allow",
+				Action: ["s3:GetObject"],
+				Resource: ("arn:aws:s3:::portfolio-tofu-state-180294223248/" + $state_key)
+			},
+			{
+				Sid: "StateLock",
+				Effect: "Allow",
+				Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+				Resource: ("arn:aws:s3:::portfolio-tofu-state-180294223248/" + $state_key + ".tflock")
+			},
+			{
+				Sid: "ReleaseImageRead",
+				Effect: "Allow",
+				Action: ["ecr:BatchGetImage", "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer"],
+				Resource: "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+			},
+			{
+				Sid: "ExecutionRoleRead",
+				Effect: "Allow",
+				Action: ["iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:ListRoleTags"],
+				Resource: ("arn:aws:iam::180294223248:role/" + $function_name + "-execution")
+			},
+			{
+				Sid: "LambdaRead",
+				Effect: "Allow",
+				Action: [
+					"lambda:GetAlias",
+					"lambda:GetFunction",
+					"lambda:GetFunctionCodeSigningConfig",
+					"lambda:GetFunctionConcurrency",
+					"lambda:GetFunctionConfiguration",
+					"lambda:GetPolicy",
+					"lambda:GetRuntimeManagementConfig",
+					"lambda:ListTags",
+					"lambda:ListVersionsByFunction"
+				],
+				Resource: [
+					("arn:aws:lambda:us-west-2:180294223248:function:" + $function_name),
+					("arn:aws:lambda:us-west-2:180294223248:function:" + $function_name + ":*")
+				]
+			},
+			{
+				Sid: "ApiGatewayRead",
+				Effect: "Allow",
+				Action: ["apigateway:GET"],
+				Resource: ["arn:aws:apigateway:us-west-2::/apis*", "arn:aws:apigateway:us-west-2::/domainnames*"]
+			},
+			{
+				Sid: "LogGroupRead",
+				Effect: "Allow",
+				Action: ["logs:ListTagsForResource"],
+				Resource: [
+					("arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/" + $function_name + "/access"),
+					("arn:aws:logs:us-west-2:180294223248:log-group:/aws/apigateway/" + $function_name + "/access:*"),
+					("arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $function_name),
+					("arn:aws:logs:us-west-2:180294223248:log-group:/aws/lambda/" + $function_name + ":*")
+				]
+			},
+			{
+				Sid: "LogGroupList",
+				Effect: "Allow",
+				Action: ["logs:DescribeLogGroups"],
+				Resource: "*",
+				Condition: {StringEquals: {"aws:RequestedRegion": "us-west-2"}}
+			},
+			{
+				Sid: "TableRead",
+				Effect: "Allow",
+				Action: ["dynamodb:DescribeContinuousBackups", "dynamodb:DescribeTable", "dynamodb:DescribeTimeToLive", "dynamodb:ListTagsOfResource"],
+				Resource: [
+					("arn:aws:dynamodb:us-west-2:180294223248:table/" + $function_name + "-google-connections"),
+					("arn:aws:dynamodb:us-west-2:180294223248:table/" + $function_name + "-soccer-sessions")
+				]
+			},
+			{
+				Sid: "KmsAliasList",
+				Effect: "Allow",
+				Action: ["kms:ListAliases"],
+				Resource: "*",
+				Condition: {StringEquals: {"aws:RequestedRegion": "us-west-2"}}
+			},
+			{
+				Sid: "KmsSsmKeyRead",
+				Effect: "Allow",
+				Action: ["kms:DescribeKey"],
+				Resource: "arn:aws:kms:us-west-2:180294223248:key/*",
+				Condition: {"ForAnyValue:StringEquals": {"kms:ResourceAliases": "alias/aws/ssm"}}
+			},
+			{
+				Sid: "CertificateRead",
+				Effect: "Allow",
+				Action: ["acm:DescribeCertificate", "acm:ListTagsForCertificate"],
+				Resource: "arn:aws:acm:us-west-2:180294223248:certificate/*",
+				Condition: {StringEquals: {
+					"aws:RequestedRegion": "us-west-2",
+					"aws:ResourceTag/Environment": $environment,
+					"aws:ResourceTag/ManagedBy": "opentofu",
+					"aws:ResourceTag/Platform": "lambda-http-api",
+					"aws:ResourceTag/Project": "portfolio"
+				}}
+			},
+			{
+				Sid: "AlarmRead",
+				Effect: "Allow",
+				Action: ["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"],
+				Resource: [
+					("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-api-5xx"),
+					("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-api-latency"),
+					("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-lambda-duration"),
+					("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-lambda-errors"),
+					("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-lambda-throttles")
+				]
+			}
+		];
+		def development_mutations: [
+			{
+				Sid: "DevelopmentStateWrite",
+				Effect: "Allow",
+				Action: ["s3:PutObject", "s3:DeleteObject"],
+				Resource: "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate"
+			},
+			{
+				Sid: "DevelopmentReleaseWrite",
+				Effect: "Allow",
+				Action: ["lambda:PublishVersion", "lambda:UpdateAlias", "lambda:UpdateFunctionCode"],
+				Resource: [
+					"arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev",
+					"arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live"
+				],
+				Condition: {StringEquals: {
+					"aws:ResourceTag/Environment": "dev",
+					"aws:ResourceTag/ManagedBy": "opentofu",
+					"aws:ResourceTag/Platform": "lambda-http-api",
+					"aws:ResourceTag/Project": "portfolio"
+				}}
+			}
+		];
+		def environment_policy($environment; $function_name; $state_key; $mutable): ({
+			Version: "2012-10-17",
+			Statement: (
+				environment_statements($environment; $function_name; $state_key) +
+				(if $mutable then development_mutations else [] end)
+			)
+		} | tojson);
+		def release_policy: ({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["ecr:GetAuthorizationToken"],
+					Resource: "*",
+					Condition: {StringEquals: {"aws:RequestedRegion": "us-west-2"}}
+				},
+				{
+					Effect: "Allow",
+					Action: [
+						"ecr:BatchCheckLayerAvailability",
+						"ecr:CompleteLayerUpload",
+						"ecr:DescribeImageScanFindings",
+						"ecr:DescribeImages",
+						"ecr:DescribeRepositories",
+						"ecr:GetDownloadUrlForLayer",
+						"ecr:InitiateLayerUpload",
+						"ecr:ListImages",
+						"ecr:PutImage",
+						"ecr:UploadLayerPart"
+					],
+					Resource: "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
+				}
+			]
+		} | tojson);
+		def role_policy($address; $resource_name; $index; $policy_name; $role_name; $policy):
+			managed(
+				$address;
+				"aws_iam_role_policy";
+				$resource_name;
+				$index;
+				{id: null, name: $policy_name, name_prefix: null, policy: $policy, role: $role_name};
+				{id: true}
+			);
+		{
+			format_version: "1.2",
+			terraform_version: "1.12.6",
+			resource_changes: [
+				role(
+					"aws_iam_role.ci[\"release\"]";
+					"release";
+					"portfolio-release-builder-ci";
+					"repo:CraigDevJohnson/portfolio:ref:refs/heads/main"
+				),
+				role(
+					"aws_iam_role.ci[\"dev\"]";
+					"dev";
+					"portfolio-development-deployer-ci";
+					"repo:CraigDevJohnson/portfolio:environment:development"
+				),
+				role(
+					"aws_iam_role.ci[\"prod\"]";
+					"prod";
+					"portfolio-production-planner-ci";
+					"repo:CraigDevJohnson/portfolio:environment:production-plan"
+				),
+				role_policy(
+					"aws_iam_role_policy.release";
+					"release";
+					null;
+					"portfolio-release-builder";
+					"portfolio-release-builder-ci";
+					release_policy
+				),
+				role_policy(
+					"aws_iam_role_policy.environment[\"dev\"]";
+					"environment";
+					"dev";
+					"portfolio-development-runtime-release";
+					"portfolio-development-deployer-ci";
+					environment_policy(
+						"dev";
+						"portfolio-lambda-dev";
+						"portfolio-lambda-http-api/dev/terraform.tfstate";
+						true
+					)
+				),
+				role_policy(
+					"aws_iam_role_policy.environment[\"prod\"]";
+					"environment";
+					"prod";
+					"portfolio-production-read-only-plan";
+					"portfolio-production-planner-ci";
+					environment_policy(
+						"prod";
+						"portfolio-lambda-prod";
+						"portfolio-lambda-http-api/prod/terraform.tfstate";
+						false
+					)
+				)
+			],
+			output_changes: {},
+			errored: false,
+			configuration: {
+				provider_config: {
+					aws: {
+						name: "aws",
+						full_name: "registry.opentofu.org/hashicorp/aws",
+						version_constraint: "6.38.0",
+						expressions: {
+							allowed_account_ids: {constant_value: ["180294223248"]},
+							profile: {constant_value: "portfolio-ci-roles-administrator"},
+							region: {references: ["local.region"]}
+						}
+					}
+				},
+				root_module: {
+					resources: [
+						{
+							address: "aws_iam_role.ci",
+							mode: "managed",
+							type: "aws_iam_role",
+							name: "ci",
+							provider_config_key: "aws",
+							schema_version: 0,
+							for_each_expression: {references: ["local.roles"]},
+							expressions: {
+								assume_role_policy: {references: ["each.value.trust", "each.value"]},
+								max_session_duration: {constant_value: 3600},
+								name: {references: ["each.value.name", "each.value"]},
+								tags: {constant_value: {
+									ManagedBy: "opentofu",
+									Project: "portfolio",
+									Purpose: "github-release"
+								}}
+							}
+						},
+						{
+							address: "aws_iam_role_policy.environment",
+							mode: "managed",
+							type: "aws_iam_role_policy",
+							name: "environment",
+							provider_config_key: "aws",
+							schema_version: 0,
+							depends_on: ["aws_iam_role.ci"],
+							for_each_expression: {references: ["local.environment_configuration"]},
+							expressions: {
+								name: {references: ["each.value.policy_name", "each.value"]},
+								policy: {references: ["local.environment_policies", "each.key"]},
+								role: {references: ["each.value.role_name", "each.value"]}
+							}
+						},
+						{
+							address: "aws_iam_role_policy.release",
+							mode: "managed",
+							type: "aws_iam_role_policy",
+							name: "release",
+							provider_config_key: "aws",
+							schema_version: 0,
+							depends_on: ["aws_iam_role.ci"],
+							expressions: {
+								name: {constant_value: "portfolio-release-builder"},
+								policy: {references: ["local.region", "local.ecr_repository_arn"]},
+								role: {references: [
+									"local.roles.release.name",
+									"local.roles.release",
+									"local.roles"
+								]}
+							}
+						},
+						{
+							address: "data.aws_iam_policy_document.environment_trust",
+							mode: "data",
+							type: "aws_iam_policy_document",
+							name: "environment_trust",
+							provider_config_key: "aws",
+							schema_version: 0,
+							for_each_expression: {references: ["local.environment_configuration"]},
+							expressions: {
+								statement: [{
+									actions: {constant_value: ["sts:AssumeRoleWithWebIdentity"]},
+									condition: [{
+										test: {constant_value: "StringEquals"},
+										values: {constant_value: ["sts.amazonaws.com"]},
+										variable: {constant_value: "token.actions.githubusercontent.com:aud"}
+									}, {
+										test: {constant_value: "StringEquals"},
+										values: {references: ["each.value.github_environment", "each.value"]},
+										variable: {constant_value: "token.actions.githubusercontent.com:sub"}
+									}],
+									principals: [{
+										identifiers: {references: ["local.github_oidc_provider_arn"]},
+										type: {constant_value: "Federated"}
+									}]
+								}]
+							}
+						},
+						{
+							address: "data.aws_iam_policy_document.release_trust",
+							mode: "data",
+							type: "aws_iam_policy_document",
+							name: "release_trust",
+							provider_config_key: "aws",
+							schema_version: 0,
+							expressions: {
+								statement: [{
+									actions: {constant_value: ["sts:AssumeRoleWithWebIdentity"]},
+									condition: [{
+										test: {constant_value: "StringEquals"},
+										values: {constant_value: ["sts.amazonaws.com"]},
+										variable: {constant_value: "token.actions.githubusercontent.com:aud"}
+									}, {
+										test: {constant_value: "StringEquals"},
+										values: {constant_value: ["repo:CraigDevJohnson/portfolio:ref:refs/heads/main"]},
+										variable: {constant_value: "token.actions.githubusercontent.com:sub"}
+									}],
+									principals: [{
+										identifiers: {references: ["local.github_oidc_provider_arn"]},
+										type: {constant_value: "Federated"}
+									}]
+								}]
+							}
+						}
+					]
+				}
+			}
+		}
+	' >"$1"
 }
 
 make_environment_plan() {
@@ -279,6 +737,10 @@ run_check() {
 		sh "$checker"
 }
 
+run_ci_roles_check() {
+	PLAN_JSON="$1" sh "$ci_roles_checker"
+}
+
 run_maintenance_check() {
 	plan=$1
 	AUTOMATED_RELEASE=true \
@@ -291,11 +753,45 @@ run_maintenance_check() {
 }
 
 artifact_plan="$tmp_dir/artifact.json"
+ci_roles_plan="$tmp_dir/ci-roles.json"
 dev_plan="$tmp_dir/dev.json"
 prod_plan="$tmp_dir/prod.json"
 make_artifact_plan "$artifact_plan"
+make_ci_roles_plan "$ci_roles_plan"
 make_environment_plan "$dev_plan" dev
 make_environment_plan "$prod_plan" prod
+
+ci_roles_noop_plan="$tmp_dir/ci-roles-noop.json"
+jq '
+	.resource_changes |= map(
+		(if .type == "aws_iam_role" then
+			.change.after.arn = ("arn:aws:iam::180294223248:role/" + .change.after.name) |
+			.change.after.create_date = "2026-08-30T15:00:00Z" |
+			.change.after.id = .change.after.name |
+			.change.after.managed_policy_arns = [] |
+			.change.after.name_prefix = null |
+			.change.after.unique_id = "AIDATESTUNIQUEID12345"
+		else
+			.change.after.id = (.change.after.role + ":" + .change.after.name) |
+			.change.after.name_prefix = null
+		end) |
+		.change.before = .change.after |
+		.change.actions = ["no-op"] |
+		.change.after_unknown = {}
+	)
+' "$ci_roles_plan" >"$ci_roles_noop_plan"
+
+ci_roles_narrow_update_plan="$tmp_dir/ci-roles-narrow-update.json"
+jq '
+	(.resource_changes[] | select(.address == "aws_iam_role_policy.release") | .change) |= (
+		.actions = ["update"] |
+		.before.policy |= (
+			fromjson |
+			(.Statement[] | select(.Resource == "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases") | .Action) += ["ecr:DeleteRepository"] |
+			tojson
+		)
+	)
+' "$ci_roles_noop_plan" >"$ci_roles_narrow_update_plan"
 
 dev_maintenance_plan="$tmp_dir/dev-maintenance.json"
 jq '
@@ -472,6 +968,157 @@ jq '.resource_changes += [{
 }]' "$dev_plan" >"$dev_null_acm_private_key_plan"
 
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
+expect_pass "exact GitHub Actions role plan" run_ci_roles_check "$ci_roles_plan"
+expect_pass "converged GitHub Actions role no-op plan" run_ci_roles_check "$ci_roles_noop_plan"
+expect_pass "safe GitHub Actions role policy narrowing update" run_ci_roles_check "$ci_roles_narrow_update_plan"
+
+ci_roles_data_read_plan="$tmp_dir/ci-roles-data-read.json"
+jq '.resource_changes += [{
+	mode: "data",
+	address: "data.aws_iam_policy_document.release_trust",
+	type: "aws_iam_policy_document",
+	name: "release_trust",
+	provider_name: "registry.opentofu.org/hashicorp/aws",
+	change: {
+		actions: ["read"],
+		before: null,
+		after: {},
+		after_unknown: {},
+		before_sensitive: false,
+		after_sensitive: {}
+	}
+}]' "$ci_roles_plan" >"$ci_roles_data_read_plan"
+expect_pass "CI role plan accepts an approved IAM policy-document data read" run_ci_roles_check "$ci_roles_data_read_plan"
+
+mutate_ci_roles_and_reject() {
+	name=$1
+	filter=$2
+	mutated="$tmp_dir/ci-roles-mutated.json"
+	jq "$filter" "$ci_roles_plan" >"$mutated"
+	expect_fail "$name" run_ci_roles_check "$mutated"
+}
+
+mutate_ci_roles_and_reject "CI role plan rejects delete actions" '
+	(.resource_changes[] | select(.address == "aws_iam_role.ci[\"release\"]") | .change.actions) = ["delete"]
+'
+mutate_ci_roles_and_reject "CI role plan rejects replacement actions" '
+	(.resource_changes[] | select(.address == "aws_iam_role.ci[\"release\"]") | .change.actions) = ["delete", "create"]
+'
+mutate_ci_roles_and_reject "CI role plan rejects extra managed resources" '
+	.resource_changes += [{
+		mode: "managed",
+		address: "aws_iam_user.unapproved",
+		type: "aws_iam_user",
+		name: "unapproved",
+		provider_name: "registry.opentofu.org/hashicorp/aws",
+		change: {
+			actions: ["create"],
+			before: null,
+			after: {name: "unapproved"},
+			after_unknown: {arn: true, id: true},
+			before_sensitive: false,
+			after_sensitive: {}
+		}
+	}]
+'
+mutate_ci_roles_and_reject "CI role plan rejects widened release ECR actions" '
+	(.resource_changes[] | select(.address == "aws_iam_role_policy.release") | .change.after.policy) |= (
+		fromjson |
+		(.Statement[] | select(.Resource == "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases") | .Action) += ["ecr:DeleteRepository"] |
+		tojson
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects production mutation actions" '
+	(.resource_changes[] | select(.address == "aws_iam_role_policy.environment[\"prod\"]") | .change.after.policy) |= (
+		fromjson |
+		(.Statement[] | select(.Sid == "LambdaRead") | .Action) += ["lambda:UpdateFunctionCode"] |
+		tojson
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects wildcard GitHub trust subjects" '
+	(.resource_changes[] | select(.address == "aws_iam_role.ci[\"release\"]") | .change.after.assume_role_policy) |= (
+		fromjson |
+		.Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] = "repo:CraigDevJohnson/portfolio:*" |
+		tojson
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects unknown inline policies" '
+	(.resource_changes[] | select(.address == "aws_iam_role_policy.environment[\"prod\"]") | .change) |= (
+		.after.policy = null |
+		.after_unknown.policy = true
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects unknown trust policies" '
+	(.resource_changes[] | select(.address == "aws_iam_role.ci[\"prod\"]") | .change) |= (
+		.after.assume_role_policy = null |
+		.after_unknown.assume_role_policy = true
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects conditional unknown policy targets" '
+	(.resource_changes[] | select(.address == "aws_iam_role_policy.release") | .change) |= (
+		.after.role = null |
+		.after_unknown.role = true
+	)
+'
+mutate_ci_roles_and_reject "CI role plan rejects configured managed policy attachments hidden by create unknowns" '
+	(.configuration.root_module.resources[] | select(.address == "aws_iam_role.ci") | .expressions.managed_policy_arns) = {
+		references: ["each.key"]
+	}
+'
+mutate_ci_roles_and_reject "CI role plan rejects provisioners on approved resources" '
+	(.configuration.root_module.resources[] | select(.address == "aws_iam_role.ci") | .provisioners) = [{
+		type: "local-exec",
+		expressions: {command: {constant_value: "echo unapproved"}}
+	}]
+'
+mutate_ci_roles_and_reject "CI role plan rejects aliased or expanded AWS provider configuration" '
+	.configuration.provider_config["aws.unapproved"] = {
+		name: "aws",
+		full_name: "registry.opentofu.org/hashicorp/aws",
+		alias: "unapproved",
+		version_constraint: "6.38.0",
+		expressions: {
+			allowed_account_ids: {constant_value: ["180294223248"]},
+			profile: {constant_value: "portfolio-ci-roles-administrator"},
+			region: {references: ["local.region"]}
+		}
+	} |
+	(.configuration.root_module.resources[] | select(.address == "aws_iam_role.ci") | .provider_config_key) = "aws.unapproved"
+'
+mutate_ci_roles_and_reject "CI role plan rejects a changed AWS profile" '
+	.configuration.provider_config.aws.expressions.profile.constant_value = "unapproved-profile"
+'
+mutate_ci_roles_and_reject "CI role plan rejects a changed allowed AWS account" '
+	.configuration.provider_config.aws.expressions.allowed_account_ids.constant_value = ["999999999999"]
+'
+mutate_ci_roles_and_reject "CI role plan rejects a computed allowed AWS account list" '
+	.configuration.provider_config.aws.expressions.allowed_account_ids = {references: ["local.account_id"]}
+'
+mutate_ci_roles_and_reject "CI role plan rejects sensitive file output expressions" '
+	.configuration.root_module.outputs.local_secret = {
+		sensitive: true,
+		expression: {references: []}
+	} |
+	.output_changes.local_secret = {
+		actions: ["create"],
+		before: null,
+		after: "redacted-test-value",
+		after_unknown: false,
+		before_sensitive: false,
+		after_sensitive: true
+	}
+'
+mutate_ci_roles_and_reject "CI role plan rejects stale deleted sensitive outputs" '
+	.output_changes.stale_secret = {
+		actions: ["delete"],
+		before: "redacted-test-value",
+		after: null,
+		after_unknown: false,
+		before_sensitive: true,
+		after_sensitive: false
+	}
+'
+
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
@@ -687,11 +1334,6 @@ case "$*" in
 	*"sts get-caller-identity"*"--query Account"*)
 		printf '%s\n' "${FAKE_ACCOUNT:-180294223248}"
 		;;
-	*"sts get-caller-identity"*)
-		printf '{"Account":"%s","Arn":"%s","UserId":"synthetic-user"}\n' \
-			"${FAKE_ACCOUNT:-180294223248}" \
-			"${FAKE_ARN:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig}"
-		;;
 	*"ecr get-login-password"*)
 		printf 'fake-password\n'
 		;;
@@ -799,7 +1441,13 @@ case "$*" in
 			esac
 		done
 		;;
-	*" show -json "*) cat "$FAKE_PLAN_JSON" ;;
+	*" show -json "*)
+		if [ "${FAKE_TOFU_SIGNAL_PARENT:-false}" = true ]; then
+			kill -TERM "$PPID"
+			exit 143
+		fi
+		cat "$FAKE_PLAN_JSON"
+		;;
 	*" show -no-color "*) printf 'synthetic human-readable plan\n' ;;
 	*" apply "*) ;;
 	*" output -raw ecr_repository_url"*) printf '180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases\n' ;;
@@ -870,35 +1518,59 @@ run_task() {
 		"$real_task" --dir "$repo_root" "$@"
 }
 
-run_ci_roles_init() {
-	ci_profile=${1:-portfolio-ci-roles-administrator}
-	ci_region=${2:-us-west-2}
-	ci_account=${3:-180294223248}
-	ci_arn=${4:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig}
+run_ci_roles_task() {
+	ci_task=$1
+	ci_profile=$2
+	ci_region=$3
+	ci_account=$4
+	ci_arn=$5
+	shift 5
 	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
 		PATH="$fake_bin:$PATH" \
 		COMMAND_LOG="$command_log" \
+		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$ci_roles_plan}" \
 		FAKE_ACCOUNT="$ci_account" \
 		FAKE_ARN="$ci_arn" \
 		AWS_PROFILE="$ci_profile" \
 		AWS_REGION="$ci_region" \
-		APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
-		"$real_task" --dir "$repo_root" lambda-ci-roles-init
+		APPROVED_CI_ROLES_ADMIN="${CI_ROLES_ACK:-portfolio-lambda-http-api/ci-roles}" \
+		"$real_task" --dir "$repo_root" "$ci_task" "$@"
 }
 
-run_ci_roles_init_with_ambient_credential() {
-	credential_name=$1
-	credential_value=$2
+run_ci_roles_as_admin() {
+	ci_task=$1
+	shift
+	run_ci_roles_task \
+		"$ci_task" \
+		portfolio-ci-roles-administrator \
+		us-west-2 \
+		180294223248 \
+		arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig \
+		"$@"
+}
+
+run_ci_roles_with_wrong_acknowledgement() (
+	CI_ROLES_ACK=wrong-root
+	export CI_ROLES_ACK
+	run_ci_roles_as_admin lambda-ci-roles-init
+)
+
+run_ci_roles_task_with_ambient_credential() {
+	ci_task=$1
+	credential_name=$2
+	credential_value=$3
+	shift 3
 	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
 		"$credential_name=$credential_value" \
 		PATH="$fake_bin:$PATH" \
 		COMMAND_LOG="$command_log" \
+		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$ci_roles_plan}" \
 		FAKE_ACCOUNT=180294223248 \
 		FAKE_ARN=arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig \
 		AWS_PROFILE=portfolio-ci-roles-administrator \
 		AWS_REGION=us-west-2 \
 		APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
-		"$real_task" --dir "$repo_root" lambda-ci-roles-init
+		"$real_task" --dir "$repo_root" "$ci_task" "$@"
 }
 
 expect_ci_roles_rejection() {
@@ -914,7 +1586,8 @@ expect_ci_roles_rejection() {
 
 expect_ci_roles_acceptance() {
 	name=$1
-	shift
+	expected_tofu_command=$2
+	shift 2
 	: >"$command_log"
 	expect_pass "$name" "$@"
 	grep -Fq 'aws --profile portfolio-ci-roles-administrator --region us-west-2 sts get-caller-identity --query Account --output text' "$command_log" || {
@@ -925,36 +1598,82 @@ expect_ci_roles_acceptance() {
 		printf 'FAIL: %s did not bind the ARN check to the reviewed profile and region\n' "$name" >&2
 		exit 1
 	}
-	grep -Fq 'tofu -chdir=infra/lambda/ci-roles init -backend-config=backend.hcl -reconfigure -input=false' "$command_log" || {
-		printf 'FAIL: %s did not initialize the CI-role root\n' "$name" >&2
+	grep -Fq "$expected_tofu_command" "$command_log" || {
+		printf 'FAIL: %s did not run the expected CI-role OpenTofu command\n' "$name" >&2
 		exit 1
 	}
 }
 
 expect_ci_roles_rejection "CI roles guard rejects a deployer session through a profile alias" \
-	run_ci_roles_init \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
 	portfolio-ci-roles-administrator \
 	us-west-2 \
 	180294223248 \
 	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig
 expect_ci_roles_rejection "CI roles guard requires the reviewed administrator profile" \
-	run_ci_roles_init renamed-ci-roles-administrator
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	renamed-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
 expect_ci_roles_rejection "CI roles guard requires the reviewed region" \
-	run_ci_roles_init portfolio-ci-roles-administrator us-east-1
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-east-1 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
 expect_ci_roles_rejection "CI roles guard rejects the wrong AWS account" \
-	run_ci_roles_init \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
 	portfolio-ci-roles-administrator \
 	us-west-2 \
 	111122223333 \
 	arn:aws:sts::111122223333:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
+expect_ci_roles_rejection "CI roles guard rejects root" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:iam::180294223248:root
+expect_ci_roles_rejection "CI roles guard rejects the wrong root acknowledgement" \
+	run_ci_roles_with_wrong_acknowledgement
 expect_ci_roles_rejection "CI roles guard rejects ambient access-key credentials" \
-	run_ci_roles_init_with_ambient_credential AWS_ACCESS_KEY_ID AKIASTATIC
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_ACCESS_KEY_ID AKIASTATIC
 expect_ci_roles_rejection "CI roles guard rejects ambient secret-key credentials" \
-	run_ci_roles_init_with_ambient_credential AWS_SECRET_ACCESS_KEY static-secret
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_SECRET_ACCESS_KEY static-secret
 expect_ci_roles_rejection "CI roles guard rejects an ambient session token" \
-	run_ci_roles_init_with_ambient_credential AWS_SESSION_TOKEN static-session
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_SESSION_TOKEN static-session
 expect_ci_roles_acceptance "CI roles guard accepts only the reviewed administrator identity" \
-	run_ci_roles_init
+	'tofu -chdir=infra/lambda/ci-roles init -backend-config=backend.hcl -reconfigure -input=false' \
+	run_ci_roles_as_admin lambda-ci-roles-init
+
+ci_roles_identity_plan="$tmp_dir/ci-roles-identity.tfplan"
+expect_ci_roles_rejection "CI roles plan rejects the normal deployer" \
+	run_ci_roles_task \
+	lambda-ci-roles-plan \
+	portfolio-deployer \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig \
+	PLAN_FILE="$ci_roles_identity_plan" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+
+printf 'reviewed CI roles plan\n' >"$ci_roles_identity_plan"
+ci_roles_identity_plan_sha256=$(shasum -a 256 "$ci_roles_identity_plan" | awk '{print $1}')
+expect_ci_roles_rejection "CI roles apply rejects the normal deployer" \
+	run_ci_roles_task \
+	lambda-ci-roles-apply \
+	portfolio-deployer \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig \
+	PLAN_FILE="$ci_roles_identity_plan" \
+	APPROVED_PLAN_SHA256="$ci_roles_identity_plan_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 
 expect_pass "exact SSO identity guard" run_task lambda-dev-init
 expect_fail "identity guard rejects wrong profile" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=default AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
@@ -979,6 +1698,62 @@ artifact_plan_file="$tmp_dir/artifacts.tfplan"
 TASK7_PLAN_JSON="$artifact_plan" expect_pass "artifact plan accepts only its exact lock acknowledgement" run_task lambda-artifacts-plan PLAN_FILE="$artifact_plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 prod_plan_file="$tmp_dir/prod.tfplan"
 TASK7_PLAN_JSON="$prod_plan" expect_pass "production plan accepts only its exact lock acknowledgement" run_task lambda-prod-plan PLAN_FILE="$prod_plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
+
+ci_roles_plan_file="$tmp_dir/ci-roles.tfplan"
+TASK7_PLAN_JSON="$ci_roles_plan" expect_ci_roles_acceptance \
+	"CI role task accepts its exact contract under the administrator identity" \
+	"tofu -chdir=infra/lambda/ci-roles plan -lock-timeout=5m -input=false -out=$ci_roles_plan_file" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-plan \
+	PLAN_FILE="$ci_roles_plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+test -f "$ci_roles_plan_file" || {
+	printf 'FAIL: CI role task removed an accepted saved plan\n' >&2
+	exit 1
+}
+pass "CI role task retains an accepted saved plan"
+grep -F "tofu -chdir=infra/lambda/ci-roles show -no-color $ci_roles_plan_file" "$command_log" >/dev/null || {
+	printf 'FAIL: CI role task did not render the accepted saved plan\n' >&2
+	exit 1
+}
+pass "CI role task renders an accepted saved plan"
+ci_roles_plan_sha256=$(shasum -a 256 "$ci_roles_plan_file" | awk '{print $1}')
+expect_ci_roles_acceptance \
+	"CI role apply consumes the checksum-bound plan under the administrator identity" \
+	"tofu -chdir=infra/lambda/ci-roles apply -input=false $ci_roles_plan_file" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-apply \
+	PLAN_FILE="$ci_roles_plan_file" \
+	APPROVED_PLAN_SHA256="$ci_roles_plan_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+ci_roles_bad_plan_file="$tmp_dir/ci-roles-bad.tfplan"
+TASK7_PLAN_JSON="$dev_plan" expect_fail \
+	"CI role task rejects resources outside its exact contract" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-plan \
+	PLAN_FILE="$ci_roles_bad_plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+test ! -e "$ci_roles_bad_plan_file" || {
+	printf 'FAIL: CI role task retained a rejected saved plan\n' >&2
+	exit 1
+}
+pass "CI role task removes a rejected saved plan"
+
+ci_roles_interrupted_plan_file="$tmp_dir/ci-roles-interrupted.tfplan"
+if PATH="$fake_bin:$PATH" \
+	COMMAND_LOG="$command_log" \
+	FAKE_PLAN_JSON="$ci_roles_plan" \
+	FAKE_TOFU_SIGNAL_PARENT=true \
+	PLAN_FILE="$ci_roles_interrupted_plan_file" \
+	sh "$repo_root/scripts/create-ci-roles-plan.sh"; then
+	printf 'FAIL: CI role task accepted a signal-interrupted plan\n' >&2
+	exit 1
+fi
+test ! -e "$ci_roles_interrupted_plan_file" || {
+	printf 'FAIL: CI role task retained a signal-interrupted plan\n' >&2
+	exit 1
+}
+pass "CI role task removes a signal-interrupted saved plan"
 
 expect_pass "immutable full-SHA release push" run_task lambda-release-push
 grep -F 'ecr wait image-scan-complete --repository-name portfolio-lambda-releases --image-id imageTag=git-0123456789abcdef0123456789abcdef01234567' "$command_log" >/dev/null || {

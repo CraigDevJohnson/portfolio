@@ -474,8 +474,8 @@ tasks:
           exit 1
         }
 
-  lambda-ci-roles-init:
-    desc: Initialize only the replacement GitHub Actions role state
+  _lambda-ci-roles-identity-check:
+    internal: true
     env:
       APPROVED_CI_ROLES_ADMIN: '{{default "" .APPROVED_CI_ROLES_ADMIN}}'
     cmds:
@@ -518,7 +518,34 @@ tasks:
             exit 1
             ;;
         esac
+
+  lambda-ci-roles-init:
+    desc: Initialize only the replacement GitHub Actions role state
+    cmds:
+      - task: _lambda-ci-roles-identity-check
       - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/ci-roles
+
+  lambda-ci-roles-plan:
+    desc: Create a saved GitHub Actions role plan for separate review
+    env:
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+    cmds:
+      - task: _lambda-ci-roles-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+      - sh scripts/create-ci-roles-plan.sh
+
+  lambda-ci-roles-apply:
+    desc: Apply only an approved saved GitHub Actions role plan
+    cmds:
+      - task: _lambda-ci-roles-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+      - task: _lambda-saved-plan-apply
         vars:
           ROOT: infra/lambda/ci-roles
 

@@ -25,13 +25,14 @@ independent roots under `infra/lambda/`.
 
 ## Replacement Lambda deployment
 
-The replacement source is under `infra/lambda/`. It has three independent
+The replacement source is under `infra/lambda/`. It has four independent
 OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-disable MD013 -->
 
 | Root | State key | Lock acknowledgement |
 | --- | --- | --- |
+| `ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` |
 | `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
 | `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
 | `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
@@ -138,20 +139,21 @@ as root.
 
 ### Identity and saved-plan rules
 
-Except for `lambda-ci-roles-init`, every replacement command requires exactly
-`AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`. The private
-deployer guard rejects ambient `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
-`AWS_SESSION_TOKEN`, any other account, root, and any assumed role that does
-not contain `AWSReservedSSO_PortfolioDeployer_`.
+Except for the three `lambda-ci-roles-*` commands, every replacement command
+requires exactly `AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`.
+The private deployer guard rejects ambient `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other account, root, and
+any assumed role that does not contain `AWSReservedSSO_PortfolioDeployer_`.
 
-`lambda-ci-roles-init` is the deliberate identity exception because the normal
-deployer must never administer CI OIDC roles or their state. It requires
+`lambda-ci-roles-init`, `lambda-ci-roles-plan`, and `lambda-ci-roles-apply` are
+the deliberate identity exceptions because the normal deployer must never
+administer CI OIDC roles or their state. All three require
 `AWS_PROFILE=portfolio-ci-roles-administrator`, `AWS_REGION=us-west-2`, account
 `180294223248`, and an effective STS ARN matching the reviewed IAM Identity
 Center permission set
-`AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>`. It rejects root,
-every other profile, account, or role, and all three ambient credential
-variables before OpenTofu runs. The operator must also set
+`AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>`. Their shared guard
+rejects root, every other profile, account, or role, and all three ambient
+credential variables before OpenTofu runs. Each invocation must also set
 `APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles`; that value records
 the exact root being acknowledged and grants no AWS permission.
 

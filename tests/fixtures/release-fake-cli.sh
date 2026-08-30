@@ -57,7 +57,21 @@ case "$command_name" in
 				printf '{"Code":{"ImageUri":"%s"}}\n' "${FAKE_QUALIFIED_IMAGE_URI:?set FAKE_QUALIFIED_IMAGE_URI}"
 				;;
 			cloudwatch/describe-alarms)
-				printf '{"MetricAlarms":[]}\n'
+				case "${FAKE_ALARM_SCENARIO:-exact}" in
+				exact)
+					printf '%s\n' '{"MetricAlarms":[{"AlarmName":"portfolio-lambda-dev-api-5xx","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-api-latency","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-duration","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-errors","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-throttles","StateValue":"OK"}]}'
+					;;
+				missing)
+					printf '%s\n' '{"MetricAlarms":[]}'
+					;;
+				extra)
+					printf '%s\n' '{"MetricAlarms":[{"AlarmName":"portfolio-lambda-dev-api-5xx","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-api-latency","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-duration","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-errors","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-lambda-throttles","StateValue":"OK"},{"AlarmName":"portfolio-lambda-dev-unapproved","StateValue":"OK"}]}'
+					;;
+				*)
+					echo "unexpected fake alarm scenario: $FAKE_ALARM_SCENARIO" >&2
+					exit 2
+					;;
+				esac
 				;;
 			*)
 				echo "unexpected fake aws command: $service $operation" >&2
