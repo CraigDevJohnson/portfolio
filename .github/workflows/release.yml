@@ -94,11 +94,12 @@ jobs:
           aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" \
             --query 'repositories[0].imageTagMutability' --output text | grep -Fx IMMUTABLE
           if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$tag" >/dev/null 2>&1; then
-            echo 'Immutable full-SHA tag already exists; refusing to rebuild.' >&2; exit 1
+            echo 'Immutable full-SHA tag already exists; reusing it for scan validation.'
+          else
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_URL%%/*}"
+            docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+              --build-arg "BUILD_REVISION=$SOURCE_SHA" -f Dockerfile.lambda -t "$ECR_URL:$tag" --push .
           fi
-          aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_URL%%/*}"
-          docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
-            --build-arg "BUILD_REVISION=$SOURCE_SHA" -f Dockerfile.lambda -t "$ECR_URL:$tag" --push .
           digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)
           printf '%s' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
           aws ecr wait image-scan-complete --repository-name "$ECR_REPOSITORY" --image-id "imageDigest=$digest"
