@@ -5,7 +5,9 @@ account_id=180294223248
 region=us-west-2
 service_arn=arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb
 access_role_name=portfolio-apprunner-ecr-access
+access_role_id=AROAST6S7QWIFWIJU3SEX
 instance_role_name=portfolio-apprunner-instance
+instance_role_id=AROAST6S7QWIK7PZV2BTQ
 runtime_policy_arn=arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets
 
 fail() {
@@ -67,6 +69,42 @@ printf '%s\n' "$tags" | jq -e \
 		"Project=portfolio"
 	]' \
 	>/dev/null || fail "service tag contract failed"
+
+access_role=$(aws iam get-role \
+	--role-name "$access_role_name" \
+	--output json \
+	--no-cli-pager) || fail "could not read ECR access role"
+printf '%s\n' "$access_role" | jq -e \
+	--arg role_id "$access_role_id" '
+	.Role.RoleName == "portfolio-apprunner-ecr-access" and
+	.Role.RoleId == $role_id and
+	.Role.Arn == "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access" and
+	.Role.AssumeRolePolicyDocument == {
+		Version: "2012-10-17",
+		Statement: [{
+			Effect: "Allow",
+			Principal: {Service: "build.apprunner.amazonaws.com"},
+			Action: "sts:AssumeRole"
+		}]
+	}' >/dev/null || fail "ECR access role identity contract failed"
+
+instance_role=$(aws iam get-role \
+	--role-name "$instance_role_name" \
+	--output json \
+	--no-cli-pager) || fail "could not read instance role"
+printf '%s\n' "$instance_role" | jq -e \
+	--arg role_id "$instance_role_id" '
+	.Role.RoleName == "portfolio-apprunner-instance" and
+	.Role.RoleId == $role_id and
+	.Role.Arn == "arn:aws:iam::180294223248:role/portfolio-apprunner-instance" and
+	.Role.AssumeRolePolicyDocument == {
+		Version: "2012-10-17",
+		Statement: [{
+			Effect: "Allow",
+			Principal: {Service: "tasks.apprunner.amazonaws.com"},
+			Action: "sts:AssumeRole"
+		}]
+	}' >/dev/null || fail "instance role identity contract failed"
 
 access_attachments=$(aws iam list-attached-role-policies \
 	--role-name "$access_role_name" \

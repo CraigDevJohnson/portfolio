@@ -50,14 +50,34 @@ jq -se '
 		elif .address == "aws_iam_role.apprunner_ecr_access" then
 			.change.before.id == "portfolio-apprunner-ecr-access" and
 			.change.before.arn == "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access" and
-			.change.before.name == "portfolio-apprunner-ecr-access"
+			.change.before.name == "portfolio-apprunner-ecr-access" and
+			.change.before.unique_id == "AROAST6S7QWIFWIJU3SEX" and
+			(.change.before.assume_role_policy | fromjson) == {
+				Version: "2012-10-17",
+				Statement: [{
+					Effect: "Allow",
+					Principal: {Service: "build.apprunner.amazonaws.com"},
+					Action: "sts:AssumeRole"
+				}]
+			} and
+			.change.before.inline_policy == []
 		elif .address == "aws_iam_role_policy_attachment.apprunner_ecr_access" then
 			.change.before.role == "portfolio-apprunner-ecr-access" and
 			.change.before.policy_arn == "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
 		elif .address == "aws_iam_role.apprunner_instance" then
 			.change.before.id == "portfolio-apprunner-instance" and
 			.change.before.arn == "arn:aws:iam::180294223248:role/portfolio-apprunner-instance" and
-			.change.before.name == "portfolio-apprunner-instance"
+			.change.before.name == "portfolio-apprunner-instance" and
+			.change.before.unique_id == "AROAST6S7QWIK7PZV2BTQ" and
+			(.change.before.assume_role_policy | fromjson) == {
+				Version: "2012-10-17",
+				Statement: [{
+					Effect: "Allow",
+					Principal: {Service: "tasks.apprunner.amazonaws.com"},
+					Action: "sts:AssumeRole"
+				}]
+			} and
+			.change.before.inline_policy == []
 		elif .address == "aws_iam_role_policy_attachment.google_connections_dynamodb" then
 			.change.before.role == "portfolio-apprunner-instance" and
 			.change.before.policy_arn == "arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb"

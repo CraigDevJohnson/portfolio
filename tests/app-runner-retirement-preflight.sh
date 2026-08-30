@@ -100,6 +100,62 @@ case "$*" in
 			printf '%s\n' '{"Tags":[{"Key":"Environment","Value":"development"},{"Key":"ManagedBy","Value":"opentofu"},{"Key":"Name","Value":"portfolio"},{"Key":"Project","Value":"portfolio"}]}'
 		fi
 		;;
+	"iam get-role --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager")
+		role_id=AROAST6S7QWIFWIJU3SEX
+		if [ "$FAKE_CASE" = wrong-access-role-id ]; then role_id=AROAST6S7QWI000000000; fi
+		if [ "$FAKE_CASE" = broadened-access-trust ]; then
+			service_principal='["build.apprunner.amazonaws.com","lambda.amazonaws.com"]'
+		else
+			service_principal='"build.apprunner.amazonaws.com"'
+		fi
+		jq -n \
+			--arg role_id "$role_id" \
+			--argjson service_principal "$service_principal" '
+			{
+				Role: {
+					Path: "/",
+					RoleName: "portfolio-apprunner-ecr-access",
+					RoleId: $role_id,
+					Arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
+					AssumeRolePolicyDocument: {
+						Version: "2012-10-17",
+						Statement: [{
+							Effect: "Allow",
+							Principal: {Service: $service_principal},
+							Action: "sts:AssumeRole"
+						}]
+					}
+				}
+			}'
+		;;
+	"iam get-role --role-name portfolio-apprunner-instance --output json --no-cli-pager")
+		role_id=AROAST6S7QWIK7PZV2BTQ
+		if [ "$FAKE_CASE" = wrong-instance-role-id ]; then role_id=AROAST6S7QWI000000001; fi
+		if [ "$FAKE_CASE" = broadened-instance-trust ]; then
+			service_principal='["tasks.apprunner.amazonaws.com","lambda.amazonaws.com"]'
+		else
+			service_principal='"tasks.apprunner.amazonaws.com"'
+		fi
+		jq -n \
+			--arg role_id "$role_id" \
+			--argjson service_principal "$service_principal" '
+			{
+				Role: {
+					Path: "/",
+					RoleName: "portfolio-apprunner-instance",
+					RoleId: $role_id,
+					Arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-instance",
+					AssumeRolePolicyDocument: {
+						Version: "2012-10-17",
+						Statement: [{
+							Effect: "Allow",
+							Principal: {Service: $service_principal},
+							Action: "sts:AssumeRole"
+						}]
+					}
+				}
+			}'
+		;;
 	"iam list-attached-role-policies --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager")
 		printf '%s\n' '{"AttachedPolicies":[{"PolicyName":"AWSAppRunnerServicePolicyForECRAccess","PolicyArn":"arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"}]}'
 		;;
@@ -160,6 +216,10 @@ expect_fail "preflight rejects a non-running service" bad-service-status "servic
 expect_fail "preflight rejects the wrong instance role" wrong-instance-role "service contract failed"
 expect_fail "preflight rejects an App Runner custom domain" custom-domain "custom-domain association remains"
 expect_fail "preflight rejects missing service tags" wrong-tags "service tag contract failed"
+expect_fail "preflight rejects the wrong ECR access role ID" wrong-access-role-id "ECR access role identity contract failed"
+expect_fail "preflight rejects broadened ECR access trust" broadened-access-trust "ECR access role identity contract failed"
+expect_fail "preflight rejects the wrong instance role ID" wrong-instance-role-id "instance role identity contract failed"
+expect_fail "preflight rejects broadened instance trust" broadened-instance-trust "instance role identity contract failed"
 expect_fail "preflight rejects an extra role attachment" extra-attachment "instance role attachment contract failed"
 expect_fail "preflight rejects inline role policies" inline-policy "inline role policies remain"
 expect_fail "preflight rejects instance profiles" instance-profile "instance profiles remain"

@@ -55,7 +55,17 @@ make_plan() {
 				{mode: "managed", address: "aws_iam_role.apprunner_ecr_access", change: deletion({
 					id: "portfolio-apprunner-ecr-access",
 					arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
-					name: "portfolio-apprunner-ecr-access"
+					name: "portfolio-apprunner-ecr-access",
+					unique_id: "AROAST6S7QWIFWIJU3SEX",
+					assume_role_policy: ({
+						Version: "2012-10-17",
+						Statement: [{
+							Effect: "Allow",
+							Principal: {Service: "build.apprunner.amazonaws.com"},
+							Action: "sts:AssumeRole"
+						}]
+					} | tojson),
+					inline_policy: []
 				})},
 				{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_ecr_access", change: deletion({
 					role: "portfolio-apprunner-ecr-access",
@@ -64,7 +74,17 @@ make_plan() {
 				{mode: "managed", address: "aws_iam_role.apprunner_instance", change: deletion({
 					id: "portfolio-apprunner-instance",
 					arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-instance",
-					name: "portfolio-apprunner-instance"
+					name: "portfolio-apprunner-instance",
+					unique_id: "AROAST6S7QWIK7PZV2BTQ",
+					assume_role_policy: ({
+						Version: "2012-10-17",
+						Statement: [{
+							Effect: "Allow",
+							Principal: {Service: "tasks.apprunner.amazonaws.com"},
+							Action: "sts:AssumeRole"
+						}]
+					} | tojson),
+					inline_policy: []
 				})},
 				{mode: "managed", address: "aws_iam_role_policy_attachment.google_connections_dynamodb", change: deletion({
 					role: "portfolio-apprunner-instance",
@@ -119,7 +139,13 @@ mutate_and_reject "delete with a null before value" '(.resource_changes[] | sele
 mutate_and_reject "App Runner service ARN drift" '(.resource_changes[] | select(.address == "aws_apprunner_service.app").change.before.arn) = "arn:aws:apprunner:us-west-2:180294223248:service/not-portfolio/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
 mutate_and_reject "App Runner service name drift" '(.resource_changes[] | select(.address == "aws_apprunner_service.app").change.before.service_name) = "not-portfolio"'
 mutate_and_reject "ECR access role name drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_ecr_access").change.before.name) = "not-the-ecr-role"'
+mutate_and_reject "ECR access role ID drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_ecr_access").change.before.unique_id) = "AROAST6S7QWI000000000"'
+mutate_and_reject "ECR access role trust drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_ecr_access").change.before.assume_role_policy) = ({Version: "2012-10-17", Statement: [{Effect: "Allow", Principal: {Service: ["build.apprunner.amazonaws.com", "lambda.amazonaws.com"]}, Action: "sts:AssumeRole"}]} | tojson)'
+mutate_and_reject "ECR access role inline policy" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_ecr_access").change.before.inline_policy) = [{name: "unexpected"}]'
 mutate_and_reject "instance role name drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_instance").change.before.name) = "not-the-instance-role"'
+mutate_and_reject "instance role ID drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_instance").change.before.unique_id) = "AROAST6S7QWI000000001"'
+mutate_and_reject "instance role trust drift" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_instance").change.before.assume_role_policy) = ({Version: "2012-10-17", Statement: [{Effect: "Allow", Principal: {Service: ["tasks.apprunner.amazonaws.com", "lambda.amazonaws.com"]}, Action: "sts:AssumeRole"}]} | tojson)'
+mutate_and_reject "instance role inline policy" '(.resource_changes[] | select(.address == "aws_iam_role.apprunner_instance").change.before.inline_policy) = [{name: "unexpected"}]'
 mutate_and_reject "ECR attachment role drift" '(.resource_changes[] | select(.address == "aws_iam_role_policy_attachment.apprunner_ecr_access").change.before.role) = "portfolio-apprunner-instance"'
 mutate_and_reject "ECR attachment policy drift" '(.resource_changes[] | select(.address == "aws_iam_role_policy_attachment.apprunner_ecr_access").change.before.policy_arn) = "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"'
 mutate_and_reject "Google attachment role drift" '(.resource_changes[] | select(.address == "aws_iam_role_policy_attachment.google_connections_dynamodb").change.before.role) = "portfolio-apprunner-ecr-access"'

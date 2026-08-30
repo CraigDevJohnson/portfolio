@@ -66,7 +66,10 @@ jq -n '
 			{mode: "managed", address: "aws_iam_role.apprunner_ecr_access", change: deletion({
 				id: "portfolio-apprunner-ecr-access",
 				arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
-				name: "portfolio-apprunner-ecr-access"
+				name: "portfolio-apprunner-ecr-access",
+				unique_id: "AROAST6S7QWIFWIJU3SEX",
+				assume_role_policy: ({Version: "2012-10-17", Statement: [{Effect: "Allow", Principal: {Service: "build.apprunner.amazonaws.com"}, Action: "sts:AssumeRole"}]} | tojson),
+				inline_policy: []
 			})},
 			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_ecr_access", change: deletion({
 				role: "portfolio-apprunner-ecr-access",
@@ -75,7 +78,10 @@ jq -n '
 			{mode: "managed", address: "aws_iam_role.apprunner_instance", change: deletion({
 				id: "portfolio-apprunner-instance",
 				arn: "arn:aws:iam::180294223248:role/portfolio-apprunner-instance",
-				name: "portfolio-apprunner-instance"
+				name: "portfolio-apprunner-instance",
+				unique_id: "AROAST6S7QWIK7PZV2BTQ",
+				assume_role_policy: ({Version: "2012-10-17", Statement: [{Effect: "Allow", Principal: {Service: "tasks.apprunner.amazonaws.com"}, Action: "sts:AssumeRole"}]} | tojson),
+				inline_policy: []
 			})},
 			{mode: "managed", address: "aws_iam_role_policy_attachment.google_connections_dynamodb", change: deletion({
 				role: "portfolio-apprunner-instance",
@@ -131,6 +137,12 @@ case "$*" in
 		;;
 	"apprunner list-tags-for-resource --resource-arn arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb --output json --no-cli-pager")
 		printf '%s\n' '{"Tags":[{"Key":"Environment","Value":"development"},{"Key":"ManagedBy","Value":"opentofu"},{"Key":"Name","Value":"portfolio"},{"Key":"Project","Value":"portfolio"}]}'
+		;;
+	"iam get-role --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager")
+		printf '%s\n' '{"Role":{"Path":"/","RoleName":"portfolio-apprunner-ecr-access","RoleId":"AROAST6S7QWIFWIJU3SEX","Arn":"arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access","AssumeRolePolicyDocument":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"build.apprunner.amazonaws.com"},"Action":"sts:AssumeRole"}]}}}'
+		;;
+	"iam get-role --role-name portfolio-apprunner-instance --output json --no-cli-pager")
+		printf '%s\n' '{"Role":{"Path":"/","RoleName":"portfolio-apprunner-instance","RoleId":"AROAST6S7QWIK7PZV2BTQ","Arn":"arn:aws:iam::180294223248:role/portfolio-apprunner-instance","AssumeRolePolicyDocument":{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"tasks.apprunner.amazonaws.com"},"Action":"sts:AssumeRole"}]}}}'
 		;;
 	"iam list-attached-role-policies --role-name portfolio-apprunner-ecr-access --output json --no-cli-pager")
 		printf '%s\n' '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"}]}'
