@@ -25,13 +25,14 @@ independent roots under `infra/lambda/`.
 
 ## Replacement Lambda deployment
 
-The replacement source is under `infra/lambda/`. It has three independent
+The replacement source is under `infra/lambda/`. It has four independent
 OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-disable MD013 -->
 
 | Root | State key | Lock acknowledgement |
 | --- | --- | --- |
+| `ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` |
 | `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
 | `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
 | `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
@@ -138,20 +139,41 @@ as root.
 
 ### Identity and saved-plan rules
 
-Every replacement command requires exactly `AWS_PROFILE=portfolio-deployer`
-and `AWS_REGION=us-west-2`. The private guard rejects ambient
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other
-account, root, and any assumed role that does not contain
-`AWSReservedSSO_PortfolioDeployer_`.
+Except for the three `lambda-ci-roles-*` commands, every replacement command
+requires exactly `AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`.
+The private deployer guard rejects ambient `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other account, root, and
+any assumed role that does not contain `AWSReservedSSO_PortfolioDeployer_`.
+
+`lambda-ci-roles-init`, `lambda-ci-roles-plan`, and `lambda-ci-roles-apply` are
+the deliberate identity exceptions because the normal deployer must never
+administer CI OIDC roles or their state. All three require
+`AWS_PROFILE=portfolio-ci-roles-administrator`, `AWS_REGION=us-west-2`, account
+`180294223248`, and an effective STS ARN matching the reviewed IAM Identity
+Center permission set
+`AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>`. Their shared guard
+rejects root, every other profile, account, or role, and all three ambient
+credential variables before OpenTofu runs. Each invocation must also set
+`APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles`; that value records
+the exact root being acknowledged and grants no AWS permission.
 
 Initialization, planning, and apply are separate commands. Initialization uses
 the root's `backend.hcl`, reconfigures the backend without interactive input,
 and refuses any workspace other than `default`. A plan requires a new absolute
 `PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
-and prints the human-readable plan. An apply accepts only an existing absolute
-saved plan whose SHA-256 digest equals the separately approved
-`APPROVED_PLAN_SHA256`. Replacement commands contain no `--auto-approve`,
-`-target`, or mutable image tag.
+and prints the human-readable plan. The CI-role plan additionally uses a fresh
+private data directory and emits a checksum-bound backend/workspace provenance
+sidecar. Its apply requires `PROVENANCE_FILE`, `APPROVED_PLAN_SHA256`, and
+`APPROVED_PROVENANCE_SHA256`, validates their exact linkage and semantics, and
+rejects ambient OpenTofu, provider-reattachment, credential-redirection, and AWS
+endpoint overrides. It snapshots both approved artifacts, reruns the complete
+plan policy against the private copy, and applies only that copy. The sidecar is
+trusted only when produced by the reviewed isolated plan task; OpenTofu's public
+saved-plan JSON does not independently expose its embedded backend. Other
+replacement applies accept only an existing absolute saved plan whose digest
+equals `APPROVED_PLAN_SHA256`.
+Replacement commands contain no `--auto-approve`, `-target`, or mutable image
+tag.
 
 For example, create and inspect the artifact plan only after the controller
 approves the exact artifact lock write:

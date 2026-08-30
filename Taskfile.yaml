@@ -246,6 +246,24 @@ tasks:
       - sh tests/docker-runtime-ca.sh
       - sh tests/docker-lambda-image.sh
 
+  lambda-infrastructure-ci:
+    desc: Run the authoritative offline Lambda infrastructure and release gate
+    cmds:
+      - tofu fmt -check -recursive infra/lambda
+      - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
+      - tofu -chdir=infra/lambda/ci-roles validate
+      - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
+      - tofu -chdir=infra/lambda/artifacts validate
+      - tofu -chdir=infra/lambda/environments/dev init -backend=false -input=false
+      - tofu -chdir=infra/lambda/environments/dev validate
+      - tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
+      - tofu -chdir=infra/lambda/environments/prod validate
+      - tofu -chdir=infra/lambda/ci-roles test
+      - go test ./infra/lambda -count=1
+      - sh tests/lambda-observation-window.sh
+      - sh tests/lambda-plan-contract.sh
+      - sh tests/release-automation.sh
+
   _lint-check:
     internal: true
     cmds:
@@ -382,6 +400,68 @@ tasks:
 
   # ── Replacement Lambda release ─────────────────────────────────────────────
 
+  lambda-ci-authorize-release:
+    desc: Authorize and classify one reviewed main-branch Lambda release
+    env:
+      EVENT_SHA: '{{default "" .EVENT_SHA}}'
+      GITHUB_OUTPUT: '{{default "" .GITHUB_OUTPUT}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+    cmds:
+      - sh scripts/authorize-ci-lambda-release.sh
+
+  lambda-ci-check-current-main:
+    desc: Fail unless the exact release source remains current on main
+    env:
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/check-current-main.sh "$SOURCE_SHA"
+
+  lambda-ci-check-aws-identity:
+    desc: Verify the exact GitHub Actions AWS role before release work
+    env:
+      AWS_ACCOUNT_ID: "180294223248"
+      EXPECTED_ROLE_ARN: '{{default "" .EXPECTED_ROLE_ARN}}'
+    cmds:
+      - sh scripts/check-ci-aws-identity.sh "$EXPECTED_ROLE_ARN"
+
+  lambda-ci-build-release-image:
+    desc: Build or reuse, scan, and report one immutable Lambda release image
+    env:
+      ECR_REPOSITORY: portfolio-lambda-releases
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_OUTPUT: '{{default "" .GITHUB_OUTPUT}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      SCAN_FILE: '{{default "scan.json" .SCAN_FILE}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/build-ci-lambda-release.sh
+
+  lambda-ci-deploy-development:
+    desc: Plan, apply, verify, and record one authorized development release
+    env:
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_WORKSPACE: '{{default "" .GITHUB_WORKSPACE}}'
+      IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+      STATE_BUCKET: portfolio-tofu-state-180294223248
+    cmds:
+      - sh scripts/deploy-ci-lambda-development.sh
+
+  lambda-ci-plan-production:
+    desc: Validate a promotion and retain its reviewed production-only plan
+    env:
+      BASE_SHA: '{{default "" .BASE_SHA}}'
+      ECR_REPOSITORY: portfolio-lambda-releases
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_WORKSPACE: '{{default "" .GITHUB_WORKSPACE}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+      STATE_BUCKET: portfolio-tofu-state-180294223248
+    cmds:
+      - sh scripts/plan-ci-lambda-production.sh
+
   _lambda-identity-check:
     internal: true
     env:
@@ -455,6 +535,84 @@ tasks:
           echo "Refusing non-default OpenTofu workspace: $workspace" >&2
           exit 1
         }
+
+  _lambda-ci-roles-identity-check:
+    internal: true
+    env:
+      APPROVED_CI_ROLES_ADMIN: '{{default "" .APPROVED_CI_ROLES_ADMIN}}'
+    cmds:
+      - |
+        set -eu
+        test "$APPROVED_CI_ROLES_ADMIN" = "portfolio-lambda-http-api/ci-roles" || {
+          echo "APPROVED_CI_ROLES_ADMIN must acknowledge portfolio-lambda-http-api/ci-roles" >&2
+          exit 1
+        }
+        test "${AWS_PROFILE:-}" = "portfolio-ci-roles-administrator" || {
+          echo "AWS_PROFILE must be portfolio-ci-roles-administrator" >&2
+          exit 1
+        }
+        test "${AWS_REGION:-}" = "us-west-2" || {
+          echo "AWS_REGION must be us-west-2" >&2
+          exit 1
+        }
+        test -z "${AWS_ACCESS_KEY_ID+x}" || {
+          echo "AWS_ACCESS_KEY_ID must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SECRET_ACCESS_KEY+x}" || {
+          echo "AWS_SECRET_ACCESS_KEY must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        test -z "${AWS_SESSION_TOKEN+x}" || {
+          echo "AWS_SESSION_TOKEN must be unset; use only the reviewed SSO profile" >&2
+          exit 1
+        }
+        account=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Account --output text)
+        test "$account" = "180294223248" || {
+          echo "AWS account must be 180294223248" >&2
+          exit 1
+        }
+        arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity --query Arn --output text)
+        case "$arn" in
+          arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_*/*) ;;
+          *)
+            echo "AWS identity must use AWSReservedSSO_PortfolioCIRolesAdministrator_" >&2
+            exit 1
+            ;;
+        esac
+
+  lambda-ci-roles-init:
+    desc: Initialize only the replacement GitHub Actions role state
+    cmds:
+      - task: _lambda-ci-roles-identity-check
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/ci-roles
+
+  lambda-ci-roles-plan:
+    desc: Create a saved GitHub Actions role plan for separate review
+    env:
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+    cmds:
+      - task: _lambda-ci-roles-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+      - sh scripts/create-ci-roles-plan.sh
+
+  lambda-ci-roles-apply:
+    desc: Apply only an approved saved GitHub Actions role plan
+    env:
+      APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
+      APPROVED_PROVENANCE_SHA256: '{{default "" .APPROVED_PROVENANCE_SHA256}}'
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+      PROVENANCE_FILE: '{{default "" .PROVENANCE_FILE}}'
+    cmds:
+      - task: _lambda-ci-roles-identity-check
+      - task: _lambda-state-lock-check
+        vars:
+          EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+      - sh scripts/apply-ci-roles-plan.sh
 
   _lambda-saved-plan-apply:
     internal: true
