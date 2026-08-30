@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Start only after `dev.craigdevjohnson.com` has passed the development acceptance checks and observation window.
+- Start only after the accepted [2026-08-29 development App Runner retirement design](../specs/2026-08-29-development-app-runner-retirement-design.md) is reviewed, the preserved failed development evidence remains unchanged, and current public development health reports the same release SHA recorded for promotion.
 - Promote the accepted ECR digest; do not rebuild an image for production.
 - Keep Amplify, its `main` branch, apex association, certificate-validation record, and current Cloudflare rollback coordinates intact.
 - Use fresh production DynamoDB tables and a fresh production session key. Do not copy legacy encrypted Google rows in this plan.
@@ -45,7 +45,7 @@
 - Consumes: merged replacement PR, accepted development alias, image digest, and health revision
 - Produces: immutable production input record and verified non-root identity
 
-- [ ] **Step 1: Verify current main and development health**
+- [ ] **Step 1: Verify current main, accepted development retirement prerequisite, and health**
 
 ```bash
 git fetch origin
@@ -64,15 +64,20 @@ release_record="docs/deployment/evidence/releases/${release_sha}.json"
 test -f "$release_record"
 evidence_file=$(jq -er .development.observation_evidence "$release_record")
 test -f "$evidence_file"
+test "$(jq -er .source_sha "$release_record")" = "$release_sha"
+test "$(jq -er .development.healthz_revision "$release_record")" = "$release_sha"
+test "$(jq -er .development.observation_completed_at "$release_record")" = "null"
+test "$(git rev-parse HEAD:docs/deployment/evidence/development-observation.jsonl)" = \
+  "$(git rev-parse 927a11835dc217cc228361b383e54565af73c2cb:docs/deployment/evidence/development-observation.jsonl)"
+jq -e '.passed == false and .unresolved_blockers == ["rollback origin failed"]' "$evidence_file"
 git merge-base --is-ancestor "$release_sha" origin/main
-task lambda-dev-observation-gate \
-  RELEASE_RECORD="$release_record" \
-  EVIDENCE_FILE="$evidence_file"
 ```
 
-Expected: main is clean, the development revision is the accepted source
-revision, and the merged observation gate proves seven full days. Stop if the
-release JSON or JSONL evidence is absent, inconsistent, or incomplete.
+Expected: main is clean; the accepted retirement design is the governing
+development prerequisite; the failed evidence remains byte-for-byte unchanged
+with its recorded blocker; and current public health, the release record, and
+the promotion SHA agree. Stop if the release JSON or evidence is absent,
+inconsistent, or altered.
 
 - [ ] **Step 2: Read the live development alias and digest**
 

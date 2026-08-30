@@ -21,16 +21,19 @@
 - `task fmt` — `golangci-lint fmt` (NOT `go fmt ./...`)
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
-- `task deploy` — build+push App Runner and Lambda images + `tofu apply`
-- `task redeploy` — push image + `aws apprunner start-deployment`
-- `task deploy-lambda` / `task redeploy-lambda` — Lambda variant
+- `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
+- Replacement artifact infrastructure: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
+- Replacement development infrastructure: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
+- Replacement production infrastructure: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`
+- See `DEPLOY-INSTRUCTIONS.md` before any deployment operation
 
 ## Architecture
 
 - `cmd/server/main.go` is ~10 lines; all wiring in `internal/app/`
 - `.templ` files in `cmd/web/{layouts,pages,partials}` are source; `*_templ.go` is generated and gitignored
 - Tailwind source: `cmd/web/tailwind/*.css` and `cmd/web/tailwind/pages/*.css`; generated output: `cmd/web/static/css/tailwind.css` (gitignored)
-- Docker image built from `Dockerfile` (App Runner) or `Dockerfile.lambda`
+- `Dockerfile` builds the local/Compose server image; `Dockerfile.lambda` builds
+  the managed Lambda image.
 - `internal/portal` contains the optional Cognito-authenticated EC2 management
   portal, including instance actions, CloudWatch metrics, and CloudWatch Logs.
 - See `.github/instructions/templ.instructions.md` and `.github/instructions/tailwind.instructions.md` for detailed authoring rules

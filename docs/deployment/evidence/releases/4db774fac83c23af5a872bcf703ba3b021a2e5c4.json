@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "source_sha": "4db774fac83c23af5a872bcf703ba3b021a2e5c4",
+  "image": {
+    "repository_name": "portfolio-lambda-releases",
+    "repository_url": "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases",
+    "tag": "git-4db774fac83c23af5a872bcf703ba3b021a2e5c4",
+    "digest": "sha256:970bdb10d1b58179a20d6ebbcd568929945f31891b4d032dc731e76f28b60c49",
+    "uri": "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:970bdb10d1b58179a20d6ebbcd568929945f31891b4d032dc731e76f28b60c49",
+    "pushed_at": "2026-08-26T23:26:06.306000-06:00",
+    "scan_status": "COMPLETE"
+  },
+  "development": {
+    "function_name": "portfolio-lambda-dev",
+    "published_version": "1",
+    "live_alias_target": "1",
+    "api_endpoint": "https://048o6alxh8.execute-api.us-west-2.amazonaws.com",
+    "custom_domains": [
+      "dev.craigdevjohnson.com"
+    ],
+    "healthz_revision": "4db774fac83c23af5a872bcf703ba3b021a2e5c4",
+    "dns_cutover_at": "2026-08-27T10:17:39Z",
+    "rollback_evidence": "docs/deployment/evidence/development-precutover.json",
+    "observation_evidence": "docs/deployment/evidence/development-observation.jsonl",
+    "observation_completed_at": null
+  },
+  "production": null
+}

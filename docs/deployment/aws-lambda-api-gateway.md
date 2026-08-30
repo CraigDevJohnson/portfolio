@@ -1,10 +1,9 @@
 # AWS Lambda and API Gateway
 
-> [!WARNING]
-> The checked-in `infra/` directory and the `deploy`, `redeploy`,
-> `deploy-lambda`, and `redeploy-lambda` tasks target legacy shared state. Keep
-> them for rollback only. Replacement commands use `infra/lambda/` and must
-> never deploy the new release to App Runner.
+> [!NOTE]
+> The checked-in `infra/` directory retains shared legacy data, ECR, IAM, and
+> SSM references. Replacement commands use `infra/lambda/`; the repository does
+> not provide an App Runner deployment or rollback path.
 
 The Lambda image runs the same Go HTTP handler as the regular server. The
 `aws-lambda-go-api-proxy` adapter converts API Gateway HTTP API events into
@@ -28,7 +27,6 @@ the Lambda path.
   `infra/lambda/environments/prod/` own three isolated states.
 - `infra/lambda/bootstrap/` contains the reviewed non-secret initial deployer
   and root-owned execution-boundary policy inputs.
-- `infra/lambda.tf` remains the legacy shared-stack Lambda source.
 
 The replacement environments do not share ECR ownership, DynamoDB tables, IAM
 roles, SSM paths, logs, alarms, or state with the legacy stack.
@@ -195,30 +193,32 @@ exact validation CNAMEs as DNS-only records after separate approval. Once ACM
 reports `ISSUED`, set `activate_custom_domain = true` and allow only certificate
 validation, Regional API Gateway domain, and mapping creates. Both plans and
 both applies need fresh approval for the exact dev lock URI and exact saved
-plan. Prove OAuth directly against the API Gateway target before changing the
-traffic record, and commit the legacy origin plus complete rollback DNS record
-before cutover.
+plan. Prove OAuth directly against the API Gateway target before changing a
+traffic record, and record the current origin plus complete rollback DNS
+coordinates before that change.
 
-## Legacy deployment and rollback reference
+## Retained shared resources and retirement record
 
-`task deploy` and `task redeploy` operate on the legacy shared stack, including
-App Runner. `task deploy-lambda` can bootstrap the legacy targeted Lambda path
-by creating the ECR repository and initializing OpenTofu first, but it does not
-reconcile the full shared infrastructure. `task redeploy-lambda` updates that
-legacy function. Preserve these commands for rollback; do not use any of them
-to deploy the replacement release.
+The shared `infra/` root retains the `portfolio` ECR repository, DynamoDB
+tables, IAM policies, and legacy SSM references. It declares no App Runner or
+legacy Lambda/API Gateway runtime; every replacement root remains under
+`infra/lambda/`.
 
-Read the API endpoint after deployment:
-
-```bash
-cd infra
-tofu output -raw lambda_api_url
-```
+The accepted 2026-08-29 retirement decision and implementation details remain in
+the dated
+[retirement design](../superpowers/specs/2026-08-29-development-app-runner-retirement-design.md)
+and
+[implementation plan](../superpowers/plans/2026-08-29-development-app-runner-retirement.md).
+The failed development observation remains evidence of the old rollback-origin
+stylesheet mismatch and must not be repaired or represented as passing. These
+records are historical; there is no current App Runner retirement task, helper,
+or temporary IAM policy. Production observation and separately approved Amplify
+cleanup remain unchanged.
 
 ## Runtime behavior
 
-OpenTofu passes SSM paths through `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and
-`LPS_SESSION_KEY` in the legacy stack. During cold start,
+The replacement environment roots pass environment-owned SSM paths through
+`CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and `LPS_SESSION_KEY`. During cold start,
 `cmd/lambda/secrets.go` fetches every path-valued setting in one decrypted
 `GetParameters` call. It validates the complete response, including missing,
 invalid, and unusable values, before it replaces any environment value. A
@@ -235,12 +235,9 @@ and cookie security use this context-backed origin. Client-controlled `Host`
 and forwarding headers cannot override it, and a missing typed gateway domain
 fails closed before application routing.
 
-OpenTofu also sets the managed Google connection and Soccer import-baseline
-table names. The legacy shared Terraform defaults to 512 MB and a 30-second
-timeout. `lambda_memory_mb` and `lambda_timeout_seconds` control those legacy
-values.
-
-Both replacement environment roots set a 29-second Lambda timeout. The
+OpenTofu also sets the environment-owned Google connection and Soccer
+import-baseline table names. Both replacement environment roots set 512 MB of
+memory and a 29-second Lambda timeout. The
 application's Google Calendar add and result-sync handlers each use a 24-second
 child context, leaving five seconds outside their work budget. If a deadline
 ends a multi-game batch, the response reports the completed work counts and
@@ -271,7 +268,7 @@ with that exact expected value proves the identity of those artifacts.
 They do not log in to ECR, push images, apply OpenTofu, or update a running
 service.
 
-## Verify locally and for legacy rollback
+## Verify locally and for replacement Lambda environments
 
 Run the repository gate before any approved deployment:
 
@@ -279,7 +276,7 @@ Run the repository gate before any approved deployment:
 task ci
 ```
 
-After a legacy rollback deployment, verify these paths:
+After an approved replacement deployment, verify these paths:
 
 ```text
 GET /healthz
@@ -292,9 +289,9 @@ GET /static/css/tailwind.css
 linker-injected revision in
 `{"revision":"<build revision>","status":"ok"}` and `Cache-Control:
 no-store`. The handler does not probe SSM, DynamoDB, Google, or Soccer during
-request handling. Legacy deployment helpers and direct builds that omit
-`BUILD_REVISION` may report `development`. Do not use that value as immutable
-provenance proof.
+request handling. Direct builds that omit `BUILD_REVISION` may report
+`development`. Do not use that value as immutable provenance proof.
 
-For a legacy cold-start failure, inspect that function's CloudWatch Logs.
-Confirm its role can read each configured SSM parameter and decrypt its KMS key.
+For a cold-start failure, inspect the environment-owned function's CloudWatch
+Logs. Confirm its role can read each configured SSM parameter and decrypt its
+KMS key.

@@ -9,6 +9,12 @@
 **Scope:** Git integration, AWS Lambda and API Gateway environments, development
 and production cutovers, and retirement gates for App Runner and Amplify
 
+> **2026-08-29 narrow supersession:** The approved
+> [development App Runner retirement design](./2026-08-29-development-app-runner-retirement-design.md)
+> supersedes only this document's development App Runner retention and seven-day
+> observation requirements. Production observation and Amplify retirement
+> requirements remain unchanged.
+
 ## Purpose
 
 This specification moves the current Go, Templ, and HTMX portfolio onto a
