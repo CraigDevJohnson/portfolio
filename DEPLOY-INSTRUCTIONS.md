@@ -161,10 +161,19 @@ Initialization, planning, and apply are separate commands. Initialization uses
 the root's `backend.hcl`, reconfigures the backend without interactive input,
 and refuses any workspace other than `default`. A plan requires a new absolute
 `PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
-and prints the human-readable plan. An apply accepts only an existing absolute
-saved plan whose SHA-256 digest equals the separately approved
-`APPROVED_PLAN_SHA256`. Replacement commands contain no `--auto-approve`,
-`-target`, or mutable image tag.
+and prints the human-readable plan. The CI-role plan additionally uses a fresh
+private data directory and emits a checksum-bound backend/workspace provenance
+sidecar. Its apply requires `PROVENANCE_FILE`, `APPROVED_PLAN_SHA256`, and
+`APPROVED_PROVENANCE_SHA256`, validates their exact linkage and semantics, and
+rejects ambient OpenTofu, provider-reattachment, credential-redirection, and AWS
+endpoint overrides. It snapshots both approved artifacts, reruns the complete
+plan policy against the private copy, and applies only that copy. The sidecar is
+trusted only when produced by the reviewed isolated plan task; OpenTofu's public
+saved-plan JSON does not independently expose its embedded backend. Other
+replacement applies accept only an existing absolute saved plan whose digest
+equals `APPROVED_PLAN_SHA256`.
+Replacement commands contain no `--auto-approve`, `-target`, or mutable image
+tag.
 
 For example, create and inspect the artifact plan only after the controller
 approves the exact artifact lock write:

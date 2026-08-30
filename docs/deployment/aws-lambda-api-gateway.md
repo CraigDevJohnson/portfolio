@@ -45,8 +45,14 @@ claim about the current live revision.
 
 `.github/workflows/release.yml` reacts only to a successful `CI` push run for a
 trusted `main` SHA. It requires one associated merged pull request and classifies
-the complete reviewed base-to-merge range. Pull-request runs, direct pushes,
-ambiguous associations, and stale runs cannot obtain AWS credentials.
+the complete reviewed base-to-merge range. Every non-review release also checks
+the backlog since the latest schema-valid successful development deployment;
+before the first such deployment, the commit that introduced the release
+workflow is the bootstrap epoch. A pending review-class change blocks later
+runtime, promotion, and docs/test automation, while a pending runtime change is
+carried forward when its earlier CI or release run was canceled. Pull-request
+runs, direct pushes, ambiguous associations, malformed deployment records, and
+stale runs cannot obtain AWS credentials.
 Runtime-only commits are built once under the release-builder OIDC role,
 scanned, digest-resolved, and deployed to development through a saved,
 policy-checked plan. Docs/test-only commits skip. Infrastructure, workflow,
@@ -80,6 +86,10 @@ saved plan and JSON/text rendering, checksum, policy output, previous and final
 alias/version, probes, alarms, and GitHub deployment identity. Verification
 failure blocks promotion and, when a prior alias exists, saves a checksum-bound
 rollback plan; applying that rollback remains an explicit operator decision.
+An exact, complete converged no-op plan is accepted on retry, but the healthy
+revision JSON, live SHA, image digest, published alias, bounded HTTP 200/content
+contracts, binary image bytes, and five alarms must all be reverified before a
+successful deployment is recorded.
 
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live

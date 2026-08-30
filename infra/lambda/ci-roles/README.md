@@ -24,9 +24,15 @@ a separately reviewed `portfolio-deployer` SSO plan. If replacement state is
 lost, restore a reviewed version from the versioned state bucket; do not grant
 the workflow bootstrap or import permissions.
 
-This root uses the isolated state configuration in `backend.hcl`. Initialize it,
-create a saved plan, review its rendered output and checksum, and apply that
-exact plan only through a separately reviewed administrator session. The
+This root uses the isolated state configuration in `backend.hcl`. Its plan task
+creates a private OpenTofu data directory, reinitializes the exact backend,
+requires the `default` workspace, and emits both a saved plan and a
+checksum-bound `.provenance.json` sidecar. Review the rendered plan, the
+sidecar, and both checksums, then apply that exact pair only through a separately
+reviewed administrator session. The sidecar is an attestation from this
+reviewed creation task; OpenTofu's public saved-plan JSON does not expose the
+embedded backend, so a hand-built plan and sidecar are not valid substitutes.
+The
 `portfolio-deployer` profile is deliberately insufficient: its bootstrap policy
 does not grant access to this state or authority over CI roles. Use a distinct
 administrator identity that has been explicitly reviewed to access only:
@@ -58,8 +64,6 @@ permissions:
 ```bash
 export AWS_PROFILE=portfolio-ci-roles-administrator
 export AWS_REGION=us-west-2
-APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
-  task lambda-ci-roles-init
 ci_roles_plan_dir=$(mktemp -d)
 ci_roles_plan="$ci_roles_plan_dir/ci-roles.tfplan"
 APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
@@ -67,20 +71,37 @@ APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
     PLAN_FILE="$ci_roles_plan" \
     APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 ci_roles_plan_sha256=$(shasum -a 256 "$ci_roles_plan" | awk '{print $1}')
+ci_roles_provenance="$ci_roles_plan.provenance.json"
+ci_roles_provenance_sha256=$(shasum -a 256 "$ci_roles_provenance" | awk '{print $1}')
 printf 'ci_roles_plan_sha256=%s\n' "$ci_roles_plan_sha256"
+printf 'ci_roles_provenance_sha256=%s\n' "$ci_roles_provenance_sha256"
+jq . "$ci_roles_provenance"
 ```
 
 After separate plan review, obtain a fresh current-session apply and lock-write
-approval. Copy the reviewed checksum exactly, then run:
+approval. Copy both reviewed checksums exactly, then run:
 
 ```bash
 : "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
+: "${APPROVED_PROVENANCE_SHA256:?set the exact reviewed provenance SHA-256 checksum}"
 APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
   task lambda-ci-roles-apply \
     PLAN_FILE="$ci_roles_plan" \
+    PROVENANCE_FILE="$ci_roles_provenance" \
     APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
+    APPROVED_PROVENANCE_SHA256="$APPROVED_PROVENANCE_SHA256" \
     APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 ```
+
+The sidecar contains only the plan checksum, `default` workspace, and the
+reviewed S3 backend type, bucket, key, region, encryption, and native-locking
+fields. Plan and apply reject ambient OpenTofu workspace, data-directory,
+provider-reattachment, CLI-configuration, CLI-argument, credential-redirection,
+role-assumption, and AWS endpoint overrides. Each command uses a private empty
+OpenTofu CLI configuration. Apply snapshots both approved files into a private
+directory, verifies the copied bytes and provenance, renders the copied plan to
+JSON, reruns the complete CI-role policy contract, and only then applies that
+private plan copy.
 
 After the apply, read each role from IAM and require its deterministic ARN before
 using it in GitHub configuration:

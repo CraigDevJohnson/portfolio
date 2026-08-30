@@ -11,29 +11,38 @@ deployment_id=$(jq -er '.development_deployment_id | select(type == "number" and
 
 deployment=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id")
 printf '%s\n' "$deployment" | jq -e \
-	--arg source_sha "$source_sha" \
-	--arg image_digest "$image_digest" '
-		.ref == $source_sha
-		and .environment == "development"
-		and .description == ("Lambda " + $image_digest)
-	' >/dev/null
+  --arg source_sha "$source_sha" \
+  --arg image_digest "$image_digest" '
+    (.id | type == "number") and
+    .ref == $source_sha and
+    .sha == $source_sha and
+    .task == "portfolio-lambda-development" and
+    .environment == "development" and
+    .description == ("Lambda " + $image_digest) and
+    .creator.login == "github-actions[bot]" and
+    .creator.type == "Bot"
+  ' > /dev/null
 
 statuses=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses")
 printf '%s\n' "$statuses" | jq -e \
-	--arg source_sha "$source_sha" \
-	--arg image_digest "$image_digest" '
-		length > 0
-		and .[0].state == "success"
-		and .[0].environment == "development"
-		and .[0].description == ("Verified " + $source_sha + " at " + $image_digest)
-	' >/dev/null
+  --arg source_sha "$source_sha" \
+  --arg image_digest "$image_digest" '
+    type == "array" and
+    length > 0 and
+    .[0].state == "success" and
+    .[0].environment == "development" and
+    .[0].environment_url == "https://dev.craigdevjohnson.com" and
+    .[0].description == ("Verified " + $source_sha + " at " + $image_digest) and
+    .[0].creator.login == "github-actions[bot]" and
+    .[0].creator.type == "Bot"
+  ' > /dev/null
 
 tag_digest=$(aws ecr describe-images \
-	--repository-name "$ECR_REPOSITORY" \
-	--image-ids "imageTag=git-$source_sha" \
-	--query 'imageDetails[0].imageDigest' \
-	--output text)
+  --repository-name "$ECR_REPOSITORY" \
+  --image-ids "imageTag=git-$source_sha" \
+  --query 'imageDetails[0].imageDigest' \
+  --output text)
 test "$tag_digest" = "$image_digest" || {
-	echo 'the immutable source-SHA tag does not resolve to the promoted digest' >&2
-	exit 1
+  echo 'the immutable source-SHA tag does not resolve to the promoted digest' >&2
+  exit 1
 }

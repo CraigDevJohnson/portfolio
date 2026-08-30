@@ -1,7 +1,18 @@
 mock_provider "aws" {
   mock_data "aws_iam_policy_document" {
     defaults = {
-      json = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"sts:AssumeRoleWithWebIdentity\",\"Principal\":{\"Federated\":\"arn:aws:iam::180294223248:oidc-provider/token.actions.githubusercontent.com\"}}]}"
+      json = <<-JSON
+        {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+              "Federated": "arn:aws:iam::180294223248:oidc-provider/token.actions.githubusercontent.com"
+            }
+          }]
+        }
+      JSON
     }
   }
 }
@@ -120,7 +131,10 @@ run "least_privilege_release_roles" {
       one([
         for statement in jsondecode(aws_iam_role_policy.environment["dev"].policy).Statement : statement
         if statement.Sid == "StateLock"
-      ]).Resource == "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock" &&
+        ]).Resource == join("", [
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/",
+        "terraform.tfstate.tflock",
+      ]) &&
       toset(one([
         for statement in jsondecode(aws_iam_role_policy.environment["dev"].policy).Statement : statement
         if statement.Sid == "DevelopmentStateWrite"
@@ -225,7 +239,10 @@ run "least_privilege_release_roles" {
       one([
         for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement : statement
         if statement.Sid == "StateRead"
-      ]).Resource == "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate" &&
+        ]).Resource == join("", [
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/",
+        "terraform.tfstate",
+      ]) &&
       toset(one([
         for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement : statement
         if statement.Sid == "StateLock"
@@ -233,7 +250,10 @@ run "least_privilege_release_roles" {
       one([
         for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement : statement
         if statement.Sid == "StateLock"
-      ]).Resource == "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock"
+        ]).Resource == join("", [
+        "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/",
+        "terraform.tfstate.tflock",
+      ])
     )
     error_message = "production planning may read exact state and mutate only its exact lock object"
   }
@@ -244,7 +264,10 @@ run "least_privilege_release_roles" {
   }
 
   assert {
-    condition     = length(aws_iam_role_policy.environment["dev"].policy) <= 10240 && length(aws_iam_role_policy.environment["prod"].policy) <= 10240
+    condition = (
+      length(aws_iam_role_policy.environment["dev"].policy) <= 10240 &&
+      length(aws_iam_role_policy.environment["prod"].policy) <= 10240
+    )
     error_message = "environment inline policies must fit the IAM role-policy size limit"
   }
 }

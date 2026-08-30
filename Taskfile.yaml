@@ -400,6 +400,68 @@ tasks:
 
   # ── Replacement Lambda release ─────────────────────────────────────────────
 
+  lambda-ci-authorize-release:
+    desc: Authorize and classify one reviewed main-branch Lambda release
+    env:
+      EVENT_SHA: '{{default "" .EVENT_SHA}}'
+      GITHUB_OUTPUT: '{{default "" .GITHUB_OUTPUT}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+    cmds:
+      - sh scripts/authorize-ci-lambda-release.sh
+
+  lambda-ci-check-current-main:
+    desc: Fail unless the exact release source remains current on main
+    env:
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/check-current-main.sh "$SOURCE_SHA"
+
+  lambda-ci-check-aws-identity:
+    desc: Verify the exact GitHub Actions AWS role before release work
+    env:
+      AWS_ACCOUNT_ID: "180294223248"
+      EXPECTED_ROLE_ARN: '{{default "" .EXPECTED_ROLE_ARN}}'
+    cmds:
+      - sh scripts/check-ci-aws-identity.sh "$EXPECTED_ROLE_ARN"
+
+  lambda-ci-build-release-image:
+    desc: Build or reuse, scan, and report one immutable Lambda release image
+    env:
+      ECR_REPOSITORY: portfolio-lambda-releases
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_OUTPUT: '{{default "" .GITHUB_OUTPUT}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      SCAN_FILE: '{{default "scan.json" .SCAN_FILE}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/build-ci-lambda-release.sh
+
+  lambda-ci-deploy-development:
+    desc: Plan, apply, verify, and record one authorized development release
+    env:
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_WORKSPACE: '{{default "" .GITHUB_WORKSPACE}}'
+      IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+      STATE_BUCKET: portfolio-tofu-state-180294223248
+    cmds:
+      - sh scripts/deploy-ci-lambda-development.sh
+
+  lambda-ci-plan-production:
+    desc: Validate a promotion and retain its reviewed production-only plan
+    env:
+      BASE_SHA: '{{default "" .BASE_SHA}}'
+      ECR_REPOSITORY: portfolio-lambda-releases
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_WORKSPACE: '{{default "" .GITHUB_WORKSPACE}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+      STATE_BUCKET: portfolio-tofu-state-180294223248
+    cmds:
+      - sh scripts/plan-ci-lambda-production.sh
+
   _lambda-identity-check:
     internal: true
     env:
@@ -540,14 +602,17 @@ tasks:
 
   lambda-ci-roles-apply:
     desc: Apply only an approved saved GitHub Actions role plan
+    env:
+      APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
+      APPROVED_PROVENANCE_SHA256: '{{default "" .APPROVED_PROVENANCE_SHA256}}'
+      PLAN_FILE: '{{default "" .PLAN_FILE}}'
+      PROVENANCE_FILE: '{{default "" .PROVENANCE_FILE}}'
     cmds:
       - task: _lambda-ci-roles-identity-check
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
-      - task: _lambda-saved-plan-apply
-        vars:
-          ROOT: infra/lambda/ci-roles
+      - sh scripts/apply-ci-roles-plan.sh
 
   _lambda-saved-plan-apply:
     internal: true
