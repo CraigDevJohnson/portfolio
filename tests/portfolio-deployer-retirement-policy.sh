@@ -164,6 +164,25 @@ test "$(grep -c 'put-inline-policy-to-permission-set' "$command_log")" = 1 || fa
 
 cp "$retirement_policy" "$policy_state"
 : >"$command_log"
+expect_pass "keeps an already-installed retirement policy without rewriting it" run_update install
+test "$(jq -S -c . "$policy_state")" = "$(jq -S -c . "$retirement_policy")" || fail "idempotent install state"
+if grep -Fq 'put-inline-policy-to-permission-set' "$command_log"; then
+	fail "idempotent install rewrote the retirement policy"
+fi
+
+cp "$retirement_policy" "$policy_state"
+: >"$command_log"
+expect_fail "failed idempotent install preserves the retirement policy" run_update install install-provision-fail
+test "$(jq -S -c . "$policy_state")" = "$(jq -S -c . "$retirement_policy")" || fail "failed idempotent install changed policy"
+if grep -Fq 'put-inline-policy-to-permission-set' "$command_log"; then
+	fail "failed idempotent install rewrote policy"
+fi
+if grep -Fq 'request-development' "$command_log"; then
+	fail "failed idempotent install provisioned the development policy"
+fi
+
+cp "$retirement_policy" "$policy_state"
+: >"$command_log"
 expect_pass "restores and provisions the reviewed development policy" run_update restore
 test "$(jq -S -c . "$policy_state")" = "$(jq -S -c . "$development_policy")" || fail "restore state"
 

@@ -216,7 +216,7 @@ else
 	fail "live inline policy matches neither the reviewed source nor target"
 fi
 
-if [ "$1" = install ]; then
+if [ "$1" = install ] && [ "$put_required" = true ]; then
 	rollback_needed=true
 fi
 if [ "$put_required" = true ]; then
