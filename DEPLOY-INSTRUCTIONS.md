@@ -139,11 +139,23 @@ as root.
 
 ### Identity and saved-plan rules
 
-Every replacement command requires exactly `AWS_PROFILE=portfolio-deployer`
-and `AWS_REGION=us-west-2`. The private guard rejects ambient
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other
-account, root, and any assumed role that does not contain
-`AWSReservedSSO_PortfolioDeployer_`.
+Except for the three `lambda-ci-roles-*` commands, every replacement command
+requires exactly `AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`.
+The private deployer guard rejects ambient `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other account, root, and
+any assumed role that does not contain `AWSReservedSSO_PortfolioDeployer_`.
+
+`lambda-ci-roles-init`, `lambda-ci-roles-plan`, and `lambda-ci-roles-apply` are
+the deliberate identity exceptions because the normal deployer must never
+administer CI OIDC roles or their state. All three require
+`AWS_PROFILE=portfolio-ci-roles-administrator`, `AWS_REGION=us-west-2`, account
+`180294223248`, and an effective STS ARN matching the reviewed IAM Identity
+Center permission set
+`AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>`. Their shared guard
+rejects root, every other profile, account, or role, and all three ambient
+credential variables before OpenTofu runs. Each invocation must also set
+`APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles`; that value records
+the exact root being acknowledged and grants no AWS permission.
 
 Initialization, planning, and apply are separate commands. Initialization uses
 the root's `backend.hcl`, reconfigures the backend without interactive input,

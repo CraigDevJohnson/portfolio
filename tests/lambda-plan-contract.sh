@@ -411,7 +411,7 @@ make_ci_roles_plan() {
 						version_constraint: "6.38.0",
 						expressions: {
 							allowed_account_ids: {constant_value: ["180294223248"]},
-							profile: {constant_value: "portfolio-deployer"},
+							profile: {constant_value: "portfolio-ci-roles-administrator"},
 							region: {references: ["local.region"]}
 						}
 					}
@@ -1079,7 +1079,7 @@ mutate_ci_roles_and_reject "CI role plan rejects aliased or expanded AWS provide
 		version_constraint: "6.38.0",
 		expressions: {
 			allowed_account_ids: {constant_value: ["180294223248"]},
-			profile: {constant_value: "portfolio-deployer"},
+			profile: {constant_value: "portfolio-ci-roles-administrator"},
 			region: {references: ["local.region"]}
 		}
 	} |
@@ -1518,6 +1518,163 @@ run_task() {
 		"$real_task" --dir "$repo_root" "$@"
 }
 
+run_ci_roles_task() {
+	ci_task=$1
+	ci_profile=$2
+	ci_region=$3
+	ci_account=$4
+	ci_arn=$5
+	shift 5
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		PATH="$fake_bin:$PATH" \
+		COMMAND_LOG="$command_log" \
+		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$ci_roles_plan}" \
+		FAKE_ACCOUNT="$ci_account" \
+		FAKE_ARN="$ci_arn" \
+		AWS_PROFILE="$ci_profile" \
+		AWS_REGION="$ci_region" \
+		APPROVED_CI_ROLES_ADMIN="${CI_ROLES_ACK:-portfolio-lambda-http-api/ci-roles}" \
+		"$real_task" --dir "$repo_root" "$ci_task" "$@"
+}
+
+run_ci_roles_as_admin() {
+	ci_task=$1
+	shift
+	run_ci_roles_task \
+		"$ci_task" \
+		portfolio-ci-roles-administrator \
+		us-west-2 \
+		180294223248 \
+		arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig \
+		"$@"
+}
+
+run_ci_roles_with_wrong_acknowledgement() (
+	CI_ROLES_ACK=wrong-root
+	export CI_ROLES_ACK
+	run_ci_roles_as_admin lambda-ci-roles-init
+)
+
+run_ci_roles_task_with_ambient_credential() {
+	ci_task=$1
+	credential_name=$2
+	credential_value=$3
+	shift 3
+	env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+		"$credential_name=$credential_value" \
+		PATH="$fake_bin:$PATH" \
+		COMMAND_LOG="$command_log" \
+		FAKE_PLAN_JSON="${TASK7_PLAN_JSON:-$ci_roles_plan}" \
+		FAKE_ACCOUNT=180294223248 \
+		FAKE_ARN=arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig \
+		AWS_PROFILE=portfolio-ci-roles-administrator \
+		AWS_REGION=us-west-2 \
+		APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+		"$real_task" --dir "$repo_root" "$ci_task" "$@"
+}
+
+expect_ci_roles_rejection() {
+	name=$1
+	shift
+	: >"$command_log"
+	expect_fail "$name" "$@"
+	if grep -q '^tofu ' "$command_log"; then
+		printf 'FAIL: %s invoked OpenTofu after rejecting the identity\n' "$name" >&2
+		exit 1
+	fi
+}
+
+expect_ci_roles_acceptance() {
+	name=$1
+	expected_tofu_command=$2
+	shift 2
+	: >"$command_log"
+	expect_pass "$name" "$@"
+	grep -Fq 'aws --profile portfolio-ci-roles-administrator --region us-west-2 sts get-caller-identity --query Account --output text' "$command_log" || {
+		printf 'FAIL: %s did not bind the account check to the reviewed profile and region\n' "$name" >&2
+		exit 1
+	}
+	grep -Fq 'aws --profile portfolio-ci-roles-administrator --region us-west-2 sts get-caller-identity --query Arn --output text' "$command_log" || {
+		printf 'FAIL: %s did not bind the ARN check to the reviewed profile and region\n' "$name" >&2
+		exit 1
+	}
+	grep -Fq "$expected_tofu_command" "$command_log" || {
+		printf 'FAIL: %s did not run the expected CI-role OpenTofu command\n' "$name" >&2
+		exit 1
+	}
+}
+
+expect_ci_roles_rejection "CI roles guard rejects a deployer session through a profile alias" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig
+expect_ci_roles_rejection "CI roles guard requires the reviewed administrator profile" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	renamed-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
+expect_ci_roles_rejection "CI roles guard requires the reviewed region" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-east-1 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
+expect_ci_roles_rejection "CI roles guard rejects the wrong AWS account" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	111122223333 \
+	arn:aws:sts::111122223333:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_abc/craig
+expect_ci_roles_rejection "CI roles guard rejects root" \
+	run_ci_roles_task \
+	lambda-ci-roles-init \
+	portfolio-ci-roles-administrator \
+	us-west-2 \
+	180294223248 \
+	arn:aws:iam::180294223248:root
+expect_ci_roles_rejection "CI roles guard rejects the wrong root acknowledgement" \
+	run_ci_roles_with_wrong_acknowledgement
+expect_ci_roles_rejection "CI roles guard rejects ambient access-key credentials" \
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_ACCESS_KEY_ID AKIASTATIC
+expect_ci_roles_rejection "CI roles guard rejects ambient secret-key credentials" \
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_SECRET_ACCESS_KEY static-secret
+expect_ci_roles_rejection "CI roles guard rejects an ambient session token" \
+	run_ci_roles_task_with_ambient_credential lambda-ci-roles-init AWS_SESSION_TOKEN static-session
+expect_ci_roles_acceptance "CI roles guard accepts only the reviewed administrator identity" \
+	'tofu -chdir=infra/lambda/ci-roles init -backend-config=backend.hcl -reconfigure -input=false' \
+	run_ci_roles_as_admin lambda-ci-roles-init
+
+ci_roles_identity_plan="$tmp_dir/ci-roles-identity.tfplan"
+expect_ci_roles_rejection "CI roles plan rejects the normal deployer" \
+	run_ci_roles_task \
+	lambda-ci-roles-plan \
+	portfolio-deployer \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig \
+	PLAN_FILE="$ci_roles_identity_plan" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+
+printf 'reviewed CI roles plan\n' >"$ci_roles_identity_plan"
+ci_roles_identity_plan_sha256=$(shasum -a 256 "$ci_roles_identity_plan" | awk '{print $1}')
+expect_ci_roles_rejection "CI roles apply rejects the normal deployer" \
+	run_ci_roles_task \
+	lambda-ci-roles-apply \
+	portfolio-deployer \
+	us-west-2 \
+	180294223248 \
+	arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig \
+	PLAN_FILE="$ci_roles_identity_plan" \
+	APPROVED_PLAN_SHA256="$ci_roles_identity_plan_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+
 expect_pass "exact SSO identity guard" run_task lambda-dev-init
 expect_fail "identity guard rejects wrong profile" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=default AWS_REGION=us-west-2 "$real_task" --dir "$repo_root" lambda-dev-init
 expect_fail "identity guard rejects wrong region" env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" AWS_PROFILE=portfolio-deployer AWS_REGION=us-east-1 "$real_task" --dir "$repo_root" lambda-dev-init
@@ -1543,7 +1700,13 @@ prod_plan_file="$tmp_dir/prod.tfplan"
 TASK7_PLAN_JSON="$prod_plan" expect_pass "production plan accepts only its exact lock acknowledgement" run_task lambda-prod-plan PLAN_FILE="$prod_plan_file" IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
 
 ci_roles_plan_file="$tmp_dir/ci-roles.tfplan"
-TASK7_PLAN_JSON="$ci_roles_plan" expect_pass "CI role task accepts its exact contract" run_task lambda-ci-roles-plan PLAN_FILE="$ci_roles_plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+TASK7_PLAN_JSON="$ci_roles_plan" expect_ci_roles_acceptance \
+	"CI role task accepts its exact contract under the administrator identity" \
+	"tofu -chdir=infra/lambda/ci-roles plan -lock-timeout=5m -input=false -out=$ci_roles_plan_file" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-plan \
+	PLAN_FILE="$ci_roles_plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 test -f "$ci_roles_plan_file" || {
 	printf 'FAIL: CI role task removed an accepted saved plan\n' >&2
 	exit 1
@@ -1554,8 +1717,22 @@ grep -F "tofu -chdir=infra/lambda/ci-roles show -no-color $ci_roles_plan_file" "
 	exit 1
 }
 pass "CI role task renders an accepted saved plan"
+ci_roles_plan_sha256=$(shasum -a 256 "$ci_roles_plan_file" | awk '{print $1}')
+expect_ci_roles_acceptance \
+	"CI role apply consumes the checksum-bound plan under the administrator identity" \
+	"tofu -chdir=infra/lambda/ci-roles apply -input=false $ci_roles_plan_file" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-apply \
+	PLAN_FILE="$ci_roles_plan_file" \
+	APPROVED_PLAN_SHA256="$ci_roles_plan_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 ci_roles_bad_plan_file="$tmp_dir/ci-roles-bad.tfplan"
-TASK7_PLAN_JSON="$dev_plan" expect_fail "CI role task rejects resources outside its exact contract" run_task lambda-ci-roles-plan PLAN_FILE="$ci_roles_bad_plan_file" APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+TASK7_PLAN_JSON="$dev_plan" expect_fail \
+	"CI role task rejects resources outside its exact contract" \
+	run_ci_roles_as_admin \
+	lambda-ci-roles-plan \
+	PLAN_FILE="$ci_roles_bad_plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 test ! -e "$ci_roles_bad_plan_file" || {
 	printf 'FAIL: CI role task retained a rejected saved plan\n' >&2
 	exit 1

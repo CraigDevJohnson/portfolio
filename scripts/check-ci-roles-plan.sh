@@ -100,7 +100,7 @@ jq -e '
 			version_constraint: "6.38.0",
 			expressions: {
 				allowed_account_ids: {constant_value: ["180294223248"]},
-				profile: {constant_value: "portfolio-deployer"},
+				profile: {constant_value: "portfolio-ci-roles-administrator"},
 				region: {references: ["local.region"]}
 			}
 		}

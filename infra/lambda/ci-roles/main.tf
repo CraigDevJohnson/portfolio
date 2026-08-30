@@ -13,7 +13,7 @@ terraform {
 
 provider "aws" {
   region              = local.region
-  profile             = "portfolio-deployer"
+  profile             = "portfolio-ci-roles-administrator"
   allowed_account_ids = ["180294223248"]
 }
 

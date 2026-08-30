@@ -26,17 +26,46 @@ the workflow bootstrap or import permissions.
 
 This root uses the isolated state configuration in `backend.hcl`. Initialize it,
 create a saved plan, review its rendered output and checksum, and apply that
-exact plan only through a separately reviewed administrator session:
+exact plan only through a separately reviewed administrator session. The
+`portfolio-deployer` profile is deliberately insufficient: its bootstrap policy
+does not grant access to this state or authority over CI roles. Use a distinct
+administrator identity that has been explicitly reviewed to access only:
+
+- `s3:ListBucket` on `arn:aws:s3:::portfolio-tofu-state-180294223248`, with a
+  `StringEquals` condition limiting `s3:prefix` to the exact
+  `portfolio-lambda-http-api/ci-roles/terraform.tfstate` and
+  `portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` keys;
+- `s3:GetBucketLocation` and `s3:GetBucketVersioning` on that bucket for the
+  repository's region and versioning preflight, plus `s3:GetObject`,
+  `s3:PutObject`, and `s3:DeleteObject` on only those two state objects; and
+- the `portfolio-release-builder-ci`, `portfolio-development-deployer-ci`, and
+  `portfolio-production-planner-ci` IAM roles and their inline policies,
+  including read access to the existing GitHub OIDC provider.
+
+The reviewed IAM Identity Center permission-set name is
+`PortfolioCIRolesAdministrator`. The AWS CLI profile must be exactly
+`portfolio-ci-roles-administrator`, and its effective STS ARN must match
+`arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>/<session>`.
+Every CI-role Task also requires `AWS_REGION=us-west-2`, rejects root and every
+other account or role, and refuses ambient `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, or `AWS_SESSION_TOKEN` values so OpenTofu uses the
+same reviewed SSO session that the guard checks.
+
+Each Task invocation requires the exact root acknowledgement below. It prevents
+accidentally using the normal deployment identity; it does not grant any AWS
+permissions:
 
 ```bash
-export AWS_PROFILE=portfolio-deployer
+export AWS_PROFILE=portfolio-ci-roles-administrator
 export AWS_REGION=us-west-2
-task lambda-ci-roles-init
+APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+  task lambda-ci-roles-init
 ci_roles_plan_dir=$(mktemp -d)
 ci_roles_plan="$ci_roles_plan_dir/ci-roles.tfplan"
-task lambda-ci-roles-plan \
-  PLAN_FILE="$ci_roles_plan" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+  task lambda-ci-roles-plan \
+    PLAN_FILE="$ci_roles_plan" \
+    APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 ci_roles_plan_sha256=$(shasum -a 256 "$ci_roles_plan" | awk '{print $1}')
 printf 'ci_roles_plan_sha256=%s\n' "$ci_roles_plan_sha256"
 ```
@@ -46,10 +75,11 @@ approval. Copy the reviewed checksum exactly, then run:
 
 ```bash
 : "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
-task lambda-ci-roles-apply \
-  PLAN_FILE="$ci_roles_plan" \
-  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+  task lambda-ci-roles-apply \
+    PLAN_FILE="$ci_roles_plan" \
+    APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
+    APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
 ```
 
 After the apply, read each role from IAM and require its deterministic ARN before
