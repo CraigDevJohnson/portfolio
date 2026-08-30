@@ -11,7 +11,7 @@ fail() {
 test ! -e "$repo_root/infra/lambda.tf" || fail "legacy root still declares absent Lambda/API resources"
 
 actual_resources=$(
-	rg --no-filename -o '^resource "[^"]+" "[^"]+"' "$repo_root"/infra/*.tf |
+	grep -hEo '^resource "[^"]+" "[^"]+"' "$repo_root"/infra/*.tf |
 		sed 's/^resource "//; s/" "/./; s/"$//' |
 		sort
 )
@@ -28,7 +28,7 @@ test "$actual_resources" = "$expected_resources" || {
 }
 
 actual_outputs=$(
-	rg --no-filename -o '^output "[^"]+"' "$repo_root"/infra/*.tf |
+	grep -hEo '^output "[^"]+"' "$repo_root"/infra/*.tf |
 		sed 's/^output "//; s/"$//' |
 		sort
 )
@@ -41,38 +41,38 @@ test "$actual_outputs" = "$expected_outputs" || {
 	exit 1
 }
 
-if rg -n '^  (deploy-lambda|redeploy-lambda):' "$repo_root/Taskfile.yaml" >/dev/null; then
+if grep -Eq '^  (deploy-lambda|redeploy-lambda):' "$repo_root/Taskfile.yaml"; then
 	fail "Taskfile can recreate absent legacy Lambda/API resources"
 fi
 
-if rg -n '^variable "lambda_' "$repo_root/infra/variables.tf" >/dev/null; then
+if grep -Eq '^variable "lambda_' "$repo_root/infra/variables.tf"; then
 	fail "legacy root still exposes variables for absent Lambda resources"
 fi
 
-rg -F 'version = "= 5.100.0"' "$repo_root/infra/versions.tf" >/dev/null ||
+grep -F 'version = "= 5.100.0"' "$repo_root/infra/versions.tf" >/dev/null ||
 	fail "legacy retirement provider version is not pinned to reviewed v5.100.0"
 
 legacy_lock="$repo_root/infra/.terraform.lock.hcl"
 test -f "$legacy_lock" || fail "legacy retirement provider lock file is missing"
-rg -F 'version     = "5.100.0"' "$legacy_lock" >/dev/null ||
+grep -F 'version     = "5.100.0"' "$legacy_lock" >/dev/null ||
 	fail "legacy retirement provider lock does not select v5.100.0"
-rg -F 'constraints = "5.100.0"' "$legacy_lock" >/dev/null ||
+grep -F 'constraints = "5.100.0"' "$legacy_lock" >/dev/null ||
 	fail "legacy retirement provider lock does not record the exact constraint"
-test "$(rg -c '^    "(h1|zh):' "$legacy_lock")" -ge 2 ||
+test "$(grep -Ec '^    "(h1|zh):' "$legacy_lock")" -ge 2 ||
 	fail "legacy retirement provider lock lacks reviewed checksums"
 test "$(shasum -a 256 "$legacy_lock" | awk '{print $1}')" = \
 	56bac28a0a2876d61b064ce149df8ba59285a8ede77d1c444cf0b2145ce1ec45 ||
 	fail "legacy retirement provider lock checksum changed"
 
-rg -F 'scripts/update-portfolio-deployer-retirement-policy.sh install' \
+grep -F 'scripts/update-portfolio-deployer-retirement-policy.sh install' \
 	"$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
 	fail "retirement runbook does not use the checked install helper"
-rg -F 'scripts/update-portfolio-deployer-retirement-policy.sh restore' \
+grep -F 'scripts/update-portfolio-deployer-retirement-policy.sh restore' \
 	"$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
 	fail "retirement runbook does not use the checked restore helper"
-rg -F '.CustomDomains == []' "$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
+grep -F '.CustomDomains == []' "$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
 	fail "retirement runbook does not assert that custom domains are empty"
-rg -F '.PolicyNames == []' "$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
+grep -F '.PolicyNames == []' "$repo_root/DEPLOY-INSTRUCTIONS.md" >/dev/null ||
 	fail "retirement runbook does not assert that inline role policies are empty"
 
 printf 'PASS: legacy root retains only shared data and artifact resources\n'

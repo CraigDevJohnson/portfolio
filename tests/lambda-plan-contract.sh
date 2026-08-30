@@ -893,7 +893,7 @@ grep -F 'docker push 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lamb
 }
 pass "release command used the immutable full-SHA tag"
 
-if rg -n -- '--auto-approve|-target=|:latest|lambda-latest' "$command_log" >/dev/null; then
+if grep -En -- '--auto-approve|-target=|:latest|lambda-latest' "$command_log" >/dev/null; then
 	printf 'FAIL: replacement command execution used an unsafe plan or mutable tag\n' >&2
 	exit 1
 fi
