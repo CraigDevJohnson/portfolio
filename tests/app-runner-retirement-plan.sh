@@ -97,7 +97,8 @@ make_plan() {
 				{mode: "managed", address: "aws_iam_policy.apprunner_runtime_secrets", change: deletion({
 					id: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
 					arn: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
-					name: "portfolio-apprunner-runtime-secrets"
+					name: "portfolio-apprunner-runtime-secrets",
+					policy_id: "ANPAST6S7QWIFH5H5PRHB"
 				})},
 				{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_runtime_secrets", change: deletion({
 					role: "portfolio-apprunner-instance",
@@ -155,6 +156,7 @@ mutate_and_reject "soccer attachment policy drift" '(.resource_changes[] | selec
 mutate_and_reject "runtime attachment role drift" '(.resource_changes[] | select(.address == "aws_iam_role_policy_attachment.apprunner_runtime_secrets").change.before.role) = "portfolio-apprunner-ecr-access"'
 mutate_and_reject "runtime attachment policy drift" '(.resource_changes[] | select(.address == "aws_iam_role_policy_attachment.apprunner_runtime_secrets").change.before.policy_arn) = "arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb"'
 mutate_and_reject "runtime policy ARN drift" '(.resource_changes[] | select(.address == "aws_iam_policy.apprunner_runtime_secrets").change.before.arn) = "arn:aws:iam::180294223248:policy/not-the-runtime-policy"'
+mutate_and_reject "runtime policy ID drift" '(.resource_changes[] | select(.address == "aws_iam_policy.apprunner_runtime_secrets").change.before.policy_id) = "ANPAST6S7QWI000000000"'
 mutate_and_reject "managed resource read action" '(.resource_changes[] | select(.address == "aws_lambda_function.app").change.actions) = ["read"]'
 mutate_and_reject "data source delete action" '(.resource_changes[] | select(.mode == "data").change.actions) = ["delete"]'
 mutate_and_reject "unknown resource mode" '(.resource_changes[] | select(.address == "aws_lambda_function.app").mode) = "unknown"'

@@ -9,6 +9,7 @@ access_role_id=AROAST6S7QWIFWIJU3SEX
 instance_role_name=portfolio-apprunner-instance
 instance_role_id=AROAST6S7QWIK7PZV2BTQ
 runtime_policy_arn=arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets
+runtime_policy_id=ANPAST6S7QWIFH5H5PRHB
 
 fail() {
 	printf 'App Runner retirement preflight failed: %s\n' "$1" >&2
@@ -164,6 +165,17 @@ printf '%s\n' "$policy_boundaries" | jq -e '
 	.PolicyGroups == [] and
 	.PolicyUsers == [] and
 	.PolicyRoles == []' >/dev/null || fail "runtime policy boundary contract failed"
+
+runtime_policy=$(aws iam get-policy \
+	--policy-arn "$runtime_policy_arn" \
+	--output json \
+	--no-cli-pager) || fail "could not read runtime policy"
+printf '%s\n' "$runtime_policy" | jq -e \
+	--arg policy_id "$runtime_policy_id" \
+	--arg policy_arn "$runtime_policy_arn" '
+	.Policy.PolicyName == "portfolio-apprunner-runtime-secrets" and
+	.Policy.PolicyId == $policy_id and
+	.Policy.Arn == $policy_arn' >/dev/null || fail "runtime policy identity contract failed"
 
 policy_versions=$(aws iam list-policy-versions \
 	--policy-arn "$runtime_policy_arn" \

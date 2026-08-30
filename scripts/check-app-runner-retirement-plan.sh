@@ -87,7 +87,8 @@ jq -se '
 		elif .address == "aws_iam_policy.apprunner_runtime_secrets" then
 			.change.before.id == "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets" and
 			.change.before.arn == "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets" and
-			.change.before.name == "portfolio-apprunner-runtime-secrets"
+			.change.before.name == "portfolio-apprunner-runtime-secrets" and
+			.change.before.policy_id == "ANPAST6S7QWIFH5H5PRHB"
 		elif .address == "aws_iam_role_policy_attachment.apprunner_runtime_secrets" then
 			.change.before.role == "portfolio-apprunner-instance" and
 			.change.before.policy_arn == "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"

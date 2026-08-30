@@ -94,7 +94,8 @@ jq -n '
 			{mode: "managed", address: "aws_iam_policy.apprunner_runtime_secrets", change: deletion({
 				id: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
 				arn: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
-				name: "portfolio-apprunner-runtime-secrets"
+				name: "portfolio-apprunner-runtime-secrets",
+				policy_id: "ANPAST6S7QWIFH5H5PRHB"
 			})},
 			{mode: "managed", address: "aws_iam_role_policy_attachment.apprunner_runtime_secrets", change: deletion({
 				role: "portfolio-apprunner-instance",
@@ -163,6 +164,9 @@ case "$*" in
 		;;
 	"iam list-entities-for-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --policy-usage-filter PermissionsBoundary --output json --no-cli-pager")
 		printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[]}'
+		;;
+	"iam get-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
+		printf '%s\n' '{"Policy":{"PolicyName":"portfolio-apprunner-runtime-secrets","PolicyId":"ANPAST6S7QWIFH5H5PRHB","Arn":"arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets","Path":"/","DefaultVersionId":"v1","AttachmentCount":1,"PermissionsBoundaryUsageCount":0,"IsAttachable":true}}'
 		;;
 	"iam list-policy-versions --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
 		printf '%s\n' '{"Versions":[{"VersionId":"v1","IsDefaultVersion":true}]}'

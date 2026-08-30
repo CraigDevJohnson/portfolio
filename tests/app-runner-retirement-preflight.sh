@@ -208,6 +208,23 @@ case "$*" in
 			printf '%s\n' '{"PolicyGroups":[],"PolicyUsers":[],"PolicyRoles":[]}'
 		fi
 		;;
+	"iam get-policy --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
+		policy_id=ANPAST6S7QWIFH5H5PRHB
+		if [ "$FAKE_CASE" = wrong-runtime-policy-id ]; then policy_id=ANPAST6S7QWI000000000; fi
+		jq -n --arg policy_id "$policy_id" '
+			{
+				Policy: {
+					PolicyName: "portfolio-apprunner-runtime-secrets",
+					PolicyId: $policy_id,
+					Arn: "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
+					Path: "/",
+					DefaultVersionId: "v1",
+					AttachmentCount: 1,
+					PermissionsBoundaryUsageCount: 0,
+					IsAttachable: true
+				}
+			}'
+		;;
 	"iam list-policy-versions --policy-arn arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets --output json --no-cli-pager")
 		if [ "$FAKE_CASE" = extra-policy-version ]; then
 			printf '%s\n' '{"Versions":[{"VersionId":"v2","IsDefaultVersion":true},{"VersionId":"v1","IsDefaultVersion":false}]}'
@@ -254,6 +271,7 @@ expect_fail "preflight rejects an external runtime-policy user" external-policy-
 expect_fail "preflight rejects an external runtime-policy group" external-policy-group "runtime policy attachment contract failed"
 expect_fail "preflight rejects a recreated runtime-policy role" wrong-policy-role-id "runtime policy attachment contract failed"
 expect_fail "preflight rejects runtime-policy boundary use" boundary-policy-entity "runtime policy boundary contract failed"
+expect_fail "preflight rejects a recreated runtime policy" wrong-runtime-policy-id "runtime policy identity contract failed"
 expect_fail "preflight rejects extra managed-policy versions" extra-policy-version "runtime policy version contract failed"
 
 if grep -E ' (delete|detach|disassociate|create|update|put|apply)(-| |$)' "$command_log" >/dev/null; then
