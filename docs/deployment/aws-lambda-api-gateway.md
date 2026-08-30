@@ -35,6 +35,53 @@ roles, SSM paths, logs, alarms, or state with the legacy stack.
 
 ## Replacement release workflow
 
+### Merge-driven automation
+
+The pre-automation observation on 2026-08-29 found that PR #46's merge
+(`013b0a6ed10c5fc7ef0a44aa1d72c19cc30b8564`) was not deployed: both the dev
+custom domain and direct API Gateway origin reported
+`4db774fac83c23af5a872bcf703ba3b021a2e5c4`, and their stylesheet bytes lacked
+the merged footer rules. Production still served the separate static Vue
+application through CloudFront. This is historical topology evidence, not a
+claim about the current live revision.
+
+`.github/workflows/release.yml` reacts only to a successful `CI` push run for a
+trusted `main` SHA and rejects a stale SHA before mutation. Pull-request runs
+cannot enter that workflow or obtain AWS credentials. Runtime-only commits are
+built once under the release-builder OIDC role, scanned, digest-resolved, and
+deployed to development through a saved, policy-checked plan. Docs/test-only
+commits skip. Infrastructure, workflow, mixed, and unknown commits fail closed.
+
+Configure GitHub Environments named `development` and `production`. Put the
+exact deployer role variable in each environment and protect `production` with
+required reviewers. The isolated role source and provisioning boundary are in
+`infra/lambda/ci-roles/`; no release workflow may provision or modify those
+roles. The existing `portfolio-deployer` SSO checks remain the local/manual
+escape hatch, while CI uses an exact assumed-role identity check.
+
+Development and production use separate non-cancelling concurrency groups and
+the existing remote-state lock files. Evidence artifacts retain the scan,
+saved plan and JSON/text rendering, checksum, policy output, previous and final
+alias/version, probes, alarms, and GitHub deployment identity. Verification
+failure blocks promotion and, when a prior alias exists, saves a checksum-bound
+rollback plan; applying that rollback remains an explicit operator decision.
+
+Production promotion changes only `deploy/production-release.json`. Its source
+SHA, ECR digest, and successful development deployment ID must agree with live
+GitHub/AWS records. The image is never rebuilt. Production automation is
+deliberately **plan-only** until custom-domain activation, apex and `www`
+routing, certificates/HTTPS, runtime parameters, OAuth callbacks and cookies,
+alarms, a verified rollback origin, and the public-cutover procedure have all
+been independently rehearsed and approved. Do not claim the Go/Lambda service
+is public in production before that cutover evidence exists.
+
+Automation authority excludes legacy deploy tasks, DNS and Cloudflare, App
+Runner, Amplify, state bootstrap, and SSM application-data mutation. During an
+incident, preserve failed evidence, stop promotion, review the saved rollback
+plan/checksum, and use the local SSO path for an approved apply. Initial public
+cutover and retirement still use the longer observation gate below; routine
+development releases use bounded route, identity, and alarm verification.
+
 The tracked [bootstrap policy inputs](../../infra/lambda/bootstrap/README.md)
 are authoritative for their reviewed initial bytes. Checking them in grants no
 AWS access. Live provisioning, assignment, use, tightening, and reprovisioning
