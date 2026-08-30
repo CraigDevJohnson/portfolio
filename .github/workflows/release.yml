@@ -10,6 +10,7 @@ permissions:
   contents: read
   deployments: write
   id-token: write
+  pull-requests: read
 
 concurrency:
   group: release-dispatch-${{ github.event.workflow_run.head_sha }}
@@ -20,6 +21,7 @@ env:
   AWS_ACCOUNT_ID: "180294223248"
   ECR_REPOSITORY: portfolio-lambda-releases
   ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+  STATE_BUCKET: portfolio-tofu-state-180294223248
 
 jobs:
   authorize:
@@ -32,11 +34,12 @@ jobs:
     outputs:
       classification: ${{ steps.classify.outputs.classification }}
       source_sha: ${{ steps.authorize.outputs.source_sha }}
+      base_sha: ${{ steps.reviewed.outputs.base_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
+          fetch-depth: 0
       - id: authorize
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,11 +47,18 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EVENT_SHA"
-          api_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
-          test "$api_sha" = "$EVENT_SHA" || { echo 'A newer main commit exists; refusing stale release.' >&2; exit 1; }
+          sh scripts/check-current-main.sh "$EVENT_SHA"
           echo "source_sha=$EVENT_SHA" >>"$GITHUB_OUTPUT"
+      - id: reviewed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.authorize.outputs.source_sha }}
+        run: echo "base_sha=$(sh scripts/resolve-reviewed-release-base.sh "$SOURCE_SHA")" >>"$GITHUB_OUTPUT"
       - id: classify
-        run: echo "classification=$(sh scripts/classify-release-change.sh HEAD^ HEAD)" >>"$GITHUB_OUTPUT"
+        env:
+          BASE_SHA: ${{ steps.reviewed.outputs.base_sha }}
+          SOURCE_SHA: ${{ steps.authorize.outputs.source_sha }}
+        run: echo "classification=$(sh scripts/classify-release-change.sh "$BASE_SHA" "$SOURCE_SHA")" >>"$GITHUB_OUTPUT"
       - if: steps.classify.outputs.classification == 'review'
         run: |
           echo 'Infrastructure, workflow, deployment-authority, mixed, or unknown change requires a reviewed plan.' >&2
@@ -64,6 +74,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: sh scripts/check-current-main.sh "$SOURCE_SHA"
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_RELEASE_BUILDER_ROLE_ARN }}
@@ -90,11 +105,13 @@ jobs:
           aws ecr describe-image-scan-findings --repository-name "$ECR_REPOSITORY" --image-id "imageDigest=$digest" >scan.json
           jq -e '.imageScanStatus.status == "COMPLETE" and ((.imageScanFindings.findingSeverityCounts.CRITICAL // 0) == 0)' scan.json
           echo "digest=$digest" >>"$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v7
+      - if: always()
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ needs.authorize.outputs.source_sha }}
           path: scan.json
           retention-days: 90
+          if-no-files-found: error
 
   development:
     needs: [authorize, build]
@@ -112,6 +129,11 @@ jobs:
         with:
           tofu_version: 1.12.6
           tofu_wrapper: false
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: sh scripts/check-current-main.sh "$SOURCE_SHA"
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN }}
@@ -119,12 +141,13 @@ jobs:
       - run: sh scripts/check-ci-aws-identity.sh '${{ vars.AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN }}'
       - name: Plan, policy-check, checksum, and apply
         env:
+          AUTOMATED_RELEASE: "true"
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
           IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
           set -euo pipefail
-          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$SOURCE_SHA"
+          sh scripts/check-ci-state-bucket.sh
           mkdir evidence
           tofu -chdir=infra/lambda/environments/dev init -backend-config=backend.hcl -input=false
           TF_VAR_ecr_repository_url="$ECR_URL" TF_VAR_image_digest="$IMAGE_DIGEST" \
@@ -135,6 +158,7 @@ jobs:
             IMAGE_URI="$ECR_URL@$IMAGE_DIGEST" EXPECTED_ALARM_ACTIONS_JSON='[]' sh scripts/check-lambda-plan.sh | tee evidence/policy.txt
           sha256sum evidence/dev.tfplan | tee evidence/plan.sha256
           aws lambda get-alias --function-name portfolio-lambda-dev --name live --output json >evidence/alias-before.json 2>/dev/null || printf '{}\n' >evidence/alias-before.json
+          sh scripts/check-current-main.sh "$SOURCE_SHA"
           tofu -chdir=infra/lambda/environments/dev apply -input=false "$GITHUB_WORKSPACE/evidence/dev.tfplan"
           tofu -chdir=infra/lambda/environments/dev output -json >evidence/outputs.json
           if ! BASE_URL=https://dev.craigdevjohnson.com SOURCE_SHA="$SOURCE_SHA" IMAGE_DIGEST="$IMAGE_DIGEST" \
@@ -166,31 +190,39 @@ jobs:
   production-plan:
     needs: authorize
     if: needs.authorize.outputs.classification == 'production'
-    environment: production
+    environment: production-plan
     concurrency:
       group: lambda-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with: {ref: "${{ needs.authorize.outputs.source_sha }}", fetch-depth: 2}
+        with: {ref: "${{ needs.authorize.outputs.source_sha }}", fetch-depth: 0}
       - uses: opentofu/setup-opentofu@v2
         with: {tofu_version: 1.12.6, tofu_wrapper: false}
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: sh scripts/check-current-main.sh "$SOURCE_SHA"
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - run: sh scripts/check-ci-aws-identity.sh '${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}'
+      - run: sh scripts/check-ci-aws-identity.sh '${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}'
       - name: Validate promotion and create plan only
         run: |
           set -euo pipefail
-          test "$(git diff --name-only HEAD^ HEAD)" = deploy/production-release.json
+          test "$(git diff --name-only "$BASE_SHA" "$RELEASE_COMMIT")" = deploy/production-release.json
+          sh scripts/validate-production-release.sh deploy/production-release.json
           source_sha=$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' deploy/production-release.json)
           digest=$(jq -er '.image_digest | select(test("^sha256:[0-9a-f]{64}$"))' deploy/production-release.json)
           deployment_id=$(jq -er '.development_deployment_id | select(type == "number")' deploy/production-release.json)
-          gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" --jq '.[0].state' | grep -Fx success
-          aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageDigest=$digest" >/dev/null
           mkdir evidence
+          printf '{"source_sha":"%s","image_digest":"%s","development_deployment_id":%s}\n' \
+            "$source_sha" "$digest" "$deployment_id" >evidence/promotion.json
+          sh scripts/check-current-main.sh "$RELEASE_COMMIT"
+          sh scripts/check-ci-state-bucket.sh
           tofu -chdir=infra/lambda/environments/prod init -backend-config=backend.hcl -input=false
           TF_VAR_ecr_repository_url="$ECR_URL" TF_VAR_image_digest="$digest" TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' \
             tofu -chdir=infra/lambda/environments/prod plan -lock-timeout=5m -input=false -out="$GITHUB_WORKSPACE/evidence/prod.tfplan"
@@ -201,6 +233,8 @@ jobs:
           echo 'Production is plan-only until public Lambda cutover prerequisites are independently verified.' >evidence/PLAN_ONLY
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          RELEASE_COMMIT: ${{ needs.authorize.outputs.source_sha }}
       - uses: actions/upload-artifact@v7
         with:
           name: production-plan-${{ needs.authorize.outputs.source_sha }}

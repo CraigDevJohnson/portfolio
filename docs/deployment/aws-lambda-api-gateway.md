@@ -44,21 +44,38 @@ application through CloudFront. This is historical topology evidence, not a
 claim about the current live revision.
 
 `.github/workflows/release.yml` reacts only to a successful `CI` push run for a
-trusted `main` SHA and rejects a stale SHA before mutation. Pull-request runs
-cannot enter that workflow or obtain AWS credentials. Runtime-only commits are
-built once under the release-builder OIDC role, scanned, digest-resolved, and
-deployed to development through a saved, policy-checked plan. Docs/test-only
-commits skip. Infrastructure, workflow, mixed, and unknown commits fail closed.
+trusted `main` SHA. It requires one associated merged pull request and classifies
+the complete reviewed base-to-merge range. Pull-request runs, direct pushes,
+ambiguous associations, and stale runs cannot obtain AWS credentials.
+Runtime-only commits are built once under the release-builder OIDC role,
+scanned, digest-resolved, and deployed to development through a saved,
+policy-checked plan. Docs/test-only commits skip. Infrastructure, workflow,
+mixed, and unknown commits fail closed.
 
-Configure GitHub Environments named `development` and `production`. Put the
-exact deployer role variable in each environment and protect `production` with
-required reviewers. The isolated role source and provisioning boundary are in
-`infra/lambda/ci-roles/`; no release workflow may provision or modify those
-roles. The existing `portfolio-deployer` SSO checks remain the local/manual
-escape hatch, while CI uses an exact assumed-role identity check.
+Configure GitHub Environments named `development` and `production-plan`. Put
+`AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN` in `development` and the read-only
+`AWS_PRODUCTION_PLANNER_ROLE_ARN` in `production-plan`; protect both as
+appropriate and require reviewers for `production-plan`. This avoids recording
+a plan-only run as a production deployment. The isolated role source and its
+own remote backend are in `infra/lambda/ci-roles/`; no release workflow may
+provision or modify those roles. The existing `portfolio-deployer` SSO checks
+remain the local/manual escape hatch, while CI uses an exact assumed-role
+identity check.
 
-Development and production use separate non-cancelling concurrency groups and
-the existing remote-state lock files. Evidence artifacts retain the scan,
+The development OIDC role assumes that the replacement stack and its remote
+state were provisioned through the separately approved SSO bootstrap path. Its
+only service mutations are an immutable-image update, version publication, and
+the `live` alias update on the existing development function; the plan contract
+requires all other managed resources to be no-ops. Missing infrastructure or
+state therefore fails closed. Restore a reviewed versioned state object or run
+a separately approved bootstrap plan instead of expanding CI authority or
+importing resources during a release.
+
+Development and production planning use separate non-cancelling concurrency
+groups and the existing remote-state lock files. Every privileged job rechecks
+that its workflow SHA is still current `main` immediately before requesting AWS
+credentials, and development rechecks once more immediately before applying the
+saved plan. Evidence artifacts retain the scan,
 saved plan and JSON/text rendering, checksum, policy output, previous and final
 alias/version, probes, alarms, and GitHub deployment identity. Verification
 failure blocks promotion and, when a prior alias exists, saves a checksum-bound
@@ -107,6 +124,7 @@ The roots use these state and lock objects:
 | Artifact | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
 | Development | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
 | Production | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
+| CI roles | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -114,8 +132,10 @@ The 2026-08-22 preflight found that bucket versioning was not enabled, so no
 replacement remote plan may run yet. Enabling versioning on only
 `portfolio-tofu-state-180294223248` needs a separate non-root mutation approval,
 verification that status is `Enabled`, and removal of any temporary
-`s3:PutBucketVersioning` grant. The preflight also found all three replacement
-state keys and `portfolio-lambda-releases` absent.
+`s3:PutBucketVersioning` grant. The preflight also found all three runtime
+replacement state keys, the CI-role state key, and
+`portfolio-lambda-releases` absent. CI repeats the versioning check before any
+remote plan or apply and fails closed unless the status is exactly `Enabled`.
 
 Initialize a root first. Then create a new absolute saved-plan path and pass the
 approved lock URI. For development:

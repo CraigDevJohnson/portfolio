@@ -246,6 +246,24 @@ tasks:
       - sh tests/docker-runtime-ca.sh
       - sh tests/docker-lambda-image.sh
 
+  lambda-infrastructure-ci:
+    desc: Run the authoritative offline Lambda infrastructure and release gate
+    cmds:
+      - tofu fmt -check -recursive infra/lambda
+      - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
+      - tofu -chdir=infra/lambda/ci-roles validate
+      - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
+      - tofu -chdir=infra/lambda/artifacts validate
+      - tofu -chdir=infra/lambda/environments/dev init -backend=false -input=false
+      - tofu -chdir=infra/lambda/environments/dev validate
+      - tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
+      - tofu -chdir=infra/lambda/environments/prod validate
+      - tofu -chdir=infra/lambda/ci-roles test
+      - go test ./infra/lambda -count=1
+      - sh tests/lambda-observation-window.sh
+      - sh tests/lambda-plan-contract.sh
+      - sh tests/release-automation.sh
+
   _lint-check:
     internal: true
     cmds:
@@ -455,6 +473,14 @@ tasks:
           echo "Refusing non-default OpenTofu workspace: $workspace" >&2
           exit 1
         }
+
+  lambda-ci-roles-init:
+    desc: Initialize only the replacement GitHub Actions role state
+    cmds:
+      - task: _lambda-identity-check
+      - task: _lambda-root-init
+        vars:
+          ROOT: infra/lambda/ci-roles
 
   _lambda-saved-plan-apply:
     internal: true

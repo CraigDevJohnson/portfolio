@@ -75,22 +75,13 @@ jobs:
       - name: Check OpenTofu formatting
         run: tofu fmt -check -recursive infra
 
-      - name: Validate infrastructure roots without backends
+      - name: Validate shared infrastructure root without backend
         run: |
           tofu -chdir=infra init -backend=false -lockfile=readonly -input=false
           tofu -chdir=infra validate
-          tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
-          tofu -chdir=infra/lambda/artifacts validate
-          tofu -chdir=infra/lambda/environments/dev init -backend=false -input=false
-          tofu -chdir=infra/lambda/environments/dev validate
-          tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
-          tofu -chdir=infra/lambda/environments/prod validate
 
-      - name: Run real OpenTofu mock contracts
-        run: go test ./infra/lambda -count=1
+      - name: Run authoritative Lambda infrastructure gate
+        run: task lambda-infrastructure-ci
 
-      - name: Run offline deployment command contracts
-        run: |
-          sh tests/lambda-observation-window.sh
-          sh tests/lambda-plan-contract.sh
-          sh tests/shared-root-config.sh
+      - name: Run shared-root configuration contracts
+        run: sh tests/shared-root-config.sh

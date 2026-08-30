@@ -7,7 +7,7 @@ arn=$(aws sts get-caller-identity --query Arn --output text)
 actual_account=$(aws sts get-caller-identity --query Account --output text)
 
 test "$actual_account" = "$account" || { echo "unexpected AWS account" >&2; exit 1; }
-role=${expected#arn:aws:iam::$account:role/}
+role=${expected#"arn:aws:iam::$account:role/"}
 case "$arn" in
 	arn:aws:sts::$account:assumed-role/"$role"/*) ;;
 	*) echo "AWS identity is not the exact expected CI role: $expected" >&2; exit 1 ;;

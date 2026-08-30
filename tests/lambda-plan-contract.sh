@@ -175,7 +175,10 @@ make_environment_plan() {
 			expressions: {alarm_actions: {references: ["var.alarm_action_arns"]}}
 		};
 		{
-			variables: {alarm_action_arns: {value: $alarm_actions}},
+			variables: {
+				alarm_action_arns: {value: $alarm_actions},
+				live_version_override: {value: null}
+			},
 			resource_changes: [
 				resource("module.service.aws_iam_role.lambda"; "aws_iam_role"; "lambda"; {name: ($prefix + "-execution"), permissions_boundary: $boundary}),
 				(resource("module.service.aws_iam_role_policy.lambda"; "aws_iam_role_policy"; "lambda"; {name: ($prefix + "-runtime")}) | .change.after_unknown = {id: true, name_prefix: true, policy: true, role: true}),
@@ -276,12 +279,51 @@ run_check() {
 		sh "$checker"
 }
 
+run_maintenance_check() {
+	plan=$1
+	AUTOMATED_RELEASE=true \
+		PLAN_JSON="$plan" \
+		ENVIRONMENT=dev \
+		NAME_PREFIX=portfolio-lambda-dev \
+		IMAGE_URI="180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+		EXPECTED_ALARM_ACTIONS_JSON='[]' \
+		sh "$checker"
+}
+
 artifact_plan="$tmp_dir/artifact.json"
 dev_plan="$tmp_dir/dev.json"
 prod_plan="$tmp_dir/prod.json"
 make_artifact_plan "$artifact_plan"
 make_environment_plan "$dev_plan" dev
 make_environment_plan "$prod_plan" prod
+
+dev_maintenance_plan="$tmp_dir/dev-maintenance.json"
+jq '
+	(.resource_changes[] | select(.mode == "managed") | .change) |= (
+		.before = .after |
+		.actions = ["no-op"]
+	) |
+	(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (
+		.actions = ["update"] |
+		.before.image_uri = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" |
+		.before.timeout = 29 |
+		.after.timeout = 29
+	) |
+	.resource_changes += [{
+		mode: "managed",
+		address: "module.service.aws_lambda_alias.live",
+		type: "aws_lambda_alias",
+		name: "live",
+		change: {
+			actions: ["update"],
+			before: {name: "live", function_name: "portfolio-lambda-dev", function_version: "7"},
+			after: {name: "live", function_name: "portfolio-lambda-dev", function_version: null},
+			after_unknown: {function_version: true},
+			before_sensitive: false,
+			after_sensitive: {}
+		}
+	}]
+' "$dev_plan" >"$dev_maintenance_plan"
 
 dev_known_policy_plan="$tmp_dir/dev-known-policy.json"
 jq '
@@ -439,6 +481,45 @@ expect_pass "development plan with provider-deferred runtime resources" run_chec
 expect_pass "development plan after partial role and table creation" run_check "$dev_partial_state_runtime_policy_plan" dev
 expect_pass "development plan with provider-normalized empty alarm actions" run_check "$dev_provider_empty_alarm_actions_plan" dev
 expect_pass "ACM plan with null provider-sensitive private key" run_check "$dev_null_acm_private_key_plan" dev
+expect_pass "automated release accepts only image and live-alias updates" run_maintenance_check "$dev_maintenance_plan"
+
+maintenance_provider_unknowns_plan="$tmp_dir/maintenance-provider-unknowns.json"
+jq '
+	(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (
+		.before.version = "7" |
+		.after.version = null |
+		.after_unknown.version = true
+	)
+' "$dev_maintenance_plan" >"$maintenance_provider_unknowns_plan"
+expect_pass "automated release accepts provider-computed version fields" run_maintenance_check "$maintenance_provider_unknowns_plan"
+
+maintenance_alias_override_plan="$tmp_dir/maintenance-alias-override.json"
+jq '(.resource_changes[] | select(.address == "module.service.aws_lambda_alias.live") | .change) |= (.after.function_version = "999" | del(.after_unknown.function_version))' "$dev_maintenance_plan" >"$maintenance_alias_override_plan"
+expect_fail "automated release rejects an arbitrary known alias target" run_maintenance_check "$maintenance_alias_override_plan"
+
+maintenance_live_override_plan="$tmp_dir/maintenance-live-override.json"
+jq '.variables.live_version_override.value = 999' "$dev_maintenance_plan" >"$maintenance_live_override_plan"
+expect_fail "automated release rejects a live-version override" run_maintenance_check "$maintenance_live_override_plan"
+
+maintenance_drift_plan="$tmp_dir/maintenance-drift.json"
+jq '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change.after.timeout) = 30' "$dev_maintenance_plan" >"$maintenance_drift_plan"
+expect_fail "automated release rejects Lambda configuration drift" run_maintenance_check "$maintenance_drift_plan"
+
+maintenance_unknown_drift_plan="$tmp_dir/maintenance-unknown-drift.json"
+jq '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (.after.timeout = null | .after_unknown.timeout = true)' "$dev_maintenance_plan" >"$maintenance_unknown_drift_plan"
+expect_fail "automated release rejects unapproved unknown configuration" run_maintenance_check "$maintenance_unknown_drift_plan"
+
+maintenance_unknown_tags_plan="$tmp_dir/maintenance-unknown-tags.json"
+jq '(.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (
+	.before.tags_all = {Environment: "dev", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"} |
+	.after.tags_all = null |
+	.after_unknown.tags_all = true
+)' "$dev_maintenance_plan" >"$maintenance_unknown_tags_plan"
+expect_fail "automated release rejects unknown function tags" run_maintenance_check "$maintenance_unknown_tags_plan"
+
+maintenance_create_plan="$tmp_dir/maintenance-create.json"
+jq '(.resource_changes[] | select(.address == "module.service.aws_cloudwatch_log_group.lambda") | .change.actions) = ["create"]' "$dev_maintenance_plan" >"$maintenance_create_plan"
+expect_fail "automated release rejects standalone resource creation" run_maintenance_check "$maintenance_create_plan"
 
 mutate_and_reject() {
 	name=$1

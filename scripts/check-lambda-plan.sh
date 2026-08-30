@@ -11,6 +11,12 @@ fail() {
 : "${NAME_PREFIX:?set NAME_PREFIX to the exact root-owned name}"
 : "${IMAGE_URI:?set IMAGE_URI to the digest-qualified release URI}"
 : "${EXPECTED_ALARM_ACTIONS_JSON:?set EXPECTED_ALARM_ACTIONS_JSON to a JSON array}"
+AUTOMATED_RELEASE=${AUTOMATED_RELEASE:-false}
+
+case "$AUTOMATED_RELEASE" in
+	true | false) ;;
+	*) fail "AUTOMATED_RELEASE must be true or false" ;;
+esac
 
 case "$PLAN_JSON" in
 	/*) ;;
@@ -106,6 +112,72 @@ jq -e '
 		| select(allowed_null_sensitive_marker($resource_type; $snapshot.values; $snapshot.unknown; $path) | not)
 	] | length == 0
 ' "$PLAN_JSON" >/dev/null || fail "sensitive value found in plan"
+
+if [ "$AUTOMATED_RELEASE" = true ]; then
+	[ "$ENVIRONMENT" = dev ] || fail "automated apply is limited to development"
+	jq -e --arg image "$IMAGE_URI" '
+		def true_paths($unknown):
+			[($unknown // {}) | paths(scalars) as $path | select(getpath($path) == true) | $path];
+		def only_allowed_unknowns($unknown; $allowed):
+			all(true_paths($unknown)[]; .[0] as $attribute | $allowed | index($attribute) != null);
+		def without_changes($value; $unknown; $explicit):
+			$value | delpaths(($explicit + true_paths($unknown)) | unique);
+		def numbered_version:
+			type == "string" and test("^[0-9]+$");
+		def release_image:
+			type == "string" and test("^180294223248\\.dkr\\.ecr\\.us-west-2\\.amazonaws\\.com/portfolio-lambda-releases@sha256:[0-9a-f]{64}$");
+
+		[.resource_changes[] | select(.mode == "managed" and .change.actions != ["no-op"])] as $changed |
+		($changed | map({address, type, actions: .change.actions}) | sort_by(.address)) == ([
+			{address: "module.service.aws_lambda_alias.live", type: "aws_lambda_alias", actions: ["update"]},
+			{address: "module.service.aws_lambda_function.app", type: "aws_lambda_function", actions: ["update"]}
+		] | sort_by(.address)) and
+		all(.resource_changes[] | select(.mode == "managed" and (.change.actions == ["no-op"] | not));
+			.change.before != null and .change.after != null) and
+		all(.resource_changes[] | select(.mode == "data");
+			.change.actions == ["read"] or .change.actions == ["no-op"]) and
+		all(.resource_changes[]; .mode == "managed" or .mode == "data") and
+		(.variables.live_version_override |
+			type == "object" and has("value") and .value == null) and
+
+		(first($changed[] | select(.address == "module.service.aws_lambda_function.app"))) as $function |
+		($function.change.before.function_name == "portfolio-lambda-dev") and
+		($function.change.after.function_name == "portfolio-lambda-dev") and
+		($function.change.before.image_uri | release_image) and
+		($function.change.before.image_uri != $image) and
+		($function.change.after.image_uri == $image) and
+		only_allowed_unknowns($function.change.after_unknown; [
+			"arn",
+			"code_sha256",
+			"id",
+			"invoke_arn",
+			"last_modified",
+			"qualified_arn",
+			"qualified_invoke_arn",
+			"signing_job_arn",
+			"signing_profile_version_arn",
+			"source_code_hash",
+			"source_code_size",
+			"version"
+		]) and
+		(without_changes($function.change.before; $function.change.after_unknown; [["image_uri"]]) ==
+			without_changes($function.change.after; $function.change.after_unknown; [["image_uri"]])) and
+
+		(first($changed[] | select(.address == "module.service.aws_lambda_alias.live"))) as $alias |
+		($alias.change.before.name == "live") and
+		($alias.change.after.name == "live") and
+		($alias.change.before.function_name == "portfolio-lambda-dev") and
+		($alias.change.after.function_name == "portfolio-lambda-dev") and
+		($alias.change.before.function_version | numbered_version) and
+		($alias.change.after.function_version == null) and
+		($alias.change.after_unknown.function_version == true) and
+		only_allowed_unknowns($alias.change.after_unknown; ["arn", "function_version", "id", "invoke_arn"]) and
+		(without_changes($alias.change.before; $alias.change.after_unknown; [["function_version"]]) ==
+			without_changes($alias.change.after; $alias.change.after_unknown; [["function_version"]]))
+	' "$PLAN_JSON" >/dev/null || fail "automated release may update only the immutable image and live alias version"
+	printf 'Lambda automated release plan contract passed for %s\n' "$ENVIRONMENT"
+	exit 0
+fi
 
 if [ "$ENVIRONMENT" = artifacts ]; then
 	jq -e '

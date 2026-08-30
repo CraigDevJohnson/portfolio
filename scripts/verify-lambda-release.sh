@@ -15,11 +15,12 @@ for route in / /soccer /static/css/tailwind.css; do
 	name=$(printf '%s' "$route" | sed 's#^/$#home#; s#^/##; s#[/]#-#g')
 	curl -fsS -D "$EVIDENCE_DIR/$name.headers" -o "$EVIDENCE_DIR/$name.body" "$BASE_URL$route"
 done
-aws lambda get-function --function-name "$FUNCTION_NAME" --query 'Code.ImageUri' --output text >"$EVIDENCE_DIR/image-uri.txt"
-grep -Fq "@$IMAGE_DIGEST" "$EVIDENCE_DIR/image-uri.txt"
 aws lambda get-alias --function-name "$FUNCTION_NAME" --name "$ALIAS_NAME" --output json >"$EVIDENCE_DIR/alias.json"
-version=$(jq -r .FunctionVersion "$EVIDENCE_DIR/alias.json")
+version=$(jq -er '.FunctionVersion | select(test("^[0-9]+$"))' "$EVIDENCE_DIR/alias.json")
 aws lambda get-function --function-name "$FUNCTION_NAME" --qualifier "$version" --output json >"$EVIDENCE_DIR/version.json"
+jq -er --arg image_digest "$IMAGE_DIGEST" \
+	'.Code.ImageUri | select(type == "string" and endswith("@" + $image_digest))' \
+	"$EVIDENCE_DIR/version.json" >"$EVIDENCE_DIR/image-uri.txt"
 aws cloudwatch describe-alarms --alarm-name-prefix "$FUNCTION_NAME" --output json >"$EVIDENCE_DIR/alarms.json"
 jq -e '[.MetricAlarms[] | select(.StateValue != "OK" and .StateValue != "INSUFFICIENT_DATA")] | length == 0' "$EVIDENCE_DIR/alarms.json" >/dev/null
 jq -n --arg source_sha "$SOURCE_SHA" --arg image_digest "$IMAGE_DIGEST" --arg version "$version" \
