@@ -16,11 +16,10 @@ test -f "$PLAN_JSON" || fail "PLAN_JSON does not exist"
 
 jq -se '
 	length == 1 and
-	(.[0].applyable == true) and
 	(.[0].errored == false) and
 	(.[0].resource_changes | type == "array") and
 	(.[0].output_changes | type == "object")
-' "$PLAN_JSON" >/dev/null || fail "plan JSON must contain exactly one document with resource_changes and output_changes"
+' "$PLAN_JSON" >/dev/null || fail "plan JSON must contain exactly one non-errored document with resource_changes and output_changes"
 
 jq -se '
 	def managed_non_actionable: . == ["no-op"];

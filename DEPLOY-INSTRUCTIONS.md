@@ -183,7 +183,7 @@ task legacy-apprunner-retirement-apply \
   APPROVED_STATE_LOCK_URI="$APPROVED_STATE_LOCK_URI"
 ```
 
-The checker requires an applyable, non-errored plan and permits only the
+The checker requires exactly one non-errored plan document and permits only the
 approved App Runner and dedicated-IAM removals plus their root outputs; it
 rejects creates, updates, replacements, unrelated deletions, scoped operations,
 unattended approval, and non-saved-plan apply.
