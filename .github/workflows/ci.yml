@@ -53,10 +53,6 @@ jobs:
   infrastructure:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      TF_VAR_alarm_action_arns: '["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
-      TF_VAR_ecr_repository_url: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
-      TF_VAR_image_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     steps:
       - name: Checkout
         uses: actions/checkout@v6
