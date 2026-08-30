@@ -45,6 +45,16 @@ if grep -Eq '^  (deploy-lambda|redeploy-lambda):' "$repo_root/Taskfile.yaml"; th
 	fail "Taskfile can recreate absent legacy Lambda/API resources"
 fi
 
+advertised_tasks=$(
+	grep -Eo '`task [a-z0-9-]+`' "$repo_root/AGENTS.md" |
+		sed 's/^`task //; s/`$//' |
+		sort -u
+)
+for task_name in $advertised_tasks; do
+	task --dir "$repo_root" --summary "$task_name" >/dev/null 2>&1 ||
+		fail "AGENTS.md advertises nonexistent task $task_name"
+done
+
 if grep -Eq '^variable "lambda_' "$repo_root/infra/variables.tf"; then
 	fail "legacy root still exposes variables for absent Lambda resources"
 fi

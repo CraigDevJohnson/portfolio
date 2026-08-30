@@ -21,9 +21,12 @@
 - `task fmt` — `golangci-lint fmt` (NOT `go fmt ./...`)
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
-- `task deploy` — build+push App Runner and Lambda images + `tofu apply`
-- `task redeploy` — push image + `aws apprunner start-deployment`
-- `task deploy-lambda` / `task redeploy-lambda` — Lambda variant
+- `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
+- Replacement artifact infrastructure: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
+- Replacement development infrastructure: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
+- Replacement production infrastructure: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`
+- App Runner retirement: `task legacy-apprunner-retirement-init`, `task legacy-apprunner-retirement-preflight`, `task legacy-apprunner-retirement-plan`, and `task legacy-apprunner-retirement-apply`
+- See `DEPLOY-INSTRUCTIONS.md` before any deployment or retirement operation
 
 ## Architecture
 
