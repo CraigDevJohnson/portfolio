@@ -25,6 +25,13 @@ blocker that the legacy App Runner release returned `404` for the replacement
 stylesheet path. That rollback-only mismatch is accepted; the obsolete probe
 will not be repaired or represented as passing.
 
+Root inventory later on 2026-08-29 corrected one design assumption: neither the
+legacy state nor the live account contains the formerly declared
+`portfolio-lambda` function, `portfolio-lambda-http` API, execution role, or
+runtime policy. Their unused declarations, outputs, and targeted deployment
+helpers must be removed before planning so a full refresh cannot propose
+creating them.
+
 ## Retirement boundary
 
 The legacy shared OpenTofu root may delete exactly these managed resources:
@@ -55,9 +62,8 @@ This retirement retains:
 - the legacy `portfolio` ECR repository and lifecycle policy;
 - the immutable `portfolio-lambda-releases` ECR repository;
 - the legacy Google connection and Soccer session DynamoDB tables;
-- the shared DynamoDB IAM policies consumed by the legacy Lambda role;
+- the shared DynamoDB IAM policies;
 - all `/portfolio/*` and `/portfolio/lambda/*` SSM parameters;
-- the legacy Lambda/API Gateway resources in `infra/`;
 - every replacement root under `infra/lambda/`;
 - Cloudflare records and rules;
 - Google OAuth configuration; and
@@ -67,6 +73,10 @@ This retirement retains:
 The out-of-band App Runner custom-domain association is not managed by this
 OpenTofu state. It must be inventoried, separately approved, disassociated, and
 verified absent before the saved retirement plan is applied.
+The App Runner instance role's untracked `portoflio-ssm-params` inline policy is
+also an out-of-band prerequisite: its document is a strict subset of the
+attached managed runtime-secrets policy, but its exact deletion still requires
+separate approval and verification before the preflight can pass.
 
 ## Execution contract
 
@@ -77,13 +87,15 @@ Retirement plan creation and apply must:
 - require explicit acknowledgement of
   `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`;
 - initialize the legacy root using its checked-in backend block with
-  `tofu -chdir=infra init -reconfigure -input=false`, never a nonexistent
-  `backend.hcl` override;
+  `tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false`, its
+  reviewed AWS provider 5.100.0 lock, and never a nonexistent `backend.hcl`
+  override;
 - reject `TF_CLI_ARGS`, `TF_CLI_ARGS_init`, `TF_CLI_ARGS_workspace`,
   `TF_CLI_ARGS_plan`, `TF_CLI_ARGS_show`, `TF_CLI_ARGS_apply`, `TF_WORKSPACE`,
   and `TF_DATA_DIR`, and prove the workspace is `default` at initialization,
   plan creation, and apply time;
-- use a new absolute saved-plan path;
+- use a new absolute saved-plan path in a current-user-owned mode-700
+  directory, rejecting symlinks and multi-link plan files;
 - validate the saved-plan JSON against the exact action allowlist above;
 - create plans with the normal full refresh and lock acquisition, without
   `-target`, `-destroy`, or automatic approval;
@@ -96,8 +108,9 @@ Retirement plan creation and apply must:
 
 The legacy `task deploy`, App Runner `task redeploy`, and App Runner `task logs`
 interfaces are retired so they cannot recreate or operate the deleted service.
-The legacy Lambda-specific deployment helpers remain until that legacy runtime
-receives its own retirement decision.
+The unused legacy Lambda-specific deployment helpers are also removed because
+there is no corresponding state or live runtime and they would create new,
+unreviewed infrastructure.
 
 ## Point-in-time verification
 

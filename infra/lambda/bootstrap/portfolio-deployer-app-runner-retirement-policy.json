@@ -1,0 +1,200 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CallerIdentity",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LegacyStateBucketLocation",
+      "Effect": "Allow",
+      "Action": "s3:GetBucketLocation",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
+    },
+    {
+      "Sid": "LegacyStateList",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248",
+      "Condition": {
+        "StringEquals": {
+          "s3:prefix": [
+            "env:/",
+            "portfolio/terraform.tfstate",
+            "portfolio/terraform.tfstate.tflock"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "LegacyStateObject",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio/terraform.tfstate"
+    },
+    {
+      "Sid": "LegacyStateLock",
+      "Effect": "Allow",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock"
+    },
+    {
+      "Sid": "LegacyKMSAliasList",
+      "Effect": "Allow",
+      "Action": "kms:ListAliases",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "LegacyKMSKeyRead",
+      "Effect": "Allow",
+      "Action": "kms:DescribeKey",
+      "Resource": "arn:aws:kms:us-west-2:180294223248:key/0281cb6d-c238-4106-8c51-515c19e05ddc",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "LegacyECRRead",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeRepositories",
+        "ecr:GetLifecyclePolicy",
+        "ecr:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:ecr:us-west-2:180294223248:repository/portfolio",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "LegacyDynamoDBRead",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:ListTagsOfResource"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-google-connections",
+        "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-soccer-sessions"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "LegacyRoleRead",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:ListRoleTags"
+      ],
+      "Resource": [
+        "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
+        "arn:aws:iam::180294223248:role/portfolio-apprunner-instance"
+      ]
+    },
+    {
+      "Sid": "LegacyManagedPolicyRead",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicyTags"
+      ],
+      "Resource": [
+        "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
+        "arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb",
+        "arn:aws:iam::180294223248:policy/portfolio-soccer-sessions-dynamodb"
+      ]
+    },
+    {
+      "Sid": "LegacyAppRunnerReadDelete",
+      "Effect": "Allow",
+      "Action": [
+        "apprunner:DeleteService",
+        "apprunner:DescribeCustomDomains",
+        "apprunner:DescribeService",
+        "apprunner:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "RetireAppRunnerECRAccessAttachment",
+      "Effect": "Allow",
+      "Action": "iam:DetachRolePolicy",
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
+      "Condition": {
+        "ArnEquals": {
+          "iam:PolicyARN": "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
+        }
+      }
+    },
+    {
+      "Sid": "RetireAppRunnerInstanceAttachments",
+      "Effect": "Allow",
+      "Action": "iam:DetachRolePolicy",
+      "Resource": "arn:aws:iam::180294223248:role/portfolio-apprunner-instance",
+      "Condition": {
+        "ArnEquals": {
+          "iam:PolicyARN": [
+            "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets",
+            "arn:aws:iam::180294223248:policy/portfolio-google-connections-dynamodb",
+            "arn:aws:iam::180294223248:policy/portfolio-soccer-sessions-dynamodb"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "RetireAppRunnerRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeleteRole",
+        "iam:ListInstanceProfilesForRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::180294223248:role/portfolio-apprunner-ecr-access",
+        "arn:aws:iam::180294223248:role/portfolio-apprunner-instance"
+      ]
+    },
+    {
+      "Sid": "RetireAppRunnerRuntimePolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeletePolicy",
+        "iam:ListEntitiesForPolicy",
+        "iam:ListPolicyVersions"
+      ],
+      "Resource": "arn:aws:iam::180294223248:policy/portfolio-apprunner-runtime-secrets"
+    }
+  ]
+}

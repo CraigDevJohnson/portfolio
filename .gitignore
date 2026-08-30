@@ -49,6 +49,7 @@ tfplan
 !infra/lambda/artifacts/.terraform.lock.hcl
 !infra/lambda/environments/dev/.terraform.lock.hcl
 !infra/lambda/environments/prod/.terraform.lock.hcl
+!infra/.terraform.lock.hcl
 
 
 static/screenshots/

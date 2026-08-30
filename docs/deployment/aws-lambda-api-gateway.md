@@ -1,8 +1,8 @@
 # AWS Lambda and API Gateway
 
 > [!WARNING]
-> The checked-in `infra/` directory retains legacy Lambda/API Gateway, shared
-> data, ECR, and SSM resources. Its pending App Runner-managed state may be
+> The checked-in `infra/` directory retains shared legacy data, ECR, IAM, and
+> SSM resources. Its pending App Runner-managed state may be
 > removed only through the approved saved-plan retirement workflow. Replacement
 > commands use `infra/lambda/`; App Runner is not a deployment or rollback path.
 
@@ -28,7 +28,6 @@ the Lambda path.
   `infra/lambda/environments/prod/` own three isolated states.
 - `infra/lambda/bootstrap/` contains the reviewed non-secret initial deployer
   and root-owned execution-boundary policy inputs.
-- `infra/lambda.tf` remains the legacy shared-stack Lambda source.
 
 The replacement environments do not share ECR ownership, DynamoDB tables, IAM
 roles, SSM paths, logs, alarms, or state with the legacy stack.
@@ -152,17 +151,14 @@ plan. Prove OAuth directly against the API Gateway target before changing the
 traffic record, and commit the legacy origin plus complete rollback DNS record
 before cutover.
 
-## Retained legacy Lambda and App Runner retirement
+## Retained shared resources and App Runner retirement
 
-`task deploy-lambda` and `task redeploy-lambda` remain only for the retained
-legacy Lambda runtime, which has its own future retirement decision. They are
-not replacement-release commands. Read that runtime's API endpoint after an
-approved action:
-
-```bash
-cd infra
-tofu output -raw lambda_api_url
-```
+Root inventory on 2026-08-29 confirmed that the legacy state and live account
+contain no `portfolio-lambda` function, `portfolio-lambda-http` API, associated
+execution role, or runtime policy. Their unused root declarations, outputs, and
+targeted deployment helpers are removed so the full-refresh retirement plan
+cannot propose creating them. The shared ECR repository, DynamoDB tables, IAM
+policies, SSM parameters, and every replacement root remain retained.
 
 The accepted 2026-08-29 retirement decision waives only the former development
 App Runner retention and seven-day observation requirement. The historical
@@ -172,18 +168,30 @@ and Amplify retirement remain unchanged. See the
 [retirement design](../superpowers/specs/2026-08-29-development-app-runner-retirement-design.md).
 
 The only App Runner retirement interfaces are
-`legacy-apprunner-retirement-init`, `legacy-apprunner-retirement-plan`, and
-`legacy-apprunner-retirement-apply`. They require
+`legacy-apprunner-retirement-init`, `legacy-apprunner-retirement-preflight`,
+`legacy-apprunner-retirement-plan`, and `legacy-apprunner-retirement-apply`.
+They require
 `AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, and acknowledgement of
 `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`.
-The plan interface requires a new absolute `PLAN_FILE`, saves and checker-reviews
-that plan, and prints it for review. Initialization uses the legacy root's
-checked-in backend block with `-reconfigure -input=false` and no `backend.hcl`
-override. Every retirement entry point rejects `TF_CLI_ARGS`, the relevant
+The normal development deployer policy cannot read this legacy state or App
+Runner. Root may temporarily replace and reprovision only the
+`PortfolioDeployer` inline policy with the reviewed
+[`portfolio-deployer-app-runner-retirement-policy.json`](../../infra/lambda/bootstrap/portfolio-deployer-app-runner-retirement-policy.json),
+but root must not run the retirement OpenTofu commands. The exact root AWS CLI
+resolution, validation, provisioning, and restoration sequence is in
+[`DEPLOY-INSTRUCTIONS.md`](../../DEPLOY-INSTRUCTIONS.md#retained-legacy-infrastructure-and-app-runner-retirement).
+The plan interface requires a new absolute `PLAN_FILE` in a current-user-owned
+mode-700 directory, rejects symlinks and multi-link plan files, saves and
+checker-reviews that plan, and prints it for review. Initialization uses the
+legacy root's checked-in backend block and provider 5.100.0 checksum lock with
+`-reconfigure -lockfile=readonly -input=false` and no `backend.hcl` override.
+Every retirement entry point rejects `TF_CLI_ARGS`, every `TF_VAR_*`, the relevant
 command-specific `TF_CLI_ARGS_*` variables, `TF_WORKSPACE`, and `TF_DATA_DIR`,
 then proves the workspace is `default`. Apply verifies the reviewed checksum,
 re-runs the retirement checker against fresh saved-plan JSON, verifies the
-checksum again, and only then applies that exact file.
+live preflight, verifies the checksum again, and only then applies that exact
+file. The preflight fails on service, custom-domain, role-attachment, inline
+policy, instance-profile, tag, or policy-version drift.
 
 Before any apply, inventory the live App Runner custom-domain association,
 obtain separate current-session approval to disassociate it out of band, and
@@ -196,6 +204,7 @@ export AWS_REGION=us-west-2
 export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
 
 task legacy-apprunner-retirement-init
+task legacy-apprunner-retirement-preflight
 retirement_plan_dir=$(mktemp -d)
 retirement_plan="$retirement_plan_dir/legacy-apprunner-retirement.tfplan"
 task legacy-apprunner-retirement-plan PLAN_FILE="$retirement_plan"
@@ -215,8 +224,8 @@ removals plus their root outputs; no other infrastructure action is accepted.
 
 ## Runtime behavior
 
-OpenTofu passes SSM paths through `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and
-`LPS_SESSION_KEY` in the legacy stack. During cold start,
+The replacement environment roots pass environment-owned SSM paths through
+`CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and `LPS_SESSION_KEY`. During cold start,
 `cmd/lambda/secrets.go` fetches every path-valued setting in one decrypted
 `GetParameters` call. It validates the complete response, including missing,
 invalid, and unusable values, before it replaces any environment value. A
@@ -233,12 +242,9 @@ and cookie security use this context-backed origin. Client-controlled `Host`
 and forwarding headers cannot override it, and a missing typed gateway domain
 fails closed before application routing.
 
-OpenTofu also sets the managed Google connection and Soccer import-baseline
-table names. The legacy shared Terraform defaults to 512 MB and a 30-second
-timeout. `lambda_memory_mb` and `lambda_timeout_seconds` control those legacy
-values.
-
-Both replacement environment roots set a 29-second Lambda timeout. The
+OpenTofu also sets the environment-owned Google connection and Soccer
+import-baseline table names. Both replacement environment roots set 512 MB of
+memory and a 29-second Lambda timeout. The
 application's Google Calendar add and result-sync handlers each use a 24-second
 child context, leaving five seconds outside their work budget. If a deadline
 ends a multi-game batch, the response reports the completed work counts and
@@ -269,7 +275,7 @@ with that exact expected value proves the identity of those artifacts.
 They do not log in to ECR, push images, apply OpenTofu, or update a running
 service.
 
-## Verify locally and for the retained legacy Lambda
+## Verify locally and for replacement Lambda environments
 
 Run the repository gate before any approved deployment:
 
@@ -277,7 +283,7 @@ Run the repository gate before any approved deployment:
 task ci
 ```
 
-After an approved retained-legacy-Lambda action, verify these paths:
+After an approved replacement deployment, verify these paths:
 
 ```text
 GET /healthz
@@ -290,9 +296,9 @@ GET /static/css/tailwind.css
 linker-injected revision in
 `{"revision":"<build revision>","status":"ok"}` and `Cache-Control:
 no-store`. The handler does not probe SSM, DynamoDB, Google, or Soccer during
-request handling. Legacy deployment helpers and direct builds that omit
-`BUILD_REVISION` may report `development`. Do not use that value as immutable
-provenance proof.
+request handling. Direct builds that omit `BUILD_REVISION` may report
+`development`. Do not use that value as immutable provenance proof.
 
-For a legacy cold-start failure, inspect that function's CloudWatch Logs.
-Confirm its role can read each configured SSM parameter and decrypt its KMS key.
+For a cold-start failure, inspect the environment-owned function's CloudWatch
+Logs. Confirm its role can read each configured SSM parameter and decrypt its
+KMS key.
