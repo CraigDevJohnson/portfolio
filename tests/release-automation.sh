@@ -151,7 +151,11 @@ production_job=$(workflow_job production-plan)
 grep -Fq 'task lambda-infrastructure-ci' "$root_dir/.github/workflows/ci.yml"
 grep -Fq 'sh tests/release-automation.sh' "$root_dir/Taskfile.yaml"
 grep -Fq 'lambda-ci-roles-init:' "$root_dir/Taskfile.yaml"
+grep -Fq 'lambda-ci-roles-plan:' "$root_dir/Taskfile.yaml"
+grep -Fq 'lambda-ci-roles-apply:' "$root_dir/Taskfile.yaml"
 grep -Fq 'task lambda-ci-roles-init' "$root_dir/infra/lambda/ci-roles/README.md"
+grep -Fq 'task lambda-ci-roles-plan' "$root_dir/infra/lambda/ci-roles/README.md"
+grep -Fq 'task lambda-ci-roles-apply' "$root_dir/infra/lambda/ci-roles/README.md"
 grep -Fq '  pull-requests: read' "$root_dir/.github/workflows/release.yml"
 
 test "$(count_matching_lines "$authorize_job" 'sh scripts/check-current-main.sh')" -eq 1
