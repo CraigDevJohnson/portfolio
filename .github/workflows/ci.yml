@@ -77,7 +77,7 @@ jobs:
 
       - name: Validate infrastructure roots without backends
         run: |
-          tofu -chdir=infra init -backend=false -input=false
+          tofu -chdir=infra init -backend=false -lockfile=readonly -input=false
           tofu -chdir=infra validate
           tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
           tofu -chdir=infra/lambda/artifacts validate

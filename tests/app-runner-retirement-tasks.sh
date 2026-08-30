@@ -12,6 +12,13 @@ plan_file="$tmp_dir/retirement.tfplan"
 apply_marker="$tmp_dir/apply-ran"
 mkdir -p "$fake_bin"
 
+real_stat=$(command -v stat)
+if "$real_stat" -c '%u:%a:%h' "$tmp_dir" >/dev/null 2>&1; then
+	real_stat_style=gnu
+else
+	real_stat_style=bsd
+fi
+
 pass_count=0
 
 pass() {
@@ -171,7 +178,68 @@ case "$*" in
 	*) printf 'unexpected fake tofu command: %s\n' "$*" >&2; exit 1 ;;
 esac
 EOF
-chmod +x "$fake_bin/aws" "$fake_bin/tofu"
+
+cat >"$fake_bin/stat" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'stat %s\n' "$*" >>"$COMMAND_LOG"
+
+real_metadata() {
+	metadata_target=$1
+	case "$REAL_STAT_STYLE" in
+		gnu) metadata_output=$("$REAL_STAT" -c '%u:%a:%h' "$metadata_target") ;;
+		bsd) metadata_output=$("$REAL_STAT" -f '%u:%Mp%Lp:%l' "$metadata_target") ;;
+		*) exit 1 ;;
+	esac
+	metadata_owner=${metadata_output%%:*}
+	metadata_remainder=${metadata_output#*:}
+	metadata_mode=${metadata_remainder%%:*}
+	metadata_links=${metadata_remainder#*:}
+	metadata_mode=${FAKE_STAT_MODE:-$metadata_mode}
+	if [ "${FAKE_STAT_STYLE:-gnu}" = bsd ]; then
+		case "$metadata_mode" in
+			[0-7][0-7][0-7]) metadata_mode=0$metadata_mode ;;
+		esac
+	fi
+	printf '%s:%s:%s\n' \
+		"${FAKE_STAT_OWNER:-$metadata_owner}" \
+		"$metadata_mode" \
+		"${FAKE_STAT_LINKS:-$metadata_links}"
+}
+
+case "${FAKE_STAT_STYLE:-gnu}" in
+	gnu)
+		if [ "${1:-}" = -c ] && [ "${2:-}" = '%u:%a:%h' ] && [ "$#" -eq 3 ]; then
+			real_metadata "$3"
+		elif [ "${1:-}" = -f ]; then
+			# GNU stat accepts -f with filesystem-report semantics. Exiting zero
+			# here proves callers do not mistake that output for BSD metadata.
+			printf '%s\n' 'gnu-stat-filesystem-output'
+		else
+			exit 1
+		fi
+		;;
+	bsd)
+		if [ "${1:-}" = -c ]; then
+			exit 1
+		elif [ "${1:-}" = -f ] && [ "${2:-}" = '%u:%Mp%Lp:%l' ] && [ "$#" -eq 3 ]; then
+			real_metadata "$3"
+		else
+			exit 1
+		fi
+		;;
+	malformed)
+		if [ "${1:-}" = -c ] && [ "${2:-}" = '%u:%a:%h' ] && [ "$#" -eq 3 ]; then
+			printf '%s\n' 'not-metadata'
+		else
+			exit 1
+		fi
+		;;
+	unavailable) exit 1 ;;
+	*) exit 1 ;;
+esac
+EOF
+chmod +x "$fake_bin/aws" "$fake_bin/tofu" "$fake_bin/stat"
 
 real_task=$(command -v task)
 
@@ -180,6 +248,9 @@ task_env() {
 		PATH="$fake_bin:$PATH" \
 		COMMAND_LOG="$command_log" \
 		FAKE_PLAN_JSON="$plan_json" \
+		FAKE_STAT_STYLE="${FAKE_STAT_STYLE:-gnu}" \
+		REAL_STAT="$real_stat" \
+		REAL_STAT_STYLE="$real_stat_style" \
 		APPLY_MARKER="$apply_marker" \
 		AWS_PROFILE=portfolio-deployer \
 		AWS_REGION=us-west-2 \
@@ -198,8 +269,10 @@ run_task_with_env() {
 }
 
 run_plan() {
+	stat_style=${1:-gnu}
 	rm -f "$plan_file"
-	run_task legacy-apprunner-retirement-plan \
+	task_env "FAKE_STAT_STYLE=$stat_style" "$real_task" --dir "$repo_root" \
+		legacy-apprunner-retirement-plan \
 		PLAN_FILE="$plan_file" \
 		APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
 }
@@ -207,11 +280,14 @@ run_plan() {
 run_apply() {
 	mode=${1:-false}
 	preflight_fail=${2:-false}
+	stat_style=${3:-gnu}
+	initial_mode=${4:-400}
 	rm -f "$plan_file"
 	printf 'reviewed plan\n' >"$plan_file"
-	chmod 600 "$plan_file"
+	chmod "$initial_mode" "$plan_file"
 	plan_sha256=$(shasum -a 256 "$plan_file" | awk '{print $1}')
-	task_env "FAKE_REPLACE_PLAN=$mode" "FAKE_PREFLIGHT_FAIL=$preflight_fail" "$real_task" --dir "$repo_root" \
+	task_env "FAKE_REPLACE_PLAN=$mode" "FAKE_PREFLIGHT_FAIL=$preflight_fail" \
+		"FAKE_STAT_STYLE=$stat_style" "$real_task" --dir "$repo_root" \
 		legacy-apprunner-retirement-apply \
 		PLAN_FILE="$plan_file" \
 		APPROVED_PLAN_SHA256="$plan_sha256" \
@@ -264,6 +340,9 @@ done
 expect_pass "retirement plan has locked full-refresh saved-plan arguments" run_plan
 grep -Fx "tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false" "$command_log" >/dev/null || fail "retirement plan did not initialize"
 grep -Fx "tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out=$plan_file" "$command_log" >/dev/null || fail "retirement plan arguments"
+grep -F "stat -c %u:%a:%h $tmp_dir" "$command_log" >/dev/null || fail "retirement plan did not use GNU stat metadata"
+if grep -Fq 'stat -f ' "$command_log"; then fail "retirement plan used BSD stat after GNU stat succeeded"; fi
+pass "retirement plan uses unambiguous GNU stat metadata"
 init_line=$(grep -n -F 'tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false' "$command_log" | head -n 1 | cut -d: -f1)
 preflight_line=$(grep -n -F 'aws apprunner describe-service ' "$command_log" | head -n 1 | cut -d: -f1)
 plan_line=$(grep -n -F "tofu -chdir=infra plan -refresh=true -lock-timeout=5m -input=false -out=$plan_file" "$command_log" | head -n 1 | cut -d: -f1)
@@ -273,6 +352,18 @@ test -n "$init_line" && test -n "$preflight_line" && test -n "$plan_line" && \
 pass "retirement plan preflights immediately before planning"
 if grep -Eq -- '(-target|-destroy|auto-approve)' "$command_log"; then fail "retirement plan used a forbidden argument"; fi
 pass "retirement plan has no forbidden arguments"
+
+: >"$command_log"
+expect_pass "retirement plan supports BSD stat metadata" run_plan bsd
+grep -F "stat -c %u:%a:%h $tmp_dir" "$command_log" >/dev/null || fail "retirement plan did not probe GNU stat first"
+grep -F "stat -f %u:%Mp%Lp:%l $tmp_dir" "$command_log" >/dev/null || fail "retirement plan did not fall back to BSD stat"
+pass "retirement plan uses the BSD stat fallback"
+
+: >"$command_log"
+chmod 1700 "$tmp_dir"
+expect_fail "retirement plan BSD metadata rejects a special-bit parent mode" run_plan bsd
+chmod 700 "$tmp_dir"
+if grep -Fq ' plan ' "$command_log"; then fail "retirement plan used a special-bit parent"; fi
 
 : >"$command_log"
 rm -f "$apply_marker"
@@ -286,6 +377,61 @@ test -n "$init_line" && test -n "$show_line" && test -n "$preflight_line" && tes
 	test "$init_line" -lt "$show_line" && test "$show_line" -lt "$preflight_line" && test "$preflight_line" -lt "$apply_line" || \
 	fail "retirement apply did not inspect and preflight before applying"
 pass "retirement apply checks before apply"
+
+: >"$command_log"
+rm -f "$apply_marker"
+expect_pass "retirement apply supports BSD stat metadata" run_apply false false bsd
+test -f "$apply_marker" || fail "retirement apply did not run with BSD stat"
+grep -F "stat -f %u:%Mp%Lp:%l $plan_file" "$command_log" >/dev/null || fail "retirement apply did not use BSD stat"
+
+: >"$command_log"
+rm -f "$apply_marker"
+expect_fail "retirement apply BSD metadata rejects a special-bit plan mode" run_apply false false bsd 1400
+grep -F 'PLAN_FILE must have mode 400' "$tmp_dir/output" >/dev/null || fail "retirement apply did not reject a BSD special-bit plan mode"
+test ! -f "$apply_marker" || fail "retirement apply ran with a BSD special-bit plan mode"
+
+: >"$command_log"
+rm -f "$apply_marker"
+expect_fail "retirement apply rejects a writable reviewed plan" run_apply false false gnu 600
+grep -F 'PLAN_FILE must have mode 400' "$tmp_dir/output" >/dev/null || fail "retirement apply did not reject writable plan mode"
+if grep -Fq ' show ' "$command_log" || grep -Fq ' apply ' "$command_log"; then
+	fail "retirement apply inspected or applied a writable plan"
+fi
+
+: >"$command_log"
+rm -f "$plan_file" "$tmp_dir/retirement-hardlink.tfplan" "$apply_marker"
+printf 'reviewed plan\n' >"$plan_file"
+chmod 400 "$plan_file"
+ln "$plan_file" "$tmp_dir/retirement-hardlink.tfplan"
+hardlinked_plan_sha256=$(shasum -a 256 "$plan_file" | awk '{print $1}')
+expect_fail "retirement apply rejects a hard-linked reviewed plan" run_task \
+	legacy-apprunner-retirement-apply \
+	PLAN_FILE="$plan_file" \
+	APPROVED_PLAN_SHA256="$hardlinked_plan_sha256" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+grep -F 'PLAN_FILE must have exactly one hard link' "$tmp_dir/output" >/dev/null || fail "retirement apply did not reject hard-linked plan"
+test ! -f "$apply_marker" || fail "retirement apply ran with a hard-linked plan"
+rm -f "$tmp_dir/retirement-hardlink.tfplan"
+
+: >"$command_log"
+rm -f "$plan_file"
+expect_fail "retirement plan rejects malformed stat metadata" task_env \
+	FAKE_STAT_STYLE=malformed "$real_task" --dir "$repo_root" \
+	legacy-apprunner-retirement-plan \
+	PLAN_FILE="$plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+grep -F 'PLAN_FILE parent metadata is malformed' "$tmp_dir/output" >/dev/null || fail "retirement plan did not report malformed stat metadata"
+if grep -Fq ' plan ' "$command_log"; then fail "retirement plan ran with malformed stat metadata"; fi
+
+: >"$command_log"
+rm -f "$plan_file"
+expect_fail "retirement plan fails closed without supported stat metadata" task_env \
+	FAKE_STAT_STYLE=unavailable "$real_task" --dir "$repo_root" \
+	legacy-apprunner-retirement-plan \
+	PLAN_FILE="$plan_file" \
+	APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
+grep -F 'Unable to read file metadata with GNU or BSD stat' "$tmp_dir/output" >/dev/null || fail "retirement plan did not report unavailable stat metadata"
+if grep -Fq ' plan ' "$command_log"; then fail "retirement plan ran without supported stat metadata"; fi
 
 : >"$command_log"
 dangling_plan="$tmp_dir/dangling.tfplan"
