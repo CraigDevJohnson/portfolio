@@ -476,8 +476,20 @@ tasks:
 
   lambda-ci-roles-init:
     desc: Initialize only the replacement GitHub Actions role state
+    env:
+      APPROVED_CI_ROLES_ADMIN: '{{default "" .APPROVED_CI_ROLES_ADMIN}}'
     cmds:
-      - task: _lambda-identity-check
+      - |
+        set -eu
+        test "$APPROVED_CI_ROLES_ADMIN" = "portfolio-lambda-http-api/ci-roles" || {
+          echo "APPROVED_CI_ROLES_ADMIN must acknowledge portfolio-lambda-http-api/ci-roles" >&2
+          exit 1
+        }
+        test "${AWS_PROFILE:-}" != "portfolio-deployer" || {
+          echo "The portfolio-deployer policy is not authorized to administer the CI-role root" >&2
+          exit 1
+        }
+        aws sts get-caller-identity >/dev/null
       - task: _lambda-root-init
         vars:
           ROOT: infra/lambda/ci-roles

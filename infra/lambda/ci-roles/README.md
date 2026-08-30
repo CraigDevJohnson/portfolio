@@ -24,12 +24,26 @@ lost, restore a reviewed version from the versioned state bucket; do not grant
 the workflow bootstrap or import permissions.
 
 This root uses the isolated state configuration in `backend.hcl`. Initialize it
-only through a separately reviewed administrator session:
+only through a separately reviewed administrator session. The
+`portfolio-deployer` profile is deliberately insufficient: its bootstrap policy
+does not grant access to this state or authority over CI roles. Use a distinct
+administrator identity that has been explicitly reviewed to access only:
+
+- the
+  `portfolio-lambda-http-api/ci-roles/terraform.tfstate{,.tflock}` objects in
+  `portfolio-tofu-state-180294223248`; and
+- the `portfolio-release-builder-ci`, `portfolio-development-deployer-ci`, and
+  `portfolio-production-planner-ci` IAM roles and their inline policies,
+  including read access to the existing GitHub OIDC provider.
+
+The acknowledgement prevents accidentally using the normal deployment
+identity; it does not grant any AWS permissions:
 
 ```bash
-export AWS_PROFILE=portfolio-deployer
+export AWS_PROFILE=portfolio-ci-roles-administrator
 export AWS_REGION=us-west-2
-task lambda-ci-roles-init
+APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+  task lambda-ci-roles-init
 ```
 
 No release workflow may provision or modify these roles. The root must not be
