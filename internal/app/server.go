@@ -277,8 +277,8 @@ func Run() error {
 		}
 	}()
 
-	// Initialize the Google connection store in the background so App Runner
-	// health checks never wait on AWS SDK startup or credential resolution.
+	// Initialize the Google connection store in the background so server startup
+	// and health checks never wait on AWS SDK startup or credential resolution.
 	if !localPortalPreview && app.Config.GoogleEnabled() {
 		go func() {
 			initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)

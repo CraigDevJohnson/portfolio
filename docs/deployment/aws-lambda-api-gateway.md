@@ -1,10 +1,9 @@
 # AWS Lambda and API Gateway
 
-> [!WARNING]
+> [!NOTE]
 > The checked-in `infra/` directory retains shared legacy data, ECR, IAM, and
-> SSM resources. Its pending App Runner-managed state may be
-> removed only through the approved saved-plan retirement workflow. Replacement
-> commands use `infra/lambda/`; App Runner is not a deployment or rollback path.
+> SSM references. Replacement commands use `infra/lambda/`; the repository does
+> not provide an App Runner deployment or rollback path.
 
 The Lambda image runs the same Go HTTP handler as the regular server. The
 `aws-lambda-go-api-proxy` adapter converts API Gateway HTTP API events into
@@ -147,80 +146,27 @@ exact validation CNAMEs as DNS-only records after separate approval. Once ACM
 reports `ISSUED`, set `activate_custom_domain = true` and allow only certificate
 validation, Regional API Gateway domain, and mapping creates. Both plans and
 both applies need fresh approval for the exact dev lock URI and exact saved
-plan. Prove OAuth directly against the API Gateway target before changing the
-traffic record, and commit the legacy origin plus complete rollback DNS record
-before cutover.
+plan. Prove OAuth directly against the API Gateway target before changing a
+traffic record, and record the current origin plus complete rollback DNS
+coordinates before that change.
 
-## Retained shared resources and App Runner retirement
+## Retained shared resources and retirement record
 
-Root inventory on 2026-08-29 confirmed that the legacy state and live account
-contain no `portfolio-lambda` function, `portfolio-lambda-http` API, associated
-execution role, or runtime policy. Their unused root declarations, outputs, and
-targeted deployment helpers are removed so the full-refresh retirement plan
-cannot propose creating them. The shared ECR repository, DynamoDB tables, IAM
-policies, SSM parameters, and every replacement root remain retained.
+The shared `infra/` root retains the `portfolio` ECR repository, DynamoDB
+tables, IAM policies, and legacy SSM references. It declares no App Runner or
+legacy Lambda/API Gateway runtime; every replacement root remains under
+`infra/lambda/`.
 
-The accepted 2026-08-29 retirement decision waives only the former development
-App Runner retention and seven-day observation requirement. The historical
-failed observation remains evidence of the old rollback-origin stylesheet
-mismatch; it is not repaired or represented as passing. Production observation
-and Amplify retirement remain unchanged. See the
-[retirement design](../superpowers/specs/2026-08-29-development-app-runner-retirement-design.md).
-
-The only App Runner retirement interfaces are
-`legacy-apprunner-retirement-init`, `legacy-apprunner-retirement-preflight`,
-`legacy-apprunner-retirement-plan`, and `legacy-apprunner-retirement-apply`.
-They require
-`AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, and acknowledgement of
-`s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`.
-The normal development deployer policy cannot read this legacy state or App
-Runner. Root may temporarily replace and reprovision only the
-`PortfolioDeployer` inline policy with the reviewed
-[`portfolio-deployer-app-runner-retirement-policy.json`](../../infra/lambda/bootstrap/portfolio-deployer-app-runner-retirement-policy.json),
-but root must not run the retirement OpenTofu commands. The exact root AWS CLI
-resolution, validation, provisioning, and restoration sequence is in
-[`DEPLOY-INSTRUCTIONS.md`](../../DEPLOY-INSTRUCTIONS.md#retained-legacy-infrastructure-and-app-runner-retirement).
-The plan interface requires a new absolute `PLAN_FILE` in a current-user-owned
-mode-700 directory, rejects symlinks and multi-link plan files, saves and
-checker-reviews that plan, and prints it for review. Initialization uses the
-legacy root's checked-in backend block and provider 5.100.0 checksum lock with
-`-reconfigure -lockfile=readonly -input=false` and no `backend.hcl` override.
-Every retirement entry point rejects `TF_CLI_ARGS`, every `TF_VAR_*`, the relevant
-command-specific `TF_CLI_ARGS_*` variables, `TF_WORKSPACE`, and `TF_DATA_DIR`,
-then proves the workspace is `default`. Apply verifies the reviewed checksum,
-re-runs the retirement checker against fresh saved-plan JSON, verifies the
-live preflight, verifies the checksum again, and only then applies that exact
-file. The preflight fails on service, custom-domain, role-attachment, inline
-policy, instance-profile, tag, or policy-version drift.
-
-Before any apply, inventory the live App Runner custom-domain association,
-obtain separate current-session approval to disassociate it out of band, and
-verify it is absent. This local branch neither performs nor authorizes that
-provider mutation. Then, and only with separate approval for each live action:
-
-```bash
-export AWS_PROFILE=portfolio-deployer
-export AWS_REGION=us-west-2
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-
-task legacy-apprunner-retirement-init
-task legacy-apprunner-retirement-preflight
-retirement_plan_dir=$(mktemp -d)
-retirement_plan="$retirement_plan_dir/legacy-apprunner-retirement.tfplan"
-task legacy-apprunner-retirement-plan PLAN_FILE="$retirement_plan"
-
-retirement_plan_sha256=$(shasum -a 256 "$retirement_plan" | awk '{print $1}')
-printf 'retirement_plan_sha256=%s\n' "$retirement_plan_sha256"
-
-: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
-task legacy-apprunner-retirement-apply \
-  PLAN_FILE="$retirement_plan" \
-  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI="$APPROVED_STATE_LOCK_URI"
-```
-
-The retirement checker allows only the reviewed App Runner and dedicated-IAM
-removals plus their root outputs; no other infrastructure action is accepted.
+The accepted 2026-08-29 retirement decision and implementation details remain in
+the dated
+[retirement design](../superpowers/specs/2026-08-29-development-app-runner-retirement-design.md)
+and
+[implementation plan](../superpowers/plans/2026-08-29-development-app-runner-retirement.md).
+The failed development observation remains evidence of the old rollback-origin
+stylesheet mismatch and must not be repaired or represented as passing. These
+records are historical; there is no current App Runner retirement task, helper,
+or temporary IAM policy. Production observation and separately approved Amplify
+cleanup remain unchanged.
 
 ## Runtime behavior
 
