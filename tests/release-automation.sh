@@ -163,6 +163,16 @@ assert_before "$build_job" 'sh scripts/check-current-main.sh' 'uses: aws-actions
 grep -Fq 'if-no-files-found: error' <<EOF
 $build_job
 EOF
+grep -Fq 'Immutable full-SHA tag already exists; reusing it for scan validation.' <<EOF
+$build_job
+EOF
+if grep -Fq 'Immutable full-SHA tag already exists; refusing to rebuild.' <<EOF
+$build_job
+EOF
+then
+	echo 'release retry still refuses an existing immutable image' >&2
+	exit 1
+fi
 awk '
 	/if: always\(\)/ { always = NR }
 	/uses: actions\/upload-artifact@v7/ && always && NR == always + 1 { found = 1 }
