@@ -55,7 +55,6 @@ jq -n '
 	def deletion($before): {actions: ["delete"], before: $before, after: null};
 	def no_op($before): {actions: ["no-op"], before: $before, after: $before};
 	{
-		applyable: true,
 		errored: false,
 		resource_changes: [
 			{mode: "managed", address: "aws_apprunner_service.app", change: deletion({

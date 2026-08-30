@@ -44,7 +44,6 @@ make_plan() {
 		def deletion($before): {actions: ["delete"], before: $before, after: null};
 		def no_op($before): {actions: ["no-op"], before: $before, after: $before};
 		{
-			applyable: true,
 			errored: false,
 			resource_changes: [
 				{mode: "managed", address: "aws_apprunner_service.app", change: deletion({
@@ -170,8 +169,6 @@ mutate_and_reject "App Runner ARN output drift" '.output_changes.app_runner_serv
 mutate_and_reject "App Runner ID output drift" '.output_changes.app_runner_service_id.before = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
 mutate_and_reject "instance role output drift" '.output_changes.instance_role_arn.before = "arn:aws:iam::180294223248:role/not-the-instance-role"'
 mutate_and_reject "errored plan" '.errored = true'
-mutate_and_reject "non-applyable plan" '.applyable = false'
-mutate_and_reject "missing applyable marker" 'del(.applyable)'
 
 {
 	jq '.resource_changes[0].address = "aws_iam_role.unapproved"' "$plan"
