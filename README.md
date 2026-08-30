@@ -186,7 +186,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Shared data and pending App Runner retirement state
+├── infra/                  Shared ECR, DynamoDB, and IAM resources
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -274,26 +274,13 @@ The Google add and result-sync handlers reserve 24 seconds of that window, which
 leaves five seconds outside their application work budget.
 
 The checked-in `infra/` directory retains the shared legacy ECR repository,
-DynamoDB tables, IAM policies, and SSM configuration. Root inventory on
-2026-08-29 confirmed that neither its remote state nor the live account contains
-the formerly declared legacy Lambda/API Gateway resources. Those declarations,
-outputs, and targeted deployment helpers are removed so an App Runner retirement
-plan cannot accidentally create them. The state still contains the pending
-removal of App Runner-managed resources until an approved retirement plan is
-applied.
-
-App Runner retirement uses only `legacy-apprunner-retirement-init`,
-`legacy-apprunner-retirement-preflight`, `legacy-apprunner-retirement-plan`,
-and `legacy-apprunner-retirement-apply`. They require
-`AWS_PROFILE=portfolio-deployer`, `AWS_REGION=us-west-2`, the exact state-lock
-URI `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`,
-a new absolute `PLAN_FILE`, the checker-reviewed saved plan, and a separately
-approved SHA-256 checksum before apply. The live App Runner custom-domain
-inventory and disassociation are an out-of-band, separately approved boundary
-that must be complete before apply; this branch does not authorize it. See
-[`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the complete contract.
-Each retirement entry point rejects `TF_CLI_ARGS`, its relevant command-specific
-variants, `TF_WORKSPACE`, and `TF_DATA_DIR`; it uses only the default workspace.
+DynamoDB tables, IAM policies, and SSM configuration. It does not declare or
+operate App Runner or the formerly declared legacy Lambda/API Gateway stack.
+Replacement deployment commands use only the independent roots under
+`infra/lambda/`; App Runner is not a deployment or rollback path. Dated
+retirement designs, plans, and evidence remain under `docs/superpowers/` and
+`docs/deployment/evidence/` as historical records rather than operator
+instructions.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;
@@ -311,13 +298,13 @@ update them instead of duplicating completed inserts.
 `task build-image` and `task build-lambda-image` build local Linux amd64 images.
 By default, they inject the current full Git SHA as the build revision; a
 supplied `BUILD_REVISION` overrides it. An exact `/healthz` comparison against
-that expected value proves the identity of those artifacts. Legacy deployment
-helpers and direct builds that omit `BUILD_REVISION` may report `development`,
+that expected value proves the identity of those artifacts. Direct builds that
+omit `BUILD_REVISION` may report `development`,
 which is not immutable provenance proof. `task test-images` verifies the image
 contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
-Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the retirement
-boundary and retained shared-resource guidance.
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for current Lambda
+deployment and retained shared-resource guidance.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

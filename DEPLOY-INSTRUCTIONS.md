@@ -1,259 +1,27 @@
 # Deployment instructions
 
-> [!WARNING]
-> App Runner retirement is a destructive, separately approved operation. This
-> branch records the saved-plan contract only; it does not authorize a live
-> custom-domain change, state-lock write, plan, or apply.
+## Retained shared infrastructure
 
-## Retained legacy infrastructure and App Runner retirement
+The checked-in `infra/` root retains the shared `portfolio` ECR repository
+and lifecycle policy, the Google connection and Soccer session DynamoDB tables,
+their shared IAM policies, and references to the legacy `/portfolio/*` SSM
+parameters. It does not declare or operate App Runner or the formerly declared
+legacy Lambda/API Gateway stack. Do not use this root to deploy the application.
 
-`infra/` retains shared DynamoDB data, the legacy ECR repository, shared IAM
-policies, and `/portfolio/*` SSM parameters. Root inventory on 2026-08-29
-confirmed that its state and the live account contain no legacy Lambda/API
-Gateway resources. Their declarations and targeted deployment helpers are
-removed so the full-refresh retirement plan cannot create them. The state still
-has the pending removal of App Runner-managed resources until the approved
-retirement plan is applied. The root is not a path to deploy, associate,
-troubleshoot, or recreate App Runner.
+The repository no longer exposes App Runner retirement commands or carries its
+temporary permissions. Do not follow the old live runbook steps. The accepted
+decision and exact execution design remain in the dated
+[retirement design](./docs/superpowers/specs/2026-08-29-development-app-runner-retirement-design.md)
+and
+[implementation plan](./docs/superpowers/plans/2026-08-29-development-app-runner-retirement.md).
+The failed development observation and its release record remain unchanged under
+`docs/deployment/evidence/`; they are historical evidence, not a current
+rollback contract.
 
-The retirement interfaces require exactly
-`AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`, reject root and
-ambient static credentials, and require acknowledgement of this exact lock URI:
-
-```text
-s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-```
-
-The normal development deployer policy intentionally cannot read the legacy
-state or App Runner. Before retirement, use the root AWS CLI profile only to
-verify the live target and temporarily replace the `PortfolioDeployer`
-permission-set inline policy with the reviewed
-[`portfolio-deployer-app-runner-retirement-policy.json`](./infra/lambda/bootstrap/portfolio-deployer-app-runner-retirement-policy.json).
-Do not add the retirement statements to the standing development policy and do
-not run OpenTofu as root.
-
-Use the checked root-only helper so coordinate discovery, drift checks,
-validation, replacement, provisioning, and rollback stay one fail-closed
-operation. It verifies the exact root identity, resolves one active Identity
-Center instance and one `PortfolioDeployer` permission set, proves that the
-permission set is provisioned only to account `180294223248`, and rejects
-attached managed policies or a permissions boundary. It also requires semantic
-source-policy equality, a reviewed target checksum, the Identity Center size
-limit, zero Access Analyzer findings, a successful bounded reprovision, and an
-exact policy read-back. If installation fails after replacement, it
-automatically restores and reprovisions the reviewed development policy.
-
-```bash
-set -eu
-export AWS_PROFILE=root
-export AWS_REGION=us-west-2
-export AWS_PAGER=
-
-retirement_policy=infra/lambda/bootstrap/portfolio-deployer-app-runner-retirement-policy.json
-retirement_policy_sha256=$(shasum -a 256 "$retirement_policy" | awk '{print $1}')
-printf 'retirement_policy_sha256=%s\n' "$retirement_policy_sha256"
-
-: "${APPROVED_POLICY_SHA256:?set the exact reviewed retirement policy checksum}"
-test "$retirement_policy_sha256" = "$APPROVED_POLICY_SHA256"
-APPROVED_POLICY_SHA256="$APPROVED_POLICY_SHA256" \
-  sh scripts/update-portfolio-deployer-retirement-policy.sh install
-```
-
-Keep the helper's provisioning request ID and status in private execution
-evidence, not in Git. A policy source update without successful reprovisioning
-does not update the account role.
-
-After reprovisioning, refresh the `portfolio-deployer` login and run the
-read-only live guard:
-
-```bash
-export AWS_PROFILE=portfolio-deployer
-export AWS_REGION=us-west-2
-task legacy-apprunner-retirement-preflight
-```
-
-That guard checks the exact service ARN, inventoried role IDs and trust
-policies, service tags, absence of App Runner custom domains, exact
-managed-policy attachments, zero inline policies, zero instance profiles, the
-runtime policy's immutable ID and sole permissions attachment to the inventoried
-instance role, zero permissions-boundary use, and the expected runtime-policy
-version. Both the plan and apply rerun it; a failure prevents the next OpenTofu
-operation.
-
-Before any retirement plan is created, inventory the live App Runner custom
-domains and obtain separate current-session approval for their disassociation.
-Perform that provider operation out of band, then verify the association is
-absent. It is a prerequisite to apply, is not managed by this OpenTofu state,
-and is not authorized by this local branch or these instructions.
-
-The 2026-08-29 root inventory found two exact out-of-band prerequisites:
-
-- active App Runner association `dev.craigdevjohnson.com`, with its generated
-  `www` subdomain enabled; and
-- inline role policy `portoflio-ssm-params` on
-  `portfolio-apprunner-instance`. Its only grant is `ssm:GetParameters` on the
-  three `/portfolio/*` parameters and is a strict subset of the attached
-  `portfolio-apprunner-runtime-secrets` managed policy.
-
-After fresh Cloudflare/API Gateway verification and separate approval for these
-two mutations, root may run only the exact fail-closed sequence below. The two
-approval variables are intentionally distinct; neither authorizes the later
-state lock, plan, or apply.
-
-```bash
-set -eu
-export AWS_PROFILE=root
-export AWS_REGION=us-west-2
-export AWS_PAGER=
-
-test "$(aws sts get-caller-identity --query Account --output text)" = "180294223248"
-test "$(aws sts get-caller-identity --query Arn --output text)" = \
-  "arn:aws:iam::180294223248:root"
-
-service_arn=arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb
-: "${APPROVED_APP_RUNNER_DOMAIN:?set the separately approved exact domain}"
-test "$APPROVED_APP_RUNNER_DOMAIN" = dev.craigdevjohnson.com
-: "${APPROVED_INLINE_ROLE_POLICY:?set the separately approved exact role/policy pair}"
-test "$APPROVED_INLINE_ROLE_POLICY" = \
-  portfolio-apprunner-instance/portoflio-ssm-params
-
-aws apprunner disassociate-custom-domain \
-  --service-arn "$service_arn" \
-  --domain-name "$APPROVED_APP_RUNNER_DOMAIN" \
-  --no-cli-pager >/dev/null
-
-attempt=0
-while [ "$attempt" -lt 60 ]; do
-  custom_domains=$(aws apprunner describe-custom-domains \
-    --service-arn "$service_arn" \
-    --output json \
-    --no-cli-pager)
-  if printf '%s\n' "$custom_domains" | jq -e '.CustomDomains == []' >/dev/null; then
-    break
-  fi
-  attempt=$((attempt + 1))
-  sleep 5
-done
-printf '%s\n' "$custom_domains" | jq -e '.CustomDomains == []' >/dev/null
-
-aws iam delete-role-policy \
-  --role-name portfolio-apprunner-instance \
-  --policy-name portoflio-ssm-params \
-  --no-cli-pager
-
-inline_policies=$(aws iam list-role-policies \
-  --role-name portfolio-apprunner-instance \
-  --output json \
-  --no-cli-pager)
-printf '%s\n' "$inline_policies" | jq -e '.PolicyNames == []' >/dev/null
-```
-
-After the out-of-band boundary is complete and every live action has its own
-approval, use only these interfaces:
-
-```bash
-export AWS_PROFILE=portfolio-deployer
-export AWS_REGION=us-west-2
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock
-
-task legacy-apprunner-retirement-init
-task legacy-apprunner-retirement-preflight
-
-retirement_plan_dir=$(mktemp -d)
-retirement_plan="$retirement_plan_dir/legacy-apprunner-retirement.tfplan"
-task legacy-apprunner-retirement-plan PLAN_FILE="$retirement_plan"
-
-retirement_plan_sha256=$(shasum -a 256 "$retirement_plan" | awk '{print $1}')
-printf 'retirement_plan_sha256=%s\n' "$retirement_plan_sha256"
-```
-
-`legacy-apprunner-retirement-plan` requires a new absolute `PLAN_FILE` under a
-current-user-owned mode-700 directory, rejects symlinks, initializes with the
-reviewed provider lock, saves the plan as read-only, checks its JSON through the
-App Runner retirement checker, and prints the reviewed plan. Review its
-complete action list and checksum, then obtain a
-separate approval for the exact saved-plan SHA-256 and the apply lock write.
-Only then provide that checksum to the saved-plan-only apply interface:
-
-```bash
-: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
-task legacy-apprunner-retirement-apply \
-  PLAN_FILE="$retirement_plan" \
-  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI="$APPROVED_STATE_LOCK_URI"
-```
-
-The checker requires exactly one non-errored plan document and permits only the
-approved App Runner and dedicated-IAM removals plus their root outputs; it
-rejects creates, updates, replacements, unrelated deletions, scoped operations,
-unattended approval, and non-saved-plan apply.
-Immediately after the verified retirement, use the root profile to restore the
-tracked development inline policy, reprovision the permission set to
-`SUCCEEDED`, refresh the deployer login, and verify that legacy state and App
-Runner access are denied. Keep Git publication and later cleanup as separate
-approval boundaries.
-
-Restore through the same checked helper. It accepts either the reviewed
-retirement source policy or an already-restored development target, so rerunning
-after an interrupted restoration is safe. It always reprovisions, waits for
-`SUCCEEDED`, and verifies canonical read-back.
-
-```bash
-set -eu
-export AWS_PROFILE=root
-export AWS_REGION=us-west-2
-export AWS_PAGER=
-
-development_policy=infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json
-development_policy_sha256=$(shasum -a 256 "$development_policy" | awk '{print $1}')
-printf 'development_policy_sha256=%s\n' "$development_policy_sha256"
-
-: "${APPROVED_RESTORE_POLICY_SHA256:?set the reviewed development policy checksum}"
-test "$development_policy_sha256" = "$APPROVED_RESTORE_POLICY_SHA256"
-APPROVED_RESTORE_POLICY_SHA256="$APPROVED_RESTORE_POLICY_SHA256" \
-  sh scripts/update-portfolio-deployer-retirement-policy.sh restore
-```
-
-After restoration, use root to verify the effective SSO role no longer has
-legacy state or App Runner authority, then refresh the non-root session and
-prove the retained legacy state object is denied:
-
-```bash
-set -eu
-export AWS_PROFILE=root
-portfolio_deployer_role_arn=$(
-  aws iam list-roles \
-    --path-prefix /aws-reserved/sso.amazonaws.com/ \
-    --query 'Roles[?starts_with(RoleName, `AWSReservedSSO_PortfolioDeployer_`)].Arn' \
-    --output text
-)
-test "$(printf '%s\n' "$portfolio_deployer_role_arn" | wc -w | tr -d ' ')" = 1
-
-simulation=$(aws iam simulate-principal-policy \
-  --policy-source-arn "$portfolio_deployer_role_arn" \
-  --action-names apprunner:DescribeService s3:GetObject \
-  --resource-arns \
-    arn:aws:apprunner:us-west-2:180294223248:service/portfolio/c5490e71b0e84aba90a9648e94d240fb \
-    arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio/terraform.tfstate \
-  --output json)
-printf '%s\n' "$simulation" | jq -e '
-  ([.EvaluationResults[].EvalActionName] | unique | sort) ==
-    ["apprunner:DescribeService", "s3:GetObject"] and
-  all(.EvaluationResults[]; .EvalDecision == "implicitDeny")
-' >/dev/null
-
-aws sso login --profile portfolio-deployer
-deny_log=$(mktemp)
-trap 'rm -f "$deny_log"' EXIT
-if AWS_PROFILE=portfolio-deployer AWS_REGION=us-west-2 \
-  aws s3api head-object \
-    --bucket portfolio-tofu-state-180294223248 \
-    --key portfolio/terraform.tfstate \
-    --no-cli-pager >/dev/null 2>"$deny_log"; then
-  exit 1
-fi
-grep -Eq 'AccessDenied|Forbidden|403' "$deny_log"
-```
+Before changing or removing any retained shared resource, inventory its current
+repository and live consumers and obtain separate approval for the exact live
+mutation. Replacement application releases and environments use only the
+independent roots under `infra/lambda/`.
 
 ## Replacement Lambda deployment
 
@@ -277,9 +45,8 @@ and the
 They are authoritative for their current reviewed policy content, but grant
 nothing merely by being checked in. The deployer document still contains
 phase-specific grants; once a later reviewed revision removes one, never
-restore an older revision after that removal and reprovisioning gate. The
-short-lived App Runner retirement substitution restores only the exact current
-canonical document and checksum. Keep exact Identity Center ownership,
+restore an older revision after that removal and reprovisioning gate. Keep exact
+Identity Center ownership,
 assignment, MFA, provisioning results, and live approval evidence private.
 Every live create, update, assignment, and use remains separately
 approval-gated.
@@ -489,7 +256,7 @@ Custom-domain setup has two saved-plan stages:
 
 Each stage requires the dev lock URI and a fresh current-session lock-write and
 apply approval. Prove OAuth against the API Gateway target before changing the
-traffic record. Record the legacy origin and complete DNS rollback coordinates
+traffic record. Record the current origin and complete DNS rollback coordinates
 before that traffic mutation.
 
 Observation commands reinitialize artifact and environment roots before reading
@@ -527,8 +294,8 @@ root inventory found no legacy Lambda/API runtime:
 
 The shared `portfolio-google-connections` and `portfolio-soccer-sessions`
 DynamoDB tables, their managed IAM policies, and the `portfolio` ECR repository
-also remain. App Runner retirement does not update or delete any of them. A
-later cleanup decision requires its own consumer audit and approval.
+also remain. A later cleanup decision requires its own consumer audit and
+approval.
 
 ## EC2 management portal
 
