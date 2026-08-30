@@ -2,7 +2,8 @@
 
 This isolated root defines three GitHub OIDC roles. It is **not** called by a
 release workflow. Provision it through a separately reviewed administrator plan,
-then configure its outputs as repository/environment variables:
+then read back the exact role ARNs and configure them as
+repository/environment variables:
 
 - `AWS_RELEASE_BUILDER_ROLE_ARN` (repository variable);
 - `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN` (`development` environment); and
@@ -30,13 +31,47 @@ exact plan only through a separately reviewed administrator session:
 ```bash
 export AWS_PROFILE=portfolio-deployer
 export AWS_REGION=us-west-2
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
-ci_roles_plan="$(pwd)/ci-roles.tfplan"
 task lambda-ci-roles-init
-task lambda-ci-roles-plan PLAN_FILE="$ci_roles_plan"
-shasum -a 256 "$ci_roles_plan"
-# After separate review, copy the printed checksum exactly.
-task lambda-ci-roles-apply PLAN_FILE="$ci_roles_plan" APPROVED_PLAN_SHA256=<reviewed-sha256>
+ci_roles_plan_dir=$(mktemp -d)
+ci_roles_plan="$ci_roles_plan_dir/ci-roles.tfplan"
+task lambda-ci-roles-plan \
+  PLAN_FILE="$ci_roles_plan" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+ci_roles_plan_sha256=$(shasum -a 256 "$ci_roles_plan" | awk '{print $1}')
+printf 'ci_roles_plan_sha256=%s\n' "$ci_roles_plan_sha256"
+```
+
+After separate plan review, obtain a fresh current-session apply and lock-write
+approval. Copy the reviewed checksum exactly, then run:
+
+```bash
+: "${APPROVED_PLAN_SHA256:?set the exact reviewed plan SHA-256 checksum}"
+task lambda-ci-roles-apply \
+  PLAN_FILE="$ci_roles_plan" \
+  APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock
+```
+
+After the apply, read each role from IAM and require its deterministic ARN before
+using it in GitHub configuration:
+
+```bash
+release_role_arn=$(
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
+    --role-name portfolio-release-builder-ci --query 'Role.Arn' --output text
+)
+development_role_arn=$(
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
+    --role-name portfolio-development-deployer-ci --query 'Role.Arn' --output text
+)
+production_role_arn=$(
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
+    --role-name portfolio-production-planner-ci --query 'Role.Arn' --output text
+)
+test "$release_role_arn" = "arn:aws:iam::180294223248:role/portfolio-release-builder-ci"
+test "$development_role_arn" = "arn:aws:iam::180294223248:role/portfolio-development-deployer-ci"
+test "$production_role_arn" = "arn:aws:iam::180294223248:role/portfolio-production-planner-ci"
+printf '%s\n%s\n%s\n' "$release_role_arn" "$development_role_arn" "$production_role_arn"
 ```
 
 No release workflow may provision or modify these roles. The root must not be

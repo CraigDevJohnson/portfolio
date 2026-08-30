@@ -25,13 +25,14 @@ independent roots under `infra/lambda/`.
 
 ## Replacement Lambda deployment
 
-The replacement source is under `infra/lambda/`. It has three independent
+The replacement source is under `infra/lambda/`. It has four independent
 OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-disable MD013 -->
 
 | Root | State key | Lock acknowledgement |
 | --- | --- | --- |
+| `ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` |
 | `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
 | `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
 | `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |

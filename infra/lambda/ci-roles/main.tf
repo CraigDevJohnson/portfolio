@@ -12,7 +12,9 @@ terraform {
 }
 
 provider "aws" {
-  region = local.region
+  region              = local.region
+  profile             = "portfolio-deployer"
+  allowed_account_ids = ["180294223248"]
 }
 
 data "aws_iam_policy_document" "release_trust" {
@@ -334,8 +336,9 @@ resource "aws_iam_role" "ci" {
 }
 
 resource "aws_iam_role_policy" "release" {
+  # Keep the target plan-known; depends_on below preserves creation ordering.
   name = "portfolio-release-builder"
-  role = aws_iam_role.ci["release"].id
+  role = local.roles.release.name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -367,16 +370,17 @@ resource "aws_iam_role_policy" "release" {
       },
     ]
   })
+
+  depends_on = [aws_iam_role.ci]
 }
 
 resource "aws_iam_role_policy" "environment" {
   for_each = local.environment_configuration
 
+  # Keep the target plan-known; depends_on below preserves creation ordering.
   name   = each.value.policy_name
-  role   = aws_iam_role.ci[each.key].id
+  role   = each.value.role_name
   policy = local.environment_policies[each.key]
-}
 
-output "role_arns" {
-  value = { for key, role in aws_iam_role.ci : key => role.arn }
+  depends_on = [aws_iam_role.ci]
 }

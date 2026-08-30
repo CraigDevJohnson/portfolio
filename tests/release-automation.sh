@@ -84,6 +84,23 @@ export FAKE_HEALTH_SHA FAKE_QUALIFIED_IMAGE_URI
 BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
 	FUNCTION_NAME=portfolio-lambda-dev EVIDENCE_DIR="$evidence_dir" \
 	sh "$root_dir/scripts/verify-lambda-release.sh"
+FAKE_ALARM_SCENARIO=missing
+export FAKE_ALARM_SCENARIO
+if BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
+	FUNCTION_NAME=portfolio-lambda-dev EVIDENCE_DIR="$evidence_dir" \
+	sh "$root_dir/scripts/verify-lambda-release.sh" >/dev/null 2>&1; then
+	echo 'release verification accepted missing alarms' >&2
+	exit 1
+fi
+FAKE_ALARM_SCENARIO=extra
+export FAKE_ALARM_SCENARIO
+if BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
+	FUNCTION_NAME=portfolio-lambda-dev EVIDENCE_DIR="$evidence_dir" \
+	sh "$root_dir/scripts/verify-lambda-release.sh" >/dev/null 2>&1; then
+	echo 'release verification accepted an extra alarm' >&2
+	exit 1
+fi
+unset FAKE_ALARM_SCENARIO
 FAKE_QUALIFIED_IMAGE_URI="example.invalid/portfolio@$other_digest"
 export FAKE_QUALIFIED_IMAGE_URI
 if BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
@@ -107,6 +124,12 @@ test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "
 base=$head; echo '{}' >"$tmp/deploy/production-release.json"; git -C "$tmp" add .; git -C "$tmp" commit -qm promote; head=$(git -C "$tmp" rev-parse HEAD)
 test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head")" = production
 base=$head; echo x >"$tmp/.github/workflows/x.yml"; git -C "$tmp" add .; git -C "$tmp" commit -qm workflow; head=$(git -C "$tmp" rev-parse HEAD)
+test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head")" = review
+base=$head; echo runtime >"$tmp/internal/app/renamed.go"; git -C "$tmp" add .; git -C "$tmp" commit -qm rename-runtime-source; base=$(git -C "$tmp" rev-parse HEAD)
+git -C "$tmp" mv internal/app/renamed.go docs/renamed.md; git -C "$tmp" commit -qm rename-runtime-to-docs; head=$(git -C "$tmp" rev-parse HEAD)
+test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head")" = development
+base=$head; mkdir -p "$tmp/infra"; echo infra >"$tmp/infra/renamed.tf"; git -C "$tmp" add .; git -C "$tmp" commit -qm rename-infra-source; base=$(git -C "$tmp" rev-parse HEAD)
+git -C "$tmp" mv infra/renamed.tf internal/app/renamed.tf; git -C "$tmp" commit -qm rename-infra-to-internal; head=$(git -C "$tmp" rev-parse HEAD)
 test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head")" = review
 
 workflow_job() {

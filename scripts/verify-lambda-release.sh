@@ -22,6 +22,12 @@ jq -er --arg image_digest "$IMAGE_DIGEST" \
 	'.Code.ImageUri | select(type == "string" and endswith("@" + $image_digest))' \
 	"$EVIDENCE_DIR/version.json" >"$EVIDENCE_DIR/image-uri.txt"
 aws cloudwatch describe-alarms --alarm-name-prefix "$FUNCTION_NAME" --output json >"$EVIDENCE_DIR/alarms.json"
-jq -e '[.MetricAlarms[] | select(.StateValue != "OK" and .StateValue != "INSUFFICIENT_DATA")] | length == 0' "$EVIDENCE_DIR/alarms.json" >/dev/null
+jq -e --arg function_name "$FUNCTION_NAME" '
+	(["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] |
+		map($function_name + "-" + .) | sort) as $expected_names |
+	(.MetricAlarms | type == "array") and
+	([.MetricAlarms[].AlarmName] | sort) == $expected_names and
+	all(.MetricAlarms[]; .StateValue == "OK" or .StateValue == "INSUFFICIENT_DATA")
+' "$EVIDENCE_DIR/alarms.json" >/dev/null
 jq -n --arg source_sha "$SOURCE_SHA" --arg image_digest "$IMAGE_DIGEST" --arg version "$version" \
 	'{source_sha:$source_sha,image_digest:$image_digest,lambda_version:$version,verified_at:(now|todate)}' >"$EVIDENCE_DIR/verification.json"
