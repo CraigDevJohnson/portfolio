@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
       deployments: read
       pull-requests: read
@@ -44,6 +45,36 @@ jobs:
           EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
           GH_TOKEN: ${{ github.token }}
         run: task lambda-ci-authorize-release
+
+  release-review:
+    needs: authorize
+    if: needs.authorize.outputs.classification == 'review'
+    environment: release-review
+    concurrency:
+      group: lambda-release-review
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          fetch-depth: 0
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - name: Record the protected release review checkpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-record-release-review
 
   build:
     needs: authorize

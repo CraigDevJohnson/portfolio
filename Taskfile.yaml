@@ -418,6 +418,16 @@ tasks:
     cmds:
       - sh scripts/authorize-ci-lambda-release.sh
 
+  lambda-ci-record-release-review:
+    desc: Record one protected release-review backlog checkpoint
+    env:
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_RUN_ATTEMPT: '{{default "" .GITHUB_RUN_ATTEMPT}}'
+      GITHUB_RUN_ID: '{{default "" .GITHUB_RUN_ID}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/record-ci-lambda-release-review.sh
+
   lambda-ci-check-current-main:
     desc: Fail unless the exact release source remains current on main
     env:

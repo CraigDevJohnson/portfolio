@@ -22,8 +22,11 @@ for editorconfig_file in \
   scripts/deploy-ci-lambda-development.sh \
   scripts/plan-ci-lambda-production.sh \
   scripts/record-ci-lambda-development.sh \
+  scripts/record-ci-lambda-release-review.sh \
   scripts/resolve-development-release-base.sh \
+  scripts/resolve-release-backlog-base.sh \
   scripts/resolve-reviewed-release-base.sh \
+  scripts/validate-release-review-run.sh \
   scripts/validate-production-release.sh \
   scripts/verify-lambda-release.sh \
   tests/fixtures/release-fake-cli.sh \
@@ -50,6 +53,8 @@ other_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 image_digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 other_digest=sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 export GITHUB_REPOSITORY=CraigDevJohnson/portfolio
+export GITHUB_RUN_ATTEMPT=1
+export GITHUB_RUN_ID=9001
 
 reviewed_pull_json() {
   jq -nc --arg source_sha "$1" --arg base_sha "$2" '[{
@@ -150,6 +155,113 @@ durable_status_json() {
     }]'
 }
 
+review_deployment_pages_json() {
+  run_id=${3:-9001}
+  run_attempt=${4:-1}
+  jq -nc \
+    --arg base_sha "$1" \
+    --arg source_sha "$2" \
+    --arg run_id "$run_id" \
+    --arg run_attempt "$run_attempt" '[[{
+    id: 84,
+    ref: $source_sha,
+    sha: $source_sha,
+    task: "portfolio-lambda-release-review",
+    environment: "release-review",
+    description: (
+      "Release review " + $base_sha + ".." + $source_sha +
+      " run " + $run_id + "/" + $run_attempt
+    ),
+    created_at: "2026-08-30T00:02:00Z",
+    creator: {login: "github-actions[bot]", type: "Bot"}
+  }]]'
+}
+
+review_status_json() {
+  run_id=${3:-9001}
+  run_attempt=${4:-1}
+  jq -nc \
+    --arg base_sha "$1" \
+    --arg source_sha "$2" \
+    --arg run_id "$run_id" \
+    --arg run_attempt "$run_attempt" '[{
+    id: 184,
+    created_at: "2026-08-30T00:03:00Z",
+    state: "success",
+    environment: "release-review",
+    environment_url: "",
+    description: (
+      "Release reviewed " + $base_sha + ".." + $source_sha +
+      " run " + $run_id + "/" + $run_attempt
+    ),
+    creator: {login: "github-actions[bot]", type: "Bot"}
+  }]'
+}
+
+review_status_object_json() {
+  status_id=${3:-184}
+  created_at=${4:-2026-08-30T00:03:00Z}
+  run_id=${5:-9001}
+  run_attempt=${6:-1}
+  jq -nc \
+    --arg base_sha "$1" \
+    --arg source_sha "$2" \
+    --argjson status_id "$status_id" \
+    --arg created_at "$created_at" \
+    --arg run_id "$run_id" \
+    --arg run_attempt "$run_attempt" '{
+      id: $status_id,
+      created_at: $created_at,
+      state: "success",
+      environment: "release-review",
+      environment_url: "",
+      description: (
+        "Release reviewed " + $base_sha + ".." + $source_sha +
+        " run " + $run_id + "/" + $run_attempt
+      ),
+      creator: {login: "github-actions[bot]", type: "Bot"}
+    }'
+}
+
+review_run_json() {
+  run_id=${2:-9001}
+  run_attempt=${3:-1}
+  run_status=${4:-completed}
+  run_conclusion=${5:-success}
+  jq -nc \
+    --arg source_sha "$1" \
+    --argjson run_id "$run_id" \
+    --argjson run_attempt "$run_attempt" \
+    --arg status "$run_status" \
+    --arg conclusion "$run_conclusion" '{
+      id: $run_id,
+      run_attempt: $run_attempt,
+      workflow_id: 346157322,
+      head_sha: $source_sha,
+      head_branch: "main",
+      path: ".github/workflows/release.yml",
+      event: "workflow_run",
+      status: $status,
+      conclusion: (if $conclusion == "null" then null else $conclusion end),
+      repository: {full_name: "CraigDevJohnson/portfolio"},
+      head_repository: {full_name: "CraigDevJohnson/portfolio"}
+    }'
+}
+
+review_approvals_json() {
+  jq -nc '[{
+    state: "approved",
+    environments: [{name: "release-review"}],
+    user: {login: "CraigDevJohnson", id: 42454849, type: "User"}
+  }]'
+}
+
+set_review_provenance() {
+  FAKE_REVIEW_RUN_JSON=$(review_run_json "$@")
+  FAKE_REVIEW_APPROVALS_JSON=$(review_approvals_json)
+  export FAKE_REVIEW_RUN_JSON FAKE_REVIEW_APPROVALS_JSON
+}
+
 FAKE_MAIN_SHA=$source_sha
 export FAKE_MAIN_SHA
 sh "$root_dir/scripts/check-current-main.sh" "$source_sha"
@@ -167,6 +279,603 @@ if sh "$root_dir/scripts/resolve-reviewed-release-base.sh" "$source_sha" > /dev/
   echo 'unreviewed source commit was accepted' >&2
   exit 1
 fi
+
+review_repo="$test_dir/review-repository"
+mkdir -p "$review_repo/.github/workflows"
+git -C "$review_repo" init -q
+git -C "$review_repo" config user.email test@example.com
+git -C "$review_repo" config user.name Test
+echo release > "$review_repo/.github/workflows/release.yml"
+git -C "$review_repo" add .
+git -C "$review_repo" commit -qm development-base
+review_development_base=$(git -C "$review_repo" rev-parse HEAD)
+echo checkpoint >> "$review_repo/.github/workflows/release.yml"
+git -C "$review_repo" commit -qam review-checkpoint
+review_source=$(git -C "$review_repo" rev-parse HEAD)
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$review_development_base" "$review_source")
+FAKE_REVIEW_STATUSES_JSON=$(review_status_json "$review_development_base" "$review_source")
+FAKE_PULLS_JSON=$(reviewed_pull_json "$review_source" "$review_development_base")
+set_review_provenance "$review_source"
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON FAKE_PULLS_JSON
+resolved_review_base=$(cd "$review_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_source" "$review_development_base")
+test "$resolved_review_base" = "$review_source" || {
+  echo 'trusted release review did not advance the backlog cursor' >&2
+  exit 1
+}
+
+FAKE_REVIEW_APPROVALS_JSON='[]'
+export FAKE_REVIEW_APPROVALS_JSON
+resolved_review_base=$(cd "$review_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_source" "$review_development_base" 2> /dev/null)
+if [ "$resolved_review_base" != "$review_development_base" ]; then
+  echo 'release review resolver trusted a run without Craig release-review approval' >&2
+  exit 1
+fi
+set_review_provenance "$review_source"
+
+set_review_provenance "$review_source" 9001 2
+if sh "$root_dir/scripts/validate-release-review-run.sh" \
+  9001 2 "$review_source" completed > /dev/null 2>&1; then
+  echo 'release review validator accepted a later run attempt with reusable approval history' >&2
+  exit 1
+fi
+set_review_provenance "$review_source"
+if sh "$root_dir/scripts/validate-release-review-run.sh" \
+  invalid-run 1 "$review_source" completed > /dev/null 2>&1; then
+  echo 'release review validator accepted an invalid run ID' >&2
+  exit 1
+fi
+trusted_review_run=$(review_run_json "$review_source")
+while IFS='|' read -r invalid_run_label invalid_run_filter; do
+  FAKE_REVIEW_RUN_JSON=$(printf '%s\n' "$trusted_review_run" | jq -c "$invalid_run_filter")
+  export FAKE_REVIEW_RUN_JSON
+  if sh "$root_dir/scripts/validate-release-review-run.sh" \
+    9001 1 "$review_source" completed > /dev/null 2>&1; then
+    echo "release review validator accepted a mismatched $invalid_run_label" >&2
+    exit 1
+  fi
+done << EOF
+run ID|.id = 9002
+attempt|.run_attempt = 2
+workflow ID|.workflow_id = 1
+source SHA|.head_sha = "$other_sha"
+branch|.head_branch = "feature"
+workflow path|.path = ".github/workflows/other.yml"
+event|.event = "push"
+status|.status = "in_progress"
+conclusion|.conclusion = "failure"
+repository|.repository.full_name = "Other/repository"
+head repository|.head_repository.full_name = "Other/repository"
+EOF
+set_review_provenance "$review_source"
+FAKE_REVIEW_APPROVALS_JSON=$(review_approvals_json | jq -c '.[0].user.id = 1')
+export FAKE_REVIEW_APPROVALS_JSON
+if sh "$root_dir/scripts/validate-release-review-run.sh" \
+  9001 1 "$review_source" completed > /dev/null 2>&1; then
+  echo 'release review validator accepted approval from the wrong reviewer ID' >&2
+  exit 1
+fi
+set_review_provenance "$review_source"
+
+review_deployment=$(review_deployment_pages_json \
+  "$review_development_base" "$review_source" | jq -c '.[0][0]')
+review_status=$(review_status_json \
+  "$review_development_base" "$review_source" | jq -c '.[0]')
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(jq -nc \
+  --argjson deployment "$review_deployment" '[[],[$deployment]]')
+FAKE_REVIEW_STATUS_PAGES_JSON=$(jq -nc \
+  --argjson status "$review_status" '[[],[$status]]')
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUS_PAGES_JSON
+resolved_review_base=$(cd "$review_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_source" "$review_development_base")
+test "$resolved_review_base" = "$review_source" || {
+  echo 'release review resolver ignored a trusted candidate on page two' >&2
+  exit 1
+}
+
+newer_failed_review_status=$(printf '%s\n' "$review_status" | jq -c '
+  .id = 185 |
+  .created_at = "2026-08-30T00:04:00Z" |
+  .state = "failure" |
+  .description = "Release review failed"
+')
+FAKE_REVIEW_STATUS_PAGES_JSON=$(jq -nc \
+  --argjson success "$review_status" \
+  --argjson failure "$newer_failed_review_status" '[[$success],[$failure]]')
+export FAKE_REVIEW_STATUS_PAGES_JSON
+resolved_review_base=$(cd "$review_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_source" "$review_development_base")
+test "$resolved_review_base" = "$review_development_base" || {
+  echo 'release review resolver let an older success override the newest failure' >&2
+  exit 1
+}
+
+FAKE_REVIEW_STATUS_PAGES_JSON=$(jq -nc --argjson status "$review_status" '[[$status]]')
+FAKE_REVIEW_RUN_JSON=$(review_run_json "$review_source" 9001 1 completed failure)
+export FAKE_REVIEW_STATUS_PAGES_JSON FAKE_REVIEW_RUN_JSON
+resolved_review_base=$(cd "$review_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_source" "$review_development_base" 2> /dev/null)
+test "$resolved_review_base" = "$review_development_base" || {
+  echo 'failed release run poisoned review backlog recovery' >&2
+  exit 1
+}
+set_review_provenance "$review_source"
+
+assert_review_pages_fail() {
+  malformed_page_label=$1
+  if (cd "$review_repo" &&
+    sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+      "$review_source" "$review_development_base" > /dev/null 2>&1); then
+    echo "release review resolver accepted $malformed_page_label" >&2
+    exit 1
+  fi
+}
+
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON='[{}]'
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+assert_review_pages_fail 'a malformed deployment page shape'
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(jq -nc \
+  --argjson deployment "$review_deployment" '[[$deployment],[$deployment]]')
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+assert_review_pages_fail 'duplicate deployment IDs across pages'
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(jq -nc \
+  --argjson deployment "$review_deployment" '[[$deployment]]')
+FAKE_REVIEW_STATUS_PAGES_JSON='[{}]'
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUS_PAGES_JSON
+assert_review_pages_fail 'a malformed status page shape'
+FAKE_REVIEW_STATUS_PAGES_JSON=$(jq -nc \
+  --argjson status "$review_status" '[[$status],[$status]]')
+export FAKE_REVIEW_STATUS_PAGES_JSON
+assert_review_pages_fail 'duplicate status IDs across pages'
+unset FAKE_REVIEW_STATUS_PAGES_JSON
+
+laundering_repo="$test_dir/review-laundering-repository"
+mkdir -p "$laundering_repo/.github/workflows" "$laundering_repo/internal/app"
+git -C "$laundering_repo" init -q
+git -C "$laundering_repo" config user.email test@example.com
+git -C "$laundering_repo" config user.name Test
+echo release > "$laundering_repo/.github/workflows/release.yml"
+echo deployed > "$laundering_repo/internal/app/app.go"
+git -C "$laundering_repo" add .
+git -C "$laundering_repo" commit -qm development-base
+laundering_development_base=$(git -C "$laundering_repo" rev-parse HEAD)
+echo pending-runtime >> "$laundering_repo/internal/app/app.go"
+git -C "$laundering_repo" commit -qam pending-runtime
+laundering_pull_base=$(git -C "$laundering_repo" rev-parse HEAD)
+echo checkpoint >> "$laundering_repo/.github/workflows/release.yml"
+git -C "$laundering_repo" commit -qam review-checkpoint
+laundering_source=$(git -C "$laundering_repo" rev-parse HEAD)
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$laundering_development_base" "$laundering_source")
+FAKE_REVIEW_STATUSES_JSON=$(review_status_json \
+  "$laundering_development_base" "$laundering_source")
+FAKE_PULLS_JSON=$(reviewed_pull_json "$laundering_source" "$laundering_pull_base")
+set_review_provenance "$laundering_source"
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON FAKE_PULLS_JSON
+if (cd "$laundering_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$laundering_source" "$laundering_development_base" > /dev/null 2>&1); then
+  echo 'release review checkpoint laundered an undeployed runtime change' >&2
+  exit 1
+fi
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+
+review_authorization_repo="$test_dir/review-authorization-repository"
+mkdir -p "$review_authorization_repo/.github/workflows"
+git -C "$review_authorization_repo" init -q
+git -C "$review_authorization_repo" config user.email test@example.com
+git -C "$review_authorization_repo" config user.name Test
+echo release > "$review_authorization_repo/.github/workflows/release.yml"
+git -C "$review_authorization_repo" add .
+git -C "$review_authorization_repo" commit -qm release-epoch
+review_authorization_base=$(git -C "$review_authorization_repo" rev-parse HEAD)
+echo checkpoint >> "$review_authorization_repo/.github/workflows/release.yml"
+git -C "$review_authorization_repo" commit -qam review-checkpoint
+review_authorization_source=$(git -C "$review_authorization_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$review_authorization_source
+FAKE_PULLS_JSON=$(reviewed_pull_json \
+  "$review_authorization_source" "$review_authorization_base")
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+review_authorization_output="$test_dir/review-authorization-output"
+export FAKE_MAIN_SHA FAKE_PULLS_JSON FAKE_DEPLOYMENT_PAGES_JSON
+(cd "$review_authorization_repo" &&
+  EVENT_SHA="$review_authorization_source" GITHUB_OUTPUT="$review_authorization_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh")
+grep -Fqx "base_sha=$review_authorization_base" "$review_authorization_output"
+grep -Fqx "development_base_sha=$review_authorization_base" "$review_authorization_output"
+grep -Fqx 'classification=review' "$review_authorization_output"
+
+review_record_log="$test_dir/release-review-record.log"
+: > "$review_record_log"
+FAKE_GH_LOG=$review_record_log
+FAKE_MAIN_SHA=$review_authorization_source
+FAKE_PULLS_JSON=$(reviewed_pull_json \
+  "$review_authorization_source" "$review_authorization_base")
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+set_review_provenance "$review_authorization_source" 9001 1 in_progress null
+export FAKE_GH_LOG FAKE_MAIN_SHA FAKE_PULLS_JSON FAKE_DEPLOYMENT_PAGES_JSON
+(cd "$review_authorization_repo" &&
+  SOURCE_SHA="$review_authorization_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh")
+grep -Fq -- '-f task=portfolio-lambda-release-review' "$review_record_log"
+grep -Fq -- '-f environment=release-review' "$review_record_log"
+grep -Fq -- "-f ref=$review_authorization_source" "$review_record_log"
+grep -Fq -- '-f state=success' "$review_record_log"
+grep -Fq -- '/actions/runs/9001/attempts/1' "$review_record_log"
+grep -Fq -- '/actions/runs/9001/approvals' "$review_record_log"
+review_run_check_line=$(awk '/\/actions\/runs\/9001\/attempts\/1/ {print NR; exit}' \
+  "$review_record_log")
+review_deployment_post_line=$(awk '/--method POST .*\/deployments / {print NR; exit}' \
+  "$review_record_log")
+test "$review_run_check_line" -lt "$review_deployment_post_line"
+if grep -Eq '(^| )aws( |$)|id-token|AWS_' "$review_record_log"; then
+  echo 'release review recorder requested AWS authority' >&2
+  exit 1
+fi
+unset FAKE_GH_LOG
+
+FAKE_REVIEW_DEPLOYMENT_CREATED_AT=not-a-github-timestamp
+export FAKE_REVIEW_DEPLOYMENT_CREATED_AT
+if (cd "$review_authorization_repo" &&
+  SOURCE_SHA="$review_authorization_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh" > /dev/null 2>&1); then
+  echo 'release review recorder accepted a deployment response without a strict created_at' >&2
+  exit 1
+fi
+unset FAKE_REVIEW_DEPLOYMENT_CREATED_AT
+
+FAKE_REVIEW_STATUS_CREATED_AT=not-a-github-timestamp
+export FAKE_REVIEW_STATUS_CREATED_AT
+if (cd "$review_authorization_repo" &&
+  SOURCE_SHA="$review_authorization_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh" > /dev/null 2>&1); then
+  echo 'release review recorder accepted a status response without a strict created_at' >&2
+  exit 1
+fi
+unset FAKE_REVIEW_STATUS_CREATED_AT
+
+stale_review_log="$test_dir/stale-release-review.log"
+stale_review_marker="$test_dir/stale-release-review-main-advanced"
+: > "$stale_review_log"
+rm -f "$stale_review_marker"
+FAKE_GH_LOG=$stale_review_log
+FAKE_MAIN_SHA=$review_authorization_source
+FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER=$stale_review_marker
+FAKE_MAIN_SHA_AFTER_REVIEW_DEPLOYMENT=$review_authorization_base
+export FAKE_GH_LOG FAKE_MAIN_SHA FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER
+export FAKE_MAIN_SHA_AFTER_REVIEW_DEPLOYMENT
+if (cd "$review_authorization_repo" &&
+  SOURCE_SHA="$review_authorization_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh" > /dev/null 2>&1); then
+  echo 'release review recorder succeeded after main advanced' >&2
+  exit 1
+fi
+grep -Fq -- '-f task=portfolio-lambda-release-review' "$stale_review_log"
+if grep -Fq -- '-f state=success' "$stale_review_log"; then
+  echo 'stale release review recorded a success status' >&2
+  exit 1
+fi
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$review_authorization_base" "$review_authorization_source")
+FAKE_REVIEW_STATUSES_JSON='[]'
+FAKE_PULLS_JSON=$(reviewed_pull_json \
+  "$review_authorization_source" "$review_authorization_base")
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON FAKE_PULLS_JSON
+resolved_review_base=$(cd "$review_authorization_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$review_authorization_source" "$review_authorization_base")
+test "$resolved_review_base" = "$review_authorization_base" || {
+  echo 'release review resolver trusted a deployment without success' >&2
+  exit 1
+}
+unset FAKE_GH_LOG FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER
+unset FAKE_MAIN_SHA_AFTER_REVIEW_DEPLOYMENT
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+
+mixed_promotion_repo="$test_dir/mixed-promotion-review-repository"
+mkdir -p "$mixed_promotion_repo/.github/workflows" "$mixed_promotion_repo/deploy"
+git -C "$mixed_promotion_repo" init -q
+git -C "$mixed_promotion_repo" config user.email test@example.com
+git -C "$mixed_promotion_repo" config user.name Test
+echo release > "$mixed_promotion_repo/.github/workflows/release.yml"
+echo '{"schema_version":1}' > "$mixed_promotion_repo/deploy/production-release.json"
+git -C "$mixed_promotion_repo" add .
+git -C "$mixed_promotion_repo" commit -qm release-epoch
+mixed_promotion_base=$(git -C "$mixed_promotion_repo" rev-parse HEAD)
+echo checkpoint >> "$mixed_promotion_repo/.github/workflows/release.yml"
+echo '{"schema_version":1,"reviewed":true}' \
+  > "$mixed_promotion_repo/deploy/production-release.json"
+git -C "$mixed_promotion_repo" commit -qam mixed-promotion-review
+mixed_promotion_source=$(git -C "$mixed_promotion_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$mixed_promotion_source
+FAKE_PULLS_JSON=$(reviewed_pull_json "$mixed_promotion_source" "$mixed_promotion_base")
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+mixed_promotion_output="$test_dir/mixed-promotion-review-output"
+export FAKE_MAIN_SHA FAKE_PULLS_JSON FAKE_DEPLOYMENT_PAGES_JSON
+if (cd "$mixed_promotion_repo" &&
+  EVENT_SHA="$mixed_promotion_source" GITHUB_OUTPUT="$mixed_promotion_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh" > /dev/null 2>&1); then
+  echo 'release review authorization checkpointed a current mixed promotion' >&2
+  exit 1
+fi
+mixed_promotion_log="$test_dir/mixed-promotion-review.log"
+: > "$mixed_promotion_log"
+FAKE_GH_LOG=$mixed_promotion_log
+export FAKE_GH_LOG
+if (cd "$mixed_promotion_repo" &&
+  SOURCE_SHA="$mixed_promotion_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh" > /dev/null 2>&1); then
+  echo 'release review recorder checkpointed a current mixed promotion' >&2
+  exit 1
+fi
+if grep -Fq -- '--method POST' "$mixed_promotion_log"; then
+  echo 'release review recorder wrote a deployment for a mixed promotion' >&2
+  exit 1
+fi
+unset FAKE_GH_LOG
+
+echo later-review >> "$mixed_promotion_repo/.github/workflows/release.yml"
+git -C "$mixed_promotion_repo" commit -qam later-clean-review
+delayed_promotion_source=$(git -C "$mixed_promotion_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$delayed_promotion_source
+FAKE_PULLS_JSON=$(reviewed_pull_json "$delayed_promotion_source" "$mixed_promotion_source")
+delayed_promotion_output="$test_dir/delayed-promotion-review-output"
+export FAKE_MAIN_SHA FAKE_PULLS_JSON
+if (cd "$mixed_promotion_repo" &&
+  EVENT_SHA="$delayed_promotion_source" GITHUB_OUTPUT="$delayed_promotion_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh" > /dev/null 2>&1); then
+  echo 'later release review checkpoint laundered a prior mixed promotion' >&2
+  exit 1
+fi
+delayed_promotion_log="$test_dir/delayed-promotion-review.log"
+: > "$delayed_promotion_log"
+FAKE_GH_LOG=$delayed_promotion_log
+export FAKE_GH_LOG
+if (cd "$mixed_promotion_repo" &&
+  SOURCE_SHA="$delayed_promotion_source" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh" > /dev/null 2>&1); then
+  echo 'later release review recorder laundered a prior mixed promotion' >&2
+  exit 1
+fi
+if grep -Fq -- '--method POST' "$delayed_promotion_log"; then
+  echo 'later release review recorder wrote past a prior mixed promotion' >&2
+  exit 1
+fi
+unset FAKE_GH_LOG
+
+reviewed_runtime_repo="$test_dir/reviewed-runtime-repository"
+mkdir -p "$reviewed_runtime_repo/.github/workflows" "$reviewed_runtime_repo/internal/app"
+git -C "$reviewed_runtime_repo" init -q
+git -C "$reviewed_runtime_repo" config user.email test@example.com
+git -C "$reviewed_runtime_repo" config user.name Test
+echo release > "$reviewed_runtime_repo/.github/workflows/release.yml"
+git -C "$reviewed_runtime_repo" add .
+git -C "$reviewed_runtime_repo" commit -qm release-epoch
+reviewed_runtime_development_base=$(git -C "$reviewed_runtime_repo" rev-parse HEAD)
+echo checkpoint >> "$reviewed_runtime_repo/.github/workflows/release.yml"
+git -C "$reviewed_runtime_repo" commit -qam review-checkpoint
+reviewed_runtime_checkpoint=$(git -C "$reviewed_runtime_repo" rev-parse HEAD)
+echo runtime > "$reviewed_runtime_repo/internal/app/app.go"
+git -C "$reviewed_runtime_repo" add .
+git -C "$reviewed_runtime_repo" commit -qm runtime
+reviewed_runtime_source=$(git -C "$reviewed_runtime_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$reviewed_runtime_source
+FAKE_PULLS_JSON=$(reviewed_pull_json \
+  "$reviewed_runtime_source" "$reviewed_runtime_checkpoint")
+FAKE_REVIEW_SOURCE_SHA=$reviewed_runtime_checkpoint
+FAKE_REVIEW_PULLS_JSON=$(reviewed_pull_json \
+  "$reviewed_runtime_checkpoint" "$reviewed_runtime_development_base")
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$reviewed_runtime_development_base" "$reviewed_runtime_checkpoint")
+FAKE_REVIEW_STATUSES_JSON=$(review_status_json \
+  "$reviewed_runtime_development_base" "$reviewed_runtime_checkpoint")
+set_review_provenance "$reviewed_runtime_checkpoint"
+reviewed_runtime_output="$test_dir/reviewed-runtime-authorization-output"
+export FAKE_MAIN_SHA FAKE_PULLS_JSON FAKE_REVIEW_SOURCE_SHA FAKE_REVIEW_PULLS_JSON
+export FAKE_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+(cd "$reviewed_runtime_repo" &&
+  EVENT_SHA="$reviewed_runtime_source" GITHUB_OUTPUT="$reviewed_runtime_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh")
+grep -Fqx "base_sha=$reviewed_runtime_checkpoint" "$reviewed_runtime_output"
+grep -Fqx "development_base_sha=$reviewed_runtime_development_base" "$reviewed_runtime_output"
+grep -Fqx 'classification=development' "$reviewed_runtime_output"
+unset FAKE_REVIEW_SOURCE_SHA FAKE_REVIEW_PULLS_JSON
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+
+ancestry_repo="$test_dir/review-ancestry-repository"
+mkdir -p "$ancestry_repo/.github/workflows"
+git -C "$ancestry_repo" init -q
+git -C "$ancestry_repo" config user.email test@example.com
+git -C "$ancestry_repo" config user.name Test
+echo release > "$ancestry_repo/.github/workflows/release.yml"
+git -C "$ancestry_repo" add .
+git -C "$ancestry_repo" commit -qm development-base
+ancestry_development_base=$(git -C "$ancestry_repo" rev-parse HEAD)
+echo first >> "$ancestry_repo/.github/workflows/release.yml"
+git -C "$ancestry_repo" commit -qam first-review
+ancestry_first_review=$(git -C "$ancestry_repo" rev-parse HEAD)
+echo second >> "$ancestry_repo/.github/workflows/release.yml"
+git -C "$ancestry_repo" commit -qam second-review
+ancestry_second_review=$(git -C "$ancestry_repo" rev-parse HEAD)
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(jq -nc \
+  --arg base "$ancestry_development_base" \
+  --arg first "$ancestry_first_review" \
+  --arg second "$ancestry_second_review" '[[
+    {
+      id: 84, ref: $first, sha: $first,
+      task: "portfolio-lambda-release-review", environment: "release-review",
+      description: ("Release review " + $base + ".." + $first + " run 9001/1"),
+      created_at: "2026-08-30T00:05:00Z",
+      creator: {login: "github-actions[bot]", type: "Bot"}
+    },
+    {
+      id: 85, ref: $second, sha: $second,
+      task: "portfolio-lambda-release-review", environment: "release-review",
+      description: ("Release review " + $base + ".." + $second + " run 9002/1"),
+      created_at: "2026-08-30T00:04:00Z",
+      creator: {login: "github-actions[bot]", type: "Bot"}
+    }
+  ]]')
+ancestry_first_status=$(review_status_object_json \
+  "$ancestry_development_base" "$ancestry_first_review" 184 2026-08-30T00:06:00Z 9001 1)
+ancestry_second_status=$(review_status_object_json \
+  "$ancestry_development_base" "$ancestry_second_review" 185 2026-08-30T00:05:00Z 9002 1)
+FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON=$(jq -nc \
+  --argjson first "$ancestry_first_status" \
+  --argjson second "$ancestry_second_status" \
+  '{"84":[$first],"85":[$second]}')
+FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+  --arg first "$ancestry_first_review" \
+  --arg first_base "$ancestry_development_base" \
+  --arg second "$ancestry_second_review" \
+  --arg second_base "$ancestry_first_review" \
+  --argjson first_pull "$(reviewed_pull_json \
+    "$ancestry_first_review" "$ancestry_development_base")" \
+  --argjson second_pull "$(reviewed_pull_json \
+    "$ancestry_second_review" "$ancestry_first_review")" \
+  '{($first):$first_pull,($second):$second_pull}')
+FAKE_REVIEW_RUNS_BY_ID_JSON=$(jq -nc \
+  --argjson first "$(review_run_json "$ancestry_first_review" 9001)" \
+  --argjson second "$(review_run_json "$ancestry_second_review" 9002)" \
+  '{"9001":$first,"9002":$second}')
+FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON=$(jq -nc \
+  --argjson approval "$(review_approvals_json)" \
+  '{"9001":$approval,"9002":$approval}')
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON
+export FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_RUNS_BY_ID_JSON
+export FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON
+resolved_review_base=$(cd "$ancestry_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$ancestry_second_review" "$ancestry_development_base")
+test "$resolved_review_base" = "$ancestry_second_review" || {
+  echo 'release review cursor was selected by API timestamp instead of Git ancestry' >&2
+  exit 1
+}
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON
+unset FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_RUNS_BY_ID_JSON
+unset FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON
+
+divergent_repo="$test_dir/divergent-review-repository"
+mkdir -p "$divergent_repo/.github/workflows"
+git -C "$divergent_repo" init -q
+git -C "$divergent_repo" config user.email test@example.com
+git -C "$divergent_repo" config user.name Test
+echo release > "$divergent_repo/.github/workflows/release.yml"
+git -C "$divergent_repo" add .
+git -C "$divergent_repo" commit -qm development-base
+divergent_development_base=$(git -C "$divergent_repo" rev-parse HEAD)
+divergent_default_branch=$(git -C "$divergent_repo" branch --show-current)
+git -C "$divergent_repo" branch second-review
+echo first > "$divergent_repo/.github/workflows/first.yml"
+git -C "$divergent_repo" add .
+git -C "$divergent_repo" commit -qm first-review
+divergent_first_review=$(git -C "$divergent_repo" rev-parse HEAD)
+git -C "$divergent_repo" checkout -q second-review
+echo second > "$divergent_repo/.github/workflows/second.yml"
+git -C "$divergent_repo" add .
+git -C "$divergent_repo" commit -qm second-review
+divergent_second_review=$(git -C "$divergent_repo" rev-parse HEAD)
+git -C "$divergent_repo" checkout -q "$divergent_default_branch"
+git -C "$divergent_repo" merge -q --no-ff second-review -m combined-source
+divergent_source=$(git -C "$divergent_repo" rev-parse HEAD)
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(jq -nc \
+  --arg base "$divergent_development_base" \
+  --arg first "$divergent_first_review" \
+  --arg second "$divergent_second_review" '[[
+    {
+      id: 84, ref: $first, sha: $first,
+      task: "portfolio-lambda-release-review", environment: "release-review",
+      description: ("Release review " + $base + ".." + $first + " run 9001/1"),
+      created_at: "2026-08-30T00:04:00Z",
+      creator: {login: "github-actions[bot]", type: "Bot"}
+    },
+    {
+      id: 85, ref: $second, sha: $second,
+      task: "portfolio-lambda-release-review", environment: "release-review",
+      description: ("Release review " + $base + ".." + $second + " run 9002/1"),
+      created_at: "2026-08-30T00:05:00Z",
+      creator: {login: "github-actions[bot]", type: "Bot"}
+    }
+  ]]')
+divergent_first_status=$(review_status_object_json \
+  "$divergent_development_base" "$divergent_first_review" 184 \
+  2026-08-30T00:03:00Z 9001 1)
+divergent_second_status=$(review_status_object_json \
+  "$divergent_development_base" "$divergent_second_review" 185 \
+  2026-08-30T00:03:00Z 9002 1)
+FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON=$(jq -nc \
+  --argjson first "$divergent_first_status" \
+  --argjson second "$divergent_second_status" \
+  '{"84":[$first],"85":[$second]}')
+FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+  --arg first "$divergent_first_review" \
+  --arg second "$divergent_second_review" \
+  --argjson first_pull "$(reviewed_pull_json \
+    "$divergent_first_review" "$divergent_development_base")" \
+  --argjson second_pull "$(reviewed_pull_json \
+    "$divergent_second_review" "$divergent_development_base")" \
+  '{($first):$first_pull,($second):$second_pull}')
+FAKE_REVIEW_RUNS_BY_ID_JSON=$(jq -nc \
+  --argjson first "$(review_run_json "$divergent_first_review" 9001)" \
+  --argjson second "$(review_run_json "$divergent_second_review" 9002)" \
+  '{"9001":$first,"9002":$second}')
+FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON=$(jq -nc \
+  --argjson approval "$(review_approvals_json)" \
+  '{"9001":$approval,"9002":$approval}')
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON
+export FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_RUNS_BY_ID_JSON
+export FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON
+if (cd "$divergent_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$divergent_source" "$divergent_development_base" > /dev/null 2>&1); then
+  echo 'release review resolver accepted divergent trusted checkpoints' >&2
+  exit 1
+fi
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON
+unset FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_RUNS_BY_ID_JSON
+unset FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON
+
+obsolete_repo="$test_dir/obsolete-review-repository"
+mkdir -p "$obsolete_repo/.github/workflows" "$obsolete_repo/internal/app"
+git -C "$obsolete_repo" init -q
+git -C "$obsolete_repo" config user.email test@example.com
+git -C "$obsolete_repo" config user.name Test
+echo release > "$obsolete_repo/.github/workflows/release.yml"
+git -C "$obsolete_repo" add .
+git -C "$obsolete_repo" commit -qm development-base
+obsolete_original_base=$(git -C "$obsolete_repo" rev-parse HEAD)
+echo review >> "$obsolete_repo/.github/workflows/release.yml"
+git -C "$obsolete_repo" commit -qam review-checkpoint
+obsolete_review=$(git -C "$obsolete_repo" rev-parse HEAD)
+echo deployed > "$obsolete_repo/internal/app/app.go"
+git -C "$obsolete_repo" add .
+git -C "$obsolete_repo" commit -qm newer-development
+obsolete_development_base=$(git -C "$obsolete_repo" rev-parse HEAD)
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$obsolete_original_base" "$obsolete_review")
+FAKE_REVIEW_STATUSES_JSON='not-valid-status-json'
+FAKE_PULLS_JSON=$(reviewed_pull_json "$obsolete_review" "$obsolete_original_base")
+FAKE_REVIEW_RUN_JSON='not-valid-run-json'
+FAKE_REVIEW_APPROVALS_JSON='not-valid-approval-json'
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON FAKE_PULLS_JSON
+export FAKE_REVIEW_RUN_JSON FAKE_REVIEW_APPROVALS_JSON
+resolved_review_base=$(cd "$obsolete_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$obsolete_development_base" "$obsolete_development_base")
+test "$resolved_review_base" = "$obsolete_development_base" || {
+  echo 'obsolete release review checkpoint rewound the development cursor' >&2
+  exit 1
+}
+unset FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+set_review_provenance "$review_source"
 
 manifest="$test_dir/production-release.json"
 jq -n --arg source_sha "$source_sha" --arg image_digest "$image_digest" \
@@ -469,6 +1178,132 @@ git -C "$tmp" commit -qm rename-infra-to-internal
 head=$(git -C "$tmp" rev-parse HEAD)
 test "$(cd "$tmp" && sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head")" = review
 
+assert_runtime_change() {
+  runtime_base=$1
+  runtime_head=$2
+  runtime_label=$3
+  for runtime_scope in current development-backlog release-review release-review-current; do
+    runtime_classification=$(cd "$tmp" &&
+      sh "$root_dir/scripts/classify-release-change.sh" \
+        "$runtime_base" "$runtime_head" "$runtime_scope")
+    [ "$runtime_classification" = development ] || {
+      echo "$runtime_label was not runtime in $runtime_scope scope" >&2
+      exit 1
+    }
+  done
+}
+
+base=$head
+echo 'go 1.25.0' > "$tmp/go.work"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-workspace
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" go.work
+base=$head
+echo checksum > "$tmp/go.work.sum"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-workspace-sum
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" go.work.sum
+base=$head
+mkdir -p "$tmp/vendor/example.invalid/module"
+echo vendored > "$tmp/vendor/example.invalid/module/module.go"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-vendor-input
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" vendor
+base=$head
+mkdir -p "$tmp/cmd/web/static"
+echo embedded > "$tmp/cmd/web/static/runtime.md"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-embedded-markdown
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" cmd-web-static-markdown
+base=$head
+echo embedded > "$tmp/cmd/web/static/runtime asset.txt"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-runtime-path-with-space
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" runtime-path-with-space
+base=$head
+mkdir -p "$tmp/pkg"
+echo runtime > "$tmp/pkg/foo.go"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-unknown-go-build-input
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" pkg-go-input
+base=$head
+mkdir -p "$tmp/pkg/embed"
+echo embedded > "$tmp/pkg/embed/data.bin"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-unknown-embedded-build-input
+head=$(git -C "$tmp" rev-parse HEAD)
+assert_runtime_change "$base" "$head" pkg-embedded-input
+base=$head
+echo review > "$tmp/.github/workflows/review-only.yml"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-known-review-input
+head=$(git -C "$tmp" rev-parse HEAD)
+for review_scope in current development-backlog release-review release-review-current; do
+  review_classification=$(cd "$tmp" &&
+    sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head" "$review_scope")
+  [ "$review_classification" = review ] || {
+    echo "known workflow change was not review-only in $review_scope scope" >&2
+    exit 1
+  }
+done
+base=$head
+mkdir -p "$tmp/chrome-extension"
+echo excluded > "$tmp/chrome-extension/manifest.json"
+git -C "$tmp" add .
+git -C "$tmp" commit -qm add-unknown-excluded-path
+head=$(git -C "$tmp" rev-parse HEAD)
+for ordinary_scope in current development-backlog; do
+  ordinary_classification=$(cd "$tmp" &&
+    sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head" "$ordinary_scope")
+  [ "$ordinary_classification" = review ] || {
+    echo "unknown excluded path did not fail closed in $ordinary_scope scope" >&2
+    exit 1
+  }
+done
+for checkpoint_scope in release-review release-review-current; do
+  checkpoint_classification=$(cd "$tmp" &&
+    sh "$root_dir/scripts/classify-release-change.sh" "$base" "$head" "$checkpoint_scope")
+  [ "$checkpoint_classification" = development ] || {
+    echo "unknown path was checkpointable in $checkpoint_scope scope" >&2
+    exit 1
+  }
+done
+
+weird_filename_repo="$test_dir/weird-filename-repository"
+mkdir -p "$weird_filename_repo/cmd"
+git -C "$weird_filename_repo" init -q
+git -C "$weird_filename_repo" config user.email test@example.com
+git -C "$weird_filename_repo" config user.name Test
+echo base > "$weird_filename_repo/README.md"
+git -C "$weird_filename_repo" add .
+git -C "$weird_filename_repo" commit -qm base
+weird_filename_base=$(git -C "$weird_filename_repo" rev-parse HEAD)
+newline_runtime_path=$(printf 'cmd/runtime\nname.go')
+tab_runtime_path=$(printf 'cmd/runtime\tname.go')
+backslash_runtime_path='cmd/runtime\name.go'
+printf 'runtime\n' > "$weird_filename_repo/$newline_runtime_path"
+printf 'runtime\n' > "$weird_filename_repo/$tab_runtime_path"
+printf 'runtime\n' > "$weird_filename_repo/$backslash_runtime_path"
+git -C "$weird_filename_repo" add .
+git -C "$weird_filename_repo" commit -qm weird-runtime-paths
+weird_filename_head=$(git -C "$weird_filename_repo" rev-parse HEAD)
+for classification_scope in current development-backlog release-review release-review-current; do
+  if classification=$(cd "$weird_filename_repo" &&
+    sh "$root_dir/scripts/classify-release-change.sh" \
+      "$weird_filename_base" "$weird_filename_head" "$classification_scope" 2> /dev/null); then
+    [ "$classification" != review ] || {
+      echo "C-quoted runtime paths were reviewable in $classification_scope scope" >&2
+      exit 1
+    }
+  fi
+done
+
 durable_repo="$test_dir/durable-repository"
 mkdir -p "$durable_repo"
 git -C "$durable_repo" init -q
@@ -721,6 +1556,7 @@ assert_before() {
 }
 
 authorize_job=$(workflow_job authorize)
+release_review_job=$(workflow_job release-review)
 build_job=$(workflow_job build)
 development_job=$(workflow_job development)
 production_job=$(workflow_job production-plan)
@@ -729,6 +1565,9 @@ literal_dollar='$'
 grep -Fxq 'permissions: {}' "$root_dir/.github/workflows/release.yml"
 grep -Fq '    timeout-minutes: 10' << EOF
 $authorize_job
+EOF
+grep -Fq '    timeout-minutes: 10' << EOF
+$release_review_job
 EOF
 grep -Fq '    timeout-minutes: 45' << EOF
 $build_job
@@ -742,6 +1581,9 @@ EOF
 grep -Fq '    contents: read' << EOF
 $authorize_job
 EOF
+grep -Fq '    actions: read' << EOF
+$authorize_job
+EOF
 grep -Fq '    pull-requests: read' << EOF
 $authorize_job
 EOF
@@ -753,6 +1595,34 @@ $authorize_job
 EOF
 then
   echo 'authorize job can mint AWS credentials or write deployments' >&2
+  exit 1
+fi
+if grep -Fq '    actions: read' << EOF
+$build_job
+$development_job
+$production_job
+EOF
+then
+  echo 'AWS release jobs received unnecessary Actions read authority' >&2
+  exit 1
+fi
+grep -Fq '    environment: release-review' << EOF
+$release_review_job
+EOF
+grep -Fq '    deployments: write' << EOF
+$release_review_job
+EOF
+grep -Fq '    actions: read' << EOF
+$release_review_job
+EOF
+grep -Fq '    pull-requests: read' << EOF
+$release_review_job
+EOF
+if grep -Eq 'id-token: write|aws-actions/configure-aws-credentials|AWS_[A-Z_]+_ROLE_ARN' << EOF
+$release_review_job
+EOF
+then
+  echo 'release review job can request AWS authority' >&2
   exit 1
 fi
 grep -Fq '    id-token: write' << EOF
@@ -795,8 +1665,23 @@ if grep -Eq 'aws .*iam get-role' "$root_dir/infra/lambda/ci-roles/README.md"; th
   exit 1
 fi
 grep -Fq 'lambda-ci-roles-verify' "$root_dir/AGENTS.md"
+grep -Fq 'protected `release-review` GitHub Environment' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'receives no AWS credentials' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'backlog cursor only' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'exact first attempt of the Release workflow' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'environment-review history' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'Failed or cancelled run markers are ignored' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq '`deploy/production-release.json` change' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
 for task_name in \
   lambda-ci-authorize-release \
+  lambda-ci-record-release-review \
   lambda-ci-check-current-main \
   lambda-ci-check-aws-identity \
   lambda-ci-build-release-image \
@@ -810,9 +1695,28 @@ if grep -Eq 'run: \||^[[:space:]]+(aws|docker|gh|jq|sh|tofu)[[:space:]]' \
   echo 'release workflow bypasses its Taskfile entrypoints' >&2
   exit 1
 fi
-test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 4
+test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 5
 grep -Fq 'run: task lambda-ci-authorize-release' << EOF
 $authorize_job
+EOF
+grep -Fq 'run: task lambda-ci-record-release-review' << EOF
+$release_review_job
+EOF
+grep -Fq "GITHUB_RUN_ATTEMPT: '{{default \"\" .GITHUB_RUN_ATTEMPT}}'" \
+  "$root_dir/Taskfile.yaml"
+grep -Fq "GITHUB_RUN_ID: '{{default \"\" .GITHUB_RUN_ID}}'" \
+  "$root_dir/Taskfile.yaml"
+test -x "$root_dir/scripts/record-ci-lambda-release-review.sh"
+test -x "$root_dir/scripts/resolve-release-backlog-base.sh"
+test -x "$root_dir/scripts/validate-release-review-run.sh"
+grep -Fq "GITHUB_RUN_ATTEMPT: ${literal_dollar}{{ github.run_attempt }}" << EOF
+$release_review_job
+EOF
+grep -Fq "GITHUB_RUN_ID: ${literal_dollar}{{ github.run_id }}" << EOF
+$release_review_job
+EOF
+grep -Fq 'fetch-depth: 0' << EOF
+$release_review_job
 EOF
 grep -Fq "classification: ${literal_dollar}{{ steps.authorize.outputs.classification }}" << EOF
 $authorize_job
