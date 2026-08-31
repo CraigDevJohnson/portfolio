@@ -333,6 +333,8 @@ jq -e '
     all(true_paths($change.after_unknown)[]; .[0] as $attribute | $allowed | index($attribute) != null);
   def exact_keys_or_fewer($value; $allowed):
     ($value | type) == "object" and (($value | keys) - $allowed | length) == 0;
+  def semantically_unset($value):
+    $value == null or $value == "";
   def exact_references($expression; $expected):
     (($expression.references // []) | sort) == ($expected | sort);
   def inline_policy_contract($value; $name; $expected):
@@ -354,11 +356,12 @@ jq -e '
       "permissions_boundary", "tags", "tags_all", "unique_id"
     ]) and
     $after.name == $name and
-    $after.description == null and
+    semantically_unset($after.description) and
     $after.force_detach_policies == false and
     $after.max_session_duration == 3600 and
+    semantically_unset($after.name_prefix) and
     $after.path == "/" and
-    $after.permissions_boundary == null and
+    semantically_unset($after.permissions_boundary) and
     $after.tags == {ManagedBy: "opentofu", Project: "portfolio", Purpose: "github-release"} and
     $after.tags_all == $after.tags and
     policy_matches($after.assume_role_policy; expected_trust($subject)) and
@@ -375,6 +378,7 @@ jq -e '
     $change.after as $after |
     exact_keys_or_fewer($after; ["id", "name", "name_prefix", "policy", "role"]) and
     $after.name == $name and
+    semantically_unset($after.name_prefix) and
     policy_matches($after.policy; $expected) and
     policy_target_contract($change; $role) and
     only_unknown_attributes($change; ["id", "name_prefix"]);
