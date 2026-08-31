@@ -271,6 +271,17 @@ case "$command_name" in
         printf '{"Code":{"ImageUri":"%s"}}\n' "${FAKE_QUALIFIED_IMAGE_URI:?set FAKE_QUALIFIED_IMAGE_URI}"
         ;;
       cloudwatch/describe-alarms)
+        expected_alarm_args='cloudwatch describe-alarms --alarm-names'
+        expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-api-5xx"
+        expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-api-latency"
+        expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-lambda-duration"
+        expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-lambda-errors"
+        expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-lambda-throttles"
+        expected_alarm_args="$expected_alarm_args --no-paginate --output json"
+        [ "$*" = "$expected_alarm_args" ] || {
+          echo 'CloudWatch alarm verification must request only the five exact names' >&2
+          exit 2
+        }
         case "${FAKE_ALARM_SCENARIO:-exact}" in
           exact)
             printf '%s\n' \

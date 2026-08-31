@@ -1443,6 +1443,16 @@ mutate_ci_roles_and_reject "CI role plan rejects widened release ECR actions" '
     tojson
   )
 '
+mutate_ci_roles_and_reject "CI role plan rejects wildcard alarm reads" '
+  (.resource_changes[] |
+    select(.address == "aws_iam_role_policy.environment[\"dev\"]") |
+    .change.after.policy) |= (
+    fromjson |
+    (.Statement[] | select(.Sid == "AlarmRead") | .Resource) =
+      ["arn:aws:cloudwatch:us-west-2:180294223248:alarm:*"] |
+    tojson
+  )
+'
 mutate_ci_roles_and_reject "CI role plan rejects production mutation actions" '
   (.resource_changes[] | select(.address == "aws_iam_role_policy.environment[\"prod\"]") | .change.after.policy) |= (
     fromjson |

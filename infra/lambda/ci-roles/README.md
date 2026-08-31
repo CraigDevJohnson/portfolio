@@ -23,6 +23,9 @@ DynamoDB, ACM, log, or alarm resources. Provision missing infrastructure through
 a separately reviewed `portfolio-deployer` SSO plan. If replacement state is
 lost, restore a reviewed version from the versioned state bucket; do not grant
 the workflow bootstrap or import permissions.
+Alarm refresh is limited to the five exact environment alarm ARNs. The release
+verifier must request those names explicitly; prefix enumeration would require
+the broader account alarm wildcard and is outside this role contract.
 
 This root uses the isolated state configuration in `backend.hcl`. Its plan task
 creates a private OpenTofu data directory, reinitializes the exact backend,

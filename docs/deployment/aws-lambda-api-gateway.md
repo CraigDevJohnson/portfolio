@@ -117,6 +117,9 @@ contracts, binary image bytes, and five alarms must all be reverified before a
 successful deployment is recorded. Routine development verification observes
 those alarms every 30 seconds for five minutes and requires every alarm to be
 `OK` at every observation; `ALARM` and `INSUFFICIENT_DATA` both fail closed.
+The verifier requests the five exact alarm names so the CI role remains scoped
+to those five alarm ARNs; prefix enumeration would require account-wide alarm
+read authority and is not permitted.
 CI binds the public development hostname and TLS certificate to the recorded
 API Gateway custom-domain target with `curl --connect-to`. This verifies the
 application origin without making Cloudflare's interactive browser challenge
@@ -134,10 +137,11 @@ uses that status to classify the backlog, then the serialized development job
 resolves the status again immediately before mutation. A converged retry thus
 prepares rollback evidence against the latest verified version instead of an
 unverified alias target or a pre-queue snapshot. Before the first mutation, the
-`in_progress` GitHub deployment also records the validated pre-apply alias
-version. Until the first successful automated deployment exists, retries use
-the oldest such trusted bootstrap coordinate, preserving the original rollback
-target across a hard runner loss.
+`in_progress` GitHub deployment records that same resolved rollback target;
+`alias-before.json` separately retains the validated pre-apply alias version.
+Until the first successful automated deployment exists, retries use the oldest
+trusted bootstrap coordinate, preserving the original rollback target across a
+hard runner loss.
 
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live

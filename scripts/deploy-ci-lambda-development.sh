@@ -45,14 +45,14 @@ RELEASE_ENVIRONMENT=development \
   EVIDENCE_DIR="$evidence_dir" \
   sh scripts/create-ci-lambda-release-plan.sh
 
-DEPLOYMENT_STATE=in_progress \
-  ROLLBACK_VERSION="$alias_before_version" \
-  EVIDENCE_DIR="$evidence_dir" \
-  sh scripts/record-ci-lambda-development.sh
 development_base=$(sh scripts/resolve-development-release-base.sh \
   "$SOURCE_SHA" coordinate)
 development_base_version=$(printf '%s\n' "$development_base" | cut -f2)
 rollback_version=${development_base_version:-$alias_before_version}
+DEPLOYMENT_STATE=in_progress \
+  ROLLBACK_VERSION="$rollback_version" \
+  EVIDENCE_DIR="$evidence_dir" \
+  sh scripts/record-ci-lambda-development.sh
 create_rollback_candidate() {
   printf '%s\n' "$rollback_version" | grep -Eq '^[1-9][0-9]*$' || {
     echo 'Cannot create rollback plan without the validated prior alias version' >&2
