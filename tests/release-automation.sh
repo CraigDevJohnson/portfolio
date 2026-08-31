@@ -492,6 +492,40 @@ grep -Fqx "base_sha=$review_authorization_base" "$review_authorization_output"
 grep -Fqx "development_base_sha=$review_authorization_base" "$review_authorization_output"
 grep -Fqx 'classification=review' "$review_authorization_output"
 
+recovery_authorization_repo="$test_dir/recovery-authorization-repository"
+mkdir -p \
+  "$recovery_authorization_repo/.github/workflows" \
+  "$recovery_authorization_repo/internal/app" \
+  "$recovery_authorization_repo/scripts"
+git -C "$recovery_authorization_repo" init -q
+git -C "$recovery_authorization_repo" config user.email test@example.com
+git -C "$recovery_authorization_repo" config user.name Test
+echo release > "$recovery_authorization_repo/.github/workflows/release.yml"
+echo deployed > "$recovery_authorization_repo/internal/app/app.go"
+git -C "$recovery_authorization_repo" add .
+git -C "$recovery_authorization_repo" commit -qm release-epoch
+recovery_development_base=$(git -C "$recovery_authorization_repo" rev-parse HEAD)
+echo pending-runtime >> "$recovery_authorization_repo/internal/app/app.go"
+git -C "$recovery_authorization_repo" commit -qam pending-runtime
+recovery_pull_base=$(git -C "$recovery_authorization_repo" rev-parse HEAD)
+echo verifier-fix > "$recovery_authorization_repo/scripts/verify-release.sh"
+git -C "$recovery_authorization_repo" add .
+git -C "$recovery_authorization_repo" commit -qm reviewed-verifier-fix
+recovery_source=$(git -C "$recovery_authorization_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$recovery_source
+FAKE_PULLS_JSON=$(reviewed_pull_json "$recovery_source" "$recovery_pull_base")
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON='[[]]'
+recovery_authorization_output="$test_dir/recovery-authorization-output"
+export FAKE_MAIN_SHA FAKE_PULLS_JSON FAKE_DEPLOYMENT_PAGES_JSON
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+(cd "$recovery_authorization_repo" &&
+  EVENT_SHA="$recovery_source" GITHUB_OUTPUT="$recovery_authorization_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh")
+grep -Fqx "base_sha=$recovery_pull_base" "$recovery_authorization_output"
+grep -Fqx "development_base_sha=$recovery_development_base" "$recovery_authorization_output"
+grep -Fqx 'classification=development-reviewed' "$recovery_authorization_output"
+
 review_record_log="$test_dir/release-review-record.log"
 : > "$review_record_log"
 FAKE_GH_LOG=$review_record_log
@@ -982,19 +1016,37 @@ fi
 
 evidence_dir="$test_dir/evidence"
 curl_log="$test_dir/curl.log"
+curl_argument_log="$test_dir/curl-arguments.log"
 FAKE_HEALTH_SHA=$source_sha
 FAKE_QUALIFIED_IMAGE_URI="example.invalid/portfolio@$image_digest"
 FAKE_CURL_LOG=$curl_log
+FAKE_CURL_ARGUMENT_LOG=$curl_argument_log
 SMOKE_WINDOW_SECONDS=300
 SMOKE_INTERVAL_SECONDS=30
-export FAKE_HEALTH_SHA FAKE_QUALIFIED_IMAGE_URI FAKE_CURL_LOG
+export FAKE_HEALTH_SHA FAKE_QUALIFIED_IMAGE_URI FAKE_CURL_LOG FAKE_CURL_ARGUMENT_LOG
 export SMOKE_WINDOW_SECONDS SMOKE_INTERVAL_SECONDS
-BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
+ORIGIN_HOST=origin.example.invalid \
+  BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \
   FUNCTION_NAME=portfolio-lambda-dev EVIDENCE_DIR="$evidence_dir" \
   sh "$root_dir/scripts/verify-lambda-release.sh"
 grep -Fxq 'https://example.invalid/static/images/backgrounds/home-hero.jpg' "$curl_log"
+grep -Fq -- '--connect-to example.invalid:443:origin.example.invalid:443' "$curl_argument_log"
+jq -e '
+  .base_url == "https://example.invalid" and
+  .origin_host == "origin.example.invalid"
+' "$evidence_dir/route-probe-target.json" > /dev/null
 grep -Fq -- '--connect-timeout 10' "$root_dir/scripts/verify-lambda-release.sh"
 grep -Fq -- '--max-time 30' "$root_dir/scripts/verify-lambda-release.sh"
+if ORIGIN_HOST='origin.example.invalid --resolve attacker.example:443:127.0.0.1' \
+  BASE_URL=https://example.invalid \
+  SOURCE_SHA=$source_sha \
+  IMAGE_DIGEST=$image_digest \
+  FUNCTION_NAME=portfolio-lambda-dev \
+  EVIDENCE_DIR="$evidence_dir" \
+  sh "$root_dir/scripts/verify-lambda-release.sh" > /dev/null 2>&1; then
+  echo 'release verification accepted an invalid origin hostname' >&2
+  exit 1
+fi
 if SMOKE_WINDOW_SECONDS=0 \
   BASE_URL=https://example.invalid \
   SOURCE_SHA=$source_sha \
@@ -1557,6 +1609,7 @@ assert_before() {
 
 authorize_job=$(workflow_job authorize)
 release_review_job=$(workflow_job release-review)
+development_review_job=$(workflow_job development-review)
 build_job=$(workflow_job build)
 development_job=$(workflow_job development)
 production_job=$(workflow_job production-plan)
@@ -1568,6 +1621,9 @@ $authorize_job
 EOF
 grep -Fq '    timeout-minutes: 10' << EOF
 $release_review_job
+EOF
+grep -Fq '    timeout-minutes: 10' << EOF
+$development_review_job
 EOF
 grep -Fq '    timeout-minutes: 45' << EOF
 $build_job
@@ -1625,6 +1681,48 @@ then
   echo 'release review job can request AWS authority' >&2
   exit 1
 fi
+grep -Fq '    environment: release-review' << EOF
+$development_review_job
+EOF
+grep -Fq "needs.authorize.outputs.classification == 'development-reviewed'" << EOF
+$development_review_job
+EOF
+grep -Fq 'run: task lambda-ci-check-current-main' << EOF
+$development_review_job
+EOF
+if grep -Eq \
+  'id-token: write|deployments: write|aws-actions/configure-aws-credentials|AWS_[A-Z_]+_ROLE_ARN' << EOF
+$development_review_job
+EOF
+then
+  echo 'protected development review can request AWS or deployment-write authority' >&2
+  exit 1
+fi
+grep -Fq 'needs: [authorize, development-review]' << EOF
+$build_job
+EOF
+grep -Fq '!cancelled()' << EOF
+$build_job
+EOF
+grep -Fq "needs.authorize.result == 'success'" << EOF
+$build_job
+EOF
+if grep -Fq '      always() &&' << EOF
+$build_job
+EOF
+then
+  echo 'privileged release build remains runnable after cancellation' >&2
+  exit 1
+fi
+grep -Fq "needs.development-review.result == 'skipped'" << EOF
+$build_job
+EOF
+grep -Fq "needs.development-review.result == 'success'" << EOF
+$build_job
+EOF
+grep -Fq "needs.authorize.outputs.classification == 'development-reviewed'" << EOF
+$development_job
+EOF
 grep -Fq '    id-token: write' << EOF
 $build_job
 EOF
@@ -1695,7 +1793,7 @@ if grep -Eq 'run: \||^[[:space:]]+(aws|docker|gh|jq|sh|tofu)[[:space:]]' \
   echo 'release workflow bypasses its Taskfile entrypoints' >&2
   exit 1
 fi
-test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 5
+test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 6
 grep -Fq 'run: task lambda-ci-authorize-release' << EOF
 $authorize_job
 EOF
@@ -2048,7 +2146,9 @@ printf 'printf "%%s\\t%%s\\n" "%s1" "%s{FAKE_DURABLE_VERSION:-}"\n' \
   >> "$orchestration_dir/scripts/resolve-development-release-base.sh"
 printf '#!/bin/sh\n: > "%sEVIDENCE_DIR/dev.tfplan"\n' "$literal_dollar" \
   > "$orchestration_dir/scripts/create-ci-lambda-release-plan.sh"
-printf '#!/bin/sh\nexit 1\n' > "$orchestration_dir/scripts/verify-lambda-release.sh"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s{ORIGIN_HOST:-}" > "%sEVIDENCE_DIR/verification-origin-host.txt"\nexit 1\n' \
+  "$literal_dollar" "$literal_dollar" \
+  > "$orchestration_dir/scripts/verify-lambda-release.sh"
 rollback_stub="$orchestration_dir/scripts/create-ci-lambda-rollback-plan.sh"
 printf '#!/bin/sh\n' > "$rollback_stub"
 printf 'printf "rollback\\n" > "%sEVIDENCE_DIR/rollback.tfplan"\n' \
@@ -2102,6 +2202,11 @@ jq -e '
 grep -Fq -- '-f state=in_progress' "$orchestration_gh_log"
 grep -Fq -- '-f state=failure' "$orchestration_gh_log"
 test -s "$orchestration_workspace/evidence/rollback.tfplan"
+grep -Fxq origin.example.invalid \
+  "$orchestration_workspace/evidence/verification-origin-host.txt" || {
+  echo 'development orchestration did not bind verification to the API Gateway origin' >&2
+  exit 1
+}
 
 retry_workspace="$orchestration_dir/retry-workspace"
 mkdir -p "$retry_workspace"

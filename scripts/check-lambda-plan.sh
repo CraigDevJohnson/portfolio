@@ -262,7 +262,14 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       ($override |
         type == "object" and
         (keys | sort) == ["value"] and
-        (.value | type == "number" and . > 0 and floor == . and tostring == $prior)) and
+        (.value |
+          if type == "string" then
+            . == $prior
+          elif type == "number" then
+            . > 0 and floor == . and tostring == $prior
+          else
+            false
+          end)) and
       ($changed | length == 1) and
       ($changed[0] as $alias |
         (first($managed[] | select(.address == "module.service.aws_lambda_function.app"))) as $function |

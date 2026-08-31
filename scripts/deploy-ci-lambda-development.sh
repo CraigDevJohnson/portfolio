@@ -83,7 +83,15 @@ if ! tofu -chdir=infra/lambda/environments/dev output -json \
   > "$evidence_dir/outputs.json"; then
   fail_with_rollback_candidate
 fi
+origin_host=$(jq -er '
+  .api_gateway_domain_targets.value["dev.craigdevjohnson.com"] |
+  select(type == "string" and length > 0)
+' "$evidence_dir/outputs.json") || {
+  echo 'Could not resolve the development API Gateway custom-domain target' >&2
+  fail_with_rollback_candidate
+}
 if ! BASE_URL=https://dev.craigdevjohnson.com \
+  ORIGIN_HOST="$origin_host" \
   SOURCE_SHA="$SOURCE_SHA" \
   IMAGE_DIGEST="$IMAGE_DIGEST" \
   FUNCTION_NAME=portfolio-lambda-dev \

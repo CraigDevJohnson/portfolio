@@ -7,6 +7,7 @@ set -eu
 : "${FUNCTION_NAME:?set FUNCTION_NAME}"
 : "${ALIAS_NAME:=live}"
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR}"
+ORIGIN_HOST=${ORIGIN_HOST:-}
 SMOKE_WINDOW_SECONDS=${SMOKE_WINDOW_SECONDS:-300}
 SMOKE_INTERVAL_SECONDS=${SMOKE_INTERVAL_SECONDS:-30}
 
@@ -16,6 +17,29 @@ is_positive_decimal() {
     *) return 0 ;;
   esac
 }
+
+is_hostname() {
+  printf '%s\n' "$1" |
+    grep -Eq '^([A-Za-z0-9][A-Za-z0-9-]*\.)*[A-Za-z0-9][A-Za-z0-9-]*$'
+}
+
+case "$BASE_URL" in
+  https://*) base_host=${BASE_URL#https://} ;;
+  *)
+    echo 'BASE_URL must be an HTTPS origin without a path' >&2
+    exit 1
+    ;;
+esac
+is_hostname "$base_host" || {
+  echo 'BASE_URL must be an HTTPS origin without a path' >&2
+  exit 1
+}
+if [ -n "$ORIGIN_HOST" ]; then
+  is_hostname "$ORIGIN_HOST" || {
+    echo 'ORIGIN_HOST must be a hostname' >&2
+    exit 1
+  }
+fi
 
 is_positive_decimal "$SMOKE_WINDOW_SECONDS" || {
   echo 'SMOKE_WINDOW_SECONDS must be a positive decimal integer' >&2
@@ -40,6 +64,11 @@ is_positive_decimal "$SMOKE_INTERVAL_SECONDS" || {
 smoke_observations=$((SMOKE_WINDOW_SECONDS / SMOKE_INTERVAL_SECONDS + 1))
 mkdir -p "$EVIDENCE_DIR"
 jq -n \
+  --arg base_url "$BASE_URL" \
+  --arg origin_host "$ORIGIN_HOST" \
+  '{base_url:$base_url,origin_host:(if $origin_host == "" then null else $origin_host end)}' \
+  > "$EVIDENCE_DIR/route-probe-target.json"
+jq -n \
   --argjson window_seconds "$SMOKE_WINDOW_SECONDS" \
   --argjson interval_seconds "$SMOKE_INTERVAL_SECONDS" \
   --argjson observations "$smoke_observations" \
@@ -49,14 +78,26 @@ jq -n \
 while IFS='|' read -r route name expected_content_type body_contract; do
   body_file="$EVIDENCE_DIR/$name.body"
   [ "$body_contract" != health ] || body_file="$EVIDENCE_DIR/healthz.json"
-  probe=$(curl -sS \
-    --connect-timeout 10 \
-    --max-time 30 \
-    --max-redirs 0 \
-    -D "$EVIDENCE_DIR/$name.headers" \
-    -o "$body_file" \
-    --write-out '%{http_code}\n%{content_type}\n' \
-    "$BASE_URL$route")
+  if [ -n "$ORIGIN_HOST" ]; then
+    probe=$(curl -sS \
+      --connect-timeout 10 \
+      --max-time 30 \
+      --max-redirs 0 \
+      --connect-to "$base_host:443:$ORIGIN_HOST:443" \
+      -D "$EVIDENCE_DIR/$name.headers" \
+      -o "$body_file" \
+      --write-out '%{http_code}\n%{content_type}\n' \
+      "$BASE_URL$route")
+  else
+    probe=$(curl -sS \
+      --connect-timeout 10 \
+      --max-time 30 \
+      --max-redirs 0 \
+      -D "$EVIDENCE_DIR/$name.headers" \
+      -o "$body_file" \
+      --write-out '%{http_code}\n%{content_type}\n' \
+      "$BASE_URL$route")
+  fi
   status=$(printf '%s\n' "$probe" | sed -n '1p')
   content_type=$(printf '%s\n' "$probe" | sed -n '2p' |
     tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]*$//; s/;.*$//')

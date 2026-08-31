@@ -117,6 +117,18 @@ contracts, binary image bytes, and five alarms must all be reverified before a
 successful deployment is recorded. Routine development verification observes
 those alarms every 30 seconds for five minutes and requires every alarm to be
 `OK` at every observation; `ALARM` and `INSUFFICIENT_DATA` both fail closed.
+CI binds the public development hostname and TLS certificate to the recorded
+API Gateway custom-domain target with `curl --connect-to`. This verifies the
+application origin without making Cloudflare's interactive browser challenge
+a release credential. The evidence records both hosts. Cloudflare remains
+outside automation authority, so the controlled rollout and public monitoring
+must verify the normal proxied hostname separately.
+If an unverified runtime release is already pending when a reviewed automation
+repair reaches `main`, authorization emits `development-reviewed`. The build is
+then blocked on the same protected `release-review` Environment before the
+ordinary development job may run. This recovery path cannot include a
+production promotion, grants the review job no AWS or deployment-write
+authority, and rechecks current `main` after approval.
 The trusted success status includes the verified Lambda version. Authorization
 uses that status to classify the backlog, then the serialized development job
 resolves the status again immediately before mutation. A converged retry thus
