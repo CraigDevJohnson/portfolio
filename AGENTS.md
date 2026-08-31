@@ -22,7 +22,7 @@
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
 - `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
-- GitHub Actions roles: `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, and `task lambda-ci-roles-apply`
+- GitHub Actions roles: `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, `task lambda-ci-roles-apply`, and `task lambda-ci-roles-verify`
 - Replacement artifact infrastructure: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
 - Replacement development infrastructure: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
 - Replacement production infrastructure: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`

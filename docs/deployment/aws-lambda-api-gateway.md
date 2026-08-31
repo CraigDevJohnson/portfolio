@@ -84,12 +84,26 @@ credentials, and development rechecks once more immediately before applying the
 saved plan. Evidence artifacts retain the scan,
 saved plan and JSON/text rendering, checksum, policy output, previous and final
 alias/version, probes, alarms, and GitHub deployment identity. Verification
-failure blocks promotion and, when a prior alias exists, saves a checksum-bound
-rollback plan; applying that rollback remains an explicit operator decision.
+failure blocks promotion, records a terminal failure on the same GitHub
+deployment with bounded retries, and, when a prior alias exists, saves a
+checksum-bound rollback plan only after the strict rollback policy accepts it.
+Apply, output, and verification failures all attempt that same plan-only
+rollback evidence; applying it remains an explicit operator decision.
 An exact, complete converged no-op plan is accepted on retry, but the healthy
 revision JSON, live SHA, image digest, published alias, bounded HTTP 200/content
 contracts, binary image bytes, and five alarms must all be reverified before a
-successful deployment is recorded.
+successful deployment is recorded. Routine development verification observes
+those alarms every 30 seconds for five minutes and requires every alarm to be
+`OK` at every observation; `ALARM` and `INSUFFICIENT_DATA` both fail closed.
+The trusted success status includes the verified Lambda version. Authorization
+uses that status to classify the backlog, then the serialized development job
+resolves the status again immediately before mutation. A converged retry thus
+prepares rollback evidence against the latest verified version instead of an
+unverified alias target or a pre-queue snapshot. Before the first mutation, the
+`in_progress` GitHub deployment also records the validated pre-apply alias
+version. Until the first successful automated deployment exists, retries use
+the oldest such trusted bootstrap coordinate, preserving the original rollback
+target across a hard runner loss.
 
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live

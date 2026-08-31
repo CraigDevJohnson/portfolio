@@ -72,16 +72,5 @@ jobs:
           tofu_version: 1.12.6
           tofu_wrapper: false
 
-      - name: Check OpenTofu formatting
-        run: tofu fmt -check -recursive infra
-
-      - name: Validate shared infrastructure root without backend
-        run: |
-          tofu -chdir=infra init -backend=false -lockfile=readonly -input=false
-          tofu -chdir=infra validate
-
-      - name: Run authoritative Lambda infrastructure gate
-        run: task lambda-infrastructure-ci
-
-      - name: Run shared-root configuration contracts
-        run: sh tests/shared-root-config.sh
+      - name: Run authoritative infrastructure gate
+        run: task infrastructure-ci

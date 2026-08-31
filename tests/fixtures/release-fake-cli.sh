@@ -23,21 +23,47 @@ case "$command_name" in
         printf '%s\n' "${FAKE_DEPLOYMENT_PAGES_JSON:?set FAKE_DEPLOYMENT_PAGES_JSON}"
         ;;
       */deployments/*/statuses\?*)
-        printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+        if printf '%s\n' "$*" | grep -Fq -- '--slurp'; then
+          if [ -n "${FAKE_STATUS_PAGES_JSON:-}" ]; then
+            printf '%s\n' "$FAKE_STATUS_PAGES_JSON"
+          else
+            printf '[\n%s\n]\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+          fi
+        else
+          printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+        fi
         ;;
       */deployments/*/statuses)
         if printf '%s\n' "$*" | grep -Fq -- '--method POST'; then
-          if [ "${FAKE_DEPLOYMENT_STATUS_FAILURE:-false}" = true ]; then
-            printf 'simulated deployment status failure\n' >&2
-            exit 1
-          fi
-          printf '%s\n' '{"id":99,"state":"success"}'
+          case "${FAKE_DEPLOYMENT_STATUS_FAILURE:-false}" in
+            false) ;;
+            true)
+              printf 'simulated deployment status failure\n' >&2
+              exit 1
+              ;;
+            once)
+              failure_state=${FAKE_DEPLOYMENT_STATUS_FAILURE_STATE:?set failure state}
+              if [ ! -e "$failure_state" ]; then
+                : > "$failure_state"
+                printf 'simulated transient deployment status failure\n' >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo 'unexpected fake deployment status failure mode' >&2
+              exit 2
+              ;;
+          esac
+          requested_state=$(printf '%s\n' "$*" | sed -n 's/.*-f state=\([^ ]*\).*/\1/p')
+          printf '{"id":99,"state":"%s"}\n' "$requested_state"
         else
           printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
         fi
         ;;
       */deployments)
-        printf '%s\n' '{"id":42}'
+        requested_description=$(printf '%s\n' "$*" |
+          sed -n 's/.*-f description=\(.*\)$/\1/p')
+        printf '{"id":42,"description":"%s"}\n' "$requested_description"
         ;;
       */deployments/*)
         printf '%s\n' "${FAKE_DEPLOYMENT_JSON:?set FAKE_DEPLOYMENT_JSON}"
@@ -127,6 +153,10 @@ case "$command_name" in
           '"imageScanFindings":{"findingSeverityCounts":{"CRITICAL":0}}}'
         ;;
       lambda/get-alias)
+        if [ "${FAKE_ALIAS_FAILURE:-false}" = true ]; then
+          echo 'simulated get-alias access failure' >&2
+          exit 1
+        fi
         printf '{"FunctionVersion":"%s"}\n' "${FAKE_ALIAS_VERSION:-7}"
         ;;
       lambda/get-function)
@@ -166,6 +196,16 @@ case "$command_name" in
               '{"AlarmName":"portfolio-lambda-dev-lambda-errors","StateValue":"OK"},' \
               '{"AlarmName":"portfolio-lambda-dev-lambda-throttles","StateValue":"OK"},' \
               '{"AlarmName":"portfolio-lambda-dev-unapproved","StateValue":"OK"}' \
+              ']}'
+            ;;
+          insufficient)
+            printf '%s\n' \
+              '{"MetricAlarms":[' \
+              '{"AlarmName":"portfolio-lambda-dev-api-5xx","StateValue":"INSUFFICIENT_DATA"},' \
+              '{"AlarmName":"portfolio-lambda-dev-api-latency","StateValue":"OK"},' \
+              '{"AlarmName":"portfolio-lambda-dev-lambda-duration","StateValue":"OK"},' \
+              '{"AlarmName":"portfolio-lambda-dev-lambda-errors","StateValue":"OK"},' \
+              '{"AlarmName":"portfolio-lambda-dev-lambda-throttles","StateValue":"OK"}' \
               ']}'
             ;;
           *)
@@ -271,6 +311,31 @@ case "$command_name" in
     ;;
   sleep)
     [ -z "${FAKE_SLEEP_LOG:-}" ] || printf 'sleep %s\n' "$*" >> "$FAKE_SLEEP_LOG"
+    ;;
+  tofu)
+    case "$*" in
+      *' apply '*)
+        if [ "${FAKE_TOFU_APPLY_SIGNAL:-false}" = true ]; then
+          kill -TERM "$PPID"
+          exit 143
+        fi
+        [ "${FAKE_TOFU_APPLY_FAILURE:-false}" != true ] || {
+          echo 'simulated apply failure' >&2
+          exit 1
+        }
+        ;;
+      *' output -json')
+        [ "${FAKE_TOFU_OUTPUT_FAILURE:-false}" != true ] || {
+          echo 'simulated output failure' >&2
+          exit 1
+        }
+        printf '{}\n'
+        ;;
+      *)
+        echo "unexpected fake tofu command: $*" >&2
+        exit 2
+        ;;
+    esac
     ;;
   *)
     echo "unexpected fake command: $command_name" >&2

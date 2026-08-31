@@ -14,9 +14,14 @@ fail() {
 AUTOMATED_RELEASE=${AUTOMATED_RELEASE:-false}
 
 case "$AUTOMATED_RELEASE" in
-  true | false) ;;
-  *) fail "AUTOMATED_RELEASE must be true or false" ;;
+  true | false | rollback) ;;
+  *) fail "AUTOMATED_RELEASE must be true, false, or rollback" ;;
 esac
+if [ "$AUTOMATED_RELEASE" = rollback ]; then
+  : "${PRIOR_VERSION:?set PRIOR_VERSION for a rollback plan}"
+  printf '%s\n' "$PRIOR_VERSION" | grep -Eq '^[1-9][0-9]*$' ||
+    fail "PRIOR_VERSION must be a positive decimal Lambda version"
+fi
 
 case "$PLAN_JSON" in
   /*) ;;
@@ -114,9 +119,12 @@ jq -e '
   ] | length == 0
 ' "$PLAN_JSON" > /dev/null || fail "sensitive value found in plan"
 
-if [ "$AUTOMATED_RELEASE" = true ]; then
+if [ "$AUTOMATED_RELEASE" != false ]; then
   [ "$ENVIRONMENT" = dev ] || fail "automated apply is limited to development"
-  jq -e --arg image "$IMAGE_URI" '
+  jq -e \
+    --arg image "$IMAGE_URI" \
+    --arg mode "$AUTOMATED_RELEASE" \
+    --arg prior_version "${PRIOR_VERSION:-}" '
     def true_paths($unknown):
       [($unknown // {}) | paths(scalars) as $path | select(getpath($path) == true) | $path];
     def only_allowed_unknowns($unknown; $allowed):
@@ -250,6 +258,33 @@ if [ "$AUTOMATED_RELEASE" = true ]; then
       ($alias.change.after.function_name == "portfolio-lambda-dev") and
       ($alias.change.after.function_version | numbered_version) and
       ($alias.change.after.function_version == $function.change.after.version);
+    def rollback_release($managed; $changed; $override; $prior):
+      ($override |
+        type == "object" and
+        (keys | sort) == ["value"] and
+        (.value | type == "number" and . > 0 and floor == . and tostring == $prior)) and
+      ($changed | length == 1) and
+      ($changed[0] as $alias |
+        (first($managed[] | select(.address == "module.service.aws_lambda_function.app"))) as $function |
+        ($function.change.actions == ["no-op"]) and
+        ($function.change.before == $function.change.after) and
+        ($function.change.after_unknown == {}) and
+        ($function.change.after.function_name == "portfolio-lambda-dev") and
+        ($function.change.after.image_uri == $image) and
+        ($function.change.after.version | numbered_version) and
+        ($alias.address == "module.service.aws_lambda_alias.live") and
+        ($alias.type == "aws_lambda_alias") and
+        ($alias.change.actions == ["update"]) and
+        ($alias.change.before.name == "live") and
+        ($alias.change.after.name == "live") and
+        ($alias.change.before.function_name == "portfolio-lambda-dev") and
+        ($alias.change.after.function_name == "portfolio-lambda-dev") and
+        ($alias.change.before.function_version == $function.change.after.version) and
+        ($alias.change.after.function_version == $prior) and
+        (($prior | tonumber) < ($function.change.after.version | tonumber)) and
+        ($alias.change.after_unknown == {}) and
+        (($alias.change.before | del(.function_version)) ==
+          ($alias.change.after | del(.function_version))));
 
     [.resource_changes[] | select(.mode == "managed")] as $managed |
     [$managed[] | select(.change.actions != ["no-op"])] as $changed |
@@ -257,11 +292,19 @@ if [ "$AUTOMATED_RELEASE" = true ]; then
       .change.actions == ["read"] or .change.actions == ["no-op"]) and
     all(.resource_changes[]; .mode == "managed" or .mode == "data") and
     complete_managed_resources($managed) and
-    (.variables.live_version_override |
-      type == "object" and has("value") and .value == null) and
-    (updated_release($changed) or converged_release($managed))
+    if $mode == "rollback" then
+      rollback_release($managed; $changed; .variables.live_version_override; $prior_version)
+    else
+      (.variables.live_version_override |
+        type == "object" and has("value") and .value == null) and
+      (updated_release($changed) or converged_release($managed))
+    end
   ' "$PLAN_JSON" > /dev/null || fail "automated release may update only the immutable image and live alias version"
-  printf 'Lambda automated release plan contract passed for %s\n' "$ENVIRONMENT"
+  if [ "$AUTOMATED_RELEASE" = rollback ]; then
+    printf 'Lambda rollback plan contract passed for %s\n' "$ENVIRONMENT"
+  else
+    printf 'Lambda automated release plan contract passed for %s\n' "$ENVIRONMENT"
+  fi
 fi
 
 if [ "$ENVIRONMENT" = artifacts ]; then
