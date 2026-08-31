@@ -313,6 +313,32 @@ FAKE_AWS_LOG=$smoke_aws_log \
 test "$(grep -Fc 'aws cloudwatch describe-alarms' "$smoke_aws_log")" -eq 11
 test "$(grep -Fc 'sleep 30' "$smoke_sleep_log")" -eq 10
 
+SMOKE_WINDOW_SECONDS=300 \
+  SMOKE_INTERVAL_SECONDS=5 \
+  BASE_URL=https://example.invalid \
+  SOURCE_SHA=$source_sha \
+  IMAGE_DIGEST=$image_digest \
+  FUNCTION_NAME=portfolio-lambda-dev \
+  EVIDENCE_DIR="$evidence_dir" \
+  sh "$root_dir/scripts/verify-lambda-release.sh"
+jq -e '.window_seconds == 300 and .interval_seconds == 5 and .observations == 61' \
+  "$evidence_dir/alarm-smoke-window.json" > /dev/null || {
+  echo 'release verification did not accept a five-second smoke interval' >&2
+  exit 1
+}
+for invalid_smoke_interval in 30x 05 0 -5; do
+  if SMOKE_INTERVAL_SECONDS="$invalid_smoke_interval" \
+    BASE_URL=https://example.invalid \
+    SOURCE_SHA=$source_sha \
+    IMAGE_DIGEST=$image_digest \
+    FUNCTION_NAME=portfolio-lambda-dev \
+    EVIDENCE_DIR="$evidence_dir" \
+    sh "$root_dir/scripts/verify-lambda-release.sh" > /dev/null 2>&1; then
+    echo "release verification accepted invalid smoke interval: $invalid_smoke_interval" >&2
+    exit 1
+  fi
+done
+
 FAKE_ALARM_SCENARIO=insufficient
 export FAKE_ALARM_SCENARIO
 if BASE_URL=https://example.invalid SOURCE_SHA=$source_sha IMAGE_DIGEST=$image_digest \

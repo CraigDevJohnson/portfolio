@@ -10,20 +10,21 @@ set -eu
 SMOKE_WINDOW_SECONDS=${SMOKE_WINDOW_SECONDS:-300}
 SMOKE_INTERVAL_SECONDS=${SMOKE_INTERVAL_SECONDS:-30}
 
-case "$SMOKE_WINDOW_SECONDS" in
-  [1-9][0-9]*) ;;
-  *)
-    echo 'SMOKE_WINDOW_SECONDS must be a positive decimal integer' >&2
-    exit 1
-    ;;
-esac
-case "$SMOKE_INTERVAL_SECONDS" in
-  [1-9][0-9]*) ;;
-  *)
-    echo 'SMOKE_INTERVAL_SECONDS must be a positive decimal integer' >&2
-    exit 1
-    ;;
-esac
+is_positive_decimal() {
+  case "$1" in
+    ''|*[!0-9]*|0*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+is_positive_decimal "$SMOKE_WINDOW_SECONDS" || {
+  echo 'SMOKE_WINDOW_SECONDS must be a positive decimal integer' >&2
+  exit 1
+}
+is_positive_decimal "$SMOKE_INTERVAL_SECONDS" || {
+  echo 'SMOKE_INTERVAL_SECONDS must be a positive decimal integer' >&2
+  exit 1
+}
 [ "$SMOKE_WINDOW_SECONDS" -ge 300 ] && [ "$SMOKE_WINDOW_SECONDS" -le 900 ] || {
   echo 'SMOKE_WINDOW_SECONDS must be between 300 and 900 seconds' >&2
   exit 1
