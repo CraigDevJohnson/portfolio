@@ -7,7 +7,44 @@ set -eu
 : "${FUNCTION_NAME:?set FUNCTION_NAME}"
 : "${ALIAS_NAME:=live}"
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR}"
+SMOKE_WINDOW_SECONDS=${SMOKE_WINDOW_SECONDS:-300}
+SMOKE_INTERVAL_SECONDS=${SMOKE_INTERVAL_SECONDS:-30}
+
+is_positive_decimal() {
+  case "$1" in
+    ''|*[!0-9]*|0*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+is_positive_decimal "$SMOKE_WINDOW_SECONDS" || {
+  echo 'SMOKE_WINDOW_SECONDS must be a positive decimal integer' >&2
+  exit 1
+}
+is_positive_decimal "$SMOKE_INTERVAL_SECONDS" || {
+  echo 'SMOKE_INTERVAL_SECONDS must be a positive decimal integer' >&2
+  exit 1
+}
+[ "$SMOKE_WINDOW_SECONDS" -ge 300 ] && [ "$SMOKE_WINDOW_SECONDS" -le 900 ] || {
+  echo 'SMOKE_WINDOW_SECONDS must be between 300 and 900 seconds' >&2
+  exit 1
+}
+[ "$SMOKE_INTERVAL_SECONDS" -le 30 ] || {
+  echo 'SMOKE_INTERVAL_SECONDS must not exceed 30 seconds' >&2
+  exit 1
+}
+[ $((SMOKE_WINDOW_SECONDS % SMOKE_INTERVAL_SECONDS)) -eq 0 ] || {
+  echo 'SMOKE_WINDOW_SECONDS must be divisible by SMOKE_INTERVAL_SECONDS' >&2
+  exit 1
+}
+smoke_observations=$((SMOKE_WINDOW_SECONDS / SMOKE_INTERVAL_SECONDS + 1))
 mkdir -p "$EVIDENCE_DIR"
+jq -n \
+  --argjson window_seconds "$SMOKE_WINDOW_SECONDS" \
+  --argjson interval_seconds "$SMOKE_INTERVAL_SECONDS" \
+  --argjson observations "$smoke_observations" \
+  '{window_seconds:$window_seconds,interval_seconds:$interval_seconds,observations:$observations}' \
+  > "$EVIDENCE_DIR/alarm-smoke-window.json"
 
 while IFS='|' read -r route name expected_content_type body_contract; do
   body_file="$EVIDENCE_DIR/$name.body"
@@ -83,14 +120,25 @@ aws lambda get-function \
 jq -er --arg image_digest "$IMAGE_DIGEST" \
   '.Code.ImageUri | select(type == "string" and endswith("@" + $image_digest))' \
   "$EVIDENCE_DIR/version.json" > "$EVIDENCE_DIR/image-uri.txt"
-aws cloudwatch describe-alarms --alarm-name-prefix "$FUNCTION_NAME" --output json > "$EVIDENCE_DIR/alarms.json"
-jq -e --arg function_name "$FUNCTION_NAME" '
-  (["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] |
-    map($function_name + "-" + .) | sort) as $expected_names |
-  (.MetricAlarms | type == "array") and
-  ([.MetricAlarms[].AlarmName] | sort) == $expected_names and
-  all(.MetricAlarms[]; .StateValue == "OK" or .StateValue == "INSUFFICIENT_DATA")
-' "$EVIDENCE_DIR/alarms.json" > /dev/null
+alarm_observation=1
+while [ "$alarm_observation" -le "$smoke_observations" ]; do
+  alarm_file=$(printf '%s/alarms-%03d.json' "$EVIDENCE_DIR" "$alarm_observation")
+  aws cloudwatch describe-alarms \
+    --alarm-name-prefix "$FUNCTION_NAME" \
+    --output json > "$alarm_file"
+  cp "$alarm_file" "$EVIDENCE_DIR/alarms.json"
+  jq -e --arg function_name "$FUNCTION_NAME" '
+    (["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] |
+      map($function_name + "-" + .) | sort) as $expected_names |
+    (.MetricAlarms | type == "array") and
+    ([.MetricAlarms[].AlarmName] | sort) == $expected_names and
+    all(.MetricAlarms[]; .StateValue == "OK")
+  ' "$alarm_file" > /dev/null
+  if [ "$alarm_observation" -lt "$smoke_observations" ]; then
+    sleep "$SMOKE_INTERVAL_SECONDS"
+  fi
+  alarm_observation=$((alarm_observation + 1))
+done
 jq -n \
   --arg source_sha "$SOURCE_SHA" \
   --arg image_digest "$IMAGE_DIGEST" \

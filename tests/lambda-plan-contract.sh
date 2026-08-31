@@ -894,6 +894,19 @@ run_maintenance_check() {
     sh "$checker"
 }
 
+run_rollback_check() {
+  plan=$1
+  prior_version=$2
+  AUTOMATED_RELEASE=rollback \
+    PRIOR_VERSION="$prior_version" \
+    PLAN_JSON="$plan" \
+    ENVIRONMENT=dev \
+    NAME_PREFIX=portfolio-lambda-dev \
+    IMAGE_URI="$release_image" \
+    EXPECTED_ALARM_ACTIONS_JSON='[]' \
+    sh "$checker"
+}
+
 artifact_plan="$tmp_dir/artifact.json"
 ci_roles_plan="$tmp_dir/ci-roles.json"
 dev_plan="$tmp_dir/dev.json"
@@ -1144,6 +1157,34 @@ jq '
     )
   ]
 ' "$dev_converged_runtime_policy_plan" > "$dev_converged_release_plan"
+
+dev_rollback_plan="$tmp_dir/dev-rollback.json"
+jq '
+  .variables.live_version_override.value = 7 |
+  (.resource_changes[] | select(.address == "module.service.aws_lambda_alias.live") | .change) |= (
+    .actions = ["update"] |
+    .before.function_version = "8" |
+    .after.function_version = "7"
+  )
+' "$dev_converged_release_plan" > "$dev_rollback_plan"
+
+dev_rollback_with_image_update_plan="$tmp_dir/dev-rollback-with-image-update.json"
+jq --arg previous_image "$previous_release_image" '
+  (.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (
+    .actions = ["update"] |
+    .before.image_uri = $previous_image
+  )
+' "$dev_rollback_plan" > "$dev_rollback_with_image_update_plan"
+
+dev_rollback_with_log_update_plan="$tmp_dir/dev-rollback-with-log-update.json"
+jq '
+  (.resource_changes[] |
+    select(.address == "module.service.aws_cloudwatch_log_group.lambda") |
+    .change) |= (
+      .actions = ["update"] |
+      .before.retention_in_days = 7
+    )
+' "$dev_rollback_plan" > "$dev_rollback_with_log_update_plan"
 
 dev_empty_policy_composition_plan="$tmp_dir/dev-empty-policy-composition.json"
 jq '
@@ -1438,6 +1479,14 @@ expect_pass "ACM plan with null provider-sensitive private key" run_check "$dev_
 expect_pass "automated release accepts only image and live-alias updates" run_maintenance_check "$dev_maintenance_plan"
 expect_pass "automated release accepts an already-converged verified retry" \
   run_maintenance_check "$dev_converged_release_plan"
+expect_pass "checked rollback accepts only the prior live alias version" \
+  run_rollback_check "$dev_rollback_plan" 7
+expect_fail "checked rollback rejects a mismatched reviewed prior version" \
+  run_rollback_check "$dev_rollback_plan" 6
+expect_fail "checked rollback rejects an image update" \
+  run_rollback_check "$dev_rollback_with_image_update_plan" 7
+expect_fail "checked rollback rejects a second managed update" \
+  run_rollback_check "$dev_rollback_with_log_update_plan" 7
 
 converged_missing_resource_plan="$tmp_dir/converged-missing-resource.json"
 jq 'del(.resource_changes[] | select(.address == "module.service.aws_lambda_permission.api"))' \
@@ -2053,6 +2102,19 @@ case "$*" in
   *"sts get-caller-identity"*"--query Account"*)
     printf '%s\n' "${FAKE_ACCOUNT:-180294223248}"
     ;;
+  *"iam get-role"*"--query Role.Arn"*)
+    role_name=
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = --role-name ]; then
+        shift
+        role_name=$1
+      fi
+      shift
+    done
+    test -n "$role_name"
+    printf 'arn:aws:iam::%s:role/%s\n' \
+      "${FAKE_ROLE_ACCOUNT:-180294223248}" "$role_name"
+    ;;
   *"ecr get-login-password"*)
     printf 'fake-password\n'
     ;;
@@ -2420,6 +2482,50 @@ done
 }
 pass "release publishes raw evidence only after policy approval"
 
+rejected_rollback_evidence="$tmp_dir/rejected-rollback-evidence"
+if PATH="$fake_bin:$PATH" \
+  COMMAND_LOG="$command_log" \
+  FAKE_PLAN_JSON="$dev_rollback_with_image_update_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  PRIOR_VERSION=7 \
+  EVIDENCE_DIR="$rejected_rollback_evidence" \
+  ECR_URL="$release_repository" \
+  sh "$repo_root/scripts/create-ci-lambda-rollback-plan.sh" > /dev/null 2>&1; then
+  printf 'FAIL: rollback plan with an image update passed policy validation\n' >&2
+  exit 1
+fi
+test -f "$rejected_rollback_evidence/ROLLBACK_NOT_APPROVED"
+for rejected_rollback_artifact in rollback.tfplan rollback.json rollback.txt rollback.sha256; do
+  test ! -e "$rejected_rollback_evidence/$rejected_rollback_artifact" || {
+    printf 'FAIL: rejected rollback retained raw artifact %s\n' "$rejected_rollback_artifact" >&2
+    exit 1
+  }
+done
+pass "rollback withholds raw evidence for a policy-rejected plan"
+
+accepted_rollback_evidence="$tmp_dir/accepted-rollback-evidence"
+PATH="$fake_bin:$PATH" \
+  COMMAND_LOG="$command_log" \
+  FAKE_PLAN_JSON="$dev_rollback_plan" \
+  IMAGE_DIGEST="$release_digest" \
+  PRIOR_VERSION=7 \
+  EVIDENCE_DIR="$accepted_rollback_evidence" \
+  ECR_URL="$release_repository" \
+  sh "$repo_root/scripts/create-ci-lambda-rollback-plan.sh" > /dev/null
+test ! -e "$accepted_rollback_evidence/ROLLBACK_NOT_APPROVED"
+for accepted_rollback_artifact in \
+  rollback.tfplan rollback.json rollback.txt rollback.sha256 rollback-policy.txt; do
+  test -f "$accepted_rollback_evidence/$accepted_rollback_artifact" || {
+    printf 'FAIL: accepted rollback omitted artifact %s\n' "$accepted_rollback_artifact" >&2
+    exit 1
+  }
+done
+(cd "$accepted_rollback_evidence" && sha256sum -c rollback.sha256 > /dev/null) || {
+  printf 'FAIL: accepted rollback checksum does not verify its published plan\n' >&2
+  exit 1
+}
+pass "rollback publishes evidence only after strict policy approval"
+
 expect_ci_roles_rejection() {
   name=$1
   shift
@@ -2500,6 +2606,33 @@ expect_ci_roles_rejection "CI roles guard rejects an ambient session token" \
 expect_ci_roles_acceptance "CI roles guard accepts only the reviewed administrator identity" \
   'tofu -chdir=infra/lambda/ci-roles init -backend-config=backend.hcl -reconfigure -input=false' \
   run_ci_roles_as_admin lambda-ci-roles-init
+
+ci_roles_verify_output="$tmp_dir/ci-roles-verify-output"
+: > "$command_log"
+run_ci_roles_as_admin lambda-ci-roles-verify > "$ci_roles_verify_output"
+for ci_role_contract in \
+  'AWS_RELEASE_BUILDER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-release-builder-ci' \
+  'AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-development-deployer-ci' \
+  'AWS_PRODUCTION_PLANNER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-production-planner-ci'; do
+  grep -Fxq "$ci_role_contract" "$ci_roles_verify_output" || {
+    printf 'FAIL: CI role verification omitted exact variable output: %s\n' \
+      "$ci_role_contract" >&2
+    exit 1
+  }
+done
+test "$(grep -Fc 'iam get-role' "$command_log")" -eq 3 || {
+  echo 'FAIL: CI role verification did not read exactly three roles from IAM' >&2
+  exit 1
+}
+pass "CI role verification reads and prints only the deterministic role ARNs"
+
+run_ci_roles_with_wrong_role_account() (
+  FAKE_ROLE_ACCOUNT=111122223333
+  export FAKE_ROLE_ACCOUNT
+  run_ci_roles_as_admin lambda-ci-roles-verify
+)
+expect_fail "CI role verification rejects an unexpected deterministic ARN" \
+  run_ci_roles_with_wrong_role_account
 
 ci_roles_identity_plan="$tmp_dir/ci-roles-identity.tfplan"
 expect_ci_roles_rejection "CI roles plan rejects the normal deployer" \

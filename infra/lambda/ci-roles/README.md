@@ -103,26 +103,12 @@ directory, verifies the copied bytes and provenance, renders the copied plan to
 JSON, reruns the complete CI-role policy contract, and only then applies that
 private plan copy.
 
-After the apply, read each role from IAM and require its deterministic ARN before
-using it in GitHub configuration:
+After the apply, use the authoritative read-only verification task to require
+each deterministic ARN before using it in GitHub configuration:
 
 ```bash
-release_role_arn=$(
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
-    --role-name portfolio-release-builder-ci --query 'Role.Arn' --output text
-)
-development_role_arn=$(
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
-    --role-name portfolio-development-deployer-ci --query 'Role.Arn' --output text
-)
-production_role_arn=$(
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" iam get-role \
-    --role-name portfolio-production-planner-ci --query 'Role.Arn' --output text
-)
-test "$release_role_arn" = "arn:aws:iam::180294223248:role/portfolio-release-builder-ci"
-test "$development_role_arn" = "arn:aws:iam::180294223248:role/portfolio-development-deployer-ci"
-test "$production_role_arn" = "arn:aws:iam::180294223248:role/portfolio-production-planner-ci"
-printf '%s\n%s\n%s\n' "$release_role_arn" "$development_role_arn" "$production_role_arn"
+APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
+  task lambda-ci-roles-verify
 ```
 
 No release workflow may provision or modify these roles. The root must not be
