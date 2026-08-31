@@ -1072,6 +1072,18 @@ FAKE_AWS_LOG=$smoke_aws_log \
   EVIDENCE_DIR="$evidence_dir" \
   sh "$root_dir/scripts/verify-lambda-release.sh"
 test "$(grep -Fc 'aws cloudwatch describe-alarms' "$smoke_aws_log")" -eq 11
+expected_alarm_command='aws cloudwatch describe-alarms --alarm-names'
+expected_alarm_command="$expected_alarm_command portfolio-lambda-dev-api-5xx"
+expected_alarm_command="$expected_alarm_command portfolio-lambda-dev-api-latency"
+expected_alarm_command="$expected_alarm_command portfolio-lambda-dev-lambda-duration"
+expected_alarm_command="$expected_alarm_command portfolio-lambda-dev-lambda-errors"
+expected_alarm_command="$expected_alarm_command portfolio-lambda-dev-lambda-throttles"
+expected_alarm_command="$expected_alarm_command --no-paginate --output json"
+test "$(grep -Fxc "$expected_alarm_command" "$smoke_aws_log")" -eq 11
+if grep -Fq 'aws cloudwatch describe-alarms --alarm-name-prefix' "$smoke_aws_log"; then
+  echo 'release verification enumerated CloudWatch alarms beyond the exact allowlist' >&2
+  exit 1
+fi
 test "$(grep -Fc 'sleep 30' "$smoke_sleep_log")" -eq 10
 
 SMOKE_WINDOW_SECONDS=300 \
@@ -1777,6 +1789,10 @@ grep -Fq 'Failed or cancelled run markers are ignored' \
   "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
 grep -Fq '`deploy/production-release.json` change' \
   "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq 'five exact alarm names' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
+grep -Fq '`alias-before.json` separately retains' \
+  "$root_dir/docs/deployment/aws-lambda-api-gateway.md"
 for task_name in \
   lambda-ci-authorize-release \
   lambda-ci-record-release-review \
@@ -2227,6 +2243,11 @@ if (
 fi
 grep -Fxq 6 "$retry_workspace/evidence/rollback-prior-version.txt" || {
   echo 'converged retry lost the durable last-known-good Lambda version' >&2
+  exit 1
+}
+jq -e '.rollback_version == "6"' \
+  "$retry_workspace/evidence/github-deployment.json" > /dev/null || {
+  echo 'converged retry advertised a rollback version other than its retained plan target' >&2
   exit 1
 }
 

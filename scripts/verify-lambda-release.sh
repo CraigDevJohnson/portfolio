@@ -165,7 +165,13 @@ alarm_observation=1
 while [ "$alarm_observation" -le "$smoke_observations" ]; do
   alarm_file=$(printf '%s/alarms-%03d.json' "$EVIDENCE_DIR" "$alarm_observation")
   aws cloudwatch describe-alarms \
-    --alarm-name-prefix "$FUNCTION_NAME" \
+    --alarm-names \
+    "$FUNCTION_NAME-api-5xx" \
+    "$FUNCTION_NAME-api-latency" \
+    "$FUNCTION_NAME-lambda-duration" \
+    "$FUNCTION_NAME-lambda-errors" \
+    "$FUNCTION_NAME-lambda-throttles" \
+    --no-paginate \
     --output json > "$alarm_file"
   cp "$alarm_file" "$EVIDENCE_DIR/alarms.json"
   jq -e --arg function_name "$FUNCTION_NAME" '

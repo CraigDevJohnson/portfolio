@@ -185,6 +185,35 @@ run "least_privilege_release_roles" {
   }
 
   assert {
+    condition = alltrue([
+      for environment, function_name in {
+        dev  = "portfolio-lambda-dev"
+        prod = "portfolio-lambda-prod"
+        } : (
+        toset(one([
+          for statement in jsondecode(aws_iam_role_policy.environment[environment].policy).Statement :
+          try(tolist(statement.Action), [statement.Action])
+          if statement.Sid == "AlarmRead"
+        ])) == toset(["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"]) &&
+        toset(one([
+          for statement in jsondecode(aws_iam_role_policy.environment[environment].policy).Statement :
+          try(tolist(statement.Resource), [statement.Resource])
+          if statement.Sid == "AlarmRead"
+          ])) == toset([
+          for suffix in [
+            "api-5xx",
+            "api-latency",
+            "lambda-duration",
+            "lambda-errors",
+            "lambda-throttles",
+          ] : "arn:aws:cloudwatch:us-west-2:180294223248:alarm:${function_name}-${suffix}"
+        ])
+      )
+    ])
+    error_message = "alarm refresh must remain scoped to the five exact environment alarms"
+  }
+
+  assert {
     condition = toset(flatten([
       for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement :
       try(tolist(statement.Action), [statement.Action])
