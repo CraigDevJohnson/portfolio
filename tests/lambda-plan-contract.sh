@@ -936,6 +936,65 @@ jq '
   )
 ' "$ci_roles_plan" > "$ci_roles_noop_plan"
 
+ci_roles_refreshed_noop_plan="$tmp_dir/ci-roles-refreshed-noop.json"
+jq '
+  .resource_changes |= map(
+    if .type == "aws_iam_role" then
+      .change.before.description = "" |
+      .change.before.name_prefix = "" |
+      .change.before.permissions_boundary = "" |
+      .change.after.description = "" |
+      .change.after.name_prefix = "" |
+      .change.after.permissions_boundary = ""
+    elif .type == "aws_iam_role_policy" then
+      .change.before.name_prefix = "" |
+      .change.after.name_prefix = ""
+    else
+      .
+    end
+  )
+' "$ci_roles_noop_plan" > "$ci_roles_refreshed_noop_plan"
+
+ci_roles_description_noop_plan="$tmp_dir/ci-roles-description-noop.json"
+jq '
+  (.resource_changes[] |
+    select(.address == "aws_iam_role.ci[\"release\"]") |
+    .change) |= (
+      .before.description = "unapproved" |
+      .after.description = "unapproved"
+    )
+' "$ci_roles_refreshed_noop_plan" > "$ci_roles_description_noop_plan"
+
+ci_roles_name_prefix_noop_plan="$tmp_dir/ci-roles-name-prefix-noop.json"
+jq '
+  (.resource_changes[] |
+    select(.address == "aws_iam_role.ci[\"release\"]") |
+    .change) |= (
+      .before.name_prefix = "unapproved-" |
+      .after.name_prefix = "unapproved-"
+    )
+' "$ci_roles_refreshed_noop_plan" > "$ci_roles_name_prefix_noop_plan"
+
+ci_roles_boundary_noop_plan="$tmp_dir/ci-roles-boundary-noop.json"
+jq '
+  (.resource_changes[] |
+    select(.address == "aws_iam_role.ci[\"release\"]") |
+    .change) |= (
+      .before.permissions_boundary = "arn:aws:iam::180294223248:policy/unapproved" |
+      .after.permissions_boundary = "arn:aws:iam::180294223248:policy/unapproved"
+    )
+' "$ci_roles_refreshed_noop_plan" > "$ci_roles_boundary_noop_plan"
+
+ci_roles_policy_name_prefix_noop_plan="$tmp_dir/ci-roles-policy-name-prefix-noop.json"
+jq '
+  (.resource_changes[] |
+    select(.address == "aws_iam_role_policy.release") |
+    .change) |= (
+      .before.name_prefix = "unapproved-" |
+      .after.name_prefix = "unapproved-"
+    )
+' "$ci_roles_refreshed_noop_plan" > "$ci_roles_policy_name_prefix_noop_plan"
+
 ci_roles_narrow_update_plan="$tmp_dir/ci-roles-narrow-update.json"
 jq '
   (.resource_changes[] | select(.address == "aws_iam_role_policy.release") | .change) |= (
@@ -1302,6 +1361,21 @@ jq '.resource_changes += [{
 expect_pass "artifact repository, lifecycle, and pull-policy plan" run_check "$artifact_plan" artifacts
 expect_pass "exact GitHub Actions role plan" run_ci_roles_check "$ci_roles_plan"
 expect_pass "converged GitHub Actions role no-op plan" run_ci_roles_check "$ci_roles_noop_plan"
+expect_fail "GitHub Actions role no-op plan rejects a description" \
+  run_ci_roles_check \
+  "$ci_roles_description_noop_plan"
+expect_fail "GitHub Actions role no-op plan rejects a name prefix" \
+  run_ci_roles_check \
+  "$ci_roles_name_prefix_noop_plan"
+expect_fail "GitHub Actions role no-op plan rejects a permissions boundary" \
+  run_ci_roles_check \
+  "$ci_roles_boundary_noop_plan"
+expect_fail "GitHub Actions role policy no-op plan rejects a name prefix" \
+  run_ci_roles_check \
+  "$ci_roles_policy_name_prefix_noop_plan"
+expect_pass "refreshed GitHub Actions role no-op plan" \
+  run_ci_roles_check \
+  "$ci_roles_refreshed_noop_plan"
 expect_pass "safe GitHub Actions role policy narrowing update" run_ci_roles_check "$ci_roles_narrow_update_plan"
 
 ci_roles_data_read_plan="$tmp_dir/ci-roles-data-read.json"
