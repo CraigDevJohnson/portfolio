@@ -715,6 +715,41 @@ make_environment_plan() {
       name: $short,
       expressions: {alarm_actions: {references: ["var.alarm_action_arns"]}}
     };
+    def configuration_resource($address; $mode; $type; $name): {
+      address: $address,
+      mode: $mode,
+      type: $type,
+      name: $name,
+      expressions: {}
+    };
+    def simple_configuration_resources:
+      [
+        ["aws_acm_certificate.custom", "managed", "aws_acm_certificate", "custom"],
+        ["aws_acm_certificate_validation.custom", "managed", "aws_acm_certificate_validation", "custom"],
+        ["aws_apigatewayv2_api.app", "managed", "aws_apigatewayv2_api", "app"],
+        ["aws_apigatewayv2_api_mapping.custom", "managed", "aws_apigatewayv2_api_mapping", "custom"],
+        ["aws_apigatewayv2_domain_name.custom", "managed", "aws_apigatewayv2_domain_name", "custom"],
+        ["aws_apigatewayv2_integration.lambda", "managed", "aws_apigatewayv2_integration", "lambda"],
+        ["aws_apigatewayv2_route.default", "managed", "aws_apigatewayv2_route", "default"],
+        ["aws_apigatewayv2_stage.default", "managed", "aws_apigatewayv2_stage", "default"],
+        ["aws_cloudwatch_log_group.api_access", "managed", "aws_cloudwatch_log_group", "api_access"],
+        ["aws_cloudwatch_log_group.lambda", "managed", "aws_cloudwatch_log_group", "lambda"],
+        ["aws_dynamodb_table.google_connections", "managed", "aws_dynamodb_table", "google_connections"],
+        ["aws_dynamodb_table.soccer_sessions", "managed", "aws_dynamodb_table", "soccer_sessions"],
+        ["aws_iam_role.lambda", "managed", "aws_iam_role", "lambda"],
+        ["aws_lambda_alias.live", "managed", "aws_lambda_alias", "live"],
+        ["aws_lambda_function.app", "managed", "aws_lambda_function", "app"],
+        ["aws_lambda_permission.api", "managed", "aws_lambda_permission", "api"],
+        ["data.aws_caller_identity.current", "data", "aws_caller_identity", "current"],
+        [
+          "data.aws_iam_policy_document.lambda_assume_role",
+          "data",
+          "aws_iam_policy_document",
+          "lambda_assume_role"
+        ],
+        ["data.aws_partition.current", "data", "aws_partition", "current"]
+      ] |
+      map(configuration_resource(.[0]; .[1]; .[2]; .[3]));
     {
       variables: {
         alarm_action_arns: {value: $alarm_actions},
@@ -817,38 +852,39 @@ make_environment_plan() {
             service: {
               expressions: {alarm_action_arns: {references: ["var.alarm_action_arns"]}},
               module: {
-                resources: [{
-                  address: "aws_iam_role_policy.lambda",
-                  mode: "managed",
-                  type: "aws_iam_role_policy",
-                  name: "lambda",
-                  expressions: {
-                    policy: {
-                      references: [
-                        "data.aws_iam_policy_document.lambda.json",
-                        "data.aws_iam_policy_document.lambda"
-                      ]
+                resources: (simple_configuration_resources + [
+                  {
+                    address: "aws_iam_role_policy.lambda",
+                    mode: "managed",
+                    type: "aws_iam_role_policy",
+                    name: "lambda",
+                    expressions: {
+                      policy: {
+                        references: [
+                          "data.aws_iam_policy_document.lambda.json",
+                          "data.aws_iam_policy_document.lambda"
+                        ]
+                      }
                     }
-                  }
-                }, {
-                  address: "data.aws_iam_policy_document.lambda",
-                  mode: "data",
-                  type: "aws_iam_policy_document",
-                  name: "lambda",
-                  expressions: {statement: policy_statement_expressions}
-                }, {
-                  address: "data.aws_kms_alias.ssm",
-                  mode: "data",
-                  type: "aws_kms_alias",
-                  name: "ssm",
-                  expressions: {name: {constant_value: "alias/aws/ssm"}}
-                },
-                alarm_configuration("lambda_errors"),
-                alarm_configuration("lambda_throttles"),
-                alarm_configuration("lambda_duration"),
-                alarm_configuration("api_5xx"),
-                alarm_configuration("api_latency")
-                ]
+                  }, {
+                    address: "data.aws_iam_policy_document.lambda",
+                    mode: "data",
+                    type: "aws_iam_policy_document",
+                    name: "lambda",
+                    expressions: {statement: policy_statement_expressions}
+                  }, {
+                    address: "data.aws_kms_alias.ssm",
+                    mode: "data",
+                    type: "aws_kms_alias",
+                    name: "ssm",
+                    expressions: {name: {constant_value: "alias/aws/ssm"}}
+                  },
+                  alarm_configuration("lambda_errors"),
+                  alarm_configuration("lambda_throttles"),
+                  alarm_configuration("lambda_duration"),
+                  alarm_configuration("api_5xx"),
+                  alarm_configuration("api_latency")
+                ])
               }
             }
           }
@@ -911,10 +947,83 @@ artifact_plan="$tmp_dir/artifact.json"
 ci_roles_plan="$tmp_dir/ci-roles.json"
 dev_plan="$tmp_dir/dev.json"
 prod_plan="$tmp_dir/prod.json"
+prod_partial_plan="$tmp_dir/prod-partial.json"
 make_artifact_plan "$artifact_plan"
 make_ci_roles_plan "$ci_roles_plan"
 make_environment_plan "$dev_plan" dev
-make_environment_plan "$prod_plan" prod
+make_environment_plan "$prod_partial_plan" prod
+jq '
+  def resource($address; $type; $name; $after): {
+    mode: "managed",
+    address: $address,
+    type: $type,
+    name: $name,
+    change: {
+      actions: ["create"],
+      before: null,
+      after: $after,
+      after_unknown: {},
+      before_sensitive: false,
+      after_sensitive: {}
+    }
+  };
+  .resource_changes += ([
+    ["module.service.aws_apigatewayv2_integration.lambda", "aws_apigatewayv2_integration", "lambda"],
+    ["module.service.aws_apigatewayv2_route.default", "aws_apigatewayv2_route", "default"],
+    ["module.service.aws_apigatewayv2_stage.default", "aws_apigatewayv2_stage", "default"],
+    ["module.service.aws_lambda_alias.live", "aws_lambda_alias", "live"],
+    ["module.service.aws_lambda_permission.api", "aws_lambda_permission", "api"]
+  ] | map(resource(.[0]; .[1]; .[2]; {})))
+' "$prod_partial_plan" > "$prod_plan"
+
+prod_missing_integration_plan="$tmp_dir/prod-missing-integration.json"
+jq 'del(.resource_changes[] |
+  select(.address == "module.service.aws_apigatewayv2_integration.lambda"))' \
+  "$prod_plan" > "$prod_missing_integration_plan"
+
+prod_dormant_configuration_plan="$tmp_dir/prod-dormant-configuration.json"
+jq '.configuration.root_module.module_calls.service.module.resources += [{
+  address: "aws_iam_user.dormant",
+  mode: "managed",
+  type: "aws_iam_user",
+  name: "dormant",
+  count_expression: {constant_value: 0},
+  expressions: {}
+}]' "$prod_plan" > "$prod_dormant_configuration_plan"
+
+prod_dormant_root_configuration_plan="$tmp_dir/prod-dormant-root-configuration.json"
+jq '.configuration.root_module.resources = [{
+  address: "aws_iam_user.dormant",
+  mode: "managed",
+  type: "aws_iam_user",
+  name: "dormant",
+  count_expression: {constant_value: 0},
+  expressions: {}
+}]' "$prod_plan" > "$prod_dormant_root_configuration_plan"
+
+prod_dormant_sibling_module_plan="$tmp_dir/prod-dormant-sibling-module.json"
+jq '.configuration.root_module.module_calls.dormant = {
+  module: {resources: [{
+    address: "aws_iam_user.dormant",
+    mode: "managed",
+    type: "aws_iam_user",
+    name: "dormant",
+    count_expression: {constant_value: 0},
+    expressions: {}
+  }]}
+}' "$prod_plan" > "$prod_dormant_sibling_module_plan"
+
+prod_dormant_nested_module_plan="$tmp_dir/prod-dormant-nested-module.json"
+jq '.configuration.root_module.module_calls.service.module.module_calls.dormant = {
+  module: {resources: [{
+    address: "aws_iam_user.dormant",
+    mode: "managed",
+    type: "aws_iam_user",
+    name: "dormant",
+    count_expression: {constant_value: 0},
+    expressions: {}
+  }]}
+}' "$prod_plan" > "$prod_dormant_nested_module_plan"
 
 ci_roles_noop_plan="$tmp_dir/ci-roles-noop.json"
 jq '
@@ -1343,6 +1452,13 @@ jq '
   )
 ' "$dev_plan" > "$dev_provider_empty_alarm_actions_plan"
 
+prod_provider_known_alarm_actions_plan="$tmp_dir/prod-provider-known-alarm-actions.json"
+jq '
+  (.resource_changes[] | select(.type == "aws_cloudwatch_metric_alarm") | .change) |= (
+    .after_unknown.alarm_actions = [false]
+  )
+' "$prod_plan" > "$prod_provider_known_alarm_actions_plan"
+
 dev_null_acm_private_key_plan="$tmp_dir/dev-null-acm-private-key.json"
 jq '.resource_changes += [{
   mode: "managed",
@@ -1551,6 +1667,24 @@ mutate_ci_roles_and_reject "CI role plan rejects stale deleted sensitive outputs
 
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
+expect_fail \
+  "production replacement plan rejects an incomplete managed topology" \
+  run_check "$prod_missing_integration_plan" prod
+expect_fail \
+  "production replacement plan rejects dormant unapproved configuration" \
+  run_check "$prod_dormant_configuration_plan" prod
+expect_fail \
+  "production replacement plan rejects dormant root configuration" \
+  run_check "$prod_dormant_root_configuration_plan" prod
+expect_fail \
+  "production replacement plan rejects a dormant sibling module" \
+  run_check "$prod_dormant_sibling_module_plan" prod
+expect_fail \
+  "production replacement plan rejects a dormant nested module" \
+  run_check "$prod_dormant_nested_module_plan" prod
+expect_pass \
+  "production plan with provider-known alarm action elements" \
+  run_check "$prod_provider_known_alarm_actions_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
 expect_pass "development plan with converged runtime policy" run_check "$dev_converged_runtime_policy_plan" dev
 expect_pass "development plan with empty policy composition inputs" run_check "$dev_empty_policy_composition_plan" dev
@@ -1721,6 +1855,36 @@ mutate_and_reject() {
 mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
 mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'
 mutate_and_reject \
+  "production plan rejects a forget action" \
+  "$prod_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_apigatewayv2_integration.lambda") |
+    .change.actions) = ["forget"]'
+mutate_and_reject \
+  "production plan rejects a moved resource" \
+  "$prod_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_apigatewayv2_integration.lambda") |
+    .previous_address) = "module.service.aws_apigatewayv2_integration.previous"'
+mutate_and_reject \
+  "production plan rejects a deposed resource" \
+  "$prod_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_apigatewayv2_integration.lambda") |
+    .deposed) = "00000001"'
+mutate_and_reject \
+  "production plan rejects an importing resource" \
+  "$prod_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_apigatewayv2_integration.lambda") |
+    .change.importing) = {id: "unreviewed"}'
+mutate_and_reject \
+  "production plan rejects generated configuration" \
+  "$prod_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_apigatewayv2_integration.lambda") |
+    .change.generated_config) = "resource \"unreviewed\" \"example\" {}"'
+mutate_and_reject \
   "legacy App Runner address" \
   "$dev_plan" \
   '.resource_changes[0].address = "module.service.aws_apprunner_service.legacy"'
@@ -1795,6 +1959,24 @@ mutate_and_reject \
   '.resource_changes[6].change.after.deletion_protection_enabled = false'
 mutate_and_reject "log retention drift" "$dev_plan" '.resource_changes[4].change.after.retention_in_days = 7'
 mutate_and_reject "alarm action mismatch" "$prod_plan" '.resource_changes[8].change.after.alarm_actions = []'
+mutate_and_reject \
+  "production alarm actions reject a deferred provider element" \
+  "$prod_provider_known_alarm_actions_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_cloudwatch_metric_alarm.lambda_errors") |
+    .change.after_unknown.alarm_actions[0]) = true'
+mutate_and_reject \
+  "production alarm actions reject a wrong-length provider marker" \
+  "$prod_provider_known_alarm_actions_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_cloudwatch_metric_alarm.lambda_errors") |
+    .change.after_unknown.alarm_actions) += [false]'
+mutate_and_reject \
+  "production alarm actions reject a malformed provider marker" \
+  "$prod_provider_known_alarm_actions_plan" \
+  '(.resource_changes[] |
+    select(.address == "module.service.aws_cloudwatch_metric_alarm.lambda_errors") |
+    .change.after_unknown.alarm_actions) = {"0": false}'
 mutate_and_reject \
   "unknown empty alarm actions" \
   "$dev_provider_empty_alarm_actions_plan" \

@@ -49,8 +49,24 @@ jq -e '.resource_changes | type == "array"' "$PLAN_JSON" > /dev/null ||
   fail "plan JSON has no resource_changes array"
 
 jq -e '
-  all(.resource_changes[]; (.change.actions | index("delete")) == null)
-' "$PLAN_JSON" > /dev/null || fail "delete or replace action found"
+  all(.resource_changes[];
+    (.change | type == "object") and
+    (.change.actions | type == "array") and
+    ((.change.actions | index("delete")) == null) and
+    ((.change.actions | index("forget")) == null) and
+    (if .mode == "managed" then
+      (.change.actions == ["create"] or
+        .change.actions == ["update"] or
+        .change.actions == ["no-op"])
+    else
+      true
+    end) and
+    (.previous_address? == null) and
+    (.deposed? == null) and
+    (.change.importing? == null) and
+    (.change.generated_config? == null))
+' "$PLAN_JSON" > /dev/null ||
+  fail "unsupported action, move, import, or generated configuration found"
 
 jq -e '
   [
@@ -430,6 +446,73 @@ jq -e --arg environment "$ENVIRONMENT" '
   all(.resource_changes[] | select(.mode != "data");
     .mode == "managed" and allowed_managed(.address; .type))
 ' "$PLAN_JSON" > /dev/null || fail "environment plan contains an unapproved resource address or type"
+
+if [ "$ENVIRONMENT" = prod ]; then
+  jq -e '
+    ([.resource_changes[] | select(.mode == "managed") | [.address, .type]] | sort) ==
+    ([
+      ["module.service.aws_apigatewayv2_api.app", "aws_apigatewayv2_api"],
+      ["module.service.aws_apigatewayv2_integration.lambda", "aws_apigatewayv2_integration"],
+      ["module.service.aws_apigatewayv2_route.default", "aws_apigatewayv2_route"],
+      ["module.service.aws_apigatewayv2_stage.default", "aws_apigatewayv2_stage"],
+      ["module.service.aws_cloudwatch_log_group.api_access", "aws_cloudwatch_log_group"],
+      ["module.service.aws_cloudwatch_log_group.lambda", "aws_cloudwatch_log_group"],
+      ["module.service.aws_cloudwatch_metric_alarm.api_5xx", "aws_cloudwatch_metric_alarm"],
+      ["module.service.aws_cloudwatch_metric_alarm.api_latency", "aws_cloudwatch_metric_alarm"],
+      ["module.service.aws_cloudwatch_metric_alarm.lambda_duration", "aws_cloudwatch_metric_alarm"],
+      ["module.service.aws_cloudwatch_metric_alarm.lambda_errors", "aws_cloudwatch_metric_alarm"],
+      ["module.service.aws_cloudwatch_metric_alarm.lambda_throttles", "aws_cloudwatch_metric_alarm"],
+      ["module.service.aws_dynamodb_table.google_connections", "aws_dynamodb_table"],
+      ["module.service.aws_dynamodb_table.soccer_sessions", "aws_dynamodb_table"],
+      ["module.service.aws_iam_role.lambda", "aws_iam_role"],
+      ["module.service.aws_iam_role_policy.lambda", "aws_iam_role_policy"],
+      ["module.service.aws_lambda_alias.live", "aws_lambda_alias"],
+      ["module.service.aws_lambda_function.app", "aws_lambda_function"],
+      ["module.service.aws_lambda_permission.api", "aws_lambda_permission"]
+    ] | sort)
+  ' "$PLAN_JSON" > /dev/null || fail "production plan managed topology drifted"
+
+  jq -e '
+    (.configuration.root_module | has("resources") | not) and
+    (.configuration.root_module.module_calls |
+      type == "object" and keys == ["service"]) and
+    (.configuration.root_module.module_calls.service.module |
+      has("module_calls") | not) and
+    ([
+      .configuration.root_module.module_calls.service.module.resources[]? |
+      [.address, .mode, .type]
+    ] | sort) ==
+    ([
+      ["aws_acm_certificate.custom", "managed", "aws_acm_certificate"],
+      ["aws_acm_certificate_validation.custom", "managed", "aws_acm_certificate_validation"],
+      ["aws_apigatewayv2_api.app", "managed", "aws_apigatewayv2_api"],
+      ["aws_apigatewayv2_api_mapping.custom", "managed", "aws_apigatewayv2_api_mapping"],
+      ["aws_apigatewayv2_domain_name.custom", "managed", "aws_apigatewayv2_domain_name"],
+      ["aws_apigatewayv2_integration.lambda", "managed", "aws_apigatewayv2_integration"],
+      ["aws_apigatewayv2_route.default", "managed", "aws_apigatewayv2_route"],
+      ["aws_apigatewayv2_stage.default", "managed", "aws_apigatewayv2_stage"],
+      ["aws_cloudwatch_log_group.api_access", "managed", "aws_cloudwatch_log_group"],
+      ["aws_cloudwatch_log_group.lambda", "managed", "aws_cloudwatch_log_group"],
+      ["aws_cloudwatch_metric_alarm.api_5xx", "managed", "aws_cloudwatch_metric_alarm"],
+      ["aws_cloudwatch_metric_alarm.api_latency", "managed", "aws_cloudwatch_metric_alarm"],
+      ["aws_cloudwatch_metric_alarm.lambda_duration", "managed", "aws_cloudwatch_metric_alarm"],
+      ["aws_cloudwatch_metric_alarm.lambda_errors", "managed", "aws_cloudwatch_metric_alarm"],
+      ["aws_cloudwatch_metric_alarm.lambda_throttles", "managed", "aws_cloudwatch_metric_alarm"],
+      ["aws_dynamodb_table.google_connections", "managed", "aws_dynamodb_table"],
+      ["aws_dynamodb_table.soccer_sessions", "managed", "aws_dynamodb_table"],
+      ["aws_iam_role.lambda", "managed", "aws_iam_role"],
+      ["aws_iam_role_policy.lambda", "managed", "aws_iam_role_policy"],
+      ["aws_lambda_alias.live", "managed", "aws_lambda_alias"],
+      ["aws_lambda_function.app", "managed", "aws_lambda_function"],
+      ["aws_lambda_permission.api", "managed", "aws_lambda_permission"],
+      ["data.aws_caller_identity.current", "data", "aws_caller_identity"],
+      ["data.aws_iam_policy_document.lambda", "data", "aws_iam_policy_document"],
+      ["data.aws_iam_policy_document.lambda_assume_role", "data", "aws_iam_policy_document"],
+      ["data.aws_kms_alias.ssm", "data", "aws_kms_alias"],
+      ["data.aws_partition.current", "data", "aws_partition"]
+    ] | sort)
+  ' "$PLAN_JSON" > /dev/null || fail "production service configuration topology drifted"
+fi
 
 jq -e '
   all(.resource_changes[] | select(.mode == "data");
@@ -821,9 +904,15 @@ jq -e \
     elif type == "array" and all(.[]; type == "string") then .
     else error("expected a string array or provider-normalized null")
     end;
+  def exact_known_array_marker($unknown; $known):
+    $unknown == false or
+    ($unknown | type == "array" and
+      length == ($known | length) and
+      all(.[]; . == false));
   def exact_alarm($name; $metric; $threshold; $statistic):
     planned("aws_cloudwatch_metric_alarm"; $name) as $planned_alarm |
     $planned_alarm.change.after as $alarm |
+    ($alarm.alarm_actions | normalized_string_array) as $alarm_actions |
     ($alarm | has("alarm_actions")) and
     $alarm.alarm_name == ($prefix + "-" + ($name | gsub("_"; "-"))) and
     $alarm.metric_name == $metric and
@@ -833,9 +922,12 @@ jq -e \
     $alarm.treat_missing_data == "notBreaching" and
     (
       ($planned_alarm.change.after_unknown | has("alarm_actions") | not) or
-      $planned_alarm.change.after_unknown.alarm_actions == false
+      exact_known_array_marker(
+        $planned_alarm.change.after_unknown.alarm_actions;
+        $alarm_actions
+      )
     ) and
-    ($alarm.alarm_actions | normalized_string_array | sort) == ($expected_actions | sort) and
+    ($alarm_actions | sort) == ($expected_actions | sort) and
     (if $statistic == "p95" then $alarm.extended_statistic == "p95" else $alarm.statistic == $statistic end);
 
   .variables.alarm_action_arns.value == $expected_actions and
