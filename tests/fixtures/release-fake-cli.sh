@@ -13,24 +13,85 @@ case "$command_name" in
       esac
     done
     case "$endpoint" in
+      */actions/runs/*/attempts/*)
+        review_run_id=${endpoint%/attempts/*}
+        review_run_id=${review_run_id##*/}
+        if [ -n "${FAKE_REVIEW_RUNS_BY_ID_JSON:-}" ]; then
+          printf '%s\n' "$FAKE_REVIEW_RUNS_BY_ID_JSON" |
+            jq -cer --arg id "$review_run_id" '.[$id]'
+        else
+          printf '%s\n' "${FAKE_REVIEW_RUN_JSON:?set FAKE_REVIEW_RUN_JSON}"
+        fi
+        ;;
+      */actions/runs/*/approvals)
+        review_run_id=${endpoint%/approvals}
+        review_run_id=${review_run_id##*/}
+        if [ -n "${FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON:-}" ]; then
+          printf '%s\n' "$FAKE_REVIEW_APPROVALS_BY_RUN_ID_JSON" |
+            jq -cer --arg id "$review_run_id" '.[$id]'
+        else
+          printf '%s\n' "${FAKE_REVIEW_APPROVALS_JSON:?set FAKE_REVIEW_APPROVALS_JSON}"
+        fi
+        ;;
       */commits/main)
-        printf '%s\n' "${FAKE_MAIN_SHA:?set FAKE_MAIN_SHA}"
+        if [ -n "${FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER:-}" ] &&
+          [ -e "$FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER" ]; then
+          printf '%s\n' "${FAKE_MAIN_SHA_AFTER_REVIEW_DEPLOYMENT:?set advanced main SHA}"
+        else
+          printf '%s\n' "${FAKE_MAIN_SHA:?set FAKE_MAIN_SHA}"
+        fi
         ;;
       */commits/*/pulls)
-        printf '%s\n' "${FAKE_PULLS_JSON:?set FAKE_PULLS_JSON}"
+        requested_commit=${endpoint%/pulls}
+        requested_commit=${requested_commit##*/}
+        if [ -n "${FAKE_PULLS_BY_COMMIT_JSON:-}" ]; then
+          printf '%s\n' "$FAKE_PULLS_BY_COMMIT_JSON" |
+            jq -cer --arg commit "$requested_commit" '.[$commit]'
+        elif [ -n "${FAKE_REVIEW_SOURCE_SHA:-}" ] &&
+          [ "$requested_commit" = "$FAKE_REVIEW_SOURCE_SHA" ]; then
+          printf '%s\n' "${FAKE_REVIEW_PULLS_JSON:?set FAKE_REVIEW_PULLS_JSON}"
+        else
+          printf '%s\n' "${FAKE_PULLS_JSON:?set FAKE_PULLS_JSON}"
+        fi
         ;;
       */deployments\?*)
-        printf '%s\n' "${FAKE_DEPLOYMENT_PAGES_JSON:?set FAKE_DEPLOYMENT_PAGES_JSON}"
+        case "$endpoint" in
+          *environment=release-review*)
+            printf '%s\n' "${FAKE_REVIEW_DEPLOYMENT_PAGES_JSON:-[[]]}"
+            ;;
+          *) printf '%s\n' "${FAKE_DEPLOYMENT_PAGES_JSON:?set FAKE_DEPLOYMENT_PAGES_JSON}" ;;
+        esac
         ;;
       */deployments/*/statuses\?*)
         if printf '%s\n' "$*" | grep -Fq -- '--slurp'; then
-          if [ -n "${FAKE_STATUS_PAGES_JSON:-}" ]; then
-            printf '%s\n' "$FAKE_STATUS_PAGES_JSON"
-          else
-            printf '[\n%s\n]\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
-          fi
+          case "$endpoint" in
+            */deployments/*/statuses\?*)
+              review_deployment_id=${endpoint%/statuses\?*}
+              review_deployment_id=${review_deployment_id##*/}
+              if [ -n "${FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON:-}" ]; then
+                printf '%s\n' "$FAKE_REVIEW_STATUSES_BY_DEPLOYMENT_JSON" |
+                  jq -cer --arg id "$review_deployment_id" '[.[$id]]'
+              elif [ "$review_deployment_id" = 84 ] &&
+                [ -n "${FAKE_REVIEW_STATUS_PAGES_JSON:-}" ]; then
+                printf '%s\n' "$FAKE_REVIEW_STATUS_PAGES_JSON"
+              elif [ "$review_deployment_id" = 84 ] &&
+                [ -n "${FAKE_REVIEW_STATUSES_JSON:-}" ]; then
+                printf '[\n%s\n]\n' \
+                  "$FAKE_REVIEW_STATUSES_JSON"
+              elif [ -n "${FAKE_STATUS_PAGES_JSON:-}" ]; then
+                printf '%s\n' "$FAKE_STATUS_PAGES_JSON"
+              else
+                printf '[\n%s\n]\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+              fi
+              ;;
+          esac
         else
-          printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+          if [ -n "${FAKE_REVIEW_STATUSES_JSON:-}" ] &&
+            printf '%s\n' "$endpoint" | grep -Fq '/deployments/84/'; then
+            printf '%s\n' "$FAKE_REVIEW_STATUSES_JSON"
+          else
+            printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
+          fi
         fi
         ;;
       */deployments/*/statuses)
@@ -55,7 +116,24 @@ case "$command_name" in
               ;;
           esac
           requested_state=$(printf '%s\n' "$*" | sed -n 's/.*-f state=\([^ ]*\).*/\1/p')
-          printf '{"id":99,"state":"%s"}\n' "$requested_state"
+          if printf '%s\n' "$*" | grep -Fq -- '-f environment=release-review'; then
+            requested_description=$(printf '%s\n' "$*" |
+              sed -n 's/.*-f description=\(.*\)$/\1/p')
+            jq -nc \
+              --arg state "$requested_state" \
+              --arg description "$requested_description" \
+              --arg created_at "${FAKE_REVIEW_STATUS_CREATED_AT:-2026-08-30T00:03:00Z}" '{
+                id: 184,
+                created_at: $created_at,
+                state: $state,
+                environment: "release-review",
+                environment_url: "",
+                description: $description,
+                creator: {login: "github-actions[bot]", type: "Bot"}
+              }'
+          else
+            printf '{"id":99,"state":"%s"}\n' "$requested_state"
+          fi
         else
           printf '%s\n' "${FAKE_STATUSES_JSON:?set FAKE_STATUSES_JSON}"
         fi
@@ -63,7 +141,27 @@ case "$command_name" in
       */deployments)
         requested_description=$(printf '%s\n' "$*" |
           sed -n 's/.*-f description=\(.*\)$/\1/p')
-        printf '{"id":42,"description":"%s"}\n' "$requested_description"
+        if printf '%s\n' "$*" | grep -Fq -- '-f task=portfolio-lambda-release-review'; then
+          if [ -n "${FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER:-}" ]; then
+            : > "$FAKE_MAIN_ADVANCE_AFTER_REVIEW_DEPLOYMENT_MARKER"
+          fi
+          requested_ref=$(printf '%s\n' "$*" | sed -n 's/.*-f ref=\([^ ]*\).*/\1/p')
+          jq -nc \
+            --arg ref "$requested_ref" \
+            --arg description "$requested_description" \
+            --arg created_at "${FAKE_REVIEW_DEPLOYMENT_CREATED_AT:-2026-08-30T00:02:00Z}" '{
+              id: 84,
+              created_at: $created_at,
+              ref: $ref,
+              sha: $ref,
+              task: "portfolio-lambda-release-review",
+              environment: "release-review",
+              description: $description,
+              creator: {login: "github-actions[bot]", type: "Bot"}
+            }'
+        else
+          printf '{"id":42,"description":"%s"}\n' "$requested_description"
+        fi
         ;;
       */deployments/*)
         printf '%s\n' "${FAKE_DEPLOYMENT_JSON:?set FAKE_DEPLOYMENT_JSON}"

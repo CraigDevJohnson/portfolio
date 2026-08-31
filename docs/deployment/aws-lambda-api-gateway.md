@@ -55,8 +55,30 @@ runs, direct pushes, ambiguous associations, malformed deployment records, and
 stale runs cannot obtain AWS credentials.
 Runtime-only commits are built once under the release-builder OIDC role,
 scanned, digest-resolved, and deployed to development through a saved,
-policy-checked plan. Docs/test-only commits skip. Infrastructure, workflow,
-mixed, and unknown commits fail closed.
+policy-checked plan. Docs/test-only commits skip. Explicit Go and Docker build
+inputs deploy; infrastructure, workflow, mixed, and unrecognized paths fail
+closed.
+
+A review-only merge waits in the protected `release-review` GitHub Environment
+before recording a durable review checkpoint. Configure that environment before
+merging the workflow that introduces the job: allow only protected branches,
+require the designated repository owner, disable administrator bypass, and do
+not assign environment variables or secrets. The review job receives no AWS credentials.
+It cannot request an OIDC token and does not build, plan, or deploy the application.
+
+The checkpoint is a development backlog cursor only. Its GitHub deployment and
+latest success status bind the last trusted development SHA to the reviewed
+merge SHA under the exact `portfolio-lambda-release-review` task and
+`release-review` environment, the exact first attempt of the Release workflow,
+and Craig's recorded approval of that environment. Future authorization
+independently verifies the record schema, bot creator, Release workflow identity
+and successful conclusion, environment-review history, unique merged pull
+request, and Git ancestry. Failed or cancelled run markers are ignored. The
+checkpoint applies only when its entire covered range has no runtime or
+`deploy/production-release.json` change; mixed, pending runtime, and unplanned
+promotion work cannot be approved away. Current pull request classification,
+production-manifest comparison, development rollback version, and release
+source remain based on their existing independent inputs.
 
 Configure GitHub Environments named `development` and `production-plan`. Put
 `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN` in `development` and the read-only

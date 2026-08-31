@@ -17,11 +17,14 @@ sh "$script_dir/check-current-main.sh" "$EVENT_SHA"
 
 reviewed_base_sha=$(sh "$script_dir/resolve-reviewed-release-base.sh" "$EVENT_SHA")
 development_base_sha=$(sh "$script_dir/resolve-development-release-base.sh" "$EVENT_SHA")
-classification=$(sh "$script_dir/classify-release-change.sh" "$reviewed_base_sha" "$EVENT_SHA")
+release_backlog_base_sha=$(sh "$script_dir/resolve-release-backlog-base.sh" \
+  "$EVENT_SHA" "$development_base_sha")
+current_classification=$(sh "$script_dir/classify-release-change.sh" "$reviewed_base_sha" "$EVENT_SHA")
+classification=$current_classification
 
 if [ "$classification" != review ]; then
   backlog_classification=$(sh "$script_dir/classify-release-change.sh" \
-    "$development_base_sha" "$EVENT_SHA" development-backlog)
+    "$release_backlog_base_sha" "$EVENT_SHA" development-backlog)
   case "$backlog_classification:$classification" in
     review:*) classification=review ;;
     development:skip | development:development) classification=development ;;
@@ -38,5 +41,15 @@ fi
   printf 'classification=%s\n' "$classification"
 } >> "$GITHUB_OUTPUT"
 
-[ "$classification" != review ] ||
-  fail 'infrastructure, workflow, deployment-authority, mixed, or unknown changes require a reviewed plan'
+if [ "$classification" = review ]; then
+  [ "$current_classification" = review ] ||
+    fail 'an earlier review-class backlog cannot be cleared by this change'
+  current_checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" \
+    "$reviewed_base_sha" "$EVENT_SHA" release-review-current)
+  [ "$current_checkpoint_classification" = review ] ||
+    fail 'release review cannot checkpoint a current runtime or promotion change'
+  checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" \
+    "$development_base_sha" "$EVENT_SHA" release-review)
+  [ "$checkpoint_classification" = review ] ||
+    fail 'release review cannot checkpoint runtime changes'
+fi
