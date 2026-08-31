@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_sha": null,
-  "image_digest": null,
-  "development_deployment_id": null
+  "source_sha": "9528b784088f71fa39d1d7fce8570278c0d3acaf",
+  "image_digest": "sha256:affaf0a7e2ff3add63db709107785c49faf5b08a8a86959bd4719402372b5776",
+  "development_deployment_id": 6179270539
 }
