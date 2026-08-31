@@ -134,10 +134,10 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
     "$reviewed_pull_base" "$reviewed_source_sha")
   [ "$current_classification" = review ] ||
     fail "deployment $deployment_id source is not a review-class pull request"
-  backlog_classification=$(sh "$script_dir/classify-release-change.sh" \
-    "$development_base_sha" "$reviewed_source_sha" release-review)
-  [ "$backlog_classification" = review ] ||
+  if ! sh "$script_dir/validate-release-review-backlog.sh" \
+    "$development_base_sha" "$reviewed_pull_base" "$reviewed_source_sha"; then
     fail "deployment $deployment_id does not cover a review-class backlog"
+  fi
   if [ "$resolved_base" = "$reviewed_source_sha" ]; then
     continue
   fi

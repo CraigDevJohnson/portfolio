@@ -26,6 +26,7 @@ for editorconfig_file in \
   scripts/resolve-development-release-base.sh \
   scripts/resolve-release-backlog-base.sh \
   scripts/resolve-reviewed-release-base.sh \
+  scripts/validate-release-review-backlog.sh \
   scripts/validate-release-review-run.sh \
   scripts/validate-production-release.sh \
   scripts/verify-lambda-release.sh \
@@ -683,6 +684,179 @@ if grep -Fq -- '--method POST' "$delayed_promotion_log"; then
   exit 1
 fi
 unset FAKE_GH_LOG
+
+pending_promotion_repo="$test_dir/pending-promotion-review-repository"
+mkdir -p "$pending_promotion_repo/.github/workflows" "$pending_promotion_repo/deploy"
+git -C "$pending_promotion_repo" init -q
+git -C "$pending_promotion_repo" config user.email test@example.com
+git -C "$pending_promotion_repo" config user.name Test
+echo release > "$pending_promotion_repo/.github/workflows/release.yml"
+echo '{"schema_version":1}' > "$pending_promotion_repo/deploy/production-release.json"
+git -C "$pending_promotion_repo" add .
+git -C "$pending_promotion_repo" commit -qm development-base
+pending_promotion_development_base=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+echo '{"schema_version":1,"source_sha":"verified"}' \
+  > "$pending_promotion_repo/deploy/production-release.json"
+git -C "$pending_promotion_repo" commit -qam standalone-promotion
+pending_promotion_merge=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+echo checkpoint >> "$pending_promotion_repo/.github/workflows/release.yml"
+git -C "$pending_promotion_repo" commit -qam review-after-promotion
+pending_promotion_first_review=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+echo follow-up >> "$pending_promotion_repo/.github/workflows/release.yml"
+git -C "$pending_promotion_repo" commit -qam review-checkpoint-fix
+pending_promotion_review=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$pending_promotion_review
+FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+  --arg review "$pending_promotion_review" \
+  --arg first_review "$pending_promotion_first_review" \
+  --arg promotion "$pending_promotion_merge" \
+  --argjson review_pull "$(reviewed_pull_json \
+    "$pending_promotion_review" "$pending_promotion_first_review")" \
+  --argjson first_review_pull "$(reviewed_pull_json \
+    "$pending_promotion_first_review" "$pending_promotion_merge")" \
+  --argjson promotion_pull "$(reviewed_pull_json \
+    "$pending_promotion_merge" "$pending_promotion_development_base")" \
+  '{
+    ($review):$review_pull,
+    ($first_review):$first_review_pull,
+    ($promotion):$promotion_pull
+  }')
+FAKE_DEPLOYMENT_PAGES_JSON='[[]]'
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON='[[]]'
+pending_promotion_output="$test_dir/pending-promotion-review-output"
+export FAKE_MAIN_SHA FAKE_PULLS_BY_COMMIT_JSON FAKE_DEPLOYMENT_PAGES_JSON
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+(cd "$pending_promotion_repo" &&
+  EVENT_SHA="$pending_promotion_review" GITHUB_OUTPUT="$pending_promotion_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh")
+grep -Fqx "base_sha=$pending_promotion_first_review" "$pending_promotion_output"
+grep -Fqx \
+  "development_base_sha=$pending_promotion_development_base" \
+  "$pending_promotion_output"
+grep -Fqx 'classification=review' "$pending_promotion_output"
+
+set_review_provenance "$pending_promotion_review" 9001 1 in_progress null
+(cd "$pending_promotion_repo" &&
+  SOURCE_SHA="$pending_promotion_review" \
+    sh "$root_dir/scripts/record-ci-lambda-release-review.sh")
+
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON=$(review_deployment_pages_json \
+  "$pending_promotion_development_base" "$pending_promotion_review")
+FAKE_REVIEW_STATUSES_JSON=$(review_status_json \
+  "$pending_promotion_development_base" "$pending_promotion_review")
+set_review_provenance "$pending_promotion_review"
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON FAKE_REVIEW_STATUSES_JSON
+resolved_pending_promotion_base=$(cd "$pending_promotion_repo" &&
+  sh "$root_dir/scripts/resolve-release-backlog-base.sh" \
+    "$pending_promotion_review" "$pending_promotion_development_base")
+test "$resolved_pending_promotion_base" = "$pending_promotion_review" || {
+  echo 'standalone pending promotion blocked a later release review checkpoint' >&2
+  exit 1
+}
+FAKE_REVIEW_DEPLOYMENT_PAGES_JSON='[[]]'
+unset FAKE_REVIEW_STATUSES_JSON
+export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+
+git -C "$pending_promotion_repo" checkout -qb multiple-promotions \
+  "$pending_promotion_merge"
+echo '{"schema_version":1,"source_sha":"verified-again"}' \
+  > "$pending_promotion_repo/deploy/production-release.json"
+git -C "$pending_promotion_repo" commit -qam second-standalone-promotion
+second_pending_promotion=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+echo second-checkpoint >> "$pending_promotion_repo/.github/workflows/release.yml"
+git -C "$pending_promotion_repo" commit -qam review-after-second-promotion
+multiple_promotion_review=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$multiple_promotion_review
+FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+  --arg review "$multiple_promotion_review" \
+  --arg second "$second_pending_promotion" \
+  --arg first "$pending_promotion_merge" \
+  --argjson review_pull "$(reviewed_pull_json \
+    "$multiple_promotion_review" "$second_pending_promotion")" \
+  --argjson second_pull "$(reviewed_pull_json \
+    "$second_pending_promotion" "$pending_promotion_merge")" \
+  --argjson first_pull "$(reviewed_pull_json \
+    "$pending_promotion_merge" "$pending_promotion_development_base")" \
+  '{($review):$review_pull,($second):$second_pull,($first):$first_pull}')
+multiple_promotion_output="$test_dir/multiple-promotion-review-output"
+multiple_promotion_error="$test_dir/multiple-promotion-review-error"
+export FAKE_MAIN_SHA FAKE_PULLS_BY_COMMIT_JSON
+if (cd "$pending_promotion_repo" &&
+  EVENT_SHA="$multiple_promotion_review" GITHUB_OUTPUT="$multiple_promotion_output" \
+    sh "$root_dir/scripts/authorize-ci-lambda-release.sh" \
+      > /dev/null 2> "$multiple_promotion_error"); then
+  echo 'release review checkpoint accepted multiple pending promotions' >&2
+  exit 1
+fi
+grep -Fq 'checkpoint recovery contains multiple production promotions' \
+  "$multiple_promotion_error" || {
+  echo 'multiple-promotion test did not reach the exact checkpoint guard' >&2
+  exit 1
+}
+unset FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
+unset FAKE_REVIEW_STATUSES_JSON
+
+assert_pending_promotion_prefix_rejected() {
+  blocked_label=$1
+  blocked_path=$2
+  blocked_repo="$test_dir/pending-promotion-$blocked_label-repository"
+  mkdir -p "$blocked_repo/.github/workflows" "$blocked_repo/deploy"
+  git -C "$blocked_repo" init -q
+  git -C "$blocked_repo" config user.email test@example.com
+  git -C "$blocked_repo" config user.name Test
+  echo release > "$blocked_repo/.github/workflows/release.yml"
+  echo '{"schema_version":1}' > "$blocked_repo/deploy/production-release.json"
+  git -C "$blocked_repo" add .
+  git -C "$blocked_repo" commit -qm development-base
+  blocked_development_base=$(git -C "$blocked_repo" rev-parse HEAD)
+  mkdir -p "$(dirname "$blocked_repo/$blocked_path")"
+  echo blocked > "$blocked_repo/$blocked_path"
+  git -C "$blocked_repo" add .
+  git -C "$blocked_repo" commit -qm "pending-$blocked_label"
+  blocked_prefix=$(git -C "$blocked_repo" rev-parse HEAD)
+  echo '{"schema_version":1,"source_sha":"verified"}' \
+    > "$blocked_repo/deploy/production-release.json"
+  git -C "$blocked_repo" commit -qam standalone-promotion
+  blocked_promotion=$(git -C "$blocked_repo" rev-parse HEAD)
+  echo checkpoint >> "$blocked_repo/.github/workflows/release.yml"
+  git -C "$blocked_repo" commit -qam review-after-promotion
+  blocked_review=$(git -C "$blocked_repo" rev-parse HEAD)
+  FAKE_MAIN_SHA=$blocked_review
+  FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+    --arg review "$blocked_review" \
+    --arg promotion "$blocked_promotion" \
+    --arg prefix "$blocked_prefix" \
+    --argjson review_pull "$(reviewed_pull_json \
+      "$blocked_review" "$blocked_promotion")" \
+    --argjson promotion_pull "$(reviewed_pull_json \
+      "$blocked_promotion" "$blocked_prefix")" \
+    --argjson prefix_pull "$(reviewed_pull_json \
+      "$blocked_prefix" "$blocked_development_base")" \
+    '{
+      ($review):$review_pull,
+      ($promotion):$promotion_pull,
+      ($prefix):$prefix_pull
+    }')
+  blocked_output="$test_dir/pending-promotion-$blocked_label-output"
+  blocked_error="$test_dir/pending-promotion-$blocked_label-error"
+  export FAKE_MAIN_SHA FAKE_PULLS_BY_COMMIT_JSON
+  if (cd "$blocked_repo" &&
+    EVENT_SHA="$blocked_review" GITHUB_OUTPUT="$blocked_output" \
+      sh "$root_dir/scripts/authorize-ci-lambda-release.sh" \
+        > /dev/null 2> "$blocked_error"); then
+    echo "release review checkpoint laundered pending $blocked_label" >&2
+    exit 1
+  fi
+  grep -Fq 'checkpoint recovery contains a runtime, mixed, or unknown pull request' \
+    "$blocked_error" || {
+    echo "pending-$blocked_label test did not reach the exact checkpoint guard" >&2
+    exit 1
+  }
+}
+
+assert_pending_promotion_prefix_rejected runtime internal/app/app.go
+assert_pending_promotion_prefix_rejected unknown chrome-extension/manifest.json
+unset FAKE_PULLS_BY_COMMIT_JSON
 
 reviewed_runtime_repo="$test_dir/reviewed-runtime-repository"
 mkdir -p "$reviewed_runtime_repo/.github/workflows" "$reviewed_runtime_repo/internal/app"
@@ -1822,6 +1996,7 @@ grep -Fq "GITHUB_RUN_ID: '{{default \"\" .GITHUB_RUN_ID}}'" \
   "$root_dir/Taskfile.yaml"
 test -x "$root_dir/scripts/record-ci-lambda-release-review.sh"
 test -x "$root_dir/scripts/resolve-release-backlog-base.sh"
+test -x "$root_dir/scripts/validate-release-review-backlog.sh"
 test -x "$root_dir/scripts/validate-release-review-run.sh"
 grep -Fq "GITHUB_RUN_ATTEMPT: ${literal_dollar}{{ github.run_attempt }}" << EOF
 $release_review_job

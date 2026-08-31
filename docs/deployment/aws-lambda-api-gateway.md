@@ -74,9 +74,15 @@ and Craig's recorded approval of that environment. Future authorization
 independently verifies the record schema, bot creator, Release workflow identity
 and successful conclusion, environment-review history, unique merged pull
 request, and Git ancestry. Failed or cancelled run markers are ignored. The
-checkpoint applies only when its entire covered range has no runtime or
-`deploy/production-release.json` change; mixed, pending runtime, and unplanned
-promotion work cannot be approved away. Current pull request classification,
+checkpoint normally applies only when its entire covered range has no runtime
+or `deploy/production-release.json` change. A narrow recovery exception allows
+exactly one standalone production-manifest PR in a bounded chain of uniquely
+reviewed merges from the trusted development SHA. Every other merge in that
+chain must be review-only or skip-only, and the current PR must be review-only.
+The checkpoint does not promote that manifest; a later manifest-only PR must
+still independently validate and request the protected production plan. Mixed
+or current promotions, pending runtime, multiple promotions, direct commits,
+and unplanned work cannot be approved away. Current pull request classification,
 production-manifest comparison, development rollback version, and release
 source remain based on their existing independent inputs.
 
