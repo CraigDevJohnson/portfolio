@@ -1227,6 +1227,10 @@ jq '
   )
 ' "$dev_converged_release_plan" > "$dev_rollback_plan"
 
+dev_rollback_string_override_plan="$tmp_dir/dev-rollback-string-override.json"
+jq '.variables.live_version_override.value = "7"' \
+  "$dev_rollback_plan" > "$dev_rollback_string_override_plan"
+
 dev_rollback_with_image_update_plan="$tmp_dir/dev-rollback-with-image-update.json"
 jq --arg previous_image "$previous_release_image" '
   (.resource_changes[] | select(.address == "module.service.aws_lambda_function.app") | .change) |= (
@@ -1555,6 +1559,8 @@ expect_pass "automated release accepts an already-converged verified retry" \
   run_maintenance_check "$dev_converged_release_plan"
 expect_pass "checked rollback accepts only the prior live alias version" \
   run_rollback_check "$dev_rollback_plan" 7
+expect_pass "checked rollback accepts OpenTofu string-encoded numeric override" \
+  run_rollback_check "$dev_rollback_string_override_plan" 7
 expect_fail "checked rollback rejects a mismatched reviewed prior version" \
   run_rollback_check "$dev_rollback_plan" 6
 expect_fail "checked rollback rejects an image update" \

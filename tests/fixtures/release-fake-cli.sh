@@ -319,6 +319,7 @@ case "$command_name" in
     esac
     ;;
   curl)
+    [ -z "${FAKE_CURL_ARGUMENT_LOG:-}" ] || printf 'curl %s\n' "$*" >> "$FAKE_CURL_ARGUMENT_LOG"
     headers=
     body=
     write_out=
@@ -337,7 +338,7 @@ case "$command_name" in
           write_out=$2
           shift 2
           ;;
-        --connect-timeout | --max-time | --max-redirs) shift 2 ;;
+        --connect-timeout | --max-time | --max-redirs | --connect-to) shift 2 ;;
         -*) shift ;;
         *)
           url=$1
@@ -428,7 +429,13 @@ case "$command_name" in
           echo 'simulated output failure' >&2
           exit 1
         }
-        printf '{}\n'
+        printf '%s\n' '{
+          "api_gateway_domain_targets": {
+            "value": {
+              "dev.craigdevjohnson.com": "origin.example.invalid"
+            }
+          }
+        }'
         ;;
       *)
         echo "unexpected fake tofu command: $*" >&2

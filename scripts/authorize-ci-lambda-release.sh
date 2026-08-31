@@ -22,7 +22,18 @@ release_backlog_base_sha=$(sh "$script_dir/resolve-release-backlog-base.sh" \
 current_classification=$(sh "$script_dir/classify-release-change.sh" "$reviewed_base_sha" "$EVENT_SHA")
 classification=$current_classification
 
-if [ "$classification" != review ]; then
+if [ "$classification" = review ]; then
+  checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" \
+    "$development_base_sha" "$EVENT_SHA" release-review)
+  if [ "$checkpoint_classification" = development ]; then
+    if git diff --no-renames --name-only \
+      "$development_base_sha" "$EVENT_SHA" -- deploy/production-release.json |
+      grep -Fxq deploy/production-release.json; then
+      fail 'protected development recovery cannot include a production promotion'
+    fi
+    classification=development-reviewed
+  fi
+else
   backlog_classification=$(sh "$script_dir/classify-release-change.sh" \
     "$release_backlog_base_sha" "$EVENT_SHA" development-backlog)
   case "$backlog_classification:$classification" in
@@ -52,4 +63,9 @@ if [ "$classification" = review ]; then
     "$development_base_sha" "$EVENT_SHA" release-review)
   [ "$checkpoint_classification" = review ] ||
     fail 'release review cannot checkpoint runtime changes'
+elif [ "$classification" = development-reviewed ]; then
+  [ "$current_classification" = review ] ||
+    fail 'protected development recovery requires a current review-class change'
+  [ "$checkpoint_classification" = development ] ||
+    fail 'protected development recovery requires a pending runtime change'
 fi
