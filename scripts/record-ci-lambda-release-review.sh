@@ -33,10 +33,10 @@ current_checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" 
   fail 'release review cannot checkpoint a current runtime or promotion change'
 
 development_base_sha=$(sh "$script_dir/resolve-development-release-base.sh" "$SOURCE_SHA")
-checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" \
-  "$development_base_sha" "$SOURCE_SHA" release-review)
-[ "$checkpoint_classification" = review ] ||
-  fail 'release review cannot checkpoint runtime changes'
+if ! sh "$script_dir/validate-release-review-backlog.sh" \
+  "$development_base_sha" "$reviewed_base_sha" "$SOURCE_SHA"; then
+  fail 'release review cannot checkpoint this development backlog'
+fi
 
 sh "$script_dir/validate-release-review-run.sh" \
   "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$SOURCE_SHA" recording
