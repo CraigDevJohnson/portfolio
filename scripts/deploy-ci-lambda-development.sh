@@ -49,7 +49,6 @@ DEPLOYMENT_STATE=in_progress \
   ROLLBACK_VERSION="$alias_before_version" \
   EVIDENCE_DIR="$evidence_dir" \
   sh scripts/record-ci-lambda-development.sh
-sh scripts/check-current-main.sh "$SOURCE_SHA"
 development_base=$(sh scripts/resolve-development-release-base.sh \
   "$SOURCE_SHA" coordinate)
 development_base_version=$(printf '%s\n' "$development_base" | cut -f2)
@@ -73,6 +72,7 @@ fail_with_rollback_candidate() {
 }
 trap fail_with_rollback_candidate HUP INT TERM
 
+sh scripts/check-current-main.sh "$SOURCE_SHA"
 if ! tofu -chdir=infra/lambda/environments/dev apply \
   -lock-timeout=5m \
   -input=false \

@@ -313,6 +313,7 @@ case "$command_name" in
     [ -z "${FAKE_SLEEP_LOG:-}" ] || printf 'sleep %s\n' "$*" >> "$FAKE_SLEEP_LOG"
     ;;
   tofu)
+    [ -z "${FAKE_TOFU_LOG:-}" ] || printf 'tofu %s\n' "$*" >> "$FAKE_TOFU_LOG"
     case "$*" in
       *' apply '*)
         if [ "${FAKE_TOFU_APPLY_SIGNAL:-false}" = true ]; then

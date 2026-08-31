@@ -51,16 +51,14 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
       .ref == .sha and
       .task == "portfolio-lambda-development" and
       .environment == "development" and
-      (.description | type == "string" and test(
-        "^Lambda sha256:[0-9a-f]{64} rollback-v[1-9][0-9]*$"
-      )) and
+      (.description | type == "string") and
       .creator.login == "github-actions[bot]" and
       .creator.type == "Bot"
     ) |
     (.description | capture(
-      "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<rollback>[1-9][0-9]*)$"
+      "^Lambda (?<digest>sha256:[0-9a-f]{64})(?: rollback-v(?<rollback>[1-9][0-9]*))?$"
     )) as $release |
-    [.sha, $release.digest, $release.rollback] | @tsv
+    [.sha, $release.digest, ($release.rollback // "")] | @tsv
   ') || fail "deployment $deployment_id does not match the trusted development schema"
   deployment_sha=$(printf '%s\n' "$deployment_fields" | cut -f1)
   deployment_digest=$(printf '%s\n' "$deployment_fields" | cut -f2)

@@ -559,6 +559,19 @@ resolved_coordinate=$(cd "$durable_repo" &&
   sh "$root_dir/scripts/resolve-development-release-base.sh" "$durable_head" coordinate)
 test "$resolved_coordinate" = "$(printf '%s\t7' "$deployed_sha")"
 
+FAKE_DEPLOYMENT_PAGES_JSON=$(printf '%s\n' "$valid_deployment_pages" | jq -c \
+  --arg digest "$image_digest" \
+  '.[0][0].description = ("Lambda " + $digest)')
+export FAKE_DEPLOYMENT_PAGES_JSON
+resolved_coordinate=$(cd "$durable_repo" &&
+  sh "$root_dir/scripts/resolve-development-release-base.sh" "$durable_head" coordinate)
+test "$resolved_coordinate" = "$(printf '%s\t7' "$deployed_sha")" || {
+  echo 'development cursor rejected a trusted legacy deployment record' >&2
+  exit 1
+}
+FAKE_DEPLOYMENT_PAGES_JSON=$valid_deployment_pages
+export FAKE_DEPLOYMENT_PAGES_JSON
+
 older_in_progress_status=$(durable_status_json \
   in_progress "$deployed_sha" "$image_digest" 'github-actions[bot]' \
   7 98 2026-08-30T00:00:00Z)
@@ -1117,12 +1130,18 @@ ln -s "$root_dir/scripts/deploy-ci-lambda-development.sh" \
   "$orchestration_dir/scripts/deploy-ci-lambda-development.sh"
 ln -s "$root_dir/scripts/record-ci-lambda-development.sh" \
   "$orchestration_dir/scripts/record-ci-lambda-development.sh"
-for helper in check-ci-state-bucket check-current-main; do
-  printf '#!/bin/sh\nexit 0\n' > "$orchestration_dir/scripts/$helper.sh"
-done
-printf '#!/bin/sh\nprintf "%%s\\t%%s\\n" "%s1" "%s{FAKE_DURABLE_VERSION:-}"\n' \
-  "$literal_dollar" "$literal_dollar" \
+printf '#!/bin/sh\nexit 0\n' \
+  > "$orchestration_dir/scripts/check-ci-state-bucket.sh"
+printf '#!/bin/sh\n[ ! -e "${FAKE_MAIN_ADVANCED_MARKER:-}" ]\n' \
+  > "$orchestration_dir/scripts/check-current-main.sh"
+printf '#!/bin/sh\n' \
   > "$orchestration_dir/scripts/resolve-development-release-base.sh"
+printf '[ -z "%s{FAKE_MAIN_ADVANCED_MARKER:-}" ] || : > "%sFAKE_MAIN_ADVANCED_MARKER"\n' \
+  "$literal_dollar" "$literal_dollar" \
+  >> "$orchestration_dir/scripts/resolve-development-release-base.sh"
+printf 'printf "%%s\\t%%s\\n" "%s1" "%s{FAKE_DURABLE_VERSION:-}"\n' \
+  "$literal_dollar" "$literal_dollar" \
+  >> "$orchestration_dir/scripts/resolve-development-release-base.sh"
 printf '#!/bin/sh\n: > "%sEVIDENCE_DIR/dev.tfplan"\n' "$literal_dollar" \
   > "$orchestration_dir/scripts/create-ci-lambda-release-plan.sh"
 printf '#!/bin/sh\nexit 1\n' > "$orchestration_dir/scripts/verify-lambda-release.sh"
@@ -1132,6 +1151,31 @@ printf 'printf "rollback\\n" > "%sEVIDENCE_DIR/rollback.tfplan"\n' \
   "$literal_dollar" >> "$rollback_stub"
 printf 'printf "%%s\\n" "%sPRIOR_VERSION" > "%sEVIDENCE_DIR/rollback-prior-version.txt"\n' \
   "$literal_dollar" "$literal_dollar" >> "$rollback_stub"
+
+stale_main_workspace="$orchestration_dir/stale-main-workspace"
+stale_main_marker="$orchestration_dir/main-advanced"
+stale_main_tofu_log="$orchestration_dir/stale-main-tofu.log"
+mkdir -p "$stale_main_workspace"
+: > "$stale_main_tofu_log"
+if (
+  cd "$orchestration_dir"
+  FAKE_MAIN_ADVANCED_MARKER="$stale_main_marker" \
+    FAKE_TOFU_LOG="$stale_main_tofu_log" \
+    GITHUB_REPOSITORY=CraigDevJohnson/portfolio \
+    GITHUB_WORKSPACE="$stale_main_workspace" \
+    STATE_BUCKET=portfolio-tofu-state-180294223248 \
+    SOURCE_SHA=$source_sha \
+    IMAGE_DIGEST=$image_digest \
+    ECR_URL=example.invalid/portfolio \
+    sh scripts/deploy-ci-lambda-development.sh
+); then
+  echo 'development orchestration accepted main advancing during base resolution' >&2
+  exit 1
+fi
+if grep -Fq ' apply ' "$stale_main_tofu_log"; then
+  echo 'development orchestration applied a plan after main advanced' >&2
+  exit 1
+fi
 
 : > "$orchestration_gh_log"
 if (
