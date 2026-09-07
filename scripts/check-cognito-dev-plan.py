@@ -28,6 +28,17 @@ def same(actual, expected):
         return isinstance(actual, list) and sorted(actual) == sorted(expected)
     return type(actual) is type(expected) and actual == expected
 
+def default_email_configuration(value):
+    if value in (None, []):
+        return True
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        return False
+    configuration = value[0]
+    optional = {'configuration_set', 'from_email_address', 'reply_to_email_address', 'source_arn'}
+    return (set(configuration) <= optional | {'email_sending_account'}
+            and configuration.get('email_sending_account') == 'COGNITO_DEFAULT'
+            and all(configuration.get(key) in (None, '') for key in optional))
+
 def linked_id(change, key, pattern):
     value = change['after'].get(key)
     unknown = change.get('after_unknown', {}).get(key, False)
@@ -85,7 +96,7 @@ def check(plan):
         if r['address'] == 'aws_cognito_user_pool.management':
             require(not after.get('lambda_config') and not change.get('after_unknown', {}).get('lambda_config'))
             require(not after.get('sms_configuration'))
-            require(not after.get('email_configuration'))
+            require(default_email_configuration(after.get('email_configuration')))
         if r['address'] == 'aws_cognito_identity_provider.google':
             details = after['provider_details']
             require(details.get('authorize_scopes') == 'openid email profile')

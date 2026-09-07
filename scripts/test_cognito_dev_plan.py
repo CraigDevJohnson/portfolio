@@ -87,6 +87,33 @@ class ContractTests(unittest.TestCase):
                 plan['resource_changes'][index]['change']['after'][key] = value
                 with self.assertRaises(ValueError): c.check(plan)
 
+    def test_provider_default_email_configuration_converges(self):
+        plan = self.known_fixture('no-op')
+        plan['resource_changes'][0]['change']['after']['email_configuration'] = [{
+            'configuration_set': None,
+            'email_sending_account': 'COGNITO_DEFAULT',
+            'from_email_address': '',
+            'reply_to_email_address': None,
+            'source_arn': '',
+        }]
+        self.assertEqual(len(c.check(plan)), 5)
+
+    def test_custom_email_configuration_is_rejected(self):
+        cases = [
+            {'email_sending_account': 'DEVELOPER'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'source_arn': 'arn:aws:ses:us-west-2:180294223248:identity/example.com'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'from_email_address': 'Portfolio <portfolio@example.com>'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'reply_to_email_address': 'reply@example.com'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'configuration_set': 'production'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'unexpected': ''},
+        ]
+        for email_configuration in cases:
+            with self.subTest(email_configuration=email_configuration):
+                plan = self.known_fixture('no-op')
+                plan['resource_changes'][0]['change']['after']['email_configuration'] = [email_configuration]
+                with self.assertRaises(ValueError):
+                    c.check(plan)
+
     def test_unknown_relationship_policy(self):
         self.assertEqual(len(c.check(fixture())), 5)
         # Only an explicitly unknown create may omit an ID. A known dependency
