@@ -120,13 +120,13 @@ run "default_google_only_auth_contract" {
 
   assert {
     condition = !strcontains(jsonencode({
-      cognito_user_pool_id  = output.cognito_user_pool_id
-      cognito_domain        = output.cognito_domain
-      cognito_issuer        = output.cognito_issuer
-      cognito_client_id     = output.cognito_client_id
-      google_redirect_uri   = output.google_redirect_uri
+      cognito_user_pool_id   = output.cognito_user_pool_id
+      cognito_domain         = output.cognito_domain
+      cognito_issuer         = output.cognito_issuer
+      cognito_client_id      = output.cognito_client_id
+      google_redirect_uri    = output.google_redirect_uri
       session_parameter_path = output.session_parameter_path
-      management_runtime    = output.management_runtime
+      management_runtime     = output.management_runtime
     }), "mock-google-client-secret-sentinel")
     error_message = "provider credentials must be absent from every declared output"
   }

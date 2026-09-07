@@ -277,7 +277,7 @@ tasks:
   cognito-dev-ci:
     desc: Validate the isolated development Cognito root without backend or AWS access
     cmds:
-      - tofu -chdir=infra/lambda/auth/dev fmt -check
+      - tofu -chdir=infra/lambda/auth/dev fmt -check -recursive
       - tofu -chdir=infra/lambda/auth/dev init -backend=false -lockfile=readonly -input=false
       - tofu -chdir=infra/lambda/auth/dev validate
       - tofu -chdir=infra/lambda/auth/dev test
