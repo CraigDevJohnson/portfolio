@@ -182,13 +182,26 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTest(t, "modules/service", 4, serviceOutputTypes, serviceIAMResourceCounts)
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 13, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":        true,
+		"management_reject_region":      true,
+		"management_reject_account":     true,
+		"management_reject_email":       true,
+		"management_reject_empty_email": true,
+		"management_reject_callback":    true,
+		"management_reject_tag":         true,
+		"management_reject_issuer":      true,
+	})
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		runOpenTofuTest(t, directory, 1, serviceOutputTypes, serviceIAMResourceCounts)
+		wantPlans := 1
+		if environment == "dev" {
+			wantPlans = 2
+		}
+		runOpenTofuTest(t, directory, wantPlans, serviceOutputTypes, serviceIAMResourceCounts)
 	}
 }
 

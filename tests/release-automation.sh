@@ -15,6 +15,7 @@ for editorconfig_file in \
   scripts/check-ci-state-bucket.sh \
   scripts/check-current-main.sh \
   scripts/check-lambda-plan.sh \
+  scripts/check-management-input.sh \
   scripts/classify-release-change.sh \
   scripts/create-ci-lambda-release-plan.sh \
   scripts/create-ci-lambda-rollback-plan.sh \
@@ -48,6 +49,39 @@ for command_name in gh aws curl docker sleep tofu; do
 done
 PATH="$fake_bin:$PATH"
 export PATH
+
+management_public=$(cat "$root_dir/tests/fixtures/management-public.json")
+for management_case in secret production; do
+  management_input="$management_public"
+  management_environment=development
+  if [ "$management_case" = secret ]; then
+    management_input=$(printf '%s\n' "$management_input" | jq '.google_client_secret = "private-sentinel"')
+  else
+    management_environment=production
+  fi
+  management_log="$test_dir/management-$management_case-tofu.log"
+  if EXPECTED_MANAGEMENT_JSON="$management_input" RELEASE_ENVIRONMENT="$management_environment" \
+    IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    EVIDENCE_DIR="$test_dir/management-$management_case" ECR_URL=unused \
+    FAKE_TOFU_LOG="$management_log" \
+    sh "$root_dir/scripts/create-ci-lambda-release-plan.sh" > "$test_dir/management-rejection" 2>&1; then
+    echo "Invalid management $management_case inputs unexpectedly passed" >&2
+    exit 1
+  fi
+  test ! -e "$management_log"
+  ! grep -Fq private-sentinel "$test_dir/management-rejection"
+done
+management_log="$test_dir/management-public-tofu.log"
+if EXPECTED_MANAGEMENT_JSON="$management_public" RELEASE_ENVIRONMENT=development \
+  IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  EVIDENCE_DIR="$test_dir/management-public" ECR_URL=unused \
+  FAKE_TOFU_LOG="$management_log" FAKE_EXPECT_MANAGEMENT_JSON="$management_public" \
+  sh "$root_dir/scripts/create-ci-lambda-release-plan.sh" > "$test_dir/management-public-output" 2>&1; then
+  echo 'Simulated management planning failure unexpectedly passed' >&2
+  exit 1
+fi
+grep -Fq 'public management input matched' "$management_log"
+! grep -Fq 'raw-plan-sentinel' "$test_dir/management-public-output"
 
 source_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 other_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

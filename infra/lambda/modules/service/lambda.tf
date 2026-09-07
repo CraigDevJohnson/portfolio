@@ -10,7 +10,7 @@ resource "aws_lambda_function" "app" {
   publish                        = true
 
   environment {
-    variables = {
+    variables = merge({
       CLIENT_ID_KEY                = local.ssm_paths.CLIENT_ID_KEY
       CLIENT_SECRET_KEY            = local.ssm_paths.CLIENT_SECRET_KEY
       GOOGLE_CONNECTION_TABLE_NAME = aws_dynamodb_table.google_connections.name
@@ -19,7 +19,7 @@ resource "aws_lambda_function" "app" {
       LOG_LEVEL                    = "info"
       LPS_SESSION_KEY              = local.ssm_paths.LPS_SESSION_KEY
       SOCCER_SESSION_TABLE_NAME    = aws_dynamodb_table.soccer_sessions.name
-    }
+    }, local.management_environment)
   }
 
   depends_on = [aws_cloudwatch_log_group.lambda, aws_iam_role_policy.lambda]

@@ -45,6 +45,9 @@ case "$RELEASE_ENVIRONMENT" in
     ;;
 esac
 
+ENVIRONMENT="$environment" EXPECTED_MANAGEMENT_JSON="${EXPECTED_MANAGEMENT_JSON:-null}" \
+  sh "$(dirname "$0")/check-management-input.sh"
+
 mkdir -p "$EVIDENCE_DIR"
 for evidence_name in "$plan_name" plan.json plan.txt plan.sha256; do
   test ! -e "$EVIDENCE_DIR/$evidence_name" || {
@@ -78,7 +81,8 @@ workspace=$(tofu -chdir="$root" workspace show)
   exit 1
 }
 
-if ! TF_VAR_ecr_repository_url="$ECR_URL" \
+if ! TF_VAR_management="${EXPECTED_MANAGEMENT_JSON:-null}" \
+  TF_VAR_ecr_repository_url="$ECR_URL" \
   TF_VAR_image_digest="$IMAGE_DIGEST" \
   TF_VAR_alarm_action_arns="$expected_alarm_actions" \
   tofu -chdir="$root" plan \

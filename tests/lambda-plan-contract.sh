@@ -1665,6 +1665,64 @@ mutate_ci_roles_and_reject "CI role plan rejects stale deleted sensitive outputs
   }
 '
 
+management_json=$(cat "$repo_root/tests/fixtures/management-public.json")
+for plan_kind in dev_plan dev_maintenance_plan dev_rollback_plan; do
+  eval 'source_plan=$'"$plan_kind"
+  jq --argjson management "$management_json" \
+    -f "$repo_root/tests/fixtures/enable-management-plan.jq" "$source_plan" \
+    > "$tmp_dir/management-$plan_kind.json"
+done
+expect_pass "enabled development exact public inputs and bounded IAM" \
+  env EXPECTED_MANAGEMENT_JSON="$management_json" PLAN_JSON="$tmp_dir/management-dev_plan.json" \
+  ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$release_image" \
+  EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
+expect_fail "enabled development requires separately reviewed public inputs" \
+  run_check "$tmp_dir/management-dev_plan.json" dev
+expect_pass "enabled image-only automated release" \
+  env EXPECTED_MANAGEMENT_JSON="$management_json" AUTOMATED_RELEASE=true \
+  PLAN_JSON="$tmp_dir/management-dev_maintenance_plan.json" \
+  ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$release_image" \
+  EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
+expect_pass "enabled alias-only rollback" \
+  env EXPECTED_MANAGEMENT_JSON="$management_json" AUTOMATED_RELEASE=rollback PRIOR_VERSION=7 \
+  PLAN_JSON="$tmp_dir/management-dev_rollback_plan.json" \
+  ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$release_image" \
+  EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
+for auth_change in environment iam; do
+  if [ "$auth_change" = environment ]; then
+    auth_mutation='(.resource_changes[] | select(.type == "aws_lambda_function") |
+      .change.before.environment[0].variables) |= with_entries(select(.key | startswith("MGMT_") | not))'
+  else
+    auth_mutation='(.resource_changes[] | select(.type == "aws_iam_role_policy") |
+      .change.actions) = ["update"]'
+  fi
+  jq "$auth_mutation" "$tmp_dir/management-dev_maintenance_plan.json" > "$tmp_dir/management-auto-change.json"
+  expect_fail "ordinary image release cannot change management $auth_change" \
+    env EXPECTED_MANAGEMENT_JSON="$management_json" AUTOMATED_RELEASE=true \
+    PLAN_JSON="$tmp_dir/management-auto-change.json" ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev \
+    IMAGE_URI="$release_image" EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
+done
+for mutation in \
+  '.variables.management.value.allowed_emails = ["other@gmail.com"]' \
+  '.variables.management.value.google_client_secret = "credential-sentinel"' \
+  '.variables.management.value.redirect_uri = "http://dev.craigdevjohnson.com/callback"' \
+  '(.resource_changes[] | select(.type == "aws_lambda_function") |
+    .change.after.environment[0].variables.MGMT_SESSION_KEY) = "credential-sentinel"' \
+  '(.resource_changes[] | select(.mode == "data") | .change.after.statement[] |
+    select(.actions == ["ec2:StartInstances", "ec2:StopInstances"]) | .resources) = ["*"]' \
+  '(.resource_changes[] | select(.mode == "data") | .change.after.statement[] |
+    select(.actions == ["logs:FilterLogEvents"]) | .resources) = ["*"]' \
+  '(.resource_changes[] | select(.mode == "data") | .change.after.statement[] |
+    select(.actions == ["kms:Decrypt"]) | .condition) = []' \
+  '(.resource_changes[] | select(.mode == "data") | .change.after.statement[] |
+    select(.actions == ["ec2:StartInstances", "ec2:StopInstances"]) | .condition[0].values) = ["prod"]'; do
+  jq "$mutation" "$tmp_dir/management-dev_plan.json" > "$tmp_dir/management-mutated.json"
+  expect_fail "management mutation rejected: $mutation" \
+    env EXPECTED_MANAGEMENT_JSON="$management_json" PLAN_JSON="$tmp_dir/management-mutated.json" \
+    ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$release_image" \
+    EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
+done
+
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
 expect_fail \
@@ -2683,6 +2741,20 @@ run_ci_roles_task_with_ambient_credential() {
     APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
     "$real_task" --dir "$repo_root" "$ci_task" "$@"
 }
+
+for management_mode in release rollback; do
+  if [ "$management_mode" = release ]; then
+    management_fixture="$tmp_dir/management-dev_maintenance_plan.json"
+  else
+    management_fixture="$tmp_dir/management-dev_rollback_plan.json"
+  fi
+  expect_pass "enabled management $management_mode wrapper preserves public configuration" \
+    env PATH="$fake_bin:$PATH" COMMAND_LOG="$command_log" \
+    EXPECTED_MANAGEMENT_JSON="$management_json" FAKE_PLAN_JSON="$management_fixture" \
+    RELEASE_ENVIRONMENT=development IMAGE_DIGEST="$release_digest" PRIOR_VERSION=7 \
+    EVIDENCE_DIR="$tmp_dir/management-$management_mode-evidence" ECR_URL="$release_repository" \
+    sh "$repo_root/scripts/create-ci-lambda-$management_mode-plan.sh"
+done
 
 sensitive_release_plan="$tmp_dir/sensitive-release-plan.json"
 jq '(.resource_changes[] |
