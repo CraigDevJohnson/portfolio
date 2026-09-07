@@ -136,12 +136,27 @@ workflow state from that table.
 The portal requires:
 
 - `MGMT_SESSION_KEY`, generated with `openssl rand -hex 32`
-- `MGMT_COGNITO_DOMAIN`
-- `MGMT_COGNITO_CLIENT_ID`
+- `MGMT_COGNITO_DOMAIN`, the HTTPS hosted UI origin
+- `MGMT_COGNITO_ISSUER`, the HTTPS user-pool issuer, such as
+  `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example`
+- `MGMT_COGNITO_CLIENT_ID`, a public authorization-code + PKCE app client
+- `MGMT_COGNITO_REDIRECT_URI`, a registered HTTPS callback at `/callback`
+- `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL
+- `MGMT_ALLOWED_EMAILS`, a nonempty comma-separated list of bare email addresses
 
-`MGMT_COGNITO_REDIRECT_URI` must be a callback registered with Cognito for
-sign-in to work. The optional
-`MGMT_COGNITO_LOGOUT_URI` sets the post-logout return URL.
+Sign-in selects Google through Cognito. The application verifies the signed
+Cognito ID token using the configured user-pool issuer and its JWKS, then
+requires a boolean `email_verified: true` claim and an exact allowlist match.
+Addresses are trimmed and lowercased; dots and plus suffixes remain significant.
+The initial development allowlist is `craigdevjohnson@gmail.com`; each environment
+owns its allowlist, and the application has no default authorized address.
+
+For development, register `https://dev.craigdevjohnson.com/callback` and
+`https://dev.craigdevjohnson.com/login`. A registered HTTP loopback callback
+(such as `http://localhost:8080/callback`) also requires
+`MGMT_ALLOW_LOCAL_CALLBACK=true`; logout URLs remain HTTPS. This enables real
+Cognito sign-in locally and is separate from the mock preview below.
+Incomplete or invalid identity configuration disables portal routes.
 `MGMT_AWS_REGION` defaults to `us-east-1`.
 
 The runtime AWS identity needs these actions:
@@ -252,8 +267,8 @@ HTMX and form endpoints:
 | `POST` | `/soccer/google/add` |
 | `POST` | `/soccer/google/sync-results` |
 
-Portal routes are registered only in valid production configuration or local
-preview mode. They include `/login`, `/auth/callback`, `/logout`, `/mgmt`, and
+Portal routes are registered only with valid runtime configuration or local
+preview mode. They include `/login`, `/callback`, `/logout`, `/mgmt`, and
 the instance action, metrics, and logs paths under `/mgmt/instances/{id}/`.
 
 ## Chrome extension

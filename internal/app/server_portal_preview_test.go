@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"portfolio/internal/config"
+	"portfolio/internal/portal"
 )
 
 func TestBuildMuxPortalPreviewUsesProductionURLsWithoutAuth(t *testing.T) {
@@ -93,15 +96,20 @@ func TestBuildMuxPortalPreviewAuthURLsReturnToDashboard(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mux, _ := buildMux(app, logger, true)
 
-	request := httptest.NewRequest(http.MethodGet, "/login", nil)
-	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, request)
-
-	if response.Code != http.StatusSeeOther {
-		t.Fatalf("GET /login status = %d, want %d", response.Code, http.StatusSeeOther)
-	}
-	if location := response.Header().Get("Location"); location != "/mgmt" {
-		t.Fatalf("Location = %q, want /mgmt", location)
+	for _, path := range []string{"/login", "/callback", "/logout"} {
+		method := http.MethodGet
+		if path == "/logout" {
+			method = http.MethodPost
+		}
+		request := httptest.NewRequest(method, path, nil)
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusSeeOther {
+			t.Fatalf("GET %s status = %d, want %d", path, response.Code, http.StatusSeeOther)
+		}
+		if location := response.Header().Get("Location"); location != "/mgmt" {
+			t.Fatalf("Location = %q, want /mgmt", location)
+		}
 	}
 }
 
@@ -123,5 +131,28 @@ func TestBuildMuxPortalPreviewDoesNotAdvertiseUnavailableGoogleStore(t *testing.
 	}
 	if !strings.Contains(body, "Not enabled on this server") {
 		t.Fatalf("portal preview did not explain the unavailable Google runtime: %s", body)
+	}
+}
+
+func TestBuildMuxRegistersConfiguredPortalCallback(t *testing.T) {
+	application := newTestApp(t)
+	application.Config.PortalSessionKey = make([]byte, 32)
+	application.Config.PortalCognitoDomain = "https://portal.auth.us-east-1.amazoncognito.com"
+	application.Config.PortalCognitoIssuer = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test"
+	application.Config.PortalCognitoClientID = "client"
+	application.Config.PortalCognitoRedirectURI = "https://app.example/callback"
+	application.Config.PortalCognitoLogoutURI = "https://app.example/login"
+	application.Config.PortalAllowedEmails = []string{"craigdevjohnson@gmail.com"}
+	application.PortalHandler = portal.NewHandler(&application.Config, nil, nil, nil, nil, application.Logger)
+	mux, _ := buildMux(application, application.Logger, false)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/callback", nil))
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "Sign-in could not be completed.") {
+		t.Fatalf("configured callback did not reach portal handler: %d", response.Code)
+	}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == config.PortalSessionCookieName && cookie.MaxAge >= 0 {
+			t.Error("invalid callback created a session")
+		}
 	}
 }

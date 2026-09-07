@@ -109,7 +109,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
 		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("GET /auth/callback", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("GET /callback", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.InstanceActionHandler)
@@ -120,7 +120,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
 		ph := app.PortalHandler
 		mux.HandleFunc("GET /login", ph.LoginPageHandler)
-		mux.HandleFunc("GET /auth/callback", ph.CallbackHandler)
+		mux.HandleFunc("GET /callback", ph.CallbackHandler)
 		mux.HandleFunc("POST /logout", ph.LogoutHandler)
 		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireAuth(ph.InstanceActionHandler))
@@ -235,6 +235,9 @@ func Run() error {
 		// dependencies, even when live portal variables are also present locally.
 		cfg.PortalSessionKey = nil
 		cfg.PortalCognitoDomain = ""
+		cfg.PortalCognitoIssuer = ""
+		cfg.PortalAllowedEmails = nil
+		cfg.PortalAllowLocalCallback = false
 		cfg.PortalCognitoClientID = ""
 		cfg.PortalCognitoRedirectURI = ""
 		cfg.PortalCognitoLogoutURI = ""

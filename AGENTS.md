@@ -44,12 +44,16 @@
 - `task dev` (air) watches only `.go` files — run `task generate` manually after `.templ` edits
 - `LPS_SESSION_KEY` must be a 64-char hex string; without it, soccer auth is disabled
 - Google Calendar also needs `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and `GOOGLE_CONNECTION_TABLE_NAME`
-- The EC2 portal requires `MGMT_SESSION_KEY`, `MGMT_COGNITO_DOMAIN`, and
-  `MGMT_COGNITO_CLIENT_ID`; an invalid or incomplete configuration disables it
-  without affecting portfolio or soccer routes.
-- `MGMT_COGNITO_REDIRECT_URI` must be a registered OAuth callback URI for sign-in;
-  `MGMT_COGNITO_LOGOUT_URI` is optional and `MGMT_AWS_REGION` defaults to
-  `us-east-1`.
+- The EC2 portal requires `MGMT_SESSION_KEY`, `MGMT_COGNITO_DOMAIN`,
+  `MGMT_COGNITO_ISSUER`, `MGMT_COGNITO_CLIENT_ID`, `MGMT_COGNITO_REDIRECT_URI`,
+  `MGMT_COGNITO_LOGOUT_URI`, and nonempty `MGMT_ALLOWED_EMAILS`; invalid or
+  incomplete configuration disables it without affecting portfolio or soccer.
+- Cognito hosted UI domain and user-pool issuer are separate: OAuth endpoints
+  use the domain, while signed ID-token validation and JWKS use the issuer.
+  Only verified, exact allowlisted emails receive portal sessions.
+- The registered callback is `/callback`; callback and logout URLs require
+  HTTPS. An HTTP loopback callback requires `MGMT_ALLOW_LOCAL_CALLBACK=true`.
+  `MGMT_AWS_REGION` defaults to `us-east-1`.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`
 

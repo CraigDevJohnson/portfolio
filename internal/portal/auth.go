@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"portfolio/internal/config"
@@ -51,47 +50,56 @@ func (h *Handler) LoginPageHandler(w http.ResponseWriter, r *http.Request) {
 // CallbackHandler completes the Cognito Authorization Code + PKCE flow.
 func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	state, stateErr := h.loadOAuthState(r)
-	defer h.clearOAuthState(w, r)
+	h.clearOAuthState(w, r)
 	providedState := r.URL.Query().Get("state")
 	if stateErr != nil || state == nil || state.State == "" || providedState == "" || !constantTimeEqual(state.State, providedState) {
-		h.renderErrorPage(w, r, http.StatusBadRequest, "The sign-in request expired or was invalid.")
+		h.rejectSignIn(w, r, http.StatusBadRequest, "invalid_state")
 		return
 	}
 	if oauthError := r.URL.Query().Get("error"); oauthError != "" {
-		h.renderErrorPage(w, r, http.StatusUnauthorized, "Sign-in was not completed.")
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "provider_rejected")
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" || h.OIDC == nil {
-		h.renderErrorPage(w, r, http.StatusBadRequest, "The sign-in response was incomplete.")
+		h.rejectSignIn(w, r, http.StatusBadRequest, "incomplete_response")
 		return
 	}
 	tokens, err := h.OIDC.ExchangeCode(r.Context(), code, state.CodeVerifier)
 	if err != nil {
-		h.Logger.Error("portal authorization code exchange failed", slog.Any("error", err))
-		h.renderErrorPage(w, r, http.StatusUnauthorized, "Sign-in could not be completed.")
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "token_exchange_failed")
 		return
 	}
 	claims, err := h.OIDC.ValidateIDToken(r.Context(), tokens.IDToken)
 	if err != nil {
-		h.Logger.Error("portal ID token validation failed", slog.Any("error", err))
-		h.renderErrorPage(w, r, http.StatusUnauthorized, "Sign-in could not be verified.")
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	username := strings.TrimSpace(claims.Email)
-	if username == "" {
-		username = strings.TrimSpace(claims.Username)
+	username, emailErr := config.NormalizePortalEmail(claims.Email)
+	if emailErr != nil {
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "invalid_email")
+		return
 	}
-	if username == "" {
-		h.renderErrorPage(w, r, http.StatusUnauthorized, "Sign-in did not provide an account identifier.")
+	if !claims.EmailVerified {
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "unverified_email")
+		return
+	}
+	if !h.Config.PortalEmailAllowed(username) {
+		h.rejectSignIn(w, r, http.StatusUnauthorized, "email_not_allowed")
 		return
 	}
 	if err := h.setSession(w, r, &PortalSession{Username: username, ExpiresAt: time.Now().Add(config.PortalSessionTTL)}); err != nil {
-		h.Logger.Error("portal session cookie failed", slog.Any("error", err))
-		h.renderErrorPage(w, r, http.StatusInternalServerError, "Unable to create a sign-in session.")
+		h.rejectSignIn(w, r, http.StatusInternalServerError, "session_creation_failed")
 		return
 	}
 	http.Redirect(w, r, "/mgmt", http.StatusFound)
+}
+
+// rejectSignIn expires prior authorization and logs only a fixed reason category.
+func (h *Handler) rejectSignIn(w http.ResponseWriter, r *http.Request, status int, reason string) {
+	h.clearSession(w, r)
+	h.Logger.Warn("portal sign-in rejected", slog.String("reason", reason))
+	h.renderErrorPage(w, r, status, "Sign-in could not be completed.")
 }
 
 // LogoutHandler clears the local session and delegates logout to Cognito when configured.
