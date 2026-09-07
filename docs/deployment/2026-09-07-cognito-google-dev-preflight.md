@@ -36,9 +36,12 @@ allowlist entry. The historical missing-design blocker no longer applies.
   release automation contracts, and shared-root checks. Local log:
   `/tmp/portfolio-cognito-dev-baseline-infrastructure.log`.
 
-## Current integration surfaces
+## Baseline integration surfaces
 
-These are observations of the current source, not inferred design decisions.
+These observations describe the pre-implementation source at `59fffc89`, not
+inferred design decisions. Tasks 1–3 of the implementation plan now address
+portal identity validation, cold-start management-key resolution and the
+isolated Cognito root. Runtime integration and permissions remain later work.
 
 | Surface | Current behavior | Files to reconcile with the design |
 | --- | --- | --- |
@@ -72,15 +75,15 @@ be assumed to provision additional auth resources or permissions.
 
 ## Resume sequence
 
-1. Retrieve the exact approved design and its commit; reconcile its base with
-   current `origin/main` without discarding either source.
-2. Write the implementation plan in `docs/superpowers/plans/`, citing the
-   approved design and mapping each requirement to concrete files, interfaces,
-   verification, and development rollout steps.
-3. Begin implementation with the design's independent local prerequisites and
-   regression tests. Retain separate Calendar OAuth behavior unless the design
-   explicitly changes it.
-4. Refresh the development SSO session, verify account/role and live prerequisites,
-   and follow the design and repository's saved-plan controls for development
-   setup. Record any required Google console inputs without putting secrets in
-   Git or logs.
+1. Continue with Task 4 of the implementation plan: nullable development runtime
+   settings, exact management IAM and separately reviewed boundary candidates,
+   plus release-contract tests. Preserve the ordinary release role's separation
+   from the secret-bearing auth state.
+2. Complete the private credential/plan tooling in Task 5 before live auth
+   provisioning. Refresh SSO and verify the account, role, backend permissions,
+   Cognito domain availability and Google project/client prerequisites.
+3. Obtain the separate external-action approvals specified in the design for
+   policy installation, Google-client creation, SecureString injection and
+   reviewed saved-plan applies. No real credentials are needed for offline tests.
+4. Follow Task 6 for runtime activation and browser/EC2 proof. Do not interpret
+   passing local tests or configured Terraform resources as a live deployment.

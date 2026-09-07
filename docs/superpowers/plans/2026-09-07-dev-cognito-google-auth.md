@@ -1,6 +1,6 @@
 # Development Cognito Google Authentication Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Enable Google-only sign-in to the development management portal, issuing a portal session only to Craig's verified, allowlisted Google email.
 
@@ -63,7 +63,7 @@ Proposed, reviewable development infrastructure values:
 - `NewOIDCClient(domain, issuer, clientID, redirectURI, logoutURI string) *OIDCClient` separates browser/token endpoints from issuer/JWKS.
 - `Claims` adds `EmailVerified bool`; `ValidateIDToken` accepts only `token_use == "id"`.
 
-- [ ] Add failing configuration tests for comma-separated normalization/deduplication, missing list/issuer/callback, malformed addresses, display-name addresses, query/fragment/credential-bearing URLs, invalid boolean flags, and loopback callbacks without the explicit opt-in.
+- [x] Add failing configuration tests for comma-separated normalization/deduplication, missing list/issuer/callback, malformed addresses, display-name addresses, query/fragment/credential-bearing URLs, invalid boolean flags, and loopback callbacks without the explicit opt-in.
 
 ```go
 cfg := &Config{PortalAllowedEmails: []string{"craigdevjohnson@gmail.com"}}
@@ -75,12 +75,12 @@ for _, email := range []string{"", "craigdevjohnson+dev@gmail.com", "craig.dev.j
 }
 ```
 
-- [ ] Implement configuration parsing: trim and lowercase bare mailbox addresses, reject malformed/empty comma elements, deduplicate; require a nonempty valid allowlist, issuer, valid callback and logout alongside the existing key/domain/client fields for `PortalEnabled`. Accept HTTPS callback/logout URLs; permit an HTTP loopback callback only with `MGMT_ALLOW_LOCAL_CALLBACK=true`. Validate issuer as an HTTPS URL with a user-pool path and no credentials/query/fragment. Do not derive it from request or token content.
-- [ ] Add a signed JWT test fixture whose Hosted UI domain differs from issuer. Serve JWKS from the issuer test server, exchange a code through the Hosted UI test server, and assert the PKCE verifier is sent. Valid tokens require RS256 signature, exact issuer/client audience, future expiry, and ID-token use. Reject missing/invalid expiry, wrong key/signature/algorithm/issuer/audience/token use, and missing subject.
-- [ ] Implement the issuer correction and verified-email extraction. Keep `email_verified` strictly boolean; strings such as `"true"` are not proof. Add `identity_provider=Google` to the authorization URL while retaining state, S256 challenge and all approved scopes. Remove token-endpoint response bodies from returned errors so they cannot reach callback logs.
-- [ ] Exercise `CallbackHandler` with encrypted OAuth-state cookies and signed ID tokens. Approved verified email returns `/mgmt` plus a decryptable session cookie. Missing/malformed/unverified/other email, username-only tokens, wrong state and invalid signature return a generic failure and no usable session cookie. Assert logs contain reason categories and no sentinel tokens, codes, response bodies or claimed email. Clear any previous portal session on a rejected callback.
-- [ ] Apply the allowlist only after `ValidateIDToken` succeeds. Use a fixed failure message for identity rejection and fixed log reason categories. Do not fall back to `cognito:username`. Wire the new issuer argument and `/callback` route into real and local-preview muxes, then update existing fixtures and documented local environment variables.
-- [ ] Run `task fmt`, `go test ./internal/config ./internal/portal ./internal/app`, then the repository gates at integration. Commit exact paths with `feat(auth): authorize verified Google portal identities`.
+- [x] Implement configuration parsing: trim and lowercase bare mailbox addresses, reject malformed/empty comma elements, deduplicate; require a nonempty valid allowlist, issuer, valid callback and logout alongside the existing key/domain/client fields for `PortalEnabled`. Accept HTTPS callback/logout URLs; permit an HTTP loopback callback only with `MGMT_ALLOW_LOCAL_CALLBACK=true`. Validate issuer as an HTTPS URL with a user-pool path and no credentials/query/fragment. Do not derive it from request or token content.
+- [x] Add a signed JWT test fixture whose Hosted UI domain differs from issuer. Serve JWKS from the issuer test server, exchange a code through the Hosted UI test server, and assert the PKCE verifier is sent. Valid tokens require RS256 signature, exact issuer/client audience, future expiry, and ID-token use. Reject missing/invalid expiry, wrong key/signature/algorithm/issuer/audience/token use, and missing subject.
+- [x] Implement the issuer correction and verified-email extraction. Keep `email_verified` strictly boolean; strings such as `"true"` are not proof. Add `identity_provider=Google` to the authorization URL while retaining state, S256 challenge and all approved scopes. Remove token-endpoint response bodies from returned errors so they cannot reach callback logs.
+- [x] Exercise `CallbackHandler` with encrypted OAuth-state cookies and signed ID tokens. Approved verified email returns `/mgmt` plus a decryptable session cookie. Missing/malformed/unverified/other email, username-only tokens, wrong state and invalid signature return a generic failure and no usable session cookie. Assert logs contain reason categories and no sentinel tokens, codes, response bodies or claimed email. Clear any previous portal session on a rejected callback.
+- [x] Apply the allowlist only after `ValidateIDToken` succeeds. Use a fixed failure message for identity rejection and fixed log reason categories. Do not fall back to `cognito:username`. Wire the new issuer argument and `/callback` route into real and local-preview muxes, then update existing fixtures and documented local environment variables.
+- [x] Run `task fmt`, `go test ./internal/config ./internal/portal ./internal/app`, then the repository gates at integration. Commit exact paths with `feat(auth): authorize verified Google portal identities`.
 
 ## Task 2: Resolve the management session key during Lambda cold start
 
@@ -88,7 +88,7 @@ for _, email := range []string{"", "craigdevjohnson+dev@gmail.com", "craig.dev.j
 
 **Interfaces:** `ssmSecretEnvVars` includes `MGMT_SESSION_KEY`; preserve `resolveSSMSecretsWithClient(ctx, client) error` and its validation-before-application behavior.
 
-- [ ] Add failing tests that set `MGMT_SESSION_KEY=/portfolio/lambda/dev/MGMT_SESSION_KEY` and prove the resolver requests it with decryption, installs the returned value, and leaves all variables unchanged if that value is missing or invalid.
+- [x] Add failing tests that set `MGMT_SESSION_KEY=/portfolio/lambda/dev/MGMT_SESSION_KEY` and prove the resolver requests it with decryption, installs the returned value, and leaves all variables unchanged if that value is missing or invalid.
 
 ```go
 t.Setenv("CLIENT_ID_KEY", "")
@@ -105,8 +105,8 @@ if os.Getenv("MGMT_SESSION_KEY") != strings.Repeat("ab", 32) {
 }
 ```
 
-- [ ] Extend the allowlist without treating arbitrary `MGMT_*` values as SSM paths. Keep unset/literal management values unchanged and avoid logging plaintext values. Isolate environment variables in every resolver test.
-- [ ] Run `go test ./cmd/lambda`; commit `feat(lambda): resolve the management session key from SSM`.
+- [x] Extend the allowlist without treating arbitrary `MGMT_*` values as SSM paths. Keep unset/literal management values unchanged and avoid logging plaintext values. Isolate environment variables in every resolver test.
+- [x] Run `go test ./cmd/lambda`; commit `feat(lambda): resolve the management session key from SSM`.
 
 ## Task 3: Build and test the isolated development Cognito stack
 
@@ -120,9 +120,9 @@ if os.Getenv("MGMT_SESSION_KEY") != strings.Repeat("ab", 32) {
 - Public outputs: `cognito_user_pool_id`, `cognito_domain`, `cognito_issuer`, `cognito_client_id`, `google_redirect_uri`, `session_parameter_path`, and `management_runtime` with the object shape in Task 4. None contains Google client credentials or a session value.
 - New offline task: `cognito-dev-ci`, included by `lambda-infrastructure-ci`.
 
-- [ ] Add mock-provider tests that assert Google-only code flow, public client, no password/SRP/custom auth defaults, verified-email mapping, exact callback/logout, default absence of localhost, explicit local opt-in, required provider credentials, deterministic account/region, and only public output names. Include a sentinel provider credential in mocks and prove it is absent from all declared outputs.
-- [ ] Configure the S3 backend with `bucket = "portfolio-tofu-state-180294223248"`, the dedicated auth/dev key, `region = "us-west-2"`, `encrypt = true`, and `use_lockfile = true`. Pin the existing OpenTofu/provider versions and lockfile; constrain provider account with `allowed_account_ids = ["180294223248"]`.
-- [ ] Define exactly the user pool, Google identity provider, public app client, managed-login domain and branding. No IAM, SSM plaintext/dummy value, Lambda, production, or remote-state resources belong in this root.
+- [x] Add mock-provider tests that assert Google-only code flow, public client, no password/SRP/custom auth defaults, verified-email mapping, exact callback/logout, default absence of localhost, explicit local opt-in, required provider credentials, deterministic account/region, and only public output names. Include a sentinel provider credential in mocks and prove it is absent from all declared outputs.
+- [x] Configure the S3 backend with `bucket = "portfolio-tofu-state-180294223248"`, the dedicated auth/dev key, `region = "us-west-2"`, `encrypt = true`, and `use_lockfile = true`. Pin the existing OpenTofu/provider versions and lockfile; constrain provider account with `allowed_account_ids = ["180294223248"]`.
+- [x] Define exactly the user pool, Google identity provider, public app client, managed-login domain and branding. No IAM, SSM plaintext/dummy value, Lambda, production, or remote-state resources belong in this root.
 
 ```hcl
 resource "aws_cognito_user_pool" "management" {
@@ -149,9 +149,9 @@ resource "aws_cognito_user_pool_client" "management" {
 }
 ```
 
-- [ ] Configure provider mappings `email=email`, `email_verified=email_verified`, `name=name`; scopes `openid email profile`; Google credentials only through sensitive variables. Use managed-login version 2 and `aws_cognito_managed_login_branding` with `use_cognito_provided_values=true`, ordered after domain creation. Do not set client write access to `email_verified`.
-- [ ] Export the issuer from the user-pool endpoint and Google callback from the Cognito domain plus `/oauth2/idpresponse`. Own the session parameter's name through a constant/local output; its value is injected outside OpenTofu. Export only the public `management_runtime` object and individual public outputs listed above.
-- [ ] Add `cognito-dev-ci`: format check, `init -backend=false -lockfile=readonly -input=false`, validate, mock test. Include this root in layout/ignore checks without weakening existing production tests. Run `task cognito-dev-ci`, `go test ./infra/lambda`, then full infrastructure validation at integration. Commit `feat(infra): define isolated development Cognito authentication`.
+- [x] Configure provider mappings `email=email`, `email_verified=email_verified`, `name=name`; scopes `openid email profile`; Google credentials only through sensitive variables. Use managed-login version 2 and `aws_cognito_managed_login_branding` with `use_cognito_provided_values=true`, ordered after domain creation. Do not set client write access to `email_verified`.
+- [x] Export the issuer from the user-pool endpoint and Google callback from the Cognito domain plus `/oauth2/idpresponse`. Own the session parameter's name through a constant/local output; its value is injected outside OpenTofu. Export only the public `management_runtime` object and individual public outputs listed above.
+- [x] Add `cognito-dev-ci`: format check, `init -backend=false -lockfile=readonly -input=false`, validate, mock test. Include this root in layout/ignore checks without weakening existing production tests. Run `task cognito-dev-ci`, `go test ./infra/lambda`, then full infrastructure validation at integration. Commit `feat(infra): define isolated development Cognito authentication`.
 
 ## Task 4: Wire reviewed public settings into the development runtime
 
