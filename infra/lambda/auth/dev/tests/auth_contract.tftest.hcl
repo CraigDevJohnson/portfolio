@@ -7,7 +7,7 @@ mock_provider "aws" {
   }
 
   mock_resource "aws_cognito_user_pool_client" {
-    defaults = { id = "mock-public-client-id" }
+    defaults = { id = "mockpublicclientid" }
   }
 }
 
@@ -95,7 +95,7 @@ run "default_google_only_auth_contract" {
       output.cognito_user_pool_id == "us-west-2_mockpool" &&
       output.cognito_domain == "https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com" &&
       output.cognito_issuer == "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mockpool" &&
-      output.cognito_client_id == "mock-public-client-id" &&
+      output.cognito_client_id == "mockpublicclientid" &&
       output.google_redirect_uri == "https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse" &&
       output.session_parameter_path == "/portfolio/lambda/dev/MGMT_SESSION_KEY"
     )

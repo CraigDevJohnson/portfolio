@@ -26,7 +26,14 @@ def fixture():
         after = copy.deepcopy(values)
         if address.endswith('provider.google'):
             after['provider_details'] = dict(authorize_scopes='openid email profile', client_id=SENTINEL, client_secret=SENTINEL)
-        resources.append(dict(address=address, mode='managed', provider_name='registry.opentofu.org/hashicorp/aws', change=dict(actions=['create'], after=after)))
+        unknown = {}
+        if address in {'aws_cognito_user_pool.management', 'aws_cognito_user_pool_client.management'}:
+            unknown['id'] = True
+        if address != 'aws_cognito_user_pool.management':
+            unknown['user_pool_id'] = True
+        if 'branding' in address:
+            unknown['client_id'] = True
+        resources.append(dict(address=address, mode='managed', provider_name='registry.opentofu.org/hashicorp/aws', change=dict(actions=['create'], after=after, after_unknown=unknown)))
         expressions = {}
         if address != 'aws_cognito_user_pool.management':
             expressions['user_pool_id'] = {'references': ['aws_cognito_user_pool.management.id', 'aws_cognito_user_pool.management']}
@@ -59,6 +66,44 @@ class ContractTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 plan = fixture(); mutate(plan)
                 with self.assertRaises(ValueError): c.check(plan)
+
+    def known_fixture(self, action='no-op'):
+        plan = fixture()
+        for resource in plan['resource_changes']:
+            change = resource['change']
+            change['actions'] = [action]
+            for key in list(change['after_unknown']):
+                change['after'][key] = 'client123' if key == 'client_id' or (key == 'id' and 'pool_client' in resource['address']) else 'us-west-2_reviewed'
+            change['after_unknown'] = {}
+        return plan
+
+    def test_known_relationships(self):
+        for action in ['create', 'update', 'no-op']:
+            with self.subTest(action=action):
+                self.assertEqual(len(c.check(self.known_fixture(action))), 5)
+        for index, key, value in [(1, 'user_pool_id', 'us-west-2_unrelated'), (2, 'user_pool_id', 'us-west-2_unrelated'), (3, 'user_pool_id', 'us-west-2_unrelated'), (4, 'user_pool_id', 'us-west-2_unrelated'), (4, 'client_id', 'otherclient123'), (0, 'id', 'us-east-1_reviewed'), (2, 'id', 'invalid-client!')]:
+            with self.subTest(index=index, key=key):
+                plan = self.known_fixture()
+                plan['resource_changes'][index]['change']['after'][key] = value
+                with self.assertRaises(ValueError): c.check(plan)
+
+    def test_unknown_relationship_policy(self):
+        self.assertEqual(len(c.check(fixture())), 5)
+        # Only an explicitly unknown create may omit an ID. A known dependency
+        # cannot contradict an unknown source, and existing objects need IDs.
+        for index, key, value in [(1, 'user_pool_id', 'us-west-2_unrelated'), (4, 'client_id', 'client123')]:
+            plan = fixture(); change = plan['resource_changes'][index]['change']
+            change['after'][key] = value; change['after_unknown'].pop(key)
+            with self.assertRaises(ValueError): c.check(plan)
+        for mutation in ['missing-marker', 'unknown-update', 'unknown-against-known']:
+            plan = fixture()
+            if mutation == 'missing-marker': plan['resource_changes'][0]['change']['after_unknown'] = {}
+            elif mutation == 'unknown-update': plan['resource_changes'][0]['change']['actions'] = ['update']
+            else:
+                plan = self.known_fixture('create')
+                change = plan['resource_changes'][1]['change']
+                change['after'].pop('user_pool_id'); change['after_unknown']['user_pool_id'] = True
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError): c.check(plan)
 
     def test_backend_tamper(self):
         good = {'backend': {'type': 's3', 'config': {k: v for k, v in c.BACKEND.items() if k != 'type'}}}

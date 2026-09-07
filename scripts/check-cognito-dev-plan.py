@@ -28,6 +28,29 @@ def same(actual, expected):
         return isinstance(actual, list) and sorted(actual) == sorted(expected)
     return type(actual) is type(expected) and actual == expected
 
+def linked_id(change, key, pattern):
+    value = change['after'].get(key)
+    unknown = change.get('after_unknown', {}).get(key, False)
+    if unknown is True:
+        require(value is None and change['actions'] == ['create'])
+        return None
+    require(unknown is False and isinstance(value, str) and re.fullmatch(pattern, value) is not None)
+    return value
+
+
+def check_links(changes):
+    by_address = {r['address']: r['change'] for r in changes}
+    pool_pattern = r'us-west-2_[A-Za-z0-9]+'
+    client_pattern = r'[a-z0-9]{1,128}'
+    pool_id = linked_id(by_address['aws_cognito_user_pool.management'], 'id', pool_pattern)
+    client_id = linked_id(by_address['aws_cognito_user_pool_client.management'], 'id', client_pattern)
+    for address, change in by_address.items():
+        if address != 'aws_cognito_user_pool.management':
+            require(linked_id(change, 'user_pool_id', pool_pattern) == pool_id)
+        if address == 'aws_cognito_managed_login_branding.management':
+            require(linked_id(change, 'client_id', client_pattern) == client_id)
+
+
 def check(plan):
     require(plan.get('errored', False) is False)
     changes = plan.get('resource_changes', [])
@@ -50,6 +73,7 @@ def check(plan):
             require(set(expr.get('user_pool_id', {}).get('references', [])) == {'aws_cognito_user_pool.management.id', 'aws_cognito_user_pool.management'})
         if resource['address'] == 'aws_cognito_managed_login_branding.management':
             require(set(expr.get('client_id', {}).get('references', [])) == {'aws_cognito_user_pool_client.management.id', 'aws_cognito_user_pool_client.management'})
+    check_links(changes)
     summary = []
     for r in changes:
         require(r.get('mode') == 'managed' and r.get('provider_name') == 'registry.opentofu.org/hashicorp/aws')
