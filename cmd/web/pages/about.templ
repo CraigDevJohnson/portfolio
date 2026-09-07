@@ -15,10 +15,10 @@ type AboutProps struct {
 
 func aboutCoreValueCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
-		{Icon: "🔄", Title: "Continuous Improvement", Description: "Iterate, measure, and leave the system easier to operate than it was before.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-improvement stagger-enter"},
-		{Icon: "🤝", Title: "Collaboration", Description: "Build with the people who operate the platform, not just for them.", Tone: partials.ToneMint, ExtraClass: "about-value-card about-value-collaboration stagger-enter"},
-		{Icon: "🧩", Title: "Problem Solving", Description: "Break complex constraints into practical, maintainable decisions.", Tone: partials.ToneApricot, ExtraClass: "about-value-card about-value-problem-solving stagger-enter"},
-		{Icon: "📝", Title: "Documentation", Description: "Make context durable so the next person can move without guesswork.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-documentation stagger-enter"},
+		{IconName: partials.UIIconImprovement, Title: "Continuous Improvement", Description: "Iterate, measure, and leave the system easier to operate than it was before.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-improvement stagger-enter"},
+		{IconName: partials.UIIconCollaboration, Title: "Collaboration", Description: "Build with the people who operate the platform, not just for them.", Tone: partials.ToneMint, ExtraClass: "about-value-card about-value-collaboration stagger-enter"},
+		{IconName: partials.UIIconProblemSolving, Title: "Problem Solving", Description: "Break complex constraints into practical, maintainable decisions.", Tone: partials.ToneApricot, ExtraClass: "about-value-card about-value-problem-solving stagger-enter"},
+		{IconName: partials.UIIconDocumentation, Title: "Documentation", Description: "Make context durable so the next person can move without guesswork.", Tone: partials.ToneRose, ExtraClass: "about-value-card about-value-documentation stagger-enter"},
 	}
 }
 
@@ -207,7 +207,9 @@ templ About(props AboutProps) {
 					<ul class="about-values-manifesto" role="list">
 						for _, card := range aboutCoreValueCards() {
 							<li class="about-value-principle" data-tone={ string(card.Tone) }>
-								<span class="about-value-mark" aria-hidden="true">{ card.Icon }</span>
+								<span class="about-value-mark" aria-hidden="true">
+									@partials.UIIcon(card.IconName)
+								</span>
 								<div>
 									<h3>{ card.Title }</h3>
 									<p>{ card.Description }</p>

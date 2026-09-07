@@ -106,11 +106,18 @@ func TestApprovedSkillsAndFooterTreatmentsAreConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse component CSS: %v", err)
 	}
-	if !contactHasEffectiveRule(componentRules, ".footer-nav-list-portfolio", 48, false, map[string]string{
-		"display":               "grid",
-		"grid-template-columns": "repeat(2,minmax(0,1fr))",
-	}) {
-		t.Error("Footer Portfolio links are not compacted into two columns at wider widths")
+	for _, width := range []float64{0, 48, 70} {
+		if !contactHasEffectiveRule(componentRules, ".footer-nav-list", width, false, map[string]string{
+			"display":               "grid",
+			"grid-template-columns": "minmax(0,1fr)",
+		}) {
+			t.Errorf("Footer links must remain in one vertical list at width %grem", width)
+		}
+		if !contactHasEffectiveRule(componentRules, ".footer-nav-section:first-child", width, false, map[string]string{
+			"grid-row": "span 2",
+		}) {
+			t.Errorf("Footer must stack Tools and Connect beside Portfolio at width %grem", width)
+		}
 	}
 
 	baseCSS := readTask2Artifact(t, "cmd", "web", "tailwind", "base.css")

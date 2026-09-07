@@ -66,10 +66,10 @@ templ Base(props BaseProps) {
 				rel="stylesheet"
 			/>
 			<!-- Styles -->
-			<link rel="stylesheet" href="/static/css/tailwind.css?v=20260818c"/>
+			<link rel="stylesheet" href="/static/css/tailwind.css?v=20260906b"/>
 			<!-- HTMX with integrity check -->
 			<script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
-			<script src="/static/js/main.js?v=20260810d" defer></script>
+			<script src="/static/js/main.js?v=20260906a" defer></script>
 		</head>
 		<body class={ baseBodyClasses(props.Page) } data-shell={ string(normalizedShell(props.Shell)) }>
 			<a href="#maincontent" class="site-skip-link">Skip to main content</a>
@@ -82,7 +82,7 @@ templ Base(props BaseProps) {
 			if normalizedShell(props.Shell) == ShellOperator {
 				@partials.OperatorFooter()
 			} else {
-				@partials.Footer()
+				@partials.Footer(props.Page)
 			}
 		</body>
 	</html>

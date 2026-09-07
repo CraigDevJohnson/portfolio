@@ -26,6 +26,10 @@ const (
 	UIIconAutomation     UIIconName = "automation"
 	UIIconSecurity       UIIconName = "security"
 	UIIconObservability  UIIconName = "observability"
+	UIIconImprovement    UIIconName = "improvement"
+	UIIconCollaboration  UIIconName = "collaboration"
+	UIIconProblemSolving UIIconName = "problem-solving"
+	UIIconDocumentation  UIIconName = "documentation"
 )
 
 type HeroVariant string

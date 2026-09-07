@@ -260,6 +260,10 @@ func assertSkillsCardFieldTrail(t *testing.T, path, body string) {
 
 func assertContactCorrespondenceWindow(t *testing.T, path, body string) {
 	t.Helper()
+	content, contentErr := findTestHTMLElementMarkup(body, `id="maincontent"`)
+	if contentErr != nil {
+		t.Fatalf("GET %s Contact main content boundaries: %v", path, contentErr)
+	}
 
 	assertOrderedPageRegions(t, path, body, "correspondence-window", []string{"intro", "availability", "channels", "expertise"})
 	if count := strings.Count(body, `data-signal-trail`); count != 1 {
@@ -292,7 +296,7 @@ func assertContactCorrespondenceWindow(t *testing.T, path, body string) {
 	}
 	for _, icon := range []string{"mail", "linkedin", "github", "architecture", "automation", "security", "observability"} {
 		marker := `data-ui-icon="` + icon + `"`
-		if count := strings.Count(body, marker); count != 1 {
+		if count := strings.Count(content, marker); count != 1 {
 			t.Errorf("GET %s Contact icon %q count = %d, want 1", path, icon, count)
 		}
 	}
@@ -818,7 +822,7 @@ func assertHomeSystemsOverlook(t *testing.T, path, body string) {
 		`data-image-fallback`,
 		`>CJ</span>`,
 		`href="https://gravatar.com/craigdevjohnson1"`,
-		`aria-label="View Craig Johnson's Gravatar profile (opens in new tab)"`,
+		`aria-label="View Craig Johnson's Gravatar profile (opens in a new tab)"`,
 		`width="275"`,
 		`height="275"`,
 		`loading="eager"`,
@@ -1040,6 +1044,32 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		}
 		if count := strings.Count(timeline, `aria-current="step"`); count != 1 {
 			t.Errorf("GET %s About current timeline step count = %d, want 1", path, count)
+		}
+	}
+
+	values, err := findTestHTMLElementMarkup(body, `class="about-values-manifesto"`)
+	if err != nil {
+		t.Errorf("GET %s About values boundaries: %v", path, err)
+	} else {
+		for _, icon := range []string{"improvement", "collaboration", "problem-solving", "documentation"} {
+			marker := `data-ui-icon="` + icon + `"`
+			if count := strings.Count(values, marker); count != 1 {
+				t.Errorf("GET %s About value icon %q count = %d, want 1", path, icon, count)
+				continue
+			}
+			opening, err := findTestHTMLElementOpeningTag(values, marker)
+			if err != nil {
+				t.Errorf("GET %s About value icon %q boundaries: %v", path, icon, err)
+				continue
+			}
+			if opening.name != "svg" {
+				t.Errorf("GET %s About value icon %q renders <%s>, want SVG", path, icon, opening.name)
+			}
+			for _, attribute := range []string{`aria-hidden="true"`, `focusable="false"`} {
+				if !strings.Contains(values[opening.start:opening.end], attribute) {
+					t.Errorf("GET %s About value icon %q missing decorative attribute %s", path, icon, attribute)
+				}
+			}
 		}
 	}
 }
@@ -1660,7 +1690,7 @@ func validateExperienceRoleContent(body string) error {
 		responsibilities string
 		technologies     []string
 	}{
-		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise ITSM systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "MacOS", "GoogleApps"}},
+		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise ITSM systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "macOS", "GoogleApps"}},
 		{id: "6", title: "IT Service Desk Associate", company: "COMPANY REDACTED - C", duration: "2016 – 2017", responsibilities: "Utilized ITSM platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.", technologies: []string{"ServiceNow", "O365", "Windows"}},
 		{id: "5", title: "IT Desktop Engineer", company: "COMPANY REDACTED - C", duration: "2017 – 2018", responsibilities: "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using ITIL methodologies. Established standardized deployment procedures for enterprise endpoints.", technologies: []string{"PowerShell", "SCCM", "Intune"}},
 		{id: "4", title: "IT Systems Engineer", company: "COMPANY REDACTED - C", duration: "2018 – 2020", responsibilities: "Managed enterprise Active Directory and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.", technologies: []string{"PowerShell", "AD DS", "O365/Exchange"}},
@@ -1739,8 +1769,8 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260818c`,
-		`/static/js/main.js?v=20260810d`,
+		`/static/css/tailwind.css?v=20260906b`,
+		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {
 		t.Errorf("GET %s h1 count = %d, want 1", path, count)
