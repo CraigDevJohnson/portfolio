@@ -27,6 +27,7 @@ Thumbs.db
 # Local agent and hot-reload state
 .superpowers/
 /tmp/
+/.worktrees/
 
 # Test coverage
 coverage.out
