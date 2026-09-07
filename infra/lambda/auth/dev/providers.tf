@@ -1,6 +1,6 @@
 provider "aws" {
-  region              = local.aws_region
-  allowed_account_ids = [local.aws_account_id]
+  region              = "us-west-2"
+  allowed_account_ids = ["180294223248"]
 
   default_tags {
     tags = {
