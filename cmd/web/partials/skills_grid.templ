@@ -68,7 +68,7 @@ func proficiencyFillClasses(proficiency string) string {
 }
 
 templ skillAsset(skill types.Skill, altText string, wrapperClass string, imageClass string) {
-	<span class={ wrapperClass }>
+	<span class={ wrapperClass, templ.KV("skill-asset-dark", skill.IconPath == "/static/images/skills/terramate.svg") }>
 		if skill.IconPath != "" {
 			<img class={ skillImageClasses(imageClass) } src={ skill.IconPath } alt={ altText } loading="lazy" decoding="async" width="56" height="56"/>
 		}
@@ -90,7 +90,9 @@ templ featuredSkillCardContent(skill types.Skill) {
 }
 
 templ conceptCardContent(skill types.Skill) {
-	@skillAsset(skill, "", "skills-practice-icon", "skill-asset-practice")
+	<span class="skills-practice-icon">
+		@UIIcon(conceptSkillIcon(skill.Name))
+	</span>
 	<div class="skills-practice-copy">
 		<span class="skills-practice-name">{ skill.Name }</span>
 		<div class={ proficiencyBadgeClasses(skill.Proficiency, true) }>{ skill.Proficiency }</div>
@@ -121,7 +123,7 @@ templ SkillsGrid(props SkillsGridProps) {
 								if item.Skill.Link != "" {
 									<a id={ fmt.Sprintf("skill-featured-link-%d", item.Skill.ID) } href={ templ.SafeURL(item.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-featured-card">
 										@featuredSkillCardContent(item.Skill)
-										<span class="sr-only">(opens in a new tab)</span>
+										<span class="sr-only">{ " (opens in a new tab)" }</span>
 										<span class="skills-external-mark" aria-hidden="true">↗</span>
 									</a>
 								} else {
@@ -148,7 +150,7 @@ templ SkillsGrid(props SkillsGridProps) {
 							if skill.Link != "" {
 								<a id={ fmt.Sprintf("skill-practice-link-%d", skill.ID) } href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-practice-card">
 									@conceptCardContent(skill)
-									<span class="sr-only">(opens in a new tab)</span>
+									<span class="sr-only">{ " (opens in a new tab)" }</span>
 									<span class="skills-external-mark" aria-hidden="true">↗</span>
 								</a>
 							} else {
@@ -187,7 +189,7 @@ templ SkillsFilterControls(props SkillsGridProps, outOfBand bool) {
 			<div>
 				<span class="page-kit-eyebrow">Browse skills</span>
 				<h2 id="skills-catalog-title">Explore the full technical toolkit</h2>
-				<p>Search the bench or narrow it by category and proficiency.</p>
+				<p>Search skills or narrow the list by category and proficiency.</p>
 			</div>
 			<p class="skills-control-summary" aria-hidden="true">{ props.ResultSummary }</p>
 		</div>
@@ -315,10 +317,9 @@ templ SkillsFilterableSection(props SkillsGridProps) {
 		data-skills-state={ props.StateURL }
 	>
 		@SignalTrail(SignalTrailProps{Variant: TrailWorkbench, ExtraClass: "skills-workbench-trail"})
-		<span class="skills-workbench-caption">Set the instruments / inspect the toolkit</span>
 		<header class="skills-results-heading">
 			<div>
-				<span class="page-kit-eyebrow">Workbench catalog</span>
+				<span class="page-kit-eyebrow">Skills catalog</span>
 				<h2 id="skills-results-title">All technical skills</h2>
 				<p>A filterable list of my technical toolkit.</p>
 			</div>
@@ -331,7 +332,11 @@ templ SkillsFilterableSection(props SkillsGridProps) {
 						<header class="skill-category-heading">
 							<span class="skill-category-index">{ fmt.Sprintf("%02d", len(category.Skills)) }</span>
 							<h3>{ category.Name }</h3>
-							<span>{ fmt.Sprintf("%d instruments", len(category.Skills)) }</span>
+							if len(category.Skills) == 1 {
+								<span>1 skill</span>
+							} else {
+								<span>{ fmt.Sprintf("%d skills", len(category.Skills)) }</span>
+							}
 						</header>
 						<div class="skill-card-grid">
 							for _, item := range category.Skills {

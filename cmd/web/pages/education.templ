@@ -35,7 +35,7 @@ templ EducationCredentialCard(credential educationCredential) {
 			<span class="education-credential-year">{ credential.Year }</span>
 		</div>
 		<span class="education-credential-arrow" aria-hidden="true">↗</span>
-		<span class="sr-only">(opens in a new tab)</span>
+		<span class="sr-only">{ " (opens in a new tab)" }</span>
 	</a>
 }
 
@@ -102,7 +102,7 @@ templ Education(props EducationProps) {
 						</p>
 					</div>
 					<span class="education-degree-arrow" aria-hidden="true">↗</span>
-					<span class="sr-only">(opens in a new tab)</span>
+					<span class="sr-only">{ " (opens in a new tab)" }</span>
 				</a>
 			</section>
 			<section class="page-section education-domains-section" data-region="domains" aria-labelledby="education-domains-heading">
@@ -134,8 +134,8 @@ templ Education(props EducationProps) {
 				@partials.PageCTA(partials.PageCTAProps{
 					Title:     "See how education translates to experience",
 					Subtitle:  "Explore how these credentials are applied in real-world cloud engineering",
-					Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View Experience", Variant: partials.ActionPrimary},
-					Secondary: &partials.ActionLinkProps{Href: "/skills", Label: "View Skills", Variant: partials.ActionSecondary},
+					Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View experience", Variant: partials.ActionPrimary},
+					Secondary: &partials.ActionLinkProps{Href: "/skills", Label: "View skills", Variant: partials.ActionSecondary},
 				})
 			</div>
 		</div>

@@ -46,8 +46,8 @@ templ SkillDetail(props SkillDetailProps) {
 				}
 				if props.Skill.Link != "" {
 					<a id={ fmt.Sprintf("skill-detail-learn-%d", props.Skill.ID) } href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link">
-						Learn More
-						<span class="sr-only">(opens in a new tab)</span>
+						Learn more
+						<span class="sr-only">{ " (opens in a new tab)" }</span>
 						<span class="link-arrow" aria-hidden="true">↗</span>
 					</a>
 				}

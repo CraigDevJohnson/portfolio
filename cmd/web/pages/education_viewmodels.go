@@ -53,7 +53,7 @@ func educationCredentialDomains() []educationCredentialDomain {
 		{
 			ID:          "microsoft",
 			Title:       "Microsoft",
-			Description: "Enterprise systems credentials",
+			Description: "Microsoft Certified Solutions Associate (MCSA) and Microsoft Certified Solutions Expert (MCSE) credentials",
 			Credentials: []educationCredential{
 				{Href: "https://www.credly.com/badges/c5406a0d-c4d2-41f7-b897-e12c01182f9f", ImageSrc: "/static/images/certs/MCSE-Cloud-Platform-Infrastructure-2018.png", ImageAlt: "MCSE: Cloud Platform and Infrastructure", Title: "MCSE: Cloud Platform and Infrastructure", Provider: "Microsoft", Year: "2018", Loading: "lazy"},
 				{Href: "https://www.credly.com/badges/c2187483-a746-4268-be1a-ea0e5b9281a1", ImageSrc: "/static/images/certs/MCSA-Windows-Server-2016-2018.png", ImageAlt: "MCSA: Windows Server 2016", Title: "MCSA: Windows Server 2016", Provider: "Microsoft", Year: "2018", Loading: "lazy"},

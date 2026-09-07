@@ -250,9 +250,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 			}
 			<div class="soccer-connection-actions">
 				if props.Preview {
-					<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Reconnect Google</button>
+					<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Reconnect Google Calendar</button>
 				} else {
-					<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link><span class="btn-text">Reconnect Google</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></a>
+					<a href="/soccer/google/connect" class="btn soccer-secondary-btn btn-loading" data-loading-link><span class="btn-text">Reconnect Google Calendar</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></a>
 				}
 				<button
 					type="button"
@@ -272,7 +272,7 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 		} else {
 			<div class="soccer-connection-copy">
 				<p class="soccer-connection-status">Not connected</p>
-				<p>Connect once to add selected matches directly. ICS download remains available without Google.</p>
+				<p>Connect once to add selected matches directly. You can download an .ics file without connecting Google Calendar.</p>
 			</div>
 			<div class="soccer-connection-actions">
 				if props.Preview {
@@ -285,7 +285,7 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 	} else {
 		<div class="soccer-unavailable-connection">
 			<span class="soccer-connection-mark" aria-hidden="true">—</span>
-			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>ICS download is ready and does not require a Google connection.</p></div>
+			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>You can download an .ics file without connecting Google Calendar.</p></div>
 		</div>
 	}
 }

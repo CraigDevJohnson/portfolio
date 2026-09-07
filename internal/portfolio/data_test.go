@@ -73,9 +73,9 @@ func TestEmbeddedDataProjectDossiersPreserveFactsAndDestinations(t *testing.T) {
 			id:         2,
 			name:       "New User Account Provisioning",
 			problem:    "New user information arrived through a database push and required complete account creation and configuration.",
-			approach:   "PowerShell scripts created the new user's Active Directory account, email account in O365/Exchange, and role-based group memberships.",
+			approach:   "PowerShell scripts created the new user's Active Directory Domain Services (AD DS) account, Office 365 / Exchange email account, and role-based group memberships.",
 			outcome:    "Fully automated new user account creation and configuration.",
-			technology: []string{"PowerShell", "Git", "APIs", "AD DS", "O365/Exchange"},
+			technology: []string{"PowerShell", "Git", "APIs", "AD DS", "Office 365 / Exchange"},
 		},
 		{
 			id:         3,

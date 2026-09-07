@@ -18,9 +18,9 @@
     "name": "New User Account Provisioning",
     "image_ratio": "landscape",
     "problem": "New user information arrived through a database push and required complete account creation and configuration.",
-    "approach": "PowerShell scripts created the new user's Active Directory account, email account in O365/Exchange, and role-based group memberships.",
+    "approach": "PowerShell scripts created the new user's Active Directory Domain Services (AD DS) account, Office 365 / Exchange email account, and role-based group memberships.",
     "outcome": "Fully automated new user account creation and configuration.",
-    "technologies": ["PowerShell", "Git", "APIs", "AD DS", "O365/Exchange"],
+    "technologies": ["PowerShell", "Git", "APIs", "AD DS", "Office 365 / Exchange"],
     "image": "/static/images/projects/provisioning.webp",
     "category": "Automation"
   },

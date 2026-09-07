@@ -19,7 +19,7 @@
         "link": "https://go.dev/",
         "proficiency": "advanced",
         "featured": true,
-        "description": "Statically typed language for building scalable cloud services and CLI tools"
+        "description": "Statically typed language for building scalable cloud services and command-line tools"
       },
       {
         "id": 3,
@@ -33,7 +33,8 @@
         "name": "JSON",
         "icon_path": "/static/images/skills/json.svg",
         "link": "https://www.json.org/",
-        "proficiency": "expert"
+        "proficiency": "expert",
+        "description": "JavaScript Object Notation (JSON), a lightweight format for exchanging structured data"
       },
       {
         "id": 11,
@@ -74,7 +75,8 @@
         "name": "YAML",
         "icon_path": "/static/images/skills/yaml.svg",
         "link": "https://yaml.org/",
-        "proficiency": "expert"
+        "proficiency": "expert",
+        "description": "YAML Ain't Markup Language (YAML), a human-readable format for configuration and structured data"
       }
     ]
   },
@@ -89,7 +91,7 @@
         "proficiency": "expert",
         "featured": true,
         "tags": ["Infrastructure as Code", "Security & Identity", "Monitoring & Observability"],
-        "description": "Primary cloud platform for compute, storage, networking, and serverless solutions"
+        "description": "Amazon Web Services (AWS), my primary cloud platform for compute, storage, networking, and serverless solutions"
       },
       {
         "id": 13,
@@ -99,7 +101,7 @@
         "proficiency": "advanced",
         "featured": true,
         "tags": ["Infrastructure as Code", "Security & Identity", "Monitoring & Observability"],
-        "description": "Microsoft cloud platform for hybrid identity, VMs, and enterprise services"
+        "description": "Microsoft cloud platform for hybrid identity, virtual machines, and enterprise services"
       },
       {
         "id": 15,
@@ -176,7 +178,7 @@
         "link": "https://podman.io/",
         "proficiency": "advanced",
         "featured": true,
-        "description": "Daemonless container engine for running OCI containers and pods"
+        "description": "Daemonless container engine for running Open Container Initiative (OCI) containers and pods"
       },
       {
         "id": 101,
@@ -229,7 +231,7 @@
         "proficiency": "expert",
         "featured": true,
         "tags": ["Development Tools", "Collaboration Tools"],
-        "description": "CI/CD platform for automating build, test, and deployment workflows"
+        "description": "Continuous integration and continuous delivery (CI/CD) platform for automating build, test, and deployment workflows"
       },
       {
         "id": 24,
@@ -370,7 +372,8 @@
         "name": "API Gateway",
         "icon_path": "/static/images/skills/aws_api_gateway.svg",
         "link": "https://aws.amazon.com/api-gateway/",
-        "proficiency": "advanced"
+        "proficiency": "advanced",
+        "description": "Amazon API Gateway for building and managing application programming interfaces (APIs)"
       },
       {
         "id": 39,
@@ -471,7 +474,8 @@
         "name": "VS Code",
         "icon_path": "/static/images/skills/vscode.svg",
         "link": "https://code.visualstudio.com/",
-        "proficiency": "expert"
+        "proficiency": "expert",
+        "description": "Visual Studio Code (VS Code), a code editor for development and debugging"
       }
     ]
   },
@@ -537,7 +541,8 @@
         "name": "RHEL",
         "icon_path": "/static/images/skills/red_hat.svg",
         "link": "https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux",
-        "proficiency": "expert"
+        "proficiency": "expert",
+        "description": "Red Hat Enterprise Linux (RHEL) for enterprise servers and infrastructure"
       },
       {
         "id": 110,
@@ -576,7 +581,7 @@
       },
       {
         "id": 61,
-        "name": "Nginx",
+        "name": "nginx",
         "icon_path": "/static/images/skills/nginx.svg",
         "link": "https://nginx.org/",
         "proficiency": "advanced"

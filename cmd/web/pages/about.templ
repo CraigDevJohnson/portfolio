@@ -50,7 +50,7 @@ func aboutQuickFacts() []aboutQuickFact {
 		{Icon: "🏔", Text: "Originally from Alaska"},
 		{Icon: "👨‍👩‍👧‍👦", Text: "Family of 4 + 2 dogs"},
 		{Icon: "⚽", Text: "Lifelong soccer enthusiast"},
-		{Icon: "🎓", Text: "BS in Cloud Computing"},
+		{Icon: "🎓", Text: "Bachelor of Science in Cloud Computing"},
 		{Icon: "☁️", Text: "Cloud & automation specialist"},
 		{Icon: "📚", Text: "Continuous learner"},
 	}
@@ -67,9 +67,9 @@ func aboutTimelineEntries() []aboutTimelineEntry {
 	return []aboutTimelineEntry{
 		{Year: "2012", Title: "Started in Tech", Description: "Service Desk Student Analyst — first steps into IT support and troubleshooting."},
 		{Year: "2016", Title: "Healthcare IT", Description: "Moved into healthcare technology — ensuring systems enhance patient care."},
-		{Year: "2018", Title: "Microsoft Certified", Description: "Earned MCSA and MCSE certifications — a deep dive into enterprise infrastructure."},
+		{Year: "2018", Title: "Microsoft Certified", Description: "Earned Microsoft Certified Solutions Associate (MCSA) and Microsoft Certified Solutions Expert (MCSE) credentials in enterprise infrastructure."},
 		{Year: "2021", Title: "Cloud Transition", Description: "Pivoted to cloud engineering — AWS, Azure, and infrastructure as code."},
-		{Year: "2023", Title: "BS in Cloud Computing", Description: "Completed the degree at Western Governors University with multiple cloud certifications."},
+		{Year: "2023", Title: "Bachelor of Science in Cloud Computing", Description: "Completed the degree at Western Governors University with multiple cloud certifications."},
 		{Year: "Now", Title: "Cloud Engineer Principal", Description: "Leading cloud infrastructure, automation, and DevOps practices.", Current: true},
 	}
 }
@@ -122,10 +122,8 @@ templ About(props AboutProps) {
 								Leaving Alaska expanded both the environments I could work in and the problems I could learn from.
 							</blockquote>
 							<p>
-								My tech career began at the local university as a Service Desk Student Analyst, where I
-								laid the foundations of my skills and knowledge. This journey led me into the health care
-								sector, providing tech support and ensuring that technology enhances patient care and
-								operational efficiency.
+								In healthcare IT, I provided technical support that helped technology serve patient care
+								and operational efficiency.
 							</p>
 							<p>
 								Soccer has been a lifelong love of mine, keeping me active and connected with the
@@ -222,8 +220,8 @@ templ About(props AboutProps) {
 			@partials.PageCTA(partials.PageCTAProps{
 				Title:     "Want to know more?",
 				Subtitle:  "Check out my experience or reach out directly",
-				Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View My Experience", Variant: partials.ActionPrimary},
-				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Get in Touch", Variant: partials.ActionSecondary},
+				Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View experience", Variant: partials.ActionPrimary},
+				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Contact me", Variant: partials.ActionSecondary},
 			})
 		</div>
 	}

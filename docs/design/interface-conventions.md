@@ -35,6 +35,9 @@ to a visible control when dismissed or resized to desktop navigation.
 - Preserve proper product names: **Go**, **templ**, **htmx**, **Tailwind CSS**,
   **AWS Lambda**, **OpenTofu**, **GitHub Actions**, **GitHub**, **LinkedIn**, and **macOS**. Do not force brand
   names into uppercase with CSS. Uppercase utility headings remain a visual style.
+- Use sentence case for action labels. Keep repeated destinations consistent: **View experience**,
+  **View projects**, **View skills**, and **Contact me**. Use **Email me** for the
+  direct email action and **Learn more** for a skill's external reference.
 - Use **CI/CD** and **IaC** consistently. Explain unfamiliar abbreviations when
   introducing them in prose; avoid shortening navigation labels to save space.
   Use **calendar (.ics) file** on introduction and **.ics file** thereafter.
@@ -47,14 +50,19 @@ Reuse the typed `UIIcon` component for professional concepts and contact channel
 Keep visible text beside contact icons. Decorative icons use `aria-hidden="true"`
 and `focusable="false"`, inherit the text color, and retain their square aspect
 ratio. Use actual brand marks for GitHub and LinkedIn, and the mail icon for Email.
-Personal hobby emoji are editorial content; professional capability cards use SVG
-icons. Preserve icon-library attribution when adding source assets.
+Personal hobby emoji are editorial content; professional capability and Skills
+practice cards use the shared SVG icons. Product skill cards retain their real
+brand assets; the white Terramate mark uses a dark token-based frame
+for contrast. Use skills, categories, and proficiency in catalog labels and counts;
+reserve the workbench metaphor for visual styling. Avoid decorative emoji in
+professional status labels. Preserve icon-library attribution when adding source assets.
 
 ## Sources and verification
 
 Product spelling follows [Go](https://go.dev/), [templ](https://templ.guide/),
 [htmx](https://htmx.org/), [Tailwind CSS](https://tailwindcss.com/), and
 [Apple's macOS page](https://www.apple.com/os/macos/).
+Microsoft credential expansions follow [Microsoft Learn](https://learn.microsoft.com/en-us/credentials/certifications/posts/mcsa-mcsd-mcse-certifications-retire-with-continued-investment-to-role-based-certifications).
 [W3C abbreviation guidance](https://www.w3.org/WAI/WCAG22/Understanding/abbreviations.html)
 supports providing an expansion or meaning; it is a Level AAA criterion and this
 convention is not a claim of whole-site WCAG conformance.

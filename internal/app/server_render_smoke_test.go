@@ -978,7 +978,7 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`Originally from Alaska`,
 		`Family of 4 + 2 dogs`,
 		`Lifelong soccer enthusiast`,
-		`BS in Cloud Computing`,
+		`Bachelor of Science in Cloud Computing`,
 		`Cloud &amp; automation specialist`,
 		`Continuous learner`,
 		`Started in Tech`,
@@ -987,7 +987,7 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`Cloud Transition`,
 		`Cloud Engineer Principal`,
 		`Leaving Alaska expanded both the environments`,
-		`My tech career began at the local university`,
+		`In healthcare IT, I provided technical support`,
 		`Soccer has been a lifelong love of mine`,
 		`Playing and coaching`,
 		`Alaska roots mean a love for hiking`,
@@ -998,9 +998,9 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`Break complex constraints into practical`,
 		`Make context durable so the next person`,
 		`href="/experience"`,
-		`View My Experience`,
+		`View experience`,
 		`href="/contact"`,
-		`Get in Touch`,
+		`Contact me`,
 	}
 	for _, marker := range markers {
 		if !strings.Contains(body, marker) {
@@ -1249,31 +1249,31 @@ func assertExperienceCareerEras(t *testing.T, path, body string) {
 		`Cloud Engineer Principal`,
 		`COMPANY REDACTED - A`,
 		`2022 – Present`,
-		`Lead infrastructure automation initiatives using IaC principles.`,
+		`Lead infrastructure automation initiatives using infrastructure as code (IaC).`,
 		`System Administrator`,
 		`COMPANY REDACTED - B`,
 		`2021 – 2022`,
-		`Managed enterprise SCADA systems and infrastructure automation.`,
+		`Managed enterprise supervisory control and data acquisition (SCADA) systems and infrastructure automation.`,
 		`IT Systems Engineer Sr`,
 		`2020 – 2021`,
 		`Architected and implemented cloud infrastructure solutions in healthcare environments.`,
 		`IT Systems Engineer`,
 		`2018 – 2020`,
-		`Managed enterprise Active Directory and Exchange infrastructure.`,
+		`Managed enterprise Active Directory Domain Services (AD DS) and Exchange infrastructure.`,
 		`IT Desktop Engineer`,
 		`2017 – 2018`,
 		`Implemented automated solutions for endpoint management and configuration.`,
 		`IT Service Desk Associate`,
 		`2016 – 2017`,
-		`Utilized ITSM platforms for incident and change management.`,
+		`Used IT service management (ITSM) platforms for incident and change management.`,
 		`Service Desk Student Analyst`,
 		`COMPANY REDACTED - D`,
 		`2012 – 2016`,
-		`Managed incident tracking through enterprise ITSM systems.`,
+		`Managed incident tracking through enterprise IT service management (ITSM) systems.`,
 		`href="/projects"`,
-		`View Projects`,
+		`View projects`,
 		`href="/skills"`,
-		`Review Skills`,
+		`View skills`,
 	}
 	for _, marker := range markers {
 		if !strings.Contains(body, marker) {
@@ -1644,7 +1644,7 @@ func TestValidateExperienceRoleContentRejectsMutations(t *testing.T) {
 		{
 			name: "responsibility substitution inside bounded role",
 			body: strings.Replace(body,
-				`Lead infrastructure automation initiatives using IaC principles. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`,
+				`Lead infrastructure automation initiatives using infrastructure as code (IaC). Implement continuous integration and continuous delivery (CI/CD) pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`,
 				`Lead platform initiatives. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`, 1),
 		},
 		{
@@ -1690,13 +1690,13 @@ func validateExperienceRoleContent(body string) error {
 		responsibilities string
 		technologies     []string
 	}{
-		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise ITSM systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "macOS", "GoogleApps"}},
-		{id: "6", title: "IT Service Desk Associate", company: "COMPANY REDACTED - C", duration: "2016 – 2017", responsibilities: "Utilized ITSM platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.", technologies: []string{"ServiceNow", "O365", "Windows"}},
-		{id: "5", title: "IT Desktop Engineer", company: "COMPANY REDACTED - C", duration: "2017 – 2018", responsibilities: "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using ITIL methodologies. Established standardized deployment procedures for enterprise endpoints.", technologies: []string{"PowerShell", "SCCM", "Intune"}},
-		{id: "4", title: "IT Systems Engineer", company: "COMPANY REDACTED - C", duration: "2018 – 2020", responsibilities: "Managed enterprise Active Directory and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.", technologies: []string{"PowerShell", "AD DS", "O365/Exchange"}},
+		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise IT service management (ITSM) systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "macOS", "Google Apps"}},
+		{id: "6", title: "IT Service Desk Associate", company: "COMPANY REDACTED - C", duration: "2016 – 2017", responsibilities: "Used IT service management (ITSM) platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.", technologies: []string{"ServiceNow", "Office 365", "Windows"}},
+		{id: "5", title: "IT Desktop Engineer", company: "COMPANY REDACTED - C", duration: "2017 – 2018", responsibilities: "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using Information Technology Infrastructure Library (ITIL) methodologies. Established standardized deployment procedures for enterprise endpoints.", technologies: []string{"PowerShell", "SCCM", "Intune"}},
+		{id: "4", title: "IT Systems Engineer", company: "COMPANY REDACTED - C", duration: "2018 – 2020", responsibilities: "Managed enterprise Active Directory Domain Services (AD DS) and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.", technologies: []string{"PowerShell", "AD DS", "Office 365 / Exchange"}},
 		{id: "3", title: "IT Systems Engineer Sr", company: "COMPANY REDACTED - C", duration: "2020 – 2021", responsibilities: "Architected and implemented cloud infrastructure solutions in healthcare environments. Led technical projects involving cross-functional teams and vendor integration. Developed automation frameworks for critical systems and established best practices for infrastructure management.", technologies: []string{"Azure", "AD DS", "PowerShell"}},
-		{id: "2", title: "System Administrator", company: "COMPANY REDACTED - B", duration: "2021 – 2022", responsibilities: "Managed enterprise SCADA systems and infrastructure automation. Implemented monitoring solutions and maintained high-availability environments. Established IT/OT integration practices while ensuring regulatory compliance. Orchestrated application deployments and infrastructure upgrades in critical environments.", technologies: []string{"IoT", "SCADA", "RHEL", "Bash"}},
-		{id: "1", title: "Cloud Engineer Principal", company: "COMPANY REDACTED - A", duration: "2022 – Present", responsibilities: "Lead infrastructure automation initiatives using IaC principles. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.", technologies: []string{"AWS", "Go", "Terraform", "Ansible"}},
+		{id: "2", title: "System Administrator", company: "COMPANY REDACTED - B", duration: "2021 – 2022", responsibilities: "Managed enterprise supervisory control and data acquisition (SCADA) systems and infrastructure automation. Implemented monitoring solutions and maintained high-availability environments. Established information technology and operational technology (IT/OT) integration practices while ensuring regulatory compliance. Orchestrated application deployments and infrastructure upgrades in critical environments.", technologies: []string{"IoT", "SCADA", "RHEL", "Bash"}},
+		{id: "1", title: "Cloud Engineer Principal", company: "COMPANY REDACTED - A", duration: "2022 – Present", responsibilities: "Lead infrastructure automation initiatives using infrastructure as code (IaC). Implement continuous integration and continuous delivery (CI/CD) pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.", technologies: []string{"AWS", "Go", "Terraform", "Ansible"}},
 	}
 	for _, role := range expected {
 		marker := `data-experience-role="` + role.id + `"`
