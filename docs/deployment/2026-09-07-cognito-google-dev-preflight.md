@@ -73,6 +73,35 @@ be assumed to provision additional auth resources or permissions.
 - No AWS/Google configuration changes, infrastructure apply, deployment, merge,
   or push were performed.
 
+## Initial setup result
+
+Tasks 1–3 are implemented and committed locally on
+`codex/cognito-google-dev-setup`, through implementation commit `15568e51`:
+
+- Portal callbacks validate the signed Cognito identity before requiring a
+  verified, exactly allowlisted email. Configuration separates the user-pool
+  issuer from the hosted-login domain and uses the approved `/callback` route.
+- Lambda cold starts resolve `MGMT_SESSION_KEY` through the existing atomic SSM
+  secret-loading path.
+- The isolated `infra/lambda/auth/dev/` root defines the Google-only Cognito
+  resources and public runtime settings, with `craigdevjohnson@gmail.com` as
+  the sole development allowlist entry. Its separate encrypted backend keeps
+  Google provider credentials out of ordinary runtime release artifacts.
+
+The combined implementation passed `task ci` and `task infrastructure-ci`,
+including five Cognito mock-provider cases, 238 Lambda plan contracts, release
+automation contracts and shared-root checks. Infrastructure validation was
+rerun successfully after correcting nested test-file formatting and making
+the Cognito formatting check recursive. Per-task and combined implementation
+reviews have no remaining actionable findings. Local verification logs:
+
+- `/tmp/portfolio-cognito-dev-implementation-ci.log`
+- `/tmp/portfolio-cognito-dev-implementation-infrastructure.log`
+
+These results establish the initial source setup only. Runtime environment and
+IAM integration, private provisioning tooling and live activation remain
+unchecked in Tasks 4–6. The Cognito stack has not been applied.
+
 ## Resume sequence
 
 1. Continue with Task 4 of the implementation plan: nullable development runtime
