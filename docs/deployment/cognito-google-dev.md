@@ -115,7 +115,12 @@ instructions. For those tasks, set `EXPECTED_MANAGEMENT_JSON` to
 operator shell. The runtime wrappers forward this reviewed public value to
 `TF_VAR_management`; use the same reviewed value for rollout and rollback.
 Automatic workflow configuration must explicitly supply the public object;
-its default remains `null`. Keep image and unrelated Lambda changes out of the auth plan.
+its default remains `null`. After separately reviewing and applying runtime
+enablement, set the GitHub **development** environment public variable
+`MANAGEMENT_RUNTIME_JSON` to the bare `.management` object. The development
+release step forwards this value as `EXPECTED_MANAGEMENT_JSON`; omit it or
+use `null` while the portal is disabled. Ordinary rollouts cannot enable the
+portal because their runtime environment diff remains restricted. Keep image and unrelated Lambda changes out of the auth plan.
 Provision the `/portfolio/lambda/dev/MGMT_SESSION_KEY` SecureString value through
 the separately approved secret channel before enabling the runtime. The auth
 root does not create or read that secret. Do not add auth-state access or Google

@@ -112,8 +112,8 @@ func TestCognitoAuthRootContainsOnlyApprovedResourcesAndOutputs(t *testing.T) {
 func TestCognitoAuthProviderIsPinnedToDevelopmentAccountAndRegion(t *testing.T) {
 	provider := readAuthFile(t, "providers.tf")
 	for _, contract := range []string{
-		"region              = local.aws_region",
-		`allowed_account_ids = [local.aws_account_id]`,
+		`region              = "us-west-2"`,
+		`allowed_account_ids = ["180294223248"]`,
 	} {
 		if !strings.Contains(provider, contract) {
 			t.Errorf("auth provider is missing %q", contract)
