@@ -22,7 +22,9 @@ templ SkillDetail(props SkillDetailProps) {
 					data-skill-detail-heading
 					tabindex="-1"
 				>{ props.Skill.Name }</h4>
-				<button id={ fmt.Sprintf("skill-detail-close-%d", props.Skill.ID) } class="page-kit-icon-button skill-detail-close" aria-label="Close detail" type="button" data-close-detail>&times;</button>
+				<button id={ fmt.Sprintf("skill-detail-close-%d", props.Skill.ID) } class="page-kit-icon-button skill-detail-close" aria-label="Close detail" type="button" data-close-detail>
+					@UIInlineIcon(UIIconClose)
+				</button>
 				if props.Skill.Category != "" {
 					<span class={ categoryTagClasses(props.Skill.Category) }>{ props.Skill.Category }</span>
 				}
@@ -48,7 +50,9 @@ templ SkillDetail(props SkillDetailProps) {
 					<a id={ fmt.Sprintf("skill-detail-learn-%d", props.Skill.ID) } href={ templ.SafeURL(props.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skill-detail-link">
 						Learn more
 						<span class="sr-only">{ " (opens in a new tab)" }</span>
-						<span class="link-arrow" aria-hidden="true">↗</span>
+						<span class="link-arrow" aria-hidden="true">
+							@UIInlineIcon(UIIconArrowUpRight)
+						</span>
 					</a>
 				}
 			</div>

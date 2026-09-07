@@ -165,7 +165,9 @@ templ SoccerGamesList(sectionID string, games []types.Game) {
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if visibleGamesCount(props) == 0 {
 		<div class="no-results">
-			<div class="no-results-icon" aria-hidden="true">🗓️</div>
+			<div class="no-results-icon" aria-hidden="true">
+				@UIIcon(UIIconCalendar)
+			</div>
 			<h4>No games found yet</h4>
 			if props.Message != "" {
 				<p>{ props.Message }</p>

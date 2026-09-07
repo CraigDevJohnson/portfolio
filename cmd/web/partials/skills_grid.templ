@@ -68,7 +68,7 @@ func proficiencyFillClasses(proficiency string) string {
 }
 
 templ skillAsset(skill types.Skill, altText string, wrapperClass string, imageClass string) {
-	<span class={ wrapperClass, templ.KV("skill-asset-dark", skill.IconPath == "/static/images/skills/terramate.svg") }>
+	<span class={ wrapperClass }>
 		if skill.IconPath != "" {
 			<img class={ skillImageClasses(imageClass) } src={ skill.IconPath } alt={ altText } loading="lazy" decoding="async" width="56" height="56"/>
 		}
@@ -124,7 +124,9 @@ templ SkillsGrid(props SkillsGridProps) {
 									<a id={ fmt.Sprintf("skill-featured-link-%d", item.Skill.ID) } href={ templ.SafeURL(item.Skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-featured-card">
 										@featuredSkillCardContent(item.Skill)
 										<span class="sr-only">{ " (opens in a new tab)" }</span>
-										<span class="skills-external-mark" aria-hidden="true">↗</span>
+										<span class="skills-external-mark" aria-hidden="true">
+											@UIInlineIcon(UIIconArrowUpRight)
+										</span>
 									</a>
 								} else {
 									<div class="skills-featured-card">
@@ -151,7 +153,9 @@ templ SkillsGrid(props SkillsGridProps) {
 								<a id={ fmt.Sprintf("skill-practice-link-%d", skill.ID) } href={ templ.SafeURL(skill.Link) } target="_blank" rel="noopener noreferrer" class="skills-practice-card">
 									@conceptCardContent(skill)
 									<span class="sr-only">{ " (opens in a new tab)" }</span>
-									<span class="skills-external-mark" aria-hidden="true">↗</span>
+									<span class="skills-external-mark" aria-hidden="true">
+										@UIInlineIcon(UIIconArrowUpRight)
+									</span>
 								</a>
 							} else {
 								<div class="skills-practice-card">
@@ -207,7 +211,9 @@ templ SkillsFilterControls(props SkillsGridProps, outOfBand bool) {
 		>
 			<label for="skills-search">Search the toolkit</label>
 			<div class="skills-search-field">
-				<span class="skills-search-glyph" aria-hidden="true">⌕</span>
+				<span class="skills-search-glyph" aria-hidden="true">
+					@UIInlineIcon(UIIconSearch)
+				</span>
 				<input
 					id="skills-search"
 					type="search"
@@ -234,7 +240,8 @@ templ SkillsFilterControls(props SkillsGridProps, outOfBand bool) {
 			}
 			<button id="skills-search-submit" type="submit" class="page-kit-action ui-action-secondary skills-search-submit">
 				<span class="sr-only" id="skills-search-submit-label">Run toolkit search</span>
-				<span>Search</span><span aria-hidden="true">→</span>
+				<span>Search</span>
+				@UIInlineIcon(UIIconArrowRight)
 			</button>
 		</form>
 		<div class="skills-filter-groups">
@@ -358,7 +365,10 @@ templ SkillsFilterableSection(props SkillsGridProps) {
 									<span class="skill-card-name">{ item.Skill.Name }</span>
 									<span class="skill-card-footer">
 										<span class={ proficiencyBadgeClasses(item.Skill.Proficiency, true) }>{ item.Skill.Proficiency }</span>
-										<span class="skill-card-detail-label">Details <span aria-hidden="true">→</span></span>
+										<span class="skill-card-detail-label">
+											Details
+											@UIInlineIcon(UIIconArrowRight)
+										</span>
 									</span>
 								</button>
 							}
@@ -369,7 +379,9 @@ templ SkillsFilterableSection(props SkillsGridProps) {
 			</div>
 		} else {
 			<div class="skills-empty-state">
-				<span class="skills-empty-glyph" aria-hidden="true">⌁</span>
+				<span class="skills-empty-glyph" aria-hidden="true">
+					@UIInlineIcon(UIIconSearch)
+				</span>
 				<h3>No skills match these filters</h3>
 				<p>{ props.NoResultsMessage }</p>
 				<a

@@ -996,6 +996,18 @@ body[data-shell='operator'] .site-operator-footer-shell {
   flex: none;
 }
 
+.page-kit-inline-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.15em;
+  line-height: 1;
+}
+
+.page-kit-inline-icon .page-kit-svg-icon {
+  width: 1em;
+  height: 1em;
+}
+
 .page-kit-icon-frame-accent {
   border-color: var(--color-page-kit-icon-frame-accent-border);
   background-color: var(--color-page-kit-icon-frame-accent-bg);

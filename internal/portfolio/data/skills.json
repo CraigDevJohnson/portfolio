@@ -297,7 +297,7 @@
       {
         "id": 106,
         "name": "Terramate",
-        "icon_path": "/static/images/skills/terramate.svg",
+        "icon_path": "/static/images/skills/terramate-light.svg",
         "link": "https://terramate.io/",
         "proficiency": "intermediate"
       }

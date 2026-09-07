@@ -50,12 +50,12 @@ Reuse the typed `UIIcon` component for professional concepts and contact channel
 Keep visible text beside contact icons. Decorative icons use `aria-hidden="true"`
 and `focusable="false"`, inherit the text color, and retain their square aspect
 ratio. Use actual brand marks for GitHub and LinkedIn, and the mail icon for Email.
-Personal hobby emoji are editorial content; professional capability and Skills
-practice cards use the shared SVG icons. Product skill cards retain their real
-brand assets; the white Terramate mark uses a dark token-based frame
-for contrast. Use skills, categories, and proficiency in catalog labels and counts;
-reserve the workbench metaphor for visual styling. Avoid decorative emoji in
-professional status labels. Preserve icon-library attribution when adding source assets.
+Use the shared SVG icons for hobbies, professional capabilities, Skills practices,
+status, and controls. Do not use emoji or text glyphs as UI icons. Product skill cards retain their real
+brand SVG assets on shared cream frames; use official light-background variants
+such as Terramate's black mark for contrast. Use skills, categories, and proficiency in catalog labels and counts;
+reserve the workbench metaphor for visual styling. Preserve icon-library
+attribution when adding source assets.
 
 ## Sources and verification
 

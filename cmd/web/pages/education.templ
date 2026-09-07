@@ -34,7 +34,9 @@ templ EducationCredentialCard(credential educationCredential) {
 			<p class="education-credential-provider">{ credential.Provider }</p>
 			<span class="education-credential-year">{ credential.Year }</span>
 		</div>
-		<span class="education-credential-arrow" aria-hidden="true">↗</span>
+		<span class="education-credential-arrow" aria-hidden="true">
+			@partials.UIInlineIcon(partials.UIIconArrowUpRight)
+		</span>
 		<span class="sr-only">{ " (opens in a new tab)" }</span>
 	</a>
 }
@@ -101,7 +103,9 @@ templ Education(props EducationProps) {
 							Competency-based program covering cloud architecture, security, networking, and systems administration across AWS and Azure platforms.
 						</p>
 					</div>
-					<span class="education-degree-arrow" aria-hidden="true">↗</span>
+					<span class="education-degree-arrow" aria-hidden="true">
+						@partials.UIInlineIcon(partials.UIIconArrowUpRight)
+					</span>
 					<span class="sr-only">{ " (opens in a new tab)" }</span>
 				</a>
 			</section>

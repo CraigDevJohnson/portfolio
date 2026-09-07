@@ -39,7 +39,9 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 	>
 		if props.SupportsDiscovery() {
 			<div class="soccer-connection-header">
-				<span class="soccer-connection-mark" aria-hidden="true">{ soccerConnectionMark(props.Authenticated) }</span>
+				<span class="soccer-connection-mark" aria-hidden="true">
+					@UIIcon(soccerConnectionIcon(props.Authenticated))
+				</span>
 				<div><p class="soccer-stage-kicker">LPS source</p><h4>Player access</h4></div>
 			</div>
 			if props.Authenticated {
@@ -84,7 +86,9 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 		}
 		if !props.SupportsDiscovery() {
 			<div class="soccer-unavailable-connection">
-				<span class="soccer-connection-mark" aria-hidden="true">—</span>
+				<span class="soccer-connection-mark" aria-hidden="true">
+					@UIIcon(UIIconUnavailable)
+				</span>
 				<div>
 					<p class="soccer-stage-kicker">Player discovery</p>
 					<h4>Not enabled on this server</h4>
@@ -102,11 +106,11 @@ func soccerConnectionState(connected bool) string {
 	return "disconnected"
 }
 
-func soccerConnectionMark(connected bool) string {
+func soccerConnectionIcon(connected bool) UIIconName {
 	if connected {
-		return "✓"
+		return UIIconConnected
 	}
-	return "○"
+	return UIIconDisconnected
 }
 
 func soccerConnectionAvailabilityState(available, connected bool) string {
@@ -181,7 +185,9 @@ templ SoccerPlayerStageContent(props SoccerLoginStateProps) {
 templ SoccerCalendarState(props SoccerLoginStateProps) {
 	if props.SupportsGoogle() {
 		<div class="soccer-connection-header">
-			<span class="soccer-connection-mark" aria-hidden="true">{ soccerConnectionMark(props.GoogleConnected) }</span>
+			<span class="soccer-connection-mark" aria-hidden="true">
+				@UIIcon(soccerConnectionIcon(props.GoogleConnected))
+			</span>
 			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Google Calendar</h4></div>
 		</div>
 		if props.GoogleConnected {
@@ -284,7 +290,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 		}
 	} else {
 		<div class="soccer-unavailable-connection">
-			<span class="soccer-connection-mark" aria-hidden="true">—</span>
+			<span class="soccer-connection-mark" aria-hidden="true">
+				@UIIcon(UIIconUnavailable)
+			</span>
 			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>You can download an .ics file without connecting Google Calendar.</p></div>
 		</div>
 	}
@@ -309,7 +317,9 @@ templ SoccerTeamStagePlaceholder() {
 
 templ SoccerResultsInvitation(google bool) {
 	<div class="empty-state soccer-results-empty">
-		<div class="empty-state-icon" aria-hidden="true">⚽</div>
+		<div class="empty-state-icon" aria-hidden="true">
+			@UIIcon(UIIconSoccer)
+		</div>
 		<h4>Your next matchday starts here</h4>
 		<p>Choose a workflow above, then load the schedule you want so you can export or sync the matches that matter.</p>
 		<ul class="empty-state-list">

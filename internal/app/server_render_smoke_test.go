@@ -1412,8 +1412,8 @@ func validateExperienceCareerEraStructure(body string) error {
 	if count := strings.Count(body, "<h1"); count != 1 {
 		return fmt.Errorf("h1 count = %d, want 1", count)
 	}
-	if count := strings.Count(body, `data-signal-trail`); count != 2 {
-		return fmt.Errorf("full-page signal trail count = %d, want 2", count)
+	if count := strings.Count(body, `data-signal-trail`); count != 1 {
+		return fmt.Errorf("full-page signal trail count = %d, want 1", count)
 	}
 	if count := strings.Count(body, `data-career-era="`); count != 3 {
 		return fmt.Errorf("career-era marker count = %d, want 3", count)
@@ -1429,11 +1429,8 @@ func validateExperienceCareerEraStructure(body string) error {
 	if !strings.Contains(sequence, "<ol") {
 		return fmt.Errorf("career sequence is not an ordered list")
 	}
-	if count := strings.Count(sequence, `data-signal-trail`); count != 1 {
-		return fmt.Errorf("career sequence signal trail count = %d, want 1", count)
-	}
-	if count := strings.Count(sequence, `signal-trail-timeline`); count != 1 {
-		return fmt.Errorf("career sequence typed timeline trail count = %d, want 1", count)
+	if count := strings.Count(sequence, `data-signal-trail`); count != 0 {
+		return fmt.Errorf("career sequence signal trail count = %d, want none", count)
 	}
 	orientation, err := findTestHTMLElementMarkup(body, `class="experience-orientation"`)
 	if err != nil {
@@ -1521,6 +1518,9 @@ func validateExperienceCareerEraStructure(body string) error {
 		if roleListOpening.name != "ol" {
 			return fmt.Errorf("career era %q role list element = <%s>, want <ol>", expected.id, roleListOpening.name)
 		}
+		if eraHeading.start >= roleListOpening.start {
+			return fmt.Errorf("career era %q heading must precede its role list", expected.id)
+		}
 		roleList, roleListMarkupErr := findTestHTMLElementMarkup(era, `class="experience-role-list"`)
 		if roleListMarkupErr != nil {
 			return fmt.Errorf("career era %q role list boundaries: %w", expected.id, roleListMarkupErr)
@@ -1578,7 +1578,7 @@ func TestValidateExperienceCareerEraStructureRejectsMutations(t *testing.T) {
 	const foundationDiv = `<div data-career-era="foundation"><section data-era-status="completed"><h3 class="experience-era-title">Foundation</h3><ol class="experience-role-list"><li><article data-experience-role="7"><h4 class="experience-role-title">Service Desk Student Analyst</h4></article></li><li><article data-experience-role="6"><h4 class="experience-role-title">IT Service Desk Associate</h4></article></li></ol></section></div>`
 	const systems = `<li data-career-era="systems-growth"><section data-era-status="completed"><h3 class="experience-era-title">Systems Growth</h3><ol class="experience-role-list"><li><article data-experience-role="5"><h4 class="experience-role-title">IT Desktop Engineer</h4></article></li><li><article data-experience-role="4"><h4 class="experience-role-title">IT Systems Engineer</h4></article></li><li><article data-experience-role="3"><h4 class="experience-role-title">IT Systems Engineer Sr</h4></article></li></ol></section></li>`
 	const cloud = `<li data-career-era="cloud-leadership"><section data-era-status="current"><h3 class="experience-era-title">Cloud Leadership</h3><ol class="experience-role-list"><li><article data-experience-role="2"><h4 class="experience-role-title">System Administrator</h4></article></li><li><article data-experience-role="1"><h4 class="experience-role-title">Cloud Engineer Principal</h4></article></li></ol></section></li>`
-	valid := `<main data-layout="career-eras"><h1>Experience</h1><div class="experience-orientation">` + orientationTrail + `</div>` + stats + `<div data-career-sequence>` + trail + `<ol class="experience-era-list">` + foundation + systems + cloud + `</ol></div></main>`
+	valid := `<main data-layout="career-eras"><h1>Experience</h1><div class="experience-orientation">` + orientationTrail + `</div>` + stats + `<div data-career-sequence><ol class="experience-era-list">` + foundation + systems + cloud + `</ol></div></main>`
 	outerListAsDiv := strings.Replace(valid, `<ol class="experience-era-list">`, `<div class="experience-era-list">`, 1)
 	outerListAsDiv = strings.Replace(outerListAsDiv, `</ol></div></main>`, `</div></div></main>`, 1)
 
@@ -1599,12 +1599,9 @@ func TestValidateExperienceCareerEraStructureRejectsMutations(t *testing.T) {
 		{name: "era marker is not a list item", body: strings.Replace(valid, foundation, foundationDiv, 1)},
 		{name: "era heading demoted from h3", body: strings.Replace(valid, `<h3 class="experience-era-title">Foundation</h3>`, `<p class="experience-era-title">Foundation</p>`, 1)},
 		{name: "role heading demoted from h4", body: strings.Replace(valid, `<h4 class="experience-role-title">Cloud Engineer Principal</h4>`, `<p class="experience-role-title">Cloud Engineer Principal</p>`, 1)},
-		{name: "missing trail", body: strings.Replace(valid, trail, ``, 1)},
-		{name: "duplicate trail", body: strings.Replace(valid, trail, trail+trail, 1)},
-		{name: "wrong trail", body: strings.Replace(valid, `signal-trail-timeline`, `signal-trail-switchback`, 1)},
 		{name: "missing orientation trail", body: strings.Replace(valid, orientationTrail, ``, 1)},
 		{name: "wrong orientation trail", body: strings.Replace(valid, `signal-trail-topology`, `signal-trail-dossier`, 1)},
-		{name: "trail sibling before closed sequence", body: strings.Replace(valid, `<div data-career-sequence>`+trail, trail+`<div data-career-sequence>`, 1)},
+		{name: "retired trail inside career sequence", body: strings.Replace(valid, `<div data-career-sequence>`, `<div data-career-sequence>`+trail, 1)},
 		{name: "trail sibling outside closed sequence", body: strings.Replace(valid, `</ol></div></main>`, `</ol></div>`+trail+`</main>`, 1)},
 		{name: "duplicate h1", body: strings.Replace(valid, `<h1>Experience</h1>`, `<h1>Experience</h1><h1>Again</h1>`, 1)},
 	}
@@ -1625,7 +1622,7 @@ func TestValidateExperienceCareerEraStructureAcceptsNestedMarkup(t *testing.T) {
 	const body = `<main data-layout="career-eras"><h1>Experience</h1>` +
 		`<div class="experience-orientation"><div class="signal-trail signal-trail-topology experience-orientation-trail" data-signal-trail></div></div>` +
 		`<div data-career-sequence title="quoted > boundary">` +
-		`<div class="signal-trail signal-trail-timeline" data-signal-trail></div><ol class="experience-era-list">` +
+		`<ol class="experience-era-list">` +
 		`<li data-career-era="foundation"><section data-era-status="completed"><h3 class="experience-era-title">Foundation</h3><div><!-- fake </li> --></div><ol class="experience-role-list"><li><article data-experience-role="7"><h4 class="experience-role-title">Service Desk Student Analyst</h4></article></li><li><article data-experience-role="6"><h4 class="experience-role-title">IT Service Desk Associate</h4></article></li></ol></section></li>` +
 		`<li data-career-era="systems-growth"><section data-era-status="completed"><h3 class="experience-era-title">Systems Growth</h3><ol class="experience-role-list"><li><article data-experience-role="5"><h4 class="experience-role-title">IT Desktop Engineer</h4></article></li><li><article data-experience-role="4"><h4 class="experience-role-title">IT Systems Engineer</h4></article></li><li><article data-experience-role="3"><h4 class="experience-role-title">IT Systems Engineer Sr</h4></article></li></ol></section></li>` +
 		`<li data-career-era="cloud-leadership"><section data-era-status="current"><h3 class="experience-era-title">Cloud Leadership</h3><ol class="experience-role-list"><li><article data-experience-role="2"><h4 class="experience-role-title">System Administrator</h4></article></li><li><article data-experience-role="1"><h4 class="experience-role-title">Cloud Engineer Principal</h4></article></li></ol></section></li>` +
@@ -1769,7 +1766,7 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260906b`,
+		`/static/css/tailwind.css?v=20260907a`,
 		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {

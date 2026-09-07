@@ -129,7 +129,7 @@ func TestPageCTAPreservesActionVariantsAndPrimaryArrow(t *testing.T) {
 		Secondary: &secondary,
 	}))
 
-	for _, marker := range []string{"ui-action-primary", "ui-action-quiet", `class="btn-icon" aria-hidden="true">→</span>`} {
+	for _, marker := range []string{"ui-action-primary", "ui-action-quiet", `data-ui-icon="arrow-right"`} {
 		if !strings.Contains(html, marker) {
 			t.Errorf("PageCTA output does not contain %q: %s", marker, html)
 		}
@@ -227,6 +227,22 @@ func TestTypedUIIconsRenderDecorativeLocalSVGs(t *testing.T) {
 		UIIconCollaboration,
 		UIIconProblemSolving,
 		UIIconDocumentation,
+		UIIconTree,
+		UIIconGaming,
+		UIIconDog,
+		UIIconMountain,
+		UIIconFamily,
+		UIIconEducation,
+		UIIconLearning,
+		UIIconCalendar,
+		UIIconSearch,
+		UIIconArrowRight,
+		UIIconArrowUpRight,
+		UIIconClose,
+		UIIconConnected,
+		UIIconDisconnected,
+		UIIconSoccer,
+		UIIconUnavailable,
 	}
 	for _, icon := range icons {
 		html := renderComponent(t, UIIcon(icon))

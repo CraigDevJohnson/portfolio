@@ -191,26 +191,25 @@
   justify-content: center;
 }
 
+.experience-technology-item .page-kit-chip,
+.experience-role-technologies .page-kit-chip {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .experience-sequence-heading {
   max-width: 58rem;
   margin-block-end: clamp(var(--space-xl), 5vw, var(--space-3xl));
 }
 
-.experience-era-track {
-  position: relative;
-  min-width: 0;
-}
-
 .experience-era-list {
-  position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto;
   gap: clamp(var(--space-xl), 6vw, var(--space-3xl));
   min-width: 0;
   margin: 0;
-  padding: 0 0 0 calc(var(--space-xl) + var(--space-sm));
+  padding: 0;
   align-items: start;
   list-style: none;
 }
@@ -233,20 +232,6 @@
 
 .experience-era-item-cloud-leadership {
   --experience-era-signal: var(--experience-era-cloud);
-}
-
-.experience-era-item::before {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  top: var(--space-xl);
-  left: calc((var(--space-xl) + var(--space-sm)) * -1 - 0.3rem);
-  width: 0.85rem;
-  height: 0.85rem;
-  border: var(--line-accent) solid var(--night-mulberry);
-  border-radius: var(--radius-full);
-  background: var(--experience-era-signal);
-  box-shadow: 0 0 0 0.28rem color-mix(in srgb, var(--experience-era-signal) 18%, transparent);
 }
 
 .experience-era {
@@ -315,29 +300,11 @@
 }
 
 .experience-era-summary {
-  max-width: 58ch;
+  max-width: 72ch;
   margin-block-start: var(--space-lg);
   color: var(--color-copy-secondary);
   font-size: var(--text-base);
   line-height: var(--leading-relaxed);
-}
-
-.experience-era-role-index {
-  display: flex;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-  margin: var(--space-lg) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.experience-era-role-index li {
-  padding: var(--space-xs) var(--space-sm);
-  border: var(--line-hairline) solid color-mix(in srgb, var(--experience-era-signal) 30%, transparent);
-  border-radius: var(--radius-full);
-  color: var(--color-copy-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
 }
 
 .experience-role-list {
@@ -378,14 +345,15 @@
 }
 
 .experience-role-title-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-md);
   min-width: 0;
   align-items: start;
 }
 
 .experience-role-title {
+  flex: 1 1 14rem;
   min-width: 0;
   color: var(--candle-oat);
   font-family: var(--font-display);
@@ -397,7 +365,7 @@
 
 .experience-role-duration {
   padding-block-start: var(--space-xs);
-  text-align: right;
+  text-align: start;
   white-space: nowrap;
 }
 
@@ -431,23 +399,6 @@
   min-height: 2.5rem;
 }
 
-.experience-era-trail {
-  position: absolute;
-  z-index: 0;
-  inset: 0 auto 0 0;
-  display: block;
-  width: 1.25rem;
-  height: auto;
-  margin: 0;
-  border-inline-start: var(--line-signal) solid var(--pond-mint);
-  background: linear-gradient(180deg, var(--experience-era-foundation), var(--experience-era-systems) 50%, var(--experience-era-cloud));
-  transform: none;
-}
-
-.experience-era-trail .signal-trail-svg {
-  display: none;
-}
-
 @media (min-width: 30rem) {
   .experience-overview-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -474,6 +425,10 @@
   .experience-overview-stat-technologies {
     grid-column: auto;
   }
+
+  .experience-role-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 70rem) {
@@ -489,34 +444,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .experience-era-list {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .experience-era-layout {
-    grid-template-columns: minmax(15rem, 0.62fr) minmax(0, 1.38fr);
-  }
-
-  .experience-era-heading {
-    grid-column: 1;
-    grid-row: 1;
-    border-inline-end: var(--line-hairline) solid color-mix(in srgb, var(--experience-era-signal) 28%, transparent);
-    border-block-end: 0;
-  }
-
-  .experience-role-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-column: 2;
-    grid-row: 1;
-    align-items: start;
+  .experience-era-systems-growth .experience-role-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .experience-orientation-trail,
-  .experience-orientation-trail *,
-  .experience-era-trail,
-  .experience-era-trail * {
+  .experience-orientation-trail * {
     animation: none !important;
     transition: none !important;
   }
@@ -527,28 +462,13 @@
   .experience-era-layout,
   .experience-role-card,
   .experience-technology-panel,
-  .experience-technology-item .page-kit-chip,
-  .experience-era-role-index li {
+  .experience-technology-item .page-kit-chip {
     border-color: ButtonBorder !important;
     background: Canvas !important;
     color: CanvasText !important;
     box-shadow: none !important;
   }
 
-  .experience-era-trail {
-    --signal-trail-forced-block-border: 0;
-    --signal-trail-forced-inline-border: var(--line-signal) solid CanvasText;
-    border-block-start: 0 !important;
-    border-inline-start: var(--line-signal) solid CanvasText !important;
-    background: Canvas !important;
-    color: CanvasText !important;
-  }
-
-  .experience-era-trail .signal-trail-svg {
-    display: none !important;
-  }
-
-  .experience-era-item::before,
   .experience-era-link-mark {
     border-color: CanvasText !important;
     background: Canvas !important;

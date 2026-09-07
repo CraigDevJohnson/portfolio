@@ -82,7 +82,9 @@ templ Home(props HomeProps) {
 						<div class="page-hero-actions home-overlook-actions">
 							<a href="/experience" class="page-kit-action page-kit-action-primary">
 								<span>View experience</span>
-								<span class="btn-icon" aria-hidden="true">→</span>
+								<span class="btn-icon" aria-hidden="true">
+									@partials.UIInlineIcon(partials.UIIconArrowRight)
+								</span>
 							</a>
 							<a href="/projects" class="page-kit-action home-overlook-secondary-action">
 								<span>View projects</span>

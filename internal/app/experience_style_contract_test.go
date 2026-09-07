@@ -41,29 +41,23 @@ func TestExperienceRouteCSSValidatorRejectsRegressions(t *testing.T) {
     .experience-role-list { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; }
     .experience-role-item { min-width:0; align-self:start; height:auto; min-height:0; }
     .experience-role-card { min-width:0; align-self:start; height:auto; min-height:0; }
-    .experience-role-title-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; }
-    .experience-era-trail { position:absolute; inset:0 auto 0 0; display:block; width:1.25rem; height:auto; margin:0; transform:none; border-inline-start:var(--line-signal) solid var(--pond-mint); }
-    .experience-era-trail .signal-trail-svg { display:none; }
+    .experience-role-title-row { display:flex; flex-wrap:wrap; align-items:start; }
     @media (min-width:30rem) {
       .experience-overview-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media (min-width:48rem) {
       .experience-overview-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .experience-role-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media (min-width:70rem) {
       .experience-orientation { grid-template-columns:minmax(18rem,0.78fr) minmax(0,1.22fr); }
       .experience-era-list { grid-template-columns:minmax(0,1fr); }
-      .experience-era-layout { grid-template-columns:minmax(15rem,0.62fr) minmax(0,1.38fr); }
-      .experience-era-heading { grid-column:1; grid-row:1; }
-      .experience-role-list { grid-column:2; grid-row:1; align-items:start; }
     }
     @media (prefers-reduced-motion:reduce) {
       .experience-orientation-trail, .experience-orientation-trail * { animation:none!important; transition:none!important; }
-      .experience-era-trail, .experience-era-trail * { animation:none!important; transition:none!important; }
     }
     @media (forced-colors:active) {
-      .experience-era-trail { --signal-trail-forced-block-border:0; --signal-trail-forced-inline-border:var(--line-signal) solid CanvasText; border-block-start:0!important; border-inline-start:var(--line-signal) solid CanvasText!important; background:Canvas!important; color:CanvasText!important; }
-      .experience-era-trail .signal-trail-svg { display:none!important; }
+      .experience-role-card { border-color:ButtonBorder!important; background:Canvas!important; color:CanvasText!important; }
     }
   `
 
@@ -75,13 +69,11 @@ func TestExperienceRouteCSSValidatorRejectsRegressions(t *testing.T) {
 		{name: "30rem summary jumps to three columns", css: strings.Replace(valid, `repeat(2,minmax(0,1fr))`, `repeat(3,minmax(0,1fr))`, 1)},
 		{name: "48rem summary jumps to four columns", css: strings.Replace(valid, `repeat(3,minmax(0,1fr))`, `repeat(4,minmax(0,1fr))`, 1)},
 		{name: "role card stretches", css: strings.Replace(valid, `.experience-role-card { min-width:0; align-self:start; height:auto;`, `.experience-role-card { min-width:0; align-self:stretch; height:100%;`, 1)},
-		{name: "role date leaves heading row", css: strings.Replace(valid, `.experience-role-title-row { display:grid; grid-template-columns:minmax(0,1fr) auto;`, `.experience-role-title-row { display:block; grid-template-columns:minmax(0,1fr);`, 1)},
-		{name: "trail inherits relative positioning", css: strings.Replace(valid, `position:absolute; inset:0 auto 0 0;`, `position:relative; inset:auto;`, 1)},
+		{name: "role heading cannot wrap its date", css: strings.Replace(valid, `.experience-role-title-row { display:flex; flex-wrap:wrap;`, `.experience-role-title-row { display:flex; flex-wrap:nowrap;`, 1)},
 		{name: "old 68rem inner composition", css: strings.Replace(valid, `@media (min-width:70rem)`, `@media (min-width:68rem)`, 1)},
 		{name: "wide orientation remains stacked", css: strings.Replace(valid, `grid-template-columns:minmax(18rem,0.78fr) minmax(0,1.22fr);`, `grid-template-columns:minmax(0,1fr);`, 1)},
-		{name: "70rem roles placed before heading", css: strings.Replace(valid, `.experience-era-heading { grid-column:1; grid-row:1; }`, `.experience-era-heading { grid-column:2; grid-row:1; }`, 1)},
+		{name: "70rem roles placed beside heading", css: valid + `@media (min-width:70rem) { .experience-role-list { grid-column:2; grid-row:1; } }`},
 		{name: "70rem eras become horizontal", css: strings.Replace(valid, `.experience-era-list { grid-template-columns:minmax(0,1fr); }`, `.experience-era-list { grid-template-columns:repeat(3,minmax(0,1fr)); }`, 1)},
-		{name: "forced colors lose vertical structural rule", css: strings.Replace(valid, `border-inline-start:var(--line-signal) solid CanvasText!important`, `border-inline-start:var(--line-signal) solid transparent!important`, 1)},
 		{name: "reduced motion keeps animation", css: strings.Replace(valid, `animation:none!important; transition:none!important;`, `animation:trail-flow 2s infinite; transition:all 1s;`, 1)},
 		{name: "second pseudo rail added", css: valid + `.experience-era-list::before { content:""; position:absolute; inset:0; border-inline-start:2px solid red; }`},
 		{name: "track after owns alternate rail", css: valid + `.experience-era-track::after { content:""; position:absolute; inset:0; border-block-start:2px solid red; }`},
@@ -230,27 +222,23 @@ func validateExperienceRouteCSS(css string) error {
 		{label: "orientation SVG", selector: ".experience-orientation-trail .signal-trail-svg", want: map[string]string{"display": "block"}},
 		{label: "compact summary", selector: ".experience-overview-stats", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr)"}},
 		{label: "compact era sequence", selector: ".experience-era-list", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr)", "grid-template-rows": "auto", "align-items": "start"}},
-		{label: "compact era reset", selector: ".experience-era-item", want: map[string]string{"min-width": "0", "grid-column": "auto", "grid-row": "auto", "align-self": "start", "height": "auto", "margin": "0", "transform": "none"}},
+		{label: "natural era item", selector: ".experience-era-item", want: map[string]string{"min-width": "0", "align-self": "start", "height": "auto"}},
 		{label: "anchor offset", selector: ".experience-era", want: map[string]string{"scroll-margin-top": "calc(var(--header-height) + var(--space-lg))"}},
 		{label: "compact era interior", selector: ".experience-era-layout", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr)", "align-items": "start", "min-width": "0"}},
 		{label: "era heading metadata row", selector: ".experience-era-title-row", want: map[string]string{"display": "flex", "flex-wrap": "wrap", "align-items": "baseline", "justify-content": "space-between"}},
 		{label: "compact roles", selector: ".experience-role-list", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr)", "align-items": "start"}},
 		{label: "natural role item", selector: ".experience-role-item", want: map[string]string{"min-width": "0", "align-self": "start", "height": "auto", "min-height": "0"}},
 		{label: "natural role card", selector: ".experience-role-card", want: map[string]string{"min-width": "0", "align-self": "start", "height": "auto", "min-height": "0"}},
-		{label: "role heading date row", selector: ".experience-role-title-row", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr) auto", "align-items": "start"}},
-		{label: "compact vertical typed trail", selector: ".experience-era-trail", want: map[string]string{"position": "absolute", "inset": "0 auto 0 0", "display": "block", "width": "1.25rem", "height": "auto", "margin": "0", "transform": "none", "border-inline-start": "var(--line-signal) solid var(--pond-mint)"}},
-		{label: "compact SVG reset", selector: ".experience-era-trail .signal-trail-svg", want: map[string]string{"display": "none"}},
+		{label: "wrapping role heading date row", selector: ".experience-role-title-row", want: map[string]string{"display": "flex", "flex-wrap": "wrap", "align-items": "start"}},
 		{label: "30rem summary", selector: ".experience-overview-stats", minWidthRem: 30, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{label: "48rem summary", selector: ".experience-overview-stats", minWidthRem: 48, want: map[string]string{"grid-template-columns": "repeat(3,minmax(0,1fr))"}},
+		{label: "48rem paired role cards", selector: ".experience-role-list", minWidthRem: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{label: "70rem paired orientation", selector: ".experience-orientation", minWidthRem: 70, want: map[string]string{"grid-template-columns": "minmax(18rem,0.78fr) minmax(0,1.22fr)"}},
 		{label: "70rem single sequence", selector: ".experience-era-list", minWidthRem: 70, want: map[string]string{"grid-template-columns": "minmax(0,1fr)"}},
-		{label: "70rem split interior", selector: ".experience-era-layout", minWidthRem: 70, want: map[string]string{"grid-template-columns": "minmax(15rem,0.62fr) minmax(0,1.38fr)"}},
-		{label: "70rem heading placement", selector: ".experience-era-heading", minWidthRem: 70, want: map[string]string{"grid-column": "1", "grid-row": "1"}},
-		{label: "70rem role placement", selector: ".experience-role-list", minWidthRem: 70, want: map[string]string{"grid-column": "2", "grid-row": "1", "align-items": "start"}},
-		{label: "reduced trail", selector: ".experience-era-trail", reduced: true, want: map[string]string{"animation": "none!important", "transition": "none!important"}},
 		{label: "reduced orientation trail", selector: ".experience-orientation-trail", reduced: true, want: map[string]string{"animation": "none!important", "transition": "none!important"}},
-		{label: "forced vertical trail", selector: ".experience-era-trail", forced: true, want: map[string]string{"--signal-trail-forced-block-border": "0", "--signal-trail-forced-inline-border": "var(--line-signal) solid CanvasText", "border-block-start": "0!important", "border-inline-start": "var(--line-signal) solid CanvasText!important", "background": "Canvas!important", "color": "CanvasText!important"}},
-		{label: "forced SVG removal", selector: ".experience-era-trail .signal-trail-svg", forced: true, want: map[string]string{"display": "none!important"}},
+	}
+	for _, width := range []float64{30, 48, 70} {
+		required = append(required, requirement{label: "stacked era interior", selector: ".experience-era-layout", minWidthRem: width, want: map[string]string{"grid-template-columns": "minmax(0,1fr)"}})
 	}
 	for _, item := range required {
 		if !experienceHasEffectiveRule(rules, item.selector, item.minWidthRem, item.forced, item.reduced, item.want) {
@@ -284,6 +272,19 @@ func validateExperienceRouteCSS(css string) error {
 			}
 		}
 	}
+	for _, rule := range rules {
+		for _, selector := range task2SplitTopLevel(rule.selector, ',') {
+			selector = task2CanonicalCSS(selector)
+			if selector != ".experience-era-heading" && selector != ".experience-role-list" {
+				continue
+			}
+			for _, property := range []string{"grid-column", "grid-row", "order"} {
+				if value, exists := rule.declarations[property]; exists && value != "auto" && value != "0" {
+					return fmt.Errorf("Experience heading and roles leave document order through %s in %q", property, selector)
+				}
+			}
+		}
+	}
 	allowedSelectors := experienceAllowedRouteSelectors()
 	for _, rule := range rules {
 		for _, selector := range task2SplitTopLevel(rule.selector, ',') {
@@ -305,7 +306,6 @@ func validateExperienceRouteCSS(css string) error {
 		".experience-role-item",
 		".experience-role-card",
 		".experience-role-title-row",
-		".experience-era-trail",
 	}
 	allowedCriticalSelectors := map[string]bool{
 		".experience-orientation": true,
@@ -316,16 +316,13 @@ func validateExperienceRouteCSS(css string) error {
 		".experience-overview-stats":                                    true,
 		".experience-era-list":                                          true,
 		".experience-era-item":                                          true,
-		".experience-era-item::before":                                  true,
 		".experience-era-layout":                                        true,
 		".experience-era-heading":                                       true,
 		".experience-role-list":                                         true,
+		".experience-era-systems-growth .experience-role-list":          true,
 		".experience-role-item":                                         true,
 		".experience-role-card":                                         true,
 		".experience-role-title-row":                                    true,
-		".experience-era-trail":                                         true,
-		".experience-era-trail *":                                       true,
-		".experience-era-trail .signal-trail-svg":                       true,
 	}
 	for _, rule := range rules {
 		for _, selector := range task2SplitTopLevel(rule.selector, ',') {
@@ -343,9 +340,7 @@ func validateExperienceRouteCSS(css string) error {
 			if !strings.Contains(selector, ".experience-") && !strings.Contains(selector, "[data-career-sequence") || !strings.Contains(selector, "::before") && !strings.Contains(selector, "::after") {
 				continue
 			}
-			if selector != ".experience-era-item::before" {
-				return fmt.Errorf("Experience CSS adds a competing pseudo-element rail/decorator through %q", selector)
-			}
+			return fmt.Errorf("Experience CSS adds a retired pseudo-element rail/decorator through %q", selector)
 		}
 	}
 	return nil
@@ -718,12 +713,10 @@ func experienceAllowedRouteSelectors() map[string]bool {
 		".experience-technology-item",
 		".experience-technology-item .page-kit-chip",
 		".experience-sequence-heading",
-		".experience-era-track",
 		".experience-era-list",
 		".experience-era-item",
 		".experience-era-item-systems-growth",
 		".experience-era-item-cloud-leadership",
-		".experience-era-item::before",
 		".experience-era",
 		".experience-era-layout",
 		".experience-era-heading",
@@ -732,10 +725,9 @@ func experienceAllowedRouteSelectors() map[string]bool {
 		".experience-era-meta",
 		".experience-era-range",
 		".experience-era-summary",
-		".experience-era-role-index",
-		".experience-era-role-index li",
 		".experience-status-pill-current",
 		".experience-role-list",
+		".experience-era-systems-growth .experience-role-list",
 		".experience-role-item",
 		".experience-role-card",
 		".experience-role-heading",
@@ -746,9 +738,6 @@ func experienceAllowedRouteSelectors() map[string]bool {
 		".experience-role-responsibilities",
 		".experience-role-technologies",
 		".experience-role-technologies .page-kit-chip",
-		".experience-era-trail",
-		".experience-era-trail *",
-		".experience-era-trail .signal-trail-svg",
 	}
 	allowed := make(map[string]bool, len(selectors))
 	for _, selector := range selectors {

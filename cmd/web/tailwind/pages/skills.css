@@ -704,10 +704,6 @@ a.skills-practice-card:focus-visible {
   place-items: center;
 }
 
-.skill-asset-dark {
-  background: var(--cocoa-cedar);
-}
-
 .skill-detail-asset {
   width: 2.5rem;
   height: 2.5rem;

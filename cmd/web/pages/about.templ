@@ -24,10 +24,10 @@ func aboutCoreValueCards() []partials.FeatureCardProps {
 
 func aboutHobbyCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
-		{Icon: "⚽", Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
-		{Icon: "🌲", Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
-		{Icon: "♟", Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
-		{Icon: "🐕", Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-dog-dad stagger-enter"},
+		{IconName: partials.UIIconSoccer, Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
+		{IconName: partials.UIIconTree, Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
+		{IconName: partials.UIIconGaming, Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
+		{IconName: partials.UIIconDog, Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-dog-dad stagger-enter"},
 	}
 }
 
@@ -41,18 +41,18 @@ func aboutStatCards(props AboutProps) []partials.StatCardProps {
 }
 
 type aboutQuickFact struct {
-	Icon string
-	Text string
+	IconName partials.UIIconName
+	Text     string
 }
 
 func aboutQuickFacts() []aboutQuickFact {
 	return []aboutQuickFact{
-		{Icon: "🏔", Text: "Originally from Alaska"},
-		{Icon: "👨‍👩‍👧‍👦", Text: "Family of 4 + 2 dogs"},
-		{Icon: "⚽", Text: "Lifelong soccer enthusiast"},
-		{Icon: "🎓", Text: "Bachelor of Science in Cloud Computing"},
-		{Icon: "☁️", Text: "Cloud & automation specialist"},
-		{Icon: "📚", Text: "Continuous learner"},
+		{IconName: partials.UIIconMountain, Text: "Originally from Alaska"},
+		{IconName: partials.UIIconFamily, Text: "Family of 4 + 2 dogs"},
+		{IconName: partials.UIIconSoccer, Text: "Lifelong soccer enthusiast"},
+		{IconName: partials.UIIconEducation, Text: "Bachelor of Science in Cloud Computing"},
+		{IconName: partials.UIIconArchitecture, Text: "Cloud & automation specialist"},
+		{IconName: partials.UIIconLearning, Text: "Continuous learner"},
 	}
 }
 
@@ -139,7 +139,9 @@ templ About(props AboutProps) {
 					<ul class="about-facts-list" role="list">
 						for _, fact := range aboutQuickFacts() {
 							<li class="about-fact">
-								<span class="about-fact-mark" aria-hidden="true">{ fact.Icon }</span>
+								<span class="about-fact-mark" aria-hidden="true">
+									@partials.UIIcon(fact.IconName)
+								</span>
 								<span>{ fact.Text }</span>
 							</li>
 						}
@@ -186,7 +188,9 @@ templ About(props AboutProps) {
 				<ul class="about-hobby-strip" role="list">
 					for _, card := range aboutHobbyCards() {
 						<li class="about-hobby-note" data-tone={ string(card.Tone) }>
-							<span class="about-hobby-mark" aria-hidden="true">{ card.Icon }</span>
+							<span class="about-hobby-mark" aria-hidden="true">
+								@partials.UIIcon(card.IconName)
+							</span>
 							<div>
 								<h3>{ card.Title }</h3>
 								<p>{ card.Description }</p>

@@ -30,6 +30,22 @@ const (
 	UIIconCollaboration  UIIconName = "collaboration"
 	UIIconProblemSolving UIIconName = "problem-solving"
 	UIIconDocumentation  UIIconName = "documentation"
+	UIIconTree           UIIconName = "tree-pine"
+	UIIconGaming         UIIconName = "gamepad-2"
+	UIIconDog            UIIconName = "dog"
+	UIIconMountain       UIIconName = "mountain"
+	UIIconFamily         UIIconName = "users"
+	UIIconEducation      UIIconName = "graduation-cap"
+	UIIconLearning       UIIconName = "book-open"
+	UIIconCalendar       UIIconName = "calendar-days"
+	UIIconSearch         UIIconName = "search"
+	UIIconArrowRight     UIIconName = "arrow-right"
+	UIIconArrowUpRight   UIIconName = "arrow-up-right"
+	UIIconClose          UIIconName = "x"
+	UIIconConnected      UIIconName = "circle-check"
+	UIIconDisconnected   UIIconName = "circle"
+	UIIconSoccer         UIIconName = "soccer"
+	UIIconUnavailable    UIIconName = "unavailable"
 )
 
 type HeroVariant string

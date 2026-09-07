@@ -1,4 +1,4 @@
-Lucide icons used by the About professional value cards
+Lucide icons used by the shared portfolio UI
 
 Upstream revision: 2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860
 
@@ -10,6 +10,35 @@ Problem Solving (puzzle):
 https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/puzzle.svg
 Documentation (notebook-pen):
 https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/notebook-pen.svg
+
+Tree (tree-pine):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/tree-pine.svg
+Gaming (gamepad-2):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/gamepad-2.svg
+Dog (dog):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/dog.svg
+Mountain (mountain):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/mountain.svg
+Family (users):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/users.svg
+Education (graduation-cap):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/graduation-cap.svg
+Learning (book-open):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/book-open.svg
+Calendar (calendar-days):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/calendar-days.svg
+Search (search):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/search.svg
+ArrowRight (arrow-right):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/arrow-right.svg
+ArrowUpRight (arrow-up-right):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/arrow-up-right.svg
+Close (x):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/x.svg
+Connected (circle-check):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/circle-check.svg
+Disconnected (circle):
+https://github.com/lucide-icons/lucide/blob/2bfb9bb1bae5d74f6a9f81640ddd8bccc2c71860/icons/circle.svg
 
 SVG paths are unchanged. Stroke width, CSS classes, and decorative accessibility
 attributes follow the portfolio's shared UIIcon component.
