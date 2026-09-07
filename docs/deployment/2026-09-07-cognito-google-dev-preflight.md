@@ -58,7 +58,7 @@ Infrastructure setup needs to account for these existing release controls when
 the design is translated into tasks. The current automatic release path cannot
 be assumed to provision additional auth resources or permissions.
 
-## Live prerequisite evidence
+## Initial live prerequisite evidence
 
 - Current-main [CI run 34082061333](https://github.com/CraigDevJohnson/portfolio/actions/runs/34082061333)
   succeeded. [Release run 34082290068](https://github.com/CraigDevJohnson/portfolio/actions/runs/34082290068)
@@ -72,6 +72,72 @@ be assumed to provision additional auth resources or permissions.
   `aws sso login --profile portfolio-deployer`.
 - No AWS/Google configuration changes, infrastructure apply, deployment, merge,
   or push were performed.
+
+## Approved continuation preflight
+
+Craig approved proceeding after the initial setup report. The next read-only
+preflight on 2026-09-07 found:
+
+- `origin/main` remains `59fffc8905ac19cc8c029465dc1556d6791bf279`; the
+  implementation worktree is current with that base and the original dirty
+  checkout is preserved.
+- The `portfolio-deployer` SSO session now succeeds in account `180294223248`
+  as the expected `AWSReservedSSO_PortfolioDeployer_` role. No SSO refresh or
+  alternate principal was needed.
+- State-bucket versioning reports `Enabled`. The current role denies encryption
+  and public-access-block metadata reads and listing the new exact auth-state
+  prefix. Current encryption/access controls still need verification with the
+  scoped setup permissions; their historical status is insufficient.
+- `cognito-idp:DescribeUserPoolDomain` is denied, so the proposed domain's
+  availability remains unverified. This is an effective-permission gap, not an
+  expired-session failure.
+- Development alias `live` points to version `4`; `/healthz` returns revision
+  `9528b784088f71fa39d1d7fce8570278c0d3acaf` with status `ok`.
+- The live function has no `MGMT_*` environment variables. Its existing role is
+  `portfolio-lambda-dev-execution`, with inline policy
+  `portfolio-lambda-dev-runtime` and boundary
+  `arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+- The Google project selection is pending. Existing Calendar OAuth credentials
+  were not accessed or reused.
+- Reading the boundary policy document and live IAM Access Analyzer validation
+  of all three new candidate policies are also denied to `portfolio-deployer`.
+  Static checks cannot replace those administrator-side verification steps.
+- Prepared the operator-owned mode `0700` directory
+  `/Users/craigjohnson/.config/portfolio/cognito-dev` for the private credential
+  and plan channel. No credential file, session key or live plan was created.
+
+Task 4 and the offline part of Task 5 are implemented through `a18869ae`:
+
+- Nullable development runtime configuration supplies only public settings and
+  the SSM session-key path. Enabled IAM is limited to the reviewed reads and
+  tagged start/stop actions; disabled development and production retain their
+  previous contracts.
+- Runtime plans require the same reviewed public object as both the OpenTofu
+  input and checker expectation. Automatic image rollout and alias rollback
+  cannot change auth settings or IAM. The development workflow defaults its
+  public `MANAGEMENT_RUNTIME_JSON` input to `null`.
+- Private credential/plan/apply/export tools enforce exact identity/backend,
+  private files, guarded reads, saved-plan/provenance checksums, five-resource
+  contracts and public-only output. The local private directory is ready.
+- Three separately named [policy candidates](../../infra/lambda/bootstrap/candidates/README.md)
+  include reviewed hashes, scope and remaining live-validation requirements.
+  Previously approved artifacts and their hashes are unchanged.
+
+`task ci` passed at `559381e6`; application and Go code are unchanged after
+that check. The final `task infrastructure-ci` passed at `a18869ae`, including
+16 private-tooling tests, 254 runtime plan contracts, 42 rejected-input checks
+and release automation. Regression tests cover both diagnostic redaction and
+AWS's default Cognito email configuration in converged plans. Per-task, final
+integration and scoped fix reviews have no remaining findings. Verification logs:
+
+- `/tmp/portfolio-cognito-dev-continuation-ci.log`
+- `/tmp/portfolio-cognito-dev-final-infrastructure.log`
+
+These checks did not initialize live state, provision Cognito, alter IAM or
+activate the portal. Google project selection, non-root administrator policy
+validation/installation, private Google client delivery, saved live plans and
+their explicit applies remain pending. The Google Cloud browser session also
+requires sign-in.
 
 ## Initial setup result
 
@@ -104,15 +170,15 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
 
 ## Resume sequence
 
-1. Continue with Task 4 of the implementation plan: nullable development runtime
-   settings, exact management IAM and separately reviewed boundary candidates,
-   plus release-contract tests. Preserve the ordinary release role's separation
-   from the secret-bearing auth state.
-2. Complete the private credential/plan tooling in Task 5 before live auth
-   provisioning. Refresh SSO and verify the account, role, backend permissions,
-   Cognito domain availability and Google project/client prerequisites.
-3. Obtain the separate external-action approvals specified in the design for
-   policy installation, Google-client creation, SecureString injection and
-   reviewed saved-plan applies. No real credentials are needed for offline tests.
-4. Follow Task 6 for runtime activation and browser/EC2 proof. Do not interpret
+1. Review the exact candidate policy hashes and use the non-root administrator
+   route to validate their effective scope before separately approved
+   installation. Preserve the ordinary release role's separation from auth state.
+2. Select the Google project, sign in and separately authorize the dedicated web
+   OAuth client. Deliver credentials to the private channel in the
+   [provisioning runbook](cognito-google-dev.md).
+3. Recheck identity, bucket security, auth-state permissions and domain
+   availability, then create and review a private saved auth plan. Obtain the
+   separate approvals specified in the design for SecureString injection and
+   exact saved-plan applies. No real credentials are needed for offline tests.
+4. Follow Task 6 for reviewed source release, runtime activation and browser/EC2 proof. Do not interpret
    passing local tests or configured Terraform resources as a live deployment.
