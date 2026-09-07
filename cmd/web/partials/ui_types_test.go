@@ -223,6 +223,10 @@ func TestTypedUIIconsRenderDecorativeLocalSVGs(t *testing.T) {
 		UIIconAutomation,
 		UIIconSecurity,
 		UIIconObservability,
+		UIIconImprovement,
+		UIIconCollaboration,
+		UIIconProblemSolving,
+		UIIconDocumentation,
 	}
 	for _, icon := range icons {
 		html := renderComponent(t, UIIcon(icon))

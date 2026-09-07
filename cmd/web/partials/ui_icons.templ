@@ -1,5 +1,7 @@
 package partials
 
+// About value icons use Lucide geometry: https://lucide.dev/icons/.
+// Pinned sources and the ISC notice are in static/licenses/lucide.txt.
 templ UIIcon(name UIIconName) {
 	switch name {
 		case UIIconLinkedIn:
@@ -32,6 +34,34 @@ templ UIIcon(name UIIconName) {
 		case UIIconObservability:
 			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
 				<path d="M2.7 12s3.4-5.5 9.3-5.5 9.3 5.5 9.3 5.5-3.4 5.5-9.3 5.5S2.7 12 2.7 12Z"></path><path d="m7.7 12 2-2.1 2.1 4.2 2.1-4.2 2.4 2.1"></path>
+			</svg>
+		case UIIconImprovement:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+				<path d="M21 3v5h-5"></path>
+				<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+				<path d="M8 16H3v5"></path>
+			</svg>
+		case UIIconCollaboration:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="m11 17 2 2a1 1 0 1 0 3-3"></path>
+				<path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"></path>
+				<path d="m21 3 1 11h-2"></path>
+				<path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"></path>
+				<path d="M3 4h8"></path>
+			</svg>
+		case UIIconProblemSolving:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"></path>
+			</svg>
+		case UIIconDocumentation:
+			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>
+				<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path>
+				<path d="M2 6h4"></path>
+				<path d="M2 10h4"></path>
+				<path d="M2 14h4"></path>
+				<path d="M2 18h4"></path>
+				<path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"></path>
 			</svg>
 		default:
 			<svg class="page-kit-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-ui-icon={ string(name) }>

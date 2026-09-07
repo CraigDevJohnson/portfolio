@@ -104,8 +104,26 @@
 
     const isMobileNavOpen = () => mobileNav.classList.contains('flex') && !mobileNav.classList.contains('hidden')
 
-    const closeMobileNav = () => {
+    const closeMobileNav = ({ restoreFocus = true } = {}) => {
+      const activeElement = document.activeElement
+      const menuHasFocus = activeElement === mobileMenuBtn || mobileNav.contains(activeElement)
+      const focusedPage = activeElement?.getAttribute('data-nav-page')
+
       setMobileNavState(false)
+
+      if (!restoreFocus || !menuHasFocus) {
+        return
+      }
+
+      if (mobileNavBreakpoint.matches) {
+        mobileMenuBtn.focus()
+        return
+      }
+
+      const desktopLink = Array.from(document.querySelectorAll('.main-nav [data-nav-page]')).find(
+        link => link.getAttribute('data-nav-page') === focusedPage
+      )
+      ;(desktopLink || document.querySelector('.site-logo'))?.focus()
     }
 
     mobileMenuBtn.addEventListener('click', () => {
@@ -128,7 +146,7 @@
 
     // Close menu when clicking on a link
     mobileNav.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', closeMobileNav)
+      link.addEventListener('click', () => closeMobileNav({ restoreFocus: false }))
     })
 
     mobileNav.addEventListener('click', event => {
@@ -152,7 +170,6 @@
       if (event.key === 'Escape') {
         event.preventDefault()
         closeMobileNav()
-        mobileMenuBtn.focus()
         return
       }
 

@@ -237,6 +237,6 @@ func task5CareerFixture() []types.Experience {
 		{ID: 4, Position: "IT Systems Engineer", Company: "COMPANY REDACTED - C", Duration: "2018 – 2020", Technologies: []string{"PowerShell", "AD DS", "O365/Exchange"}},
 		{ID: 5, Position: "IT Desktop Engineer", Company: "COMPANY REDACTED - C", Duration: "2017 – 2018", Technologies: []string{"PowerShell", "SCCM", "Intune"}},
 		{ID: 6, Position: "IT Service Desk Associate", Company: "COMPANY REDACTED - C", Duration: "2016 – 2017", Technologies: []string{"ServiceNow", "O365", "Windows"}},
-		{ID: 7, Position: "Service Desk Student Analyst", Company: "COMPANY REDACTED - D", Duration: "2012 – 2016", Technologies: []string{"Windows", "MacOS", "GoogleApps"}},
+		{ID: 7, Position: "Service Desk Student Analyst", Company: "COMPANY REDACTED - D", Duration: "2012 – 2016", Technologies: []string{"Windows", "macOS", "GoogleApps"}},
 	}
 }

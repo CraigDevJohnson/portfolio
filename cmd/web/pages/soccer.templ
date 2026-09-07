@@ -57,6 +57,7 @@ templ Soccer(props SoccerProps) {
 						Fetch schedules from
 						<a class="soccer-inline-link font-medium text-primary-200 hover:text-accent-200" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
 							Let&apos;s Play Soccer
+							<span class="sr-only">{ " (opens in a new tab)" }</span>
 						</a>,
 						choose the matches you want to keep, then export an .ics file{ soccerHeroCalendarClause(props.AuthState.SupportsGoogle()) }
 					</p>
