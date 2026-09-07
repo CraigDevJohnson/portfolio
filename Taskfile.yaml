@@ -259,6 +259,7 @@ tasks:
     desc: Run the authoritative offline Lambda infrastructure and release gate
     cmds:
       - tofu fmt -check -recursive infra/lambda
+      - task: cognito-dev-ci
       - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
       - tofu -chdir=infra/lambda/ci-roles validate
       - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
@@ -272,6 +273,14 @@ tasks:
       - sh tests/lambda-observation-window.sh
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
+
+  cognito-dev-ci:
+    desc: Validate the isolated development Cognito root without backend or AWS access
+    cmds:
+      - tofu -chdir=infra/lambda/auth/dev fmt -check
+      - tofu -chdir=infra/lambda/auth/dev init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/dev validate
+      - tofu -chdir=infra/lambda/auth/dev test
 
   _lint-check:
     internal: true
