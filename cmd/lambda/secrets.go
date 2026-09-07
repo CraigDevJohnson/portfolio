@@ -14,7 +14,7 @@ import (
 // ssmSecretEnvVars lists the environment variable names whose values are SSM
 // parameter paths that must be resolved to their plaintext secrets before the
 // application configuration is loaded.
-var ssmSecretEnvVars = []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"}
+var ssmSecretEnvVars = []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY", "MGMT_SESSION_KEY"}
 
 type ssmParameterGetter interface {
 	GetParameters(ctx context.Context, params *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)

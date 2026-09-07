@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,14 +51,16 @@ func setSSMPathEnv(t *testing.T) {
 	t.Setenv("CLIENT_ID_KEY", "/portfolio/client-id")
 	t.Setenv("CLIENT_SECRET_KEY", "/portfolio/client-secret")
 	t.Setenv("LPS_SESSION_KEY", "/portfolio/lps-session")
+	t.Setenv("MGMT_SESSION_KEY", "")
 }
 
-func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession string) {
+func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession, wantManagement string) {
 	t.Helper()
 	for name, want := range map[string]string{
 		"CLIENT_ID_KEY":     wantClientID,
 		"CLIENT_SECRET_KEY": wantClientSecret,
 		"LPS_SESSION_KEY":   wantLPSSession,
+		"MGMT_SESSION_KEY":  wantManagement,
 	} {
 		if got := os.Getenv(name); got != want {
 			t.Errorf("%s = %q, want %q", name, got, want)
@@ -85,17 +88,35 @@ func assertSSMRequest(t *testing.T, client *fakeSSMGetter, wantPaths ...string) 
 // leave Lambda configured with parameter paths instead of usable credentials.
 func TestResolveSSMCompleteResponseUpdatesAllParameterPaths(t *testing.T) {
 	setSSMPathEnv(t)
+	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
 		ssmParameter("/portfolio/client-id", "resolved-client-id"),
 		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
 		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		ssmParameter("/portfolio/lambda/dev/MGMT_SESSION_KEY", "resolved-management-session"),
 	}}}
 
 	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
 		t.Fatalf("resolve SSM secrets: %v", err)
 	}
-	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session")
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "resolved-management-session")
+}
+
+func TestResolveSSMManagementSessionKeyOnly(t *testing.T) {
+	t.Setenv("CLIENT_ID_KEY", "")
+	t.Setenv("CLIENT_SECRET_KEY", "")
+	t.Setenv("LPS_SESSION_KEY", "")
+	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+		ssmParameter("/portfolio/lambda/dev/MGMT_SESSION_KEY", strings.Repeat("ab", 32)),
+	}}}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	assertSSMRequest(t, client, "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	assertSSMEnv(t, "", "", "", strings.Repeat("ab", 32))
 }
 
 // Production break caught: dereferencing or accepting a missing SSM response
@@ -108,7 +129,7 @@ func TestResolveSSMMissingResponseLeavesEnvironmentUnchanged(t *testing.T) {
 		t.Fatal("resolve SSM secrets unexpectedly succeeded")
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "")
 }
 
 // Production break caught: attempting to resolve a literal setting corrupts a
@@ -117,6 +138,8 @@ func TestResolveSSMLiteralValueRemainsUnchanged(t *testing.T) {
 	t.Setenv("CLIENT_ID_KEY", "literal-client-id")
 	t.Setenv("CLIENT_SECRET_KEY", "/portfolio/client-secret")
 	t.Setenv("LPS_SESSION_KEY", "/portfolio/lps-session")
+	t.Setenv("MGMT_SESSION_KEY", "literal-management-session")
+	t.Setenv("MGMT_COGNITO_DOMAIN", "/portfolio/lambda/dev/MGMT_COGNITO_DOMAIN")
 	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
 		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
 		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
@@ -126,7 +149,61 @@ func TestResolveSSMLiteralValueRemainsUnchanged(t *testing.T) {
 		t.Fatalf("resolve SSM secrets: %v", err)
 	}
 	assertSSMRequest(t, client, "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "literal-client-id", "resolved-client-secret", "resolved-lps-session")
+	assertSSMEnv(t, "literal-client-id", "resolved-client-secret", "resolved-lps-session", "literal-management-session")
+	if got := os.Getenv("MGMT_COGNITO_DOMAIN"); got != "/portfolio/lambda/dev/MGMT_COGNITO_DOMAIN" {
+		t.Fatalf("MGMT_COGNITO_DOMAIN = %q, want literal path unchanged", got)
+	}
+}
+
+func TestResolveSSMUnsetManagementSessionKeyRemainsUnset(t *testing.T) {
+	setSSMPathEnv(t)
+	if err := os.Unsetenv("MGMT_SESSION_KEY"); err != nil {
+		t.Fatalf("unset management session key: %v", err)
+	}
+	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+		ssmParameter("/portfolio/client-id", "resolved-client-id"),
+		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+	}}}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
+}
+
+func TestResolveSSMMissingManagementSessionKeyLeavesEnvironmentUnchanged(t *testing.T) {
+	setSSMPathEnv(t)
+	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+		ssmParameter("/portfolio/client-id", "resolved-client-id"),
+		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+	}}}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err == nil {
+		t.Fatal("resolve SSM secrets unexpectedly succeeded")
+	}
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+}
+
+func TestResolveSSMInvalidManagementSessionKeyLeavesEnvironmentUnchanged(t *testing.T) {
+	setSSMPathEnv(t)
+	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+		ssmParameter("/portfolio/client-id", "resolved-client-id"),
+		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		ssmParameter("/portfolio/lambda/dev/MGMT_SESSION_KEY", "invalid\x00management-session"),
+	}}}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err == nil {
+		t.Fatal("resolve SSM secrets unexpectedly succeeded")
+	}
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 }
 
 // Production break caught: applying parameters while walking a partial response
@@ -142,7 +219,7 @@ func TestResolveSSMPartialResponseLeavesEnvironmentUnchanged(t *testing.T) {
 		t.Fatal("resolve SSM secrets unexpectedly succeeded")
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "")
 }
 
 // Production break caught: ignoring InvalidParameters permits a partially
@@ -161,7 +238,7 @@ func TestResolveSSMInvalidParametersLeaveEnvironmentUnchanged(t *testing.T) {
 		t.Fatal("resolve SSM secrets unexpectedly succeeded")
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "")
 }
 
 // Production break caught: updating from an output accompanying a client error
@@ -181,7 +258,7 @@ func TestResolveSSMClientErrorLeavesEnvironmentUnchanged(t *testing.T) {
 		t.Fatal("resolve SSM secrets unexpectedly succeeded")
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "")
 }
 
 // Production break caught: a later value rejected by os.Setenv can leave an
@@ -198,5 +275,5 @@ func TestResolveSSMInvalidResolvedValueLeavesEnvironmentUnchanged(t *testing.T) 
 		t.Fatal("resolve SSM secrets unexpectedly succeeded")
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session", "")
 }
