@@ -5,6 +5,8 @@ root_dir=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 test_dir=$(mktemp -d)
 trap 'rm -rf "$test_dir"' EXIT
 
+sh "$root_dir/tests/management-input.sh"
+
 for editorconfig_file in \
   infra/lambda/ci-roles/tests/policies.tftest.hcl \
   scripts/apply-ci-roles-plan.sh \
@@ -33,6 +35,7 @@ for editorconfig_file in \
   scripts/verify-lambda-release.sh \
   tests/fixtures/release-fake-cli.sh \
   tests/lambda-plan-contract.sh \
+  tests/management-input.sh \
   tests/release-automation.sh; do
   awk '
     index($0, "\t") || length($0) > 120 {
