@@ -171,6 +171,9 @@ func TestResolveSSMUnsetManagementSessionKeyRemainsUnset(t *testing.T) {
 	}
 	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
 	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
+	if _, ok := os.LookupEnv("MGMT_SESSION_KEY"); ok {
+		t.Fatal("MGMT_SESSION_KEY remained present, want it unset")
+	}
 }
 
 func TestResolveSSMMissingManagementSessionKeyLeavesEnvironmentUnchanged(t *testing.T) {
