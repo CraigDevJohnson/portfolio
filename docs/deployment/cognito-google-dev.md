@@ -9,11 +9,14 @@ Auth provisioning is an operator task, separate from Lambda release jobs.
 
 Use account `180294223248`, region `us-west-2`, and the `portfolio-deployer`
 SSO profile (role `AWSReservedSSO_PortfolioDeployer_*`). Refresh that SSO session
-before a live operation. On September 7, 2026, STS verified this identity, but
-Cognito domain lookup, auth-state prefix listing, and bucket encryption/public
-access metadata reads were denied. These are unresolved prerequisites: review
-and separately authorize any candidate permission installation before proceeding.
-Do not substitute administrator or root credentials.
+before a live operation. The separate `portfolio-auth-policy-admin` SSO profile
+now provides policy inspection/validation and prerequisite metadata reads with
+one-hour sessions. It has no installation or provisioning authority. Its live
+checks passed on September 7, 2026, but the candidate setup grants are not yet
+installed on `portfolio-deployer`. Review the
+[external setup proposal](2026-09-07-cognito-external-setup-review.md) before
+authorizing installation. Auth planning/applying still uses only
+`portfolio-deployer`; do not substitute administrator or root credentials.
 
 Verify encrypted, access-controlled backend bucket
 `portfolio-tofu-state-180294223248`, versioning, public-access protection, effective
@@ -23,8 +26,10 @@ planning. The wrappers enforce backend encryption and locking configuration;
 they do not establish that the bucket's live security controls or permissions
 are sufficient.
 
-Craig must select the Google Cloud project and separately authorize creation of
-a dedicated web OAuth client. Do not reuse the Google Calendar client. Configure
+Craig selected Google Cloud project `portoflio-dev-508000` (spelling intentional).
+The project and signed-in account are verified; it has no existing OAuth client
+or consent configuration. Separately authorize creation of the dedicated web
+OAuth client and consent configuration. Do not reuse the Google Calendar client. Configure
 `craigdevjohnson@gmail.com` as the test user and register this Google redirect URI:
 
 `https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`

@@ -170,11 +170,13 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
 
 ## Resume sequence
 
-1. Review the exact candidate policy hashes and use the non-root administrator
-   route to validate their effective scope before separately approved
-   installation. Preserve the ordinary release role's separation from auth state.
-2. Select the Google project, sign in and separately authorize the dedicated web
-   OAuth client. Deliver credentials to the private channel in the
+1. Review the [external setup proposal](2026-09-07-cognito-external-setup-review.md)
+   and separately authorize the exact policy installation. Non-root policy
+   validation and baseline inspection are complete; effective setup permissions
+   under `portfolio-deployer` still require installation and verification.
+2. Project `portoflio-dev-508000` is selected and verified. Separately authorize
+   the prepared Google consent configuration, User Data Policy acceptance and
+   dedicated web OAuth client. Deliver credentials to the private channel in the
    [provisioning runbook](cognito-google-dev.md).
 3. Recheck identity, bucket security, auth-state permissions and domain
    availability, then create and review a private saved auth plan. Obtain the
@@ -182,3 +184,37 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
    exact saved-plan applies. No real credentials are needed for offline tests.
 4. Follow Task 6 for reviewed source release, runtime activation and browser/EC2 proof. Do not interpret
    passing local tests or configured Terraform resources as a live deployment.
+
+## Non-root profile and project readiness
+
+The latest September 7 continuation created the dedicated
+`PortfolioAuthPolicyAdministrator` SSO permission set and local profile
+`portfolio-auth-policy-admin`, using one-hour sessions. Provisioning and the
+installed read-only policy were verified; after SSO refresh, STS returned the
+expected non-root role in account `180294223248`. Existing local profiles were
+preserved. Private bootstrap/assignment records and configuration backup remain
+outside the repository. No access key was created.
+
+This profile successfully validated all three exact policy candidates with zero
+Access Analyzer findings. Independent live inspection found no drift from the
+approved deployer or boundary baseline. The boundary has one version (`v1`) and
+only the development execution role uses it. The new auth setup managed policy
+does not exist. No candidate has been installed.
+
+The same profile verified AES256 bucket encryption, enabled versioning, all four
+public-access blocks, zero objects under the auth-state prefix and an empty
+description for the proposed Cognito domain. These resolve the earlier metadata
+read denials; they do not grant effective auth setup access to the deployer.
+
+Google Cloud project `portoflio-dev-508000` and the expected signed-in account are
+verified in Chrome. The project has no OAuth clients or configured consent
+screen. The consent wizard is prepared with the development application name,
+External/Testing audience and Craig's email; its final policy agreement remains
+unchecked and unsubmitted. No Google credential was created or read.
+
+The [external setup review](2026-09-07-cognito-external-setup-review.md) contains
+the exact candidate hashes, temporary installer scope, rollback, Google fields
+and remaining approval boundaries. The private operator directory now also
+contains bootstrap and read-only validation evidence; it still has no Google
+credential, session key or saved auth plan. Tasks 5 live provisioning and 6
+activation remain pending.

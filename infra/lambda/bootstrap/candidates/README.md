@@ -14,4 +14,15 @@ AWS Identity Center inline-policy size limits apply to the combined permission-s
 
 The development workflow reads the public GitHub environment variable `MANAGEMENT_RUNTIME_JSON` as `EXPECTED_MANAGEMENT_JSON`, defaulting to JSON `null`. It must contain only the reviewed bare management object (extract `.management` from the Task 5 export), never Google credentials or a session key. The ordinary release gate rejects configuration changes even when this input is configured.
 
-Access Analyzer validation was attempted read-only and denied by current permissions for all three candidates; policy semantics remain unverified live. Tagged user-pool creation and provider reads were cross-checked against the [AWS Cognito IAM operations reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_cognito-idp.html) and [pinned AWS provider v6.38.0](https://github.com/hashicorp/terraform-provider-aws/blob/v6.38.0/internal/service/cognitoidp/user_pool.go).
+On September 7, 2026, all three exact documents passed live Access Analyzer
+`IDENTITY_POLICY` validation with zero findings through the non-root
+`portfolio-auth-policy-admin` profile. The live deployer inline policy and
+boundary match their tracked baselines; the boundary is used only by the
+development execution role. These checks supersede the earlier denied
+validation attempts. They do not prove that future setup calls will succeed
+or authorize installation. The [external setup proposal](../../../../docs/deployment/2026-09-07-cognito-external-setup-review.md)
+records the exact installation and remaining approval scope.
+
+Tagged user-pool creation and provider reads were cross-checked against the
+[AWS Cognito IAM operations reference](https://docs.aws.amazon.com/service-authorization/latest/reference/list_cognito-idp.html)
+and [pinned AWS provider v6.38.0](https://github.com/hashicorp/terraform-provider-aws/blob/v6.38.0/internal/service/cognitoidp/user_pool.go).
