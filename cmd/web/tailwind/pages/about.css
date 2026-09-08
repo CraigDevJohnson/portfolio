@@ -108,7 +108,7 @@
   color: var(--pond-mint);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -154,7 +154,7 @@
   color: var(--pond-mint);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
 }
 
 .about-timeline-trail {
@@ -300,7 +300,7 @@
   color: var(--about-note-signal);
   font-family: var(--font-display);
   font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: 1;
 }
 
@@ -350,7 +350,7 @@
   color: var(--about-note-signal);
   font-family: var(--font-mono);
   font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: 1;
 }
 

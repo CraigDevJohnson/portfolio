@@ -80,7 +80,7 @@
   color: var(--pond-mint);
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
   text-wrap: balance;
 }

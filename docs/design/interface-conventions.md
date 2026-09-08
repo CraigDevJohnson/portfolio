@@ -9,8 +9,13 @@ The public header and footer provide the same identity and navigation on every p
 Preserve the Emberglass palette from `cmd/web/tailwind/theme.css`: night mulberry
 (`#17121B`), cocoa cedar (`#2E2130`), candle oat (`#FFF0D8`), campfire apricot
 (`#FFA677`), rosehip (`#FF7FA8`), and pond mint (`#78E3C3`). Use the existing tokens
-in CSS. Bricolage Grotesque carries identity and headings, Atkinson Hyperlegible
-carries body copy and controls, and IBM Plex Mono carries utility labels.
+in CSS. IBM Plex Sans carries identity, headings, body copy, and controls;
+IBM Plex Mono carries dates, technical labels, and other utility text. Use regular
+(400) for body copy, medium (500) for quiet controls, semibold (600) for emphasis,
+and bold (700) for the largest headings and identity. Load real italic styles for
+Plex Sans. Use the shared weight tokens and avoid unsupported intermediate or
+extra-bold weights. Home hero text uses slightly looser tracking and line spacing;
+long Experience role titles wrap naturally with a 1.2 line height.
 
 The warm CJ medallion is the shared signature. Keep surrounding navigation quiet:
 text labels for destinations, a pill for the active header destination, and an

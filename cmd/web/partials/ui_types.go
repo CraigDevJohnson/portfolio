@@ -409,7 +409,7 @@ func linkPanelRowAriaLabel(props *LinkPanelRowProps) string {
 }
 
 func statCardValueClasses(extra string) string {
-	return mergeClasses("text-gradient-brand block font-mono text-4xl font-extrabold", extra)
+	return mergeClasses("text-gradient-brand block font-mono text-4xl font-semibold", extra)
 }
 
 func statCardLabelClasses(extra string) string {
