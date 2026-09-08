@@ -262,3 +262,87 @@ func TestSignInWithExistingSessionReturnsToDashboard(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireAuthRedirectsRejectedSessions(t *testing.T) {
+	tests := []struct {
+		name    string
+		session *PortalSession
+		invalid bool
+	}{
+		{name: "missing"},
+		{name: "expired", session: &PortalSession{Username: "craigdevjohnson@gmail.com", ExpiresAt: time.Now().Add(-time.Hour)}},
+		{name: "invalid encrypted cookie", invalid: true},
+	}
+	for _, test := range tests {
+		for _, mode := range []string{"page", "htmx"} {
+			t.Run(test.name+"/"+mode, func(t *testing.T) {
+				h := newSignInTestHandler()
+				request := httptest.NewRequest(http.MethodGet, "https://app.example/mgmt/instances/i-0123456789abcdef0/metrics", nil)
+				if mode == "htmx" {
+					request.Header.Set("HX-Request", "true")
+				}
+				if test.session != nil {
+					cookies := httptest.NewRecorder()
+					if err := h.setSession(cookies, request, test.session); err != nil {
+						t.Fatal(err)
+					}
+					for _, cookie := range cookies.Result().Cookies() {
+						request.AddCookie(cookie)
+					}
+				}
+				if test.invalid {
+					request.AddCookie(&http.Cookie{Name: config.PortalSessionCookieName, Value: "invalid-encrypted-session"})
+				}
+				response := httptest.NewRecorder()
+				h.RequireAuth(func(http.ResponseWriter, *http.Request) {
+					t.Error("rejected session reached the protected handler")
+				})(response, request)
+				if mode == "htmx" {
+					if response.Code != http.StatusNoContent || response.Header().Get("HX-Redirect") != "/login" || response.Header().Get("Location") != "" || response.Body.Len() != 0 {
+						t.Fatalf("HTMX rejection must navigate without swapping content: status %d headers %v body %q", response.Code, response.Header(), response.Body.String())
+					}
+				} else if response.Code != http.StatusFound || response.Header().Get("Location") != "/login" || response.Header().Get("HX-Redirect") != "" {
+					t.Fatalf("page rejection must retain its normal redirect: status %d headers %v", response.Code, response.Header())
+				}
+				cleared := false
+				for _, cookie := range response.Result().Cookies() {
+					if cookie.Name == config.PortalSessionCookieName && cookie.Value == "" && cookie.MaxAge < 0 {
+						cleared = true
+					}
+				}
+				if !cleared {
+					t.Error("rejected request did not clear the portal session")
+				}
+			})
+		}
+	}
+}
+
+func TestRequireAuthPreservesAuthenticatedHTMXRequest(t *testing.T) {
+	h := newSignInTestHandler()
+	request := httptest.NewRequest(http.MethodPost, "https://app.example/mgmt/instances/i-0123456789abcdef0/restart", nil)
+	request.Header.Set("HX-Request", "true")
+	cookies := httptest.NewRecorder()
+	const username = "craigdevjohnson@gmail.com"
+	if err := h.setSession(cookies, request, &PortalSession{Username: username, ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, cookie := range cookies.Result().Cookies() {
+		request.AddCookie(cookie)
+	}
+	response := httptest.NewRecorder()
+	called := false
+	h.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if got, ok := UsernameFromContext(r.Context()); !ok || got != username {
+			t.Errorf("protected handler identity = %q, present = %t", got, ok)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})(response, request)
+	if !called || response.Code != http.StatusAccepted {
+		t.Fatalf("valid HTMX session did not reach the protected handler: called %t status %d", called, response.Code)
+	}
+	if response.Header().Get("HX-Redirect") != "" || response.Header().Get("Location") != "" || len(response.Result().Cookies()) != 0 {
+		t.Fatal("valid HTMX session was redirected or its cookie was changed")
+	}
+}
