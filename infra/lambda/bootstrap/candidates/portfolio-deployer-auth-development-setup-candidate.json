@@ -1,0 +1,135 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AuthStateMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetBucketPublicAccessBlock"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248"
+    },
+    {
+      "Sid": "AuthStateList",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248",
+      "Condition": {
+        "StringEquals": {
+          "s3:prefix": [
+            "env:/",
+            "portfolio-lambda-http-api/auth/dev/terraform.tfstate"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AuthStateObject",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/auth/dev/terraform.tfstate"
+    },
+    {
+      "Sid": "AuthStateLock",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/auth/dev/terraform.tfstate.tflock"
+    },
+    {
+      "Sid": "DevCognitoCreate",
+      "Effect": "Allow",
+      "Action": "cognito-idp:CreateUserPool",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Project": "portfolio",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/Platform": "cognito-auth",
+          "aws:RequestTag/ManagedBy": "opentofu"
+        }
+      }
+    },
+    {
+      "Sid": "DevCognitoDomainRead",
+      "Effect": "Allow",
+      "Action": "cognito-idp:DescribeUserPoolDomain",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "DevCognitoManage",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:DescribeUserPool",
+        "cognito-idp:UpdateUserPool",
+        "cognito-idp:ListTagsForResource",
+        "cognito-idp:CreateUserPoolClient",
+        "cognito-idp:DescribeUserPoolClient",
+        "cognito-idp:UpdateUserPoolClient",
+        "cognito-idp:CreateIdentityProvider",
+        "cognito-idp:DescribeIdentityProvider",
+        "cognito-idp:UpdateIdentityProvider",
+        "cognito-idp:CreateUserPoolDomain",
+        "cognito-idp:UpdateUserPoolDomain",
+        "cognito-idp:CreateManagedLoginBranding",
+        "cognito-idp:DescribeManagedLoginBranding",
+        "cognito-idp:UpdateManagedLoginBranding",
+        "cognito-idp:GetUserPoolMfaConfig"
+      ],
+      "Resource": "arn:aws:cognito-idp:us-west-2:180294223248:userpool/us-west-2_*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "portfolio",
+          "aws:ResourceTag/Environment": "dev",
+          "aws:ResourceTag/Platform": "cognito-auth",
+          "aws:ResourceTag/ManagedBy": "opentofu",
+          "aws:RequestedRegion": "us-west-2"
+        }
+      }
+    },
+    {
+      "Sid": "DevCognitoCreationTags",
+      "Effect": "Allow",
+      "Action": "cognito-idp:TagResource",
+      "Resource": "arn:aws:cognito-idp:us-west-2:180294223248:userpool/us-west-2_*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-west-2",
+          "aws:RequestTag/Project": "portfolio",
+          "aws:RequestTag/Environment": "dev",
+          "aws:RequestTag/Platform": "cognito-auth",
+          "aws:RequestTag/ManagedBy": "opentofu"
+        },
+        "StringEqualsIfExists": {
+          "aws:ResourceTag/Project": "portfolio",
+          "aws:ResourceTag/Environment": "dev",
+          "aws:ResourceTag/Platform": "cognito-auth",
+          "aws:ResourceTag/ManagedBy": "opentofu"
+        },
+        "ForAllValues:StringEquals": {
+          "aws:TagKeys": [
+            "Project",
+            "Environment",
+            "Platform",
+            "ManagedBy"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -198,6 +198,7 @@ jobs:
         run: task lambda-ci-check-aws-identity
       - name: Plan, apply, verify, and record the development release
         env:
+          EXPECTED_MANAGEMENT_JSON: ${{ vars.MANAGEMENT_RUNTIME_JSON || 'null' }}
           GH_TOKEN: ${{ github.token }}
           IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
           SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}

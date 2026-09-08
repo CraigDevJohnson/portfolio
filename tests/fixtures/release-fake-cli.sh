@@ -425,6 +425,20 @@ case "$command_name" in
   tofu)
     [ -z "${FAKE_TOFU_LOG:-}" ] || printf 'tofu %s\n' "$*" >> "$FAKE_TOFU_LOG"
     case "$*" in
+      *' init '*)
+        [ -n "${FAKE_EXPECT_MANAGEMENT_JSON:-}" ] || exit 2
+        ;;
+      *' workspace show')
+        [ -n "${FAKE_EXPECT_MANAGEMENT_JSON:-}" ] || exit 2
+        printf 'default\n'
+        ;;
+      *' plan '*)
+        [ -n "${FAKE_EXPECT_MANAGEMENT_JSON:-}" ] || exit 2
+        [ "${TF_VAR_management:-}" = "$FAKE_EXPECT_MANAGEMENT_JSON" ] || exit 2
+        printf 'public management input matched\n' >> "$FAKE_TOFU_LOG"
+        printf 'raw-plan-sentinel\n'
+        exit 1
+        ;;
       *' apply '*)
         if [ "${FAKE_TOFU_APPLY_SIGNAL:-false}" = true ]; then
           kill -TERM "$PPID"

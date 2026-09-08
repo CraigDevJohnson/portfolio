@@ -60,10 +60,12 @@ func TestPortalActionAvailabilityMatchesLifecycleSafetyMatrix(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		for _, action := range []string{"start", "stop", "restart"} {
-			wantDisabled := !test.enabled[action]
-			if got := portalActionDisabled(test.state, action); got != wantDisabled {
-				t.Errorf("portalActionDisabled(%q, %q) = %t, want %t", test.state, action, got, wantDisabled)
+		for _, actionsAllowed := range []bool{false, true} {
+			for _, action := range []string{"start", "stop", "restart", "unknown"} {
+				wantDisabled := !actionsAllowed || !test.enabled[action]
+				if got := portalActionDisabled(test.state, action, actionsAllowed); got != wantDisabled {
+					t.Errorf("portalActionDisabled(state=%q, allowed=%t, action=%q) = %t, want %t", test.state, actionsAllowed, action, got, wantDisabled)
+				}
 			}
 		}
 	}
@@ -72,11 +74,12 @@ func TestPortalActionAvailabilityMatchesLifecycleSafetyMatrix(t *testing.T) {
 func TestInstanceRowRendersOneResponsiveSemanticRowPair(t *testing.T) {
 	const instanceID = "i-0f1e2d3c4b5a69788"
 	markup := portalTestRender(t, InstanceRow(types.InstanceSummary{
-		ID:           instanceID,
-		Name:         "Portfolio web",
-		State:        string(PortalStateRunning),
-		InstanceType: "t3.small",
-		AZ:           "us-east-1a",
+		ID:             instanceID,
+		Name:           "Portfolio web",
+		State:          string(PortalStateRunning),
+		InstanceType:   "t3.small",
+		AZ:             "us-east-1a",
+		ActionsAllowed: true,
 	}))
 	document := portalTestParseTableRows(t, markup)
 	tbody := portalTestFind(document, func(node *html.Node) bool { return node.Data == "tbody" })
@@ -146,11 +149,12 @@ func TestInstanceRowRendersOneResponsiveSemanticRowPair(t *testing.T) {
 
 func TestInstanceRowDisablesEveryActionForUnknownState(t *testing.T) {
 	markup := portalTestRender(t, InstanceRow(types.InstanceSummary{
-		ID:           "i-0123456789abcdef0",
-		Name:         "Unexpected state",
-		State:        "rebooting",
-		InstanceType: "t3.nano",
-		AZ:           "us-east-1z",
+		ID:             "i-0123456789abcdef0",
+		Name:           "Unexpected state",
+		State:          "rebooting",
+		InstanceType:   "t3.nano",
+		AZ:             "us-east-1z",
+		ActionsAllowed: true,
 	}))
 	document := portalTestParseTableRows(t, markup)
 	state := portalTestFind(document, func(node *html.Node) bool { return portalTestHasClass(node, "portal-state") })

@@ -259,6 +259,7 @@ tasks:
     desc: Run the authoritative offline Lambda infrastructure and release gate
     cmds:
       - tofu fmt -check -recursive infra/lambda
+      - task: cognito-dev-ci
       - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
       - tofu -chdir=infra/lambda/ci-roles validate
       - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
@@ -272,6 +273,15 @@ tasks:
       - sh tests/lambda-observation-window.sh
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
+
+  cognito-dev-ci:
+    desc: Validate the isolated development Cognito root without backend or AWS access
+    cmds:
+      - tofu -chdir=infra/lambda/auth/dev fmt -check -recursive
+      - tofu -chdir=infra/lambda/auth/dev init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/dev validate
+      - tofu -chdir=infra/lambda/auth/dev test
+      - task: cognito-dev-tooling-test
 
   _lint-check:
     internal: true
@@ -863,6 +873,7 @@ tasks:
     env:
       PLAN_FILE: '{{default "" .PLAN_FILE}}'
       IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+      EXPECTED_MANAGEMENT_JSON: '{{default "null" .EXPECTED_MANAGEMENT_JSON}}'
     cmds:
       - task: _lambda-identity-check
       - task: _lambda-state-lock-check
@@ -870,6 +881,7 @@ tasks:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
       - |
         set -eu
+        ENVIRONMENT=dev sh scripts/check-management-input.sh
         case "$PLAN_FILE" in
           /*) ;;
           *) echo "PLAN_FILE must be absolute" >&2; exit 1 ;;
@@ -886,7 +898,8 @@ tasks:
         image_uri="$repository_url@$IMAGE_DIGEST"
         plan_json=$(mktemp)
         trap 'rm -f "$plan_json"' EXIT
-        TF_VAR_ecr_repository_url="$repository_url" TF_VAR_image_digest="$IMAGE_DIGEST" \
+        TF_VAR_management="$EXPECTED_MANAGEMENT_JSON" \
+          TF_VAR_ecr_repository_url="$repository_url" TF_VAR_image_digest="$IMAGE_DIGEST" \
           tofu -chdir=infra/lambda/environments/dev plan -lock-timeout=5m -input=false -out="$PLAN_FILE"
         tofu -chdir=infra/lambda/environments/dev show -json "$PLAN_FILE" > "$plan_json"
         PLAN_JSON="$plan_json" ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$image_uri" \
@@ -1013,3 +1026,28 @@ tasks:
       - |
         set -eu
         docker compose -f docker-compose.yml logs --tail=200 -f portfolio
+
+  cognito-dev-init:
+    desc: Initialize isolated private development auth backend (requires lock acknowledgement)
+    cmds:
+      - python3 scripts/create-cognito-dev-plan.py init
+
+  cognito-dev-plan:
+    desc: Create private development auth plan and allowlisted review summary
+    cmds:
+      - python3 scripts/create-cognito-dev-plan.py plan
+
+  cognito-dev-apply:
+    desc: Apply separately approved development auth plan and provenance checksums
+    cmds:
+      - python3 scripts/create-cognito-dev-plan.py apply
+
+  cognito-dev-export:
+    desc: Export only validated management runtime public settings
+    cmds:
+      - python3 scripts/create-cognito-dev-plan.py export
+
+  cognito-dev-tooling-test:
+    desc: Exercise private auth tooling offline with sentinel secrets
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_cognito_dev_plan.py'

@@ -13,6 +13,10 @@ fail() {
 : "${EXPECTED_ALARM_ACTIONS_JSON:?set EXPECTED_ALARM_ACTIONS_JSON to a JSON array}"
 AUTOMATED_RELEASE=${AUTOMATED_RELEASE:-false}
 
+EXPECTED_MANAGEMENT_JSON=${EXPECTED_MANAGEMENT_JSON:-null}
+ENVIRONMENT="$ENVIRONMENT" EXPECTED_MANAGEMENT_JSON="$EXPECTED_MANAGEMENT_JSON" \
+  sh "$(dirname "$0")/check-management-input.sh"
+
 case "$AUTOMATED_RELEASE" in
   true | false | rollback) ;;
   *) fail "AUTOMATED_RELEASE must be true, false, or rollback" ;;
@@ -47,6 +51,13 @@ printf '%s\n' "$EXPECTED_ALARM_ACTIONS_JSON" |
   fail "EXPECTED_ALARM_ACTIONS_JSON must be an array of strings"
 jq -e '.resource_changes | type == "array"' "$PLAN_JSON" > /dev/null ||
   fail "plan JSON has no resource_changes array"
+
+jq -e --argjson management "$EXPECTED_MANAGEMENT_JSON" '
+  (.variables.management.value // null) == $management and
+  ([(.variables // {}) | to_entries[]? | select(.key |
+      test("google_client|management_session|mgmt_session|password|token"; "i"))] | length == 0)
+' "$PLAN_JSON" >/dev/null || \
+  fail "runtime management inputs differ from reviewed public settings or contain credentials"
 
 jq -e '
   all(.resource_changes[];
@@ -523,11 +534,35 @@ jq -e '
 
 jq -e \
   --arg environment "$ENVIRONMENT" \
-  --arg prefix "$NAME_PREFIX" '
+  --arg prefix "$NAME_PREFIX" \
+  --argjson management "$EXPECTED_MANAGEMENT_JSON" '
   def exact_keys($expected): (keys | sort) == ($expected | sort);
   def by_address($address): first(.resource_changes[] | select(.address == $address));
   def service_configuration_resources($address):
     [.configuration.root_module.module_calls.service.module.resources[] | select(.address == $address)];
+  def management_statements:
+    if $management == null then [] else [
+      {actions: ["ec2:DescribeInstances", "cloudwatch:GetMetricStatistics"], resources: ["*"],
+      condition: [{test: "StringEquals", variable: "aws:RequestedRegion", values: ["us-west-2"]}]},
+      {actions: ["logs:FilterLogEvents"],
+      resources: ["arn:aws:logs:us-west-2:180294223248:log-group:/ec2/i-*:*"], condition: []},
+      {actions: ["ec2:StartInstances", "ec2:StopInstances"],
+      resources: ["arn:aws:ec2:us-west-2:180294223248:instance/*"], condition: [{test: "StringEquals",
+      variable: "ec2:ResourceTag/PortfolioManagement", values: ["dev"]}]}
+    ] end;
+  def parameter_arns: ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY",
+      "LPS_SESSION_KEY"] + (if $management == null then [] else ["MGMT_SESSION_KEY"] end) |
+      map("arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/" + .);
+  def expected_condition($actions):
+    if $management == null then []
+    elif $actions == ["kms:Decrypt"] then [{test: "StringEquals",
+      variable: "kms:EncryptionContext:PARAMETER_ARN", values: (parameter_arns | sort)}]
+    else [management_statements[] | select((.actions | sort) == ($actions | sort)) | .condition][0] // [] end;
+  def normalized_conditions: map(.values |= sort) | sort_by(tojson);
+  def decoded_conditions($statement):
+    [($statement.Condition // {}) | to_entries[] | .key as $test | .value | to_entries[] | {test: $test,
+      variable: .key, values: (.value | if type == "array" then . else [.] end)}];
+  def statement_count: if $management == null then 5 else 8 end;
   def exact_data_statement:
     type == "object" and
     exact_keys([
@@ -542,7 +577,7 @@ jq -e \
       "sid"
     ]) and
     (.actions | type == "array" and length > 0 and all(.[]; type == "string")) and
-    .condition == [] and
+    (.condition | normalized_conditions) == (expected_condition(.actions) | normalized_conditions) and
     .effect == null and
     .not_actions == null and
     .not_principals == [] and
@@ -552,7 +587,7 @@ jq -e \
     .sid == null;
   def default_unknown_data_statement($statement): {
     actions: [range(0; ($statement.actions | length)) | false],
-    condition: [],
+    condition: [$statement.condition[] | {test: false, variable: false, values: [.values[] | false]}],
     not_principals: [],
     principals: [],
     resources: [range(0; ($statement.resources | length)) | false]
@@ -571,7 +606,7 @@ jq -e \
       "sid"
     ]) | length == 0) and
     .actions == [range(0; ($statement.actions | length)) | false] and
-    .condition == [] and
+    .condition == [$statement.condition[] | {test: false, variable: false, values: [.values[] | false]}] and
     ((.effect // false) == false) and
     ((.not_actions // false) == false) and
     .not_principals == [] and
@@ -582,7 +617,8 @@ jq -e \
   def resource_slots($values; $unknowns):
     [range(0; ($values | length)) as $index | {value: $values[$index], unknown: $unknowns[$index]}] | sort_by(tojson);
   def normalized_data_statement($unknown):
-    {actions: (.actions | sort), resources: resource_slots(.resources; $unknown.resources)};
+    {actions: (.actions | sort), resources: resource_slots(.resources; $unknown.resources),
+      condition: (.condition | normalized_conditions)};
   def exact_arn_or_deferred($value; $unknown; $expected):
     ($value == $expected and $unknown == false) or
     ($value == null and $unknown == true);
@@ -593,7 +629,7 @@ jq -e \
   def values_array: if type == "array" then . else [.] end;
   def decoded_data_statement($statement): {
     actions: ($statement.Action | values_array),
-    condition: [],
+    condition: decoded_conditions($statement),
     effect: null,
     not_actions: null,
     not_principals: [],
@@ -608,16 +644,20 @@ jq -e \
     ($document | type) == "object" and
     ($document | exact_keys(["Statement", "Version"])) and
     $document.Version == "2012-10-17" and
-    ($document.Statement | type == "array" and length == 5) and
+    ($document.Statement | type == "array" and length == statement_count) and
     all($document.Statement[];
       type == "object" and
-      exact_keys(["Action", "Effect", "Resource"]) and
+      exact_keys(["Action", "Effect", "Resource"] +
+        (if (expected_condition(.Action | values_array) | length) > 0 then ["Condition"] else [] end)) and
+      (decoded_conditions(.) | normalized_conditions) == (expected_condition(.Action | values_array) |
+      normalized_conditions) and
       .Effect == "Allow" and
       (.Action | values_array | length > 0 and all(.[]; type == "string")) and
       (.Resource | values_array | length > 0 and all(.[]; type == "string"))) and
     ([
       $document.Statement[] |
-      {actions: (.Action | values_array | sort), resources: (.Resource | values_array | sort)}
+      {actions: (.Action | values_array | sort), resources: (.Resource | values_array | sort),
+      condition: (decoded_conditions(.) | normalized_conditions)}
     ] | sort_by(tojson)) == $expected;
 
   try (
@@ -694,11 +734,11 @@ jq -e \
     (($policy_data_change.change.after_unknown.override_json // false) == false) and
     (($policy_data_change.change.after_unknown.source_policy_documents // false) == false) and
     (($policy_data_change.change.after_unknown.override_policy_documents // false) == false) and
-    ($policy_data_change.change.after.statement | type == "array" and length == 5) and
-    ($policy_unknown_statements | type == "array" and length == 5) and
+    ($policy_data_change.change.after.statement | type == "array" and length == statement_count) and
+    ($policy_unknown_statements | type == "array" and length == statement_count) and
     all($policy_data_change.change.after.statement[]; exact_data_statement) and
     ([
-      range(0; 5) as $index |
+      range(0; statement_count) as $index |
       ($policy_unknown_statements[$index] |
         exact_unknown_data_statement($policy_data_change.change.after.statement[$index]))
     ] | all) and
@@ -734,18 +774,15 @@ jq -e \
       resources: [$soccer_arn]
     }, {
       actions: ["ssm:GetParameters"],
-      resources: [
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"
-      ]
+      resources: parameter_arns
     }, {
       actions: ["kms:Decrypt"],
       resources: $kms_resources
     }, {
       actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
       resources: [$lambda_policy_resource]
-    }] | map(.actions |= sort | .resources |= sort) | sort_by(tojson)) as $expected_statements |
+    }] + management_statements | map(.condition = (expected_condition(.actions) | normalized_conditions) |
+      .actions |= sort | .resources |= sort) | sort_by(tojson)) as $expected_statements |
     ([{
       actions: ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem"],
       resources: resource_slots([$google_arn]; [$google_arn_unknown])
@@ -754,20 +791,18 @@ jq -e \
       resources: resource_slots([$soccer_arn]; [$soccer_arn_unknown])
     }, {
       actions: ["ssm:GetParameters"],
-      resources: resource_slots([
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"
-      ]; [false, false, false])
+      resources: resource_slots(parameter_arns; [parameter_arns[] | false])
     }, {
       actions: ["kms:Decrypt"],
       resources: resource_slots($kms_resources; [false])
     }, {
       actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
       resources: resource_slots([$lambda_policy_resource]; [$lambda_log_arn_unknown])
-    }] | map(.actions |= sort) | sort_by(tojson)) as $expected_statement_slots |
+    }] + (management_statements | map(.resources = resource_slots(.resources; [.resources[] | false]))) |
+      map(.condition = (expected_condition(.actions) | normalized_conditions) | .actions |= sort) |
+      sort_by(tojson)) as $expected_statement_slots |
     ([
-      range(0; 5) as $index |
+      range(0; statement_count) as $index |
       ($policy_data_change.change.after.statement[$index] |
         normalized_data_statement($policy_unknown_statements[$index]))
     ] | sort_by(tojson)) == $expected_statement_slots and
@@ -864,7 +899,7 @@ jq -e \
         exact_known_policy($runtime_policy.change.after.policy; $expected_statements)
       )
     ) and
-    $lambda.change.after.environment == [{variables: {
+    $lambda.change.after.environment == [{variables: ({
       CLIENT_ID_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_ID_KEY"),
       CLIENT_SECRET_KEY: ("/portfolio/lambda/" + $environment + "/CLIENT_SECRET_KEY"),
       GOOGLE_CONNECTION_TABLE_NAME: ($prefix + "-google-connections"),
@@ -873,7 +908,17 @@ jq -e \
       LOG_LEVEL: "info",
       LPS_SESSION_KEY: ("/portfolio/lambda/" + $environment + "/LPS_SESSION_KEY"),
       SOCCER_SESSION_TABLE_NAME: ($prefix + "-soccer-sessions")
-    }}]
+    } + (if $management == null then {} else {
+      MGMT_SESSION_KEY: "/portfolio/lambda/dev/MGMT_SESSION_KEY",
+      MGMT_COGNITO_DOMAIN: $management.cognito_domain,
+      MGMT_COGNITO_ISSUER: $management.cognito_issuer,
+      MGMT_COGNITO_CLIENT_ID: $management.cognito_client_id,
+      MGMT_COGNITO_REDIRECT_URI: $management.redirect_uri,
+      MGMT_COGNITO_LOGOUT_URI: $management.logout_uri,
+      MGMT_ALLOWED_EMAILS: ($management.allowed_emails | join(",")),
+      MGMT_ALLOW_LOCAL_CALLBACK: ($management.allow_local_callback | tostring),
+      MGMT_AWS_REGION: "us-west-2"
+    } end))}]
   ) catch false
 ' "$PLAN_JSON" > /dev/null || fail "runtime policy or Lambda environment contract drifted"
 
