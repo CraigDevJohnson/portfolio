@@ -58,7 +58,7 @@ func (c *Config) PortalEnabled() bool {
 	if _, err := NormalizeCognitoDomain(c.PortalCognitoDomain); err != nil {
 		return false
 	}
-	if !validCognitoIssuer(c.PortalCognitoIssuer) || !validPortalReturnURL(c.PortalCognitoRedirectURI, "/callback", c.PortalAllowLocalCallback) || !validPortalReturnURL(c.PortalCognitoLogoutURI, "", false) {
+	if !validCognitoIssuer(c.PortalCognitoIssuer) || !validPortalReturnURL(c.PortalCognitoRedirectURI, "/callback", c.PortalAllowLocalCallback) || !validPortalReturnURL(c.PortalCognitoLogoutURI, "/login", false) {
 		return false
 	}
 	for _, email := range c.PortalAllowedEmails {

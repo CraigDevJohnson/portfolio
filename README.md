@@ -141,7 +141,7 @@ The portal requires:
   `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example`
 - `MGMT_COGNITO_CLIENT_ID`, a public authorization-code + PKCE app client
 - `MGMT_COGNITO_REDIRECT_URI`, a registered HTTPS callback at `/callback`
-- `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL
+- `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL at `/login`
 - `MGMT_ALLOWED_EMAILS`, a nonempty comma-separated list of bare email addresses
 
 `GET /login` displays a signed-out page. Its sign-in button submits `POST /login`

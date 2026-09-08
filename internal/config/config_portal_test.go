@@ -372,3 +372,46 @@ func TestPortalCallbackMustMatchRegisteredRoute(t *testing.T) {
 		})
 	}
 }
+
+func TestPortalLogoutMustMatchSignedOutRoute(t *testing.T) {
+	cases := []struct {
+		name               string
+		logout             string
+		allowLocalCallback bool
+		wantEnabled        bool
+	}{
+		{name: "development logout", logout: "https://dev.craigdevjohnson.com/login", wantEnabled: true},
+		{name: "HTTPS loopback logout", logout: "https://localhost:8080/login", wantEnabled: true},
+		{name: "HTTP logout", logout: "http://app.example/login"},
+		{name: "HTTP loopback logout", logout: "http://localhost:8080/login"},
+		{name: "callback opt-in does not allow HTTP logout", logout: "http://127.0.0.1:8080/login", allowLocalCallback: true},
+		{name: "relative path", logout: "/login"},
+		{name: "protected route", logout: "https://app.example/mgmt"},
+		{name: "callback route", logout: "https://app.example/callback"},
+		{name: "missing path", logout: "https://app.example"},
+		{name: "root path", logout: "https://app.example/"},
+		{name: "trailing slash", logout: "https://app.example/login/"},
+		{name: "case mismatch", logout: "https://app.example/Login"},
+		{name: "encoded path", logout: "https://app.example/%6cogin"},
+		{name: "encoded slash", logout: "https://app.example/%2flogin"},
+		{name: "path normalization", logout: "https://app.example/auth/../login"},
+		{name: "credentials", logout: "https://user:password@app.example/login"},
+		{name: "query", logout: "https://app.example/login?next=/mgmt"},
+		{name: "empty query", logout: "https://app.example/login?"},
+		{name: "fragment", logout: "https://app.example/login#fragment"},
+		{name: "empty fragment", logout: "https://app.example/login#"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validPortalEnvironment(t)
+			t.Setenv("MGMT_COGNITO_LOGOUT_URI", tc.logout)
+			if tc.allowLocalCallback {
+				t.Setenv("MGMT_ALLOW_LOCAL_CALLBACK", "true")
+			}
+			cfg := Load()
+			if got := cfg.PortalEnabled(); got != tc.wantEnabled {
+				t.Fatalf("PortalEnabled() = %v, want %v for logout %q", got, tc.wantEnabled, tc.logout)
+			}
+		})
+	}
+}

@@ -44,7 +44,8 @@ See [Google's app-state guidance](https://developers.google.com/identity/protoco
 
 Callback registration is `https://dev.craigdevjohnson.com/callback`; logout is
 `https://dev.craigdevjohnson.com/login`. The callback path must be exactly
-`/callback`. Visiting `/login` renders a signed-out page; only its explicit
+`/callback`, and the logout return path must be exactly `/login`. Visiting
+`/login` renders a signed-out page; only its explicit
 sign-in button starts OAuth through `POST /login`. These wrappers deliberately admit only
 the reviewed domain and no loopback callback. A domain or callback change needs
 an updated reviewed checker contract.

@@ -53,8 +53,9 @@
   Only verified, exact allowlisted emails receive portal sessions.
 - `GET /login` renders a signed-out page; `POST /login` starts Google sign-in.
   Logout returns to that page and clears both session and pending OAuth cookies.
-- The registered callback is exactly `/callback`; callback and logout URLs require
-  HTTPS. An HTTP loopback callback requires `MGMT_ALLOW_LOCAL_CALLBACK=true`.
+- The registered callback is exactly `/callback` and the logout return path is
+  exactly `/login`; both URLs require HTTPS. An HTTP loopback callback requires
+  `MGMT_ALLOW_LOCAL_CALLBACK=true`; logout still requires HTTPS.
   `MGMT_AWS_REGION` defaults to `us-east-1`.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`

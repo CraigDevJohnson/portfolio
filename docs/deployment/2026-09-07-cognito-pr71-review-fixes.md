@@ -1,8 +1,8 @@
 # PR #71 review fixes
 
 The original four code-review findings on `8c5ccee8` were reproduced or verified
-against the approved development design and fixed in `df817a96`. The follow-up
-finding on that commit was checked against current AWS documentation. No live
+against the approved development design and fixed in `df817a96`. Follow-up
+findings were checked against current code and AWS documentation. No live
 cloud policy or resource changes are part of this review work.
 
 | Finding | Result |
@@ -11,6 +11,7 @@ cloud policy or resource changes are part of this review work.
 | [Logout immediately signs in again](https://github.com/CraigDevJohnson/portfolio/pull/71#discussion_r3954223046) | `GET /login` renders a signed-out page. Only an explicit `POST /login` begins the Google code/PKCE flow. Logout clears both the session and pending OAuth state. Registered callback and logout URLs remain unchanged. |
 | [Callback path accepts an unregistered route](https://github.com/CraigDevJohnson/portfolio/pull/71#discussion_r3954223050) | Portal enablement requires the literal `/callback` path. Legacy, alternate, encoded and query/fragment variants fail configuration validation; explicit HTTP loopback support remains. |
 | [Untagged instances expose unavailable actions](https://github.com/CraigDevJohnson/portfolio/pull/71#discussion_r3954223058) | Exact `PortfolioManagement=dev` eligibility and lifecycle state determine available controls. Other instances remain visible with read-only metrics/logs and disabled start/stop/restart. IAM remains authoritative for requests. |
+| [Logout URL accepts another route](https://github.com/CraigDevJohnson/portfolio/pull/71#discussion_r3954513876) | Portal enablement requires the literal `/login` logout return path. Alternate, encoded, trailing-slash and query/fragment variants fail validation. Logout remains HTTPS-only, including when local HTTP callbacks are enabled. |
 
 Cognito logout does not end a user's Google session, so automatically starting
 OAuth at the logout return URL can sign them in again. The explicit button
@@ -31,12 +32,13 @@ documented app-client restriction. The configuration comment now explains this
 exception; the existing OpenTofu and saved-plan contracts retain the supported
 attribute sets.
 
-The still-unresolved logout and EC2-control threads were rechecked against
+The original logout and EC2-control threads were rechecked against
 `df817a96`. Their fixes are present even though the comments are attached to
 unchanged infrastructure lines: the registered logout URL now reaches the inert
 GET handler, and the instance view model now enforces tag eligibility when
 rendering controls. Focused routing, cookie, tag and lifecycle tests passed on
-reinspection. No additional behavior changes were needed for those threads.
+reinspection. No additional behavior changes were needed for those threads,
+and both were resolved after verification.
 
 Focused regressions cover secret isolation and warning redaction; GET/POST
 sign-in routing, PKCE state binding and logout cookies; callback path rejection;
