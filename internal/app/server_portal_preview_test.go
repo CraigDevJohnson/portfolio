@@ -135,15 +135,7 @@ func TestBuildMuxPortalPreviewDoesNotAdvertiseUnavailableGoogleStore(t *testing.
 }
 
 func TestBuildMuxRegistersConfiguredPortalCallback(t *testing.T) {
-	application := newTestApp(t)
-	application.Config.PortalSessionKey = make([]byte, 32)
-	application.Config.PortalCognitoDomain = "https://portal.auth.us-east-1.amazoncognito.com"
-	application.Config.PortalCognitoIssuer = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test"
-	application.Config.PortalCognitoClientID = "client"
-	application.Config.PortalCognitoRedirectURI = "https://app.example/callback"
-	application.Config.PortalCognitoLogoutURI = "https://app.example/login"
-	application.Config.PortalAllowedEmails = []string{"craigdevjohnson@gmail.com"}
-	application.PortalHandler = portal.NewHandler(&application.Config, nil, nil, nil, nil, application.Logger)
+	application := newConfiguredPortalApp(t)
 	mux, _ := buildMux(application, application.Logger, false)
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/callback", nil))
@@ -154,5 +146,34 @@ func TestBuildMuxRegistersConfiguredPortalCallback(t *testing.T) {
 		if cookie.Name == config.PortalSessionCookieName && cookie.MaxAge >= 0 {
 			t.Error("invalid callback created a session")
 		}
+	}
+}
+
+func newConfiguredPortalApp(t *testing.T) *App {
+	t.Helper()
+	application := newTestApp(t)
+	application.Config.PortalSessionKey = make([]byte, 32)
+	application.Config.PortalCognitoDomain = "https://portal.auth.us-east-1.amazoncognito.com"
+	application.Config.PortalCognitoIssuer = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test"
+	application.Config.PortalCognitoClientID = "client"
+	application.Config.PortalCognitoRedirectURI = "https://app.example/callback"
+	application.Config.PortalCognitoLogoutURI = "https://app.example/login"
+	application.Config.PortalAllowedEmails = []string{"craigdevjohnson@gmail.com"}
+	application.PortalHandler = portal.NewHandler(&application.Config, portal.NewOIDCClient(application.Config.PortalCognitoDomain, application.Config.PortalCognitoIssuer, application.Config.PortalCognitoClientID, application.Config.PortalCognitoRedirectURI, application.Config.PortalCognitoLogoutURI), nil, nil, nil, application.Logger)
+	return application
+}
+
+func TestBuildMuxRequiresExplicitPortalSignIn(t *testing.T) {
+	application := newConfiguredPortalApp(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	landing := httptest.NewRecorder()
+	mux.ServeHTTP(landing, httptest.NewRequest(http.MethodGet, "/login", nil))
+	if landing.Code != http.StatusOK || landing.Header().Get("Location") != "" || !strings.Contains(landing.Body.String(), `method="POST" action="/login"`) {
+		t.Fatalf("GET /login did not render the signed-out landing: %d", landing.Code)
+	}
+	signIn := httptest.NewRecorder()
+	mux.ServeHTTP(signIn, httptest.NewRequest(http.MethodPost, "/login", nil))
+	if signIn.Code != http.StatusSeeOther || !strings.HasPrefix(signIn.Header().Get("Location"), application.Config.PortalCognitoDomain+"/oauth2/authorize?") {
+		t.Fatalf("POST /login did not start the authorization flow: %d", signIn.Code)
 	}
 }

@@ -5,13 +5,14 @@ import (
 	"time"
 )
 
-// InstanceSummary is the display model for a managed EC2 instance.
+// InstanceSummary is the display model for an EC2 instance in the portal inventory.
 type InstanceSummary struct {
-	ID           string
-	Name         string
-	State        string
-	InstanceType string
-	AZ           string
+	ID             string
+	Name           string
+	State          string
+	InstanceType   string
+	AZ             string
+	ActionsAllowed bool
 }
 
 // MetricPoint is a CloudWatch CPU utilization data point.

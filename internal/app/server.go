@@ -109,6 +109,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
 		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("POST /login", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /callback", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
@@ -120,6 +121,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
 		ph := app.PortalHandler
 		mux.HandleFunc("GET /login", ph.LoginPageHandler)
+		mux.HandleFunc("POST /login", ph.LoginPageHandler)
 		mux.HandleFunc("GET /callback", ph.CallbackHandler)
 		mux.HandleFunc("POST /logout", ph.LogoutHandler)
 		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))

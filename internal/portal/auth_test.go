@@ -145,3 +145,120 @@ func assertCallbackCookies(t *testing.T, h *Handler, response *httptest.Response
 		t.Error("callback did not clear OAuth state")
 	}
 }
+
+func TestLoginLandingDoesNotRestartOAuth(t *testing.T) {
+	h := newSignInTestHandler()
+	cfg := h.Config
+	response := httptest.NewRecorder()
+	h.LoginPageHandler(response, httptest.NewRequest(http.MethodGet, cfg.PortalCognitoLogoutURI, nil))
+	if response.Code != http.StatusOK || response.Header().Get("Location") != "" {
+		t.Fatalf("signed-out landing restarted authentication: status %d location %q", response.Code, response.Header().Get("Location"))
+	}
+	if !strings.Contains(response.Body.String(), `method="POST" action="/login"`) || !strings.Contains(response.Body.String(), "Sign in with Google") {
+		t.Fatal("signed-out landing did not offer an explicit sign-in action")
+	}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == config.PortalOAuthStateCookieName && cookie.MaxAge > 0 {
+			t.Fatal("visiting the signed-out page started an OAuth transaction")
+		}
+	}
+}
+
+func newSignInTestHandler() *Handler {
+	cfg := &config.Config{
+		PortalSessionKey:         make([]byte, 32),
+		PortalCognitoDomain:      "https://portal.auth.us-west-2.amazoncognito.com",
+		PortalCognitoIssuer:      "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_test",
+		PortalCognitoClientID:    "client",
+		PortalCognitoRedirectURI: "https://app.example/callback",
+		PortalCognitoLogoutURI:   "https://app.example/login",
+		PortalAllowedEmails:      []string{"craigdevjohnson@gmail.com"},
+	}
+	h := NewHandler(cfg, NewOIDCClient(cfg.PortalCognitoDomain, cfg.PortalCognitoIssuer, cfg.PortalCognitoClientID, cfg.PortalCognitoRedirectURI, cfg.PortalCognitoLogoutURI), nil, nil, nil, nil)
+	return h
+}
+
+func TestLoginRequiresPostToStartPKCE(t *testing.T) {
+	h := newSignInTestHandler()
+	request := httptest.NewRequest(http.MethodPost, "https://app.example/login", nil)
+	response := httptest.NewRecorder()
+	h.LoginPageHandler(response, request)
+	if response.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in status = %d, want %d", response.Code, http.StatusSeeOther)
+	}
+	target, err := url.Parse(response.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := target.Query()
+	if target.Host != "portal.auth.us-west-2.amazoncognito.com" || target.Path != "/oauth2/authorize" || query.Get("identity_provider") != "Google" || query.Get("response_type") != "code" || query.Get("redirect_uri") != h.Config.PortalCognitoRedirectURI {
+		t.Fatalf("incorrect sign-in redirect: %s", target)
+	}
+	callback := httptest.NewRequest(http.MethodGet, h.Config.PortalCognitoRedirectURI, nil)
+	for _, cookie := range response.Result().Cookies() {
+		callback.AddCookie(cookie)
+	}
+	state, err := h.loadOAuthState(callback)
+	if err != nil || state == nil || state.State == "" || state.CodeVerifier == "" {
+		t.Fatalf("sign-in did not create usable OAuth state: %v", err)
+	}
+	if query.Get("state") != state.State || query.Get("code_challenge") != codeChallenge(state.CodeVerifier) || query.Get("code_challenge_method") != "S256" {
+		t.Fatal("authorization URL did not bind the stored state and PKCE verifier")
+	}
+}
+
+func TestLogoutClearsSessionAndPendingOAuth(t *testing.T) {
+	h := newSignInTestHandler()
+	request := httptest.NewRequest(http.MethodPost, "https://app.example/logout", nil)
+	response := httptest.NewRecorder()
+	h.LogoutHandler(response, request)
+	if response.Code != http.StatusFound {
+		t.Fatalf("logout status = %d", response.Code)
+	}
+	target, err := url.Parse(response.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.Host != "portal.auth.us-west-2.amazoncognito.com" || target.Path != "/logout" || target.Query().Get("logout_uri") != "https://app.example/login" {
+		t.Fatalf("logout did not use the registered signed-out destination: %s", target)
+	}
+	cleared := map[string]bool{}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Value != "" || cookie.MaxAge >= 0 || !cookie.Secure || !cookie.HttpOnly {
+			t.Fatalf("logout retained a usable or unprotected cookie: %s", cookie.Name)
+		}
+		cleared[cookie.Name] = true
+	}
+	if !cleared[config.PortalSessionCookieName] || !cleared[config.PortalOAuthStateCookieName] {
+		t.Fatal("logout must clear the portal session and any pending OAuth transaction")
+	}
+	landing := httptest.NewRecorder()
+	h.LoginPageHandler(landing, httptest.NewRequest(http.MethodGet, target.Query().Get("logout_uri"), nil))
+	if landing.Code != http.StatusOK || landing.Header().Get("Location") != "" {
+		t.Fatal("logout return immediately restarted authentication")
+	}
+}
+
+func TestSignInWithExistingSessionReturnsToDashboard(t *testing.T) {
+	h := newSignInTestHandler()
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			request := httptest.NewRequest(method, "https://app.example/login", nil)
+			cookies := httptest.NewRecorder()
+			if err := h.setSession(cookies, request, &PortalSession{Username: "craigdevjohnson@gmail.com", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+				t.Fatal(err)
+			}
+			for _, cookie := range cookies.Result().Cookies() {
+				request.AddCookie(cookie)
+			}
+			response := httptest.NewRecorder()
+			h.LoginPageHandler(response, request)
+			if response.Code != http.StatusFound || response.Header().Get("Location") != "/mgmt" {
+				t.Fatalf("valid session did not return to dashboard: %d", response.Code)
+			}
+			if len(response.Result().Cookies()) != 0 {
+				t.Fatal("valid session unnecessarily restarted OAuth")
+			}
+		})
+	}
+}

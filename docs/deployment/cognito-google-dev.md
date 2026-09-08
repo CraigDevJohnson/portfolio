@@ -43,7 +43,9 @@ application access must still be enforced by the verified-email allowlist.
 See [Google's app-state guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview).
 
 Callback registration is `https://dev.craigdevjohnson.com/callback`; logout is
-`https://dev.craigdevjohnson.com/login`. These wrappers deliberately admit only
+`https://dev.craigdevjohnson.com/login`. The callback path must be exactly
+`/callback`. Visiting `/login` renders a signed-out page; only its explicit
+sign-in button starts OAuth through `POST /login`. These wrappers deliberately admit only
 the reviewed domain and no loopback callback. A domain or callback change needs
 an updated reviewed checker contract.
 
@@ -150,3 +152,14 @@ credentials to automatic release workflows.
 `task cognito-dev-tooling-test` uses synthetic sentinels and mocked subprocesses;
 it does not read credentials or call AWS. Private run directories are retained
 for local audit; remove them only after the review/retention requirement ends.
+
+
+## PR #71 review fixes
+
+[The review-fix record](2026-09-07-cognito-pr71-review-fixes.md) covers optional
+session-key failure isolation, the signed-out landing page, exact callback
+validation and tag-aware instance controls. The management key must still be
+provisioned before portal activation; if it becomes unavailable during a cold
+start, only the portal is disabled. Untagged instances remain visible for reads
+with start/stop/restart disabled. These source fixes do not apply infrastructure
+or change the installed IAM documents.

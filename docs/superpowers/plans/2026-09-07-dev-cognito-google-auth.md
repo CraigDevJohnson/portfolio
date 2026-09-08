@@ -75,7 +75,7 @@ for _, email := range []string{"", "craigdevjohnson+dev@gmail.com", "craig.dev.j
 }
 ```
 
-- [x] Implement configuration parsing: trim and lowercase bare mailbox addresses, reject malformed/empty comma elements, deduplicate; require a nonempty valid allowlist, issuer, valid callback and logout alongside the existing key/domain/client fields for `PortalEnabled`. Accept HTTPS callback/logout URLs; permit an HTTP loopback callback only with `MGMT_ALLOW_LOCAL_CALLBACK=true`. Validate issuer as an HTTPS URL with a user-pool path and no credentials/query/fragment. Do not derive it from request or token content.
+- [x] Implement configuration parsing: trim and lowercase bare mailbox addresses, reject malformed/empty comma elements, deduplicate; require a nonempty valid allowlist, issuer, valid callback and logout alongside the existing key/domain/client fields for `PortalEnabled`. Require the literal `/callback` path and accept HTTPS callback/logout URLs; permit an HTTP loopback callback only with `MGMT_ALLOW_LOCAL_CALLBACK=true`. Validate issuer as an HTTPS URL with a user-pool path and no credentials/query/fragment. Do not derive it from request or token content.
 - [x] Add a signed JWT test fixture whose Hosted UI domain differs from issuer. Serve JWKS from the issuer test server, exchange a code through the Hosted UI test server, and assert the PKCE verifier is sent. Valid tokens require RS256 signature, exact issuer/client audience, future expiry, and ID-token use. Reject missing/invalid expiry, wrong key/signature/algorithm/issuer/audience/token use, and missing subject.
 - [x] Implement the issuer correction and verified-email extraction. Keep `email_verified` strictly boolean; strings such as `"true"` are not proof. Add `identity_provider=Google` to the authorization URL while retaining state, S256 challenge and all approved scopes. Remove token-endpoint response bodies from returned errors so they cannot reach callback logs.
 - [x] Exercise `CallbackHandler` with encrypted OAuth-state cookies and signed ID tokens. Approved verified email returns `/mgmt` plus a decryptable session cookie. Missing/malformed/unverified/other email, username-only tokens, wrong state and invalid signature return a generic failure and no usable session cookie. Assert logs contain reason categories and no sentinel tokens, codes, response bodies or claimed email. Clear any previous portal session on a rejected callback.
@@ -86,9 +86,9 @@ for _, email := range []string{"", "craigdevjohnson+dev@gmail.com", "craig.dev.j
 
 **Files:** `cmd/lambda/secrets.go`, `cmd/lambda/secrets_test.go`.
 
-**Interfaces:** `ssmSecretEnvVars` includes `MGMT_SESSION_KEY`; preserve `resolveSSMSecretsWithClient(ctx, client) error` and its validation-before-application behavior.
+**Interfaces:** `ssmSecretEnvVars` lists required secrets only. `resolveSSMSecretsWithClient(ctx, client) error` preserves their atomic validation-before-application behavior, then resolves the optional `MGMT_SESSION_KEY` independently. PR #71 review corrected the original shared-batch design to preserve site availability.
 
-- [x] Add failing tests that set `MGMT_SESSION_KEY=/portfolio/lambda/dev/MGMT_SESSION_KEY` and prove the resolver requests it with decryption, installs the returned value, and leaves all variables unchanged if that value is missing or invalid.
+- [x] Add failing tests that set `MGMT_SESSION_KEY=/portfolio/lambda/dev/MGMT_SESSION_KEY` and prove the resolver requests it with decryption, installs the returned value, and clears only the portal key if it is missing, inaccessible or invalid. Required secrets still resolve atomically, and optional-key failures cannot fail Lambda startup.
 
 ```go
 t.Setenv("CLIENT_ID_KEY", "")
@@ -105,7 +105,7 @@ if os.Getenv("MGMT_SESSION_KEY") != strings.Repeat("ab", 32) {
 }
 ```
 
-- [x] Extend the allowlist without treating arbitrary `MGMT_*` values as SSM paths. Keep unset/literal management values unchanged and avoid logging plaintext values. Isolate environment variables in every resolver test.
+- [x] Resolve only the exact optional management variable without treating arbitrary `MGMT_*` values as SSM paths. Keep unset/literal management values unchanged and avoid logging plaintext values. Isolate environment variables in every resolver test.
 - [x] Run `go test ./cmd/lambda`; commit `feat(lambda): resolve the management session key from SSM`.
 
 ## Task 3: Build and test the isolated development Cognito stack
@@ -205,7 +205,7 @@ default = null
 - [ ] Deploy the tested application revision through the existing reviewed release process before runtime enablement. Verify `/healthz`, immutable image digest and live alias; current main's CI success alone is insufficient.
 - [ ] Generate a fresh 32-byte session key and inject its 64-character lowercase hex representation as the exact SecureString through a separately authorized action. Never print or commit it. Verify metadata/access, not the plaintext. The reviewed development boundary is installed and verified; review target EC2 instances before separately authorizing opt-in tagging.
 - [ ] Commit/review the public management settings, then make a saved development runtime plan that changes only the expected env/IAM/version/alias fields. Review exact existing resources and runtime settings; apply only after explicit authorization. Production and the direct Google Calendar OAuth flow remain unchanged.
-- [ ] In a browser, verify `/login` → Google → Cognito → `/callback` → `/mgmt`; approved verified email receives a Secure/HttpOnly encrypted cookie. A second, unapproved Google identity must fail without a usable portal cookie. Also verify wrong state and disabled configuration fail safely, logout clears the cookie, and public routes remain anonymous.
+- [ ] In a browser, verify `/login` → explicit sign-in button → Google → Cognito → `/callback` → `/mgmt`; approved verified email receives a Secure/HttpOnly encrypted cookie. A second, unapproved Google identity must fail without a usable portal cookie. Also verify wrong state and disabled configuration fail safely, logout clears session and OAuth-state cookies and stays signed out, and public routes remain anonymous.
 - [ ] Verify cold-start SSM resolution, describe/metrics/log reads, tagged start/stop permission and untagged denial using authorized targets. Record restart behavior separately: its current immediate stop/start sequence may fail while EC2 is stopping; fix only with a scoped test and a reviewed behavior change if live proof exposes that issue.
 - [ ] Run a converged infrastructure plan and preserve sanitized outcome evidence. Record rollback as removing management settings/redeploying the previous tested alias under review, without deleting Cognito identities or production resources.
 

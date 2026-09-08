@@ -58,7 +58,7 @@ func (c *Config) PortalEnabled() bool {
 	if _, err := NormalizeCognitoDomain(c.PortalCognitoDomain); err != nil {
 		return false
 	}
-	if !validCognitoIssuer(c.PortalCognitoIssuer) || !validPortalReturnURL(c.PortalCognitoRedirectURI, c.PortalAllowLocalCallback) || !validPortalReturnURL(c.PortalCognitoLogoutURI, false) {
+	if !validCognitoIssuer(c.PortalCognitoIssuer) || !validPortalReturnURL(c.PortalCognitoRedirectURI, "/callback", c.PortalAllowLocalCallback) || !validPortalReturnURL(c.PortalCognitoLogoutURI, "", false) {
 		return false
 	}
 	for _, email := range c.PortalAllowedEmails {
@@ -134,9 +134,12 @@ func validCognitoIssuer(raw string) bool {
 	return pool != "" && pool != "." && pool != ".." && !strings.Contains(pool, "/")
 }
 
-func validPortalReturnURL(raw string, allowLoopback bool) bool {
+func validPortalReturnURL(raw, requiredPath string, allowLoopback bool) bool {
 	parsed, err := parsePortalURL(raw)
-	return err == nil && (parsed.Scheme == "https" || (parsed.Scheme == "http" && allowLoopback && isLoopbackHost(parsed.Hostname())))
+	if err != nil || (requiredPath != "" && parsed.EscapedPath() != requiredPath) {
+		return false
+	}
+	return parsed.Scheme == "https" || (parsed.Scheme == "http" && allowLoopback && isLoopbackHost(parsed.Hostname()))
 }
 
 func parsePortalURL(raw string) (*url.URL, error) {

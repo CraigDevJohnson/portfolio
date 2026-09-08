@@ -144,7 +144,10 @@ The portal requires:
 - `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL
 - `MGMT_ALLOWED_EMAILS`, a nonempty comma-separated list of bare email addresses
 
-Sign-in selects Google through Cognito. The application verifies the signed
+`GET /login` displays a signed-out page. Its sign-in button submits `POST /login`
+to start Google authentication through Cognito. Logout clears the portal session
+and pending OAuth state, then returns to the page without restarting sign-in.
+The application verifies the signed
 Cognito ID token using the configured user-pool issuer and its JWKS, then
 requires a boolean `email_verified: true` claim and an exact allowlist match.
 Addresses are trimmed and lowercased; dots and plus suffixes remain significant.
@@ -156,7 +159,9 @@ For development, register `https://dev.craigdevjohnson.com/callback` and
 (such as `http://localhost:8080/callback`) also requires
 `MGMT_ALLOW_LOCAL_CALLBACK=true`; logout URLs remain HTTPS. This enables real
 Cognito sign-in locally and is separate from the mock preview below.
-Incomplete or invalid identity configuration disables portal routes.
+Incomplete or invalid identity configuration disables portal routes. In Lambda,
+the management session key resolves separately from required secrets; a missing
+or inaccessible key disables the portal while the rest of the site can start.
 `MGMT_AWS_REGION` defaults to `us-east-1`.
 
 The runtime AWS identity needs these actions:
@@ -166,6 +171,10 @@ The runtime AWS identity needs these actions:
 - `ec2:StopInstances`
 - `cloudwatch:GetMetricStatistics`
 - `logs:FilterLogEvents`
+
+The development dashboard enables start, stop and restart only for instances
+tagged `PortfolioManagement=dev`, subject to their lifecycle state. Other
+instances remain visible with read-only metrics and logs; IAM enforces actions.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 

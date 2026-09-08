@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"portfolio/cmd/web/pages"
 	"portfolio/internal/config"
 )
 
@@ -19,7 +20,7 @@ func UsernameFromContext(ctx context.Context) (string, bool) {
 	return username, ok && username != ""
 }
 
-// LoginPageHandler starts the Cognito Authorization Code + PKCE flow.
+// LoginPageHandler renders the sign-in page and starts OAuth only on POST.
 func (h *Handler) LoginPageHandler(w http.ResponseWriter, r *http.Request) {
 	if session, err := h.loadSession(r); err == nil && session.IsValid() {
 		http.Redirect(w, r, "/mgmt", http.StatusFound)
@@ -27,6 +28,10 @@ func (h *Handler) LoginPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.OIDC == nil || h.Config == nil || !h.Config.PortalEnabled() {
 		h.renderErrorPage(w, r, http.StatusServiceUnavailable, "The management portal is not configured.")
+		return
+	}
+	if r.Method != http.MethodPost {
+		h.renderComponent(w, r, pages.PortalLogin())
 		return
 	}
 	verifier, err := generateCodeVerifier()
@@ -44,7 +49,7 @@ func (h *Handler) LoginPageHandler(w http.ResponseWriter, r *http.Request) {
 		h.renderErrorPage(w, r, http.StatusInternalServerError, "Unable to start sign-in.")
 		return
 	}
-	http.Redirect(w, r, h.OIDC.AuthorizationURL(state, codeChallenge(verifier)), http.StatusFound)
+	http.Redirect(w, r, h.OIDC.AuthorizationURL(state, codeChallenge(verifier)), http.StatusSeeOther)
 }
 
 // CallbackHandler completes the Cognito Authorization Code + PKCE flow.
@@ -105,6 +110,7 @@ func (h *Handler) rejectSignIn(w http.ResponseWriter, r *http.Request, status in
 // LogoutHandler clears the local session and delegates logout to Cognito when configured.
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	h.clearSession(w, r)
+	h.clearOAuthState(w, r)
 	if h.OIDC != nil {
 		if target := h.OIDC.LogoutURL(); target != "" {
 			http.Redirect(w, r, target, http.StatusFound)

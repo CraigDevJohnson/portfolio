@@ -51,7 +51,9 @@
 - Cognito hosted UI domain and user-pool issuer are separate: OAuth endpoints
   use the domain, while signed ID-token validation and JWKS use the issuer.
   Only verified, exact allowlisted emails receive portal sessions.
-- The registered callback is `/callback`; callback and logout URLs require
+- `GET /login` renders a signed-out page; `POST /login` starts Google sign-in.
+  Logout returns to that page and clears both session and pending OAuth cookies.
+- The registered callback is exactly `/callback`; callback and logout URLs require
   HTTPS. An HTTP loopback callback requires `MGMT_ALLOW_LOCAL_CALLBACK=true`.
   `MGMT_AWS_REGION` defaults to `us-east-1`.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)

@@ -332,3 +332,43 @@ func TestPortalLocalCallbackRequiresExplicitOptIn(t *testing.T) {
 		})
 	}
 }
+
+func TestPortalCallbackMustMatchRegisteredRoute(t *testing.T) {
+	cases := []struct {
+		name          string
+		callback      string
+		allowLoopback bool
+		wantEnabled   bool
+	}{
+		{name: "development callback", callback: "https://dev.craigdevjohnson.com/callback", wantEnabled: true},
+		{name: "HTTPS loopback callback", callback: "https://localhost:8080/callback", wantEnabled: true},
+		{name: "HTTP loopback opt-in", callback: "http://localhost:8080/callback", allowLoopback: true, wantEnabled: true},
+		{name: "HTTP loopback requires opt-in", callback: "http://localhost:8080/callback"},
+		{name: "legacy callback", callback: "https://app.example/auth/callback"},
+		{name: "different route", callback: "https://app.example/login"},
+		{name: "missing path", callback: "https://app.example"},
+		{name: "trailing slash", callback: "https://app.example/callback/"},
+		{name: "case mismatch", callback: "https://app.example/Callback"},
+		{name: "encoded path", callback: "https://app.example/%63allback"},
+		{name: "encoded slash", callback: "https://app.example/%2fcallback"},
+		{name: "path normalization", callback: "https://app.example/auth/../callback"},
+		{name: "query", callback: "https://app.example/callback?code=1"},
+		{name: "empty query", callback: "https://app.example/callback?"},
+		{name: "fragment", callback: "https://app.example/callback#fragment"},
+		{name: "empty fragment", callback: "https://app.example/callback#"},
+		{name: "loopback legacy callback", callback: "http://127.0.0.1:8080/auth/callback", allowLoopback: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validPortalEnvironment(t)
+			t.Setenv("MGMT_COGNITO_REDIRECT_URI", tc.callback)
+			if tc.allowLoopback {
+				t.Setenv("MGMT_ALLOW_LOCAL_CALLBACK", "true")
+			}
+			cfg := Load()
+			if got := cfg.PortalEnabled(); got != tc.wantEnabled {
+				t.Fatalf("PortalEnabled() = %v, want %v for callback %q", got, tc.wantEnabled, tc.callback)
+			}
+		})
+	}
+}
