@@ -339,11 +339,7 @@ templ SkillsFilterableSection(props SkillsGridProps) {
 						<header class="skill-category-heading">
 							<span class="skill-category-index">{ fmt.Sprintf("%02d", len(category.Skills)) }</span>
 							<h3>{ category.Name }</h3>
-							if len(category.Skills) == 1 {
-								<span>1 skill</span>
-							} else {
-								<span>{ fmt.Sprintf("%d skills", len(category.Skills)) }</span>
-							}
+							<span>{ category.CountLabel }</span>
 						</header>
 						<div class="skill-card-grid">
 							for _, item := range category.Skills {
