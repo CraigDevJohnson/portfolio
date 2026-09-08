@@ -159,8 +159,13 @@ jobs:
   development:
     needs: [authorize, build]
     if: >-
-      needs.authorize.outputs.classification == 'development' ||
-      needs.authorize.outputs.classification == 'development-reviewed'
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success' &&
+      (
+        needs.authorize.outputs.classification == 'development' ||
+        needs.authorize.outputs.classification == 'development-reviewed'
+      )
     environment: development
     concurrency:
       group: lambda-development
