@@ -59,7 +59,9 @@ resource "aws_cognito_user_pool_client" "management" {
   callback_urls                        = concat([local.callback_uri], var.enable_local_callback ? [local.local_callback_uri] : [])
   logout_urls                          = [local.logout_uri]
   read_attributes                      = ["email", "email_verified", "name"]
-  write_attributes                     = ["email", "name"]
+  # Cognito forbids client writes to email_verified; Google supplies its value
+  # through the IdP mapping above. See the PR #71 review record for AWS guidance.
+  write_attributes = ["email", "name"]
 }
 
 resource "aws_cognito_user_pool_domain" "management" {

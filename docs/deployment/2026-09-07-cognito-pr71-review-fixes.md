@@ -1,8 +1,9 @@
 # PR #71 review fixes
 
-All four code-review findings on `8c5ccee8` were reproduced or verified against
-the approved development design. No cloud policy or resource changes are part
-of these fixes.
+The original four code-review findings on `8c5ccee8` were reproduced or verified
+against the approved development design and fixed in `df817a96`. The follow-up
+finding on that commit was checked against current AWS documentation. No live
+cloud policy or resource changes are part of this review work.
 
 | Finding | Result |
 | --- | --- |
@@ -15,6 +16,27 @@ Cognito logout does not end a user's Google session, so automatically starting
 OAuth at the logout return URL can sign them in again. The explicit button
 prevents that automatic restart. See the
 [AWS logout endpoint documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/logout-endpoint.html).
+
+The follow-up request to [add `email_verified` to client write permissions](https://github.com/CraigDevJohnson/portfolio/pull/71#discussion_r3954397679)
+is not applicable. AWS explicitly prohibits app-client write access to
+`email_verified` and `phone_number_verified`; see
+[app-client attribute permissions](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-client-apps.html).
+AWS separately documents mapping Google's `email_verified` claim to obtain the
+provider's verification status; see
+[identity-provider attribute mapping](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-specifying-attribute-mapping.html).
+The current configuration follows both requirements: map and read
+`email_verified`, and grant writes only to the ordinary mapped attributes
+`email` and `name`. Adding the requested permission would contradict the
+documented app-client restriction. The configuration comment now explains this
+exception; the existing OpenTofu and saved-plan contracts retain the supported
+attribute sets.
+
+The still-unresolved logout and EC2-control threads were rechecked against
+`df817a96`. Their fixes are present even though the comments are attached to
+unchanged infrastructure lines: the registered logout URL now reaches the inert
+GET handler, and the instance view model now enforces tag eligibility when
+rendering controls. Focused routing, cookie, tag and lifecycle tests passed on
+reinspection. No additional behavior changes were needed for those threads.
 
 Focused regressions cover secret isolation and warning redaction; GET/POST
 sign-in routing, PKCE state binding and logout cookies; callback path rejection;
