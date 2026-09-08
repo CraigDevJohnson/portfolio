@@ -28,6 +28,9 @@ printf '%s\n' "$PRIOR_VERSION" | grep -Eq '^[1-9][0-9]*$' || {
 
 root=infra/lambda/environments/dev
 plan_name=rollback.tfplan
+ENVIRONMENT=dev EXPECTED_MANAGEMENT_JSON="${EXPECTED_MANAGEMENT_JSON:-null}" \
+  sh "$(dirname "$0")/check-management-input.sh"
+
 mkdir -p "$EVIDENCE_DIR"
 for evidence_name in \
   "$plan_name" rollback.json rollback.txt rollback.sha256 rollback-policy.txt; do
@@ -63,7 +66,8 @@ workspace=$(tofu -chdir="$root" workspace show)
   exit 1
 }
 
-if ! TF_VAR_ecr_repository_url="$ECR_URL" \
+if ! TF_VAR_management="${EXPECTED_MANAGEMENT_JSON:-null}" \
+  TF_VAR_ecr_repository_url="$ECR_URL" \
   TF_VAR_image_digest="$IMAGE_DIGEST" \
   TF_VAR_live_version_override="$PRIOR_VERSION" \
   tofu -chdir="$root" plan \

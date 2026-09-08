@@ -431,3 +431,228 @@ run "runtime_policy_attachment_contract" {
     error_message = "the attached runtime policy must be only the reviewed document without source or override merges"
   }
 }
+
+run "management_enabled_contract" {
+  command = plan
+  variables {
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  assert {
+    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 8
+    error_message = "management must add a session parameter reference and exactly three bounded management IAM statements"
+  }
+
+  assert {
+    condition = aws_lambda_function.app.environment[0].variables == tomap({
+      CLIENT_ID_KEY                = "/portfolio/lambda/dev/CLIENT_ID_KEY"
+      CLIENT_SECRET_KEY            = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
+      GOOGLE_CONNECTION_TABLE_NAME = "portfolio-lambda-dev-google-connections"
+      LOG_ADD_SOURCE               = "false"
+      LOG_FORMAT                   = "json"
+      LOG_LEVEL                    = "info"
+      LPS_SESSION_KEY              = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-dev-soccer-sessions"
+      MGMT_SESSION_KEY             = "/portfolio/lambda/dev/MGMT_SESSION_KEY"
+      MGMT_COGNITO_DOMAIN          = var.management.cognito_domain
+      MGMT_COGNITO_ISSUER          = var.management.cognito_issuer
+      MGMT_COGNITO_CLIENT_ID       = var.management.cognito_client_id
+      MGMT_COGNITO_REDIRECT_URI    = "https://dev.craigdevjohnson.com/callback"
+      MGMT_COGNITO_LOGOUT_URI      = "https://dev.craigdevjohnson.com/login"
+      MGMT_ALLOWED_EMAILS          = "craigdevjohnson@gmail.com"
+      MGMT_ALLOW_LOCAL_CALLBACK    = "false"
+      MGMT_AWS_REGION              = "us-west-2"
+    })
+    error_message = "enabled runtime environment must match the full public contract, with a path instead of the session value"
+  }
+  assert {
+    condition = (
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        toset(st.actions) == toset(["ec2:StartInstances", "ec2:StopInstances"]) &&
+        st.resources == toset(["arn:aws:ec2:us-west-2:180294223248:instance/*"]) &&
+        length(st.condition) == 1 && alltrue([for c in st.condition :
+      c.test == "StringEquals" && c.variable == "ec2:ResourceTag/PortfolioManagement" && toset(c.values) == toset(["dev"])])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        toset(st.actions) == toset(["ec2:DescribeInstances", "cloudwatch:GetMetricStatistics"]) &&
+        st.resources == toset(["*"]) && length(st.condition) == 1 &&
+      alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "aws:RequestedRegion" && toset(c.values) == toset(["us-west-2"])])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["logs:FilterLogEvents"]) &&
+      st.resources == toset(["arn:aws:logs:us-west-2:180294223248:log-group:/ec2/i-*:*"]) && length(st.condition) == 0]) == 1
+    )
+    error_message = "management permissions must have exact actions, tag, region and log-group scope"
+  }
+  assert {
+    condition = (length([for st in data.aws_iam_policy_document.lambda.statement : st if
+      st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
+      alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
+      toset(c.values) == toset([for path in values(output.ssm_parameter_paths) : "arn:aws:ssm:us-west-2:180294223248:parameter${path}"])])]) == 1 &&
+    output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+    error_message = "enabled KMS context must exactly bind the four SSM parameters"
+  }
+}
+
+run "management_reject_prod" {
+  command = plan
+  variables {
+    environment = "prod"
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "management_reject_region" {
+  command = plan
+  variables {
+    aws_region = "us-east-1"
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "management_reject_account" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  override_data {
+    target = data.aws_caller_identity.current
+    values = { account_id = "999999999999" }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "management_reject_email" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["other@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [var.management]
+}
+
+run "management_reject_empty_email" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = []
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [var.management]
+}
+
+run "management_reject_callback" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "http://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [var.management]
+}
+
+run "management_reject_tag" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "OtherTag"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [var.management]
+}
+
+run "management_reject_issuer" {
+  command = plan
+  variables {
+
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-east-1_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  expect_failures = [var.management]
+}

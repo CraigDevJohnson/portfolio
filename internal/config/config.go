@@ -23,6 +23,9 @@ type Config struct {
 	// Portal fields
 	PortalSessionKey         []byte
 	PortalCognitoDomain      string
+	PortalCognitoIssuer      string
+	PortalAllowedEmails      []string
+	PortalAllowLocalCallback bool
 	PortalCognitoClientID    string
 	PortalCognitoRedirectURI string
 	PortalCognitoLogoutURI   string
@@ -76,54 +79,6 @@ func Load() Config {
 	return cfg
 }
 
-// loadPortalConfig reads portal-specific env vars and populates cfg.
-// It is called from Load() after the soccer session key is resolved.
-func loadPortalConfig(logger *slog.Logger, cfg *Config) {
-	cfg.PortalAWSRegion = resolvePortalRegion()
-	mgmtKeyHex := envTrimmed("MGMT_SESSION_KEY")
-	if mgmtKeyHex == "" {
-		// An absent key disables the portal without warning.
-		logger.Info("portal config loaded", slog.Bool("portal_enabled", false), slog.String("aws_region", resolvePortalRegion()))
-		return
-	}
-
-	decoded, err := hex.DecodeString(mgmtKeyHex)
-	if err != nil || len(decoded) != sessionKeyLengthBytes || mgmtKeyHex != strings.ToLower(mgmtKeyHex) {
-		// A malformed key disables the portal and emits a warning.
-		logger.Warn("portal disabled; MGMT_SESSION_KEY must be a 64-character hex string")
-		logger.Info("portal config loaded", slog.Bool("portal_enabled", false), slog.String("aws_region", resolvePortalRegion()))
-		return
-	}
-
-	cfg.PortalSessionKey = decoded
-
-	cognitoDomain := envTrimmed("MGMT_COGNITO_DOMAIN")
-	cognitoClientID := envTrimmed("MGMT_COGNITO_CLIENT_ID")
-
-	validatedDomain, domainErr := NormalizeCognitoDomain(cognitoDomain)
-	if cognitoDomain == "" || cognitoClientID == "" || domainErr != nil {
-		// Incomplete Cognito configuration disables the portal and emits a warning.
-		logger.Warn("portal disabled; MGMT_COGNITO_DOMAIN and MGMT_COGNITO_CLIENT_ID are both required when MGMT_SESSION_KEY is set")
-		logger.Info("portal config loaded", slog.Bool("portal_enabled", false), slog.String("aws_region", resolvePortalRegion()))
-		return
-	}
-
-	cfg.PortalCognitoDomain = validatedDomain
-	cfg.PortalCognitoClientID = cognitoClientID
-	cfg.PortalCognitoRedirectURI = envTrimmed("MGMT_COGNITO_REDIRECT_URI")
-	cfg.PortalCognitoLogoutURI = envTrimmed("MGMT_COGNITO_LOGOUT_URI")
-	cfg.PortalAWSRegion = resolvePortalRegion()
-	logger.Info("portal config loaded", slog.Bool("portal_enabled", true), slog.String("aws_region", cfg.PortalAWSRegion))
-}
-
-// resolvePortalRegion returns the configured AWS region or the default.
-func resolvePortalRegion() string {
-	if r := envTrimmed("MGMT_AWS_REGION"); r != "" {
-		return r
-	}
-	return DefaultPortalAWSRegion
-}
-
 // LoginEnabled reports whether soccer JWT import is configured.
 func (c *Config) LoginEnabled() bool {
 	return len(c.SessionKey) == sessionKeyLengthBytes
@@ -140,25 +95,6 @@ func (c *Config) GoogleEnabled() bool {
 // SoccerSessionEnabled reports whether DynamoDB soccer session persistence is configured.
 func (c *Config) SoccerSessionEnabled() bool {
 	return c.LoginEnabled() && c.SoccerSessionTableName != ""
-}
-
-// PortalEnabled reports whether the EC2 management portal is fully configured.
-// It returns true only when the session key is valid, the Cognito domain is set,
-// and the Cognito client ID is set.
-func (c *Config) PortalEnabled() bool {
-	return len(c.PortalSessionKey) == sessionKeyLengthBytes && c.PortalCognitoDomain != "" && c.PortalCognitoClientID != ""
-}
-
-// NormalizeCognitoDomain validates the Cognito hosted UI origin used by OAuth.
-// Restricting it to HTTPS and an origin prevents user-controlled endpoint
-// construction from becoming an SSRF primitive.
-func NormalizeCognitoDomain(raw string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || !parsed.IsAbs() || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
-		return "", errors.New("Cognito domain must be an HTTPS origin without credentials, path, query, or fragment")
-	}
-	parsed.Path = ""
-	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 // PublicBindEnabled reports whether the server should bind to all interfaces.
