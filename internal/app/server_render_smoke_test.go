@@ -970,13 +970,15 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`src="/static/images/backgrounds/about-hero.jpg"`,
 		`--page-kit-hero-photo-position: center 36%;`,
 		`Alaska roots, wider horizons`,
-		`From Alaska service desks to principal-level cloud engineering.`,
+		`From Alaska to cloud engineering`,
+		`My career started at a local university service desk in Alaska`,
+		`A service mindset`,
 		`Years in Tech`,
 		`Certifications`,
 		`Technologies`,
 		`Cups of Coffee`,
 		`Originally from Alaska`,
-		`Family of 4 + 2 dogs`,
+		`Family of 4`,
 		`Lifelong soccer enthusiast`,
 		`Bachelor of Science in Cloud Computing`,
 		`Cloud &amp; automation specialist`,
@@ -992,7 +994,6 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`Playing and coaching`,
 		`Alaska roots mean a love for hiking`,
 		`Strategy and building games exercise`,
-		`A lively home office comes with four paws`,
 		`Iterate, measure, and leave the system easier`,
 		`Build with the people who operate the platform`,
 		`Break complex constraints into practical`,
@@ -1007,6 +1008,11 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 			t.Errorf("GET %s About Alaska switchback does not contain %q", path, marker)
 		}
 	}
+	for _, marker := range []string{"Dog Dad", "2 dogs", "four paws"} {
+		if strings.Contains(body, marker) {
+			t.Errorf("GET %s About Alaska switchback retains removed personal detail %q", path, marker)
+		}
+	}
 
 	hero, err := findTestHTMLElementMarkup(body, `class="page-kit-shell page-kit-hero`)
 	if err != nil {
@@ -1015,8 +1021,8 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		if strings.Contains(hero, "min-h-full") {
 			t.Errorf("GET %s About hero retains min-h-full utility that clips stacked hero content", path)
 		}
-		if !strings.Contains(hero, "about-hero-content") {
-			t.Errorf("GET %s About hero lacks its route-owned content layout class", path)
+		if !strings.Contains(hero, "page-hero-compact") {
+			t.Errorf("GET %s About hero lacks the shared compact layout class", path)
 		}
 	}
 
@@ -1766,7 +1772,7 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260907b`,
+		`/static/css/tailwind.css?v=20260908a`,
 		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {

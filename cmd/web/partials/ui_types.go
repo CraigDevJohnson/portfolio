@@ -104,6 +104,7 @@ type PageHeroProps struct {
 	ImageHeight   int
 	Caption       string
 	Variant       HeroVariant
+	Compact       bool
 	ExtraClass    string
 	ContentClass  string
 }
@@ -350,10 +351,14 @@ func pageHeroStatusDotClasses(animated bool) string {
 }
 
 func pageHeroClasses(props *PageHeroProps) string {
-	return mergeClasses(
-		"page-kit-shell page-kit-hero relative isolate overflow-hidden p-0 "+heroVariantClass(props.Variant),
-		props.ExtraClass,
-	)
+	classes := "page-kit-shell page-kit-hero relative isolate overflow-hidden"
+	if props.Compact {
+		classes += " page-hero-compact"
+	} else {
+		classes += " p-0"
+	}
+	classes += " " + heroVariantClass(props.Variant)
+	return mergeClasses(classes, props.ExtraClass)
 }
 
 func pageKitLegacyToneClass(tone Tone) string {

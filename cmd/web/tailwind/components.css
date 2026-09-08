@@ -1750,3 +1750,58 @@ body[data-shell='operator'] .site-operator-footer-shell {
     height: 2.7rem;
   }
 }
+
+/* Short introductions size to their content; imagery supports the page purpose. */
+.page-kit-hero.page-hero-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-lg);
+  min-height: 0;
+  padding: clamp(var(--space-lg), 4vw, var(--space-2xl));
+  align-items: center;
+}
+
+.page-hero-compact .page-kit-hero-content {
+  order: -1;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.page-hero-compact .page-hero-title {
+  max-width: 18ch;
+  font-size: clamp(var(--text-4xl), 5vw, 4.5rem);
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+
+.page-hero-compact .page-kit-hero-photo {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  margin: 0;
+  aspect-ratio: 2 / 1;
+  border-radius: var(--radius-xl) var(--radius-md) var(--radius-md) var(--radius-md);
+  box-shadow: var(--space-xs) var(--space-xs) 0 color-mix(in srgb, var(--hero-signal) 76%, transparent);
+  transform: none;
+}
+
+.page-hero-compact .page-kit-hero-photo::after,
+.page-hero-compact .page-kit-hero-photo-image {
+  border-radius: var(--radius-lg) var(--radius-sm) var(--radius-sm) var(--radius-sm);
+}
+
+@media (min-width: 48rem) {
+  .page-kit-hero.page-hero-compact {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: clamp(var(--space-lg), 4vw, var(--space-2xl));
+  }
+
+  .page-hero-compact .page-kit-hero-photo {
+    aspect-ratio: 4 / 3;
+  }
+}

@@ -17,6 +17,12 @@ Plex Sans. Use the shared weight tokens and avoid unsupported intermediate or
 extra-bold weights. Home hero text uses slightly looser tracking and line spacing;
 long Experience role titles wrap naturally with a 1.2 line height.
 
+Page eyebrows identify the section; the main heading explains its content rather
+than repeating the section name. Short introductions use the shared compact hero
+so content determines height, with text before supporting imagery on small screens.
+Move useful existing context into the introduction instead of adding filler to
+fill a tall frame.
+
 The warm CJ medallion is the shared signature. Keep surrounding navigation quiet:
 text labels for destinations, a pill for the active header destination, and an
 underline for the active footer destination. Do not add decorative route icons.

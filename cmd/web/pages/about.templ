@@ -27,7 +27,6 @@ func aboutHobbyCards() []partials.FeatureCardProps {
 		{IconName: partials.UIIconSoccer, Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
 		{IconName: partials.UIIconTree, Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
 		{IconName: partials.UIIconGaming, Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
-		{IconName: partials.UIIconDog, Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-dog-dad stagger-enter"},
 	}
 }
 
@@ -48,7 +47,7 @@ type aboutQuickFact struct {
 func aboutQuickFacts() []aboutQuickFact {
 	return []aboutQuickFact{
 		{IconName: partials.UIIconMountain, Text: "Originally from Alaska"},
-		{IconName: partials.UIIconFamily, Text: "Family of 4 + 2 dogs"},
+		{IconName: partials.UIIconFamily, Text: "Family of 4"},
 		{IconName: partials.UIIconSoccer, Text: "Lifelong soccer enthusiast"},
 		{IconName: partials.UIIconEducation, Text: "Bachelor of Science in Cloud Computing"},
 		{IconName: partials.UIIconArchitecture, Text: "Cloud & automation specialist"},
@@ -93,11 +92,16 @@ templ About(props AboutProps) {
 				ImagePosition: "center 36%",
 				Caption:       "Alaska roots, wider horizons",
 				Variant:       partials.HeroNarrative,
+				Compact:       true,
 				ExtraClass:    "about-hero",
-				ContentClass:  "about-hero-content",
 			}) {
-				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me"}) {
-					<p class="page-hero-description">From Alaska service desks to principal-level cloud engineering.</p>
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "From Alaska to cloud engineering"}) {
+					<p class="page-hero-description">
+						My career started at a local university service desk in Alaska, where I learned that useful
+						tech support begins with patient troubleshooting and clear explanations. Since then, I've
+						worked in healthcare IT, enterprise systems, and cloud engineering — each step adding
+						more scale and responsibility.
+					</p>
 				}
 			}
 			<div class="page-stats-section about-stats-section" role="group" aria-label="Career at a glance">
@@ -108,16 +112,10 @@ templ About(props AboutProps) {
 					<div class="about-story-copy">
 						@partials.SectionIntro(partials.SectionIntroProps{
 							Label:      "My Story",
-							Title:      "From the Last Frontier to the Cloud",
+							Title:      "A service mindset",
 							ExtraClass: "about-story-heading",
 						})
 						<div class="about-story-prose">
-							<p>
-								My career started at a local university service desk in Alaska, where I learned that useful
-								tech support begins with patient troubleshooting and clear explanations. Since then, I've
-								worked in healthcare IT, enterprise systems, and cloud engineering — each step adding
-								more scale and responsibility.
-							</p>
 							<blockquote class="about-story-pullquote">
 								Leaving Alaska expanded both the environments I could work in and the problems I could learn from.
 							</blockquote>
