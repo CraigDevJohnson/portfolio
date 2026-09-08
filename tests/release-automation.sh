@@ -1806,6 +1806,186 @@ workflow_job() {
   ' "$root_dir/.github/workflows/release.yml"
 }
 
+workflow_job_condition() {
+  awk '
+    /^    if: >-$/ {
+      selected = 1
+      next
+    }
+    selected && /^    [[:alnum:]_-]+:/ { exit }
+    selected {
+      sub(/^[[:space:]]+/, "")
+      print
+    }
+  ' << EOF
+$1
+EOF
+}
+
+assert_release_job_routes() {
+  python3 - "$@" <<'PY'
+import ast
+import re
+import sys
+
+if len(sys.argv) != 3:
+    raise SystemExit("expected build and development workflow conditions")
+
+conditions = {
+    "build": sys.argv[1],
+    "development": sys.argv[2],
+}
+
+cases = [
+    {
+        "label": "ordinary development build after skipped review",
+        "job": "build",
+        "expected": True,
+        "classification": "development",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "skipped"},
+        "cancelled": False,
+        "implicit_success": False,
+    },
+    {
+        "label": "reviewed development build after approval",
+        "job": "build",
+        "expected": True,
+        "classification": "development-reviewed",
+        "results": {"authorize": "success", "development-review": "success", "build": "skipped"},
+        "cancelled": False,
+        "implicit_success": True,
+    },
+    {
+        "label": "reviewed development build without approval",
+        "job": "build",
+        "expected": False,
+        "classification": "development-reviewed",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "skipped"},
+        "cancelled": False,
+        "implicit_success": False,
+    },
+    {
+        "label": "ordinary development deployment after successful build",
+        "job": "development",
+        "expected": True,
+        "classification": "development",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "success"},
+        "cancelled": False,
+        "implicit_success": False,
+    },
+    {
+        "label": "reviewed development deployment after successful build",
+        "job": "development",
+        "expected": True,
+        "classification": "development-reviewed",
+        "results": {"authorize": "success", "development-review": "success", "build": "success"},
+        "cancelled": False,
+        "implicit_success": True,
+    },
+    {
+        "label": "development deployment after authorization failure",
+        "job": "development",
+        "expected": False,
+        "classification": "development",
+        "results": {"authorize": "failure", "development-review": "skipped", "build": "success"},
+        "cancelled": False,
+        "implicit_success": False,
+    },
+    {
+        "label": "development deployment after build failure",
+        "job": "development",
+        "expected": False,
+        "classification": "development",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "failure"},
+        "cancelled": False,
+        "implicit_success": False,
+    },
+    {
+        "label": "development deployment after cancellation",
+        "job": "development",
+        "expected": False,
+        "classification": "development",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "success"},
+        "cancelled": True,
+        "implicit_success": False,
+    },
+    {
+        "label": "review-only change deployment",
+        "job": "development",
+        "expected": False,
+        "classification": "review",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "success"},
+        "cancelled": False,
+        "implicit_success": True,
+    },
+    {
+        "label": "skip-only change deployment",
+        "job": "development",
+        "expected": False,
+        "classification": "skip",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "success"},
+        "cancelled": False,
+        "implicit_success": True,
+    },
+    {
+        "label": "production-plan change deployment",
+        "job": "development",
+        "expected": False,
+        "classification": "production",
+        "results": {"authorize": "success", "development-review": "skipped", "build": "success"},
+        "cancelled": False,
+        "implicit_success": True,
+    },
+]
+
+
+def evaluate(condition, case):
+    has_explicit_status_check = re.search(r"\bcancelled\s*\(", condition) is not None
+    expression = re.sub(
+        r"!\s*cancelled\(\)", str(not case["cancelled"]), condition
+    )
+
+    values = {
+        "needs.authorize.outputs.classification": case["classification"],
+        "needs.authorize.result": case["results"]["authorize"],
+        "needs.development-review.result": case["results"]["development-review"],
+        "needs.build.result": case["results"]["build"],
+    }
+    for name in sorted(values, key=len, reverse=True):
+        expression = expression.replace(name, repr(values[name]))
+
+    expression = f"({expression.replace('&&', ' and ').replace('||', ' or ')})"
+    if not has_explicit_status_check:
+        expression = f"{case['implicit_success']!r} and {expression}"
+
+    tree = ast.parse(expression, mode="eval")
+    allowed_nodes = (
+        ast.Expression,
+        ast.BoolOp,
+        ast.And,
+        ast.Or,
+        ast.Compare,
+        ast.Eq,
+        ast.Constant,
+        ast.Load,
+    )
+    if any(not isinstance(node, allowed_nodes) for node in ast.walk(tree)):
+        raise SystemExit(f"unsupported workflow expression: {condition}")
+
+    return bool(eval(compile(tree, "<workflow-if>", "eval"), {"__builtins__": {}}))
+
+
+for case in cases:
+    actual = evaluate(conditions[case["job"]], case)
+    if actual != case["expected"]:
+        raise SystemExit(
+            "release workflow route mismatch for "
+            f"{case['label']}: expected {str(case['expected']).lower()}, "
+            f"got {str(actual).lower()}"
+        )
+PY
+}
+
 first_matching_line() {
   awk -v needle="$2" 'index($0, needle) { print NR; exit }' << EOF
 $1
@@ -1837,6 +2017,10 @@ build_job=$(workflow_job build)
 development_job=$(workflow_job development)
 production_job=$(workflow_job production-plan)
 literal_dollar='$'
+
+build_condition=$(workflow_job_condition "$build_job")
+development_condition=$(workflow_job_condition "$development_job")
+assert_release_job_routes "$build_condition" "$development_condition"
 
 grep -Fxq 'permissions: {}' "$root_dir/.github/workflows/release.yml"
 grep -Fq '    timeout-minutes: 10' << EOF
