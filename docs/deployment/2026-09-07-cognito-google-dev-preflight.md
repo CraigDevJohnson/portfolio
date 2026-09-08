@@ -170,13 +170,12 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
 
 ## Resume sequence
 
-1. Review the [external setup proposal](2026-09-07-cognito-external-setup-review.md)
-   and separately authorize the exact policy installation. Non-root policy
-   validation and baseline inspection are complete; effective setup permissions
-   under `portfolio-deployer` still require installation and verification.
-2. Project `portoflio-dev-508000` is selected and verified. Separately authorize
-   the prepared Google consent configuration, User Data Policy acceptance and
-   dedicated web OAuth client. Deliver credentials to the private channel in the
+1. AWS policy installation and effective-document verification are complete;
+   use the [external setup record](2026-09-07-cognito-external-setup-review.md)
+   for the current installed inputs and administrator cleanup evidence.
+2. Project `portoflio-dev-508000` is selected and verified, and the user completed
+   consent configuration. The prepared dedicated web OAuth client awaits the
+   requested Google setup approval. Deliver credentials to the private channel in the
    [provisioning runbook](cognito-google-dev.md).
 3. Recheck identity, bucket security, auth-state permissions and domain
    availability, then create and review a private saved auth plan. Obtain the
@@ -185,9 +184,9 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
 4. Follow Task 6 for reviewed source release, runtime activation and browser/EC2 proof. Do not interpret
    passing local tests or configured Terraform resources as a live deployment.
 
-## Non-root profile and project readiness
+## Earlier non-root profile and project readiness
 
-The latest September 7 continuation created the dedicated
+The earlier September 7 profile-creation continuation created the dedicated
 `PortfolioAuthPolicyAdministrator` SSO permission set and local profile
 `portfolio-auth-policy-admin`, using one-hour sessions. Provisioning and the
 installed read-only policy were verified; after SSO refresh, STS returned the
@@ -218,3 +217,42 @@ and remaining approval boundaries. The private operator directory now also
 contains bootstrap and read-only validation evidence; it still has no Google
 credential, session key or saved auth plan. Tasks 5 live provisioning and 6
 activation remain pending.
+
+
+## Approved AWS installation and final verification
+
+The subsequent September 7 continuation installed all three unchanged reviewed
+policy documents after explicit AWS policy installation approval:
+
+- `PortfolioAuthDevelopmentSetup` managed policy default `v1`, referenced only
+  by `PortfolioDeployer` and attached to its effective role;
+- the development management document as the deployer permission-set inline
+  and sole effective role inline; and
+- execution boundary default `v2`, with `v1` retained. Every production statement
+  is unchanged, and the boundary is used only by the development execution role.
+
+The non-root administrator performed the policy installation. A temporary
+installer grant needed the existing deployer role's IAM policy-write dependency
+for management-account SSO provisioning; targets and the three approved document
+hashes stayed unchanged. After resolving that dependency and allowing IAM
+propagation, deployer provisioning reached `SUCCEEDED`. The temporary grant was
+removed; administrator provisioning also reached `SUCCEEDED`, and both its SSO
+and effective role policies match the read-only document with no managed-policy
+attachments. Private attempts, rollback records and final evidence are retained.
+The [external setup record](2026-09-07-cognito-external-setup-review.md) identifies
+the installed inputs and the successful temporary installer checksum.
+
+Independent final reads confirmed all installed documents, attachments,
+production preservation and administrator cleanup. The regular
+`portfolio-deployer` profile then passed account/role identity, AES256 bucket
+encryption, enabled versioning, all four public-access blocks, empty auth-state
+prefix and empty Cognito domain-description checks. These do not prove future
+state writes or Cognito mutations; those remain part of separately approved
+planning and provisioning.
+
+The user accepted Google's policy and completed consent configuration. Google
+confirmed creation, and the dedicated web client form is prepared with the exact
+reviewed name and sole Cognito redirect. Client creation, test-user configuration
+and private credential delivery await the requested Google setup approval. No
+Google credential, session key, auth-state object or saved auth plan was created.
+Tasks 5 provisioning and 6 activation remain incomplete.

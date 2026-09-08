@@ -12,10 +12,11 @@ SSO profile (role `AWSReservedSSO_PortfolioDeployer_*`). Refresh that SSO sessio
 before a live operation. The separate `portfolio-auth-policy-admin` SSO profile
 now provides policy inspection/validation and prerequisite metadata reads with
 one-hour sessions. It has no installation or provisioning authority. Its live
-checks passed on September 7, 2026, but the candidate setup grants are not yet
-installed on `portfolio-deployer`. Review the
-[external setup proposal](2026-09-07-cognito-external-setup-review.md) before
-authorizing installation. Auth planning/applying still uses only
+checks passed on September 7, 2026. The three reviewed policies are now installed;
+all documents and effective deployer permissions matched their reviewed inputs,
+and temporary administrator installation access was removed. See the
+[external setup record](2026-09-07-cognito-external-setup-review.md) for exact
+documents, versions and verification. Auth planning/applying still uses only
 `portfolio-deployer`; do not substitute administrator or root credentials.
 
 Verify encrypted, access-controlled backend bucket
@@ -27,10 +28,11 @@ they do not establish that the bucket's live security controls or permissions
 are sufficient.
 
 Craig selected Google Cloud project `portoflio-dev-508000` (spelling intentional).
-The project and signed-in account are verified; it has no existing OAuth client
-or consent configuration. Separately authorize creation of the dedicated web
-OAuth client and consent configuration. Do not reuse the Google Calendar client. Configure
-`craigdevjohnson@gmail.com` as the test user and register this Google redirect URI:
+The project and signed-in account are verified, and the user completed consent
+configuration. The dedicated web OAuth client form is prepared; creation and
+private credential delivery await Google setup approval. Do not reuse the Google
+Calendar client. Configure `craigdevjohnson@gmail.com` as the test user and
+register this Google redirect URI:
 
 `https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`
 

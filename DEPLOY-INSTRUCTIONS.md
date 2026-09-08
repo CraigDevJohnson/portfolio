@@ -39,18 +39,26 @@ OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-enable MD013 -->
 
-The reviewed non-secret initial policy inputs are the
+The current installed policy inputs are the three documents listed in the
+[development management policy record](./infra/lambda/bootstrap/candidates/README.md).
+Their candidate filenames and hashes are retained unchanged: the management
+policy is the `PortfolioDeployer` inline document, the separate auth setup
+managed policy is version `v1`, and the execution boundary is default version
+`v2`. Installation and independent read-back completed on September 7, 2026;
+production boundary statements are unchanged and only the development execution
+role uses the boundary. Temporary installation authority on
+`portfolio-auth-policy-admin` was removed and its read-only policy restored.
+
+The original
 [development deployer policy](./infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json)
-and the
-[root-owned execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json).
-They are authoritative for their current reviewed policy content, but grant
-nothing merely by being checked in. The deployer document still contains
-phase-specific grants; once a later reviewed revision removes one, never
-restore an older revision after that removal and reprovisioning gate. Keep exact
-Identity Center ownership,
+and [execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json)
+are retained pre-Cognito baselines, not current installation defaults. Never
+restore grants removed by a later reviewed revision. Checked-in documents grant
+no access or approval on their own. Keep exact Identity Center ownership,
 assignment, MFA, provisioning results, and live approval evidence private.
-Every live create, update, assignment, and use remains separately
-approval-gated.
+Every later live create, update, assignment, and use remains separately
+approval-gated. Auth planning and apply still use `portfolio-deployer` under the
+[development Cognito runbook](./docs/deployment/cognito-google-dev.md).
 
 The lock acknowledgement is mechanical evidence that the controller approved
 the exact native S3 lock-object write in the current session. It does not
@@ -104,11 +112,12 @@ uploaded its layers, but ECR rejected manifest resolution because the
 then-reviewed deployer policy omitted the documented `ecr:BatchGetImage` push
 action. An authoritative `DescribeImages` lookup afterward returned
 `ImageNotFoundException`, so the immutable tag was never created and remains
-safe to reuse. The replacement candidate adds only `ecr:BatchGetImage` on the
-exact `portfolio-lambda-releases` repository and adds a positive contract test
-for the complete repository action set. Analyze, review, approve, update, and
-reprovision this candidate before retrying the same full-SHA tag; do not restore
-any retired repository-administration grant.
+safe to reuse at that time. The subsequent policy revision added
+`ecr:BatchGetImage` on the exact `portfolio-lambda-releases` repository and a
+positive contract test for the complete repository action set. That action is
+preserved in the current installed management inline policy. Recheck live image
+existence before any retry; do not restore retired repository-administration
+grants.
 
 Do not create replacement state until bucket versioning reports `Enabled`.
 After `portfolio-deployer` exists, the controller must present the exact bucket
@@ -329,9 +338,11 @@ Local mock review uses:
 task portal-preview
 ```
 
-The current OpenTofu files do not provision Cognito, portal IAM permissions, or
-`MGMT_*` runtime values. The retained Lambda deployment does not pass or resolve
-those values, so the portal is not currently supported on that path.
+The replacement development auth root and runtime integration are described in
+the [Cognito runbook](./docs/deployment/cognito-google-dev.md). Their IAM inputs
+are installed, but Cognito provisioning and runtime activation remain separate
+steps. The retained legacy Lambda deployment does not pass or resolve the
+`MGMT_*` values and does not support the portal.
 
 ### Retained Lambda troubleshooting
 
