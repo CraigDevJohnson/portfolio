@@ -174,8 +174,8 @@ unchecked in Tasks 4–6. The Cognito stack has not been applied.
    use the [external setup record](2026-09-07-cognito-external-setup-review.md)
    for the current installed inputs and administrator cleanup evidence.
 2. Project `portoflio-dev-508000` is selected and verified, and the user completed
-   consent configuration. The prepared dedicated web OAuth client awaits the
-   requested Google setup approval. Deliver credentials to the private channel in the
+   consent configuration. The dedicated web OAuth client and sole test-user entry
+   are created; credentials are validated in the private channel described in the
    [provisioning runbook](cognito-google-dev.md).
 3. Recheck identity, bucket security, auth-state permissions and domain
    availability, then create and review a private saved auth plan. Obtain the
@@ -256,3 +256,27 @@ reviewed name and sole Cognito redirect. Client creation, test-user configuratio
 and private credential delivery await the requested Google setup approval. No
 Google credential, session key, auth-state object or saved auth plan was created.
 Tasks 5 provisioning and 6 activation remain incomplete.
+
+## Google setup completed; initial plan pending
+
+The later September 7 continuation created `portfolio-lambda-dev-mgmt-google`
+with only the approved Cognito redirect and no JavaScript origins. The sole
+test-user entry is Craig's approved Google address. Saved scopes are `openid`,
+`https://www.googleapis.com/auth/userinfo.email` and
+`https://www.googleapis.com/auth/userinfo.profile`; sensitive and restricted
+lists are empty. External/Testing, the reviewed app name and support/developer
+email were verified. Google reports verification is not required while Testing.
+
+Credentials were delivered to the private operator `google.json`; local checks
+confirmed a regular, operator-owned mode `0600` file containing exactly the two
+required keys. The raw download was moved into private storage. No credential
+values, client ID or credential hash are recorded here.
+
+Basic identity scopes bypass Google's Testing test-user allowlist; the portal's
+verified-email gate remains authoritative for access. See
+[Google's app-state guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview).
+
+The Google setup step is complete. Initialization, saved auth planning and the
+exact native state-lock write await the separate
+[initial plan review](2026-09-07-cognito-initial-plan-review.md). No Cognito apply,
+auth-state write, session-key injection or runtime activation has occurred.

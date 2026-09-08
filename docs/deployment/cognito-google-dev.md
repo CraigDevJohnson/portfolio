@@ -29,12 +29,18 @@ are sufficient.
 
 Craig selected Google Cloud project `portoflio-dev-508000` (spelling intentional).
 The project and signed-in account are verified, and the user completed consent
-configuration. The dedicated web OAuth client form is prepared; creation and
-private credential delivery await Google setup approval. Do not reuse the Google
-Calendar client. Configure `craigdevjohnson@gmail.com` as the test user and
-register this Google redirect URI:
+configuration. The dedicated web OAuth client `portfolio-lambda-dev-mgmt-google`
+is created, with its credentials delivered to the private operator input. The
+sole test-user entry is `craigdevjohnson@gmail.com`; only the three basic identity
+scopes are saved, with no sensitive or restricted scopes. External/Testing and
+the application/support/contact fields were verified. No JavaScript origins
+are registered. The client uses only this Google redirect URI:
 
 `https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`
+
+Google exempts basic identity scopes from the Testing test-user allowlist, so
+application access must still be enforced by the verified-email allowlist.
+See [Google's app-state guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview).
 
 Callback registration is `https://dev.craigdevjohnson.com/callback`; logout is
 `https://dev.craigdevjohnson.com/login`. These wrappers deliberately admit only
@@ -42,6 +48,12 @@ the reviewed domain and no loopback callback. A domain or callback change needs
 an updated reviewed checker contract.
 
 ## Private inputs and plan review
+
+The private `google.json` input has been delivered and validated; its raw download
+is retained privately. Initialization, planning and the exact state-lock write
+await separate approval of the
+[initial plan review](2026-09-07-cognito-initial-plan-review.md). No auth-state
+write, Cognito apply, session-key injection or runtime activation has occurred.
 
 Create an operator-owned directory outside the checkout with mode `0700`. Set
 `COGNITO_PRIVATE_DIR` to its absolute path. Have the credential delivery channel

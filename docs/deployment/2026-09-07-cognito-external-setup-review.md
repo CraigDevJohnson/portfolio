@@ -2,8 +2,8 @@
 
 Status: AWS policy installation completed and verified on September 7, 2026.
 Temporary administrator installation access was removed. Google consent
-configuration is created; the dedicated OAuth client form is prepared and awaits
-creation approval. No Cognito stack, session parameter or runtime activation
+configuration and the dedicated OAuth client are created, with credentials
+delivered privately. No Cognito stack, session parameter or runtime activation
 has been applied.
 
 ## Completed prerequisites
@@ -37,8 +37,8 @@ Final live checks on September 7, 2026 established:
 - Cognito returned an empty domain description for
   `portfolio-lambda-dev-mgmt-180294223248`; no current domain was found.
 - Google Cloud confirms project `portoflio-dev-508000` and the expected signed-in
-  account. The user completed consent configuration; no OAuth client has been
-  created. The client form contains the reviewed name and sole redirect below.
+  account. The dedicated client `portfolio-lambda-dev-mgmt-google` is created
+  with the sole reviewed Cognito redirect and no JavaScript origins.
 
 The regular `portfolio-deployer` profile passed STS identity, bucket security,
 auth-prefix listing and domain lookup checks after installation. Independent
@@ -114,7 +114,7 @@ they are not an IAM-enforced content restriction. The explicit installation
 approval covered this temporary policy administration. No Cognito apply, secret injection, production
 operation or application deployment was performed as part of this installation.
 
-## Google configuration and pending client creation
+## Completed Google configuration
 
 | Setting | Value |
 | --- | --- |
@@ -130,21 +130,30 @@ operation or application deployment was performed as part of this installation.
 
 The user accepted the
 [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)
-and Google confirmed that consent configuration was created. The dedicated web
-client form is prepared with the exact name and redirect above; its Create
-action has not been submitted. Client creation, the sole test-user entry and
-private credential delivery await the requested Google setup approval. Keep the
-audience in Testing and configure only the listed identity scopes and test user.
-Do not reuse the Calendar client or add Calendar scopes.
+and Google confirmed consent configuration and client creation. The client has
+only the reviewed Cognito redirect and no authorized JavaScript origins. The
+sole test-user entry is `craigdevjohnson@gmail.com`. Saved data-access scopes are
+`openid`, `https://www.googleapis.com/auth/userinfo.email` and
+`https://www.googleapis.com/auth/userinfo.profile`; sensitive and restricted
+scope lists are empty. External/Testing status, application name, support email
+and developer contact were verified. Verification is not required while Testing.
+Homepage, privacy-policy and terms URLs were left unchanged and blank; publishing
+remains incomplete and was not requested.
 
-Deliver the new credentials directly into a regular mode `0600` file named
-`google.json` inside the operator-owned mode `0700` directory above. The private
-input must contain exactly `client_id` and `client_secret`; convert a downloaded
-Google credential document locally without printing its values. Do not expose
-the credential dialog or file contents in chat, source control or command output.
+Google's basic identity scopes are exempt from the Testing test-user allowlist.
+The single saved test-user row therefore does not restrict all Google sign-ins;
+the application's verified-email allowlist remains the access control. See
+[Google's app-state guidance](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview).
 
-After credential delivery, the next step is a separate
-private saved auth plan under `portfolio-deployer`. Its state-lock write,
+Credentials were downloaded and delivered to `google.json` in the private
+operator directory. Local validation confirmed an operator-owned regular mode
+`0600` file with exactly `client_id` and `client_secret`; the raw downloaded file
+was moved into private storage. No credential value, client ID or credential
+checksum is recorded here. The operator directory remains mode `0700`.
+
+The next step is separately approved initialization and a
+private saved auth plan under `portfolio-deployer`; see the
+[initial plan review](2026-09-07-cognito-initial-plan-review.md). Its state-lock write,
 resource actions and saved-plan apply still require the approvals in the
 [provisioning runbook](cognito-google-dev.md). The full implementation remains in
 [draft PR 71](https://github.com/CraigDevJohnson/portfolio/pull/71).
