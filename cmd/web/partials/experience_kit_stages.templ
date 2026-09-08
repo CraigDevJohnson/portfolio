@@ -117,16 +117,24 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 						</ul>
 					</nav>
 				</section>
-				<section class="page-kit-panel-strong experience-technology-panel experience-technology-strip" data-experience-spotlight aria-labelledby="experience-technology-heading">
-					<div class="experience-technology-heading">
-						<p class="page-kit-eyebrow">Recurring technology</p>
-						<h2 id="experience-technology-heading" class="page-section-title">Tools that followed the work</h2>
-						<p class="experience-technology-description">These tools recur across roles, connecting systems operations, automation, and cloud delivery.</p>
+				<section class="page-kit-panel-strong experience-focus-panel" aria-labelledby="experience-focus-heading">
+					<div class="experience-focus-heading">
+						<p class="page-kit-eyebrow">Career priorities</p>
+						<h2 id="experience-focus-heading" class="page-section-title">Cloud engineering focus</h2>
 					</div>
-					<ul class="experience-technology-chips">
-						for _, technology := range overview.SpotlightTechnologies {
-							<li class="experience-technology-item" data-recurring-technology>
-								<span class="page-kit-chip">{ technology }</span>
+					<ul class="experience-focus-list">
+						for _, focus := range experienceFocusPoints() {
+							<li class="experience-focus-item" data-career-focus>
+								<span class="experience-focus-icon">@UIIcon(focus.Icon)</span>
+								<div class="experience-focus-content">
+									<h3 class="experience-focus-title">{ focus.Title }</h3>
+									<p class="experience-focus-description">{ focus.Description }</p>
+									<ul class="experience-focus-technologies" aria-label={ focus.Title + " tools" }>
+										for _, technology := range focus.Technologies {
+											<li>{ technology }</li>
+										}
+									</ul>
+								</div>
 							</li>
 						}
 					</ul>

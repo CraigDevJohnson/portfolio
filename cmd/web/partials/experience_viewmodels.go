@@ -10,14 +10,13 @@ import (
 )
 
 type experienceOverview struct {
-	CurrentRole           types.Experience
-	TotalRoles            int
-	TotalCompanies        int
-	TotalTechnologies     int
-	CareerStartYear       int
-	CareerSpanYears       int
-	SpotlightTechnologies []string
-	Capabilities          []experienceCapabilityCount
+	CurrentRole       types.Experience
+	TotalRoles        int
+	TotalCompanies    int
+	TotalTechnologies int
+	CareerStartYear   int
+	CareerSpanYears   int
+	Capabilities      []experienceCapabilityCount
 }
 
 type experienceCapabilityCount struct {
@@ -36,9 +35,34 @@ type experienceStage struct {
 	Experiences []types.Experience
 }
 
-type rankedLabel struct {
-	Name  string
-	Count int
+type experienceFocusPoint struct {
+	Title        string
+	Description  string
+	Technologies []string
+	Icon         UIIconName
+}
+
+func experienceFocusPoints() []experienceFocusPoint {
+	return []experienceFocusPoint{
+		{
+			Title:        "Infrastructure as code",
+			Description:  "Repeatable provisioning and configuration.",
+			Technologies: []string{"Terraform", "Ansible"},
+			Icon:         UIIconInfrastructure,
+		},
+		{
+			Title:        "Cloud platforms",
+			Description:  "Cloud infrastructure and container orchestration.",
+			Technologies: []string{"AWS", "Azure", "Kubernetes"},
+			Icon:         UIIconArchitecture,
+		},
+		{
+			Title:        "Engineering automation",
+			Description:  "Self-service tooling and delivery pipelines.",
+			Technologies: []string{"Go", "GitHub Actions"},
+			Icon:         UIIconAutomation,
+		},
+	}
 }
 
 func buildExperienceOverview(experiences []types.Experience) experienceOverview {
@@ -49,7 +73,7 @@ func buildExperienceOverview(experiences []types.Experience) experienceOverview 
 
 	overview.CurrentRole = experiences[0]
 	companySet := make(map[string]struct{})
-	techFrequency := make(map[string]int)
+	technologySet := make(map[string]struct{})
 	skillFrequency := make(map[string]int)
 	startYear := time.Now().Year()
 
@@ -71,7 +95,7 @@ func buildExperienceOverview(experiences []types.Experience) experienceOverview 
 			if technology == "" {
 				continue
 			}
-			techFrequency[technology]++
+			technologySet[technology] = struct{}{}
 		}
 
 		for _, code := range splitSkillAreas(experience.SkillAreas) {
@@ -80,10 +104,9 @@ func buildExperienceOverview(experiences []types.Experience) experienceOverview 
 	}
 
 	overview.TotalCompanies = len(companySet)
-	overview.TotalTechnologies = len(techFrequency)
+	overview.TotalTechnologies = len(technologySet)
 	overview.CareerStartYear = startYear
 	overview.CareerSpanYears = max(1, time.Now().Year()-startYear)
-	overview.SpotlightTechnologies = topRankedLabels(techFrequency, 8)
 	overview.Capabilities = capabilityCounts(skillFrequency)
 
 	return overview
@@ -244,31 +267,6 @@ func capabilityCounts(frequency map[string]int) []experienceCapabilityCount {
 	})
 
 	return result
-}
-
-func topRankedLabels(items map[string]int, limit int) []string {
-	ranked := make([]rankedLabel, 0, len(items))
-	for name, count := range items {
-		ranked = append(ranked, rankedLabel{Name: name, Count: count})
-	}
-
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if ranked[i].Count == ranked[j].Count {
-			return ranked[i].Name < ranked[j].Name
-		}
-		return ranked[i].Count > ranked[j].Count
-	})
-
-	if limit > 0 && len(ranked) > limit {
-		ranked = ranked[:limit]
-	}
-
-	labels := make([]string, 0, len(ranked))
-	for _, item := range ranked {
-		labels = append(labels, item.Name)
-	}
-
-	return labels
 }
 
 func stageIDForExperience(experience *types.Experience) string {

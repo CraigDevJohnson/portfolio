@@ -841,7 +841,7 @@ func assertHomeSystemsOverlook(t *testing.T, path, body string) {
 			t.Errorf("GET %s Home systems overlook does not contain %q", path, marker)
 		}
 	}
-	for _, removed := range []string{`data-region="proof"`, `home-proof-grid`, `Proof of Work`, `Follow the systems behind the résumé`} {
+	for _, removed := range []string{`Available for opportunities`, `data-region="proof"`, `home-proof-grid`, `Proof of Work`, `Follow the systems behind the résumé`} {
 		if strings.Contains(body, removed) {
 			t.Errorf("GET %s Home systems overlook still contains removed proof marker %q", path, removed)
 		}
@@ -1290,8 +1290,8 @@ func assertExperienceCareerEras(t *testing.T, path, body string) {
 	if count := strings.Count(body, `data-experience-summary-stat`); count != 3 {
 		t.Errorf("GET %s Experience summary stat count = %d, want 3", path, count)
 	}
-	if count := strings.Count(body, `data-recurring-technology`); count != 8 {
-		t.Errorf("GET %s recurring technology count = %d, want 8", path, count)
+	if count := strings.Count(body, `data-career-focus`); count != 3 {
+		t.Errorf("GET %s career focus count = %d, want 3", path, count)
 	}
 	if count := strings.Count(body, `data-role-technology`); count != 23 {
 		t.Errorf("GET %s rendered role technology count = %d, want 23", path, count)
@@ -1329,7 +1329,7 @@ func assertExperienceLayoutIsRouteOwned(t *testing.T, path, body string) {
 	markers := []string{
 		`data-layout="career-eras"`,
 		`data-experience-summary-grid`,
-		`data-experience-spotlight`,
+		`aria-labelledby="experience-focus-heading"`,
 		`data-career-sequence`,
 		`data-career-era="`,
 		`data-era-layout`,
@@ -1772,7 +1772,7 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260908b`,
+		`/static/css/tailwind.css?v=20260908c`,
 		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {

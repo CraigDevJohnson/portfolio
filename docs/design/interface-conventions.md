@@ -70,7 +70,10 @@ status, and controls. Do not use emoji or text glyphs as UI icons. Product skill
 brand SVG assets on shared cream frames; use official light-background variants
 such as Terramate's black mark for contrast. Use skills, categories, and proficiency in catalog labels and counts;
 reserve the workbench metaphor for visual styling. Preserve icon-library
-attribution when adding source assets.
+attribution when adding source assets. Education credential artwork uses circular white
+frames that match opaque areas in supplied badges; preserve the original marks
+and their proportions. The degree card uses the university SVG logo in a compact
+rounded frame. Source attribution lives beside the asset.
 
 ## Sources and verification
 

@@ -79,13 +79,14 @@
 .education-degree-mark {
   display: grid;
   width: min(100%, 10rem);
-  aspect-ratio: 1;
+  aspect-ratio: 2 / 1;
   margin-inline: auto;
+  overflow: hidden;
+  isolation: isolate;
   place-items: center;
   border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 20%, transparent);
-  border-radius: var(--radius-lg) var(--radius-sm) var(--radius-lg) var(--radius-sm);
-  background: var(--candle-oat);
-  box-shadow: inset 0 0 0 var(--line-hairline) color-mix(in srgb, var(--night-mulberry) 18%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
 }
 
 .education-degree-logo {
@@ -94,8 +95,8 @@
   width: 100%;
   height: 100%;
   grid-area: 1 / 1;
-  padding: var(--space-md);
-  background: var(--candle-oat);
+  padding: var(--space-lg);
+  background: var(--color-white);
   object-fit: contain;
 }
 
@@ -365,10 +366,11 @@
   width: 4.75rem;
   aspect-ratio: 1;
   overflow: hidden;
+  isolation: isolate;
   place-items: center;
   border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 16%, transparent);
-  border-radius: var(--radius-md) var(--radius-sm) var(--radius-md) var(--radius-sm);
-  background: var(--candle-oat);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
 }
 
 .education-credential-logo,
@@ -382,7 +384,7 @@
   position: relative;
   z-index: 1;
   padding: var(--space-sm);
-  background: var(--candle-oat);
+  background: var(--color-white);
   object-fit: contain;
 }
 
