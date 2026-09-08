@@ -7,7 +7,7 @@ func contactExpertiseCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
 		{IconName: partials.UIIconArchitecture, Title: "Cloud Architecture", Description: "Design and deploy scalable cloud solutions on AWS and Azure with infrastructure as code.", Tone: partials.ToneMint, ExtraClass: "contact-fit-card contact-fit-cloud"},
 		{IconName: partials.UIIconAutomation, Title: "Delivery Automation", Description: "Build deployment workflows that ship reliable changes faster and more safely.", Tone: partials.ToneRose, ExtraClass: "contact-fit-card contact-fit-delivery"},
-		{IconName: partials.UIIconSecurity, Title: "Security by Default", Description: "Embed security into every layer — from IAM policies to compliance automation.", Tone: partials.ToneApricot, ExtraClass: "contact-fit-card contact-fit-security"},
+		{IconName: partials.UIIconSecurity, Title: "Security by Default", Description: "Embed security into every layer — from identity and access management (IAM) policies to compliance automation.", Tone: partials.ToneApricot, ExtraClass: "contact-fit-card contact-fit-security"},
 		{IconName: partials.UIIconObservability, Title: "Operational Clarity", Description: "Improve observability, documentation, and handoffs so systems remain understandable.", Tone: partials.ToneMint, ExtraClass: "contact-fit-card contact-fit-operations"},
 	}
 }
@@ -32,6 +32,7 @@ templ Contact() {
 					ImagePosition: "center",
 					Caption:       "Start with a conversation",
 					Variant:       partials.HeroInvitation,
+					Overview:      true,
 				}) {
 					@partials.PageHeroIntro(partials.PageHeroIntroProps{
 						Eyebrow: "Contact",
@@ -62,7 +63,7 @@ templ Contact() {
 								<span class="page-kit-status-dot motion-safe:animate-pulse" aria-hidden="true"></span>
 								<h2 id="contact-availability-title" class="contact-availability-title">Currently available</h2>
 							</div>
-							<span class="contact-response-time">⏱ Response within 24-48 hours</span>
+							<span class="contact-response-time">Response within 24–48 hours</span>
 						</div>
 						<div class="contact-availability-grid">
 							<div class="contact-availability-item contact-availability-work">
@@ -109,8 +110,8 @@ templ Contact() {
 				@partials.PageCTA(partials.PageCTAProps{
 					Title:     "Want to see my work first?",
 					Subtitle:  "Explore my projects and experience before reaching out",
-					Primary:   partials.ActionLinkProps{Href: "/projects", Label: "View Projects", Variant: partials.ActionSecondary},
-					Secondary: &partials.ActionLinkProps{Href: "/experience", Label: "See Experience", Variant: partials.ActionQuiet},
+					Primary:   partials.ActionLinkProps{Href: "/projects", Label: "View projects", Variant: partials.ActionSecondary},
+					Secondary: &partials.ActionLinkProps{Href: "/experience", Label: "View experience", Variant: partials.ActionQuiet},
 				})
 			</div>
 		</div>

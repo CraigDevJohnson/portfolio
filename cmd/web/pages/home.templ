@@ -71,8 +71,6 @@ templ Home(props HomeProps) {
 					@partials.PageHeroIntro(partials.PageHeroIntroProps{
 						Eyebrow:        "Hi, I'm",
 						Title:          props.Name,
-						Status:         "Available for opportunities",
-						AnimatedStatus: true,
 						TitleClass:     "text-gradient-brand",
 					}) {
 						<p class="page-hero-description">
@@ -81,14 +79,16 @@ templ Home(props HomeProps) {
 						</p>
 						<div class="page-hero-actions home-overlook-actions">
 							<a href="/experience" class="page-kit-action page-kit-action-primary">
-								<span>View Experience</span>
-								<span class="btn-icon" aria-hidden="true">→</span>
+								<span>View experience</span>
+								<span class="btn-icon" aria-hidden="true">
+									@partials.UIInlineIcon(partials.UIIconArrowRight)
+								</span>
 							</a>
 							<a href="/projects" class="page-kit-action home-overlook-secondary-action">
-								<span>See Projects</span>
+								<span>View projects</span>
 							</a>
 							<a href="/contact" class="page-kit-action home-overlook-secondary-action">
-								Get in Touch
+								Contact me
 							</a>
 						</div>
 						@partials.StatCardGrid(partials.StatCardGridProps{

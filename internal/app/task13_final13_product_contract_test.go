@@ -139,7 +139,7 @@ func TestTask13Final13TextShadowInventoryMutationGate(t *testing.T) {
 				"  color: var(--candle-oat);\n" +
 				"  font-family: var(--font-display);\n" +
 				"  font-size: clamp(3.35rem, 6.8vw, 6.8rem);\n" +
-				"  font-weight: 720;\n" +
+				"  font-weight: var(--font-bold);\n" +
 				"  letter-spacing: -0.065em;\n" +
 				"  line-height: 0.88;\n" +
 				"  text-wrap: balance;\n" +
@@ -151,7 +151,7 @@ func TestTask13Final13TextShadowInventoryMutationGate(t *testing.T) {
 				"    color: var(--candle-oat);\n" +
 				"    font-family: var(--font-display);\n" +
 				"    font-size: clamp(3.35rem, 6.8vw, 6.8rem);\n" +
-				"    font-weight: 720;\n" +
+				"    font-weight: var(--font-bold);\n" +
 				"    letter-spacing: -0.065em;\n" +
 				"    line-height: 0.88;\n" +
 				"    text-wrap: balance;\n" +

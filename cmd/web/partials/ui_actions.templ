@@ -12,7 +12,9 @@ templ ActionLink(props ActionLinkProps) {
 	>
 		<span>{ props.Label }</span>
 		if props.ShowArrow {
-			<span class="btn-icon" aria-hidden="true">→</span>
+			<span class="btn-icon" aria-hidden="true">
+				@UIInlineIcon(UIIconArrowRight)
+			</span>
 		}
 		if props.External {
 			<span class="sr-only">{ " (opens in a new tab)" }</span>

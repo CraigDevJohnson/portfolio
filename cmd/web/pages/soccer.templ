@@ -50,16 +50,16 @@ templ Soccer(props SoccerProps) {
 				ImageHeight:   1122,
 				Caption:       "Built for the next matchday",
 				Variant:       partials.HeroTool,
-				ContentClass:  "flex min-h-full flex-col justify-center",
+				Overview:      true,
 			}) {
 				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Soccer", Title: "Soccer Schedule Download"}) {
 					<p class="page-hero-description">
 						Fetch schedules from
 						<a class="soccer-inline-link font-medium text-primary-200 hover:text-accent-200" href="https://www.letsplaysoccer.com/4?lang=en" target="_blank" rel="noopener noreferrer">
-							Let&apos;s Play Soccer
+							Let&apos;s Play Soccer (LPS)
 							<span class="sr-only">{ " (opens in a new tab)" }</span>
 						</a>,
-						choose the matches you want to keep, then export an .ics file{ soccerHeroCalendarClause(props.AuthState.SupportsGoogle()) }
+						choose the matches you want to keep, then export a calendar (.ics) file{ soccerHeroCalendarClause(props.AuthState.SupportsGoogle()) }
 					</p>
 				}
 			}
@@ -147,7 +147,7 @@ templ Soccer(props SoccerProps) {
 													data-preview-loading-control
 												}
 											>
-												<span class="btn-text">Fetch Schedules</span>
+												<span class="btn-text">Fetch schedules</span>
 												<span class="btn-loading-indicator soccer-manual-submit-indicator htmx-indicator" aria-hidden="true"></span>
 											</button>
 										</div>

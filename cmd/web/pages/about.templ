@@ -24,10 +24,9 @@ func aboutCoreValueCards() []partials.FeatureCardProps {
 
 func aboutHobbyCards() []partials.FeatureCardProps {
 	return []partials.FeatureCardProps{
-		{Icon: "⚽", Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
-		{Icon: "🌲", Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
-		{Icon: "♟", Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
-		{Icon: "🐕", Title: "Dog Dad", Description: "A lively home office comes with four paws, plenty of opinions, and zero calendar discipline.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-dog-dad stagger-enter"},
+		{IconName: partials.UIIconSoccer, Title: "Soccer", Description: "Playing and coaching — plus building tools to support the community.", Tone: partials.ToneRose, ExtraClass: "about-hobby-card about-hobby-soccer stagger-enter"},
+		{IconName: partials.UIIconTree, Title: "Outdoors", Description: "Alaska roots mean a love for hiking and exploring nature.", Tone: partials.ToneMint, ExtraClass: "about-hobby-card about-hobby-outdoors stagger-enter"},
+		{IconName: partials.UIIconGaming, Title: "Gaming", Description: "Strategy and building games exercise the same problem-solving muscles as engineering.", Tone: partials.ToneApricot, ExtraClass: "about-hobby-card about-hobby-gaming stagger-enter"},
 	}
 }
 
@@ -41,18 +40,18 @@ func aboutStatCards(props AboutProps) []partials.StatCardProps {
 }
 
 type aboutQuickFact struct {
-	Icon string
-	Text string
+	IconName partials.UIIconName
+	Text     string
 }
 
 func aboutQuickFacts() []aboutQuickFact {
 	return []aboutQuickFact{
-		{Icon: "🏔", Text: "Originally from Alaska"},
-		{Icon: "👨‍👩‍👧‍👦", Text: "Family of 4 + 2 dogs"},
-		{Icon: "⚽", Text: "Lifelong soccer enthusiast"},
-		{Icon: "🎓", Text: "BS in Cloud Computing"},
-		{Icon: "☁️", Text: "Cloud & automation specialist"},
-		{Icon: "📚", Text: "Continuous learner"},
+		{IconName: partials.UIIconMountain, Text: "Originally from Alaska"},
+		{IconName: partials.UIIconFamily, Text: "Family of 4"},
+		{IconName: partials.UIIconSoccer, Text: "Lifelong soccer enthusiast"},
+		{IconName: partials.UIIconEducation, Text: "Bachelor of Science in Cloud Computing"},
+		{IconName: partials.UIIconArchitecture, Text: "Cloud & automation specialist"},
+		{IconName: partials.UIIconLearning, Text: "Continuous learner"},
 	}
 }
 
@@ -67,9 +66,9 @@ func aboutTimelineEntries() []aboutTimelineEntry {
 	return []aboutTimelineEntry{
 		{Year: "2012", Title: "Started in Tech", Description: "Service Desk Student Analyst — first steps into IT support and troubleshooting."},
 		{Year: "2016", Title: "Healthcare IT", Description: "Moved into healthcare technology — ensuring systems enhance patient care."},
-		{Year: "2018", Title: "Microsoft Certified", Description: "Earned MCSA and MCSE certifications — a deep dive into enterprise infrastructure."},
+		{Year: "2018", Title: "Microsoft Certified", Description: "Earned Microsoft Certified Solutions Associate (MCSA) and Microsoft Certified Solutions Expert (MCSE) credentials in enterprise infrastructure."},
 		{Year: "2021", Title: "Cloud Transition", Description: "Pivoted to cloud engineering — AWS, Azure, and infrastructure as code."},
-		{Year: "2023", Title: "BS in Cloud Computing", Description: "Completed the degree at Western Governors University with multiple cloud certifications."},
+		{Year: "2023", Title: "Bachelor of Science in Cloud Computing", Description: "Completed the degree at Western Governors University with multiple cloud certifications."},
 		{Year: "Now", Title: "Cloud Engineer Principal", Description: "Leading cloud infrastructure, automation, and DevOps practices.", Current: true},
 	}
 }
@@ -93,22 +92,24 @@ templ About(props AboutProps) {
 				ImagePosition: "center 36%",
 				Caption:       "Alaska roots, wider horizons",
 				Variant:       partials.HeroNarrative,
+				Overview:      true,
 				ExtraClass:    "about-hero",
-				ContentClass:  "about-hero-content",
 			}) {
-				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "About Me"}) {
-					<p class="page-hero-description">From Alaska service desks to principal-level cloud engineering.</p>
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "From Alaska to the cloud"}) {
+					<p class="page-hero-description">
+						A career built on patient troubleshooting, clear explanations, and a service mindset — from Alaska service desks to principal-level cloud engineering.
+					</p>
 				}
+				<div class="about-stats-section" role="group" aria-label="Career at a glance">
+					@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props), Variant: partials.StatGridSummary})
+				</div>
 			}
-			<div class="page-stats-section about-stats-section" role="group" aria-label="Career at a glance">
-				@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props)})
-			</div>
 			<div class="about-switchback" data-about-switchback>
 				<section class="page-section about-story-section" data-region="story">
 					<div class="about-story-copy">
 						@partials.SectionIntro(partials.SectionIntroProps{
 							Label:      "My Story",
-							Title:      "From the Last Frontier to the Cloud",
+							Title:      "A service mindset",
 							ExtraClass: "about-story-heading",
 						})
 						<div class="about-story-prose">
@@ -122,10 +123,8 @@ templ About(props AboutProps) {
 								Leaving Alaska expanded both the environments I could work in and the problems I could learn from.
 							</blockquote>
 							<p>
-								My tech career began at the local university as a Service Desk Student Analyst, where I
-								laid the foundations of my skills and knowledge. This journey led me into the health care
-								sector, providing tech support and ensuring that technology enhances patient care and
-								operational efficiency.
+								In healthcare IT, I provided technical support that helped technology serve patient care
+								and operational efficiency.
 							</p>
 							<p>
 								Soccer has been a lifelong love of mine, keeping me active and connected with the
@@ -141,7 +140,9 @@ templ About(props AboutProps) {
 					<ul class="about-facts-list" role="list">
 						for _, fact := range aboutQuickFacts() {
 							<li class="about-fact">
-								<span class="about-fact-mark" aria-hidden="true">{ fact.Icon }</span>
+								<span class="about-fact-mark" aria-hidden="true">
+									@partials.UIIcon(fact.IconName)
+								</span>
 								<span>{ fact.Text }</span>
 							</li>
 						}
@@ -188,7 +189,9 @@ templ About(props AboutProps) {
 				<ul class="about-hobby-strip" role="list">
 					for _, card := range aboutHobbyCards() {
 						<li class="about-hobby-note" data-tone={ string(card.Tone) }>
-							<span class="about-hobby-mark" aria-hidden="true">{ card.Icon }</span>
+							<span class="about-hobby-mark" aria-hidden="true">
+								@partials.UIIcon(card.IconName)
+							</span>
 							<div>
 								<h3>{ card.Title }</h3>
 								<p>{ card.Description }</p>
@@ -222,8 +225,8 @@ templ About(props AboutProps) {
 			@partials.PageCTA(partials.PageCTAProps{
 				Title:     "Want to know more?",
 				Subtitle:  "Check out my experience or reach out directly",
-				Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View My Experience", Variant: partials.ActionPrimary},
-				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Get in Touch", Variant: partials.ActionSecondary},
+				Primary:   partials.ActionLinkProps{Href: "/experience", Label: "View experience", Variant: partials.ActionPrimary},
+				Secondary: &partials.ActionLinkProps{Href: "/contact", Label: "Contact me", Variant: partials.ActionSecondary},
 			})
 		</div>
 	}

@@ -92,13 +92,20 @@ func TestApprovedSkillsAndFooterTreatmentsAreConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse Skills CSS: %v", err)
 	}
-	for _, selector := range []string{".skills-featured-icon", ".skills-practice-icon", ".skill-icon-frame"} {
+	for _, selector := range []string{".skills-featured-icon", ".skill-icon-frame"} {
 		if !contactHasEffectiveRule(skillRules, selector, 0, false, map[string]string{
 			"overflow":   "hidden",
 			"background": "var(--candle-oat)",
 		}) {
 			t.Errorf("Skills icon owner %q does not use the shared framed treatment", selector)
 		}
+	}
+	if !contactHasEffectiveRule(skillRules, ".skills-practice-icon", 0, false, map[string]string{
+		"display":     "grid",
+		"place-items": "center",
+		"color":       "var(--pond-mint)",
+	}) {
+		t.Error("Skills concept icons must use the inherited color and centered frame of shared SVG icons")
 	}
 
 	componentsCSS := readTask2Artifact(t, "cmd", "web", "tailwind", "components.css")

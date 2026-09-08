@@ -76,19 +76,9 @@ func TestAboutRouteCSSValidatorRejectsRegressions(t *testing.T) {
       grid-row: auto;
     }
     @media (min-width: 48rem) {
-      .about-hobby-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .about-hobby-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (min-width: 70rem) {
-      .about-hero.page-hero-narrative .page-kit-hero-photo {
-        right: var(--space-lg);
-        left: auto;
-        width: 43%;
-        transform: rotate(0.4deg);
-      }
-      .about-hero.page-hero-narrative .page-kit-hero-content {
-        width: 60%;
-        margin-left: 0;
-      }
       .about-switchback {
         grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
         grid-template-rows: repeat(2, auto);
@@ -101,9 +91,6 @@ func TestAboutRouteCSSValidatorRejectsRegressions(t *testing.T) {
         grid-column: 2;
         grid-row: 1 / 3;
       }
-    }
-    @media (min-width: 80rem) {
-      .about-hobby-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
     @media (forced-colors: active) {
       .about-timeline-trail {
@@ -128,14 +115,10 @@ func TestAboutRouteCSSValidatorRejectsRegressions(t *testing.T) {
       display: block;`, `inset: 10rem 2rem auto;
       display: block;`, 1)},
 		{name: "timeline cards become transparent", css: strings.Replace(valid, `background: color-mix(in srgb, var(--cocoa-cedar) 94%, var(--night-mulberry));`, `background: transparent;`, 1)},
-		{name: "about hero returns to left", css: strings.Replace(valid, `right: var(--space-lg);
-        left: auto;`, `right: auto;
-        left: var(--space-lg);`, 1)},
 		{name: "story line length too long", css: strings.Replace(valid, `max-width: 62ch;`, `max-width: 90ch;`, 1)},
 		{name: "legacy dense threshold", css: strings.Replace(valid, `min-width: 70rem`, `min-width: 68rem`, 1)},
 		{name: "wide facts lack header-aware offset", css: strings.Replace(valid, `calc(var(--header-height) + var(--space-lg))`, `2rem`, 1)},
-		{name: "tablet hobbies use implicit twelve-track placement", css: strings.Replace(valid, `repeat(2, minmax(0, 1fr))`, `repeat(12, minmax(0, 1fr))`, 1)},
-		{name: "wide hobbies never become four explicit tracks", css: strings.Replace(valid, `repeat(4, minmax(0, 1fr))`, `repeat(2, minmax(0, 1fr))`, 1)},
+		{name: "tablet hobbies use implicit twelve-track placement", css: strings.Replace(valid, `repeat(3, minmax(0, 1fr))`, `repeat(12, minmax(0, 1fr))`, 1)},
 		{name: "forced colors lose structural rule", css: strings.Replace(valid, `solid CanvasText !important`, `solid transparent !important`, 1)},
 	}
 
@@ -251,12 +234,9 @@ func validateAboutRouteCSS(css string) error {
 		{label: "opaque timeline card", selector: ".about-timeline-entry", want: map[string]string{"background": "color-mix(in srgb,var(--cocoa-cedar) 94%,var(--night-mulberry))"}},
 		{label: "compact hobby track", selector: ".about-hobby-strip", want: map[string]string{"display": "grid", "grid-template-columns": "minmax(0,1fr)"}},
 		{label: "hobby child reset", selector: ".about-hobby-strip > *", want: map[string]string{"min-width": "0", "grid-column": "auto", "grid-row": "auto"}},
-		{label: "tablet hobby track", selector: ".about-hobby-strip", minWidthRem: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
-		{label: "right-oriented About hero image", selector: ".about-hero.page-hero-narrative .page-kit-hero-photo", minWidthRem: 70, want: map[string]string{"right": "var(--space-lg)", "left": "auto", "width": "43%", "transform": "rotate(0.4deg)"}},
-		{label: "right-oriented About hero content", selector: ".about-hero.page-hero-narrative .page-kit-hero-content", minWidthRem: 70, want: map[string]string{"width": "60%", "margin-left": "0"}},
+		{label: "tablet hobby track", selector: ".about-hobby-strip", minWidthRem: 48, want: map[string]string{"grid-template-columns": "repeat(3,minmax(0,1fr))"}},
 		{label: "wide switchback", selector: ".about-switchback", minWidthRem: 70, want: map[string]string{"grid-template-columns": "minmax(0,1fr) minmax(17rem,20rem)", "grid-template-rows": "repeat(2,auto)"}},
 		{label: "wide sticky facts", selector: ".about-quick-facts", minWidthRem: 70, want: map[string]string{"position": "sticky", "inset": "auto", "top": "calc(var(--header-height) + var(--space-lg))", "align-self": "start", "grid-column": "2", "grid-row": "1 / 3"}},
-		{label: "wide hobby track", selector: ".about-hobby-strip", minWidthRem: 80, want: map[string]string{"grid-template-columns": "repeat(4,minmax(0,1fr))"}},
 		{label: "forced-color structural trail", selector: ".about-timeline-trail", forced: true, want: map[string]string{"border-block-start": "var(--line-signal) solid CanvasText !important", "color": "CanvasText !important"}},
 		{label: "forced-color SVG removal", selector: ".about-timeline-trail .signal-trail-svg", forced: true, want: map[string]string{"display": "none !important"}},
 	}

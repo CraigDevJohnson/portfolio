@@ -511,7 +511,7 @@
   color: var(--rosehip);
   font-family: var(--font-display);
   font-size: clamp(4.5rem, 24vw, 8rem);
-  font-weight: var(--font-extrabold);
+  font-weight: var(--font-semibold);
   letter-spacing: -0.08em;
   line-height: 0.78;
 }

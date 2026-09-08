@@ -30,6 +30,22 @@ const (
 	UIIconCollaboration  UIIconName = "collaboration"
 	UIIconProblemSolving UIIconName = "problem-solving"
 	UIIconDocumentation  UIIconName = "documentation"
+	UIIconTree           UIIconName = "tree-pine"
+	UIIconGaming         UIIconName = "gamepad-2"
+	UIIconDog            UIIconName = "dog"
+	UIIconMountain       UIIconName = "mountain"
+	UIIconFamily         UIIconName = "users"
+	UIIconEducation      UIIconName = "graduation-cap"
+	UIIconLearning       UIIconName = "book-open"
+	UIIconCalendar       UIIconName = "calendar-days"
+	UIIconSearch         UIIconName = "search"
+	UIIconArrowRight     UIIconName = "arrow-right"
+	UIIconArrowUpRight   UIIconName = "arrow-up-right"
+	UIIconClose          UIIconName = "x"
+	UIIconConnected      UIIconName = "circle-check"
+	UIIconDisconnected   UIIconName = "circle"
+	UIIconSoccer         UIIconName = "soccer"
+	UIIconUnavailable    UIIconName = "unavailable"
 )
 
 type HeroVariant string
@@ -88,6 +104,7 @@ type PageHeroProps struct {
 	ImageHeight   int
 	Caption       string
 	Variant       HeroVariant
+	Overview      bool
 	ExtraClass    string
 	ContentClass  string
 }
@@ -334,10 +351,12 @@ func pageHeroStatusDotClasses(animated bool) string {
 }
 
 func pageHeroClasses(props *PageHeroProps) string {
-	return mergeClasses(
-		"page-kit-shell page-kit-hero relative isolate overflow-hidden p-0 "+heroVariantClass(props.Variant),
-		props.ExtraClass,
-	)
+	classes := "page-kit-shell page-kit-hero relative isolate overflow-hidden p-0"
+	if props.Overview {
+		classes += " page-hero-overview"
+	}
+	classes += " " + heroVariantClass(props.Variant)
+	return mergeClasses(classes, props.ExtraClass)
 }
 
 func pageKitLegacyToneClass(tone Tone) string {
@@ -393,7 +412,7 @@ func linkPanelRowAriaLabel(props *LinkPanelRowProps) string {
 }
 
 func statCardValueClasses(extra string) string {
-	return mergeClasses("text-gradient-brand block font-mono text-4xl font-extrabold", extra)
+	return mergeClasses("text-gradient-brand block font-mono text-4xl font-semibold", extra)
 }
 
 func statCardLabelClasses(extra string) string {
@@ -414,6 +433,9 @@ func statCardIsNumeric(value string) bool {
 
 func statCardGridClasses(props StatCardGridProps) string {
 	base := "stats-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
+	if props.Variant == StatGridSummary {
+		base = ""
+	}
 	if props.GridClass != "" {
 		base = props.GridClass
 	}

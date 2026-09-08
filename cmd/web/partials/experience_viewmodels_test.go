@@ -14,26 +14,31 @@ func TestExperienceKitStagesRendersIntegratedOrientationPanel(t *testing.T) {
 	for _, marker := range []string{
 		`class="page-section-tight experience-orientation-section"`,
 		`class="experience-orientation"`,
-		`class="page-kit-panel-strong experience-technology-panel experience-technology-strip"`,
-		`class="experience-technology-chips"`,
-		`Tools that followed the work`,
-		`These tools recur across roles`,
+		`class="page-kit-panel-strong experience-focus-panel"`,
+		`aria-labelledby="experience-focus-heading"`,
+		`Cloud engineering focus`,
+		`Infrastructure as code`,
+		`Cloud platforms`,
+		`Engineering automation`,
+		`>Terraform</li>`,
+		`>Ansible</li>`,
+		`>Go</li>`,
+		`>Kubernetes</li>`,
+		`data-ui-icon="infrastructure"`,
+		`data-ui-icon="architecture"`,
+		`data-ui-icon="automation"`,
 	} {
 		if !strings.Contains(html, marker) {
-			t.Errorf("Experience technology panel does not contain %q", marker)
+			t.Errorf("Experience career focus panel does not contain %q", marker)
 		}
 	}
-	if got := strings.Count(html, `data-recurring-technology`); got != 8 {
-		t.Fatalf("recurring technology count = %d, want 8", got)
+	if got := strings.Count(html, `data-career-focus`); got != 3 {
+		t.Fatalf("career focus count = %d, want 3", got)
 	}
-	wantOrder := []string{"PowerShell", "AD DS", "Windows", "AWS", "Ansible", "Azure", "Bash", "Go"}
-	lastIndex := -1
-	for _, technology := range wantOrder {
-		index := strings.Index(html, ">"+technology+"</span>")
-		if index <= lastIndex {
-			t.Fatalf("technology %q index = %d after %d; markup order is wrong", technology, index, lastIndex)
+	for _, retired := range []string{`data-recurring-technology`, `Recurring technology`, `Tools that followed the work`} {
+		if strings.Contains(html, retired) {
+			t.Errorf("Experience career focus panel retains %q", retired)
 		}
-		lastIndex = index
 	}
 }
 
@@ -75,8 +80,8 @@ func TestBuildExperienceOverview(t *testing.T) {
 		t.Fatalf("automation capability count = %d, want 2", capabilityCounts["automation"])
 	}
 
-	if len(overview.SpotlightTechnologies) == 0 || overview.SpotlightTechnologies[0] != "AWS" {
-		t.Fatalf("SpotlightTechnologies = %#v, want AWS to appear first", overview.SpotlightTechnologies)
+	if overview.TotalTechnologies != 4 {
+		t.Fatalf("TotalTechnologies = %d, want 4 unique technologies", overview.TotalTechnologies)
 	}
 }
 
@@ -173,10 +178,6 @@ func TestBuildExperienceOverviewIsInputOrderIndependent(t *testing.T) {
 	}
 	if overview.CareerSpanYears != time.Now().Year()-2012 {
 		t.Errorf("CareerSpanYears = %d, want current year - 2012", overview.CareerSpanYears)
-	}
-	wantSpotlight := []string{"PowerShell", "AD DS", "Windows", "AWS", "Ansible", "Azure", "Bash", "Go"}
-	if !reflect.DeepEqual(overview.SpotlightTechnologies, wantSpotlight) {
-		t.Errorf("SpotlightTechnologies = %v, want %v", overview.SpotlightTechnologies, wantSpotlight)
 	}
 }
 

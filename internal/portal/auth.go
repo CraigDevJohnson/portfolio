@@ -128,6 +128,11 @@ func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		if err != nil || !session.IsValid() {
 			h.clearSession(w, r)
+			if r.Header.Get("HX-Request") == "true" {
+				w.Header().Set("HX-Redirect", "/login")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}

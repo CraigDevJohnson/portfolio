@@ -3,7 +3,7 @@
   color: var(--candle-oat);
   font-family: var(--font-display);
   font-size: clamp(3.35rem, 6.8vw, 6.8rem);
-  font-weight: 720;
+  font-weight: var(--font-bold);
   letter-spacing: -0.065em;
   line-height: 0.88;
   text-wrap: balance;
@@ -38,7 +38,7 @@
   color: var(--candle-oat);
   font-family: var(--font-display);
   font-size: clamp(2.25rem, 4.2vw, 4.25rem);
-  font-weight: 680;
+  font-weight: var(--font-bold);
   letter-spacing: -0.052em;
   line-height: 0.96;
   text-wrap: balance;
@@ -566,7 +566,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
   color: var(--night-mulberry);
   font-family: var(--font-display);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: var(--font-bold);
   letter-spacing: -0.04em;
   box-shadow: 0.2rem 0.2rem 0 var(--pond-mint);
   transform: rotate(-3deg);
@@ -580,7 +580,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
 
 .logo-text {
   font-size: 1rem;
-  font-weight: 750;
+  font-weight: var(--font-bold);
   letter-spacing: -0.035em;
 }
 
@@ -983,7 +983,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
 .page-kit-field-mark {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
@@ -994,6 +994,18 @@ body[data-shell='operator'] .site-operator-footer-shell {
   width: 1.65rem;
   height: 1.65rem;
   flex: none;
+}
+
+.page-kit-inline-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.15em;
+  line-height: 1;
+}
+
+.page-kit-inline-icon .page-kit-svg-icon {
+  width: 1em;
+  height: 1em;
 }
 
 .page-kit-icon-frame-accent {
@@ -1532,7 +1544,9 @@ body[data-shell='operator'] .site-operator-footer-shell {
 }
 
 .stat-grid-summary {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-sm);
 }
 
 .signal-trail {
@@ -1736,5 +1750,74 @@ body[data-shell='operator'] .site-operator-footer-shell {
   .signal-trail {
     inset: 10.2rem var(--space-lg) auto;
     height: 2.7rem;
+  }
+}
+
+/* Overview heroes follow Experience: a clear introduction and useful context
+   share the text column; the image supports them without setting the height. */
+.page-kit-hero.page-hero-overview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.page-hero-overview .page-kit-hero-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-xl);
+  order: -1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  align-content: center;
+}
+
+.page-hero-overview .stat-grid-summary {
+  min-width: 0;
+  max-width: 42rem;
+}
+
+.page-hero-overview .page-kit-stat-card {
+  min-width: 0;
+  padding: var(--space-lg) var(--space-md);
+  text-align: left;
+}
+
+@media (max-width: 29.999rem) {
+  .page-hero-overview .stat-grid-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-hero-overview .page-kit-stat-card {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md);
+  }
+}
+
+@media (min-width: 70rem) {
+  .page-kit-hero.page-hero-overview {
+    display: block;
+  }
+
+  .page-hero-overview .page-kit-hero-content {
+    width: 67%;
+  }
+
+  .page-hero-overview .page-kit-hero-photo {
+    right: var(--space-lg);
+    left: auto;
+    width: 35%;
+    border-radius: var(--radius-lg) 8rem var(--radius-lg) 8rem;
+    box-shadow:
+      0.7rem 0.7rem 0 color-mix(in srgb, var(--hero-signal) 65%, transparent),
+      0 1.5rem 3rem color-mix(in srgb, var(--night-mulberry) 66%, transparent);
+  }
+
+  .page-hero-overview .page-kit-hero-photo::after,
+  .page-hero-overview .page-kit-hero-photo-image {
+    border-radius: var(--radius-md) calc(8rem - var(--space-sm)) var(--radius-md) calc(8rem - var(--space-sm));
   }
 }

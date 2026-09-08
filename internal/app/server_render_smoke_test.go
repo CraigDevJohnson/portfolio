@@ -348,7 +348,7 @@ func assertContactActionVariant(t *testing.T, path, body, hrefMarker, variant st
 func assertEducationLearningFieldGuide(t *testing.T, path, body string) {
 	t.Helper()
 
-	assertOrderedPageRegions(t, path, body, "learning-field-guide", []string{"intro", "stats", "foundation", "domains", "cta"})
+	assertOrderedPageRegions(t, path, body, "learning-field-guide", []string{"intro", "foundation", "domains", "cta"})
 	if count := strings.Count(body, `data-signal-trail`); count != 1 {
 		t.Errorf("GET %s signal trail count = %d, want 1", path, count)
 	}
@@ -841,7 +841,7 @@ func assertHomeSystemsOverlook(t *testing.T, path, body string) {
 			t.Errorf("GET %s Home systems overlook does not contain %q", path, marker)
 		}
 	}
-	for _, removed := range []string{`data-region="proof"`, `home-proof-grid`, `Proof of Work`, `Follow the systems behind the résumé`} {
+	for _, removed := range []string{`Available for opportunities`, `data-region="proof"`, `home-proof-grid`, `Proof of Work`, `Follow the systems behind the résumé`} {
 		if strings.Contains(body, removed) {
 			t.Errorf("GET %s Home systems overlook still contains removed proof marker %q", path, removed)
 		}
@@ -970,15 +970,17 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`src="/static/images/backgrounds/about-hero.jpg"`,
 		`--page-kit-hero-photo-position: center 36%;`,
 		`Alaska roots, wider horizons`,
-		`From Alaska service desks to principal-level cloud engineering.`,
+		`From Alaska to the cloud`,
+		`My career started at a local university service desk in Alaska`,
+		`A service mindset`,
 		`Years in Tech`,
 		`Certifications`,
 		`Technologies`,
 		`Cups of Coffee`,
 		`Originally from Alaska`,
-		`Family of 4 + 2 dogs`,
+		`Family of 4`,
 		`Lifelong soccer enthusiast`,
-		`BS in Cloud Computing`,
+		`Bachelor of Science in Cloud Computing`,
 		`Cloud &amp; automation specialist`,
 		`Continuous learner`,
 		`Started in Tech`,
@@ -987,24 +989,28 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`Cloud Transition`,
 		`Cloud Engineer Principal`,
 		`Leaving Alaska expanded both the environments`,
-		`My tech career began at the local university`,
+		`In healthcare IT, I provided technical support`,
 		`Soccer has been a lifelong love of mine`,
 		`Playing and coaching`,
 		`Alaska roots mean a love for hiking`,
 		`Strategy and building games exercise`,
-		`A lively home office comes with four paws`,
 		`Iterate, measure, and leave the system easier`,
 		`Build with the people who operate the platform`,
 		`Break complex constraints into practical`,
 		`Make context durable so the next person`,
 		`href="/experience"`,
-		`View My Experience`,
+		`View experience`,
 		`href="/contact"`,
-		`Get in Touch`,
+		`Contact me`,
 	}
 	for _, marker := range markers {
 		if !strings.Contains(body, marker) {
 			t.Errorf("GET %s About Alaska switchback does not contain %q", path, marker)
+		}
+	}
+	for _, marker := range []string{"Dog Dad", "2 dogs", "four paws"} {
+		if strings.Contains(body, marker) {
+			t.Errorf("GET %s About Alaska switchback retains removed personal detail %q", path, marker)
 		}
 	}
 
@@ -1015,8 +1021,8 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		if strings.Contains(hero, "min-h-full") {
 			t.Errorf("GET %s About hero retains min-h-full utility that clips stacked hero content", path)
 		}
-		if !strings.Contains(hero, "about-hero-content") {
-			t.Errorf("GET %s About hero lacks its route-owned content layout class", path)
+		if !strings.Contains(hero, "page-hero-overview") {
+			t.Errorf("GET %s About hero lacks the shared overview layout class", path)
 		}
 	}
 
@@ -1249,31 +1255,31 @@ func assertExperienceCareerEras(t *testing.T, path, body string) {
 		`Cloud Engineer Principal`,
 		`COMPANY REDACTED - A`,
 		`2022 – Present`,
-		`Lead infrastructure automation initiatives using IaC principles.`,
+		`Lead infrastructure automation initiatives using infrastructure as code (IaC).`,
 		`System Administrator`,
 		`COMPANY REDACTED - B`,
 		`2021 – 2022`,
-		`Managed enterprise SCADA systems and infrastructure automation.`,
+		`Managed enterprise supervisory control and data acquisition (SCADA) systems and infrastructure automation.`,
 		`IT Systems Engineer Sr`,
 		`2020 – 2021`,
 		`Architected and implemented cloud infrastructure solutions in healthcare environments.`,
 		`IT Systems Engineer`,
 		`2018 – 2020`,
-		`Managed enterprise Active Directory and Exchange infrastructure.`,
+		`Managed enterprise Active Directory Domain Services (AD DS) and Exchange infrastructure.`,
 		`IT Desktop Engineer`,
 		`2017 – 2018`,
 		`Implemented automated solutions for endpoint management and configuration.`,
 		`IT Service Desk Associate`,
 		`2016 – 2017`,
-		`Utilized ITSM platforms for incident and change management.`,
+		`Used IT service management (ITSM) platforms for incident and change management.`,
 		`Service Desk Student Analyst`,
 		`COMPANY REDACTED - D`,
 		`2012 – 2016`,
-		`Managed incident tracking through enterprise ITSM systems.`,
+		`Managed incident tracking through enterprise IT service management (ITSM) systems.`,
 		`href="/projects"`,
-		`View Projects`,
+		`View projects`,
 		`href="/skills"`,
-		`Review Skills`,
+		`View skills`,
 	}
 	for _, marker := range markers {
 		if !strings.Contains(body, marker) {
@@ -1284,8 +1290,8 @@ func assertExperienceCareerEras(t *testing.T, path, body string) {
 	if count := strings.Count(body, `data-experience-summary-stat`); count != 3 {
 		t.Errorf("GET %s Experience summary stat count = %d, want 3", path, count)
 	}
-	if count := strings.Count(body, `data-recurring-technology`); count != 8 {
-		t.Errorf("GET %s recurring technology count = %d, want 8", path, count)
+	if count := strings.Count(body, `data-career-focus`); count != 3 {
+		t.Errorf("GET %s career focus count = %d, want 3", path, count)
 	}
 	if count := strings.Count(body, `data-role-technology`); count != 23 {
 		t.Errorf("GET %s rendered role technology count = %d, want 23", path, count)
@@ -1323,7 +1329,7 @@ func assertExperienceLayoutIsRouteOwned(t *testing.T, path, body string) {
 	markers := []string{
 		`data-layout="career-eras"`,
 		`data-experience-summary-grid`,
-		`data-experience-spotlight`,
+		`aria-labelledby="experience-focus-heading"`,
 		`data-career-sequence`,
 		`data-career-era="`,
 		`data-era-layout`,
@@ -1412,8 +1418,8 @@ func validateExperienceCareerEraStructure(body string) error {
 	if count := strings.Count(body, "<h1"); count != 1 {
 		return fmt.Errorf("h1 count = %d, want 1", count)
 	}
-	if count := strings.Count(body, `data-signal-trail`); count != 2 {
-		return fmt.Errorf("full-page signal trail count = %d, want 2", count)
+	if count := strings.Count(body, `data-signal-trail`); count != 1 {
+		return fmt.Errorf("full-page signal trail count = %d, want 1", count)
 	}
 	if count := strings.Count(body, `data-career-era="`); count != 3 {
 		return fmt.Errorf("career-era marker count = %d, want 3", count)
@@ -1429,11 +1435,8 @@ func validateExperienceCareerEraStructure(body string) error {
 	if !strings.Contains(sequence, "<ol") {
 		return fmt.Errorf("career sequence is not an ordered list")
 	}
-	if count := strings.Count(sequence, `data-signal-trail`); count != 1 {
-		return fmt.Errorf("career sequence signal trail count = %d, want 1", count)
-	}
-	if count := strings.Count(sequence, `signal-trail-timeline`); count != 1 {
-		return fmt.Errorf("career sequence typed timeline trail count = %d, want 1", count)
+	if count := strings.Count(sequence, `data-signal-trail`); count != 0 {
+		return fmt.Errorf("career sequence signal trail count = %d, want none", count)
 	}
 	orientation, err := findTestHTMLElementMarkup(body, `class="experience-orientation"`)
 	if err != nil {
@@ -1521,6 +1524,9 @@ func validateExperienceCareerEraStructure(body string) error {
 		if roleListOpening.name != "ol" {
 			return fmt.Errorf("career era %q role list element = <%s>, want <ol>", expected.id, roleListOpening.name)
 		}
+		if eraHeading.start >= roleListOpening.start {
+			return fmt.Errorf("career era %q heading must precede its role list", expected.id)
+		}
 		roleList, roleListMarkupErr := findTestHTMLElementMarkup(era, `class="experience-role-list"`)
 		if roleListMarkupErr != nil {
 			return fmt.Errorf("career era %q role list boundaries: %w", expected.id, roleListMarkupErr)
@@ -1578,7 +1584,7 @@ func TestValidateExperienceCareerEraStructureRejectsMutations(t *testing.T) {
 	const foundationDiv = `<div data-career-era="foundation"><section data-era-status="completed"><h3 class="experience-era-title">Foundation</h3><ol class="experience-role-list"><li><article data-experience-role="7"><h4 class="experience-role-title">Service Desk Student Analyst</h4></article></li><li><article data-experience-role="6"><h4 class="experience-role-title">IT Service Desk Associate</h4></article></li></ol></section></div>`
 	const systems = `<li data-career-era="systems-growth"><section data-era-status="completed"><h3 class="experience-era-title">Systems Growth</h3><ol class="experience-role-list"><li><article data-experience-role="5"><h4 class="experience-role-title">IT Desktop Engineer</h4></article></li><li><article data-experience-role="4"><h4 class="experience-role-title">IT Systems Engineer</h4></article></li><li><article data-experience-role="3"><h4 class="experience-role-title">IT Systems Engineer Sr</h4></article></li></ol></section></li>`
 	const cloud = `<li data-career-era="cloud-leadership"><section data-era-status="current"><h3 class="experience-era-title">Cloud Leadership</h3><ol class="experience-role-list"><li><article data-experience-role="2"><h4 class="experience-role-title">System Administrator</h4></article></li><li><article data-experience-role="1"><h4 class="experience-role-title">Cloud Engineer Principal</h4></article></li></ol></section></li>`
-	valid := `<main data-layout="career-eras"><h1>Experience</h1><div class="experience-orientation">` + orientationTrail + `</div>` + stats + `<div data-career-sequence>` + trail + `<ol class="experience-era-list">` + foundation + systems + cloud + `</ol></div></main>`
+	valid := `<main data-layout="career-eras"><h1>Experience</h1><div class="experience-orientation">` + orientationTrail + `</div>` + stats + `<div data-career-sequence><ol class="experience-era-list">` + foundation + systems + cloud + `</ol></div></main>`
 	outerListAsDiv := strings.Replace(valid, `<ol class="experience-era-list">`, `<div class="experience-era-list">`, 1)
 	outerListAsDiv = strings.Replace(outerListAsDiv, `</ol></div></main>`, `</div></div></main>`, 1)
 
@@ -1599,12 +1605,9 @@ func TestValidateExperienceCareerEraStructureRejectsMutations(t *testing.T) {
 		{name: "era marker is not a list item", body: strings.Replace(valid, foundation, foundationDiv, 1)},
 		{name: "era heading demoted from h3", body: strings.Replace(valid, `<h3 class="experience-era-title">Foundation</h3>`, `<p class="experience-era-title">Foundation</p>`, 1)},
 		{name: "role heading demoted from h4", body: strings.Replace(valid, `<h4 class="experience-role-title">Cloud Engineer Principal</h4>`, `<p class="experience-role-title">Cloud Engineer Principal</p>`, 1)},
-		{name: "missing trail", body: strings.Replace(valid, trail, ``, 1)},
-		{name: "duplicate trail", body: strings.Replace(valid, trail, trail+trail, 1)},
-		{name: "wrong trail", body: strings.Replace(valid, `signal-trail-timeline`, `signal-trail-switchback`, 1)},
 		{name: "missing orientation trail", body: strings.Replace(valid, orientationTrail, ``, 1)},
 		{name: "wrong orientation trail", body: strings.Replace(valid, `signal-trail-topology`, `signal-trail-dossier`, 1)},
-		{name: "trail sibling before closed sequence", body: strings.Replace(valid, `<div data-career-sequence>`+trail, trail+`<div data-career-sequence>`, 1)},
+		{name: "retired trail inside career sequence", body: strings.Replace(valid, `<div data-career-sequence>`, `<div data-career-sequence>`+trail, 1)},
 		{name: "trail sibling outside closed sequence", body: strings.Replace(valid, `</ol></div></main>`, `</ol></div>`+trail+`</main>`, 1)},
 		{name: "duplicate h1", body: strings.Replace(valid, `<h1>Experience</h1>`, `<h1>Experience</h1><h1>Again</h1>`, 1)},
 	}
@@ -1625,7 +1628,7 @@ func TestValidateExperienceCareerEraStructureAcceptsNestedMarkup(t *testing.T) {
 	const body = `<main data-layout="career-eras"><h1>Experience</h1>` +
 		`<div class="experience-orientation"><div class="signal-trail signal-trail-topology experience-orientation-trail" data-signal-trail></div></div>` +
 		`<div data-career-sequence title="quoted > boundary">` +
-		`<div class="signal-trail signal-trail-timeline" data-signal-trail></div><ol class="experience-era-list">` +
+		`<ol class="experience-era-list">` +
 		`<li data-career-era="foundation"><section data-era-status="completed"><h3 class="experience-era-title">Foundation</h3><div><!-- fake </li> --></div><ol class="experience-role-list"><li><article data-experience-role="7"><h4 class="experience-role-title">Service Desk Student Analyst</h4></article></li><li><article data-experience-role="6"><h4 class="experience-role-title">IT Service Desk Associate</h4></article></li></ol></section></li>` +
 		`<li data-career-era="systems-growth"><section data-era-status="completed"><h3 class="experience-era-title">Systems Growth</h3><ol class="experience-role-list"><li><article data-experience-role="5"><h4 class="experience-role-title">IT Desktop Engineer</h4></article></li><li><article data-experience-role="4"><h4 class="experience-role-title">IT Systems Engineer</h4></article></li><li><article data-experience-role="3"><h4 class="experience-role-title">IT Systems Engineer Sr</h4></article></li></ol></section></li>` +
 		`<li data-career-era="cloud-leadership"><section data-era-status="current"><h3 class="experience-era-title">Cloud Leadership</h3><ol class="experience-role-list"><li><article data-experience-role="2"><h4 class="experience-role-title">System Administrator</h4></article></li><li><article data-experience-role="1"><h4 class="experience-role-title">Cloud Engineer Principal</h4></article></li></ol></section></li>` +
@@ -1644,7 +1647,7 @@ func TestValidateExperienceRoleContentRejectsMutations(t *testing.T) {
 		{
 			name: "responsibility substitution inside bounded role",
 			body: strings.Replace(body,
-				`Lead infrastructure automation initiatives using IaC principles. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`,
+				`Lead infrastructure automation initiatives using infrastructure as code (IaC). Implement continuous integration and continuous delivery (CI/CD) pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`,
 				`Lead platform initiatives. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.`, 1),
 		},
 		{
@@ -1690,13 +1693,13 @@ func validateExperienceRoleContent(body string) error {
 		responsibilities string
 		technologies     []string
 	}{
-		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise ITSM systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "macOS", "GoogleApps"}},
-		{id: "6", title: "IT Service Desk Associate", company: "COMPANY REDACTED - C", duration: "2016 – 2017", responsibilities: "Utilized ITSM platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.", technologies: []string{"ServiceNow", "O365", "Windows"}},
-		{id: "5", title: "IT Desktop Engineer", company: "COMPANY REDACTED - C", duration: "2017 – 2018", responsibilities: "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using ITIL methodologies. Established standardized deployment procedures for enterprise endpoints.", technologies: []string{"PowerShell", "SCCM", "Intune"}},
-		{id: "4", title: "IT Systems Engineer", company: "COMPANY REDACTED - C", duration: "2018 – 2020", responsibilities: "Managed enterprise Active Directory and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.", technologies: []string{"PowerShell", "AD DS", "O365/Exchange"}},
+		{id: "7", title: "Service Desk Student Analyst", company: "COMPANY REDACTED - D", duration: "2012 – 2016", responsibilities: "Managed incident tracking through enterprise IT service management (ITSM) systems. Maintained technical documentation and knowledge base articles. Achieved consistent high-quality metrics in service delivery.", technologies: []string{"Windows", "macOS", "Google Apps"}},
+		{id: "6", title: "IT Service Desk Associate", company: "COMPANY REDACTED - C", duration: "2016 – 2017", responsibilities: "Used IT service management (ITSM) platforms for incident and change management. Maintained documentation for standard operating procedures. Provided technical support for enterprise applications and systems.", technologies: []string{"ServiceNow", "Office 365", "Windows"}},
+		{id: "5", title: "IT Desktop Engineer", company: "COMPANY REDACTED - C", duration: "2017 – 2018", responsibilities: "Implemented automated solutions for endpoint management and configuration. Managed incident response for business-critical systems using Information Technology Infrastructure Library (ITIL) methodologies. Established standardized deployment procedures for enterprise endpoints.", technologies: []string{"PowerShell", "SCCM", "Intune"}},
+		{id: "4", title: "IT Systems Engineer", company: "COMPANY REDACTED - C", duration: "2018 – 2020", responsibilities: "Managed enterprise Active Directory Domain Services (AD DS) and Exchange infrastructure. Implemented automation solutions for service deployment and configuration management. Orchestrated application lifecycle management and infrastructure upgrades.", technologies: []string{"PowerShell", "AD DS", "Office 365 / Exchange"}},
 		{id: "3", title: "IT Systems Engineer Sr", company: "COMPANY REDACTED - C", duration: "2020 – 2021", responsibilities: "Architected and implemented cloud infrastructure solutions in healthcare environments. Led technical projects involving cross-functional teams and vendor integration. Developed automation frameworks for critical systems and established best practices for infrastructure management.", technologies: []string{"Azure", "AD DS", "PowerShell"}},
-		{id: "2", title: "System Administrator", company: "COMPANY REDACTED - B", duration: "2021 – 2022", responsibilities: "Managed enterprise SCADA systems and infrastructure automation. Implemented monitoring solutions and maintained high-availability environments. Established IT/OT integration practices while ensuring regulatory compliance. Orchestrated application deployments and infrastructure upgrades in critical environments.", technologies: []string{"IoT", "SCADA", "RHEL", "Bash"}},
-		{id: "1", title: "Cloud Engineer Principal", company: "COMPANY REDACTED - A", duration: "2022 – Present", responsibilities: "Lead infrastructure automation initiatives using IaC principles. Implement CI/CD pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.", technologies: []string{"AWS", "Go", "Terraform", "Ansible"}},
+		{id: "2", title: "System Administrator", company: "COMPANY REDACTED - B", duration: "2021 – 2022", responsibilities: "Managed enterprise supervisory control and data acquisition (SCADA) systems and infrastructure automation. Implemented monitoring solutions and maintained high-availability environments. Established information technology and operational technology (IT/OT) integration practices while ensuring regulatory compliance. Orchestrated application deployments and infrastructure upgrades in critical environments.", technologies: []string{"IoT", "SCADA", "RHEL", "Bash"}},
+		{id: "1", title: "Cloud Engineer Principal", company: "COMPANY REDACTED - A", duration: "2022 – Present", responsibilities: "Lead infrastructure automation initiatives using infrastructure as code (IaC). Implement continuous integration and continuous delivery (CI/CD) pipelines for application deployment and configuration management. Architect and maintain cloud-native solutions while optimizing application performance and security. Develop self-service capabilities through automation, reducing deployment time by implementing GitOps methodologies.", technologies: []string{"AWS", "Go", "Terraform", "Ansible"}},
 	}
 	for _, role := range expected {
 		marker := `data-experience-role="` + role.id + `"`
@@ -1769,11 +1772,22 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260906b`,
+		`/static/css/tailwind.css?v=20260908c`,
 		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {
 		t.Errorf("GET %s h1 count = %d, want 1", path, count)
+	}
+	if want := map[string]int{"/about": 4, "/education": 4, "/experience": 3, "/skills": 3, "/projects": 3}[strings.Split(path, "?")[0]]; want > 0 {
+		hero, err := findTestHTMLElementMarkup(body, `class="page-kit-shell page-kit-hero`)
+		if err != nil {
+			t.Errorf("GET %s overview hero boundaries: %v", path, err)
+		} else if got := strings.Count(hero, "page-kit-stat-card"); got != want {
+			t.Errorf("GET %s hero has %d summary cards, want %d inside the introduction", path, got, want)
+		}
+		if got := strings.Count(body, "page-kit-stat-card"); got != want {
+			t.Errorf("GET %s has %d summary cards, want %d without a duplicate summary band", path, got, want)
+		}
 	}
 	if shell == "operator" {
 		if !strings.Contains(body, ">Back to portfolio</a>") {
