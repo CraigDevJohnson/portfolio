@@ -18,10 +18,14 @@ extra-bold weights. Home hero text uses slightly looser tracking and line spacin
 long Experience role titles wrap naturally with a 1.2 line height.
 
 Page eyebrows identify the section; the main heading explains its content rather
-than repeating the section name. Short introductions use the shared compact hero
-so content determines height, with text before supporting imagery on small screens.
-Move useful existing context into the introduction instead of adding filler to
-fill a tall frame.
+than repeating the section name. Use Experience as the reference for page heroes:
+a prominent heading, a concise introduction, and relevant summary cards or actions
+in the wide text column beside a narrower image. Use the shared overview layout,
+with content determining height and text before imagery on small screens. Move
+existing summary cards into the hero instead of repeating them in a separate band.
+Derive counts from the content they summarize; keep longer background prose in
+the body. Home retains its identity composition, and task pages use their useful
+actions rather than adding statistics just to fill space.
 
 The warm CJ medallion is the shared signature. Keep surrounding navigation quiet:
 text labels for destinations, a pill for the active header destination, and an

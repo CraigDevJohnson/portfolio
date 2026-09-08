@@ -18,10 +18,15 @@ templ Skills(props SkillsProps) {
 				ImagePosition: "center 30%",
 				Caption:       "Tools in service of systems",
 				Variant:       partials.HeroCatalog,
+				Overview:      true,
 			}) {
 				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Skills", Title: "Cloud & Platform Toolkit"}) {
 					<p class="page-hero-description">Tools, platforms, and operating practices I use to build and improve production infrastructure.</p>
 				}
+				@partials.StatCardGrid(partials.StatCardGridProps{
+					Cards:   skillsOverviewCards(&props.Grid),
+					Variant: partials.StatGridSummary,
+				})
 			}
 			<section class="page-section skills-toolkit-section">
 				@partials.SkillsGrid(props.Grid)

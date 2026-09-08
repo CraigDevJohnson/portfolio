@@ -104,7 +104,7 @@ type PageHeroProps struct {
 	ImageHeight   int
 	Caption       string
 	Variant       HeroVariant
-	Compact       bool
+	Overview      bool
 	ExtraClass    string
 	ContentClass  string
 }
@@ -351,11 +351,9 @@ func pageHeroStatusDotClasses(animated bool) string {
 }
 
 func pageHeroClasses(props *PageHeroProps) string {
-	classes := "page-kit-shell page-kit-hero relative isolate overflow-hidden"
-	if props.Compact {
-		classes += " page-hero-compact"
-	} else {
-		classes += " p-0"
+	classes := "page-kit-shell page-kit-hero relative isolate overflow-hidden p-0"
+	if props.Overview {
+		classes += " page-hero-overview"
 	}
 	classes += " " + heroVariantClass(props.Variant)
 	return mergeClasses(classes, props.ExtraClass)
@@ -435,6 +433,9 @@ func statCardIsNumeric(value string) bool {
 
 func statCardGridClasses(props StatCardGridProps) string {
 	base := "stats-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
+	if props.Variant == StatGridSummary {
+		base = ""
+	}
 	if props.GridClass != "" {
 		base = props.GridClass
 	}

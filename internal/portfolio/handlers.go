@@ -18,15 +18,13 @@ import (
 )
 
 const (
-	displayName            = "Craig Johnson"
-	displayRole            = "Cloud Engineer Principal"
-	gravatarEmail          = "gravatar@craigdevjohnson.com"
-	gravatarSize           = 275
-	certificationCount     = 10
-	techUsedCount          = 30
-	coffeeCount            = "∞"
-	educationProviderCount = 5
-	educationStartYear     = 2018
+	displayName        = "Craig Johnson"
+	displayRole        = "Cloud Engineer Principal"
+	gravatarEmail      = "gravatar@craigdevjohnson.com"
+	gravatarSize       = 275
+	certificationCount = 10
+	coffeeCount        = "∞"
+	educationStartYear = 2018
 )
 
 // gravatarURL returns the Gravatar image URL for the given email and size.
@@ -73,7 +71,7 @@ func AboutHandler(w http.ResponseWriter, r *http.Request, careerStartYear int) {
 	props := pages.AboutProps{
 		YearsInTech:    time.Now().Year() - careerStartYear,
 		Certifications: certificationCount,
-		TechUsed:       techUsedCount,
+		TechUsed:       buildSkillsPageProps(SkillsData(), nil).Grid.TotalCatalogCount,
 		CupsOfCoffee:   coffeeCount,
 	}
 	renderComponent(w, r, pages.About(props))
@@ -167,7 +165,7 @@ func ProjectsHandler(w http.ResponseWriter, r *http.Request) {
 func EducationHandler(w http.ResponseWriter, r *http.Request) {
 	props := pages.EducationProps{
 		TotalCerts:      certificationCount,
-		Providers:       educationProviderCount,
+		Providers:       pages.EducationProviderCount(),
 		YearsCertifying: time.Now().Year() - educationStartYear,
 	}
 	renderComponent(w, r, pages.Education(props))

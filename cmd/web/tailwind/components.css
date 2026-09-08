@@ -1544,7 +1544,9 @@ body[data-shell='operator'] .site-operator-footer-shell {
 }
 
 .stat-grid-summary {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-sm);
 }
 
 .signal-trail {
@@ -1751,57 +1753,71 @@ body[data-shell='operator'] .site-operator-footer-shell {
   }
 }
 
-/* Short introductions size to their content; imagery supports the page purpose. */
-.page-kit-hero.page-hero-compact {
+/* Overview heroes follow Experience: a clear introduction and useful context
+   share the text column; the image supports them without setting the height. */
+.page-kit-hero.page-hero-overview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.page-hero-overview .page-kit-hero-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-lg);
-  min-height: 0;
-  padding: clamp(var(--space-lg), 4vw, var(--space-2xl));
-  align-items: center;
-}
-
-.page-hero-compact .page-kit-hero-content {
+  gap: var(--space-xl);
   order: -1;
-  width: auto;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 0;
+  align-content: center;
 }
 
-.page-hero-compact .page-hero-title {
-  max-width: 18ch;
-  font-size: clamp(var(--text-4xl), 5vw, 4.5rem);
-  letter-spacing: -0.045em;
-  line-height: 1.04;
-}
-
-.page-hero-compact .page-kit-hero-photo {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  height: auto;
+.page-hero-overview .stat-grid-summary {
   min-width: 0;
-  margin: 0;
-  aspect-ratio: 2 / 1;
-  border-radius: var(--radius-xl) var(--radius-md) var(--radius-md) var(--radius-md);
-  box-shadow: var(--space-xs) var(--space-xs) 0 color-mix(in srgb, var(--hero-signal) 76%, transparent);
-  transform: none;
+  max-width: 42rem;
 }
 
-.page-hero-compact .page-kit-hero-photo::after,
-.page-hero-compact .page-kit-hero-photo-image {
-  border-radius: var(--radius-lg) var(--radius-sm) var(--radius-sm) var(--radius-sm);
+.page-hero-overview .page-kit-stat-card {
+  min-width: 0;
+  padding: var(--space-lg) var(--space-md);
+  text-align: left;
 }
 
-@media (min-width: 48rem) {
-  .page-kit-hero.page-hero-compact {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-    gap: clamp(var(--space-lg), 4vw, var(--space-2xl));
+@media (max-width: 29.999rem) {
+  .page-hero-overview .stat-grid-summary {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .page-hero-compact .page-kit-hero-photo {
-    aspect-ratio: 4 / 3;
+  .page-hero-overview .page-kit-stat-card {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md);
+  }
+}
+
+@media (min-width: 70rem) {
+  .page-kit-hero.page-hero-overview {
+    display: block;
+  }
+
+  .page-hero-overview .page-kit-hero-content {
+    width: 67%;
+  }
+
+  .page-hero-overview .page-kit-hero-photo {
+    right: var(--space-lg);
+    left: auto;
+    width: 35%;
+    border-radius: var(--radius-lg) 8rem var(--radius-lg) 8rem;
+    box-shadow:
+      0.7rem 0.7rem 0 color-mix(in srgb, var(--hero-signal) 65%, transparent),
+      0 1.5rem 3rem color-mix(in srgb, var(--night-mulberry) 66%, transparent);
+  }
+
+  .page-hero-overview .page-kit-hero-photo::after,
+  .page-hero-overview .page-kit-hero-photo-image {
+    border-radius: var(--radius-md) calc(8rem - var(--space-sm)) var(--radius-md) calc(8rem - var(--space-sm));
   }
 }

@@ -348,7 +348,7 @@ func assertContactActionVariant(t *testing.T, path, body, hrefMarker, variant st
 func assertEducationLearningFieldGuide(t *testing.T, path, body string) {
 	t.Helper()
 
-	assertOrderedPageRegions(t, path, body, "learning-field-guide", []string{"intro", "stats", "foundation", "domains", "cta"})
+	assertOrderedPageRegions(t, path, body, "learning-field-guide", []string{"intro", "foundation", "domains", "cta"})
 	if count := strings.Count(body, `data-signal-trail`); count != 1 {
 		t.Errorf("GET %s signal trail count = %d, want 1", path, count)
 	}
@@ -970,7 +970,7 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		`src="/static/images/backgrounds/about-hero.jpg"`,
 		`--page-kit-hero-photo-position: center 36%;`,
 		`Alaska roots, wider horizons`,
-		`From Alaska to cloud engineering`,
+		`From Alaska to the cloud`,
 		`My career started at a local university service desk in Alaska`,
 		`A service mindset`,
 		`Years in Tech`,
@@ -1021,8 +1021,8 @@ func assertAboutAlaskaSwitchback(t *testing.T, path, body string) {
 		if strings.Contains(hero, "min-h-full") {
 			t.Errorf("GET %s About hero retains min-h-full utility that clips stacked hero content", path)
 		}
-		if !strings.Contains(hero, "page-hero-compact") {
-			t.Errorf("GET %s About hero lacks the shared compact layout class", path)
+		if !strings.Contains(hero, "page-hero-overview") {
+			t.Errorf("GET %s About hero lacks the shared overview layout class", path)
 		}
 	}
 
@@ -1772,11 +1772,22 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260908a`,
+		`/static/css/tailwind.css?v=20260908b`,
 		`/static/js/main.js?v=20260906a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {
 		t.Errorf("GET %s h1 count = %d, want 1", path, count)
+	}
+	if want := map[string]int{"/about": 4, "/education": 4, "/experience": 3, "/skills": 3, "/projects": 3}[strings.Split(path, "?")[0]]; want > 0 {
+		hero, err := findTestHTMLElementMarkup(body, `class="page-kit-shell page-kit-hero`)
+		if err != nil {
+			t.Errorf("GET %s overview hero boundaries: %v", path, err)
+		} else if got := strings.Count(hero, "page-kit-stat-card"); got != want {
+			t.Errorf("GET %s hero has %d summary cards, want %d inside the introduction", path, got, want)
+		}
+		if got := strings.Count(body, "page-kit-stat-card"); got != want {
+			t.Errorf("GET %s has %d summary cards, want %d without a duplicate summary band", path, got, want)
+		}
 	}
 	if shell == "operator" {
 		if !strings.Contains(body, ">Back to portfolio</a>") {

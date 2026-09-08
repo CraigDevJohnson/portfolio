@@ -54,18 +54,18 @@ templ Education(props EducationProps) {
 					ImageHeight:   1775,
 					Caption:       "A practice of staying curious",
 					Variant:       partials.HeroCatalog,
-					Compact:       true,
+					Overview:      true,
 				}) {
 					@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "Education", Title: "Degree & certifications"}) {
 						<p class="page-hero-description">
 							Academic foundation and professional certifications powering a career in cloud technology.
 						</p>
 					}
+					<section class="education-stats-section" data-education-summary aria-label="Education summary">
+						@partials.StatCardGrid(partials.StatCardGridProps{Cards: educationStatCards(props), Variant: partials.StatGridSummary})
+					</section>
 				}
 			</div>
-			<section class="page-stats-section education-stats-section" data-region="stats" aria-label="Education summary">
-				@partials.StatCardGrid(partials.StatCardGridProps{Cards: educationStatCards(props)})
-			</section>
 			<section class="page-section education-foundation-section" data-region="foundation" aria-labelledby="education-foundation-heading">
 				<div class="page-kit-section-intro education-foundation-intro">
 					@partials.SectionLabel("Academic Foundation")

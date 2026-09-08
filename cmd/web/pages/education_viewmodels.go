@@ -29,6 +29,17 @@ type educationCredentialDomain struct {
 	Credentials []educationCredential
 }
 
+// EducationProviderCount counts the distinct issuers represented by certification cards.
+func EducationProviderCount() int {
+	providers := make(map[string]struct{})
+	for _, domain := range educationCredentialDomains() {
+		for _, credential := range domain.Credentials {
+			providers[credential.Provider] = struct{}{}
+		}
+	}
+	return len(providers)
+}
+
 func educationStatCards(props EducationProps) []partials.StatCardProps {
 	return []partials.StatCardProps{
 		{Value: "1", Label: "Degree", AriaLabel: "1 degree", ExtraClass: "education-stat education-stat-degree stagger-enter"},

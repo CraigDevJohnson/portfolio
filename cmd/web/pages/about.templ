@@ -92,21 +92,18 @@ templ About(props AboutProps) {
 				ImagePosition: "center 36%",
 				Caption:       "Alaska roots, wider horizons",
 				Variant:       partials.HeroNarrative,
-				Compact:       true,
+				Overview:      true,
 				ExtraClass:    "about-hero",
 			}) {
-				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "From Alaska to cloud engineering"}) {
+				@partials.PageHeroIntro(partials.PageHeroIntroProps{Eyebrow: "About", Title: "From Alaska to the cloud"}) {
 					<p class="page-hero-description">
-						My career started at a local university service desk in Alaska, where I learned that useful
-						tech support begins with patient troubleshooting and clear explanations. Since then, I've
-						worked in healthcare IT, enterprise systems, and cloud engineering — each step adding
-						more scale and responsibility.
+						A career built on patient troubleshooting, clear explanations, and a service mindset — from Alaska service desks to principal-level cloud engineering.
 					</p>
 				}
+				<div class="about-stats-section" role="group" aria-label="Career at a glance">
+					@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props), Variant: partials.StatGridSummary})
+				</div>
 			}
-			<div class="page-stats-section about-stats-section" role="group" aria-label="Career at a glance">
-				@partials.StatCardGrid(partials.StatCardGridProps{Cards: aboutStatCards(props)})
-			</div>
 			<div class="about-switchback" data-about-switchback>
 				<section class="page-section about-story-section" data-region="story">
 					<div class="about-story-copy">
@@ -116,6 +113,12 @@ templ About(props AboutProps) {
 							ExtraClass: "about-story-heading",
 						})
 						<div class="about-story-prose">
+							<p>
+								My career started at a local university service desk in Alaska, where I learned that useful
+								tech support begins with patient troubleshooting and clear explanations. Since then, I've
+								worked in healthcare IT, enterprise systems, and cloud engineering — each step adding
+								more scale and responsibility.
+							</p>
 							<blockquote class="about-story-pullquote">
 								Leaving Alaska expanded both the environments I could work in and the problems I could learn from.
 							</blockquote>

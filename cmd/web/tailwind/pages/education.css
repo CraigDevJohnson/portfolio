@@ -16,9 +16,6 @@
   min-width: 0;
 }
 
-.education-stats-section .stat-card-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
 
 .education-foundation-section,
 .education-domains-section {
@@ -446,9 +443,6 @@
 }
 
 @media (min-width: 30rem) {
-  .education-stats-section .stat-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .education-degree-card {
     padding: var(--space-2xl);
@@ -485,9 +479,6 @@
     display: block;
   }
 
-  .education-stats-section .stat-card-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 
   .education-degree-card {
     grid-template-columns: 10rem minmax(0, 1fr) auto;
