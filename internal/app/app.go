@@ -55,7 +55,7 @@ func New(cfg *config.Config, logger *slog.Logger) *App {
 		} else {
 			app.PortalHandler = portal.NewHandler(
 				&app.Config,
-				portal.NewOIDCClient(app.Config.PortalCognitoDomain, app.Config.PortalCognitoClientID, app.Config.PortalCognitoRedirectURI, app.Config.PortalCognitoLogoutURI),
+				portal.NewOIDCClient(app.Config.PortalCognitoDomain, app.Config.PortalCognitoIssuer, app.Config.PortalCognitoClientID, app.Config.PortalCognitoRedirectURI, app.Config.PortalCognitoLogoutURI),
 				ec2.NewFromConfig(awsConfig),
 				cloudwatch.NewFromConfig(awsConfig),
 				cloudwatchlogs.NewFromConfig(awsConfig),

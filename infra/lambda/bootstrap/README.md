@@ -6,22 +6,33 @@ does not approve any live use. Provisioning, assignment, migration, planning,
 applying, tightening, and reprovisioning each require their own current-session
 review and approval.
 
-The tracked files are the authoritative current reviewed inputs. Git history
-preserves each earlier candidate:
+The current installed inputs are the three unchanged documents in
+[candidates/](candidates/README.md), despite their retained candidate filenames.
+Installation and independent read-back completed on September 7, 2026:
 
-- `portfolio-deployer-development-bootstrap-policy.json` is the current
-  development-only IAM Identity Center inline-policy candidate. It contains
-  temporary controlled statements for activating only the reviewed development
-  API Gateway custom domain, and no production authority. Its reviewed
-  non-whitespace count must remain within the 10,240-byte Identity Center quota
-  enforced by `policy_contract_test.go`.
-  Its release-repository statement is also exact: it includes the documented
-  ECR push contract, including `ecr:BatchGetImage`, plus only the read actions
-  used by the artifact plan and immutable-release guard.
-- `portfolio-lambda-execution-boundary-policy.json` is the root-owned
-  permissions boundary for deterministic Lambda execution roles. The boundary
-  is a ceiling, not a grant; its production statements remain dormant until a
-  separately authorized production role and runtime policy exist.
+- `portfolio-deployer-development-management-candidate.json` is the installed
+  `PortfolioDeployer` Identity Center inline policy and effective role inline.
+- `portfolio-deployer-auth-development-setup-candidate.json` is version `v1` of
+  `/portfolio/setup/PortfolioAuthDevelopmentSetup`, attached only to the human
+  deployer permission set and role.
+- `portfolio-lambda-execution-boundary-management-candidate.json` is default
+  version `v2` of the execution boundary. Its production statements remain
+  unchanged; its only current attachment is the development execution role.
+
+The original `portfolio-deployer-development-bootstrap-policy.json` and
+`portfolio-lambda-execution-boundary-policy.json` are retained pre-Cognito
+baselines, not current installation defaults. Do not reinstall them as the
+current policy set. The management inline preserves the bootstrap grants and
+adds session injection; the separate setup policy grants development auth-state
+and Cognito setup access. The boundary remains a ceiling, not a grant. Keep the
+6,606-character management policy in the Identity Center inline slot and the
+2,951-character setup policy separately managed.
+
+The temporary installation authority on `portfolio-auth-policy-admin` was
+removed after verification; its SSO and effective role policies were restored
+to the reviewed read-only document. No deployment or Cognito apply follows
+merely from installing these policies. See the
+[external setup record](../../../docs/deployment/2026-09-07-cognito-external-setup-review.md).
 
 The boundary is provisioned at the account-owned path
 `/portfolio/boundaries/PortfolioLambdaExecutionBoundary`. A deployer may never
@@ -29,7 +40,8 @@ create, edit, remove, or bypass it.
 
 ## Temporary statement gates
 
-The development bootstrap policy is intentionally not a standing final policy.
+The following gates document tightening of the retained pre-Cognito bootstrap
+baseline. Preserve their removals in every later installed policy revision.
 Remove or replace its controlled SIDs as soon as each reviewed purpose is
 complete:
 

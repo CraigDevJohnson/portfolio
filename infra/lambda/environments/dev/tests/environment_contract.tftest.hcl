@@ -177,3 +177,24 @@ run "development_environment_contract" {
     error_message = "development custom-domain outputs must expose DNS validation and the active Regional API target"
   }
 }
+
+run "management_runtime_contract" {
+  command = plan
+  variables {
+    management = {
+      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
+      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
+      cognito_client_id        = "testclient123"
+      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
+      logout_uri               = "https://dev.craigdevjohnson.com/login"
+      allowed_emails           = ["craigdevjohnson@gmail.com"]
+      allow_local_callback     = false
+      ec2_management_tag_key   = "PortfolioManagement"
+      ec2_management_tag_value = "dev"
+    }
+  }
+  assert {
+    condition     = length(output.ssm_parameter_paths) == 4 && output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
+    error_message = "dev root must forward public management configuration into its existing runtime"
+  }
+}

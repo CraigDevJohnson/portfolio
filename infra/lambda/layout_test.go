@@ -52,6 +52,26 @@ var artifactOutputTypes = map[string]any{
 	"ecr_repository_url":  "string",
 }
 
+var authOutputTypes = map[string]any{
+	"cognito_user_pool_id":   "string",
+	"cognito_domain":         "string",
+	"cognito_issuer":         "string",
+	"cognito_client_id":      "string",
+	"google_redirect_uri":    "string",
+	"session_parameter_path": "string",
+	"management_runtime": []any{"object", map[string]any{
+		"cognito_domain":           "string",
+		"cognito_issuer":           "string",
+		"cognito_client_id":        "string",
+		"redirect_uri":             "string",
+		"logout_uri":               "string",
+		"allowed_emails":           []any{"set", "string"},
+		"allow_local_callback":     "bool",
+		"ec2_management_tag_key":   "string",
+		"ec2_management_tag_value": "string",
+	}},
+}
+
 var serviceIAMResourceCounts = map[string]int{
 	"aws_iam_role":        1,
 	"aws_iam_role_policy": 1,
@@ -69,6 +89,13 @@ type plannedModule struct {
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
+		"auth/dev/backend.hcl",
+		"auth/dev/main.tf",
+		"auth/dev/outputs.tf",
+		"auth/dev/providers.tf",
+		"auth/dev/tests/auth_contract.tftest.hcl",
+		"auth/dev/variables.tf",
+		"auth/dev/versions.tf",
 		"artifacts/backend.hcl",
 		"artifacts/main.tf",
 		"artifacts/tests/artifact_contract.tftest.hcl",
@@ -103,6 +130,11 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
+		"infra/lambda/auth/dev/.terraform/providers/example",
+		"infra/lambda/auth/dev/.tofu/providers/example",
+		"infra/lambda/auth/dev/terraform.tfstate",
+		"infra/lambda/auth/dev/terraform.tfstate.backup",
+		"infra/lambda/auth/dev/saved.tfplan",
 		"infra/lambda/artifacts/.terraform/providers/example",
 		"infra/lambda/artifacts/.tofu/providers/example",
 		"infra/lambda/artifacts/terraform.tfstate",
@@ -125,6 +157,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
+		"infra/lambda/auth/dev/.terraform.lock.hcl",
 		"infra/lambda/artifacts/.terraform.lock.hcl",
 		"infra/lambda/environments/dev/.terraform.lock.hcl",
 		"infra/lambda/environments/prod/.terraform.lock.hcl",
@@ -134,23 +167,50 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		}
 	}
 
+	runOpenTofu(t, "auth/dev", "init", "-backend=false", "-lockfile=readonly", "-input=false")
+	runOpenTofu(t, "auth/dev", "fmt", "-check")
+	runOpenTofu(t, "auth/dev", "validate")
+	runOpenTofuTestWithSkippedRuns(t, "auth/dev", 5, authOutputTypes, map[string]int{}, map[string]bool{
+		"reject_empty_google_client_id":     true,
+		"reject_empty_google_client_secret": true,
+		"reject_invalid_domain_prefix":      true,
+	})
+
 	runOpenTofu(t, "artifacts", "init", "-backend=false", "-input=false")
 	runOpenTofu(t, "artifacts", "fmt", "-check")
 	runOpenTofu(t, "artifacts", "validate")
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTest(t, "modules/service", 4, serviceOutputTypes, serviceIAMResourceCounts)
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 13, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":        true,
+		"management_reject_region":      true,
+		"management_reject_account":     true,
+		"management_reject_email":       true,
+		"management_reject_empty_email": true,
+		"management_reject_callback":    true,
+		"management_reject_tag":         true,
+		"management_reject_issuer":      true,
+	})
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		runOpenTofuTest(t, directory, 1, serviceOutputTypes, serviceIAMResourceCounts)
+		wantPlans := 1
+		if environment == "dev" {
+			wantPlans = 2
+		}
+		runOpenTofuTest(t, directory, wantPlans, serviceOutputTypes, serviceIAMResourceCounts)
 	}
 }
 
 func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes map[string]any, iamResourceCounts map[string]int) {
+	t.Helper()
+	runOpenTofuTestWithSkippedRuns(t, directory, wantPlans, outputTypes, iamResourceCounts, nil)
+}
+
+func runOpenTofuTestWithSkippedRuns(t *testing.T, directory string, wantPlans int, outputTypes map[string]any, iamResourceCounts map[string]int, skipContractChecks map[string]bool) {
 	t.Helper()
 
 	command := exec.Command("tofu", "-chdir="+directory, "test", "-json", "-verbose", "-no-color")
@@ -188,8 +248,10 @@ func runOpenTofuTest(t *testing.T, directory string, wantPlans int, outputTypes 
 
 		if event.TestPlan != nil {
 			planCount++
-			assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs, outputTypes)
-			assertManagedIAMResources(t, directory, event.TestRun, event.TestPlan.PlannedValues.RootModule, iamResourceCounts)
+			if !skipContractChecks[event.TestRun] {
+				assertOutputTypes(t, directory, event.TestRun, event.TestPlan.PlannedValues.Outputs, outputTypes)
+				assertManagedIAMResources(t, directory, event.TestRun, event.TestPlan.PlannedValues.RootModule, iamResourceCounts)
+			}
 		}
 		if event.TestSummary != nil {
 			summaryPassed = event.TestSummary.Status == "pass" && event.TestSummary.Failed == 0 && event.TestSummary.Errored == 0

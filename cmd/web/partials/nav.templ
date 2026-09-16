@@ -44,14 +44,6 @@ func footerNavGroups() []footerNavGroup {
 	return groups
 }
 
-func footerNavListClasses(label string) string {
-	classes := "footer-nav-list"
-	if label == "Portfolio" {
-		return classes + " footer-nav-list-portfolio"
-	}
-	return classes
-}
-
 func navLinkClasses(active bool) string {
 	base := "nav-link site-chrome-nav-link"
 	if active {

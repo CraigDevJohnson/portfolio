@@ -29,7 +29,9 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 			<div class="soccer-login-header sticky top-0 z-10 bg-[var(--bg-secondary)] pb-3">
 				<h2 id="soccer-login-title">Import Let&apos;s Play Soccer access</h2>
 				<button type="button" class="soccer-modal-close" aria-label="Close import dialog" data-close-login-modal>
-					<span aria-hidden="true">&times;</span>
+					<span aria-hidden="true">
+						@UIInlineIcon(UIIconClose)
+					</span>
 				</button>
 			</div>
 			<p id="soccer-login-description" class="soccer-login-description">

@@ -60,3 +60,34 @@ variable "live_version_override" {
   type    = number
   default = null
 }
+
+variable "management" {
+  description = "Reviewed public development management settings; never provider or session credentials."
+  type = object({
+    cognito_domain           = string
+    cognito_issuer           = string
+    cognito_client_id        = string
+    redirect_uri             = string
+    logout_uri               = string
+    allowed_emails           = set(string)
+    allow_local_callback     = bool
+    ec2_management_tag_key   = string
+    ec2_management_tag_value = string
+  })
+  default = null
+
+  validation {
+    condition = var.management == null ? true : (
+      can(regex("^https://[a-z0-9-]+\\.auth\\.us-west-2\\.amazoncognito\\.com$", var.management.cognito_domain)) &&
+      can(regex("^https://cognito-idp\\.us-west-2\\.amazonaws\\.com/us-west-2_[A-Za-z0-9]+$", var.management.cognito_issuer)) &&
+      can(regex("^[a-z0-9]{1,128}$", var.management.cognito_client_id)) &&
+      var.management.redirect_uri == "https://dev.craigdevjohnson.com/callback" &&
+      var.management.logout_uri == "https://dev.craigdevjohnson.com/login" &&
+      var.management.allowed_emails == toset(["craigdevjohnson@gmail.com"]) &&
+      var.management.allow_local_callback != null &&
+      var.management.ec2_management_tag_key == "PortfolioManagement" &&
+      var.management.ec2_management_tag_value == "dev"
+    )
+    error_message = "management must contain only the reviewed development public identity, callbacks, allowlist and EC2 tag."
+  }
+}

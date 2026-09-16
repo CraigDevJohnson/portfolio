@@ -1,0 +1,28 @@
+package pages
+
+import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
+
+templ PortalLogin() {
+	@layouts.Base(layouts.BaseProps{Title: "Sign in - Management portal", Page: "portal", Shell: layouts.ShellOperator}) {
+		<div class="page-kit-page portal-page">
+			<section class="page-kit-panel-strong mx-auto flex max-w-xl flex-col gap-5 px-6 py-10 sm:px-10" aria-labelledby="portal-login-heading">
+				<p class="page-kit-eyebrow">Management portal</p>
+				<h1 id="portal-login-heading" class="page-section-title">You're signed out</h1>
+				<p class="page-kit-copy">Use your approved Google account to open the management portal.</p>
+				<form method="POST" action="/login">
+					@partials.ActionButton(partials.ActionButtonProps{
+						Type: "submit",
+						Label: "Sign in with Google",
+						Variant: partials.ActionPrimary,
+					})
+				</form>
+				@partials.ActionLink(partials.ActionLinkProps{
+					Href: "/",
+					Label: "Back to portfolio",
+					Variant: partials.ActionSecondary,
+				})
+			</section>
+		</div>
+	}
+}

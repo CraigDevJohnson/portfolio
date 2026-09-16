@@ -18,6 +18,7 @@ import (
 	"portfolio/internal/httpx"
 )
 
+// lambdaInitializationTimeout bounds Lambda cold-start initialization.
 const lambdaInitializationTimeout = 8 * time.Second
 
 type proxyV2 interface {

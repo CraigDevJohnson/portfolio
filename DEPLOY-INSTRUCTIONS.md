@@ -25,31 +25,40 @@ independent roots under `infra/lambda/`.
 
 ## Replacement Lambda deployment
 
-The replacement source is under `infra/lambda/`. It has three independent
+The replacement source is under `infra/lambda/`. It has four independent
 OpenTofu roots and never initializes the legacy `infra/` root:
 
 <!-- markdownlint-disable MD013 -->
 
 | Root | State key | Lock acknowledgement |
 | --- | --- | --- |
+| `ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/ci-roles/terraform.tfstate.tflock` |
 | `artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock` |
 | `dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock` |
 | `prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock` |
 
 <!-- markdownlint-enable MD013 -->
 
-The reviewed non-secret initial policy inputs are the
+The current installed policy inputs are the three documents listed in the
+[development management policy record](./infra/lambda/bootstrap/candidates/README.md).
+Their candidate filenames and hashes are retained unchanged: the management
+policy is the `PortfolioDeployer` inline document, the separate auth setup
+managed policy is version `v1`, and the execution boundary is default version
+`v2`. Installation and independent read-back completed on September 7, 2026;
+production boundary statements are unchanged and only the development execution
+role uses the boundary. Temporary installation authority on
+`portfolio-auth-policy-admin` was removed and its read-only policy restored.
+
+The original
 [development deployer policy](./infra/lambda/bootstrap/portfolio-deployer-development-bootstrap-policy.json)
-and the
-[root-owned execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json).
-They are authoritative for their current reviewed policy content, but grant
-nothing merely by being checked in. The deployer document still contains
-phase-specific grants; once a later reviewed revision removes one, never
-restore an older revision after that removal and reprovisioning gate. Keep exact
-Identity Center ownership,
+and [execution boundary](./infra/lambda/bootstrap/portfolio-lambda-execution-boundary-policy.json)
+are retained pre-Cognito baselines, not current installation defaults. Never
+restore grants removed by a later reviewed revision. Checked-in documents grant
+no access or approval on their own. Keep exact Identity Center ownership,
 assignment, MFA, provisioning results, and live approval evidence private.
-Every live create, update, assignment, and use remains separately
-approval-gated.
+Every later live create, update, assignment, and use remains separately
+approval-gated. Auth planning and apply still use `portfolio-deployer` under the
+[development Cognito runbook](./docs/deployment/cognito-google-dev.md).
 
 The lock acknowledgement is mechanical evidence that the controller approved
 the exact native S3 lock-object write in the current session. It does not
@@ -103,11 +112,12 @@ uploaded its layers, but ECR rejected manifest resolution because the
 then-reviewed deployer policy omitted the documented `ecr:BatchGetImage` push
 action. An authoritative `DescribeImages` lookup afterward returned
 `ImageNotFoundException`, so the immutable tag was never created and remains
-safe to reuse. The replacement candidate adds only `ecr:BatchGetImage` on the
-exact `portfolio-lambda-releases` repository and adds a positive contract test
-for the complete repository action set. Analyze, review, approve, update, and
-reprovision this candidate before retrying the same full-SHA tag; do not restore
-any retired repository-administration grant.
+safe to reuse at that time. The subsequent policy revision added
+`ecr:BatchGetImage` on the exact `portfolio-lambda-releases` repository and a
+positive contract test for the complete repository action set. That action is
+preserved in the current installed management inline policy. Recheck live image
+existence before any retry; do not restore retired repository-administration
+grants.
 
 Do not create replacement state until bucket versioning reports `Enabled`.
 After `portfolio-deployer` exists, the controller must present the exact bucket
@@ -138,20 +148,41 @@ as root.
 
 ### Identity and saved-plan rules
 
-Every replacement command requires exactly `AWS_PROFILE=portfolio-deployer`
-and `AWS_REGION=us-west-2`. The private guard rejects ambient
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other
-account, root, and any assumed role that does not contain
-`AWSReservedSSO_PortfolioDeployer_`.
+Except for the three `lambda-ci-roles-*` commands, every replacement command
+requires exactly `AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`.
+The private deployer guard rejects ambient `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, any other account, root, and
+any assumed role that does not contain `AWSReservedSSO_PortfolioDeployer_`.
+
+`lambda-ci-roles-init`, `lambda-ci-roles-plan`, and `lambda-ci-roles-apply` are
+the deliberate identity exceptions because the normal deployer must never
+administer CI OIDC roles or their state. All three require
+`AWS_PROFILE=portfolio-ci-roles-administrator`, `AWS_REGION=us-west-2`, account
+`180294223248`, and an effective STS ARN matching the reviewed IAM Identity
+Center permission set
+`AWSReservedSSO_PortfolioCIRolesAdministrator_<suffix>`. Their shared guard
+rejects root, every other profile, account, or role, and all three ambient
+credential variables before OpenTofu runs. Each invocation must also set
+`APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles`; that value records
+the exact root being acknowledged and grants no AWS permission.
 
 Initialization, planning, and apply are separate commands. Initialization uses
 the root's `backend.hcl`, reconfigures the backend without interactive input,
 and refuses any workspace other than `default`. A plan requires a new absolute
 `PLAN_FILE`, writes only that saved plan, runs the offline contract checker,
-and prints the human-readable plan. An apply accepts only an existing absolute
-saved plan whose SHA-256 digest equals the separately approved
-`APPROVED_PLAN_SHA256`. Replacement commands contain no `--auto-approve`,
-`-target`, or mutable image tag.
+and prints the human-readable plan. The CI-role plan additionally uses a fresh
+private data directory and emits a checksum-bound backend/workspace provenance
+sidecar. Its apply requires `PROVENANCE_FILE`, `APPROVED_PLAN_SHA256`, and
+`APPROVED_PROVENANCE_SHA256`, validates their exact linkage and semantics, and
+rejects ambient OpenTofu, provider-reattachment, credential-redirection, and AWS
+endpoint overrides. It snapshots both approved artifacts, reruns the complete
+plan policy against the private copy, and applies only that copy. The sidecar is
+trusted only when produced by the reviewed isolated plan task; OpenTofu's public
+saved-plan JSON does not independently expose its embedded backend. Other
+replacement applies accept only an existing absolute saved plan whose digest
+equals `APPROVED_PLAN_SHA256`.
+Replacement commands contain no `--auto-approve`, `-target`, or mutable image
+tag.
 
 For example, create and inspect the artifact plan only after the controller
 approves the exact artifact lock write:
@@ -307,9 +338,11 @@ Local mock review uses:
 task portal-preview
 ```
 
-The current OpenTofu files do not provision Cognito, portal IAM permissions, or
-`MGMT_*` runtime values. The retained Lambda deployment does not pass or resolve
-those values, so the portal is not currently supported on that path.
+The replacement development auth root and runtime integration are described in
+the [Cognito runbook](./docs/deployment/cognito-google-dev.md). Their IAM inputs
+are installed, but Cognito provisioning and runtime activation remain separate
+steps. The retained legacy Lambda deployment does not pass or resolve the
+`MGMT_*` values and does not support the portal.
 
 ### Retained Lambda troubleshooting
 

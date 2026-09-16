@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -11,6 +12,55 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
+
+func TestAboutTechnologySummaryMatchesRenderedSkillsCatalog(t *testing.T) {
+	skills := httptest.NewRecorder()
+	SkillsHandler(skills, httptest.NewRequest(http.MethodGet, "/skills", nil))
+	skillsDocument := parseHTMLDocument(t, skills.Body.String())
+	catalogCount := countDescendantsByAttribute(skillsDocument, "data-skill-detail-trigger")
+	if catalogCount == 0 {
+		t.Fatal("Skills page does not render its technology catalog")
+	}
+
+	about := httptest.NewRecorder()
+	AboutHandler(about, httptest.NewRequest(http.MethodGet, "/about", nil), 2012)
+	aboutDocument := parseHTMLDocument(t, about.Body.String())
+	stat := findDescendantByClass(aboutDocument, "about-stat-technologies")
+	if stat == nil {
+		t.Fatal("About page does not render its technology summary")
+	}
+	counter := findDescendantByAttribute(stat, "data-target")
+	if counter == nil || attributeValue(counter, "data-target") != strconv.Itoa(catalogCount) {
+		t.Errorf("About technology summary does not match %d rendered catalog skills", catalogCount)
+	}
+}
+
+func TestEducationProviderSummaryMatchesDistinctCredentialIssuers(t *testing.T) {
+	response := httptest.NewRecorder()
+	EducationHandler(response, httptest.NewRequest(http.MethodGet, "/education", nil))
+	document := parseHTMLDocument(t, response.Body.String())
+	providers := make(map[string]struct{})
+	countDescendants(document, func(node *html.Node) bool {
+		if nodeHasClass(node, "education-credential-provider") {
+			if node.FirstChild == nil || node.FirstChild.Type != html.TextNode {
+				t.Fatal("credential provider has no visible issuer label")
+			}
+			providers[node.FirstChild.Data] = struct{}{}
+		}
+		return false
+	})
+	if len(providers) == 0 {
+		t.Fatal("Education page does not render credential issuers")
+	}
+	stat := findDescendantByClass(document, "education-stat-providers")
+	if stat == nil {
+		t.Fatal("Education page does not render its provider summary")
+	}
+	counter := findDescendantByAttribute(stat, "data-target")
+	if counter == nil || attributeValue(counter, "data-target") != strconv.Itoa(len(providers)) {
+		t.Errorf("Education provider summary does not match %d distinct credential issuers", len(providers))
+	}
+}
 
 func TestSkillsHandlerUsesURLFiltersAndHTMXResponseMode(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/skills?category=Cloud+Platforms&proficiency=advanced", nil)
