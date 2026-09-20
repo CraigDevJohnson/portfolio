@@ -2070,12 +2070,14 @@ fi
 if grep -Fq '    actions: read' << EOF
 $build_job
 $development_job
-$production_job
 EOF
 then
-  echo 'AWS release jobs received unnecessary Actions read authority' >&2
+  echo 'build or development received unnecessary Actions read authority' >&2
   exit 1
 fi
+grep -Fq '    actions: read' << EOF
+$production_job
+EOF
 grep -Fq '    environment: release-review' << EOF
 $release_review_job
 EOF
@@ -2323,6 +2325,13 @@ grep -Fq 'run: task lambda-ci-plan-production' << EOF
 $production_job
 EOF
 production_script=$(cat "$root_dir/scripts/plan-ci-lambda-production.sh")
+grep -Fq 'sh scripts/fetch-ci-lambda-release-scan.sh' << EOF
+$production_script
+EOF
+if printf '%s\n' "$production_script" | grep -Fq 'aws ecr describe-image'; then
+  echo 'production planner reads scan evidence through unprovisioned AWS authority' >&2
+  exit 1
+fi
 assert_before "$production_script" "sh scripts/check-current-main.sh \"${literal_dollar}SOURCE_SHA\"" \
   'sh scripts/create-ci-lambda-release-plan.sh'
 test "$(count_matching_lines "$production_script" 'sh scripts/create-ci-lambda-release-plan.sh')" -eq 1
@@ -2769,20 +2778,25 @@ test -f "$root_dir/scripts/apply-ci-lambda-production.sh" || {
   echo 'production saved-plan apply contract is missing' >&2
   exit 1
 }
+grep -A16 '^  lambda-ci-apply-production:' "$root_dir/Taskfile.yaml" |
+  grep -Fq 'ECR_REPOSITORY: portfolio-lambda-releases' || {
+  echo 'production apply task omits its deterministic ECR repository' >&2
+  exit 1
+}
+production_apply_contract=$(cat \
+  "$root_dir/scripts/apply-ci-lambda-production.sh" \
+  "$root_dir/scripts/validate-ci-lambda-production-apply.sh")
 for production_apply_guard in \
   APPROVED_PLAN_SHA256 release-identity.json check-current-main.sh \
   AUTOMATED_RELEASE=production 'aws lambda get-alias' \
   'tofu -chdir=infra/lambda/environments/prod apply'; do
-  grep -Fq "$production_apply_guard" \
-    "$root_dir/scripts/apply-ci-lambda-production.sh" || {
+  printf '%s\n' "$production_apply_contract" | grep -Fq "$production_apply_guard" || {
     echo "production apply omits required guard: $production_apply_guard" >&2
     exit 1
   }
 done
-grep -Fq 'sh scripts/check-current-main.sh "$SOURCE_SHA"' \
-  "$root_dir/scripts/apply-ci-lambda-production.sh" || exit 1
-test "$(grep -Fc 'sh scripts/check-current-main.sh "$SOURCE_SHA"' \
-  "$root_dir/scripts/apply-ci-lambda-production.sh")" -eq 2 || {
+test "$(printf '%s\n' "$production_apply_contract" | \
+  grep -Fc 'sh scripts/check-current-main.sh "$SOURCE_SHA"')" -eq 2 || {
   echo 'production apply must check current main before review and immediately before apply' >&2
   exit 1
 }

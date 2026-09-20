@@ -16,8 +16,11 @@ GH
 chmod +x "$tmp/bin/gh"
 sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+identity=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+scan=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+payload='{"schema_version":1,"release_identity_sha256":"'$identity'","scan_sha256":"'$scan'","planning_run_id":"123456","planning_run_attempt":"2","approval_id":"approval-789","reviewer_login":"CraigDevJohnson"}'
 cat > "$tmp/deployments.json" <<EOF2
-[[{"id":102,"created_at":"2026-09-20T02:00:00Z","ref":"cccccccccccccccccccccccccccccccccccccccc","sha":"cccccccccccccccccccccccccccccccccccccccc","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v7","creator":{"login":"github-actions[bot]","type":"Bot"}},{"id":101,"created_at":"2026-09-20T01:00:00Z","ref":"$sha","sha":"$sha","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v6","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
+[[{"id":102,"created_at":"2026-09-20T02:00:00Z","ref":"cccccccccccccccccccccccccccccccccccccccc","sha":"cccccccccccccccccccccccccccccccccccccccc","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v7","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}},{"id":101,"created_at":"2026-09-20T01:00:00Z","ref":"$sha","sha":"$sha","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v6","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 cat > "$tmp/status102.json" <<EOF2
 [[{"id":202,"created_at":"2026-09-20T02:10:00Z","state":"failure","environment":"production","description":"Failed cccccccccccccccccccccccccccccccccccccccc at $digest","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
@@ -38,6 +41,13 @@ sed 's/ public-www=ok//' "$tmp/status101.json" > "$tmp/unverified.json"
 STATUS_101_FIXTURE="$tmp/unverified.json"; export STATUS_101_FIXTURE
 if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
   echo 'accepted production status without both public host verifications' >&2; exit 1
+fi
+# A success attached to incomplete or malformed approval provenance is not trusted.
+STATUS_101_FIXTURE="$tmp/status101.json"; export STATUS_101_FIXTURE
+jq '.[0][1].payload.approval_id = ""' "$tmp/deployments.json" > "$tmp/untrusted-provenance.json"
+DEPLOYMENTS_FIXTURE="$tmp/untrusted-provenance.json"; export DEPLOYMENTS_FIXTURE
+if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
+  echo 'accepted production deployment without trusted approval provenance' >&2; exit 1
 fi
 echo 'Production rollback coordinate contracts passed'
 

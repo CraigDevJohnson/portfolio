@@ -274,6 +274,7 @@ tasks:
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
       - sh tests/production-activation.sh
+      - sh tests/production-deployment.sh
       - sh tests/production-recording.sh
       - sh tests/production-rollback-coordinate.sh
       - sh tests/production-verification.sh
@@ -504,6 +505,7 @@ tasks:
       APPROVED_IDENTITY_SHA256: '{{default "" .APPROVED_IDENTITY_SHA256}}'
       APPROVED_BACKEND_SHA256: '{{default "" .APPROVED_BACKEND_SHA256}}'
       APPROVED_APPROVAL_SHA256: '{{default "" .APPROVED_APPROVAL_SHA256}}'
+      ECR_REPOSITORY: portfolio-lambda-releases
       ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
       EVIDENCE_DIR: '{{default "" .EVIDENCE_DIR}}'
       GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
@@ -524,6 +526,12 @@ tasks:
       IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
       LAMBDA_VERSION: '{{default "" .LAMBDA_VERSION}}'
       PLAN_SHA256: '{{default "" .PLAN_SHA256}}'
+      RELEASE_IDENTITY_SHA256: '{{default "" .RELEASE_IDENTITY_SHA256}}'
+      SCAN_SHA256: '{{default "" .SCAN_SHA256}}'
+      PLANNING_RUN_ID: '{{default "" .PLANNING_RUN_ID}}'
+      PLANNING_RUN_ATTEMPT: '{{default "" .PLANNING_RUN_ATTEMPT}}'
+      APPROVAL_ID: '{{default "" .APPROVAL_ID}}'
+      REVIEWER_LOGIN: '{{default "" .REVIEWER_LOGIN}}'
       PRIOR_VERSION: '{{default "" .PRIOR_VERSION}}'
       SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
     cmds:

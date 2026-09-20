@@ -28,12 +28,25 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
     select(
       .ref == .sha and (.sha | test("^[0-9a-f]{40}$")) and
       .task == "portfolio-lambda-production" and .environment == "production" and
-      .creator.login == "github-actions[bot]" and .creator.type == "Bot"
+      .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
+      (.payload | type == "object") and
+      (.payload | keys | sort) == (["approval_id", "planning_run_attempt", "planning_run_id",
+        "release_identity_sha256", "reviewer_login", "scan_sha256", "schema_version"] | sort) and
+      .payload.schema_version == 1 and
+      (.payload.release_identity_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.payload.scan_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.payload.planning_run_id | type == "string" and test("^[1-9][0-9]*$")) and
+      (.payload.planning_run_attempt | type == "string" and test("^[1-9][0-9]*$")) and
+      (.payload.approval_id | type == "string" and test("^[A-Za-z0-9._:-]+$")) and
+      (.payload.reviewer_login | type == "string" and
+        test("^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"))
     ) |
     (.description | capture(
       "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<prior>[1-9][0-9]*)$"
     )) as $r |
-    [.sha, $r.digest] | @tsv
+    [.sha, $r.digest, .payload.release_identity_sha256, .payload.scan_sha256,
+      .payload.planning_run_id, .payload.planning_run_attempt,
+      .payload.approval_id, .payload.reviewer_login] | @tsv
   ') || fail "deployment $deployment_id does not match the trusted production schema"
   source_sha=$(printf '%s\n' "$fields" | cut -f1)
   image_digest=$(printf '%s\n' "$fields" | cut -f2)

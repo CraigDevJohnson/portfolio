@@ -70,8 +70,12 @@ merely because it once passed, rebuild the image, or use a mutable tag.
 
 The plan evidence includes `promotion.json`, `scan.json`, plan binary/JSON/text,
 checksum, policy result, durable prior verified deployment evidence, and
-`release-identity.json`. A bundle with `apply_authorized: false` is rehearsal evidence
-only. Application must use `task lambda-ci-apply-production`; it binds the current
+`release-identity.json`. The planner downloads the one exact, non-expired
+`release-<development-source-sha>` artifact from the successful Release run and
+accepts only its top-level `scan.json`; this reuses the digest-bound
+`DescribeImageScanFindings` result without expanding the deployed planner's AWS
+permissions. A bundle with `apply_authorized: false` is rehearsal evidence only.
+Application must use `task lambda-ci-apply-production`; it binds the current
 manifest and workflow identity, verifies the checksum and plan policy, checks
 current `main`, checks the durable production coordinate and current alias, and repeats both mutable-state checks
 immediately before applying the saved plan.
@@ -80,7 +84,9 @@ Before application, create the protected GitHub production deployment through
 `task lambda-ci-record-production`. On success, verify and retain the exact alias,
 version, digest, `/healthz` revision, direct-origin route probes, public apex and
 `www` routes, required pages/assets, OAuth and cookies, and all alarm samples.
-Only then record a successful deployment and public-cutover verdict.
+The deployment payload also binds the release-identity and scan checksums,
+planning run and attempt, approval identifier, and reviewer login. Only then
+record a successful deployment and public-cutover verdict.
 
 On any apply or verification failure, preserve the evidence, record failure on the
 same GitHub deployment, and stop. A production rollback plan may move only the

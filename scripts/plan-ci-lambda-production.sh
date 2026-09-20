@@ -29,19 +29,10 @@ evidence_dir="$GITHUB_WORKSPACE/evidence"
 mkdir -p "$evidence_dir"
 printf '{"source_sha":"%s","image_digest":"%s","development_deployment_id":%s}\n' \
   "$promoted_source_sha" "$digest" "$deployment_id" > "$evidence_dir/promotion.json"
-aws ecr describe-images \
-  --repository-name "$ECR_REPOSITORY" \
-  --image-ids "imageDigest=$digest" \
-  --query 'imageDetails[0]' \
-  --output json > "$evidence_dir/scan.json"
-jq -e --arg digest "$digest" '
-  .imageDigest == $digest and
-  .imageScanStatus.status == "COMPLETE" and
-  ((.imageScanFindingsSummary.findingSeverityCounts.CRITICAL // 0) == 0)
-' "$evidence_dir/scan.json" > /dev/null || {
-  echo 'Promoted image does not have acceptable scan evidence' >&2
-  exit 1
-}
+DEVELOPMENT_SOURCE_SHA="$promoted_source_sha" \
+  IMAGE_DIGEST="$digest" \
+  SCAN_FILE="$evidence_dir/scan.json" \
+  sh scripts/fetch-ci-lambda-release-scan.sh
 
 sh scripts/check-current-main.sh "$SOURCE_SHA"
 sh scripts/check-ci-state-bucket.sh

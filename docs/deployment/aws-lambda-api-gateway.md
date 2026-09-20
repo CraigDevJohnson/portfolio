@@ -173,6 +173,10 @@ An accepted production plan now retains `release-identity.json`, binding the
 promotion commit, development source/deployment/digest, workflow run and attempt,
 prior production alias, and saved-plan checksum. Every bundle remains explicitly
 not apply-ready while preparation and plan-only rehearsal continue.
+The planner obtains `scan.json` from the exact successful Release artifact for
+the promoted development source rather than relying on the deprecated scan
+summary fields returned by `ecr:DescribeImages` or expanding the live planner's
+AWS permissions.
 `task lambda-ci-apply-production` is hard-disabled and is not called by any
 workflow. Its draft implementation is incomplete; the promotion runbook lists
 the remaining activation blockers. The prepared validation code rejects a changed manifest, run identity, checksum,
