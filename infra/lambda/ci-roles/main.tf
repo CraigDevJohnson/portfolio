@@ -65,6 +65,29 @@ data "aws_iam_policy_document" "environment_trust" {
   }
 }
 
+data "aws_iam_policy_document" "production_deployer_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:CraigDevJohnson/portfolio:environment:production"]
+    }
+  }
+}
+
 locals {
   account_id               = "180294223248"
   region                   = "us-west-2"
@@ -153,9 +176,13 @@ locals {
         Resource = "${local.state_bucket_arn}/${configuration.state_key}.tflock"
       },
       {
-        Sid      = "ReleaseImageRead"
-        Effect   = "Allow"
-        Action   = ["ecr:BatchGetImage", "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer"]
+        Sid    = "ReleaseImageRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:DescribeImages",
+          "ecr:GetDownloadUrlForLayer",
+        ]
         Resource = local.ecr_repository_arn
       },
       {
@@ -310,6 +337,36 @@ locals {
     },
   ]
 
+  production_mutation_statements = [
+    {
+      Sid      = "ProductionStateWrite"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:DeleteObject"]
+      Resource = "${local.state_bucket_arn}/${local.environment_configuration.prod.state_key}"
+    },
+    {
+      Sid    = "ProductionReleaseWrite"
+      Effect = "Allow"
+      Action = [
+        "lambda:PublishVersion",
+        "lambda:UpdateAlias",
+        "lambda:UpdateFunctionCode",
+      ]
+      Resource = [
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}",
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}:live",
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Environment" = "prod"
+          "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+          "aws:ResourceTag/Platform"    = local.required_tags.Platform
+          "aws:ResourceTag/Project"     = local.required_tags.Project
+        }
+      }
+    },
+  ]
+
   environment_policies = {
     for key, configuration in local.environment_configuration : key => jsonencode({
       Version = "2012-10-17"
@@ -326,6 +383,18 @@ resource "aws_iam_role" "ci" {
 
   name                 = each.value.name
   assume_role_policy   = each.value.trust
+  max_session_duration = 3600
+
+  tags = {
+    ManagedBy = "opentofu"
+    Project   = "portfolio"
+    Purpose   = "github-release"
+  }
+}
+
+resource "aws_iam_role" "production_deployer" {
+  name                 = "portfolio-production-deployer-ci"
+  assume_role_policy   = data.aws_iam_policy_document.production_deployer_trust.json
   max_session_duration = 3600
 
   tags = {
@@ -383,4 +452,16 @@ resource "aws_iam_role_policy" "environment" {
   policy = local.environment_policies[each.key]
 
   depends_on = [aws_iam_role.ci]
+}
+
+resource "aws_iam_role_policy" "production_deployer" {
+  name = "portfolio-production-runtime-release"
+  role = aws_iam_role.production_deployer.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      local.environment_read_statements.prod,
+      local.production_mutation_statements,
+    )
+  })
 }

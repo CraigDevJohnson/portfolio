@@ -1124,12 +1124,19 @@ set_review_provenance "$review_source"
 
 manifest="$test_dir/production-release.json"
 jq -n --arg source_sha "$source_sha" --arg image_digest "$image_digest" \
-  '{source_sha:$source_sha,image_digest:$image_digest,development_deployment_id:42}' > "$manifest"
+  '{schema_version:1,source_sha:$source_sha,image_digest:$image_digest,development_deployment_id:42}' > "$manifest"
 FAKE_DEPLOYMENT_JSON=$(promotion_deployment_json "$source_sha" "$image_digest")
 FAKE_STATUSES_JSON=$(promotion_status_json success "$source_sha" "$image_digest")
 FAKE_TAG_DIGEST=$image_digest
 export FAKE_DEPLOYMENT_JSON FAKE_STATUSES_JSON FAKE_TAG_DIGEST
 ECR_REPOSITORY=portfolio-lambda-releases sh "$root_dir/scripts/validate-production-release.sh" "$manifest"
+extra_manifest="$test_dir/production-release-extra.json"
+jq '.unexpected = true' "$manifest" > "$extra_manifest"
+if ECR_REPOSITORY=portfolio-lambda-releases \
+  sh "$root_dir/scripts/validate-production-release.sh" "$extra_manifest" > /dev/null 2>&1; then
+  echo 'promotion accepted an unknown manifest member' >&2
+  exit 1
+fi
 FAKE_DEPLOYMENT_JSON=$(printf '%s\n' "$FAKE_DEPLOYMENT_JSON" |
   jq '.task = "deploy"')
 export FAKE_DEPLOYMENT_JSON
@@ -2720,5 +2727,73 @@ if (
 fi
 test ! -e "$alias_failure_workspace/evidence/github-deployment.json"
 test ! -s "$alias_failure_gh_log"
+
+grep -Fq 'production_deployer_role_arn=$(read_role_arn portfolio-production-deployer-ci)' \
+  "$root_dir/Taskfile.yaml" || {
+  echo 'CI role verification does not resolve the production deployer role' >&2
+  exit 1
+}
+grep -Fq 'AWS_PRODUCTION_DEPLOYER_ROLE_ARN=%s' "$root_dir/Taskfile.yaml" || {
+  echo 'CI role verification does not export the production deployer role' >&2
+  exit 1
+}
+if grep -Eq '^    environment: production$' "$root_dir/.github/workflows/release.yml"; then
+  echo 'production apply automation was activated before the separate readiness gate' >&2
+  exit 1
+fi
+if RELEASE_ENVIRONMENT=invalid \
+  IMAGE_DIGEST="$image_digest" \
+  PRIOR_VERSION=7 \
+  EVIDENCE_DIR="$test_dir/invalid-production-rollback" \
+  ECR_URL=example.invalid/portfolio \
+  sh "$root_dir/scripts/create-ci-lambda-rollback-plan.sh" > /dev/null 2>&1; then
+  echo 'rollback planning accepted an unknown release environment' >&2
+  exit 1
+fi
+grep -Fq 'root=infra/lambda/environments/prod' \
+  "$root_dir/scripts/create-ci-lambda-rollback-plan.sh" || {
+  echo 'rollback planning has no production root contract' >&2
+  exit 1
+}
+for production_identity_field in \
+  promotion_sha development_source_sha image_digest development_deployment_id \
+  planning_run_id planning_run_attempt prior_verified_version \
+  production_deployment_id plan_sha256; do
+  grep -Fq "$production_identity_field" \
+    "$root_dir/scripts/plan-ci-lambda-production.sh" || {
+    echo "production plan omits release identity field: $production_identity_field" >&2
+    exit 1
+  }
+done
+test -f "$root_dir/scripts/apply-ci-lambda-production.sh" || {
+  echo 'production saved-plan apply contract is missing' >&2
+  exit 1
+}
+for production_apply_guard in \
+  APPROVED_PLAN_SHA256 release-identity.json check-current-main.sh \
+  AUTOMATED_RELEASE=production 'aws lambda get-alias' \
+  'tofu -chdir=infra/lambda/environments/prod apply'; do
+  grep -Fq "$production_apply_guard" \
+    "$root_dir/scripts/apply-ci-lambda-production.sh" || {
+    echo "production apply omits required guard: $production_apply_guard" >&2
+    exit 1
+  }
+done
+grep -Fq 'sh scripts/check-current-main.sh "$SOURCE_SHA"' \
+  "$root_dir/scripts/apply-ci-lambda-production.sh" || exit 1
+test "$(grep -Fc 'sh scripts/check-current-main.sh "$SOURCE_SHA"' \
+  "$root_dir/scripts/apply-ci-lambda-production.sh")" -eq 2 || {
+  echo 'production apply must check current main before review and immediately before apply' >&2
+  exit 1
+}
+test -f "$root_dir/scripts/record-ci-lambda-production.sh" || {
+  echo 'production deployment evidence recorder is missing' >&2
+  exit 1
+}
+grep -Fq -- '-f environment=production' \
+  "$root_dir/scripts/record-ci-lambda-production.sh" || {
+  echo 'production recorder does not use the protected production environment' >&2
+  exit 1
+}
 
 printf 'Release automation contracts passed\n'

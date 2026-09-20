@@ -18,8 +18,8 @@ ENVIRONMENT="$ENVIRONMENT" EXPECTED_MANAGEMENT_JSON="$EXPECTED_MANAGEMENT_JSON" 
   sh "$(dirname "$0")/check-management-input.sh"
 
 case "$AUTOMATED_RELEASE" in
-  true | false | rollback) ;;
-  *) fail "AUTOMATED_RELEASE must be true, false, or rollback" ;;
+  true | false | production | rollback) ;;
+  *) fail "AUTOMATED_RELEASE must be true, false, production, or rollback" ;;
 esac
 if [ "$AUTOMATED_RELEASE" = rollback ]; then
   : "${PRIOR_VERSION:?set PRIOR_VERSION for a rollback plan}"
@@ -147,10 +147,15 @@ jq -e '
 ' "$PLAN_JSON" > /dev/null || fail "sensitive value found in plan"
 
 if [ "$AUTOMATED_RELEASE" != false ]; then
-  [ "$ENVIRONMENT" = dev ] || fail "automated apply is limited to development"
+  case "$AUTOMATED_RELEASE:$ENVIRONMENT" in
+    true:dev | production:prod | rollback:dev | rollback:prod) ;;
+    *) fail "automated release mode does not match its environment" ;;
+  esac
   jq -e \
     --arg image "$IMAGE_URI" \
     --arg mode "$AUTOMATED_RELEASE" \
+    --arg environment "$ENVIRONMENT" \
+    --arg name "$NAME_PREFIX" \
     --arg prior_version "${PRIOR_VERSION:-}" '
     def true_paths($unknown):
       [($unknown // {}) | paths(scalars) as $path | select(getpath($path) == true) | $path];
@@ -164,7 +169,7 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       type == "string" and
       startswith("180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@") and
       test("@sha256:[0-9a-f]{64}$");
-    def required_managed_resources: [
+    def required_managed_resources: ([
       {address: "module.service.aws_apigatewayv2_api.app", type: "aws_apigatewayv2_api"},
       {
         address: "module.service.aws_apigatewayv2_integration.lambda",
@@ -207,14 +212,12 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       {address: "module.service.aws_lambda_alias.live", type: "aws_lambda_alias"},
       {address: "module.service.aws_lambda_function.app", type: "aws_lambda_function"},
       {address: "module.service.aws_lambda_permission.api", type: "aws_lambda_permission"},
-      {
-        address: "module.service.aws_acm_certificate.custom[0]",
-        type: "aws_acm_certificate"
-      },
+      {address: "module.service.aws_acm_certificate.custom[0]", type: "aws_acm_certificate"},
       {
         address: "module.service.aws_acm_certificate_validation.custom[0]",
         type: "aws_acm_certificate_validation"
-      },
+      }
+    ] + (if $environment == "dev" then [
       {
         address: "module.service.aws_apigatewayv2_domain_name.custom[\"dev.craigdevjohnson.com\"]",
         type: "aws_apigatewayv2_domain_name"
@@ -223,7 +226,24 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
         address: "module.service.aws_apigatewayv2_api_mapping.custom[\"dev.craigdevjohnson.com\"]",
         type: "aws_apigatewayv2_api_mapping"
       }
-    ];
+    ] else [
+      {
+        address: "module.service.aws_apigatewayv2_domain_name.custom[\"craigdevjohnson.com\"]",
+        type: "aws_apigatewayv2_domain_name"
+      },
+      {
+        address: "module.service.aws_apigatewayv2_domain_name.custom[\"www.craigdevjohnson.com\"]",
+        type: "aws_apigatewayv2_domain_name"
+      },
+      {
+        address: "module.service.aws_apigatewayv2_api_mapping.custom[\"craigdevjohnson.com\"]",
+        type: "aws_apigatewayv2_api_mapping"
+      },
+      {
+        address: "module.service.aws_apigatewayv2_api_mapping.custom[\"www.craigdevjohnson.com\"]",
+        type: "aws_apigatewayv2_api_mapping"
+      }
+    ] end));
     def complete_managed_resources($managed):
       ($managed | map({address, type}) | sort_by(.address)) ==
       (required_managed_resources | sort_by(.address));
@@ -234,8 +254,8 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       ] | sort_by(.address)) and
       all($changed[]; .change.before != null and .change.after != null) and
       (first($changed[] | select(.address == "module.service.aws_lambda_function.app"))) as $function |
-      ($function.change.before.function_name == "portfolio-lambda-dev") and
-      ($function.change.after.function_name == "portfolio-lambda-dev") and
+      ($function.change.before.function_name == $name) and
+      ($function.change.after.function_name == $name) and
       ($function.change.before.image_uri | release_image) and
       ($function.change.before.image_uri != $image) and
       ($function.change.after.image_uri == $image) and
@@ -258,8 +278,8 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       (first($changed[] | select(.address == "module.service.aws_lambda_alias.live"))) as $alias |
       ($alias.change.before.name == "live") and
       ($alias.change.after.name == "live") and
-      ($alias.change.before.function_name == "portfolio-lambda-dev") and
-      ($alias.change.after.function_name == "portfolio-lambda-dev") and
+      ($alias.change.before.function_name == $name) and
+      ($alias.change.after.function_name == $name) and
       ($alias.change.before.function_version | numbered_version) and
       ($alias.change.after.function_version == null) and
       ($alias.change.after_unknown.function_version == true) and
@@ -276,13 +296,13 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
       $aliases[0] as $alias |
       ($function.change.before == $function.change.after) and
       ($function.change.after_unknown == {}) and
-      ($function.change.after.function_name == "portfolio-lambda-dev") and
+      ($function.change.after.function_name == $name) and
       ($function.change.after.image_uri == $image) and
       ($function.change.after.version | numbered_version) and
       ($alias.change.before == $alias.change.after) and
       ($alias.change.after_unknown == {}) and
       ($alias.change.after.name == "live") and
-      ($alias.change.after.function_name == "portfolio-lambda-dev") and
+      ($alias.change.after.function_name == $name) and
       ($alias.change.after.function_version | numbered_version) and
       ($alias.change.after.function_version == $function.change.after.version);
     def rollback_release($managed; $changed; $override; $prior):
@@ -303,7 +323,7 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
         ($function.change.actions == ["no-op"]) and
         ($function.change.before == $function.change.after) and
         ($function.change.after_unknown == {}) and
-        ($function.change.after.function_name == "portfolio-lambda-dev") and
+        ($function.change.after.function_name == $name) and
         ($function.change.after.image_uri == $image) and
         ($function.change.after.version | numbered_version) and
         ($alias.address == "module.service.aws_lambda_alias.live") and
@@ -311,8 +331,8 @@ if [ "$AUTOMATED_RELEASE" != false ]; then
         ($alias.change.actions == ["update"]) and
         ($alias.change.before.name == "live") and
         ($alias.change.after.name == "live") and
-        ($alias.change.before.function_name == "portfolio-lambda-dev") and
-        ($alias.change.after.function_name == "portfolio-lambda-dev") and
+        ($alias.change.before.function_name == $name) and
+        ($alias.change.after.function_name == $name) and
         ($alias.change.before.function_version == $function.change.after.version) and
         ($alias.change.after.function_version == $prior) and
         (($prior | tonumber) < ($function.change.after.version | tonumber)) and
@@ -459,9 +479,9 @@ jq -e --arg environment "$ENVIRONMENT" '
 ' "$PLAN_JSON" > /dev/null || fail "environment plan contains an unapproved resource address or type"
 
 if [ "$ENVIRONMENT" = prod ]; then
-  jq -e '
+  jq -e --arg mode "$AUTOMATED_RELEASE" '
     ([.resource_changes[] | select(.mode == "managed") | [.address, .type]] | sort) ==
-    ([
+    (([
       ["module.service.aws_apigatewayv2_api.app", "aws_apigatewayv2_api"],
       ["module.service.aws_apigatewayv2_integration.lambda", "aws_apigatewayv2_integration"],
       ["module.service.aws_apigatewayv2_route.default", "aws_apigatewayv2_route"],
@@ -480,7 +500,20 @@ if [ "$ENVIRONMENT" = prod ]; then
       ["module.service.aws_lambda_alias.live", "aws_lambda_alias"],
       ["module.service.aws_lambda_function.app", "aws_lambda_function"],
       ["module.service.aws_lambda_permission.api", "aws_lambda_permission"]
-    ] | sort)
+    ] + if $mode == "production" or $mode == "rollback" then [
+      ["module.service.aws_acm_certificate.custom[0]", "aws_acm_certificate"],
+      ["module.service.aws_acm_certificate_validation.custom[0]", "aws_acm_certificate_validation"],
+      ["module.service.aws_apigatewayv2_domain_name.custom[\"craigdevjohnson.com\"]", "aws_apigatewayv2_domain_name"],
+      [
+        "module.service.aws_apigatewayv2_domain_name.custom[\"www.craigdevjohnson.com\"]",
+        "aws_apigatewayv2_domain_name"
+      ],
+      ["module.service.aws_apigatewayv2_api_mapping.custom[\"craigdevjohnson.com\"]", "aws_apigatewayv2_api_mapping"],
+      [
+        "module.service.aws_apigatewayv2_api_mapping.custom[\"www.craigdevjohnson.com\"]",
+        "aws_apigatewayv2_api_mapping"
+      ]
+    ] else [] end) | sort)
   ' "$PLAN_JSON" > /dev/null || fail "production plan managed topology drifted"
 
   jq -e '

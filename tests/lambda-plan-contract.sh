@@ -352,6 +352,29 @@ make_ci_roles_plan() {
         }}
       }
     ];
+    def production_mutations: [
+      {
+        Sid: "ProductionStateWrite",
+        Effect: "Allow",
+        Action: ["s3:PutObject", "s3:DeleteObject"],
+        Resource: "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate"
+      },
+      {
+        Sid: "ProductionReleaseWrite",
+        Effect: "Allow",
+        Action: ["lambda:PublishVersion", "lambda:UpdateAlias", "lambda:UpdateFunctionCode"],
+        Resource: [
+          "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod",
+          "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod:live"
+        ],
+        Condition: {StringEquals: {
+          "aws:ResourceTag/Environment": "prod",
+          "aws:ResourceTag/ManagedBy": "opentofu",
+          "aws:ResourceTag/Platform": "lambda-http-api",
+          "aws:ResourceTag/Project": "portfolio"
+        }}
+      }
+    ];
     def environment_policy($environment; $function_name; $state_key; $mutable): ({
       Version: "2012-10-17",
       Statement: (
@@ -386,6 +409,16 @@ make_ci_roles_plan() {
         }
       ]
     } | tojson);
+    def production_deployer_policy: ({
+      Version: "2012-10-17",
+      Statement: (
+        environment_statements(
+          "prod";
+          "portfolio-lambda-prod";
+          "portfolio-lambda-http-api/prod/terraform.tfstate"
+        ) + production_mutations
+      )
+    } | tojson);
     def role_policy($address; $resource_name; $index; $policy_name; $role_name; $policy):
       managed(
         $address;
@@ -416,6 +449,12 @@ make_ci_roles_plan() {
           "prod";
           "portfolio-production-planner-ci";
           "repo:CraigDevJohnson/portfolio:environment:production-plan"
+        ),
+        role(
+          "aws_iam_role.production_deployer";
+          null;
+          "portfolio-production-deployer-ci";
+          "repo:CraigDevJohnson/portfolio:environment:production"
         ),
         role_policy(
           "aws_iam_role_policy.release";
@@ -450,6 +489,14 @@ make_ci_roles_plan() {
             "portfolio-lambda-http-api/prod/terraform.tfstate";
             false
           )
+        ),
+        role_policy(
+          "aws_iam_role_policy.production_deployer";
+          "production_deployer";
+          null;
+          "portfolio-production-runtime-release";
+          "portfolio-production-deployer-ci";
+          production_deployer_policy
         )
       ],
       output_changes: {},
@@ -470,6 +517,27 @@ make_ci_roles_plan() {
         root_module: {
           resources: [
             {
+              address: "aws_iam_role.production_deployer",
+              mode: "managed",
+              type: "aws_iam_role",
+              name: "production_deployer",
+              provider_config_key: "aws",
+              schema_version: 0,
+              expressions: {
+                assume_role_policy: {references: [
+                  "data.aws_iam_policy_document.production_deployer_trust.json",
+                  "data.aws_iam_policy_document.production_deployer_trust"
+                ]},
+                max_session_duration: {constant_value: 3600},
+                name: {constant_value: "portfolio-production-deployer-ci"},
+                tags: {constant_value: {
+                  ManagedBy: "opentofu",
+                  Project: "portfolio",
+                  Purpose: "github-release"
+                }}
+              }
+            },
+            {
               address: "aws_iam_role.ci",
               mode: "managed",
               type: "aws_iam_role",
@@ -486,6 +554,26 @@ make_ci_roles_plan() {
                   Project: "portfolio",
                   Purpose: "github-release"
                 }}
+              }
+            },
+            {
+              address: "aws_iam_role_policy.production_deployer",
+              mode: "managed",
+              type: "aws_iam_role_policy",
+              name: "production_deployer",
+              provider_config_key: "aws",
+              schema_version: 0,
+              expressions: {
+                name: {constant_value: "portfolio-production-runtime-release"},
+                policy: {references: [
+                  "local.environment_read_statements.prod",
+                  "local.environment_read_statements",
+                  "local.production_mutation_statements"
+                ]},
+                role: {references: [
+                  "aws_iam_role.production_deployer.name",
+                  "aws_iam_role.production_deployer"
+                ]}
               }
             },
             {
@@ -565,6 +653,32 @@ make_ci_roles_plan() {
                   }, {
                     test: {constant_value: "StringEquals"},
                     values: {constant_value: ["repo:CraigDevJohnson/portfolio:ref:refs/heads/main"]},
+                    variable: {constant_value: "token.actions.githubusercontent.com:sub"}
+                  }],
+                  principals: [{
+                    identifiers: {references: ["local.github_oidc_provider_arn"]},
+                    type: {constant_value: "Federated"}
+                  }]
+                }]
+              }
+            },
+            {
+              address: "data.aws_iam_policy_document.production_deployer_trust",
+              mode: "data",
+              type: "aws_iam_policy_document",
+              name: "production_deployer_trust",
+              provider_config_key: "aws",
+              schema_version: 0,
+              expressions: {
+                statement: [{
+                  actions: {constant_value: ["sts:AssumeRoleWithWebIdentity"]},
+                  condition: [{
+                    test: {constant_value: "StringEquals"},
+                    values: {constant_value: ["sts.amazonaws.com"]},
+                    variable: {constant_value: "token.actions.githubusercontent.com:aud"}
+                  }, {
+                    test: {constant_value: "StringEquals"},
+                    values: {constant_value: ["repo:CraigDevJohnson/portfolio:environment:production"]},
                     variable: {constant_value: "token.actions.githubusercontent.com:sub"}
                   }],
                   principals: [{
@@ -1759,6 +1873,10 @@ expect_pass "ACM plan with null provider-sensitive private key" run_check "$dev_
 expect_pass "automated release accepts only image and live-alias updates" run_maintenance_check "$dev_maintenance_plan"
 expect_pass "automated release accepts an already-converged verified retry" \
   run_maintenance_check "$dev_converged_release_plan"
+expect_fail "production release mode rejects the development environment" \
+  env AUTOMATED_RELEASE=production PLAN_JSON="$dev_maintenance_plan" \
+  ENVIRONMENT=dev NAME_PREFIX=portfolio-lambda-dev IMAGE_URI="$release_image" \
+  EXPECTED_ALARM_ACTIONS_JSON='[]' sh "$checker"
 expect_pass "checked rollback accepts only the prior live alias version" \
   run_rollback_check "$dev_rollback_plan" 7
 expect_pass "checked rollback accepts OpenTofu string-encoded numeric override" \
@@ -2957,15 +3075,16 @@ run_ci_roles_as_admin lambda-ci-roles-verify > "$ci_roles_verify_output"
 for ci_role_contract in \
   'AWS_RELEASE_BUILDER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-release-builder-ci' \
   'AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-development-deployer-ci' \
-  'AWS_PRODUCTION_PLANNER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-production-planner-ci'; do
+  'AWS_PRODUCTION_PLANNER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-production-planner-ci' \
+  'AWS_PRODUCTION_DEPLOYER_ROLE_ARN=arn:aws:iam::180294223248:role/portfolio-production-deployer-ci'; do
   grep -Fxq "$ci_role_contract" "$ci_roles_verify_output" || {
     printf 'FAIL: CI role verification omitted exact variable output: %s\n' \
       "$ci_role_contract" >&2
     exit 1
   }
 done
-test "$(grep -Fc 'iam get-role' "$command_log")" -eq 3 || {
-  echo 'FAIL: CI role verification did not read exactly three roles from IAM' >&2
+test "$(grep -Fc 'iam get-role' "$command_log")" -eq 4 || {
+  echo 'FAIL: CI role verification did not read exactly four roles from IAM' >&2
   exit 1
 }
 pass "CI role verification reads and prints only the deterministic role ARNs"
