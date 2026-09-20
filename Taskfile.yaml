@@ -499,7 +499,7 @@ tasks:
       - sh scripts/plan-ci-lambda-production.sh
 
   lambda-ci-apply-production:
-    desc: Apply one separately authorized, checksum-bound production release plan
+    desc: Apply, verify, and record one separately authorized production release
     env:
       APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
       APPROVED_IDENTITY_SHA256: '{{default "" .APPROVED_IDENTITY_SHA256}}'
@@ -513,7 +513,7 @@ tasks:
       GITHUB_RUN_ID: '{{default "" .GITHUB_RUN_ID}}'
       SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
     cmds:
-      - sh scripts/apply-ci-lambda-production.sh
+      - sh scripts/deploy-ci-lambda-production.sh
 
   lambda-ci-record-production:
     desc: Record one protected production deployment and terminal status

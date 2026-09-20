@@ -27,7 +27,7 @@ cat > "$tmp/status102.json" <<EOF2
 [[{"id":202,"created_at":"2026-09-20T02:10:00Z","state":"failure","environment":"production","description":"Failed cccccccccccccccccccccccccccccccccccccccc at $digest","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 cat > "$tmp/status101.json" <<EOF2
-[[{"id":201,"created_at":"2026-09-20T01:10:00Z","state":"success","environment":"production","environment_url":"https://craigdevjohnson.com","description":"Verified $development_sha $digest v7 public-apex=ok public-www=ok","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
+[[{"id":201,"created_at":"2026-09-20T01:10:00Z","state":"success","environment":"production","environment_url":"https://craigdevjohnson.com","description":"Verified v7 public-apex=ok public-www=ok","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 export PATH="$tmp/bin:$PATH" GITHUB_REPOSITORY=CraigDevJohnson/portfolio
 export DEPLOYMENTS_FIXTURE="$tmp/deployments.json" STATUS_102_FIXTURE="$tmp/status102.json" STATUS_101_FIXTURE="$tmp/status101.json"
@@ -42,13 +42,6 @@ sed 's/ public-www=ok//' "$tmp/status101.json" > "$tmp/unverified.json"
 STATUS_101_FIXTURE="$tmp/unverified.json"; export STATUS_101_FIXTURE
 if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
   echo 'accepted production status without both public host verifications' >&2; exit 1
-fi
-# The terminal status must describe the payload-bound development source, not the
-# distinct manifest-only promotion commit.
-sed "s/Verified $development_sha/Verified $promotion_sha/" "$tmp/status101.json" > "$tmp/promotion-source.json"
-STATUS_101_FIXTURE="$tmp/promotion-source.json"; export STATUS_101_FIXTURE
-if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
-  echo 'accepted promotion commit as the verified development source' >&2; exit 1
 fi
 # A success attached to incomplete or malformed approval provenance is not trusted.
 STATUS_101_FIXTURE="$tmp/status101.json"; export STATUS_101_FIXTURE

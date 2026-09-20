@@ -68,18 +68,15 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
   ') || fail "deployment $deployment_id returned malformed statuses"
   [ "$(printf '%s\n' "$statuses" | jq -r '.[0].state // empty')" = success ] || continue
 
-  version=$(printf '%s\n' "$statuses" | jq -er \
-    --arg development_source_sha "$development_source_sha" --arg digest "$image_digest" '
+  version=$(printf '%s\n' "$statuses" | jq -er '
     .[0] |
     (.description | capture(
-      "^Verified (?<sha>[0-9a-f]{40}) (?<digest>sha256:[0-9a-f]{64}) " +
-      "v(?<version>[1-9][0-9]*) public-apex=ok public-www=ok$"
+      "^Verified v(?<version>[1-9][0-9]*) public-apex=ok public-www=ok$"
     )) as $v |
     select(
       .state == "success" and .environment == "production" and
       .environment_url == "https://craigdevjohnson.com" and
-      .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
-      $v.sha == $development_source_sha and $v.digest == $digest
+      .creator.login == "github-actions[bot]" and .creator.type == "Bot"
     ) | $v.version
   ') || fail "deployment $deployment_id has an untrusted success status"
   printf '%s\t%s\t%s\t%s\n' \

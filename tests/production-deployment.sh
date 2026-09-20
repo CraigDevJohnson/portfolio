@@ -30,6 +30,10 @@ set -eu
 : "${REVIEWER_LOGIN:?}"
 printf 'record:%s\n' "$DEPLOYMENT_STATE" >> "$CALL_LOG"
 if [ "$DEPLOYMENT_STATE" = in_progress ]; then
+  if [ "${FAIL_STAGE:-}" = in-progress-response ]; then
+    printf '{}\n' > "$EVIDENCE_DIR/github-production-deployment-response.json"
+    exit 1
+  fi
   printf '{}\n' > "$EVIDENCE_DIR/github-production-deployment.json"
 fi
 FAKE
@@ -42,6 +46,9 @@ FAKE
 cat > "$tmp/scripts/verify-ci-lambda-production.sh" <<'FAKE'
 #!/bin/sh
 set -eu
+: "${EXPECTED_VERIFICATION_SHA:?}"
+[ "$SOURCE_SHA" = "$EXPECTED_VERIFICATION_SHA" ]
+printf 'origins:%s|%s\n' "$APEX_ORIGIN_HOST" "$WWW_ORIGIN_HOST" >> "$CALL_LOG"
 printf 'verify\n' >> "$CALL_LOG"
 [ "${FAIL_STAGE:-}" != verify ]
 printf '{"lambda_version":"8"}\n' > "$EVIDENCE_DIR/production-verification.json"
@@ -51,7 +58,7 @@ cat > "$tmp/bin/tofu" <<'FAKE'
 set -eu
 printf 'output\n' >> "$CALL_LOG"
 [ "${FAIL_STAGE:-}" != output ]
-printf '{"api_gateway_domain_targets":{"value":{"craigdevjohnson.com":"origin.example"}}}\n'
+printf '{"api_gateway_domain_targets":{"value":{"craigdevjohnson.com":"apex-origin.example","www.craigdevjohnson.com":"www-origin.example"}}}\n'
 FAKE
 chmod +x "$tmp/scripts/"*.sh "$tmp/bin/tofu"
 
@@ -79,6 +86,7 @@ run_deployment() {
     > "$evidence/approval.json"
   (cd "$tmp" && env "$@" PATH="$tmp/bin:$PATH" CALL_LOG="$evidence/calls" \
     EVIDENCE_DIR="$evidence" SOURCE_SHA="$source_sha" \
+    EXPECTED_VERIFICATION_SHA="$development_sha" \
     GITHUB_REPOSITORY=CraigDevJohnson/portfolio \
     sh scripts/deploy-ci-lambda-production.sh)
 }
@@ -89,6 +97,7 @@ cat > "$tmp/expected-success" <<'EOF'
 record:in_progress
 apply
 output
+origins:apex-origin.example|www-origin.example
 verify
 record:success
 EOF
@@ -107,6 +116,18 @@ for stage in apply output verify; do
     exit 1
   fi
 done
+
+# A create response must trigger failure finalization even if normalized evidence
+# was not written before the in-progress recorder stopped.
+response_only="$tmp/failure-in-progress-response"
+if run_deployment "$response_only" FAIL_STAGE=in-progress-response \
+  >"$tmp/in-progress-response.out" 2>&1; then
+  echo 'Production deployment ignored interrupted in-progress recording' >&2
+  exit 1
+fi
+grep -Fqx 'record:in_progress' "$response_only/calls"
+grep -Fqx 'record:failure' "$response_only/calls"
+test -f "$response_only/github-production-deployment-response.json"
 
 # The real entrypoint must remain disabled before reading evidence or invoking a child.
 if PATH="$tmp/bin:$PATH" CALL_LOG="$tmp/hard-stop-calls" \

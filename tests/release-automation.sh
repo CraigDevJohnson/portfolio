@@ -2783,6 +2783,19 @@ grep -A16 '^  lambda-ci-apply-production:' "$root_dir/Taskfile.yaml" |
   echo 'production apply task omits its deterministic ECR repository' >&2
   exit 1
 }
+production_apply_task=$(sed -n \
+  '/^  lambda-ci-apply-production:/,/^  [a-zA-Z_][a-zA-Z0-9_-]*:/p' \
+  "$root_dir/Taskfile.yaml")
+printf '%s\n' "$production_apply_task" |
+  grep -Fq -- '- sh scripts/deploy-ci-lambda-production.sh' || {
+  echo 'production apply task does not use the deployment orchestrator' >&2
+  exit 1
+}
+if printf '%s\n' "$production_apply_task" |
+  grep -Fq -- '- sh scripts/apply-ci-lambda-production.sh'; then
+  echo 'production apply task bypasses deployment verification and recording' >&2
+  exit 1
+fi
 production_apply_contract=$(cat \
   "$root_dir/scripts/apply-ci-lambda-production.sh" \
   "$root_dir/scripts/validate-ci-lambda-production-apply.sh")

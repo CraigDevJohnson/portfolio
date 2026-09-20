@@ -119,37 +119,71 @@ case "$DEPLOYMENT_STATE" in
     description="Deploying $DEVELOPMENT_SOURCE_SHA at $IMAGE_DIGEST"
     ;;
   success | failure)
-    fields=$(jq -er \
-      --arg source_sha "$SOURCE_SHA" \
-      --arg development_source_sha "$DEVELOPMENT_SOURCE_SHA" \
-      --arg image_digest "$IMAGE_DIGEST" \
-      --arg plan_sha256 "$PLAN_SHA256" \
-      --argjson development_deployment_id "$DEVELOPMENT_DEPLOYMENT_ID" '
-      select(
-        (keys | sort) == (["approval_id", "development_deployment_id", "development_source_sha",
-          "final_version", "image_digest", "plan_sha256", "planning_run_attempt", "planning_run_id",
-          "prior_version", "production_deployment_id", "release_identity_sha256", "reviewer_login",
-          "scan_sha256", "schema_version", "source_sha", "status", "status_recorded"] | sort) and
-        .schema_version == 1 and
-        .source_sha == $source_sha and
-        .development_source_sha == $development_source_sha and
-        .image_digest == $image_digest and
-        .plan_sha256 == $plan_sha256 and
-        .release_identity_sha256 == env.RELEASE_IDENTITY_SHA256 and
-        .scan_sha256 == env.SCAN_SHA256 and
-        .planning_run_id == env.PLANNING_RUN_ID and
-        .planning_run_attempt == env.PLANNING_RUN_ATTEMPT and
-        .approval_id == env.APPROVAL_ID and
-        .reviewer_login == env.REVIEWER_LOGIN and
-        .development_deployment_id == $development_deployment_id and
-        (.production_deployment_id | type == "number" and . > 0 and floor == .) and
-        (.prior_version | type == "string" and test("^[1-9][0-9]*$"))
-      ) |
-      [.production_deployment_id, .prior_version] | @tsv
-    ' "$evidence_file") || {
-      echo 'production deployment evidence is missing or inconsistent' >&2
+    if [ -f "$evidence_file" ]; then
+      fields=$(jq -er \
+        --arg source_sha "$SOURCE_SHA" \
+        --arg development_source_sha "$DEVELOPMENT_SOURCE_SHA" \
+        --arg image_digest "$IMAGE_DIGEST" \
+        --arg plan_sha256 "$PLAN_SHA256" \
+        --argjson development_deployment_id "$DEVELOPMENT_DEPLOYMENT_ID" '
+        select(
+          (keys | sort) == (["approval_id", "development_deployment_id", "development_source_sha",
+            "final_version", "image_digest", "plan_sha256", "planning_run_attempt", "planning_run_id",
+            "prior_version", "production_deployment_id", "release_identity_sha256", "reviewer_login",
+            "scan_sha256", "schema_version", "source_sha", "status", "status_recorded"] | sort) and
+          .schema_version == 1 and
+          .source_sha == $source_sha and
+          .development_source_sha == $development_source_sha and
+          .image_digest == $image_digest and
+          .plan_sha256 == $plan_sha256 and
+          .release_identity_sha256 == env.RELEASE_IDENTITY_SHA256 and
+          .scan_sha256 == env.SCAN_SHA256 and
+          .planning_run_id == env.PLANNING_RUN_ID and
+          .planning_run_attempt == env.PLANNING_RUN_ATTEMPT and
+          .approval_id == env.APPROVAL_ID and
+          .reviewer_login == env.REVIEWER_LOGIN and
+          .development_deployment_id == $development_deployment_id and
+          (.production_deployment_id | type == "number" and . > 0 and floor == .) and
+          (.prior_version | type == "string" and test("^[1-9][0-9]*$"))
+        ) |
+        [.production_deployment_id, .prior_version] | @tsv
+      ' "$evidence_file") || {
+        echo 'production deployment evidence is missing or inconsistent' >&2
+        exit 1
+      }
+    elif [ "$DEPLOYMENT_STATE" = failure ] && [ -f "$response_file" ]; then
+      fields=$(jq -er \
+        --arg source_sha "$SOURCE_SHA" \
+        --arg image_digest "$IMAGE_DIGEST" '
+        (.description | capture(
+          "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<prior>[1-9][0-9]*)$"
+        )) as $release |
+        select(
+          (.id | type == "number" and . > 0 and floor == .) and
+          .ref == $source_sha and .sha == $source_sha and
+          .environment == "production" and .task == "portfolio-lambda-production" and
+          $release.digest == $image_digest and
+          (.payload | keys | sort) == (["approval_id", "development_source_sha", "planning_run_attempt",
+            "planning_run_id", "release_identity_sha256", "reviewer_login", "scan_sha256",
+            "schema_version"] | sort) and
+          .payload.schema_version == 1 and
+          .payload.development_source_sha == env.DEVELOPMENT_SOURCE_SHA and
+          .payload.release_identity_sha256 == env.RELEASE_IDENTITY_SHA256 and
+          .payload.scan_sha256 == env.SCAN_SHA256 and
+          .payload.planning_run_id == env.PLANNING_RUN_ID and
+          .payload.planning_run_attempt == env.PLANNING_RUN_ATTEMPT and
+          .payload.approval_id == env.APPROVAL_ID and
+          .payload.reviewer_login == env.REVIEWER_LOGIN
+        ) |
+        [.id, $release.prior] | @tsv
+      ' "$response_file") || {
+        echo 'production deployment response is missing or inconsistent' >&2
+        exit 1
+      }
+    else
+      echo 'production deployment evidence does not exist' >&2
       exit 1
-    }
+    fi
     deployment_id=$(printf '%s\n' "$fields" | cut -f1)
     PRIOR_VERSION=$(printf '%s\n' "$fields" | cut -f2)
     if [ "$DEPLOYMENT_STATE" = success ]; then
@@ -165,12 +199,14 @@ case "$DEPLOYMENT_STATE" in
         --arg version "$LAMBDA_VERSION" '
         .source_sha == $source_sha and .image_digest == $image_digest and
         .lambda_version == $version and .origin == "verified" and
-        .public_apex == "verified" and .public_www == "verified"
+        .public_apex == "verified" and .public_www == "verified" and
+        .oauth_redirect == "verified" and .oauth_callback == "verified" and
+        .oauth_logout == "verified" and .secure_cookies == "verified"
       ' "$verification_file" > /dev/null || {
         echo 'production verification evidence is missing or inconsistent' >&2
         exit 1
       }
-      for route in origin-apex public-apex public-www; do
+      for route in origin-apex origin-www public-apex public-www; do
         test -s "$EVIDENCE_DIR/$route/verification.json" || {
           echo "production verification omitted $route evidence" >&2
           exit 1
@@ -180,7 +216,7 @@ case "$DEPLOYMENT_STATE" in
           exit 1
         }
       done
-      description="Verified $DEVELOPMENT_SOURCE_SHA $IMAGE_DIGEST v$LAMBDA_VERSION public-apex=ok public-www=ok"
+      description="Verified v$LAMBDA_VERSION public-apex=ok public-www=ok"
       final_version=$LAMBDA_VERSION
     else
       description="Failed $DEVELOPMENT_SOURCE_SHA at $IMAGE_DIGEST"

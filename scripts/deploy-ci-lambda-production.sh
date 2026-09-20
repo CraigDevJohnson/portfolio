@@ -25,11 +25,16 @@ APPROVAL_ID=$(jq -er .approval_id "$approval")
 REVIEWER_LOGIN=$(jq -er .reviewer_login "$approval")
 export RELEASE_IDENTITY_SHA256 SCAN_SHA256 PLANNING_RUN_ID PLANNING_RUN_ATTEMPT
 export APPROVAL_ID REVIEWER_LOGIN
+deployment_evidence="$EVIDENCE_DIR/github-production-deployment.json"
+deployment_response="$EVIDENCE_DIR/github-production-deployment-response.json"
 
 finalize() {
   result=$?
   trap - EXIT HUP INT TERM
-  if [ "$result" -ne 0 ] && [ -f "$EVIDENCE_DIR/github-production-deployment.json" ]; then
+  if [ "$result" -ne 0 ] &&
+    { [ -f "$deployment_evidence" ] || [ -f "$deployment_response" ]; } &&
+    ! jq -e '.status == "success" and .status_recorded == true' \
+      "$deployment_evidence" > /dev/null 2>&1; then
     DEPLOYMENT_STATE=failure \
       DEVELOPMENT_SOURCE_SHA="$development_source_sha" \
       IMAGE_DIGEST="$image_digest" \
@@ -54,9 +59,13 @@ DEPLOYMENT_STATE=in_progress \
 
 sh scripts/apply-ci-lambda-production.sh
 tofu -chdir=infra/lambda/environments/prod output -json > "$EVIDENCE_DIR/outputs.json"
-origin_host=$(jq -er '.api_gateway_domain_targets.value["craigdevjohnson.com"]' \
+apex_origin_host=$(jq -er '.api_gateway_domain_targets.value["craigdevjohnson.com"]' \
   "$EVIDENCE_DIR/outputs.json")
-ORIGIN_HOST="$origin_host" IMAGE_DIGEST="$image_digest" \
+www_origin_host=$(jq -er '.api_gateway_domain_targets.value["www.craigdevjohnson.com"]' \
+  "$EVIDENCE_DIR/outputs.json")
+SOURCE_SHA="$development_source_sha" \
+  APEX_ORIGIN_HOST="$apex_origin_host" WWW_ORIGIN_HOST="$www_origin_host" \
+  IMAGE_DIGEST="$image_digest" \
   sh scripts/verify-ci-lambda-production.sh
 lambda_version=$(jq -er .lambda_version "$EVIDENCE_DIR/production-verification.json")
 DEPLOYMENT_STATE=success \
