@@ -1,5 +1,12 @@
 # Deployment instructions
 
+The [September 19 production decision record](./docs/deployment/2026-09-19-production-deployment-decisions.md)
+captures the accepted rollout scope: use the current AWS account, keep a
+separate production role and manual self-approval, and fix failures without a
+production rollback requirement. The implementation still stops at production
+planning. Older rollback and observation requirements below need reconciliation
+before the production cutover plan is executed.
+
 ## Retained shared infrastructure
 
 The checked-in `infra/` root retains the shared `portfolio` ECR repository

@@ -151,7 +151,16 @@ hard runner loss.
 
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live
-GitHub/AWS records. The image is never rebuilt. Production automation is
+GitHub/AWS records. The image is never rebuilt.
+
+The [September 19 production decision record](./2026-09-19-production-deployment-decisions.md)
+keeps a separate production role and manual self-approval in the current AWS
+account, and removes the production rollback requirement. The workflow and
+earlier readiness contracts have not yet been updated to that scope. The
+following describes the existing contract, whose rollback-origin requirement
+must be reconciled before implementation.
+
+Production automation is
 deliberately **plan-only** until custom-domain activation, apex and `www`
 routing, certificates/HTTPS, runtime parameters, OAuth callbacks and cookies,
 alarms, a verified rollback origin, and the public-cutover procedure have all
