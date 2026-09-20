@@ -2,6 +2,14 @@
 
 <!-- markdownlint-disable MD013 MD010 -->
 
+> [!IMPORTANT]
+> The [September 19 production decisions](../../deployment/2026-09-19-production-deployment-decisions.md)
+> supersede this plan's production rollback requirements. Craig chose the
+> current AWS account, a separate production role, manual self-approval, and
+> downtime while fixing failures instead of rollback to earlier hosting.
+> This plan still contains the older rollback and observation contracts.
+> Reconcile it with the decision record before execution.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Promote the development-tested Lambda image digest to an isolated production environment, move the apex and `www` behavior off Amplify, and retain a fully recorded rollback until production proves stable.
