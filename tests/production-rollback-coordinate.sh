@@ -14,24 +14,25 @@ case "$*" in
 esac
 GH
 chmod +x "$tmp/bin/gh"
-sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+promotion_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+development_sha=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 identity=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 scan=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-payload='{"schema_version":1,"release_identity_sha256":"'$identity'","scan_sha256":"'$scan'","planning_run_id":"123456","planning_run_attempt":"2","approval_id":"approval-789","reviewer_login":"CraigDevJohnson"}'
+payload='{"schema_version":1,"development_source_sha":"'$development_sha'","release_identity_sha256":"'$identity'","scan_sha256":"'$scan'","planning_run_id":"123456","planning_run_attempt":"2","approval_id":"approval-789","reviewer_login":"CraigDevJohnson"}'
 cat > "$tmp/deployments.json" <<EOF2
-[[{"id":102,"created_at":"2026-09-20T02:00:00Z","ref":"cccccccccccccccccccccccccccccccccccccccc","sha":"cccccccccccccccccccccccccccccccccccccccc","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v7","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}},{"id":101,"created_at":"2026-09-20T01:00:00Z","ref":"$sha","sha":"$sha","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v6","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}}]]
+[[{"id":102,"created_at":"2026-09-20T02:00:00Z","ref":"cccccccccccccccccccccccccccccccccccccccc","sha":"cccccccccccccccccccccccccccccccccccccccc","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v7","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}},{"id":101,"created_at":"2026-09-20T01:00:00Z","ref":"$promotion_sha","sha":"$promotion_sha","task":"portfolio-lambda-production","environment":"production","description":"Lambda $digest rollback-v6","payload":$payload,"creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 cat > "$tmp/status102.json" <<EOF2
 [[{"id":202,"created_at":"2026-09-20T02:10:00Z","state":"failure","environment":"production","description":"Failed cccccccccccccccccccccccccccccccccccccccc at $digest","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 cat > "$tmp/status101.json" <<EOF2
-[[{"id":201,"created_at":"2026-09-20T01:10:00Z","state":"success","environment":"production","environment_url":"https://craigdevjohnson.com","description":"Verified $sha $digest v7 public-apex=ok public-www=ok","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
+[[{"id":201,"created_at":"2026-09-20T01:10:00Z","state":"success","environment":"production","environment_url":"https://craigdevjohnson.com","description":"Verified $development_sha $digest v7 public-apex=ok public-www=ok","creator":{"login":"github-actions[bot]","type":"Bot"}}]]
 EOF2
 export PATH="$tmp/bin:$PATH" GITHUB_REPOSITORY=CraigDevJohnson/portfolio
 export DEPLOYMENTS_FIXTURE="$tmp/deployments.json" STATUS_102_FIXTURE="$tmp/status102.json" STATUS_101_FIXTURE="$tmp/status101.json"
 out=$(sh "$root/scripts/resolve-production-rollback-coordinate.sh")
-[ "$out" = "101	$sha	$digest	7" ]
+[ "$out" = "101	$development_sha	$digest	7" ]
 # Current alias is deliberately unavailable to the resolver; durable status is sufficient.
 grep -q '^101' <<EOF2
 $out
@@ -41,6 +42,13 @@ sed 's/ public-www=ok//' "$tmp/status101.json" > "$tmp/unverified.json"
 STATUS_101_FIXTURE="$tmp/unverified.json"; export STATUS_101_FIXTURE
 if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
   echo 'accepted production status without both public host verifications' >&2; exit 1
+fi
+# The terminal status must describe the payload-bound development source, not the
+# distinct manifest-only promotion commit.
+sed "s/Verified $development_sha/Verified $promotion_sha/" "$tmp/status101.json" > "$tmp/promotion-source.json"
+STATUS_101_FIXTURE="$tmp/promotion-source.json"; export STATUS_101_FIXTURE
+if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
+  echo 'accepted promotion commit as the verified development source' >&2; exit 1
 fi
 # A success attached to incomplete or malformed approval provenance is not trusted.
 STATUS_101_FIXTURE="$tmp/status101.json"; export STATUS_101_FIXTURE

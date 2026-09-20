@@ -30,9 +30,11 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
       .task == "portfolio-lambda-production" and .environment == "production" and
       .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
       (.payload | type == "object") and
-      (.payload | keys | sort) == (["approval_id", "planning_run_attempt", "planning_run_id",
-        "release_identity_sha256", "reviewer_login", "scan_sha256", "schema_version"] | sort) and
+      (.payload | keys | sort) == (["approval_id", "development_source_sha", "planning_run_attempt",
+        "planning_run_id", "release_identity_sha256", "reviewer_login", "scan_sha256",
+        "schema_version"] | sort) and
       .payload.schema_version == 1 and
+      (.payload.development_source_sha | type == "string" and test("^[0-9a-f]{40}$")) and
       (.payload.release_identity_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
       (.payload.scan_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
       (.payload.planning_run_id | type == "string" and test("^[1-9][0-9]*$")) and
@@ -44,11 +46,12 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
     (.description | capture(
       "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<prior>[1-9][0-9]*)$"
     )) as $r |
-    [.sha, $r.digest, .payload.release_identity_sha256, .payload.scan_sha256,
+    [.payload.development_source_sha, $r.digest,
+      .payload.release_identity_sha256, .payload.scan_sha256,
       .payload.planning_run_id, .payload.planning_run_attempt,
       .payload.approval_id, .payload.reviewer_login] | @tsv
   ') || fail "deployment $deployment_id does not match the trusted production schema"
-  source_sha=$(printf '%s\n' "$fields" | cut -f1)
+  development_source_sha=$(printf '%s\n' "$fields" | cut -f1)
   image_digest=$(printf '%s\n' "$fields" | cut -f2)
 
   status_pages=$(gh api --paginate --slurp \
@@ -66,7 +69,7 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
   [ "$(printf '%s\n' "$statuses" | jq -r '.[0].state // empty')" = success ] || continue
 
   version=$(printf '%s\n' "$statuses" | jq -er \
-    --arg sha "$source_sha" --arg digest "$image_digest" '
+    --arg development_source_sha "$development_source_sha" --arg digest "$image_digest" '
     .[0] |
     (.description | capture(
       "^Verified (?<sha>[0-9a-f]{40}) (?<digest>sha256:[0-9a-f]{64}) " +
@@ -76,10 +79,11 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
       .state == "success" and .environment == "production" and
       .environment_url == "https://craigdevjohnson.com" and
       .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
-      $v.sha == $sha and $v.digest == $digest
+      $v.sha == $development_source_sha and $v.digest == $digest
     ) | $v.version
   ') || fail "deployment $deployment_id has an untrusted success status"
-  printf '%s\t%s\t%s\t%s\n' "$deployment_id" "$source_sha" "$image_digest" "$version"
+  printf '%s\t%s\t%s\t%s\n' \
+    "$deployment_id" "$development_source_sha" "$image_digest" "$version"
   exit 0
 done
 

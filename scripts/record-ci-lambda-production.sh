@@ -88,6 +88,7 @@ case "$DEPLOYMENT_STATE" in
       -F auto_merge=false \
       -f description="Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION" \
       -F 'payload[schema_version]=1' \
+      -f "payload[development_source_sha]=$DEVELOPMENT_SOURCE_SHA" \
       -f "payload[release_identity_sha256]=$RELEASE_IDENTITY_SHA256" \
       -f "payload[scan_sha256]=$SCAN_SHA256" \
       -f "payload[planning_run_id]=$PLANNING_RUN_ID" \
@@ -100,9 +101,11 @@ case "$DEPLOYMENT_STATE" in
       --arg description "Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION" '
       .ref == $sha and .sha == $sha and .environment == "production" and
       .task == "portfolio-lambda-production" and .description == $description and
-      (.payload | keys | sort) == (["approval_id", "planning_run_attempt", "planning_run_id",
-        "release_identity_sha256", "reviewer_login", "scan_sha256", "schema_version"] | sort) and
+      (.payload | keys | sort) == (["approval_id", "development_source_sha", "planning_run_attempt",
+        "planning_run_id", "release_identity_sha256", "reviewer_login", "scan_sha256",
+        "schema_version"] | sort) and
       .payload.schema_version == 1 and
+      .payload.development_source_sha == env.DEVELOPMENT_SOURCE_SHA and
       .payload.release_identity_sha256 == env.RELEASE_IDENTITY_SHA256 and
       .payload.scan_sha256 == env.SCAN_SHA256 and
       .payload.planning_run_id == env.PLANNING_RUN_ID and

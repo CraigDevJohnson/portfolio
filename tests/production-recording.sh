@@ -22,6 +22,7 @@ else
       description:("Lambda " + $digest + " rollback-v" + $version),
       payload: {
         schema_version: 1,
+        development_source_sha: env.DEVELOPMENT_SOURCE_SHA,
         release_identity_sha256: env.RELEASE_IDENTITY_SHA256,
         scan_sha256: env.SCAN_SHA256,
         planning_run_id: env.PLANNING_RUN_ID,
@@ -46,7 +47,7 @@ export DEVELOPMENT_DEPLOYMENT_ID=90 PRIOR_VERSION=7 LAMBDA_VERSION=8
 export GITHUB_REPOSITORY=CraigDevJohnson/portfolio EVIDENCE_DIR="$tmp/success"
 record() { DEPLOYMENT_STATE="$1" sh "$root/scripts/record-ci-lambda-production.sh"; }
 record in_progress
-for payload_field in schema_version release_identity_sha256 scan_sha256 planning_run_id \
+for payload_field in schema_version development_source_sha release_identity_sha256 scan_sha256 planning_run_id \
   planning_run_attempt approval_id reviewer_login; do
   grep -Fq "payload[$payload_field]=" "$CALL_LOG" || {
     echo "Recorder omitted deployment payload field: $payload_field" >&2
