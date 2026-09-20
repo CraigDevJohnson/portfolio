@@ -5,6 +5,7 @@ set -eu
 : "${PRIOR_VERSION:?set PRIOR_VERSION}"
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR to an absolute path}"
 : "${ECR_URL:?set ECR_URL}"
+RELEASE_ENVIRONMENT=${RELEASE_ENVIRONMENT:-development}
 
 case "$EVIDENCE_DIR" in
   /*) ;;
@@ -26,9 +27,26 @@ printf '%s\n' "$PRIOR_VERSION" | grep -Eq '^[1-9][0-9]*$' || {
   exit 1
 }
 
-root=infra/lambda/environments/dev
+case "$RELEASE_ENVIRONMENT" in
+  development)
+    root=infra/lambda/environments/dev
+    environment=dev
+    name_prefix=portfolio-lambda-dev
+    expected_alarm_actions='[]'
+    ;;
+  production)
+    root=infra/lambda/environments/prod
+    environment=prod
+    name_prefix=portfolio-lambda-prod
+    expected_alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+    ;;
+  *)
+    echo 'RELEASE_ENVIRONMENT must be development or production' >&2
+    exit 1
+    ;;
+esac
 plan_name=rollback.tfplan
-ENVIRONMENT=dev EXPECTED_MANAGEMENT_JSON="${EXPECTED_MANAGEMENT_JSON:-null}" \
+ENVIRONMENT="$environment" EXPECTED_MANAGEMENT_JSON="${EXPECTED_MANAGEMENT_JSON:-null}" \
   sh "$(dirname "$0")/check-management-input.sh"
 
 mkdir -p "$EVIDENCE_DIR"
@@ -70,6 +88,7 @@ if ! TF_VAR_management="${EXPECTED_MANAGEMENT_JSON:-null}" \
   TF_VAR_ecr_repository_url="$ECR_URL" \
   TF_VAR_image_digest="$IMAGE_DIGEST" \
   TF_VAR_live_version_override="$PRIOR_VERSION" \
+  TF_VAR_alarm_action_arns="$expected_alarm_actions" \
   tofu -chdir="$root" plan \
   -lock-timeout=5m \
   -input=false \
@@ -85,10 +104,10 @@ printf '%s  %s\n' "$plan_digest" "$plan_name" > "$plan_sha256"
 if AUTOMATED_RELEASE=rollback \
   PRIOR_VERSION="$PRIOR_VERSION" \
   PLAN_JSON="$plan_json" \
-  ENVIRONMENT=dev \
-  NAME_PREFIX=portfolio-lambda-dev \
+  ENVIRONMENT="$environment" \
+  NAME_PREFIX="$name_prefix" \
   IMAGE_URI="$ECR_URL@$IMAGE_DIGEST" \
-  EXPECTED_ALARM_ACTIONS_JSON='[]' \
+  EXPECTED_ALARM_ACTIONS_JSON="$expected_alarm_actions" \
   sh scripts/check-lambda-plan.sh > "$policy_output" 2>&1; then
   cat "$policy_output"
 else

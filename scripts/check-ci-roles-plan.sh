@@ -43,7 +43,7 @@ jq -e '
   ] | length) == 0
 ' "$PLAN_JSON" > /dev/null || fail "plan JSON is invalid, errored, destructive, moved, imported, or sensitive"
 
-# The state owns exactly three roles and their three inline policies. Data
+# The state owns exactly four roles and their four inline policies. Data
 # sources may be absent from resource_changes after OpenTofu reads them during
 # planning, but no other data source is permitted. Checking the unexpanded
 # configuration also catches dormant resources whose count or for_each is empty.
@@ -52,23 +52,29 @@ jq -e '
     {address: "aws_iam_role.ci[\"dev\"]", type: "aws_iam_role"},
     {address: "aws_iam_role.ci[\"prod\"]", type: "aws_iam_role"},
     {address: "aws_iam_role.ci[\"release\"]", type: "aws_iam_role"},
+    {address: "aws_iam_role.production_deployer", type: "aws_iam_role"},
     {address: "aws_iam_role_policy.environment[\"dev\"]", type: "aws_iam_role_policy"},
     {address: "aws_iam_role_policy.environment[\"prod\"]", type: "aws_iam_role_policy"},
-    {address: "aws_iam_role_policy.release", type: "aws_iam_role_policy"}
+    {address: "aws_iam_role_policy.release", type: "aws_iam_role_policy"},
+    {address: "aws_iam_role_policy.production_deployer", type: "aws_iam_role_policy"}
   ];
   def expected_configuration: [
     {address: "aws_iam_role.ci", mode: "managed", type: "aws_iam_role"},
+    {address: "aws_iam_role.production_deployer", mode: "managed", type: "aws_iam_role"},
     {address: "aws_iam_role_policy.environment", mode: "managed", type: "aws_iam_role_policy"},
     {address: "aws_iam_role_policy.release", mode: "managed", type: "aws_iam_role_policy"},
+    {address: "aws_iam_role_policy.production_deployer", mode: "managed", type: "aws_iam_role_policy"},
     {address: "data.aws_iam_policy_document.environment_trust", mode: "data", type: "aws_iam_policy_document"},
-    {address: "data.aws_iam_policy_document.release_trust", mode: "data", type: "aws_iam_policy_document"}
+    {address: "data.aws_iam_policy_document.release_trust", mode: "data", type: "aws_iam_policy_document"},
+    {address: "data.aws_iam_policy_document.production_deployer_trust", mode: "data", type: "aws_iam_policy_document"}
   ];
   def allowed_data($address; $type):
     $type == "aws_iam_policy_document" and
     ([
       "data.aws_iam_policy_document.environment_trust[\"dev\"]",
       "data.aws_iam_policy_document.environment_trust[\"prod\"]",
-      "data.aws_iam_policy_document.release_trust"
+      "data.aws_iam_policy_document.release_trust",
+      "data.aws_iam_policy_document.production_deployer_trust"
     ] | index($address) != null);
   def configuration_contract($address; $expected_keys):
     first(.configuration.root_module.resources[] | select(.address == $address)) as $resource |
@@ -109,6 +115,9 @@ jq -e '
     "address", "expressions", "for_each_expression", "mode", "name",
     "provider_config_key", "schema_version", "type"
   ]) and
+  configuration_contract("aws_iam_role.production_deployer"; [
+    "address", "expressions", "mode", "name", "provider_config_key", "schema_version", "type"
+  ]) and
   configuration_contract("aws_iam_role_policy.environment"; [
     "address", "depends_on", "expressions", "for_each_expression", "mode", "name",
     "provider_config_key", "schema_version", "type"
@@ -117,11 +126,17 @@ jq -e '
     "address", "depends_on", "expressions", "mode", "name",
     "provider_config_key", "schema_version", "type"
   ]) and
+  configuration_contract("aws_iam_role_policy.production_deployer"; [
+    "address", "expressions", "mode", "name", "provider_config_key", "schema_version", "type"
+  ]) and
   configuration_contract("data.aws_iam_policy_document.environment_trust"; [
     "address", "expressions", "for_each_expression", "mode", "name",
     "provider_config_key", "schema_version", "type"
   ]) and
   configuration_contract("data.aws_iam_policy_document.release_trust"; [
+    "address", "expressions", "mode", "name", "provider_config_key", "schema_version", "type"
+  ]) and
+  configuration_contract("data.aws_iam_policy_document.production_deployer_trust"; [
     "address", "expressions", "mode", "name", "provider_config_key", "schema_version", "type"
   ])
 ' "$PLAN_JSON" > /dev/null || fail "plan contains an unexpected or missing CI role resource"
@@ -322,6 +337,26 @@ jq -e '
           }})
       ] else [] end)
     };
+  def expected_production_deployer_policy:
+    expected_environment_policy("prod") |
+    .Statement += [
+      allow("ProductionStateWrite";
+        ["s3:PutObject", "s3:DeleteObject"];
+        ["arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate"];
+        null),
+      allow("ProductionReleaseWrite";
+        ["lambda:PublishVersion", "lambda:UpdateAlias", "lambda:UpdateFunctionCode"];
+        [
+          "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod",
+          "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod:live"
+        ];
+        {StringEquals: {
+          "aws:ResourceTag/Environment": ["prod"],
+          "aws:ResourceTag/ManagedBy": ["opentofu"],
+          "aws:ResourceTag/Platform": ["lambda-http-api"],
+          "aws:ResourceTag/Project": ["portfolio"]
+        }})
+    ];
 
   def by_address($address):
     first(.resource_changes[] | select(.mode == "managed" and .address == $address));
@@ -404,6 +439,13 @@ jq -e '
     "portfolio-production-read-only-plan";
     expected_environment_policy("prod")
   ) and
+  role_contract(
+    "aws_iam_role.production_deployer";
+    "portfolio-production-deployer-ci";
+    "repo:CraigDevJohnson/portfolio:environment:production";
+    "portfolio-production-runtime-release";
+    expected_production_deployer_policy
+  ) and
   policy_contract(
     "aws_iam_role_policy.release";
     "portfolio-release-builder";
@@ -422,6 +464,12 @@ jq -e '
     "portfolio-production-planner-ci";
     expected_environment_policy("prod")
   ) and
+  policy_contract(
+    "aws_iam_role_policy.production_deployer";
+    "portfolio-production-runtime-release";
+    "portfolio-production-deployer-ci";
+    expected_production_deployer_policy
+  ) and
   (configuration_by_address("aws_iam_role.ci") as $roles |
     ($roles.expressions | keys) == ["assume_role_policy", "max_session_duration", "name", "tags"] and
     exact_references($roles.for_each_expression; ["local.roles"]) and
@@ -439,6 +487,18 @@ jq -e '
       "local.roles.release.name",
       "local.roles.release",
       "local.roles"
+    ])) and
+  (configuration_by_address("aws_iam_role.production_deployer") as $production_role |
+    ($production_role.expressions | keys) == ["assume_role_policy", "max_session_duration", "name", "tags"] and
+    exact_references($production_role.expressions.assume_role_policy; [
+      "data.aws_iam_policy_document.production_deployer_trust.json",
+      "data.aws_iam_policy_document.production_deployer_trust"
+    ])) and
+  (configuration_by_address("aws_iam_role_policy.production_deployer") as $production_policy |
+    ($production_policy.expressions | keys) == ["name", "policy", "role"] and
+    exact_references($production_policy.expressions.role; [
+      "aws_iam_role.production_deployer.name",
+      "aws_iam_role.production_deployer"
     ]))
 ' "$PLAN_JSON" > /dev/null || fail "CI role names, trust, attachments, or inline policies drifted"
 

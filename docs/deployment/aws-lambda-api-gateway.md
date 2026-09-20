@@ -96,6 +96,17 @@ provision or modify those roles. The existing `portfolio-deployer` SSO checks
 remain the local/manual escape hatch, while CI uses an exact assumed-role
 identity check.
 
+The repository also defines, but does not activate,
+`portfolio-production-deployer-ci`. Its trust is bound only to a future
+`production` Environment, and its policy can write only the exact production
+state object and release the existing `portfolio-lambda-prod` function and
+`live` alias. Do not create that Environment, apply the role change, set
+`AWS_PRODUCTION_DEPLOYER_ROLE_ARN`, or add a production apply job until all
+production readiness checks have passed and each activation step has separate
+maintainer authorization. Referencing a nonexistent Environment from a workflow
+would create it without the required protection, so workflow activation must be
+a later reviewed change.
+
 The development OIDC role assumes that the replacement stack and its remote
 state were provisioned through the separately approved SSO bootstrap path. Its
 only service mutations are an immutable-image update, version publication, and
@@ -151,21 +162,30 @@ hard runner loss.
 
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live
-GitHub/AWS records. The image is never rebuilt.
-
-The [September 19 production decision record](./2026-09-19-production-deployment-decisions.md)
-keeps a separate production role and manual self-approval in the current AWS
-account, and removes the production rollback requirement. The workflow and
-earlier readiness contracts have not yet been updated to that scope. The
-following describes the existing contract, whose rollback-origin requirement
-must be reconciled before implementation.
-
-Production automation is
+GitHub/AWS records. The image is never rebuilt. Production automation is
 deliberately **plan-only** until custom-domain activation, apex and `www`
 routing, certificates/HTTPS, runtime parameters, OAuth callbacks and cookies,
 alarms, a verified rollback origin, and the public-cutover procedure have all
 been independently rehearsed and approved. Do not claim the Go/Lambda service
 is public in production before that cutover evidence exists.
+
+An accepted production plan now retains `release-identity.json`, binding the
+promotion commit, development source/deployment/digest, workflow run and attempt,
+prior production alias, and saved-plan checksum. Every bundle remains explicitly
+not apply-ready while preparation and plan-only rehearsal continue.
+The planner obtains `scan.json` from the exact successful Release artifact for
+the promoted development source rather than relying on the deprecated scan
+summary fields returned by `ecr:DescribeImages` or expanding the live planner's
+AWS permissions.
+`task lambda-ci-apply-production` is hard-disabled and is not called by any
+workflow. Its draft implementation is incomplete; the promotion runbook lists
+the remaining activation blockers. The prepared validation code rejects a changed manifest, run identity, checksum,
+current `main`, or durable prior production coordinate; reruns the strict production-release plan policy;
+and rechecks `main` and the alias immediately before applying the reviewed saved
+plan. A failed apply may prepare a checksum-bound production rollback plan, but
+that plan is never applied automatically and always needs separate authorization.
+Use the [production promotion runbook](production-lambda-promotion.md) for the
+readiness, activation, promotion, verification, and rollback gates.
 
 Automation authority excludes legacy deploy tasks, DNS and Cloudflare, App
 Runner, Amplify, state bootstrap, and SSM application-data mutation. During an

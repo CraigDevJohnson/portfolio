@@ -273,6 +273,11 @@ tasks:
       - sh tests/lambda-observation-window.sh
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
+      - sh tests/production-activation.sh
+      - sh tests/production-deployment.sh
+      - sh tests/production-recording.sh
+      - sh tests/production-rollback-coordinate.sh
+      - sh tests/production-verification.sh
 
   cognito-dev-ci:
     desc: Validate the isolated development Cognito root without backend or AWS access
@@ -485,11 +490,52 @@ tasks:
       ECR_REPOSITORY: portfolio-lambda-releases
       ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
       GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_RUN_ATTEMPT: '{{default "" .GITHUB_RUN_ATTEMPT}}'
+      GITHUB_RUN_ID: '{{default "" .GITHUB_RUN_ID}}'
       GITHUB_WORKSPACE: '{{default "" .GITHUB_WORKSPACE}}'
       SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
       STATE_BUCKET: portfolio-tofu-state-180294223248
     cmds:
       - sh scripts/plan-ci-lambda-production.sh
+
+  lambda-ci-apply-production:
+    desc: Apply, verify, and record one separately authorized production release
+    env:
+      APPROVED_PLAN_SHA256: '{{default "" .APPROVED_PLAN_SHA256}}'
+      APPROVED_IDENTITY_SHA256: '{{default "" .APPROVED_IDENTITY_SHA256}}'
+      APPROVED_BACKEND_SHA256: '{{default "" .APPROVED_BACKEND_SHA256}}'
+      APPROVED_APPROVAL_SHA256: '{{default "" .APPROVED_APPROVAL_SHA256}}'
+      ECR_REPOSITORY: portfolio-lambda-releases
+      ECR_URL: 180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+      EVIDENCE_DIR: '{{default "" .EVIDENCE_DIR}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      GITHUB_RUN_ATTEMPT: '{{default "" .GITHUB_RUN_ATTEMPT}}'
+      GITHUB_RUN_ID: '{{default "" .GITHUB_RUN_ID}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/deploy-ci-lambda-production.sh
+
+  lambda-ci-record-production:
+    desc: Record one protected production deployment and terminal status
+    env:
+      DEPLOYMENT_STATE: '{{default "" .DEPLOYMENT_STATE}}'
+      DEVELOPMENT_DEPLOYMENT_ID: '{{default "" .DEVELOPMENT_DEPLOYMENT_ID}}'
+      DEVELOPMENT_SOURCE_SHA: '{{default "" .DEVELOPMENT_SOURCE_SHA}}'
+      EVIDENCE_DIR: '{{default "" .EVIDENCE_DIR}}'
+      GITHUB_REPOSITORY: '{{default "" .GITHUB_REPOSITORY}}'
+      IMAGE_DIGEST: '{{default "" .IMAGE_DIGEST}}'
+      LAMBDA_VERSION: '{{default "" .LAMBDA_VERSION}}'
+      PLAN_SHA256: '{{default "" .PLAN_SHA256}}'
+      RELEASE_IDENTITY_SHA256: '{{default "" .RELEASE_IDENTITY_SHA256}}'
+      SCAN_SHA256: '{{default "" .SCAN_SHA256}}'
+      PLANNING_RUN_ID: '{{default "" .PLANNING_RUN_ID}}'
+      PLANNING_RUN_ATTEMPT: '{{default "" .PLANNING_RUN_ATTEMPT}}'
+      APPROVAL_ID: '{{default "" .APPROVAL_ID}}'
+      REVIEWER_LOGIN: '{{default "" .REVIEWER_LOGIN}}'
+      PRIOR_VERSION: '{{default "" .PRIOR_VERSION}}'
+      SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
+    cmds:
+      - sh scripts/record-ci-lambda-production.sh
 
   _lambda-identity-check:
     internal: true
@@ -655,7 +701,8 @@ tasks:
         }
         release_role_arn=$(read_role_arn portfolio-release-builder-ci)
         development_role_arn=$(read_role_arn portfolio-development-deployer-ci)
-        production_role_arn=$(read_role_arn portfolio-production-planner-ci)
+        production_planner_role_arn=$(read_role_arn portfolio-production-planner-ci)
+        production_deployer_role_arn=$(read_role_arn portfolio-production-deployer-ci)
         test "$release_role_arn" = \
           "arn:aws:iam::180294223248:role/portfolio-release-builder-ci" || {
           echo "release-builder role ARN does not match its deterministic contract" >&2
@@ -666,14 +713,20 @@ tasks:
           echo "development-deployer role ARN does not match its deterministic contract" >&2
           exit 1
         }
-        test "$production_role_arn" = \
+        test "$production_planner_role_arn" = \
           "arn:aws:iam::180294223248:role/portfolio-production-planner-ci" || {
           echo "production-planner role ARN does not match its deterministic contract" >&2
           exit 1
         }
+        test "$production_deployer_role_arn" = \
+          "arn:aws:iam::180294223248:role/portfolio-production-deployer-ci" || {
+          echo "production-deployer role ARN does not match its deterministic contract" >&2
+          exit 1
+        }
         printf 'AWS_RELEASE_BUILDER_ROLE_ARN=%s\n' "$release_role_arn"
         printf 'AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN=%s\n' "$development_role_arn"
-        printf 'AWS_PRODUCTION_PLANNER_ROLE_ARN=%s\n' "$production_role_arn"
+        printf 'AWS_PRODUCTION_PLANNER_ROLE_ARN=%s\n' "$production_planner_role_arn"
+        printf 'AWS_PRODUCTION_DEPLOYER_ROLE_ARN=%s\n' "$production_deployer_role_arn"
 
   _lambda-saved-plan-apply:
     internal: true

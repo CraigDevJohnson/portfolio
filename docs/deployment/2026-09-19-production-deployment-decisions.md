@@ -42,6 +42,13 @@ The rollback choice was explicit. The suggestion to skip automation but keep a
 manual rollback was rejected. The final decision was to fix failures in place,
 not to require a fallback deployment.
 
+Issue #77 later added a narrower safety requirement for offline preparation:
+retain the last durably verified Lambda version and permit generation of a
+checksum-bound alias-only rollback plan after failure. That artifact is not an
+automatic rollback, a mandatory operator procedure, or authority to apply it.
+Applying it remains a new, explicit operator decision. This refinement preserves
+the decision not to restore a fallback hosting platform or automate rollback.
+
 ## Branches and environments
 
 The discussion confirmed `main` as the shared source branch. Development is a
@@ -95,8 +102,9 @@ and the
 still require rollback plans, evidence, or a healthy fallback origin. Those
 requirements conflict with the accepted production scope above. Reconcile them
 when preparing the implementation, including any validators that depend on
-rollback evidence. Do not add production rollback work merely to satisfy the
-older checklist.
+rollback evidence. Issue #77 resolves this conflict by retaining only a verified
+recovery coordinate and a policy-checked, never-automatic rollback plan. It does
+not restore a fallback origin or authorize rollback application.
 
 The existing
 [Lambda release workflow documentation](./aws-lambda-api-gateway.md)

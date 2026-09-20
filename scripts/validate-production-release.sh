@@ -5,6 +5,17 @@ manifest=${1:?usage: validate-production-release.sh MANIFEST}
 : "${ECR_REPOSITORY:?set ECR_REPOSITORY}"
 : "${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}"
 
+jq -e '
+  type == "object" and
+  .schema_version == 1 and
+  (keys | sort) == ([
+    "development_deployment_id", "image_digest", "schema_version", "source_sha"
+  ] | sort)
+' "$manifest" > /dev/null || {
+  echo 'production release manifest does not match the exact schema' >&2
+  exit 1
+}
+
 source_sha=$(jq -er '.source_sha | select(type == "string" and test("^[0-9a-f]{40}$"))' "$manifest")
 image_digest=$(jq -er '.image_digest | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))' "$manifest")
 deployment_id=$(jq -er '.development_deployment_id | select(type == "number" and . > 0 and floor == .)' "$manifest")

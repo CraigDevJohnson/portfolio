@@ -1,19 +1,24 @@
 # GitHub Actions deployment roles
 
-This isolated root defines three GitHub OIDC roles. It is **not** called by a
+This isolated root defines four GitHub OIDC roles. It is **not** called by a
 release workflow. Provision it through a separately reviewed administrator plan,
 then read back the exact role ARNs and configure them as
 repository/environment variables:
 
 - `AWS_RELEASE_BUILDER_ROLE_ARN` (repository variable);
 - `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN` (`development` environment); and
-- `AWS_PRODUCTION_PLANNER_ROLE_ARN` (`production-plan` environment).
+- `AWS_PRODUCTION_PLANNER_ROLE_ARN` (`production-plan` environment); and
+- `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` (`production` environment, only after the
+  separate readiness and activation approval).
 
 The release trust is restricted to `main`; environment trust is restricted to
-the exact GitHub Environment. There are no IAM-user keys. The production role
+the exact GitHub Environment. There are no IAM-user keys. The production planner
 has read-only infrastructure permissions plus access to its state lock object;
-it cannot update production services or state. The `production-plan`
-environment must have required reviewers.
+it cannot update production services or state. The separate production deployer
+adds only exact production state writes and release writes for the existing
+function and `live` alias. Neither role may provision infrastructure. Both
+production Environments must use protected branches, required reviewers, and no
+administrator bypass.
 
 The development role is post-bootstrap and runtime-only. It can refresh the
 existing stack, write only the development state and lock objects, and update
@@ -47,8 +52,9 @@ administrator identity that has been explicitly reviewed to access only:
 - `s3:GetBucketLocation` and `s3:GetBucketVersioning` on that bucket for the
   repository's region and versioning preflight, plus `s3:GetObject`,
   `s3:PutObject`, and `s3:DeleteObject` on only those two state objects; and
-- the `portfolio-release-builder-ci`, `portfolio-development-deployer-ci`, and
-  `portfolio-production-planner-ci` IAM roles and their inline policies,
+- the `portfolio-release-builder-ci`, `portfolio-development-deployer-ci`,
+  `portfolio-production-planner-ci`, and `portfolio-production-deployer-ci` IAM
+  roles and their inline policies,
   including read access to the existing GitHub OIDC provider.
 
 The reviewed IAM Identity Center permission-set name is

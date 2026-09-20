@@ -1,0 +1,77 @@
+#!/bin/sh
+set -eu
+
+# Remove only in the separately reviewed activation change after the protected
+# production Environment and role have been independently verified.
+echo "Production apply is disabled pending readiness and activation review" >&2
+exit 1
+
+: "${EVIDENCE_DIR:?set EVIDENCE_DIR}"
+: "${SOURCE_SHA:?set SOURCE_SHA to the promotion commit}"
+: "${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}"
+
+identity="$EVIDENCE_DIR/release-identity.json"
+approval="$EVIDENCE_DIR/approval.json"
+development_source_sha=$(jq -er .development_source_sha "$identity")
+image_digest=$(jq -er .image_digest "$identity")
+development_deployment_id=$(jq -er .development_deployment_id "$identity")
+prior_version=$(jq -er '.prior_verified_version | tostring' "$identity")
+plan_sha256=$(jq -er .plan_sha256 "$identity")
+RELEASE_IDENTITY_SHA256=$(sha256sum "$identity" | awk '{print $1}')
+SCAN_SHA256=$(jq -er .scan_sha256 "$identity")
+PLANNING_RUN_ID=$(jq -er .planning_run_id "$identity")
+PLANNING_RUN_ATTEMPT=$(jq -er .planning_run_attempt "$identity")
+APPROVAL_ID=$(jq -er .approval_id "$approval")
+REVIEWER_LOGIN=$(jq -er .reviewer_login "$approval")
+export RELEASE_IDENTITY_SHA256 SCAN_SHA256 PLANNING_RUN_ID PLANNING_RUN_ATTEMPT
+export APPROVAL_ID REVIEWER_LOGIN
+deployment_evidence="$EVIDENCE_DIR/github-production-deployment.json"
+deployment_response="$EVIDENCE_DIR/github-production-deployment-response.json"
+
+finalize() {
+  result=$?
+  trap - EXIT HUP INT TERM
+  if [ "$result" -ne 0 ] &&
+    { [ -f "$deployment_evidence" ] || [ -f "$deployment_response" ]; } &&
+    ! jq -e '.status == "success" and .status_recorded == true' \
+      "$deployment_evidence" > /dev/null 2>&1; then
+    DEPLOYMENT_STATE=failure \
+      DEVELOPMENT_SOURCE_SHA="$development_source_sha" \
+      IMAGE_DIGEST="$image_digest" \
+      DEVELOPMENT_DEPLOYMENT_ID="$development_deployment_id" \
+      PLAN_SHA256="$plan_sha256" \
+      sh scripts/record-ci-lambda-production.sh ||
+      printf '%s\n' 'Terminal production deployment recording failed; evidence retained.' \
+        > "$EVIDENCE_DIR/RECORDING_FAILED"
+  fi
+  exit "$result"
+}
+trap finalize EXIT
+trap 'exit 1' HUP INT TERM
+
+DEPLOYMENT_STATE=in_progress \
+  DEVELOPMENT_SOURCE_SHA="$development_source_sha" \
+  IMAGE_DIGEST="$image_digest" \
+  DEVELOPMENT_DEPLOYMENT_ID="$development_deployment_id" \
+  PLAN_SHA256="$plan_sha256" \
+  PRIOR_VERSION="$prior_version" \
+  sh scripts/record-ci-lambda-production.sh
+
+sh scripts/apply-ci-lambda-production.sh
+tofu -chdir=infra/lambda/environments/prod output -json > "$EVIDENCE_DIR/outputs.json"
+apex_origin_host=$(jq -er '.api_gateway_domain_targets.value["craigdevjohnson.com"]' \
+  "$EVIDENCE_DIR/outputs.json")
+www_origin_host=$(jq -er '.api_gateway_domain_targets.value["www.craigdevjohnson.com"]' \
+  "$EVIDENCE_DIR/outputs.json")
+SOURCE_SHA="$development_source_sha" \
+  APEX_ORIGIN_HOST="$apex_origin_host" WWW_ORIGIN_HOST="$www_origin_host" \
+  IMAGE_DIGEST="$image_digest" \
+  sh scripts/verify-ci-lambda-production.sh
+lambda_version=$(jq -er .lambda_version "$EVIDENCE_DIR/production-verification.json")
+DEPLOYMENT_STATE=success \
+  DEVELOPMENT_SOURCE_SHA="$development_source_sha" \
+  IMAGE_DIGEST="$image_digest" \
+  DEVELOPMENT_DEPLOYMENT_ID="$development_deployment_id" \
+  PLAN_SHA256="$plan_sha256" \
+  LAMBDA_VERSION="$lambda_version" \
+  sh scripts/record-ci-lambda-production.sh

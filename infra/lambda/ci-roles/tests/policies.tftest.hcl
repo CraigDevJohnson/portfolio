@@ -295,8 +295,77 @@ run "least_privilege_release_roles" {
   assert {
     condition = (
       length(aws_iam_role_policy.environment["dev"].policy) <= 10240 &&
-      length(aws_iam_role_policy.environment["prod"].policy) <= 10240
+      length(aws_iam_role_policy.environment["prod"].policy) <= 10240 &&
+      length(aws_iam_role_policy.production_deployer.policy) <= 10240
     )
     error_message = "environment inline policies must fit the IAM role-policy size limit"
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.production_deployer.name == "portfolio-production-deployer-ci" &&
+      aws_iam_role_policy.production_deployer.name == "portfolio-production-runtime-release"
+    )
+    error_message = "production deployment must use a separate deterministic role and policy"
+  }
+
+  assert {
+    condition = toset(flatten([
+      for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement :
+      try(tolist(statement.Action), [statement.Action])
+      ])) == setunion(
+      toset(flatten([
+        for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+      ])),
+      toset([
+        "lambda:PublishVersion",
+        "lambda:UpdateAlias",
+        "lambda:UpdateFunctionCode",
+      ]),
+    )
+    error_message = "production deployment may add only exact state and Lambda release writes to planner reads"
+  }
+
+  assert {
+    condition = (
+      toset(one([
+        for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement :
+        try(tolist(statement.Action), [statement.Action])
+        if statement.Sid == "ProductionReleaseWrite"
+      ])) == toset(["lambda:PublishVersion", "lambda:UpdateAlias", "lambda:UpdateFunctionCode"]) &&
+      toset(one([
+        for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement :
+        try(tolist(statement.Resource), [statement.Resource])
+        if statement.Sid == "ProductionReleaseWrite"
+        ])) == toset([
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod",
+        "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-prod:live",
+      ]) &&
+      one([
+        for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement :
+        statement.Resource
+        if statement.Sid == "ProductionStateWrite"
+      ]) == "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate"
+    )
+    error_message = "production writes must be limited to the exact state object and existing Lambda release resources"
+  }
+
+  assert {
+    condition = alltrue([
+      for condition in data.aws_iam_policy_document.production_deployer_trust.statement[0].condition :
+      condition.test == "StringEquals" && (
+        (
+          condition.variable == "token.actions.githubusercontent.com:aud" &&
+          toset(condition.values) == toset(["sts.amazonaws.com"])
+          ) || (
+          condition.variable == "token.actions.githubusercontent.com:sub" &&
+          toset(condition.values) == toset([
+            "repo:CraigDevJohnson/portfolio:environment:production",
+          ])
+        )
+      )
+    ]) && length(data.aws_iam_policy_document.production_deployer_trust.statement[0].condition) == 2
+    error_message = "production deployer trust must bind the exact audience, repository, and production environment"
   }
 }
