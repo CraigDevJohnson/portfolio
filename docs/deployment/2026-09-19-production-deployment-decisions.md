@@ -42,6 +42,41 @@ The rollback choice was explicit. The suggestion to skip automation but keep a
 manual rollback was rejected. The final decision was to fix failures in place,
 not to require a fallback deployment.
 
+Issue #77 subsequently retained the option to generate a policy-checked,
+checksum-bound alias-only rollback plan when a previously verified production
+Lambda version exists. This does not make rollback a mandatory procedure or
+restore a fallback-hosting requirement. Applying such a plan requires a new
+operator decision. The first cutover must explicitly represent the absence of a
+previously verified production deployment rather than inventing one.
+
+## September 22 scope and observation decisions
+
+During the Issue #75 grilling session, Craig selected the following scope:
+
+- The first production launch includes the public portfolio, Soccer, and Google
+  Calendar integration. The EC2 management portal is deferred to separate work.
+- Production acceptance includes a successful Soccer/Google authorization flow
+  and calendar operation. Management-portal login is not a launch prerequisite.
+- Issue #75 may close after 30 minutes of successful public-route,
+  authentication, revision, and alarm verification, once its other launch
+  acceptance criteria are satisfied. No next-day check or seven-day observation
+  period is required for this initial production launch.
+- A required verification failure invalidates the observation window. After the
+  failure is understood and resolved, require a fresh, uninterrupted 30-minute
+  window. A successful retry does not resume the failed window. Keep the
+  deployment failed or unverified until the full verification succeeds; an
+  upstream-service failure does not exempt required functionality from this rule.
+
+Craig confirmed the shared understanding on September 23, 2026, and authorized
+proceeding with the triage outcome. Live provisioning, activation, deployment,
+and external-service changes retain their separate approval gates. These
+decisions do not change development recovery behavior or authorize resource
+retirement.
+
+The existing choices of apex as the canonical hostname, a permanent `www` to
+apex redirect, and fresh production data remain in effect. Google accounts
+reconnect in production rather than migrating legacy encrypted connections.
+
 ## Branches and environments
 
 The discussion confirmed `main` as the shared source branch. Development is a
@@ -92,22 +127,25 @@ Issue #75, the
 [August 21 production cutover plan](../superpowers/plans/2026-08-21-production-lambda-cutover.md),
 and the
 [original migration design](../superpowers/specs/2026-08-21-aws-lambda-platform-migration-design.md)
-still require rollback plans, evidence, or a healthy fallback origin. Those
-requirements conflict with the accepted production scope above. Reconcile them
-when preparing the implementation, including any validators that depend on
-rollback evidence. Do not add production rollback work merely to satisfy the
-older checklist.
+contain earlier requirements for rollback plans, evidence, or a healthy fallback
+origin. Those requirements conflict with the accepted production scope above.
+The September 23 triage outcome updates Issue #75; reconcile the earlier plans
+and their validators during implementation. A verified Lambda coordinate and
+optional alias-only rollback artifact do not restore a mandatory rollback
+procedure or fallback origin.
 
 The existing
 [Lambda release workflow documentation](./aws-lambda-api-gateway.md)
 also describes development rollback evidence and longer observation gates.
-The conversation did not choose a replacement observation duration, change
-development recovery behavior, or authorize retirement of existing resources.
-Those details remain separate from the production rollback decision.
+The September 22 decision above replaces the initial production observation
+duration with 30 minutes. Development recovery behavior and authorization for
+retiring existing resources remain separate from these production decisions.
 
 At local revision `cb82040588ace85bd130491935ca989cad57ec64`,
 `.github/workflows/release.yml` still ends the production path at
 `production-plan`, and `scripts/plan-ci-lambda-production.sh` writes `PLAN_ONLY`.
 The live GitHub Environment list also lacks `production`. Issue #75 remains
-open with its earlier acceptance criteria. This documentation does not change
-those controls or establish current AWS or public-site readiness.
+open. Issue #77's preparation subsequently merged through PR #78, defining a
+dormant production deployer and additional release contracts while leaving
+production application hard-disabled. This documentation does not change those
+controls or establish current AWS or public-site readiness.
