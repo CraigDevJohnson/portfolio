@@ -997,6 +997,7 @@ run "history_collection_has_capacity_alert_without_schedule" {
         toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])
       ]) == 1 &&
       length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 1 &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" }" &&
       length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 1 &&
       length(aws_lambda_function.history_worker) == 0 &&
       length(aws_scheduler_schedule.history_daily) == 0
@@ -1036,6 +1037,7 @@ run "history_worker_schedule_and_failure_contract" {
       length(aws_cloudwatch_metric_alarm.history_worker_errors) == 1 &&
       length(aws_cloudwatch_metric_alarm.history_incomplete) == 1 &&
       length(aws_cloudwatch_metric_alarm.history_dead_letter) == 1 &&
+      aws_cloudwatch_log_metric_filter.history_incomplete[0].pattern == "{ $.msg = \"soccer_history_daily_incomplete\" }" &&
       length(output.alarm_arns) == 9
     )
     error_message = "the daily worker must be bounded, separately invoked, and monitored for delivery, execution, and partial failure"

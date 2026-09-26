@@ -181,7 +181,7 @@ resource "aws_scheduler_schedule" "history_daily" {
 resource "aws_cloudwatch_log_metric_filter" "history_incomplete" {
   count          = local.history_schedule_enabled ? 1 : 0
   name           = "${local.function_name}-soccer-history-incomplete"
-  pattern        = "\"soccer_history_daily_incomplete\""
+  pattern        = "{ $.msg = \"soccer_history_daily_incomplete\" }"
   log_group_name = aws_cloudwatch_log_group.history_worker[0].name
 
   metric_transformation {
@@ -194,7 +194,7 @@ resource "aws_cloudwatch_log_metric_filter" "history_incomplete" {
 resource "aws_cloudwatch_log_metric_filter" "history_admission_rejected" {
   count          = local.history_collection_enabled ? 1 : 0
   name           = "${local.function_name}-soccer-history-admission-rejected"
-  pattern        = "\"soccer_history_admission_rejected\""
+  pattern        = "{ $.msg = \"soccer_history_admission_rejected\" }"
   log_group_name = aws_cloudwatch_log_group.lambda.name
 
   metric_transformation {
