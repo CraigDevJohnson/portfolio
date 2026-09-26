@@ -38,12 +38,21 @@ type historyCoverage struct {
 	ReturnedGameCount int                          `json:"returned_game_count"`
 }
 
+type historyRefresh struct {
+	Status              soccerarchive.RefreshStatus `json:"status"`
+	LastAttemptAt       *time.Time                  `json:"last_attempt_at,omitempty"`
+	NextDueAt           *time.Time                  `json:"next_due_at,omitempty"`
+	LastErrorKind       lps.ErrorKind               `json:"last_error_kind,omitempty"`
+	LastErrorStatusCode int                         `json:"last_error_status_code,omitempty"`
+}
+
 type historyResponse struct {
 	PlayerID    int             `json:"player_id"`
 	TeamID      int             `json:"team_id"`
 	LPSSeasonID int             `json:"lps_season_id"`
 	Team        lps.TeamSummary `json:"team"`
 	Coverage    historyCoverage `json:"coverage"`
+	Refresh     *historyRefresh `json:"refresh"`
 	Record      scoredRecord    `json:"record"`
 	Games       []historyGame   `json:"games"`
 }
@@ -124,11 +133,33 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	refresh, err := store.ReadRefreshState(r.Context(), teamID)
+	if err != nil && !errors.Is(err, soccerarchive.ErrNotEnrolled) {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer team refresh state read failed", slog.Any("error", err))
+		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	response := buildHistoryResponse(&history, playerID, teamID, seasonID, time.Now())
+	if err == nil {
+		response.Refresh = buildHistoryRefresh(&refresh)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(&response); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer history response write failed", slog.Any("error", err))
 	}
+}
+
+func buildHistoryRefresh(state *soccerarchive.RefreshState) *historyRefresh {
+	view := &historyRefresh{Status: state.Status, LastErrorKind: state.LastErrorKind, LastErrorStatusCode: state.LastErrorStatusCode}
+	if !state.LastAttemptAt.IsZero() {
+		lastAttemptAt := state.LastAttemptAt
+		view.LastAttemptAt = &lastAttemptAt
+	}
+	if !state.NextDueAt.IsZero() {
+		nextDueAt := state.NextDueAt
+		view.NextDueAt = &nextDueAt
+	}
+	return view
 }
 
 func buildHistoryResponse(history *soccerarchive.TeamSeason, playerID, teamID, seasonID int, now time.Time) historyResponse {

@@ -31,6 +31,7 @@ type HistoryStore interface {
 	Store
 	HasPlayerMembership(ctx context.Context, ownerIssuer, ownerSubject string, playerID, teamID, seasonID int) (bool, error)
 	ReadTeamSeason(ctx context.Context, teamID, seasonID int) (TeamSeason, error)
+	ReadRefreshState(ctx context.Context, teamID int) (RefreshState, error)
 }
 
 // PlayerMembership is positive evidence from an authenticated LPS player lookup.

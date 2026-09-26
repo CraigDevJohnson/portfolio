@@ -444,6 +444,7 @@ HTMX and form endpoints:
 | `GET` | `/skills/detail` |
 | `POST` | `/soccer/import` |
 | `POST` | `/soccer/logout` |
+| `GET` | `/soccer/history` |
 | `POST` | `/soccer/discover-teams` |
 | `POST` | `/soccer/fetch` |
 | `POST` | `/soccer/download` |
@@ -464,6 +465,19 @@ explanation swapped into that control's target, so an expired session or a
 revoked grant is visible where the visitor acted.
 An environment without complete site sign-in configuration has no signed-in
 visitors, so its private Soccer actions stay unavailable and the page says so.
+
+`GET /soccer/history?player_id=1001&team_id=4101&season_id=77` is the private
+JSON read contract for one LPS team season when a durable archive is wired.
+It requires the current site `soccer` grant, a valid same-owner LPS import that
+confirms the player ID, and exact current or stored authenticated membership for
+the requested team and LPS season. The response includes completed games, a
+team-relative record labeled as calculated from numeric scores rather than
+official standings, season coverage with its fetch time, and the latest team
+refresh status or failure. `not_fetched` coverage and a retryable refresh failure
+remain distinct from a fetched season with zero games. Public Team ID lookup does
+not establish membership.
+Until the separate collection activation, the route returns `503` because no
+durable archive is wired into the production server.
 
 Portal routes are registered with valid `SITE_*` identity configuration or
 local preview mode. They include `/mgmt` and the instance action, metrics, and
