@@ -197,3 +197,24 @@ run "reject_other_alarm_topic" {
 
   expect_failures = [var.alarm_action_arns]
 }
+
+run "production_site_runtime_contract" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition     = output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/prod/SITE_SESSION_KEY"
+    error_message = "production must forward its site identity with a production-only session parameter path"
+  }
+}

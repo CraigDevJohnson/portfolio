@@ -67,6 +67,38 @@ variable "live_version_override" {
   default = null
 }
 
+variable "site" {
+  description = "Reviewed public site identity and page grants for this environment; no OAuth or session secrets."
+  type = object({
+    cognito_domain       = string
+    cognito_issuer       = string
+    cognito_client_id    = string
+    redirect_uri         = string
+    logout_uri           = string
+    invitations          = map(set(string))
+    allow_local_callback = bool
+  })
+  default = null
+
+  validation {
+    condition = var.site == null ? true : (
+      can(regex("^https://portfolio-lambda-${var.environment}-site-[a-z0-9-]+\\.auth\\.us-west-2\\.amazoncognito\\.com$", var.site.cognito_domain)) &&
+      can(regex("^https://cognito-idp\\.us-west-2\\.amazonaws\\.com/us-west-2_[A-Za-z0-9]+$", var.site.cognito_issuer)) &&
+      can(regex("^[a-z0-9]{1,128}$", var.site.cognito_client_id)) &&
+      var.site.redirect_uri == (var.environment == "dev" ? "https://dev.craigdevjohnson.com/auth/callback" : "https://craigdevjohnson.com/auth/callback") &&
+      var.site.logout_uri == (var.environment == "dev" ? "https://dev.craigdevjohnson.com/sign-in" : "https://craigdevjohnson.com/sign-in") &&
+      length(var.site.invitations) > 0 &&
+      alltrue([for email, grants in var.site.invitations : (
+        email == lower(trimspace(email)) &&
+        can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", email)) &&
+        alltrue([for grant in grants : contains(["soccer", "management"], grant)])
+      )]) &&
+      (var.environment == "dev" || !var.site.allow_local_callback)
+    )
+    error_message = "site must contain this environment's public Cognito settings and reviewed invitations only."
+  }
+}
+
 variable "management" {
   description = "Reviewed public development management settings; never provider or session credentials."
   type = object({

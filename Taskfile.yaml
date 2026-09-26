@@ -272,6 +272,7 @@ tasks:
     cmds:
       - tofu fmt -check -recursive infra/lambda
       - task: cognito-dev-ci
+      - task: cognito-site-ci
       - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
       - tofu -chdir=infra/lambda/ci-roles validate
       - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
@@ -294,6 +295,20 @@ tasks:
       - tofu -chdir=infra/lambda/auth/dev validate
       - tofu -chdir=infra/lambda/auth/dev test
       - task: cognito-dev-tooling-test
+
+  cognito-site-ci:
+    desc: Validate the separate development and production site identity roots without backend or AWS access
+    cmds:
+      - tofu -chdir=infra/lambda/auth/site fmt -check -recursive
+      - tofu -chdir=infra/lambda/auth/site/modules/pool init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/modules/pool validate
+      - tofu -chdir=infra/lambda/auth/site/modules/pool test
+      - tofu -chdir=infra/lambda/auth/site/dev init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/dev validate
+      - tofu -chdir=infra/lambda/auth/site/dev test
+      - tofu -chdir=infra/lambda/auth/site/prod init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/prod validate
+      - tofu -chdir=infra/lambda/auth/site/prod test
 
   _lint-check:
     internal: true

@@ -19,10 +19,16 @@ import (
 )
 
 type fakeSSMGetter struct {
+	output    *ssm.GetParametersOutput
+	err       error
+	calls     int
+	inputs    []*ssm.GetParametersInput
+	responses []fakeSSMResponse
+}
+
+type fakeSSMResponse struct {
 	output *ssm.GetParametersOutput
 	err    error
-	calls  int
-	inputs []*ssm.GetParametersInput
 }
 
 func (fake *fakeSSMGetter) GetParameters(
@@ -32,6 +38,10 @@ func (fake *fakeSSMGetter) GetParameters(
 ) (*ssm.GetParametersOutput, error) {
 	fake.calls++
 	fake.inputs = append(fake.inputs, input)
+	if len(fake.responses) >= fake.calls {
+		response := fake.responses[fake.calls-1]
+		return response.output, response.err
+	}
 	return fake.output, fake.err
 }
 
@@ -56,6 +66,54 @@ func setSSMPathEnv(t *testing.T) {
 	t.Setenv("CLIENT_SECRET_KEY", "/portfolio/client-secret")
 	t.Setenv("LPS_SESSION_KEY", "/portfolio/lps-session")
 	t.Setenv("MGMT_SESSION_KEY", "")
+	t.Setenv("SITE_SESSION_KEY", "")
+}
+
+func TestResolveSSMSiteSessionKeyUsesItsEnvironmentParameter(t *testing.T) {
+	setSSMPathEnv(t)
+	path := "/portfolio/lambda/prod/SITE_SESSION_KEY"
+	t.Setenv("SITE_SESSION_KEY", path)
+	client := &fakeSSMGetter{responses: []fakeSSMResponse{
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter("/portfolio/client-id", "resolved-client-id"),
+			ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+			ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		}}},
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter(path, strings.Repeat("ab", 32)),
+		}}},
+	}}
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	assertSSMRequests(t, client,
+		[]string{"/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session"},
+		[]string{path},
+	)
+	if got := os.Getenv("SITE_SESSION_KEY"); got != strings.Repeat("ab", 32) {
+		t.Fatalf("SITE_SESSION_KEY = %q, want decrypted key", got)
+	}
+}
+
+func TestResolveSSMMissingSiteSessionKeyLeavesPublicRuntimeAvailable(t *testing.T) {
+	setSSMPathEnv(t)
+	path := "/portfolio/lambda/prod/SITE_SESSION_KEY"
+	t.Setenv("SITE_SESSION_KEY", path)
+	client := &fakeSSMGetter{responses: []fakeSSMResponse{
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter("/portfolio/client-id", "resolved-client-id"),
+			ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+			ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		}}},
+		{output: &ssm.GetParametersOutput{InvalidParameters: []string{path}}},
+	}}
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("optional site key failure stopped public runtime: %v", err)
+	}
+	if _, ok := os.LookupEnv("SITE_SESSION_KEY"); ok {
+		t.Fatal("failed site key left an SSM path available to site configuration")
+	}
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
 }
 
 func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession, wantManagement string) {
@@ -74,15 +132,22 @@ func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession, 
 
 func assertSSMRequest(t *testing.T, client *fakeSSMGetter, wantPaths ...string) {
 	t.Helper()
-	if client.calls != 1 {
-		t.Fatalf("GetParameters calls = %d, want 1", client.calls)
+	assertSSMRequests(t, client, wantPaths)
+}
+
+func assertSSMRequests(t *testing.T, client *fakeSSMGetter, wantRequests ...[]string) {
+	t.Helper()
+	if client.calls != len(wantRequests) {
+		t.Fatalf("GetParameters calls = %d, want %d", client.calls, len(wantRequests))
 	}
-	input := client.inputs[0]
-	if !slices.Equal(input.Names, wantPaths) {
-		t.Fatalf("GetParameters names = %q, want %q", input.Names, wantPaths)
-	}
-	if input.WithDecryption == nil || !*input.WithDecryption {
-		t.Fatal("GetParameters WithDecryption = false, want true")
+	for i, wantPaths := range wantRequests {
+		input := client.inputs[i]
+		if !slices.Equal(input.Names, wantPaths) {
+			t.Fatalf("GetParameters request %d names = %q, want %q", i, input.Names, wantPaths)
+		}
+		if input.WithDecryption == nil || !*input.WithDecryption {
+			t.Fatal("GetParameters WithDecryption = false, want true")
+		}
 	}
 }
 

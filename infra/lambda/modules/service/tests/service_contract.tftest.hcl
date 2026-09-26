@@ -708,3 +708,51 @@ run "management_reject_issuer" {
   }
   expect_failures = [var.management]
 }
+
+run "development_site_runtime_contract" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition = (
+      output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY" &&
+      aws_lambda_function.app.environment[0].variables.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_ISSUER == "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_CLIENT_ID == "devsiteclient" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_REDIRECT_URI == "https://dev.craigdevjohnson.com/auth/callback" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_LOGOUT_URI == "https://dev.craigdevjohnson.com/sign-in" &&
+      jsondecode(aws_lambda_function.app.environment[0].variables.SITE_INVITATIONS_JSON)["craigdevjohnson@gmail.com"] == ["management", "soccer"] &&
+      aws_lambda_function.app.environment[0].variables.SITE_ALLOW_LOCAL_CALLBACK == "false"
+    )
+    error_message = "reviewed development site identity must wire only its own runtime and session path"
+  }
+}
+
+run "site_rejects_wrong_environment_callback" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  expect_failures = [var.site]
+}

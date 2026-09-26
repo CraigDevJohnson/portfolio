@@ -29,6 +29,11 @@ resource "aws_iam_role" "lambda" {
     }
 
     precondition {
+      condition     = var.site == null ? true : (var.aws_region == "us-west-2" && data.aws_partition.current.partition == "aws")
+      error_message = "site identity is restricted to us-west-2, the region of its Cognito pools."
+    }
+
+    precondition {
       condition     = !var.activate_custom_domain || var.request_custom_domain
       error_message = "activate_custom_domain requires request_custom_domain"
     }
@@ -68,7 +73,7 @@ data "aws_iam_policy_document" "lambda" {
     actions   = ["kms:Decrypt"]
     resources = [data.aws_kms_alias.ssm.target_key_arn]
     dynamic "condition" {
-      for_each = var.management == null ? [] : [1]
+      for_each = var.management == null && var.site == null ? [] : [1]
       content {
         test     = "StringEquals"
         variable = "kms:EncryptionContext:PARAMETER_ARN"

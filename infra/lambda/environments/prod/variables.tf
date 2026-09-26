@@ -61,3 +61,17 @@ variable "live_version_override" {
   type    = number
   default = null
 }
+
+variable "site" {
+  description = "Reviewed non-secret production site_runtime from the separate site auth root."
+  type = object({
+    cognito_domain       = string
+    cognito_issuer       = string
+    cognito_client_id    = string
+    redirect_uri         = string
+    logout_uri           = string
+    invitations          = map(set(string))
+    allow_local_callback = bool
+  })
+  default = null
+}

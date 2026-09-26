@@ -177,6 +177,11 @@ cache headers. The site auth routes and configuration are offline application
 support; Cognito resources, Lambda runtime variables, and live activation
 require separate review.
 
+The separate, unapplied development and production Cognito roots, session
+parameter paths, and Lambda handoff are described in
+[site identity configuration](./docs/deployment/site-identity.md). Run
+`task cognito-site-ci` for offline identity and infrastructure checks.
+
 The session is an encrypted bearer cookie that lasts at most one hour, or less
 when the Cognito ID token expires sooner. Sign-out clears that cookie and ends
 the Cognito managed login, so the browser loses restricted access. The server

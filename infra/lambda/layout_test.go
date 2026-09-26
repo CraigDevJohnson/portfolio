@@ -98,6 +98,14 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"auth/dev/tests/auth_contract.tftest.hcl",
 		"auth/dev/variables.tf",
 		"auth/dev/versions.tf",
+		"auth/site/dev/backend.hcl",
+		"auth/site/dev/main.tf",
+		"auth/site/dev/tests/site_contract.tftest.hcl",
+		"auth/site/prod/backend.hcl",
+		"auth/site/prod/main.tf",
+		"auth/site/prod/tests/site_contract.tftest.hcl",
+		"auth/site/modules/pool/main.tf",
+		"auth/site/modules/pool/tests/pool_contract.tftest.hcl",
 		"artifacts/backend.hcl",
 		"artifacts/main.tf",
 		"artifacts/tests/artifact_contract.tftest.hcl",
@@ -137,6 +145,11 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"infra/lambda/auth/dev/terraform.tfstate",
 		"infra/lambda/auth/dev/terraform.tfstate.backup",
 		"infra/lambda/auth/dev/saved.tfplan",
+		"infra/lambda/auth/site/dev/.terraform/providers/example",
+		"infra/lambda/auth/site/dev/terraform.tfstate",
+		"infra/lambda/auth/site/prod/.terraform/providers/example",
+		"infra/lambda/auth/site/prod/terraform.tfstate",
+		"infra/lambda/auth/site/modules/pool/.terraform/providers/example",
 		"infra/lambda/artifacts/.terraform/providers/example",
 		"infra/lambda/artifacts/.tofu/providers/example",
 		"infra/lambda/artifacts/terraform.tfstate",
@@ -160,6 +173,9 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 
 	for _, path := range []string{
 		"infra/lambda/auth/dev/.terraform.lock.hcl",
+		"infra/lambda/auth/site/dev/.terraform.lock.hcl",
+		"infra/lambda/auth/site/prod/.terraform.lock.hcl",
+		"infra/lambda/auth/site/modules/pool/.terraform.lock.hcl",
 		"infra/lambda/artifacts/.terraform.lock.hcl",
 		"infra/lambda/environments/dev/.terraform.lock.hcl",
 		"infra/lambda/environments/prod/.terraform.lock.hcl",
@@ -184,22 +200,24 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 13, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-		"management_reject_prod":        true,
-		"management_reject_region":      true,
-		"management_reject_email":       true,
-		"management_reject_empty_email": true,
-		"management_reject_callback":    true,
-		"management_reject_tag":         true,
-		"management_reject_issuer":      true,
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 15, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":                  true,
+		"management_reject_region":                true,
+		"management_reject_email":                 true,
+		"management_reject_empty_email":           true,
+		"management_reject_callback":              true,
+		"management_reject_tag":                   true,
+		"management_reject_issuer":                true,
+		"site_rejects_wrong_environment_callback": true,
 	})
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		// dev also plans the management runtime; prod also plans a rejected alarm topic.
-		runOpenTofuTestWithSkippedRuns(t, directory, 2, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		// Each root also plans its site runtime; dev also plans the management
+		// runtime and prod a rejected alarm topic.
+		runOpenTofuTestWithSkippedRuns(t, directory, 3, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
 			"reject_other_alarm_topic": true,
 		})
 	}

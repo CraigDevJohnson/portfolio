@@ -210,3 +210,24 @@ run "management_runtime_contract" {
     error_message = "dev root must forward public management configuration into its existing runtime"
   }
 }
+
+run "site_runtime_contract" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition     = output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY"
+    error_message = "development must forward its site identity with a development-only session parameter path"
+  }
+}

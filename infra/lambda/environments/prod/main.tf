@@ -1,6 +1,7 @@
 module "service" {
   source = "../../modules/service"
 
+  site                       = var.site
   environment                = var.environment
   name_prefix                = var.name_prefix
   aws_region                 = var.aws_region

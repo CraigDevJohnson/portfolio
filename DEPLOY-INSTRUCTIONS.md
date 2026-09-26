@@ -194,11 +194,13 @@ default to local tags and the current Git revision.
 
 The site sign-in code accepts independent `SITE_*` runtime settings and a
 reviewed `SITE_INVITATIONS_JSON` map as described in README. No environment
-supplies them yet, so deployed pages show no sign-in entry. This change does
-not provision or activate a site Cognito pool. Register `/auth/callback` and
-`/sign-in` with the environment's Cognito app client before supplying those
-settings to a deployment; do not assume the existing management-only callback
-registration supports the site flow.
+supplies them yet, so deployed pages show no sign-in entry. Separate offline
+development and production Cognito roots and their Lambda handoff contract are
+documented in [site identity configuration](./docs/deployment/site-identity.md).
+They have not provisioned or activated a site pool. Register `/auth/callback`
+and `/sign-in` with the environment's Cognito app client before supplying those
+settings to a deployment; the existing management-only client does not register
+the site callback.
 
 ### Releasing the Soccer page grant
 
