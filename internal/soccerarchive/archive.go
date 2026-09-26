@@ -27,10 +27,18 @@ type Store interface {
 // ErrNoArchive means no accepted snapshot has been stored for this team.
 var ErrNoArchive = errors.New("team has no archived LPS response")
 
+// CoverageStatus records whether an LPS team-season response was fetched.
+type CoverageStatus string
+
+const (
+	CoverageFetched    CoverageStatus = "fetched"
+	CoverageNotFetched CoverageStatus = "not_fetched"
+)
+
 // Coverage describes only what the latest team response returned for a season.
 // Retained games may outlive a later response that omits them.
 type Coverage struct {
-	Status            string
+	Status            CoverageStatus
 	FetchedAt         time.Time
 	ReturnedGameCount int
 }

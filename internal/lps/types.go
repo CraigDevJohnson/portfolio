@@ -1,6 +1,10 @@
 package lps
 
-import "portfolio/types"
+import (
+	"encoding/json"
+
+	"portfolio/types"
+)
 
 // UserPlayerDiscovery is the normalized result of the LPS user check lookup.
 type UserPlayerDiscovery struct {
@@ -39,20 +43,34 @@ type TeamSummary struct {
 
 // TeamScheduleGame is a raw game record from the LPS team schedule response.
 type TeamScheduleGame struct {
-	UGameID           int         `json:"UGameID"`
-	FieldName         string      `json:"field_name"`
-	SchedGameDateTime string      `json:"SchedGameDateTime"`
-	SchedGameEndTime  *string     `json:"schedGameEndTime"`
-	FacilityName      string      `json:"facilityName"`
-	Result            string      `json:"result"`
-	Field             int         `json:"Field"`
-	Season            int         `json:"Season"`
-	FacilityID        int         `json:"FacilityID"`
-	UTeam1            int         `json:"UTeam1"`
-	UTeam2            int         `json:"UTeam2"`
-	TeamIDSelected    *int        `json:"team_id_selected"`
-	HomeTeam          TeamSummary `json:"home_team"`
-	VisitorTeam       TeamSummary `json:"visitor_team"`
+	UGameID           int             `json:"UGameID"`
+	FieldName         string          `json:"field_name"`
+	SchedGameDateTime string          `json:"SchedGameDateTime"`
+	SchedGameEndTime  *string         `json:"schedGameEndTime"`
+	FacilityName      string          `json:"facilityName"`
+	Result            string          `json:"result"`
+	Field             int             `json:"Field"`
+	Season            int             `json:"Season"`
+	FacilityID        int             `json:"FacilityID"`
+	UTeam1            int             `json:"UTeam1"`
+	UTeam2            int             `json:"UTeam2"`
+	TeamIDSelected    *int            `json:"team_id_selected"`
+	HomeTeam          TeamSummary     `json:"home_team"`
+	VisitorTeam       TeamSummary     `json:"visitor_team"`
+	SourceJSON        json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON retains the source fields so durable refresh can distinguish
+// omitted fields from explicit updates to an existing game.
+func (game *TeamScheduleGame) UnmarshalJSON(payload []byte) error {
+	type wireGame TeamScheduleGame
+	var decoded wireGame
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return err
+	}
+	*game = TeamScheduleGame(decoded)
+	game.SourceJSON = append([]byte(nil), payload...)
+	return nil
 }
 
 // TeamScheduleResponse is the raw LPS /teams/{id} response payload.

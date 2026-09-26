@@ -221,15 +221,20 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 			FetchedAt:  source.FetchedAt,
 		}); err != nil {
 			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Any("error", err))
-			props.EnrollmentMessage = "Schedule loaded, but history collection could not save this team. Try again later."
+			props.EnrollmentFeedback = &partials.FeedbackProps{
+				Kind: partials.FeedbackError, Title: "History not saved",
+				Message: "Schedule loaded, but history collection could not save this team. Try again later.",
+			}
 			return false, true
 		}
 	}
+	var enrollmentMessage string
 	if len(teamIDs) == 1 {
-		props.EnrollmentMessage = "Team " + strconv.Itoa(teamIDs[0]) + " added to history collection."
+		enrollmentMessage = "Team " + strconv.Itoa(teamIDs[0]) + " added to history collection."
 	} else {
-		props.EnrollmentMessage = strconv.Itoa(len(teamIDs)) + " teams added to history collection."
+		enrollmentMessage = strconv.Itoa(len(teamIDs)) + " teams added to history collection."
 	}
+	props.EnrollmentFeedback = &partials.FeedbackProps{Kind: partials.FeedbackSuccess, Title: "History collection", Message: enrollmentMessage}
 	if len(games) == 0 {
 		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
 		props.Hint = "Its history is enrolled for collection; this response contains no games."

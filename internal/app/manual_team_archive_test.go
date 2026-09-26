@@ -51,7 +51,7 @@ func TestManualTeamLookupArchivesSourceFactsAndReportsEnrollment(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("HTTP status = %d, want 200", resp.Code)
 	}
-	if !strings.Contains(resp.Body.String(), "Boise FC") || !strings.Contains(resp.Body.String(), "Team 479691 added to history collection") {
+	if !strings.Contains(resp.Body.String(), "Boise FC") || !strings.Contains(resp.Body.String(), "Team 479691 added to history collection") || !strings.Contains(resp.Body.String(), "ui-feedback") {
 		t.Fatalf("schedule and enrollment outcome missing: %q", resp.Body.String())
 	}
 	if len(archive.snapshots) != 1 {
@@ -100,11 +100,15 @@ func TestManualTeamLookupDistinguishesAcceptedEmptyScheduleFromInvalidID(t *test
 	if !strings.Contains(accepted, "accepted the team ID but returned no games") || !strings.Contains(accepted, "added to history collection") {
 		t.Fatalf("accepted empty schedule outcome missing: %q", accepted)
 	}
-	for _, id := range []string{"999999", "888888", "479691,bad"} {
+	for _, id := range []string{"999999", "479691,bad"} {
 		invalid := lookup(id)
 		if !(strings.Contains(invalid, "was not accepted") || strings.Contains(invalid, "were invalid")) || strings.Contains(invalid, "added to history collection") {
 			t.Fatalf("invalid team %s outcome: %q", id, invalid)
 		}
+	}
+	unconfirmed := lookup("888888")
+	if !strings.Contains(unconfirmed, "Could not load schedules") || strings.Contains(unconfirmed, "was not accepted") || strings.Contains(unconfirmed, "added to history collection") {
+		t.Fatalf("unconfirmed team response was treated as an invalid ID or enrolled: %q", unconfirmed)
 	}
 	if len(archive.snapshots) != 1 || len(archive.snapshots[0].Games) != 0 {
 		t.Fatalf("stored snapshots = %#v, want only the accepted empty schedule", archive.snapshots)

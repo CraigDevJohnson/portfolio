@@ -1,6 +1,7 @@
 package soccerarchive
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -51,37 +52,37 @@ func newDynamoStore(api dynamoAPI, tableName string) *DynamoStore {
 }
 
 type archiveItem struct {
-	PK                string `dynamodbav:"pk"`
-	SK                string `dynamodbav:"sk"`
-	Kind              string `dynamodbav:"kind"`
-	TeamID            int    `dynamodbav:"team_id,omitempty"`
-	TeamName          string `dynamodbav:"team_name,omitempty"`
-	DivisionName      string `dynamodbav:"division_name,omitempty"`
-	SeasonID          int    `dynamodbav:"season_id,omitempty"`
-	GameID            int    `dynamodbav:"game_id,omitempty"`
-	HomeTeamID        int    `dynamodbav:"home_team_id,omitempty"`
-	AwayTeamID        int    `dynamodbav:"away_team_id,omitempty"`
-	HomeTeamName      string `dynamodbav:"home_team_name,omitempty"`
-	AwayTeamName      string `dynamodbav:"away_team_name,omitempty"`
-	FacilityID        int    `dynamodbav:"facility_id,omitempty"`
-	FacilityName      string `dynamodbav:"facility_name,omitempty"`
-	Address           string `dynamodbav:"address,omitempty"`
-	City              string `dynamodbav:"city,omitempty"`
-	State             string `dynamodbav:"state,omitempty"`
-	ZIP               string `dynamodbav:"zip,omitempty"`
-	ScheduledAt       string `dynamodbav:"scheduled_at,omitempty"`
-	ScheduledEndAt    string `dynamodbav:"scheduled_end_at,omitempty"`
-	FieldID           int    `dynamodbav:"field_id,omitempty"`
-	FieldName         string `dynamodbav:"field_name,omitempty"`
-	Result            string `dynamodbav:"result,omitempty"`
-	EnrollmentSource  string `dynamodbav:"enrollment_source,omitempty"`
-	Status            string `dynamodbav:"status,omitempty"`
-	ReturnedGameCount int    `dynamodbav:"returned_game_count"`
-	SeasonIDs         []int  `dynamodbav:"season_ids,omitempty"`
-	RawSourceJSON     string `dynamodbav:"raw_source_json,omitempty"`
-	FetchedAt         string `dynamodbav:"fetched_at"`
-	DuePK             string `dynamodbav:"due_pk,omitempty"`
-	DueSK             string `dynamodbav:"due_sk,omitempty"`
+	PK                string         `dynamodbav:"pk"`
+	SK                string         `dynamodbav:"sk"`
+	Kind              string         `dynamodbav:"kind"`
+	TeamID            int            `dynamodbav:"team_id,omitempty"`
+	TeamName          string         `dynamodbav:"team_name,omitempty"`
+	DivisionName      string         `dynamodbav:"division_name,omitempty"`
+	SeasonID          int            `dynamodbav:"season_id,omitempty"`
+	GameID            int            `dynamodbav:"game_id,omitempty"`
+	HomeTeamID        int            `dynamodbav:"home_team_id,omitempty"`
+	AwayTeamID        int            `dynamodbav:"away_team_id,omitempty"`
+	HomeTeamName      string         `dynamodbav:"home_team_name,omitempty"`
+	AwayTeamName      string         `dynamodbav:"away_team_name,omitempty"`
+	FacilityID        int            `dynamodbav:"facility_id,omitempty"`
+	FacilityName      string         `dynamodbav:"facility_name,omitempty"`
+	Address           string         `dynamodbav:"address,omitempty"`
+	City              string         `dynamodbav:"city,omitempty"`
+	State             string         `dynamodbav:"state,omitempty"`
+	ZIP               string         `dynamodbav:"zip,omitempty"`
+	ScheduledAt       string         `dynamodbav:"scheduled_at,omitempty"`
+	ScheduledEndAt    string         `dynamodbav:"scheduled_end_at,omitempty"`
+	FieldID           int            `dynamodbav:"field_id,omitempty"`
+	FieldName         string         `dynamodbav:"field_name,omitempty"`
+	Result            string         `dynamodbav:"result,omitempty"`
+	EnrollmentSource  string         `dynamodbav:"enrollment_source,omitempty"`
+	Status            CoverageStatus `dynamodbav:"status,omitempty"`
+	ReturnedGameCount int            `dynamodbav:"returned_game_count"`
+	SeasonIDs         []int          `dynamodbav:"season_ids,omitempty"`
+	RawSourceJSON     string         `dynamodbav:"raw_source_json,omitempty"`
+	FetchedAt         string         `dynamodbav:"fetched_at"`
+	DuePK             string         `dynamodbav:"due_pk,omitempty"`
+	DueSK             string         `dynamodbav:"due_sk,omitempty"`
 }
 
 // SaveTeamSnapshot upserts stable source IDs. Coverage is written last: a
@@ -98,55 +99,11 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	}
 
 	fetchedAt := snapshot.FetchedAt.UTC().Format(sortableUTCFormat)
-	teamJSON, err := json.Marshal(snapshot.Team)
-	if err != nil {
-		return fmt.Errorf("marshal team %d: %w", snapshot.TeamID, err)
+	if err := s.saveTeam(ctx, snapshot, fetchedAt); err != nil {
+		return err
 	}
-	teamItem := archiveItem{
-		PK:               teamKey(snapshot.TeamID),
-		SK:               "META",
-		Kind:             "team",
-		TeamID:           snapshot.TeamID,
-		TeamName:         snapshot.Team.TeamName,
-		DivisionName:     snapshot.Team.DivisionName,
-		SeasonID:         snapshot.Team.Season,
-		FacilityID:       snapshot.Team.FacilityID,
-		FacilityName:     snapshot.Team.FacilityName,
-		EnrollmentSource: "manual",
-		RawSourceJSON:    string(teamJSON),
-		FetchedAt:        fetchedAt,
-		DuePK:            "TEAM_DUE",
-		DueSK:            snapshot.FetchedAt.UTC().Add(24*time.Hour).Format(sortableUTCFormat) + "#" + strconv.Itoa(snapshot.TeamID),
-	}
-	if err := s.put(ctx, &teamItem); err != nil {
-		return fmt.Errorf("save team %d: %w", snapshot.TeamID, err)
-	}
-
-	facilities := append([]lps.FacilityResponse(nil), snapshot.Facilities...)
-	sort.Slice(facilities, func(i, j int) bool { return facilities[i].FacilityID < facilities[j].FacilityID })
-	for _, facility := range facilities {
-		if facility.FacilityID <= 0 {
-			continue
-		}
-		facilityJSON, err := json.Marshal(facility)
-		if err != nil {
-			return fmt.Errorf("marshal facility %d: %w", facility.FacilityID, err)
-		}
-		if err := s.put(ctx, &archiveItem{
-			PK:            "FACILITY#" + strconv.Itoa(facility.FacilityID),
-			SK:            "META",
-			Kind:          "facility",
-			FacilityID:    facility.FacilityID,
-			FacilityName:  facility.FacilityName,
-			Address:       facility.Address,
-			City:          facility.City,
-			State:         facility.State,
-			ZIP:           facility.ZIP,
-			RawSourceJSON: string(facilityJSON),
-			FetchedAt:     fetchedAt,
-		}); err != nil {
-			return fmt.Errorf("save facility %d: %w", facility.FacilityID, err)
-		}
+	if err := s.saveFacilities(ctx, snapshot.Facilities, fetchedAt); err != nil {
+		return err
 	}
 
 	games := append([]lps.TeamScheduleGame(nil), snapshot.Games...)
@@ -154,13 +111,31 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	seasonCounts := map[int]int{}
 	teamGameEdges := map[string]archiveItem{}
 	for i := range games {
-		game := &games[i]
+		sourceGame := &games[i]
+		gameJSON := sourceGame.SourceJSON
+		if len(gameJSON) == 0 {
+			var err error
+			gameJSON, err = json.Marshal(sourceGame)
+			if err != nil {
+				return fmt.Errorf("marshal game %d: %w", sourceGame.UGameID, err)
+			}
+		}
+		previous, err := s.get(ctx, "GAME#"+strconv.Itoa(sourceGame.UGameID), "META")
+		if err != nil {
+			return err
+		}
+		if previous != nil {
+			gameJSON, err = mergeSourceObject([]byte(previous.RawSourceJSON), gameJSON)
+			if err != nil {
+				return fmt.Errorf("merge game %d source fields: %w", sourceGame.UGameID, err)
+			}
+		}
+		var game lps.TeamScheduleGame
+		if err := json.Unmarshal(gameJSON, &game); err != nil {
+			return fmt.Errorf("decode game %d source fields: %w", sourceGame.UGameID, err)
+		}
 		seasonID := firstPositive(game.Season, snapshot.Team.Season, game.HomeTeam.Season, game.VisitorTeam.Season)
 		seasonCounts[seasonID]++
-		gameJSON, err := json.Marshal(game)
-		if err != nil {
-			return fmt.Errorf("marshal game %d: %w", game.UGameID, err)
-		}
 		endAt := ""
 		if game.SchedGameEndTime != nil {
 			endAt = *game.SchedGameEndTime
@@ -187,6 +162,7 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		}); err != nil {
 			return fmt.Errorf("save game %d: %w", game.UGameID, err)
 		}
+		games[i] = game
 		for _, teamID := range []int{snapshot.TeamID, game.UTeam1, game.UTeam2, game.HomeTeam.UTeamID, game.VisitorTeam.UTeamID} {
 			if teamID <= 0 || seasonID <= 0 {
 				continue
@@ -226,13 +202,17 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	}
 	sort.Ints(seasonIDs)
 	for _, seasonID := range seasonIDs {
+		seasonTeam := teamSummaryForSeason(snapshot.TeamID, snapshot.Team, games, seasonID)
+		if err := s.saveSeasonTeamContext(ctx, snapshot.TeamID, seasonID, seasonTeam, fetchedAt); err != nil {
+			return err
+		}
 		if err := s.put(ctx, &archiveItem{
 			PK:                teamKey(snapshot.TeamID),
 			SK:                seasonCoverageKey(seasonID),
 			Kind:              "coverage",
 			TeamID:            snapshot.TeamID,
 			SeasonID:          seasonID,
-			Status:            "fetched",
+			Status:            CoverageFetched,
 			ReturnedGameCount: seasonCounts[seasonID],
 			FetchedAt:         fetchedAt,
 		}); err != nil {
@@ -244,11 +224,40 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		SK:                "COVERAGE",
 		Kind:              "coverage",
 		TeamID:            snapshot.TeamID,
-		Status:            "fetched",
+		Status:            CoverageFetched,
 		ReturnedGameCount: len(snapshot.Games),
 		SeasonIDs:         seasonIDs,
 		FetchedAt:         fetchedAt,
 	})
+}
+
+func mergeSourceObject(previous, incoming []byte) ([]byte, error) {
+	var oldFields map[string]json.RawMessage
+	var newFields map[string]json.RawMessage
+	if err := json.Unmarshal(previous, &oldFields); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(incoming, &newFields); err != nil {
+		return nil, err
+	}
+	if oldFields == nil || newFields == nil {
+		return nil, errors.New("game source must be a JSON object")
+	}
+	for key, oldValue := range oldFields {
+		newValue, present := newFields[key]
+		if !present || bytes.Equal(bytes.TrimSpace(newValue), []byte("null")) {
+			newFields[key] = oldValue
+			continue
+		}
+		if len(bytes.TrimSpace(oldValue)) > 0 && bytes.TrimSpace(oldValue)[0] == '{' && len(bytes.TrimSpace(newValue)) > 0 && bytes.TrimSpace(newValue)[0] == '{' {
+			merged, err := mergeSourceObject(oldValue, newValue)
+			if err != nil {
+				return nil, err
+			}
+			newFields[key] = merged
+		}
+	}
+	return json.Marshal(newFields)
 }
 
 // ReadTeamSeason returns archived source facts through the team-season index.
@@ -265,15 +274,22 @@ func (s *DynamoStore) ReadTeamSeason(ctx context.Context, teamID, seasonID int) 
 	if teamItem == nil {
 		return history, ErrNoArchive
 	}
-	if err := json.Unmarshal([]byte(teamItem.RawSourceJSON), &history.Team); err != nil {
-		return history, fmt.Errorf("decode archived team %d: %w", teamID, err)
+	history.Team = lps.TeamSummary{UTeamID: teamID, Season: seasonID}
+	seasonTeamItem, err := s.get(ctx, teamKey(teamID), seasonTeamKey(seasonID))
+	if err != nil {
+		return history, err
+	}
+	if seasonTeamItem != nil {
+		if err := json.Unmarshal([]byte(seasonTeamItem.RawSourceJSON), &history.Team); err != nil {
+			return history, fmt.Errorf("decode team %d season %d context: %w", teamID, seasonID, err)
+		}
 	}
 
 	coverageItem, err := s.get(ctx, teamKey(teamID), seasonCoverageKey(seasonID))
 	if err != nil {
 		return history, err
 	}
-	history.Coverage.Status = "not_fetched"
+	history.Coverage.Status = CoverageNotFetched
 	if coverageItem != nil {
 		history.Coverage.Status = coverageItem.Status
 		history.Coverage.ReturnedGameCount = coverageItem.ReturnedGameCount
@@ -284,10 +300,6 @@ func (s *DynamoStore) ReadTeamSeason(ctx context.Context, teamID, seasonID int) 
 	}
 
 	prefix := fmt.Sprintf("SEASON#%010d#GAME#", seasonID)
-	facilityIDs := make(map[int]struct{})
-	if history.Team.FacilityID > 0 {
-		facilityIDs[history.Team.FacilityID] = struct{}{}
-	}
 	var cursor map[string]types.AttributeValue
 	for {
 		page, err := s.api.Query(ctx, &dynamodb.QueryInput{
@@ -330,36 +342,145 @@ func (s *DynamoStore) ReadTeamSeason(ctx context.Context, teamID, seasonID int) 
 				return history, fmt.Errorf("decode archived game %d: %w", edge.GameID, err)
 			}
 			history.Games = append(history.Games, game)
-			if game.FacilityID > 0 {
-				facilityIDs[game.FacilityID] = struct{}{}
-			}
 		}
 		if len(page.LastEvaluatedKey) == 0 {
 			break
 		}
 		cursor = page.LastEvaluatedKey
 	}
+	history.Facilities, err = s.readFacilities(ctx, history.Team, history.Games)
+	if err != nil {
+		return history, err
+	}
+	return history, nil
+}
 
+func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonID int, seasonTeam lps.TeamSummary, fetchedAt string) error {
+	if seasonTeam.UTeamID <= 0 {
+		return nil
+	}
+	seasonKey := seasonTeamKey(seasonID)
+	previous, err := s.get(ctx, teamKey(teamID), seasonKey)
+	if err != nil {
+		return err
+	}
+	if previous != nil {
+		var priorTeam lps.TeamSummary
+		if err := json.Unmarshal([]byte(previous.RawSourceJSON), &priorTeam); err != nil {
+			return fmt.Errorf("decode season %d team context: %w", seasonID, err)
+		}
+		seasonTeam = retainMissingTeamFacts(seasonTeam, priorTeam)
+	}
+	seasonTeamJSON, err := json.Marshal(seasonTeam)
+	if err != nil {
+		return fmt.Errorf("marshal season %d team context: %w", seasonID, err)
+	}
+	if err := s.put(ctx, &archiveItem{
+		PK:            teamKey(teamID),
+		SK:            seasonKey,
+		Kind:          "team_season",
+		TeamID:        teamID,
+		SeasonID:      seasonID,
+		TeamName:      seasonTeam.TeamName,
+		DivisionName:  seasonTeam.DivisionName,
+		FacilityID:    seasonTeam.FacilityID,
+		FacilityName:  seasonTeam.FacilityName,
+		RawSourceJSON: string(seasonTeamJSON),
+		FetchedAt:     fetchedAt,
+	}); err != nil {
+		return fmt.Errorf("save season %d team context: %w", seasonID, err)
+	}
+	return nil
+}
+
+func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedAt string) error {
+	teamJSON, err := json.Marshal(snapshot.Team)
+	if err != nil {
+		return fmt.Errorf("marshal team %d: %w", snapshot.TeamID, err)
+	}
+	teamItem := archiveItem{
+		PK:               teamKey(snapshot.TeamID),
+		SK:               "META",
+		Kind:             "team",
+		TeamID:           snapshot.TeamID,
+		TeamName:         snapshot.Team.TeamName,
+		DivisionName:     snapshot.Team.DivisionName,
+		SeasonID:         snapshot.Team.Season,
+		FacilityID:       snapshot.Team.FacilityID,
+		FacilityName:     snapshot.Team.FacilityName,
+		EnrollmentSource: "manual",
+		RawSourceJSON:    string(teamJSON),
+		FetchedAt:        fetchedAt,
+		DuePK:            "TEAM_DUE",
+		DueSK:            snapshot.FetchedAt.UTC().Add(24*time.Hour).Format(sortableUTCFormat) + "#" + strconv.Itoa(snapshot.TeamID),
+	}
+	if err := s.put(ctx, &teamItem); err != nil {
+		return fmt.Errorf("save team %d: %w", snapshot.TeamID, err)
+	}
+	return nil
+}
+
+func (s *DynamoStore) saveFacilities(ctx context.Context, source []lps.FacilityResponse, fetchedAt string) error {
+	facilities := append([]lps.FacilityResponse(nil), source...)
+	sort.Slice(facilities, func(i, j int) bool { return facilities[i].FacilityID < facilities[j].FacilityID })
+	for _, facility := range facilities {
+		if facility.FacilityID <= 0 {
+			continue
+		}
+		facilityJSON, err := json.Marshal(facility)
+		if err != nil {
+			return fmt.Errorf("marshal facility %d: %w", facility.FacilityID, err)
+		}
+		if err := s.put(ctx, &archiveItem{
+			PK:            "FACILITY#" + strconv.Itoa(facility.FacilityID),
+			SK:            "META",
+			Kind:          "facility",
+			FacilityID:    facility.FacilityID,
+			FacilityName:  facility.FacilityName,
+			Address:       facility.Address,
+			City:          facility.City,
+			State:         facility.State,
+			ZIP:           facility.ZIP,
+			RawSourceJSON: string(facilityJSON),
+			FetchedAt:     fetchedAt,
+		}); err != nil {
+			return fmt.Errorf("save facility %d: %w", facility.FacilityID, err)
+		}
+	}
+	return nil
+}
+
+func (s *DynamoStore) readFacilities(ctx context.Context, team lps.TeamSummary, games []lps.TeamScheduleGame) ([]lps.FacilityResponse, error) {
+	facilityIDs := make(map[int]struct{})
+	if team.FacilityID > 0 {
+		facilityIDs[team.FacilityID] = struct{}{}
+	}
+	for i := range games {
+		if games[i].FacilityID > 0 {
+			facilityIDs[games[i].FacilityID] = struct{}{}
+		}
+	}
 	ids := make([]int, 0, len(facilityIDs))
 	for id := range facilityIDs {
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
+	facilities := make([]lps.FacilityResponse, 0, len(ids))
 	for _, id := range ids {
 		facilityItem, err := s.get(ctx, "FACILITY#"+strconv.Itoa(id), "META")
 		if err != nil {
-			return history, err
+			return nil, err
 		}
 		if facilityItem == nil {
 			continue
 		}
 		var facility lps.FacilityResponse
 		if err := json.Unmarshal([]byte(facilityItem.RawSourceJSON), &facility); err != nil {
-			return history, fmt.Errorf("decode archived facility %d: %w", id, err)
+			return nil, fmt.Errorf("decode archived facility %d: %w", id, err)
 		}
-		history.Facilities = append(history.Facilities, facility)
+		facilities = append(facilities, facility)
 	}
-	return history, nil
+	return facilities, nil
 }
 
 func (s *DynamoStore) put(ctx context.Context, record *archiveItem) error {
@@ -412,6 +533,42 @@ func seasonGameKey(seasonID, gameID int) string {
 
 func seasonCoverageKey(seasonID int) string {
 	return fmt.Sprintf("SEASON#%010d#COVERAGE", seasonID)
+}
+
+func seasonTeamKey(seasonID int) string {
+	return fmt.Sprintf("SEASON#%010d#META", seasonID)
+}
+
+func teamSummaryForSeason(teamID int, responseTeam lps.TeamSummary, games []lps.TeamScheduleGame, seasonID int) lps.TeamSummary {
+	if responseTeam.UTeamID == teamID && responseTeam.Season == seasonID {
+		return responseTeam
+	}
+	for i := range games {
+		game := &games[i]
+		if game.HomeTeam.UTeamID == teamID && game.HomeTeam.Season == seasonID {
+			return game.HomeTeam
+		}
+		if game.VisitorTeam.UTeamID == teamID && game.VisitorTeam.Season == seasonID {
+			return game.VisitorTeam
+		}
+	}
+	return lps.TeamSummary{}
+}
+
+func retainMissingTeamFacts(current, previous lps.TeamSummary) lps.TeamSummary {
+	if current.TeamName == "" {
+		current.TeamName = previous.TeamName
+	}
+	if current.DivisionName == "" {
+		current.DivisionName = previous.DivisionName
+	}
+	if current.FacilityID == 0 {
+		current.FacilityID = previous.FacilityID
+	}
+	if current.FacilityName == "" {
+		current.FacilityName = previous.FacilityName
+	}
+	return current
 }
 
 func firstPositive(ids ...int) int {
