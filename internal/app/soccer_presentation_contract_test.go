@@ -131,7 +131,7 @@ func TestSoccerConnectionCardsExposeExplicitState(t *testing.T) {
 	}))
 	for _, marker := range []string{
 		`id="soccer-lps-connection"`, `id="soccer-google-connection"`,
-		`data-connection-state="connected"`, "Imported for this session", "Connected to Matchdays",
+		`data-connection-state="connected"`, "Imported in this browser", "Connected to Matchdays",
 		"2 linked players", "1 selected player", "1 confirmed team", "Calendar ready", "Matchdays",
 	} {
 		if !strings.Contains(connected, marker) {

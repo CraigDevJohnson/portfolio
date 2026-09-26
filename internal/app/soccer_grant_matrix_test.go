@@ -264,7 +264,7 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 // privateSoccerPageMarkers are controls and states that only a visitor whose
 // private Soccer actions are admitted may see.
 var privateSoccerPageMarkers = []string{
-	"Imported for this session", "Import access", `hx-post="/soccer/logout"`, "data-open-login-modal",
+	"Imported in this browser", "Import access", `hx-post="/soccer/logout"`, "data-open-login-modal",
 	"Calendar ready", "Connect Google Calendar", `href="/soccer/google/connect"`,
 }
 
@@ -336,7 +336,7 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 			body := page.Body.String()
 			admitted := visitor.deniedStatus == 0
 			if admitted {
-				for _, marker := range []string{"Imported for this session", `hx-post="/soccer/logout"`, "Calendar ready", `href="/soccer/google/connect"`} {
+				for _, marker := range []string{"Imported in this browser", `hx-post="/soccer/logout"`, "Calendar ready", `href="/soccer/google/connect"`} {
 					if !strings.Contains(body, marker) {
 						t.Errorf("granted page lacks private control %q", marker)
 					}
@@ -426,7 +426,7 @@ func TestGrantedVisitorCannotInheritOwnerlessOrAnotherOwnersPrivateState(t *test
 			if page.Code != http.StatusOK {
 				t.Fatalf("Soccer page status = %d", page.Code)
 			}
-			for _, inherited := range []string{"Imported for this session", "Legacy Player", "Calendar ready"} {
+			for _, inherited := range []string{"Imported in this browser", "Legacy Player", "Calendar ready"} {
 				if strings.Contains(page.Body.String(), inherited) {
 					t.Errorf("page presented inherited private state %q", inherited)
 				}

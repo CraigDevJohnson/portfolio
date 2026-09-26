@@ -26,6 +26,11 @@ invited site account with the current `soccer` grant can also:
 - connect Google Calendar separately to add games and sync results
 
 Imported sessions can optionally write DynamoDB audit baselines.
+The encrypted LPS import cookie stays in the same browser until the JWT expires,
+for at most 12 hours. Linked-player access requires the same site identity and
+the current `soccer` grant. A site-session timeout hides the import until that
+identity signs in again; site sign-out or Clear import removes it. Public Team ID
+lookup and ICS download do not require an imported credential.
 
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,

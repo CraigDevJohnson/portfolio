@@ -74,7 +74,7 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 					<p id="soccer-import-jwt-hint" class="soccer-login-note">You can paste the full Authorization header value or only the JWT.</p>
 				</div>
 				<p class="soccer-login-note">
-					This server stores the imported JWT only in an encrypted HttpOnly cookie for the current browser session and clears it when you choose Clear import.
+					This server keeps the imported JWT in an encrypted HttpOnly cookie in this browser until it expires, for up to 12 hours. Only this signed-in site account with Soccer access can use it. Site sign-out or Clear import removes it.
 				</p>
 				@SoccerSecurityNotice(SoccerSecurityNoticeProps{Compact: false})
 				<div class="soccer-login-actions sticky bottom-0 z-10 bg-[var(--bg-secondary)] pt-3">

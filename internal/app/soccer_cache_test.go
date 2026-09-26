@@ -44,7 +44,7 @@ func TestSoccerRoutesPreventCaching(t *testing.T) {
 			if got := response.Header().Get("Cache-Control"); got != "no-store" {
 				t.Fatalf("Cache-Control = %q", got)
 			}
-			if tc.name == "signed in" && !strings.Contains(response.Body.String(), "Imported for this session") {
+			if tc.name == "signed in" && !strings.Contains(response.Body.String(), "Imported in this browser") {
 				t.Fatal("authenticated session was not rendered")
 			}
 		})

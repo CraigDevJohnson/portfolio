@@ -88,6 +88,18 @@ func SoccerOwnerAllowed(ctx context.Context, issuer, subject string) bool {
 	return HasGrantForOwner(ctx, GrantSoccer, issuer, subject)
 }
 
+// ForeignOwner reports owner-bound private state that this request's site
+// identity can never use: the state has no owner, or a different principal is
+// signed in. State whose owner is signed out, or signed in without a current
+// grant, is withheld rather than foreign, so its owner can use it again.
+func ForeignOwner(ctx context.Context, issuer, subject string) bool {
+	if issuer == "" || subject == "" {
+		return true
+	}
+	principal, signedIn := PrincipalFromContext(ctx)
+	return signedIn && (principal.Issuer != issuer || principal.Subject != subject)
+}
+
 // EmailForNavigation returns the current account label for shared navigation.
 func EmailForNavigation(ctx context.Context) string {
 	principal, ok := PrincipalFromContext(ctx)

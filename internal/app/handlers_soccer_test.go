@@ -300,7 +300,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	newTestSoccerHandler(app).SoccerPage(pageResp, pageReq)
 	pageBody := pageResp.Body.String()
 	for _, marker := range []string{
-		"Google Calendar connected", "Connected to Primary Calendar", "Imported for this session",
+		"Google Calendar connected", "Connected to Primary Calendar", "Imported in this browser",
 		"Craig Johnson", "Craig FC", "Rivals", "Pitch 4", "1 selected", "1 confirmed",
 	} {
 		if !strings.Contains(pageBody, marker) {
@@ -423,8 +423,8 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	if !sessionCookie.HttpOnly {
 		t.Fatal("expected session cookie to be HttpOnly")
 	}
-	if sessionCookie.Expires != (time.Time{}) {
-		t.Fatalf("expected current-session cookie without expiry, got %v", sessionCookie.Expires)
+	if sessionCookie.Expires.IsZero() || sessionCookie.MaxAge <= 0 {
+		t.Fatalf("expected retained import cookie, got max-age %d and expiry %v", sessionCookie.MaxAge, sessionCookie.Expires)
 	}
 	if sessionCookie.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("unexpected same-site mode: got %v want Lax for Google OAuth restoration", sessionCookie.SameSite)

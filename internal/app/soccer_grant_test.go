@@ -64,6 +64,9 @@ func TestSoccerRoutesKeepTeamSchedulesPublicAndGatePrivateActions(t *testing.T) 
 	if fetch.Code != http.StatusOK || !strings.Contains(fetch.Body.String(), "Craig FC") {
 		t.Fatalf("public Team ID fetch failed: status %d, body %q", fetch.Code, fetch.Body.String())
 	}
+	if cookie := findSessionCookie(t, fetch.Result()); cookie != nil && (cookie.MaxAge != 0 || !cookie.Expires.IsZero()) {
+		t.Fatalf("anonymous Team ID lookup set a persistent import cookie: %#v", cookie)
+	}
 	ics := soccerGrantRequest(mux, http.MethodPost, "/soccer/download", url.Values{"team_codes": {"4101"}, "selected": {"7001"}})
 	if ics.Code != http.StatusOK || ics.Header().Get("Content-Type") != "text/calendar" || !strings.Contains(ics.Body.String(), "BEGIN:VCALENDAR") {
 		t.Fatalf("public ICS download failed: status %d, body %q", ics.Code, ics.Body.String())
@@ -123,14 +126,24 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	fixture := newFakeSiteCognito(t)
 	application := fixture.app(t)
 	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	token := testutil.TestJWT(t, time.Now().Add(30*time.Minute))
+	tokenExpiry := time.Now().Add(30 * time.Minute)
+	token := testutil.TestJWT(t, tokenExpiry)
 	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/users/check" || r.Header.Get("Authorization") != "Bearer "+token {
-			t.Errorf("unexpected LPS import request: %s", r.URL.Path)
+		switch r.URL.Path {
+		case "/users/check":
+			if r.Header.Get("Authorization") != "Bearer "+token {
+				t.Errorf("unexpected LPS import token: %s", r.Header.Get("Authorization"))
+				http.Error(w, "unexpected token", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson","is_main_player":true}],"user_players":[{"player_id":1001,"deleted":false}]}`))
+		case "/teams/4101":
+			future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+			_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":7001,"SchedGameDateTime":%q,"field_name":"Field 3","home_team":{"team_name":"Craig FC"},"visitor_team":{"team_name":"Rivals"},"Season":169}]}`, future)
+		default:
+			t.Errorf("unexpected LPS path: %s", r.URL.Path)
 			http.NotFound(w, r)
-			return
 		}
-		_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson","is_main_player":true}],"user_players":[{"player_id":1001,"deleted":false}]}`))
 	}))
 	t.Cleanup(lps.Close)
 	application.Config.LPSAPIBaseURL = lps.URL
@@ -148,14 +161,48 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	if lpsCookie == nil || store.record == nil {
 		t.Fatal("import did not persist the private session and baseline")
 	}
+	if lpsCookie.MaxAge <= 0 || lpsCookie.MaxAge > int((30*time.Minute).Seconds()) || lpsCookie.Expires.IsZero() {
+		t.Fatalf("import cookie will not survive a browser restart within JWT expiry: max-age %d, expires %v", lpsCookie.MaxAge, lpsCookie.Expires)
+	}
 	session := decryptTestSession(t, application, lpsCookie.Value)
+	if session.ExpiresAt.After(tokenExpiry) || session.ExpiresAt.Before(tokenExpiry.Add(-time.Second)) || lpsCookie.Expires.After(session.ExpiresAt) {
+		t.Fatalf("import outlived JWT expiry: JWT %v, session %v, cookie %v", tokenExpiry, session.ExpiresAt, lpsCookie.Expires)
+	}
 	if session.OwnerIssuer != fixture.issuer || session.OwnerSubject != "stable-subject" || store.record.OwnerIssuer != fixture.issuer || store.record.OwnerSubject != "stable-subject" {
 		t.Fatalf("import ownership was not the validated issuer and subject: session %#v, record %#v", session, store.record)
 	}
 	ownerPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie, lpsCookie)
-	if ownerPage.Code != http.StatusOK || !strings.Contains(ownerPage.Body.String(), "Imported for this session") {
+	if ownerPage.Code != http.StatusOK || !strings.Contains(ownerPage.Body.String(), "Imported in this browser") || !strings.Contains(ownerPage.Body.String(), "up to 12 hours") {
 		t.Fatalf("owner could not restore linked players: status %d", ownerPage.Code)
 	}
+	timedOutPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie)
+	if timedOutPage.Code != http.StatusOK || strings.Contains(timedOutPage.Body.String(), "Imported in this browser") || findSessionCookie(t, timedOutPage.Result()) != nil {
+		t.Fatalf("site timeout exposed or discarded a still-valid imported credential: status %d", timedOutPage.Code)
+	}
+	publicFetch := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"4101"}}, lpsCookie)
+	if publicFetch.Code != http.StatusOK || !strings.Contains(publicFetch.Body.String(), "Craig FC") || findSessionCookie(t, publicFetch.Result()) != nil {
+		t.Fatalf("public Team ID fetch after site timeout overwrote a retained import: status %d", publicFetch.Code)
+	}
+	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
+	ownerAgain := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+	restoredPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie)
+	if restoredPage.Code != http.StatusOK || !strings.Contains(restoredPage.Body.String(), "Imported in this browser") {
+		t.Fatal("same-owner site sign-in did not restore a still-valid imported credential")
+	}
+	application.Config.SiteInvitations["owner@example.com"] = []string{}
+	revokedPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie)
+	if revokedPage.Code != http.StatusOK || strings.Contains(revokedPage.Body.String(), "Imported in this browser") || findSessionCookie(t, revokedPage.Result()) != nil {
+		t.Fatal("current Soccer grant was not required or revocation discarded the import")
+	}
+	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer"}
+	expiredJWTSession := session
+	expiredJWTSession.JWT = testutil.TestJWT(t, time.Now().Add(-time.Minute))
+	expiredJWTCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, application, &expiredJWTSession)}
+	expiredPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, expiredJWTCookie)
+	if expiredPage.Code != http.StatusOK || strings.Contains(expiredPage.Body.String(), "Imported in this browser") {
+		t.Fatal("an expired LPS JWT remained usable from a retained cookie")
+	}
+	assertClearedSessionCookie(t, expiredPage.Result())
 
 	legacy := types.SessionData{JWT: token, Players: []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Legacy", LastName: "Player"}}, ExpiresAt: time.Now().Add(time.Hour)}
 	legacyCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, application, &legacy)}
@@ -170,13 +217,68 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	otherCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
 	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, lpsCookie)
 	clearedOther := findSessionCookie(t, otherPage.Result())
-	if strings.Contains(otherPage.Body.String(), "Imported for this session") || clearedOther == nil || clearedOther.Value != "" || clearedOther.MaxAge >= 0 {
+	if strings.Contains(otherPage.Body.String(), "Imported in this browser") || clearedOther == nil || clearedOther.Value != "" || clearedOther.MaxAge >= 0 {
 		t.Fatal("a different Cognito subject inherited an imported session")
 	}
 
 	signedOut := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie)
-	if signedOut.Code != http.StatusOK || strings.Contains(signedOut.Body.String(), "Imported for this session") {
+	if signedOut.Code != http.StatusOK || strings.Contains(signedOut.Body.String(), "Imported in this browser") {
 		t.Fatal("a browser without a site session used imported LPS access")
+	}
+}
+
+func TestSoccerImportRejectsJWTWithoutExpiry(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
+	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("JWT without expiry reached LPS: %s", r.URL.Path)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(lps.Close)
+	application.Config.LPSAPIBaseURL = lps.URL
+	mux, _ := buildMux(application, application.Logger, false)
+	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
+	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+
+	response := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{
+		"jwt": {"e30.eyJzdWIiOiJub2V4cCJ9.c2ln"},
+	}, ownerCookie)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "valid expiry") || findSessionCookie(t, response.Result()) != nil {
+		t.Fatalf("JWT without expiry was retained: status %d, body %q", response.Code, response.Body.String())
+	}
+}
+
+func TestSoccerImportStopsAtTwelveHoursBeforeLongerJWT(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
+	token := testutil.TestJWT(t, time.Now().Add(48*time.Hour))
+	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/check" || r.Header.Get("Authorization") != "Bearer "+token {
+			t.Errorf("unexpected LPS import request: %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson"}],"user_players":[{"player_id":1001,"deleted":false}]}`))
+	}))
+	t.Cleanup(lps.Close)
+	application.Config.LPSAPIBaseURL = lps.URL
+	mux, _ := buildMux(application, application.Logger, false)
+	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
+	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+
+	response := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Choose your players") {
+		t.Fatalf("granted import failed: status %d, body %q", response.Code, response.Body.String())
+	}
+	importCookie := findSessionCookie(t, response.Result())
+	if importCookie == nil {
+		t.Fatal("import did not create a retained cookie")
+	}
+	session := decryptTestSession(t, application, importCookie.Value)
+	if session.ExpiresAt.After(session.StartedAt.Add(12*time.Hour)) || session.ExpiresAt.Before(session.StartedAt.Add(12*time.Hour-time.Second)) || importCookie.MaxAge > 12*60*60 || importCookie.Expires.After(session.ExpiresAt) {
+		t.Fatalf("import exceeded the 12-hour cap: session started %v, expires %v, cookie max-age %d, cookie expires %v", session.StartedAt, session.ExpiresAt, importCookie.MaxAge, importCookie.Expires)
 	}
 }
 
@@ -308,7 +410,7 @@ func TestGrantedVisitorEntersLinkedPlayerFlowThroughSiteSession(t *testing.T) {
 	}
 
 	imported := browser.postForm("/soccer/import", url.Values{"jwt": {world.jwt}})
-	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), "Import saved for this browser session") || !strings.Contains(imported.Body.String(), `name="player_ids"`) {
+	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), "Import saved in this browser until its JWT expires") || !strings.Contains(imported.Body.String(), `name="player_ids"`) {
 		t.Fatalf("granted import did not list linked players: status %d, body %q", imported.Code, imported.Body.String())
 	}
 	discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}})

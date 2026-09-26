@@ -59,16 +59,19 @@ func NormalizeImportedJWT(raw string) (string, error) {
 	}
 
 	expiresAt := JWTExpiry(token)
-	if !expiresAt.IsZero() && time.Now().After(expiresAt) {
+	if expiresAt.IsZero() {
+		return "", errors.New("This JWT has no valid expiry. Copy a fresh bearer token from letsplaysoccer.com and import it again.")
+	}
+	if !time.Now().Before(expiresAt) {
 		return "", errors.New("This JWT has expired. Copy a fresh bearer token from letsplaysoccer.com and import it again.")
 	}
 
 	return token, nil
 }
 
-// ImportedSessionExpiry clamps the session lifetime to the earlier of the JWT expiry or the default session TTL.
-func ImportedSessionExpiry(token string) time.Time {
-	deadline := time.Now().Add(config.DefaultSessionTTL)
+// ImportedSessionExpiry clamps the lifetime from startedAt to the earlier of JWT expiry or the default session TTL.
+func ImportedSessionExpiry(token string, startedAt time.Time) time.Time {
+	deadline := startedAt.Add(config.DefaultSessionTTL)
 	expiresAt := JWTExpiry(token)
 	if expiresAt.IsZero() || expiresAt.After(deadline) {
 		return deadline

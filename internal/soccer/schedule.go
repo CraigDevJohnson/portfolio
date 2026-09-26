@@ -75,6 +75,11 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request, session *types.SessionData, input *scheduleFormInput) error {
 	if session == nil {
+		if _, err := r.Cookie(config.LPSSessionCookieName); err == nil {
+			// A retained import can be hidden by site timeout or grant loss.
+			// Public Team ID lookup must not replace that browser cookie.
+			return nil
+		}
 		if !h.Config.LoginEnabled() {
 			return nil
 		}

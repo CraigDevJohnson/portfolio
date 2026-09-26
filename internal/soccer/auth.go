@@ -69,7 +69,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		JWT:       jwt,
 		UserName:  discovery.UserName,
 		Players:   discovery.Players,
-		ExpiresAt: lps.ImportedSessionExpiry(jwt),
+		ExpiresAt: lps.ImportedSessionExpiry(jwt, now),
 		SessionID: sessionID,
 		StartedAt: now,
 	}
@@ -95,7 +95,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved for this browser session. Choose your players below.</div>`)
+	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved in this browser until its JWT expires, for up to 12 hours. Choose your players below.</div>`)
 }
 
 // LogoutHandler clears the imported soccer session.
@@ -118,12 +118,21 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
+	now := time.Now()
+	if session.JWT != "" && (session.ExpiresAt.IsZero() || !now.Before(lps.JWTExpiry(session.JWT))) {
+		return nil, ErrSessionExpired
+	}
+	if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
 	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
 	if hasPrivateState && !siteidentity.SoccerOwnerAllowed(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
-		return nil, ErrSessionOwnerMismatch
+		if siteidentity.ForeignOwner(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
+			return nil, ErrSessionOwnerMismatch
+		}
+		// The owner's site session timed out or the owner lacks the current
+		// soccer grant: withhold the retained import without discarding it.
+		return nil, nil
 	}
 	session.Workflow = normalizeWorkflowState(&session.Workflow, session.Players)
 	return &session, nil
@@ -145,11 +154,22 @@ func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.Se
 }
 
 func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *types.SessionData) error {
+	maxAge := 0
+	if session.JWT != "" {
+		maxAge = int(time.Until(session.ExpiresAt).Seconds())
+		if maxAge < 1 {
+			return ErrSessionExpired
+		}
+	}
 	encrypted, err := internalsession.EncryptJSONValue(h.Config.SessionKey, session)
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, 0, http.SameSiteLaxMode))
+	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, encrypted, config.SoccerCookiePath, maxAge, http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
+	if maxAge > 0 {
+		cookie.Expires = session.ExpiresAt
+	}
+	http.SetCookie(w, cookie)
 	return nil
 }
 
