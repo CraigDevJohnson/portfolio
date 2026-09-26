@@ -628,6 +628,118 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	}
 }
 
+func TestPublicTeamLookupDeduplicatesAndDownloadsOnlySelectedUpcomingGame(t *testing.T) {
+	app := newTestApp(t)
+	soon := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	middle := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
+	late := testutil.MislabelledLPSZuluTime(time.Now().Add(72 * time.Hour))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("public Team ID lookup sent an Authorization header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/teams/101":
+			_, _ = fmt.Fprintf(w, `{"games":[
+				{"UGameID":1010,"SchedGameDateTime":%q,"home_team":{"team_name":"Late FC"},"visitor_team":{"team_name":"Visitors"}},
+				{"UGameID":2020,"SchedGameDateTime":%q,"home_team":{"team_name":"Shared FC"},"visitor_team":{"team_name":"Rivals"}}
+			]}`, late, middle)
+		case "/teams/202":
+			_, _ = fmt.Fprintf(w, `{"games":[
+				{"UGameID":2020,"SchedGameDateTime":%q,"home_team":{"team_name":"Shared FC"},"visitor_team":{"team_name":"Rivals"}},
+				{"UGameID":3030,"SchedGameDateTime":%q,"home_team":{"team_name":"Soon FC"},"visitor_team":{"team_name":"Guests"}}
+			]}`, middle, soon)
+		default:
+			t.Errorf("unexpected public lookup path %q", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+	handler := newTestSoccerHandler(app)
+
+	fetchReq := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+		"team_codes": {"101,202"},
+	}.Encode()))
+	fetchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	fetchResp := httptest.NewRecorder()
+	handler.FetchSchedulesHandler(fetchResp, fetchReq)
+	if fetchResp.Code != http.StatusOK {
+		t.Fatalf("public fetch status = %d, want %d", fetchResp.Code, http.StatusOK)
+	}
+	body := fetchResp.Body.String()
+	positions := []int{
+		strings.Index(body, `value="3030"`),
+		strings.Index(body, `value="2020"`),
+		strings.Index(body, `value="1010"`),
+	}
+	if positions[0] < 0 || positions[1] <= positions[0] || positions[2] <= positions[1] {
+		t.Fatalf("upcoming games are not rendered soonest first: positions=%v", positions)
+	}
+	if got := strings.Count(body, `value="2020"`); got != 1 {
+		t.Fatalf("shared game row count = %d, want 1", got)
+	}
+	if !strings.Contains(body, "3 games selected") || !strings.Contains(body, "Select all upcoming games") {
+		t.Fatalf("public fetch lacks selected count or select-all control")
+	}
+
+	downloadReq := httptest.NewRequest(http.MethodPost, "/soccer/download", strings.NewReader(url.Values{
+		"team_codes": {"101,202"},
+		"selected":   {"3030"},
+	}.Encode()))
+	downloadReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	downloadResp := httptest.NewRecorder()
+	handler.DownloadICSHandler(downloadResp, downloadReq)
+	if downloadResp.Code != http.StatusOK || downloadResp.Header().Get("Content-Type") != "text/calendar" {
+		t.Fatalf("public ICS response = %d %q", downloadResp.Code, downloadResp.Header().Get("Content-Type"))
+	}
+	ics := testutil.UnfoldICS(downloadResp.Body.String())
+	if got := strings.Count(ics, "BEGIN:VEVENT"); got != 1 {
+		t.Fatalf("ICS event count = %d, want 1", got)
+	}
+	if !strings.Contains(ics, "UID:3030") || strings.Contains(ics, "UID:2020") || strings.Contains(ics, "UID:1010") {
+		t.Fatalf("ICS did not contain only the selected game: %q", ics)
+	}
+}
+
+func TestPublicTeamLookupDistinguishesEmptyScheduleFromFetchFailure(t *testing.T) {
+	app := newTestApp(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/101":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"games":[]}`))
+		case "/teams/202":
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		default:
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	app.Config.LPSAPIBaseURL = server.URL
+	handler := newTestSoccerHandler(app)
+
+	for _, tc := range []struct {
+		teamID      string
+		wantHeading string
+	}{
+		{teamID: "101", wantHeading: "No upcoming games found"},
+		{teamID: "202", wantHeading: "Could not fetch games"},
+	} {
+		t.Run(tc.teamID, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
+				"team_codes": {tc.teamID},
+			}.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			resp := httptest.NewRecorder()
+			handler.FetchSchedulesHandler(resp, req)
+			if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), tc.wantHeading) {
+				t.Fatalf("public schedule feedback = %d %q, want heading %q", resp.Code, resp.Body.String(), tc.wantHeading)
+			}
+		})
+	}
+}
+
 func TestFetchSchedulesHandlerSplitsUpcomingGamesAndPastResults(t *testing.T) {
 	app := newTestApp(t)
 	previousLocal := time.Local

@@ -263,6 +263,7 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 }
 
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
+	props.FetchError = true
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
 		detail = lps.ScheduleErrorDetails{

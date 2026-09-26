@@ -212,6 +212,72 @@
 
   // Soccer page functionality - using data attributes for flexibility
 	const SOCCER_SELECTION_STORAGE_PREFIX = 'portfolio:soccer:selection:'
+	const SOCCER_OUTPUT_STORAGE_KEY = 'portfolio:soccer:output'
+
+  function refreshSoccerOutputChoice() {
+    const output = document.querySelector('[data-soccer-output-option]:checked')?.value || ''
+    const imported = document.getElementById('soccer-lps-connection')?.dataset.connectionState === 'connected'
+    const connections = document.getElementById('soccer-connections')
+    const source = document.querySelector('[data-soccer-stage="source"]')
+    const review = document.querySelector('[data-soccer-stage="review"]')
+
+    if (connections) {
+      connections.hidden = !output || (output === 'ics' && !imported)
+    }
+    if (source) {
+      source.hidden = !output
+    }
+    document.querySelectorAll('[data-soccer-linked-source]').forEach(element => {
+      element.hidden = !output || (output === 'ics' && !imported)
+    })
+    document.querySelectorAll('[data-soccer-private-stage]').forEach(element => {
+      element.hidden = !output || !imported
+    })
+    if (review) {
+      review.hidden = !output || review.dataset.soccerResultsReady !== 'ready'
+    }
+    document.querySelectorAll('[data-soccer-review-number]').forEach(reviewNumber => {
+      reviewNumber.textContent = imported ? '5' : '3'
+    })
+    document.querySelectorAll('[data-soccer-output-only]').forEach(element => {
+      element.hidden = element.dataset.soccerOutputOnly !== output
+    })
+  }
+
+  function setupSoccerOutputChoice() {
+    const options = Array.from(document.querySelectorAll('[data-soccer-output-option]'))
+    if (options.length === 0) {
+      return
+    }
+
+    let savedOutput = ''
+    try {
+      savedOutput = window.sessionStorage.getItem(SOCCER_OUTPUT_STORAGE_KEY) || ''
+    } catch (_error) {
+      // The public planner still works when browser storage is unavailable.
+    }
+    if (!savedOutput && document.querySelector('[data-soccer-results-ready="ready"]')) {
+      savedOutput = 'ics'
+    }
+    const savedOption = options.find(option => option.value === savedOutput)
+    if (savedOption) {
+      savedOption.checked = true
+    }
+
+    options.forEach(option => {
+      option.addEventListener('change', () => {
+        if (option.checked) {
+          try {
+            window.sessionStorage.setItem(SOCCER_OUTPUT_STORAGE_KEY, option.value)
+          } catch (_error) {
+            // Output switching does not require browser storage.
+          }
+        }
+        refreshSoccerOutputChoice()
+      })
+    })
+    refreshSoccerOutputChoice()
+  }
 
   function soccerSelectionStorageKey(form) {
     const fingerprint = form?.closest('[data-team-fingerprint]')?.getAttribute('data-team-fingerprint')?.trim()
@@ -242,10 +308,9 @@
     try {
 			const stored = JSON.parse(window.sessionStorage.getItem(key) || 'null')
 			if (
-				stored?.version !== 1 ||
-				!Array.isArray(stored.upcoming) ||
-				!Array.isArray(stored.past) ||
-				[...stored.upcoming, ...stored.past].some(gameID => typeof gameID !== 'string')
+				stored?.version !== 2 ||
+				!Array.isArray(stored.deselected) ||
+				stored.deselected.some(gameID => typeof gameID !== 'string')
 			) {
 				try {
 					window.sessionStorage.removeItem(key)
@@ -254,9 +319,9 @@
 				}
         return false
       }
-			const selectedGameIDs = new Set([...stored.upcoming, ...stored.past])
+			const deselectedGameIDs = new Set(stored.deselected)
       form.querySelectorAll('[data-game-checkbox]').forEach(checkbox => {
-        checkbox.checked = selectedGameIDs.has(checkbox.value)
+        checkbox.checked = !deselectedGameIDs.has(checkbox.value)
       })
       return true
     } catch (_error) {
@@ -274,15 +339,9 @@
     if (!key) {
       return
     }
-		const selectedGameIDs = gameGroup =>
-			Array.from(
-				form.querySelectorAll(`[data-game-checkbox][data-game-group="${gameGroup}"]:checked`),
-				checkbox => checkbox.value
-			)
 		const stored = {
-			version: 1,
-			upcoming: selectedGameIDs('upcoming-games'),
-			past: selectedGameIDs('past-results'),
+			version: 2,
+			deselected: Array.from(form.querySelectorAll('[data-game-checkbox]:not(:checked)'), checkbox => checkbox.value),
 		}
     try {
       pruneSoccerSelectionKeys(key)
@@ -1621,6 +1680,15 @@
     if (evt.target.querySelector('[data-soccer-form]') || evt.target.id === 'games-container') {
       setupSoccerSelectAll()
     }
+    if (evt.target.id === 'games-container') {
+      const review = document.querySelector('[data-soccer-stage="review"]')
+      if (review) {
+        review.dataset.soccerResultsReady = 'ready'
+      }
+    }
+    if (evt.target.id === 'games-container' || evt.target.id === 'soccer-lps-connection') {
+      refreshSoccerOutputChoice()
+    }
 
     const soccerContext = evt.detail.xhr ? soccerRequestContexts.get(evt.detail.xhr) : null
     const swappedSoccerTarget =
@@ -1926,6 +1994,7 @@
   window.addEventListener('pageshow', resetSoccerLoadingLinks)
 
   // Initialize on page load (for non-HTMX scenarios)
+  setupSoccerOutputChoice()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   initializeServerOpenSoccerModal()

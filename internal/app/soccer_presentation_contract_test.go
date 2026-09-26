@@ -36,7 +36,7 @@ func TestSoccerPageRendersMatchdayPlannerContract(t *testing.T) {
 	if connections < 0 {
 		t.Fatal("Soccer page lacks the Connections panel")
 	}
-	wantStages := []string{"source", "players", "teams", "review"}
+	wantStages := []string{"calendar-output", "source", "players", "teams", "review"}
 	last := -1
 	for _, stage := range wantStages {
 		marker := `data-soccer-stage="` + stage + `"`
@@ -49,11 +49,8 @@ func TestSoccerPageRendersMatchdayPlannerContract(t *testing.T) {
 		}
 		last = index
 	}
-	if connections >= strings.Index(html, `data-soccer-stage="source"`) {
-		t.Fatal("Soccer Connections panel must precede stage 1")
-	}
-	if strings.Contains(html, `data-soccer-stage="calendar-output"`) || strings.Contains(html, `<strong>Calendar output</strong>`) {
-		t.Fatal("Soccer page retains a fifth Calendar Output stage")
+	if connections <= strings.Index(html, `data-soccer-stage="calendar-output"`) || connections >= strings.Index(html, `data-soccer-stage="source"`) {
+		t.Fatal("Soccer Connections panel must sit between output choice and schedule source")
 	}
 	workspaceEnd := strings.Index(html, `</div></div><section class="soccer-stage soccer-stage-review`)
 	if workspaceEnd < 0 {
@@ -203,7 +200,7 @@ func TestSoccerSourceStageOffersTheNextActionWithoutRepeatingImport(t *testing.T
 	}
 }
 
-func TestSoccerPlannerExplainsTheFourStageWorkflow(t *testing.T) {
+func TestSoccerPlannerExplainsChoiceFirstWorkflow(t *testing.T) {
 	html := renderSoccerTestComponent(t, pages.Soccer(soccerPresentationTestPageProps()))
 	legendStart := strings.Index(html, `class="soccer-stage-legend"`)
 	if legendStart < 0 {
@@ -214,11 +211,11 @@ func TestSoccerPlannerExplainsTheFourStageWorkflow(t *testing.T) {
 		t.Fatal("Soccer workflow legend is incomplete")
 	}
 	legend := html[legendStart : legendStart+legendEnd]
-	if got := strings.Count(legend, `<li>`); got != 4 {
-		t.Fatalf("Soccer workflow legend step count = %d, want 4", got)
+	if got := strings.Count(legend, `<li`); got != 5 {
+		t.Fatalf("Soccer workflow legend step count = %d, want 5", got)
 	}
 	for _, marker := range []string{
-		"Choose source", "Select players", "Confirm teams", "Review &amp; output",
+		"Choose output", "Choose source", "Select players", "Confirm teams", "Review &amp; output",
 	} {
 		if !strings.Contains(legend, marker) {
 			t.Errorf("Soccer workflow legend lacks %q", marker)

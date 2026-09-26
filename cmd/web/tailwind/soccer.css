@@ -7,6 +7,10 @@
   isolation: auto;
 }
 
+.soccer-page [hidden] {
+  display: none !important;
+}
+
 .soccer-page,
 .soccer-connections-section,
 .soccer-connections-grid,
@@ -34,6 +38,61 @@
 
 .soccer-workflow-section {
   padding-block: clamp(var(--space-xl), 5vw, var(--space-3xl));
+}
+
+.soccer-output-choice {
+  display: grid;
+  gap: var(--space-md);
+  padding-block: clamp(var(--space-xl), 5vw, var(--space-2xl));
+}
+
+.soccer-output-options {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.soccer-output-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-lg);
+  border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 26%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+}
+
+.soccer-output-option:has(input:checked) {
+  border-color: var(--pond-mint);
+  box-shadow: var(--shadow-panel);
+}
+
+.soccer-output-option:focus-within {
+  outline: var(--line-hairline) solid var(--pond-mint);
+  outline-offset: var(--space-xs);
+}
+
+.soccer-output-option input {
+  margin-top: var(--space-xs);
+  accent-color: var(--pond-mint);
+}
+
+.soccer-output-option span {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.soccer-output-option strong {
+  color: var(--color-copy-primary);
+}
+
+.soccer-output-option small {
+  color: var(--color-copy-secondary);
 }
 
 .soccer-connections-section {
@@ -1063,6 +1122,10 @@ body.soccer-modal-open {
 }
 
 @media (width >= 48rem) {
+  .soccer-output-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .soccer-stage-legend {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1082,6 +1145,10 @@ body.soccer-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
     gap: var(--space-lg);
+  }
+
+  .soccer-source-grid:has(.soccer-source-option[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .games-section-toolbar {

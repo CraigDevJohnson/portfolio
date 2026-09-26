@@ -64,6 +64,29 @@ func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 	}
 }
 
+func TestSoccerPageOffersOutputChoiceBeforeManualTeamLookup(t *testing.T) {
+	app := newTestApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	resp := httptest.NewRecorder()
+
+	newTestSoccerHandler(app).SoccerPage(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Soccer page status = %d, want %d", resp.Code, http.StatusOK)
+	}
+	body := resp.Body.String()
+	choice := strings.Index(body, `data-soccer-stage="calendar-output"`)
+	source := strings.Index(body, `data-soccer-stage="source"`)
+	if choice < 0 || source < 0 || choice >= source {
+		t.Fatalf("calendar output must be the first planner step: choice=%d source=%d", choice, source)
+	}
+	for _, marker := range []string{`value="ics"`, `value="google"`, `id="team_codes"`, `hx-post="/soccer/fetch"`} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("public Soccer page missing %q", marker)
+		}
+	}
+}
+
 func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)

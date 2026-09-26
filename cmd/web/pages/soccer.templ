@@ -63,7 +63,27 @@ templ Soccer(props SoccerProps) {
 					</p>
 				}
 			}
-			<section id="soccer-connections" class="page-section soccer-connections-section" aria-labelledby="soccer-connections-title">
+			<section class="page-section soccer-output-choice" data-soccer-stage="calendar-output" aria-labelledby="soccer-output-title">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label: "Start here",
+					Title: "Choose your calendar output",
+					Description: "Download a calendar file without signing in, or use Google Calendar when your account is connected.",
+					HeadingID: "soccer-output-title",
+				})
+				<fieldset class="soccer-output-options" aria-describedby="soccer-output-hint">
+					<legend class="sr-only">Calendar output</legend>
+					<label class="soccer-output-option">
+						<input type="radio" name="calendar_output" value="ics" data-soccer-output-option/>
+						<span><strong>Download ICS</strong><small>Use any calendar app. Team ID lookup and download are public.</small></span>
+					</label>
+					<label class="soccer-output-option">
+						<input type="radio" name="calendar_output" value="google" data-soccer-output-option/>
+						<span><strong>Google Calendar</strong><small>Connect a calendar to add selected matches.</small></span>
+					</label>
+				</fieldset>
+				<p id="soccer-output-hint" class="form-hint">You can change this choice after fetching; your matches and selections stay in place.</p>
+			</section>
+			<section id="soccer-connections" class="page-section soccer-connections-section" aria-labelledby="soccer-connections-title" hidden>
 				@partials.SectionIntro(partials.SectionIntroProps{
 					Label:       "Connections",
 					Title:       "Set up access before building the schedule",
@@ -82,26 +102,27 @@ templ Soccer(props SoccerProps) {
 					@partials.SectionIntro(partials.SectionIntroProps{
 						Label:       "Schedule tool",
 						Title:       "Build a calendar-ready matchday",
-						Description: "Choose one source, narrow it to the right teams, then review and export the schedule.",
+						Description: "Choose a schedule source, then review the matches for your calendar output.",
 						HeadingID:   "soccer-planner-title",
 					})
 					<ol class="soccer-stage-legend" aria-label="Matchday planner stages">
-						<li><span aria-hidden="true">1</span><strong>Choose source</strong><small>Linked players or team IDs</small></li>
-						<li><span aria-hidden="true">2</span><strong>Select players</strong><small>Choose linked players</small></li>
-						<li><span aria-hidden="true">3</span><strong>Confirm teams</strong><small>Review current teams</small></li>
-						<li><span aria-hidden="true">4</span><strong>Review &amp; output</strong><small>Load, select, and export</small></li>
+						<li><span aria-hidden="true">1</span><strong>Choose output</strong><small>ICS or Google Calendar</small></li>
+						<li><span aria-hidden="true">2</span><strong>Choose source</strong><small>Team IDs or linked players</small></li>
+						<li data-soccer-private-stage hidden><span aria-hidden="true">3</span><strong>Select players</strong><small>Choose linked players</small></li>
+						<li data-soccer-private-stage hidden><span aria-hidden="true">4</span><strong>Confirm teams</strong><small>Review current teams</small></li>
+						<li><span data-soccer-review-number aria-hidden="true">3</span><strong>Review &amp; output</strong><small>Load and select matches</small></li>
 					</ol>
 				</div>
 				<div class="soccer-planner-layout">
 					<div class="soccer-matchday-workspace">
 						@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailMatchday, ExtraClass: "soccer-matchday-trail"})
-						<section class="soccer-stage soccer-stage-source" data-soccer-stage="source" aria-labelledby="soccer-stage-source-title">
+						<section class="soccer-stage soccer-stage-source" data-soccer-stage="source" aria-labelledby="soccer-stage-source-title" hidden>
 							<header class="soccer-stage-header">
-								<span class="soccer-stage-number" aria-hidden="true">1</span>
+								<span class="soccer-stage-number" aria-hidden="true">2</span>
 								<div><p>Schedule source</p><h3 id="soccer-stage-source-title">Choose a schedule source</h3></div>
 							</header>
 							<div class="soccer-source-grid">
-								<div class="soccer-source-option" data-source-state={ soccerReadyState(props.AuthState.Authenticated) }>
+								<div class="soccer-source-option" data-source-state={ soccerReadyState(props.AuthState.Authenticated) } data-soccer-linked-source hidden>
 									<p class="soccer-stage-kicker">Linked account</p>
 									<h4>Use linked players</h4>
 									if props.AuthState.Authenticated {
@@ -156,14 +177,14 @@ templ Soccer(props SoccerProps) {
 								</div>
 							</div>
 						</section>
-						<section id="soccer-player-stage" class="soccer-stage soccer-stage-players" data-soccer-stage="players" data-stage-state={ soccerReadyState(props.AuthState.Authenticated) } aria-labelledby="soccer-stage-players-title">
-							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">2</span><div><p>Linked context</p><h3 id="soccer-stage-players-title">Choose players</h3></div></header>
+						<section id="soccer-player-stage" class="soccer-stage soccer-stage-players" data-soccer-stage="players" data-soccer-private-stage data-stage-state={ soccerReadyState(props.AuthState.Authenticated) } aria-labelledby="soccer-stage-players-title" hidden>
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">3</span><div><p>Linked context</p><h3 id="soccer-stage-players-title">Choose players</h3></div></header>
 							<div id="soccer-player-stage-content">
 								@partials.SoccerPlayerStageContent(props.AuthState)
 							</div>
 						</section>
-						<section class="soccer-stage soccer-stage-teams" data-soccer-stage="teams" data-stage-state={ soccerReadyState(props.InitialTeamSelection != nil) } aria-labelledby="soccer-stage-teams-title">
-							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">3</span><div><p>Final scope</p><h3 id="soccer-stage-teams-title">Confirm teams</h3></div></header>
+						<section class="soccer-stage soccer-stage-teams" data-soccer-stage="teams" data-soccer-private-stage data-stage-state={ soccerReadyState(props.InitialTeamSelection != nil) } aria-labelledby="soccer-stage-teams-title" hidden>
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">4</span><div><p>Final scope</p><h3 id="soccer-stage-teams-title">Confirm teams</h3></div></header>
 							<div id="soccer-team-stage-content">
 								if props.InitialTeamSelection != nil {
 									@partials.SoccerTeamSelect(*props.InitialTeamSelection)
@@ -174,8 +195,8 @@ templ Soccer(props SoccerProps) {
 						</section>
 					</div>
 				</div>
-				<section class="soccer-stage soccer-stage-review soccer-review-output" data-soccer-stage="review" data-stage-state={ soccerReadyState(props.InitialResults != nil) } aria-labelledby="soccer-stage-review-title">
-					<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">4</span><div><p>Schedule output</p><h3 id="soccer-stage-review-title">Review &amp; output</h3></div></header>
+				<section class="soccer-stage soccer-stage-review soccer-review-output" data-soccer-stage="review" data-stage-state={ soccerReadyState(props.InitialResults != nil) } data-soccer-results-ready={ soccerReadyState(props.InitialResults != nil || props.InitialFeedback != nil) } aria-labelledby="soccer-stage-review-title" hidden>
+					<header class="soccer-stage-header"><span class="soccer-stage-number" data-soccer-review-number aria-hidden="true">3</span><div><p>Schedule output</p><h3 id="soccer-stage-review-title">Review &amp; output</h3></div></header>
 					<div id="loading-indicator" class={ soccerLoadingIndicatorClass(props.Loading) } role="status" aria-live="polite" aria-atomic="true">
 						<div class="spinner" aria-hidden="true"></div><span>Fetching schedules...</span>
 					</div>
