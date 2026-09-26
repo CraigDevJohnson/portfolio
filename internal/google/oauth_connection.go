@@ -77,10 +77,7 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	if err != nil || record == nil || !siteidentity.Evaluated(r.Context()) {
 		return record, err
 	}
-	principal, ok := siteidentity.PrincipalFromContext(r.Context())
-	if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
-		record.OwnerIssuer == "" || record.OwnerSubject == "" ||
-		record.OwnerIssuer != principal.Issuer || record.OwnerSubject != principal.Subject {
+	if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, record.OwnerIssuer, record.OwnerSubject) {
 		return nil, nil
 	}
 	return record, nil

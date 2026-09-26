@@ -18,13 +18,14 @@ The public site has Home, About, Experience, Skills, Projects, Education,
 Contact, and Soccer pages. The Skills and Soccer pages use HTMX fragments while
 keeping the main content server-rendered.
 
-The Soccer tool supports:
+The Soccer tool keeps Team ID schedule lookup and ICS download public. An
+invited site account with the current `soccer` grant can also:
 
-- JWT import from an authenticated Let's Play Soccer browser session
-- linked-player and team discovery
-- schedule lookup and ICS download
-- optional Google Calendar add and result sync
-- optional DynamoDB audit baselines for imported sessions
+- import a JWT from an authenticated Let's Play Soccer browser session
+- discover linked players and their teams
+- connect Google Calendar separately to add games and sync results
+
+Imported sessions can optionally write DynamoDB audit baselines.
 
 The management portal routes are disabled unless their Cognito and session
 settings are valid. A registered OAuth redirect URI is also required for sign-in.
@@ -110,13 +111,18 @@ Set `LPS_SESSION_KEY` to a 64-character hexadecimal value. Generate one with:
 openssl rand -hex 32
 ```
 
-Without a valid key, JWT import is disabled. `LPS_API_BASE_URL` can override the
-upstream API for local testing. The application accepts HTTPS endpoints and
-loopback HTTP endpoints.
+Without a valid key, JWT import is disabled. Import and linked-player actions
+also require a signed-in site account with the current `soccer` grant. Imported
+access is bound to the validated Cognito issuer and subject; old imports
+without an owner cannot be reused. Team ID lookup and ICS download remain
+available without sign-in. `LPS_API_BASE_URL` can override the upstream API
+for local testing. The application accepts HTTPS endpoints and loopback HTTP
+endpoints.
 
 ### Google Calendar
 
-Direct calendar actions require soccer authentication plus:
+Google Calendar actions require the current site `soccer` grant, a separate
+Google OAuth connection, and:
 
 - `CLIENT_ID_KEY`
 - `CLIENT_SECRET_KEY`
@@ -126,10 +132,12 @@ Register each application URL ending in `/soccer` as an authorized redirect
 URI in the Google OAuth client. Local DynamoDB access uses the standard AWS
 credential chain.
 
-The encrypted browser cookie is the Soccer workflow source of truth. When
-`SOCCER_SESSION_TABLE_NAME` is set, the application also writes an import
-baseline containing the username and discovered players; it does not restore
-workflow state from that table.
+The encrypted browser cookie is the Soccer workflow source of truth. Imported
+access and Google OAuth state are bound to the validated Cognito issuer and
+subject. Google connection records use the same owner coordinates; an old
+ownerless connection is denied. When `SOCCER_SESSION_TABLE_NAME` is set, the
+application also writes an owner-bound import baseline containing the username
+and discovered players; it does not restore workflow state from that table.
 
 ### Site sign-in
 
@@ -234,14 +242,19 @@ navigation account state; preview mode never enables real site sign-in.
 
 ## Soccer import flow
 
-1. Sign in to Let's Play Soccer in a browser.
-2. Copy the bearer JWT from the authenticated session. The helper extension in
-   `chrome-extension/` can capture and copy it.
+Anyone can enter Team IDs on `/soccer`, fetch a schedule, and download an ICS
+file. Linked-player import requires a site account with the current `soccer`
+grant:
+
+1. Sign in to the site through `/sign-in` with an invited account holding the
+   `soccer` grant, then sign in to Let's Play Soccer in a browser.
+2. Copy the bearer JWT from the authenticated LPS session. The helper extension
+   in `chrome-extension/` can capture and copy it.
 3. Import the JWT on `/soccer`.
 4. The server calls `/users/check`, filters deleted players, and shows the
    linked players.
 5. Select players and teams, then fetch schedules.
-6. Download an ICS file or use the configured Google Calendar actions.
+6. Download an ICS file or separately connect Google Calendar to use its actions.
 
 A new JWT import or explicit logout clears downstream workflow state. Google
 connect, reconnect, disconnect, and calendar selection preserve the current
@@ -334,6 +347,13 @@ HTMX and form endpoints:
 | `POST` | `/soccer/google/disconnect` |
 | `POST` | `/soccer/google/add` |
 | `POST` | `/soccer/google/sync-results` |
+
+The Soccer page, Team ID `/soccer/fetch`, and Team ID `/soccer/download` are
+public. The import, logout, discover-teams, and Google routes require the
+current `soccer` grant. Fetch and download requests using linked-player IDs or
+the imported team-selection form also require that grant. The Google OAuth
+callback is served on `/soccer` and requires the same grant. Protected routes
+return `401` without a site session and `403` when the account lacks the grant.
 
 Portal routes are registered only with valid runtime configuration or local
 preview mode. They include `/login`, `/callback`, `/logout`, `/mgmt`, and

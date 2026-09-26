@@ -64,6 +64,15 @@ func HasGrant(ctx context.Context, grant Grant) bool {
 	return ok && identity.grants[grant]
 }
 
+// HasGrantForOwner checks the current page grant and exact Cognito owner coordinates.
+func HasGrantForOwner(ctx context.Context, grant Grant, issuer, subject string) bool {
+	if issuer == "" || subject == "" || !HasGrant(ctx, grant) {
+		return false
+	}
+	principal, ok := PrincipalFromContext(ctx)
+	return ok && principal.Issuer == issuer && principal.Subject == subject
+}
+
 // Evaluated reports whether site identity middleware populated this request.
 func Evaluated(ctx context.Context) bool {
 	_, ok := ctx.Value(contextKey{}).(requestIdentity)

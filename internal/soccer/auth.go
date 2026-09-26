@@ -122,10 +122,7 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 		return nil, ErrSessionExpired
 	}
 	if siteidentity.Evaluated(r.Context()) && (session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported") {
-		principal, ok := siteidentity.PrincipalFromContext(r.Context())
-		if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
-			session.OwnerIssuer == "" || session.OwnerSubject == "" ||
-			session.OwnerIssuer != principal.Issuer || session.OwnerSubject != principal.Subject {
+		if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, session.OwnerIssuer, session.OwnerSubject) {
 			return nil, ErrSessionOwnerMismatch
 		}
 	}

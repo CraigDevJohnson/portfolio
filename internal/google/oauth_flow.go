@@ -156,10 +156,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if siteidentity.Evaluated(r.Context()) {
-		principal, ok := siteidentity.PrincipalFromContext(r.Context())
-		if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
-			state.OwnerIssuer == "" || state.OwnerSubject == "" ||
-			state.OwnerIssuer != principal.Issuer || state.OwnerSubject != principal.Subject {
+		if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, state.OwnerIssuer, state.OwnerSubject) {
 			ClearOAuthStateCookie(w, r)
 			RedirectSoccerWithGoogleStatus(w, r, "failed")
 			return
@@ -187,7 +184,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, true, "google connection read before save failed: %v", getErr)
 		return
 	} else if existing != nil {
-		if siteidentity.Evaluated(r.Context()) && (existing.OwnerIssuer != state.OwnerIssuer || existing.OwnerSubject != state.OwnerSubject) {
+		if siteidentity.Evaluated(r.Context()) && !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, existing.OwnerIssuer, existing.OwnerSubject) {
 			ClearOAuthStateCookie(w, r)
 			RedirectSoccerWithGoogleStatus(w, r, "failed")
 			return
