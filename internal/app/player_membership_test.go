@@ -51,7 +51,7 @@ func TestSoccerImportDisclosesAndCapturesEveryLinkedPlayersMembership(t *testing
 		case "/players/1001/my_teams":
 			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`)
 		case "/players/1002/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79}]`)
+			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79},{"UTeamID":4300,"team_name":"Unknown Season"}]`)
 		case "/teams/4101":
 			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4101,"team_name":"Craig FC","Season":77},"games":[]}`)
 		default:
@@ -121,6 +121,16 @@ func TestSoccerImportDisclosesAndCapturesEveryLinkedPlayersMembership(t *testing
 	}
 	if len(want) != 0 {
 		t.Errorf("missing exact membership associations: %#v", want)
+	}
+	known := map[int]bool{4101: true, 4102: true, 4202: true, 4300: true}
+	for _, team := range got.KnownTeams {
+		if !known[team.UTeamID] {
+			t.Errorf("unexpected enrolled team %#v", team)
+		}
+		delete(known, team.UTeamID)
+	}
+	if len(known) != 0 {
+		t.Errorf("unselected or seasonless teams were not enrolled: %#v", known)
 	}
 	if len(archive.snapshots) != 0 {
 		t.Fatal("player import selected or fetched planner games")

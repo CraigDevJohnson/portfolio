@@ -113,3 +113,36 @@ func TestDynamoArchiveRejectsUnownedOrUnprovenPlayerEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestDynamoArchiveSeparatesTwoSiteOwnersOfOneLPSPlayer(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	first := &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "first-subject", ObservedAt: time.Now(),
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 4101, Season: 77}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, Season: 77}}},
+	}
+	if err := store.SavePlayerDiscovery(context.Background(), first); err != nil {
+		t.Fatal(err)
+	}
+	second := *first
+	second.OwnerSubject = "second-subject"
+	second.ObservedAt = first.ObservedAt.Add(time.Second)
+	if err := store.SavePlayerDiscovery(context.Background(), &second); err != nil {
+		t.Fatal(err)
+	}
+	owners := map[string]int{}
+	items, err := backend.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, got := range items {
+		if got["kind"] == "membership" {
+			owners[got["owner_subject"].(string)]++
+		}
+	}
+	if owners["first-subject"] != 1 || owners["second-subject"] != 1 || len(owners) != 2 {
+		t.Fatalf("one site owner replaced another's proof: %#v", owners)
+	}
+}

@@ -24,7 +24,7 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="soccer-login-title"
-			aria-describedby="soccer-login-description"
+			aria-describedby="soccer-login-description soccer-history-notice"
 			tabindex="-1"
 		>
 			<div class="soccer-login-header sticky top-0 z-10 bg-[var(--bg-secondary)] pb-3">
@@ -39,9 +39,9 @@ templ SoccerLoginModal(props SoccerLoginModalProps) {
 				Paste the JWT from your signed-in Let&apos;s Play Soccer browser session. After import, you&apos;ll choose players and then confirm which teams to include.
 			</p>
 			if props.HistoryCollectionEnabled {
-				<p class="soccer-login-note">Import access discovers teams for every linked player, including players you do not select for the planner. Player identity and exact team-season links are retained indefinitely, and enrolled teams refresh. Clearing your temporary JWT does not erase that history.</p>
+				<p id="soccer-history-notice" class="soccer-login-note">Import access discovers teams for every linked player, including players you do not select for the planner. Player identity and exact team-season links are retained indefinitely, and known teams are enrolled for future refresh. Clearing your temporary JWT does not erase that history.</p>
 			} else {
-				<p class="soccer-login-note">History collection is currently off. Import access keeps your LPS session in this browser for up to 12 hours and does not save player or team history indefinitely.</p>
+				<p id="soccer-history-notice" class="soccer-login-note">History collection is currently off. Import access keeps your LPS session in this browser for up to 12 hours and does not save player or team history indefinitely.</p>
 			}
 			<ol class="soccer-login-instructions">
 				<li>Sign in on letsplaysoccer.com in another tab.</li>
