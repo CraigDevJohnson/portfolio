@@ -87,23 +87,33 @@ output "ssm_parameter_paths" {
 }
 
 output "alarm_arns" {
-  value = sort([
+  value = sort(concat([
     aws_cloudwatch_metric_alarm.api_5xx.arn,
     aws_cloudwatch_metric_alarm.api_latency.arn,
     aws_cloudwatch_metric_alarm.lambda_duration.arn,
     aws_cloudwatch_metric_alarm.lambda_errors.arn,
     aws_cloudwatch_metric_alarm.lambda_throttles.arn,
-  ])
+    ],
+    aws_cloudwatch_metric_alarm.history_admission_rejected[*].arn,
+    aws_cloudwatch_metric_alarm.history_incomplete[*].arn,
+    aws_cloudwatch_metric_alarm.history_worker_errors[*].arn,
+    aws_cloudwatch_metric_alarm.history_dead_letter[*].arn,
+  ))
 }
 
 output "alarm_names" {
-  value = sort([
+  value = sort(concat([
     aws_cloudwatch_metric_alarm.api_5xx.alarm_name,
     aws_cloudwatch_metric_alarm.api_latency.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_duration.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_errors.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_throttles.alarm_name,
-  ])
+    ],
+    aws_cloudwatch_metric_alarm.history_admission_rejected[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_incomplete[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_worker_errors[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_dead_letter[*].alarm_name,
+  ))
 }
 
 output "certificate_arn" {

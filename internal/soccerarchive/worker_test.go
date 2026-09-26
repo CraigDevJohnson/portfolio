@@ -20,7 +20,7 @@ import (
 
 func TestRefreshWorkerAppliesCorrectionsAndRetainsOmittedGames(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	firstFetch := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 		TeamID: 479691,
@@ -84,7 +84,7 @@ func TestRefreshWorkerAppliesCorrectionsAndRetainsOmittedGames(t *testing.T) {
 
 func TestRefreshWorkerReportsInvalidTransientAndSuccessfulTeamsIndependently(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	for _, id := range []int{101, 202, 303} {
 		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
@@ -174,7 +174,7 @@ func TestRefreshWorkerReportsInvalidTransientAndSuccessfulTeamsIndependently(t *
 }
 
 func TestRefreshWorkerKeepsAnOmittedSeasonsHistoryAndCoverage(t *testing.T) {
-	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
+	store := newTestStore(t, archivetest.NewTable())
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 		TeamID:    101,
@@ -240,7 +240,7 @@ func TestRefreshWorkerAppliesCorrectionsWhenLPSNoLongerServesAFacility(t *testin
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			backend := archivetest.NewTable()
-			store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+			store := newTestStore(t, backend)
 			seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 			if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 				TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169, FacilityID: 5},
@@ -327,7 +327,7 @@ func TestRefreshWorkerKeepsHistoryRetryableAfterTemporaryOrUnconfirmedResponses(
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			backend := archivetest.NewTable()
-			store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+			store := newTestStore(t, backend)
 			seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 			if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 				TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
@@ -376,7 +376,7 @@ func TestRefreshWorkerKeepsHistoryRetryableAfterTemporaryOrUnconfirmedResponses(
 
 func TestRefreshWorkerRecordsAResponseWithAGameWithoutAStableIDAsAnLPSFailure(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 		TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
@@ -416,7 +416,7 @@ func TestRefreshWorkerRecordsAResponseWithAGameWithoutAStableIDAsAnLPSFailure(t 
 
 func TestRefreshWorkerStoresAGameSharedByTwoEnrolledTeamsOnceAndRecordsEachFetch(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	for _, id := range []int{101, 202} {
 		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
@@ -483,7 +483,7 @@ func TestRefreshWorkerStoresAGameSharedByTwoEnrolledTeamsOnceAndRecordsEachFetch
 
 func TestRepeatedRefreshWorkerRunsConvergeOnTheSameFacts(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 		TeamID:    479691,
@@ -560,7 +560,7 @@ func storedFacts(t *testing.T, backend *archivetest.Table) map[string]map[string
 
 func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	for _, id := range []int{101, 303} {
 		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
@@ -623,7 +623,7 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 
 func TestRefreshWorkerReportsWhenAFailedSaveCannotBeRecorded(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 		TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
@@ -698,7 +698,7 @@ func TestRefreshStateFollowsTheLatestAttemptWhenWritesInterleave(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			table := archivetest.NewTable()
-			plain := NewDynamoStoreWithAPI(table, "durable-soccer-history")
+			plain := newTestStore(t, table)
 			if err := plain.SaveTeamSnapshot(t.Context(), &Snapshot{
 				TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: seededAt,
 				Games: []lps.TeamScheduleGame{{UGameID: 9001, UTeam1: 101, UTeam2: 202, Season: 169, Result: "1-0"}},
@@ -721,7 +721,7 @@ func TestRefreshStateFollowsTheLatestAttemptWhenWritesInterleave(t *testing.T) {
 					t.Errorf("competing write: %v", err)
 				}
 			}}
-			worker := NewRefreshWorker(NewDynamoStoreWithAPI(api, "durable-soccer-history"), lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return workerAttempt })
+			worker := NewRefreshWorker(newTestStore(t, api), lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return workerAttempt })
 
 			report := worker.Run(t.Context(), []int{101})
 

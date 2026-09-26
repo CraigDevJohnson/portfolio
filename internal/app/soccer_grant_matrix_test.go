@@ -144,7 +144,10 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 func (world *soccerGrantWorld) keepHistory(t *testing.T) {
 	t.Helper()
 	world.history = archivetest.NewTable()
-	store := soccerarchive.NewDynamoStoreWithAPI(world.history, "soccer-history")
+	store, err := soccerarchive.NewDynamoStoreWithAPI(world.history, "soccer-history", generousArchiveLimits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
 	team := lps.TeamSummary{UTeamID: 4101, TeamName: "Craig FC", Season: 169}
 	if err := store.SavePlayerDiscovery(t.Context(), &soccerarchive.PlayerDiscovery{
 		OwnerIssuer: testSiteIssuer, OwnerSubject: testSiteSubject, ObservedAt: time.Now().Add(-time.Hour),

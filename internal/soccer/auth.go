@@ -136,9 +136,18 @@ func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, player
 	})
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
-		return "Linked-player history could not be saved. Try the import again.", false
+		return historyImportFailureMessage(err), false
 	}
 	return "", true
+}
+
+// historyImportFailureMessage tells the visitor why linked-player history
+// was not saved: a full admission budget is not a temporary failure to retry.
+func historyImportFailureMessage(err error) string {
+	if errors.Is(err, soccerarchive.ErrAdmissionFull) {
+		return "Linked-player history collection is full. Your import was not saved; try again after capacity is reviewed."
+	}
+	return "Linked-player history could not be saved. Try the import again."
 }
 
 // discoverImportedPlayerTeams looks up every linked player's teams. A player

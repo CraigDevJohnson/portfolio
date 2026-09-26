@@ -32,7 +32,16 @@ type archiveRoute struct {
 	store   *soccerarchive.DynamoStore
 }
 
+// generousArchiveLimits are reviewed limits no route test reaches.
+var generousArchiveLimits = soccerarchive.Limits{MaxEnrolledTeams: 100, ReservedPlayerSlots: 10, MaxRequestsPerRun: 100, MinRequestInterval: time.Millisecond}
+
 func newArchiveRoute(t *testing.T, lps http.HandlerFunc) *archiveRoute {
+	t.Helper()
+	return newArchiveRouteWithLimits(t, lps, generousArchiveLimits)
+}
+
+// newArchiveRouteWithLimits wires the archive with the given reviewed limits.
+func newArchiveRouteWithLimits(t *testing.T, lps http.HandlerFunc, limits soccerarchive.Limits) *archiveRoute {
 	t.Helper()
 	app := newTestApp(t)
 	lpsServer := httptest.NewServer(lps)
@@ -40,7 +49,10 @@ func newArchiveRoute(t *testing.T, lps http.HandlerFunc) *archiveRoute {
 	app.Config.LPSAPIBaseURL = lpsServer.URL
 	mux, handler := buildMux(app, app.Logger, false)
 	table := archivetest.NewTable()
-	store := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history")
+	store, err := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
 	handler.SetArchiveStore(store)
 	return &archiveRoute{app: app, mux: mux, handler: handler, table: table, store: store}
 }
@@ -146,6 +158,34 @@ func TestRepeatedManualTeamLookupKeepsOneArchivedGame(t *testing.T) {
 	}
 	if len(history.Games) != 1 || history.Games[0].UGameID != 8001 {
 		t.Fatalf("games after a repeated lookup = %#v, want only game 8001", history.Games)
+	}
+}
+
+func TestManualTeamLookupExplainsHistoryCapacityRejection(t *testing.T) {
+	// One slot for anonymous IDs: two in all, one reserved for player imports.
+	limits := soccerarchive.Limits{MaxEnrolledTeams: 2, ReservedPlayerSlots: 1, MaxRequestsPerRun: 10, MinRequestInterval: time.Second}
+	route := newArchiveRouteWithLimits(t, func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil || (teamID != 479691 && teamID != 479692) {
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%[1]d,"team_name":"Dormant %[1]d","Season":169},"games":[{"UGameID":%[1]d1,"UTeam1":%[1]d,"UTeam2":222,"Season":169,"SchedGameDateTime":%[2]q,"home_team":{"UTeamID":%[1]d,"team_name":"Dormant %[1]d"},"visitor_team":{"UTeamID":222,"team_name":"Rivals"}}]}`,
+			teamID, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour)))
+	}, limits)
+
+	if first := route.lookup(t, "479691"); !strings.Contains(first, "Team 479691 added to history collection.") {
+		t.Fatalf("first anonymous team was not enrolled: %q", first)
+	}
+	full := route.lookup(t, "479692")
+	if !strings.Contains(full, "History collection is full") || !strings.Contains(full, "Team 479692 was not added to history collection because its reviewed capacity is full.") ||
+		strings.Contains(full, "Team 479692 added to history collection.") || !strings.Contains(full, "Rivals") {
+		t.Fatalf("capacity rejection hid the schedule or claimed enrollment: %q", full)
+	}
+	route.assertNotArchived(t, 479692)
+	if again := route.lookup(t, "479691"); !strings.Contains(again, "Team 479691 added to history collection.") {
+		t.Fatalf("an enrolled team lost its place at capacity: %q", again)
 	}
 }
 

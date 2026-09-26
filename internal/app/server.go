@@ -22,6 +22,7 @@ import (
 	"portfolio/internal/siteauth"
 	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
+	"portfolio/internal/soccerarchive"
 )
 
 const serverShutdownTimeout = 10 * time.Second
@@ -232,6 +233,20 @@ func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
 		if err := initializeSoccerStore(ctx, app, soccerHandler); err != nil {
 			return nil, fmt.Errorf("initialize soccer session store: %w", err)
 		}
+	}
+	if os.Getenv("SOCCER_HISTORY_COLLECTION_ENABLED") == "true" {
+		if !app.Config.SiteEnabled() || !app.Config.LoginEnabled() {
+			return nil, errors.New("soccer history collection requires site identity and LPS import configuration")
+		}
+		limits, err := soccerarchive.LimitsFromEnvironment(os.Getenv)
+		if err != nil {
+			return nil, fmt.Errorf("configure soccer history limits: %w", err)
+		}
+		store, err := soccerarchive.NewDynamoStore(ctx, os.Getenv(soccerarchive.EnvArchiveTableName), limits)
+		if err != nil {
+			return nil, fmt.Errorf("initialize soccer history store: %w", err)
+		}
+		soccerHandler.SetArchiveStore(store)
 	}
 
 	return withRequestLogging(rootLogger.With(slog.String("component", "http")), mux), nil

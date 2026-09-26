@@ -61,6 +61,12 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_sqs_queue" {
+    defaults = {
+      arn = "arn:aws:sqs:us-west-2:111122223333:portfolio-test-history-failures"
+    }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = {
       arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test"
@@ -861,4 +867,190 @@ run "site_rejects_production_loopback_callback" {
   }
 
   expect_failures = [var.site]
+}
+
+run "history_disabled_without_reviewed_limits" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      length(aws_sqs_queue.history_dead_letter) == 0 &&
+      length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 0 &&
+      !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
+    )
+    error_message = "unset reviewed limits must leave collection and daily scheduling disabled"
+  }
+}
+
+run "history_schedule_rejects_missing_limits" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(0 12 * * ? *)"
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_collection_rejects_missing_table" {
+  command = plan
+  variables {
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_collection_rejects_missing_alert_destination" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = []
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_schedule_rejects_missing_expression" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_limits_alone_do_not_activate" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
+    )
+    error_message = "numeric limits alone must not activate collection or polling"
+  }
+}
+
+run "history_collection_has_capacity_alert_without_schedule" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_COLLECTION_ENABLED == "true" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_TEAMS == "4" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_ARCHIVE_TABLE_NAME == "portfolio-lambda-dev-soccer-history" &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]) &&
+        toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])
+      ]) == 1 &&
+      length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 1 &&
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0
+    )
+    error_message = "collection must have a capacity alarm without implicitly starting a schedule"
+  }
+}
+
+run "history_worker_schedule_and_failure_contract" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(0 12 * * ? *)"
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 1 &&
+      aws_lambda_function.history_worker[0].reserved_concurrent_executions == 1 &&
+      aws_lambda_function.history_worker[0].timeout == 120 &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MODE == "scheduled" &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "8" &&
+      aws_scheduler_schedule.history_daily[0].schedule_expression == "cron(0 12 * * ? *)" &&
+      aws_scheduler_schedule.history_daily[0].target[0].arn == aws_lambda_function.history_worker[0].arn &&
+      aws_scheduler_schedule.history_daily[0].target[0].dead_letter_config[0].arn == aws_sqs_queue.history_dead_letter[0].arn &&
+      aws_lambda_function_event_invoke_config.history_worker[0].destination_config[0].on_failure[0].destination == aws_sqs_queue.history_dead_letter[0].arn &&
+      length(aws_cloudwatch_metric_alarm.history_worker_errors) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_incomplete) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_dead_letter) == 1 &&
+      length(output.alarm_arns) == 9
+    )
+    error_message = "the daily worker must be bounded, separately invoked, and monitored for delivery, execution, and partial failure"
+  }
+  assert {
+    condition = (
+      length(data.aws_iam_policy_document.history_worker[0].statement) == 4 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem"]) &&
+      toset(st.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["dynamodb:Query"]) &&
+      toset(st.resources) == toset(["${aws_dynamodb_table.soccer_history[0].arn}/index/due-teams"])]) == 1 &&
+      length(data.aws_iam_policy_document.history_scheduler[0].statement) == 2
+    )
+    error_message = "worker and Scheduler roles must have only scoped table, due-index, invoke, DLQ, and log rights"
+  }
 }

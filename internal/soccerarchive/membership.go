@@ -121,7 +121,10 @@ func (s *DynamoStore) playerEvidenceKeys(ctx context.Context, playerID int) ([]m
 }
 
 // SavePlayerDiscovery enrolls the known teams, then stores player identities
-// and owner links, then exact owner-bound membership proof. The records are
+// and owner links, then exact owner-bound membership proof. A new team takes
+// a slot of the reviewed admission capacity, which reserves slots for these
+// player-linked teams; if the new teams do not fit, nothing is written and
+// the error wraps ErrAdmissionFull. The records are
 // written one at a time, so a failed save can leave some of them stored, but
 // never a membership whose team is not enrolled or whose player identity and
 // owner link are missing. Stable keys make a retry complete the set without
@@ -152,6 +155,15 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 
 	teams := slices.Clone(discovery.KnownTeams)
 	sort.Slice(teams, func(i, j int) bool { return teams[i].UTeamID < teams[j].UTeamID })
+	knownTeamIDs := make([]int, 0, len(teams))
+	for i := range teams {
+		knownTeamIDs = append(knownTeamIDs, teams[i].UTeamID)
+	}
+	// Refuse before anything is written when the import's new teams would
+	// not all fit, so a refused import takes no admission slot.
+	if err := s.checkAdmission(ctx, playerEnrollment, knownTeamIDs...); err != nil {
+		return err
+	}
 	for i := range teams {
 		if err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt); err != nil {
 			return err
@@ -246,7 +258,15 @@ func (s *DynamoStore) enrollPlayerTeam(ctx context.Context, team *lps.TeamSummar
 			}
 		}
 		record.EnrollmentSource = playerEnrollment
-		written, err := s.putIfUnchanged(ctx, &record, previous)
+		var written bool
+		if previous == nil {
+			written, err = s.enrollNew(ctx, &record, playerEnrollment)
+		} else {
+			written, err = s.putIfUnchanged(ctx, &record, previous)
+		}
+		if errors.Is(err, ErrAdmissionFull) {
+			return err
+		}
 		if err != nil {
 			return fmt.Errorf("enroll player team %d: %w", team.UTeamID, err)
 		}

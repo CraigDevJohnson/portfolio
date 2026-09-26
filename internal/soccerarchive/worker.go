@@ -33,6 +33,7 @@ const (
 	RefreshSkippedInvalid   RefreshOutcome = "skipped_invalid"
 	RefreshStoreFailed      RefreshOutcome = "store_failure"
 	RefreshNotEnrolled      RefreshOutcome = "not_enrolled"
+	RefreshBudgetExhausted  RefreshOutcome = "request_budget_exhausted"
 )
 
 // RefreshResult is one team's outcome in an on-demand worker pass.
@@ -88,18 +89,7 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 		case state.Status == RefreshInvalid:
 			result.Outcome = RefreshSkippedInvalid
 		default:
-			source, fetchErr := w.source.FetchTeamSource(ctx, teamID)
-			if fetchErr != nil {
-				result = w.recordFailure(ctx, teamID, fetchErr)
-			} else if source.Response.Team.UTeamID != teamID {
-				result = w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team response did not confirm Team ID %d", teamID))
-			} else if !everyGameHasStableID(source.Response.Games) {
-				// A game the archive cannot key is an LPS contract problem, found
-				// before any write so no part of the response is stored.
-				result = w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team %d response contains a game without a stable ID", teamID))
-			} else {
-				result = w.saveSnapshot(ctx, teamID, &source)
-			}
+			result = w.refreshTeam(ctx, teamID)
 		}
 		if result.Outcome != RefreshSucceeded {
 			report.Complete = false
@@ -107,6 +97,27 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 		report.Results = append(report.Results, result)
 	}
 	return report
+}
+
+// refreshTeam fetches one enrolled team and stores a response that confirms
+// it. A fetch the request budget stopped before it reached LPS is neither a
+// success nor an LPS failure: the team keeps its state and stays due.
+func (w *RefreshWorker) refreshTeam(ctx context.Context, teamID int) RefreshResult {
+	source, fetchErr := w.source.FetchTeamSource(ctx, teamID)
+	switch {
+	case errors.Is(fetchErr, ErrRequestBudget):
+		return RefreshResult{TeamID: teamID, Outcome: RefreshBudgetExhausted}
+	case fetchErr != nil:
+		return w.recordFailure(ctx, teamID, fetchErr)
+	case source.Response.Team.UTeamID != teamID:
+		return w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team response did not confirm Team ID %d", teamID))
+	case !everyGameHasStableID(source.Response.Games):
+		// A game the archive cannot key is an LPS contract problem, found
+		// before any write so no part of the response is stored.
+		return w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team %d response contains a game without a stable ID", teamID))
+	default:
+		return w.saveSnapshot(ctx, teamID, &source)
+	}
 }
 
 // saveSnapshot stores a confirmed response. A response that could not be

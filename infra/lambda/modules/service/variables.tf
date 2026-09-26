@@ -56,6 +56,60 @@ variable "enable_soccer_history" {
 
 variable "alarm_action_arns" { type = list(string) }
 
+variable "soccer_history_limits" {
+  description = "Reviewed source-use and cost ceilings; null keeps durable enrollment and scheduling off."
+  type = object({
+    max_enrolled_teams      = number
+    reserved_player_slots   = number
+    max_requests_per_run    = number
+    max_retries_per_team    = number
+    min_request_interval_ms = number
+    worker_timeout_seconds  = number
+  })
+  default = null
+
+  validation {
+    condition = var.soccer_history_limits == null ? true : (
+      var.soccer_history_limits.max_enrolled_teams > 0 &&
+      var.soccer_history_limits.reserved_player_slots >= 0 &&
+      var.soccer_history_limits.reserved_player_slots < var.soccer_history_limits.max_enrolled_teams &&
+      var.soccer_history_limits.max_requests_per_run > 0 &&
+      var.soccer_history_limits.max_requests_per_run >= var.soccer_history_limits.max_enrolled_teams &&
+      var.soccer_history_limits.max_retries_per_team >= 0 &&
+      var.soccer_history_limits.max_retries_per_team <= 5 &&
+      var.soccer_history_limits.min_request_interval_ms > 0 &&
+      var.soccer_history_limits.worker_timeout_seconds >= 30 &&
+      var.soccer_history_limits.worker_timeout_seconds <= 900 &&
+      (var.soccer_history_limits.max_requests_per_run - 1) * var.soccer_history_limits.min_request_interval_ms < var.soccer_history_limits.worker_timeout_seconds * 1000 &&
+      alltrue([for value in values(var.soccer_history_limits) : value == floor(value)])
+    )
+    error_message = "soccer_history_limits must contain reviewed positive integer ceilings and bounded retry, reserve, pacing, and Lambda timeout values."
+  }
+}
+
+variable "activate_soccer_history_collection" {
+  description = "Let the HTTP runtime enroll teams into durable history. Needs enable_soccer_history, reviewed limits, and an alert destination; keep false until the #80 activation review approves collection."
+  type        = bool
+  default     = false
+}
+
+variable "activate_soccer_history_schedule" {
+  description = "Plan the daily history worker, its schedule, failure queue, and alarms. Needs collection activation and a reviewed expression; keep false until live LPS polling is approved."
+  type        = bool
+  default     = false
+}
+
+variable "soccer_history_schedule_expression" {
+  description = "Operator-reviewed daily EventBridge Scheduler expression; unset by default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.soccer_history_schedule_expression == null ? true : can(regex("^cron\\(([0-5]?[0-9]) ([01]?[0-9]|2[0-3]) \\* \\* \\? \\*\\)$", var.soccer_history_schedule_expression))
+    error_message = "soccer_history_schedule_expression must be a once-daily UTC cron expression."
+  }
+}
+
 variable "domain_names" { type = set(string) }
 
 variable "request_custom_domain" { type = bool }

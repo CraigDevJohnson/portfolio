@@ -127,6 +127,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"environments/prod/versions.tf",
 		"modules/service/api.tf",
 		"modules/service/domain.tf",
+		"modules/service/history_worker.tf",
 		"modules/service/lambda.tf",
 		"modules/service/observability.tf",
 		"modules/service/outputs.tf",
@@ -200,17 +201,24 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 18, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-		"management_reject_prod":                          true,
-		"management_reject_region":                        true,
-		"management_reject_email":                         true,
-		"management_reject_empty_email":                   true,
-		"management_reject_callback":                      true,
-		"management_reject_tag":                           true,
-		"management_reject_issuer":                        true,
-		"site_rejects_wrong_environment_callback":         true,
-		"site_rejects_development_identity_in_production": true,
-		"site_rejects_production_loopback_callback":       true,
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 26, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":                               true,
+		"management_reject_region":                             true,
+		"management_reject_email":                              true,
+		"management_reject_empty_email":                        true,
+		"management_reject_callback":                           true,
+		"management_reject_tag":                                true,
+		"management_reject_issuer":                             true,
+		"site_rejects_wrong_environment_callback":              true,
+		"site_rejects_development_identity_in_production":      true,
+		"site_rejects_production_loopback_callback":            true,
+		"history_schedule_rejects_missing_limits":              true,
+		"history_collection_rejects_missing_table":             true,
+		"history_collection_rejects_missing_alert_destination": true,
+		"history_schedule_rejects_missing_expression":          true,
+		// The scheduled worker adds its own execution and Scheduler roles,
+		// which that run's assertions check statement by statement.
+		"history_worker_schedule_and_failure_contract": true,
 	})
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment

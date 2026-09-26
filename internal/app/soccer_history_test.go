@@ -120,7 +120,11 @@ func newTeamHistoryRoute(t *testing.T) *teamHistoryRoute {
 	application.Config.LPSAPIBaseURL = lpsServer.URL
 	route.mux, route.handler = buildMux(application, application.Logger, false)
 	route.table = archivetest.NewTable()
-	route.store = soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history")
+	store, err := soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history", generousArchiveLimits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
+	route.store = store
 	route.handler.SetArchiveStore(route.store)
 	return route
 }

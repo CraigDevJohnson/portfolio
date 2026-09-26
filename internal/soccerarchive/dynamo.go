@@ -27,30 +27,92 @@ type DynamoAPI interface {
 	GetItem(ctx context.Context, input *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
 	DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	TransactWriteItems(ctx context.Context, input *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
 // DynamoStore stores source facts in a dedicated, non-TTL DynamoDB table.
+// Its reviewed limits bound how many teams it admits for daily refresh.
 type DynamoStore struct {
 	api       DynamoAPI
 	tableName string
+	limits    Limits
 }
 
-// NewDynamoStore prepares the durable archive adapter. Calling it does not
-// activate collection or create an AWS resource.
-func NewDynamoStore(ctx context.Context, tableName string) (*DynamoStore, error) {
+// NewDynamoStore prepares the durable archive adapter with reviewed admission
+// and request limits. Without every reviewed limit there is no store, so
+// durable enrollment stays off. Calling it does not activate collection or
+// create an AWS resource.
+func NewDynamoStore(ctx context.Context, tableName string, limits Limits) (*DynamoStore, error) {
 	if strings.TrimSpace(tableName) == "" {
 		return nil, errors.New("soccer archive table name is required")
+	}
+	if err := limits.Validate(); err != nil {
+		return nil, err
 	}
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return NewDynamoStoreWithAPI(dynamodb.NewFromConfig(cfg), tableName), nil
+	return NewDynamoStoreWithAPI(dynamodb.NewFromConfig(cfg), tableName, limits)
 }
 
 // NewDynamoStoreWithAPI prepares the adapter over an existing DynamoDB client.
-func NewDynamoStoreWithAPI(api DynamoAPI, tableName string) *DynamoStore {
-	return &DynamoStore{api: api, tableName: tableName}
+// Like NewDynamoStore, it refuses to exist without reviewed limits.
+func NewDynamoStoreWithAPI(api DynamoAPI, tableName string, limits Limits) (*DynamoStore, error) {
+	if err := limits.Validate(); err != nil {
+		return nil, err
+	}
+	return &DynamoStore{api: api, tableName: tableName, limits: limits}, nil
+}
+
+// dueTeamsIndex is the sparse global secondary index over the due-team
+// marker that enrollment records carry while they are due for refresh.
+const dueTeamsIndex = "due-teams"
+
+// QueryDueTeams returns up to maxTeams enrolled Team IDs due at or before
+// cutoff, earliest first, reading only the due-teams index, never the whole
+// table. more reports that further due teams were left unread.
+func (s *DynamoStore) QueryDueTeams(ctx context.Context, cutoff time.Time, maxTeams int) (teamIDs []int, more bool, err error) {
+	if cutoff.IsZero() || maxTeams <= 0 {
+		return nil, false, errors.New("due query requires a cutoff and a positive team limit")
+	}
+	seen := make(map[int]bool)
+	var startKey map[string]types.AttributeValue
+	for {
+		page, err := s.api.Query(ctx, &dynamodb.QueryInput{
+			TableName:              aws.String(s.tableName),
+			IndexName:              aws.String(dueTeamsIndex),
+			KeyConditionExpression: aws.String("due_pk = :due_pk AND due_sk <= :cutoff"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":due_pk": &types.AttributeValueMemberS{Value: dueTeamsPK},
+				// "~" sorts after every Team ID digit, so a team due exactly at
+				// the cutoff is included.
+				":cutoff": &types.AttributeValueMemberS{Value: cutoff.UTC().Format(sortableUTCFormat) + "#~"},
+			},
+			ExclusiveStartKey: startKey,
+		})
+		if err != nil {
+			return nil, false, fmt.Errorf("query due teams: %w", err)
+		}
+		for _, raw := range page.Items {
+			var item archiveItem
+			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
+				return nil, false, fmt.Errorf("decode due team: %w", err)
+			}
+			if item.Kind != "team" || item.TeamID <= 0 || seen[item.TeamID] {
+				continue
+			}
+			if len(teamIDs) == maxTeams {
+				return teamIDs, true, nil
+			}
+			seen[item.TeamID] = true
+			teamIDs = append(teamIDs, item.TeamID)
+		}
+		if len(page.LastEvaluatedKey) == 0 {
+			return teamIDs, false, nil
+		}
+		startKey = page.LastEvaluatedKey
+	}
 }
 
 type archiveItem struct {
@@ -86,6 +148,7 @@ type archiveItem struct {
 	FieldName         string         `dynamodbav:"field_name,omitempty"`
 	Result            string         `dynamodbav:"result,omitempty"`
 	EnrollmentSource  string         `dynamodbav:"enrollment_source,omitempty"`
+	EnrolledCount     int            `dynamodbav:"enrolled_count,omitempty"`
 	Status            CoverageStatus `dynamodbav:"status,omitempty"`
 	ReturnedGameCount int            `dynamodbav:"returned_game_count"`
 	SeasonIDs         []int          `dynamodbav:"season_ids,omitempty"`
@@ -116,6 +179,11 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		if game.UGameID <= 0 {
 			return fmt.Errorf("team %d response contains a game without a stable ID", snapshot.TeamID)
 		}
+	}
+	// A team that is not enrolled yet is refused at capacity before any of
+	// its facts are written.
+	if err := s.checkAdmission(ctx, manualEnrollment, snapshot.TeamID); err != nil {
+		return err
 	}
 
 	fetchedAt := snapshot.FetchedAt.UTC().Format(sortableUTCFormat)
@@ -658,7 +726,7 @@ func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedA
 			SK:               "META",
 			Kind:             "team",
 			TeamID:           snapshot.TeamID,
-			EnrollmentSource: "manual",
+			EnrollmentSource: manualEnrollment,
 			FetchedAt:        fetchedAt,
 			Revision:         1,
 			RefreshStatus:    RefreshReady,
@@ -695,7 +763,15 @@ func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedA
 		teamItem.FacilityID = team.FacilityID
 		teamItem.FacilityName = team.FacilityName
 		teamItem.RawSourceJSON = string(teamJSON)
-		written, err := s.putIfUnchanged(ctx, &teamItem, previous)
+		var written bool
+		if previous == nil {
+			written, err = s.enrollNew(ctx, &teamItem, manualEnrollment)
+		} else {
+			written, err = s.putIfUnchanged(ctx, &teamItem, previous)
+		}
+		if errors.Is(err, ErrAdmissionFull) {
+			return err
+		}
 		if err != nil {
 			return fmt.Errorf("save team %d: %w", snapshot.TeamID, err)
 		}

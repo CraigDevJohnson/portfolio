@@ -262,7 +262,7 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 		}
 		return false, true
 	}
-	var enrolled, unconfirmed, notSaved []int
+	var enrolled, unconfirmed, full, notSaved []int
 	for i := range sources {
 		source := &sources[i]
 		// A decodable 2xx payload that does not name the requested team is not
@@ -283,31 +283,43 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 			// Keep going: one team's failed write must not hide the outcome of
 			// the others, which are saved independently.
 			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Int("team_id", source.TeamID), slog.Any("error", err))
+			if errors.Is(err, soccerarchive.ErrAdmissionFull) {
+				full = append(full, source.TeamID)
+				continue
+			}
 			notSaved = append(notSaved, source.TeamID)
 			continue
 		}
 		enrolled = append(enrolled, source.TeamID)
 	}
-	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed, notSaved)
+	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed, full, notSaved)
 	if len(games) == 0 && len(unconfirmed) == 0 {
 		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
-		props.Hint = "Its history is enrolled for collection; this response contains no games."
-		if len(notSaved) > 0 {
+		switch {
+		case len(notSaved) > 0:
 			props.Hint = "This response contains no games, and its history could not be saved."
+		case len(full) > 0:
+			props.Hint = "This response contains no games, and history collection is full, so it was not enrolled."
+		default:
+			props.Hint = "Its history is enrolled for collection; this response contains no games."
 		}
 	}
 	return false, true
 }
 
 // enrollmentFeedback names each team's history outcome: enrolled, not
-// confirmed by LPS, or not saved.
-func enrollmentFeedback(enrolled, unconfirmed, notSaved []int) *partials.FeedbackProps {
-	messages := make([]string, 0, len(enrolled)+len(unconfirmed)+len(notSaved)+1)
+// confirmed by LPS, refused because the reviewed admission capacity is full,
+// or not saved.
+func enrollmentFeedback(enrolled, unconfirmed, full, notSaved []int) *partials.FeedbackProps {
+	messages := make([]string, 0, len(enrolled)+len(unconfirmed)+len(full)+len(notSaved)+1)
 	for _, teamID := range enrolled {
 		messages = append(messages, "Team "+strconv.Itoa(teamID)+" added to history collection.")
 	}
 	for _, teamID := range unconfirmed {
 		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because Let's Play Soccer did not confirm the team.")
+	}
+	for _, teamID := range full {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because its reviewed capacity is full.")
 	}
 	for _, teamID := range notSaved {
 		messages = append(messages, "History collection could not save team "+strconv.Itoa(teamID)+".")
@@ -318,6 +330,10 @@ func enrollmentFeedback(enrolled, unconfirmed, notSaved []int) *partials.Feedbac
 		feedback.Kind, feedback.Title = partials.FeedbackError, "History not saved"
 	case len(notSaved) > 0:
 		feedback.Kind, feedback.Title = partials.FeedbackWarning, "History partly saved"
+	case len(full) > 0 && len(enrolled) == 0:
+		feedback.Kind, feedback.Title = partials.FeedbackError, "History collection is full"
+	case len(full) > 0:
+		feedback.Kind, feedback.Title = partials.FeedbackWarning, "History collection is full"
 	case len(unconfirmed) > 0:
 		feedback.Kind = partials.FeedbackWarning
 	}

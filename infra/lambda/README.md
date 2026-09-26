@@ -19,3 +19,42 @@ input that its provider enforces through `allowed_account_ids`.
 Saved plans can contain sensitive configuration, so keep them outside the
 checkout. Plan and apply are separate commands; see
 [DEPLOY-INSTRUCTIONS.md](../../DEPLOY-INSTRUCTIONS.md).
+
+## Soccer history collection and daily refresh
+
+`modules/service` can plan durable Soccer history in three stages, each off by
+default and not wired into either environment root:
+
+1. `enable_soccer_history` plans only the history table and the HTTP runtime's
+   table grant.
+2. `activate_soccer_history_collection` with `soccer_history_limits` hands the
+   HTTP runtime the table and the reviewed limits, so visitor Team ID lookups
+   and granted player imports enroll teams within the admission capacity. It
+   adds an alarm on rejected enrollment and needs `alarm_action_arns`.
+3. `activate_soccer_history_schedule` with a once-daily UTC
+   `soccer_history_schedule_expression` adds the scheduled worker: a separate
+   Lambda running the release image in `SOCCER_HISTORY_MODE=scheduled`, its
+   EventBridge Scheduler schedule and roles, a failure queue, and error,
+   incomplete-run and failure-queue alarms.
+
+With `soccer_history_limits` unset there is no collection or schedule, and the
+application itself refuses to build a history store or worker without every
+reviewed limit. Supplying limits alone activates nothing.
+
+Before any stage is applied, the #104 activation review must settle source use,
+measured traffic and cost, the numeric limits and the schedule, and must also
+change resources this module does not own:
+
+- `PortfolioLambdaExecutionBoundary` (`ci-roles/boundary.tf`) grants none of
+  the history table, its `due-teams` index, the worker and Scheduler roles, the
+  worker log group or the failure queue. The worker and Scheduler roles attach
+  the boundary, so they can do nothing until it grants them.
+- The CI roles read only the existing tables, the service function and its
+  alarms. A plan with the history table, worker, schedule, queue or history
+  alarms needs matching read grants, and releases need the deployers to update
+  the worker's image too.
+- `scripts/check-lambda-plan.sh` accepts a release plan only when the service
+  function image and `live` alias change. Once the worker exists, its image
+  changes with every release, so the check must also accept that change.
+
+Local OpenTofu tests use a mocked provider and create no resources.

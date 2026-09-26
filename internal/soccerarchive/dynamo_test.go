@@ -14,9 +14,23 @@ import (
 	"portfolio/internal/soccerarchive/archivetest"
 )
 
+// testLimits are generous reviewed limits for tests about what the archive
+// stores rather than how many teams it admits.
+var testLimits = Limits{MaxEnrolledTeams: 1000, MaxRequestsPerRun: 1000, MinRequestInterval: time.Millisecond}
+
+// newTestStore returns an archive store over api with testLimits.
+func newTestStore(t testing.TB, api DynamoAPI) *DynamoStore {
+	t.Helper()
+	store, err := NewDynamoStoreWithAPI(api, "durable-soccer-history", testLimits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
+	return store
+}
+
 func TestDynamoArchiveStoreKeepsOneGameAcrossRepeatedAndPartialLookups(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	firstFetch := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
 	snapshot := Snapshot{
 		TeamID: 479691,
@@ -89,7 +103,7 @@ func TestDynamoArchiveStoreKeepsOneGameAcrossRepeatedAndPartialLookups(t *testin
 
 func TestDynamoArchiveStoreRejectsOlderFetchWithinTheSameSecond(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	baseTime := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
 	snapshot := Snapshot{
 		TeamID:    479691,
@@ -109,7 +123,7 @@ func TestDynamoArchiveStoreRejectsOlderFetchWithinTheSameSecond(t *testing.T) {
 }
 
 func TestDynamoArchiveReadFollowsCorrectedGameAssignment(t *testing.T) {
-	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
+	store := newTestStore(t, archivetest.NewTable())
 	first := Snapshot{
 		TeamID:    479691,
 		Team:      lps.TeamSummary{UTeamID: 479691, Season: 169},
@@ -146,7 +160,7 @@ func TestDynamoArchiveReadFollowsCorrectedGameAssignment(t *testing.T) {
 
 func TestDynamoArchiveKeepsOmittedGameFieldsAndAppliesExplicitCorrection(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	first := Snapshot{
 		TeamID: 479691,
 		Team:   lps.TeamSummary{UTeamID: 479691, TeamName: "Boise FC", Season: 169},
@@ -196,7 +210,7 @@ func TestDynamoArchiveKeepsOmittedGameFieldsAndAppliesExplicitCorrection(t *test
 
 func TestDynamoArchiveAppliesExplicitNullCorrections(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	team := lps.TeamSummary{UTeamID: 479691, Season: 169}
 	firstFetch := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
 	for i, source := range []string{
@@ -240,7 +254,7 @@ func TestDynamoArchiveAppliesExplicitNullCorrections(t *testing.T) {
 }
 
 func TestDynamoArchiveDoesNotMixTeamFactsAfterASideIsReassigned(t *testing.T) {
-	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
+	store := newTestStore(t, archivetest.NewTable())
 	firstFetch := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
 	for i, response := range []struct {
 		team lps.TeamSummary
@@ -294,12 +308,12 @@ func TestDynamoArchiveKeepsGameFactsFromAConcurrentLookup(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			table := archivetest.NewTable()
-			competingStore := NewDynamoStoreWithAPI(table, "durable-soccer-history")
-			readingStore := NewDynamoStoreWithAPI(&interleavingAPI{Table: table, watch: "GAME#8001/META", competing: func() {
+			competingStore := newTestStore(t, table)
+			readingStore := newTestStore(t, &interleavingAPI{Table: table, watch: "GAME#8001/META", competing: func() {
 				if err := competingStore.SaveTeamSnapshot(context.Background(), tc.competing); err != nil {
 					t.Errorf("competing SaveTeamSnapshot: %v", err)
 				}
-			}}, "durable-soccer-history")
+			}})
 
 			if err := readingStore.SaveTeamSnapshot(context.Background(), tc.reading); err != nil {
 				t.Fatalf("interleaved SaveTeamSnapshot: %v", err)
@@ -309,7 +323,7 @@ func TestDynamoArchiveKeepsGameFactsFromAConcurrentLookup(t *testing.T) {
 				"result": "2-1", "field_name": "North", "scheduled_at": "2026-10-03T18:00:00Z",
 				"fetched_at": newer.Format(sortableUTCFormat),
 			})
-			history, err := NewDynamoStoreWithAPI(table, "durable-soccer-history").ReadTeamSeason(context.Background(), 2, 169)
+			history, err := newTestStore(t, table).ReadTeamSeason(context.Background(), 2, 169)
 			if err != nil {
 				t.Fatalf("ReadTeamSeason: %v", err)
 			}
@@ -354,7 +368,7 @@ func (api *interleavingAPI) GetItem(ctx context.Context, input *dynamodb.GetItem
 
 func TestDynamoArchiveStoresTheScheduleHomeAndAwayTeams(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	// The flat UTeam1/UTeam2 fields disagree with the nested sides; the
 	// visitor's schedule treats the nested home_team/visitor_team IDs as the
 	// matchup, so the archive must too.
@@ -375,7 +389,7 @@ func TestDynamoArchiveStoresTheScheduleHomeAndAwayTeams(t *testing.T) {
 }
 
 func TestDynamoArchiveReadsSeasonSpecificTeamAndFacilityContext(t *testing.T) {
-	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
+	store := newTestStore(t, archivetest.NewTable())
 	first := Snapshot{
 		TeamID: 479691,
 		Team: lps.TeamSummary{

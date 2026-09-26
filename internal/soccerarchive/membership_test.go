@@ -18,7 +18,7 @@ import (
 
 func TestDynamoArchivePersistsOwnerBoundPlayerSeasonEvidenceAndTeamEnrollment(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	store := newTestStore(t, backend)
 	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
 	discovery := &PlayerDiscovery{
 		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "stable-subject", ObservedAt: observedAt,
@@ -54,10 +54,10 @@ func TestDynamoArchivePersistsOwnerBoundPlayerSeasonEvidenceAndTeamEnrollment(t 
 		"kind": "player", "player_id": 1002, "first_name": "Taylor", "is_main_player": nil,
 	})
 	assertArchiveItem(t, backend, "TEAM#4101/META", map[string]any{
-		"kind": "team", "team_id": 4101, "enrollment_source": "player", "season_id": 77, "due_pk": "TEAM_DUE",
+		"kind": "team", "team_id": 4101, "enrollment_source": "player", "season_id": 77,
 	})
-	if backend.Len() != 11 { // 2 players, 2 owner links, 4 memberships, 3 teams
-		t.Fatalf("durable item count = %d, want 11", backend.Len())
+	if backend.Len() != 12 { // 2 players, 2 owner links, 4 memberships, 3 teams, 1 admission counter
+		t.Fatalf("durable item count = %d, want 12", backend.Len())
 	}
 	membershipCount := 0
 	items, err := backend.Items()
@@ -111,7 +111,7 @@ func TestDynamoArchivePersistsOwnerBoundPlayerSeasonEvidenceAndTeamEnrollment(t 
 
 func TestDynamoArchiveRejectsUnownedOrUnprovenPlayerEvidence(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	store := newTestStore(t, backend)
 	base := PlayerDiscovery{
 		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "stable-subject", ObservedAt: time.Now(),
 		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
@@ -137,7 +137,7 @@ func TestDynamoArchiveRejectsUnownedOrUnprovenPlayerEvidence(t *testing.T) {
 
 func TestDynamoArchiveSeparatesTwoSiteOwnersOfOneLPSPlayer(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	store := newTestStore(t, backend)
 	first := &PlayerDiscovery{
 		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "first-subject", ObservedAt: time.Now(),
 		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
@@ -189,7 +189,7 @@ func playerEnrollmentLPS(t *testing.T) *httptest.Server {
 
 func TestRefreshWorkerRefreshesATeamAPlayerImportEnrolled(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	observedAt := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
 	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
 		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "stable-subject", ObservedAt: observedAt,
@@ -229,7 +229,7 @@ func TestRefreshWorkerRefreshesATeamAPlayerImportEnrolled(t *testing.T) {
 
 func TestPlayerImportKeepsAnEnrolledTeamsRefreshState(t *testing.T) {
 	backend := archivetest.NewTable()
-	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	store := newTestStore(t, backend)
 	enrolledAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 	for _, teamID := range []int{4101, 4202} {
 		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 79}, FetchedAt: enrolledAt}); err != nil {
@@ -272,7 +272,7 @@ func TestDynamoArchiveRemovesOnePlayerGloballyAndRetainsSharedFacts(t *testing.T
 	backend := archivetest.NewTable()
 	// Two items per page, so the player's partition spans several pages.
 	backend.PageSize = 2
-	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	store := newTestStore(t, backend)
 	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
 	first := &PlayerDiscovery{
 		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "first-subject", ObservedAt: observedAt,
@@ -364,7 +364,7 @@ func (api *importingDuringRemoval) DeleteItem(ctx context.Context, input *dynamo
 func removalRace(t *testing.T, imports int) (*DynamoStore, *importingDuringRemoval) {
 	t.Helper()
 	api := &importingDuringRemoval{Table: archivetest.NewTable(), imports: imports}
-	store := NewDynamoStoreWithAPI(api, "soccer-history")
+	store := newTestStore(t, api)
 	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
 	discovery := func(subject string, at time.Time, season int) *PlayerDiscovery {
 		return &PlayerDiscovery{

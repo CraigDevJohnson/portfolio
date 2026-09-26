@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,7 +22,36 @@ import (
 	"portfolio/internal/siteauth"
 	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
+	"portfolio/internal/soccerarchive"
 )
+
+type fakeDailyRunner struct {
+	report soccerarchive.DailyReport
+	err    error
+	calls  int
+}
+
+func (runner *fakeDailyRunner) Run(context.Context) (soccerarchive.DailyReport, error) {
+	runner.calls++
+	return runner.report, runner.err
+}
+
+func TestScheduledLambdaInvocationReturnsPartialReportAndFatalFailure(t *testing.T) {
+	runner := &fakeDailyRunner{report: soccerarchive.DailyReport{
+		Complete: false, PendingDueWork: true, Requests: 2,
+		Results: []soccerarchive.RefreshResult{{TeamID: 101, Outcome: soccerarchive.RefreshSucceeded}},
+	}}
+	handler := newDailyLambdaHandler(runner)
+	report, err := handler(t.Context(), json.RawMessage(`{"source":"portfolio.soccer-history.daily"}`))
+	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 2 || len(report.Results) != 1 || runner.calls != 1 {
+		t.Fatalf("scheduled partial invocation = %#v, err %v, calls %d", report, err, runner.calls)
+	}
+	runner.err = errors.New("durable due query failed")
+	_, err = handler(t.Context(), nil)
+	if !errors.Is(err, runner.err) || runner.calls != 2 {
+		t.Fatalf("fatal scheduled invocation = %v, calls %d", err, runner.calls)
+	}
+}
 
 type testConnectionStore struct{}
 

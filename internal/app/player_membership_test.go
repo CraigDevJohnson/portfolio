@@ -98,9 +98,20 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 	application.Config.LPSAPIBaseURL = lpsServer.URL
 	route.mux, route.handler = buildMux(application, application.Logger, false)
 	route.table = archivetest.NewTable()
-	route.store = soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history")
-	route.handler.SetArchiveStore(route.store)
+	route.limitHistory(t, generousArchiveLimits)
 	return route
+}
+
+// limitHistory rewires the route's archive, over the same table, with the
+// given reviewed limits.
+func (route *playerHistoryRoute) limitHistory(t *testing.T, limits soccerarchive.Limits) {
+	t.Helper()
+	store, err := soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
+	route.store = store
+	route.handler.SetArchiveStore(store)
 }
 
 // lpsRequests returns how many requests the fake LPS received for path.
@@ -474,25 +485,33 @@ func TestManualTeamIDLookupNeverCreatesPlayerMembership(t *testing.T) {
 func TestSoccerImportStopsWhenLinkedPlayerHistoryIsIncomplete(t *testing.T) {
 	for _, failure := range []struct {
 		name    string
-		arrange func(route *playerHistoryRoute)
+		arrange func(t *testing.T, route *playerHistoryRoute)
 		message string
 	}{
 		{
 			name:    "an unselected player's team lookup fails",
-			arrange: func(route *playerHistoryRoute) { route.failingPlayer = 1002 },
+			arrange: func(_ *testing.T, route *playerHistoryRoute) { route.failingPlayer = 1002 },
 			message: "Could not look up every linked player. No player history was saved; try the import again.",
 		},
 		{
 			name: "the durable table is unavailable",
-			arrange: func(route *playerHistoryRoute) {
+			arrange: func(_ *testing.T, route *playerHistoryRoute) {
 				route.table.FailPut = func(string) error { return fmt.Errorf("table unavailable") }
 			},
 			message: "Linked-player history could not be saved. Try the import again.",
 		},
+		{
+			// The account's four teams do not fit a capacity of three.
+			name: "the reviewed history capacity is full",
+			arrange: func(t *testing.T, route *playerHistoryRoute) {
+				route.limitHistory(t, soccerarchive.Limits{MaxEnrolledTeams: 3, ReservedPlayerSlots: 2, MaxRequestsPerRun: 10, MinRequestInterval: time.Second})
+			},
+			message: "Linked-player history collection is full. Your import was not saved; try again after capacity is reviewed.",
+		},
 	} {
 		t.Run(failure.name, func(t *testing.T) {
 			route := newPlayerHistoryRoute(t)
-			failure.arrange(route)
+			failure.arrange(t, route)
 			owner := route.signedInOwner(t)
 
 			imported := route.disclosedImport(t, owner)
