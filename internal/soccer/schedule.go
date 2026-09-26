@@ -214,14 +214,9 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		return h.resolveArchivedManualSchedule(ctx, archiveStore, input.TeamCodes, props)
 	}
 
-	// Player-based fetch always includes past games so results are visible.
-	var games []types.Game
-	var err error
-	if len(input.PlayerIDs) > 0 {
-		games, err = h.RequestedAllScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
-	} else {
-		games, err = h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
-	}
+	// Both sources retain scored past games for Google mode. The ICS UI hides
+	// them, and downloads still resolve upcoming games only.
+	games, err := h.RequestedAllScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
 	if err == nil {
 		setTableFragmentGames(props, games)
 		return false, true

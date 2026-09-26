@@ -357,6 +357,12 @@ fresh access; manual Team ID lookup remains available. A linked player whose
 teams LPS refuses on its own is named and left out while the other players'
 teams still load, and an LPS outage keeps the import and the saved schedule.
 
+With Google output selected, either schedule source also shows scored past
+games newest first, including older results returned by LPS. Unscored games
+stay out of that list. Review and selection make no Calendar changes; Sync
+requires a separate Google connection. ICS mode hides past results and exports
+selected upcoming games only.
+
 ## Source layout
 
 ```text
