@@ -119,6 +119,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		soccerHandler.SoccerPage(w, r)
 	})
 	registerSoccerLPSRoutes(soccerMux, soccerHandler)
+	soccerMux.HandleFunc("GET /soccer/history", requireSoccerGrant(soccerHandler.HistoryHandler))
 	soccerMux.HandleFunc("POST /soccer/google/add", requireSoccerGrant(app.GoogleHandler.AddHandler))
 	soccerMux.HandleFunc("POST /soccer/google/sync-results", requireSoccerGrant(app.GoogleHandler.SyncResultsHandler))
 	soccerMux.HandleFunc("POST /soccer/google/calendar", requireSoccerGrant(app.GoogleHandler.CalendarHandler))

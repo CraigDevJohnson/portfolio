@@ -82,6 +82,22 @@ func TestDynamoArchivePersistsOwnerBoundPlayerSeasonEvidenceAndTeamEnrollment(t 
 	if membershipCount != 4 {
 		t.Errorf("stored membership count = %d, want 4", membershipCount)
 	}
+	for _, candidate := range []struct {
+		issuer, subject            string
+		playerID, teamID, seasonID int
+		want                       bool
+	}{
+		{discovery.OwnerIssuer, discovery.OwnerSubject, 1001, 4101, 77, true},
+		{discovery.OwnerIssuer, discovery.OwnerSubject, 1001, 4102, 78, true},
+		{discovery.OwnerIssuer, discovery.OwnerSubject, 1001, 4101, 78, false},
+		{discovery.OwnerIssuer, discovery.OwnerSubject, 1002, 4102, 78, false},
+		{discovery.OwnerIssuer, "other-subject", 1001, 4101, 77, false},
+	} {
+		got, err := store.HasPlayerMembership(context.Background(), candidate.issuer, candidate.subject, candidate.playerID, candidate.teamID, candidate.seasonID)
+		if err != nil || got != candidate.want {
+			t.Errorf("HasPlayerMembership(%q, %q, %d, %d, %d) = %v, %v; want %v", candidate.issuer, candidate.subject, candidate.playerID, candidate.teamID, candidate.seasonID, got, err, candidate.want)
+		}
+	}
 
 	if err := store.SaveTeamSnapshot(context.Background(), &Snapshot{
 		TeamID: 4101, Team: lps.TeamSummary{UTeamID: 4101, TeamName: "Shared FC", Season: 77}, FetchedAt: observedAt.Add(time.Hour),

@@ -22,6 +22,20 @@ const (
 	playerEnrollment = "player"
 )
 
+// HasPlayerMembership checks one owner-bound authenticated observation by its
+// exact player, team, and LPS season key. Team enrollment and names are not proof.
+func (s *DynamoStore) HasPlayerMembership(ctx context.Context, issuer, subject string, playerID, teamID, seasonID int) (bool, error) {
+	if strings.TrimSpace(issuer) == "" || strings.TrimSpace(subject) == "" || playerID <= 0 || teamID <= 0 || seasonID <= 0 {
+		return false, nil
+	}
+	record, err := s.get(ctx, "PLAYER#"+strconv.Itoa(playerID), fmt.Sprintf("%s#TEAM#%010d#SEASON#%010d", ownerEvidencePrefix(issuer, subject), teamID, seasonID))
+	if err != nil {
+		return false, err
+	}
+	return record != nil && record.Kind == "membership" && record.Source == authenticatedPlayerLookup && record.ObservedAt != "" &&
+		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID && record.TeamID == teamID && record.SeasonID == seasonID, nil
+}
+
 // SavePlayerDiscovery enrolls the known teams, then stores player identities
 // and owner links, then exact owner-bound membership proof. The records are
 // written one at a time, so a failed save can leave some of them stored, but

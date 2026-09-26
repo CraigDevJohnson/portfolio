@@ -25,6 +25,14 @@ type Store interface {
 	SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) error
 }
 
+// HistoryStore supplies exact membership proof and team-season facts for a
+// private read. A caller must check the current site and imported identities.
+type HistoryStore interface {
+	Store
+	HasPlayerMembership(ctx context.Context, ownerIssuer, ownerSubject string, playerID, teamID, seasonID int) (bool, error)
+	ReadTeamSeason(ctx context.Context, teamID, seasonID int) (TeamSeason, error)
+}
+
 // PlayerMembership is positive evidence from an authenticated LPS player lookup.
 // A team with no LPS season ID is not membership proof.
 type PlayerMembership struct {
