@@ -17,6 +17,7 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
+	"portfolio/internal/soccerarchive"
 	"portfolio/types"
 )
 
@@ -175,6 +176,9 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		}
 		return applyScheduleFetchError(props, err), false
 	}
+	if archiveStore := h.ArchiveStore(); archiveStore != nil && strings.TrimSpace(input.TeamCodes) != "" && len(input.PlayerIDs) == 0 {
+		return h.resolveArchivedManualSchedule(ctx, archiveStore, input.TeamCodes, props)
+	}
 
 	// Player-based fetch always includes past games so results are visible.
 	var games []types.Game
@@ -193,6 +197,44 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	}
 
 	return applyScheduleFetchError(props, err), false
+}
+
+func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStore soccerarchive.Store, teamCodes string, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
+	teamIDs, valid := parseArchiveTeamIDs(teamCodes)
+	if !valid {
+		props.Message = invalidTeamIDsMessage
+		props.Hint = invalidTeamIDsHint
+		return false, false
+	}
+	games, sources, err := lps.FetchAllGamesForTeamsWithSource(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, teamIDs)
+	if err != nil {
+		return applyScheduleFetchError(props, err), false
+	}
+	setTableFragmentGames(props, schedule.UpcomingScheduleGames(games))
+	for i := range sources {
+		source := &sources[i]
+		if err := archiveStore.SaveTeamSnapshot(ctx, &soccerarchive.Snapshot{
+			TeamID:     source.TeamID,
+			Team:       source.Response.Team,
+			Games:      source.Response.Games,
+			Facilities: source.Facilities,
+			FetchedAt:  source.FetchedAt,
+		}); err != nil {
+			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Any("error", err))
+			props.EnrollmentMessage = "Schedule loaded, but history collection could not save this team. Try again later."
+			return false, true
+		}
+	}
+	if len(teamIDs) == 1 {
+		props.EnrollmentMessage = "Team " + strconv.Itoa(teamIDs[0]) + " added to history collection."
+	} else {
+		props.EnrollmentMessage = strconv.Itoa(len(teamIDs)) + " teams added to history collection."
+	}
+	if len(games) == 0 {
+		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
+		props.Hint = "Its history is enrolled for collection; this response contains no games."
+	}
+	return false, true
 }
 
 func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {
@@ -373,6 +415,20 @@ func parsePlayerIDs(values []string) []int {
 
 func parseTeamIDs(raw string) []int {
 	return parsePositiveUniqueIDs(splitDelimitedValues(raw))
+}
+
+func parseArchiveTeamIDs(raw string) ([]int, bool) {
+	values := splitDelimitedValues(raw)
+	if len(values) == 0 {
+		return nil, false
+	}
+	for _, value := range values {
+		id, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || id <= 0 {
+			return nil, false
+		}
+	}
+	return parsePositiveUniqueIDs(values), true
 }
 
 func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {

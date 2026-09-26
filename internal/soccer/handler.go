@@ -10,6 +10,7 @@ import (
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/session"
+	"portfolio/internal/soccerarchive"
 )
 
 // GoogleHooks exposes the Google integration points wired from internal/app.
@@ -46,9 +47,10 @@ type Handler struct {
 	LoginLimiter *session.LoginRateLimiter
 	Logger       *slog.Logger
 
-	storeMu     sync.RWMutex
-	store       SoccerStore
-	googleHooks GoogleHooks
+	storeMu      sync.RWMutex
+	store        SoccerStore
+	archiveStore soccerarchive.Store
+	googleHooks  GoogleHooks
 }
 
 // NewHandler constructs a soccer handler with its runtime dependencies.
@@ -68,6 +70,21 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 		store:        store,
 		googleHooks:  googleHooks,
 	}
+}
+
+// ArchiveStore returns the optional durable team archive (thread-safe).
+func (h *Handler) ArchiveStore() soccerarchive.Store {
+	h.storeMu.RLock()
+	defer h.storeMu.RUnlock()
+	return h.archiveStore
+}
+
+// SetArchiveStore enables offline manual-team archiving for this handler.
+// Production does not wire this until collection activation is approved.
+func (h *Handler) SetArchiveStore(store soccerarchive.Store) {
+	h.storeMu.Lock()
+	h.archiveStore = store
+	h.storeMu.Unlock()
 }
 
 // Store returns the current soccer session store (thread-safe).

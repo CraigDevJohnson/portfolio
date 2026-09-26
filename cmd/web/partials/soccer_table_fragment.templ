@@ -16,6 +16,7 @@ type SoccerTableFragmentProps struct {
 	TeamCodes       string
 	PlayerIDs       []int
 	Message         string
+	EnrollmentMessage string
 	Hint            string
 	FetchError      bool
 	// RetryLater marks a fetch that failed because Let's Play Soccer was
@@ -173,6 +174,9 @@ templ SoccerGamesList(sectionID string, games []types.Game) {
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
+	if props.EnrollmentMessage != "" {
+		<p class="hint" role="status">{ props.EnrollmentMessage }</p>
+	}
 	if visibleGamesCount(props) == 0 {
 		{{ empty := props.emptyState() }}
 		<div class="no-results">

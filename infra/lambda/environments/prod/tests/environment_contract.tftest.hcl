@@ -142,7 +142,9 @@ run "production_environment_contract" {
       output.google_connection_table_name == "portfolio-lambda-prod-google-connections" &&
       output.google_connection_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" &&
       output.soccer_session_table_name == "portfolio-lambda-prod-soccer-sessions" &&
-      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
+      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" &&
+      output.soccer_history_table_name == "portfolio-lambda-prod-soccer-history" &&
+      output.soccer_history_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
     )
     error_message = "production storage and log outputs must forward the evaluated service values"
   }

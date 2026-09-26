@@ -52,6 +52,11 @@ data "aws_iam_policy_document" "lambda" {
   }
 
   statement {
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+    resources = [aws_dynamodb_table.soccer_history.arn]
+  }
+
+  statement {
     actions   = ["ssm:GetParameters"]
     resources = [for path in values(local.ssm_paths) : "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${path}"]
   }

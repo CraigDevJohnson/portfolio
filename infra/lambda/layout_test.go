@@ -43,6 +43,8 @@ var serviceOutputTypes = map[string]any{
 	"oauth_redirect_uris":                       []any{"list", "string"},
 	"soccer_session_table_arn":                  "string",
 	"soccer_session_table_name":                 "string",
+	"soccer_history_table_arn":                  "string",
+	"soccer_history_table_name":                 "string",
 	"ssm_parameter_paths":                       []any{"map", "string"},
 }
 
