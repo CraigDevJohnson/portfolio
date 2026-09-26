@@ -232,7 +232,7 @@ func soccerEmittedTeamColors(t *testing.T) map[string]bool {
 	}
 	server := newFakeLPSTeams(t, payloads)
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	rows, _ := fetchSoccerMatchRows(t, mux, teamIDs...)
 	if len(rows) != len(teamIDs) {

@@ -23,6 +23,8 @@ type GoogleHooks interface {
 var (
 	// ErrSessionExpired reports that the imported LPS session is no longer valid.
 	ErrSessionExpired = errors.New("session expired")
+	// ErrSessionOwnerMismatch reports that imported access belongs to another or unknown site owner.
+	ErrSessionOwnerMismatch = errors.New("soccer session owner does not match the site session")
 	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
 	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.

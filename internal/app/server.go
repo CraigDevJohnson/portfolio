@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"portfolio/internal/portal"
 	"portfolio/internal/portfolio"
 	"portfolio/internal/siteauth"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 )
 
@@ -97,21 +99,24 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	soccerMux := http.NewServeMux()
 	soccerMux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
 		if isGoogleCallbackRequest(r) {
+			if !soccerGrantAllowed(w, r) {
+				return
+			}
 			app.GoogleHandler.CallbackHandler(w, r)
 			return
 		}
 		soccerHandler.SoccerPage(w, r)
 	})
-	soccerMux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
-	soccerMux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
-	soccerMux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
-	soccerMux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
-	soccerMux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
-	soccerMux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
-	soccerMux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
-	soccerMux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
-	soccerMux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
-	soccerMux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+	soccerMux.HandleFunc("POST /soccer/import", requireSoccerGrant(soccerHandler.ImportHandler))
+	soccerMux.HandleFunc("POST /soccer/logout", requireSoccerGrant(soccerHandler.LogoutHandler))
+	soccerMux.HandleFunc("POST /soccer/google/add", requireSoccerGrant(app.GoogleHandler.AddHandler))
+	soccerMux.HandleFunc("POST /soccer/google/sync-results", requireSoccerGrant(app.GoogleHandler.SyncResultsHandler))
+	soccerMux.HandleFunc("POST /soccer/google/calendar", requireSoccerGrant(app.GoogleHandler.CalendarHandler))
+	soccerMux.HandleFunc("GET /soccer/google/connect", requireSoccerGrant(app.GoogleHandler.ConnectHandler))
+	soccerMux.HandleFunc("POST /soccer/google/disconnect", requireSoccerGrant(app.GoogleHandler.DisconnectHandler))
+	soccerMux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(soccerHandler.FetchSchedulesHandler))
+	soccerMux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(soccerHandler.DiscoverTeamsHandler))
+	soccerMux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(soccerHandler.DownloadICSHandler))
 
 	soccerRoutes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -369,4 +374,42 @@ func Run() error {
 func isGoogleCallbackRequest(r *http.Request) bool {
 	query := r.URL.Query()
 	return query.Get("code") != "" || query.Get("error") != "" || query.Get("state") != ""
+}
+
+func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
+	if siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) {
+		return true
+	}
+	if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {
+		http.Error(w, "Soccer access has not been granted to this account.", http.StatusForbidden)
+	} else {
+		http.Error(w, "Sign in with a Soccer grant to use this action.", http.StatusUnauthorized)
+	}
+	return false
+}
+
+func requireSoccerGrant(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if soccerGrantAllowed(w, r) {
+			next(w, r)
+		}
+	}
+}
+
+func requireSoccerGrantForPlayers(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		_, hasPlayers := r.Form["player_ids"]
+		_, hasSelectedTeams := r.Form["team_ids"]
+		if hasPlayers || hasSelectedTeams || strings.TrimSpace(r.Form.Get("selection_mode")) == "teams" {
+			if !soccerGrantAllowed(w, r) {
+				return
+			}
+		}
+		next(w, r)
+	}
 }

@@ -20,12 +20,14 @@ type SoccerStore interface {
 
 // SoccerSessionRecord is the DynamoDB record for a soccer session baseline.
 type SoccerSessionRecord struct {
-	SessionID   string    `dynamodbav:"session_id"`
-	UserName    string    `dynamodbav:"user_name"`
-	PlayersJSON string    `dynamodbav:"players_json"`
-	StartedAt   time.Time `dynamodbav:"started_at"`
-	ExpiresAt   time.Time `dynamodbav:"expires_at"`
-	TTL         int64     `dynamodbav:"ttl"`
+	SessionID    string    `dynamodbav:"session_id"`
+	OwnerIssuer  string    `dynamodbav:"owner_issuer"`
+	OwnerSubject string    `dynamodbav:"owner_subject"`
+	UserName     string    `dynamodbav:"user_name"`
+	PlayersJSON  string    `dynamodbav:"players_json"`
+	StartedAt    time.Time `dynamodbav:"started_at"`
+	ExpiresAt    time.Time `dynamodbav:"expires_at"`
+	TTL          int64     `dynamodbav:"ttl"`
 }
 
 // DynamoSoccerStore implements SoccerStore using DynamoDB.

@@ -150,11 +150,11 @@ func TestBuildMuxPublicRouteRenderingSmoke(t *testing.T) {
 			name:        "soccer schedule result fragment",
 			method:      http.MethodPost,
 			path:        "/soccer/fetch",
-			body:        "player_ids=invalid",
+			body:        "team_codes=invalid",
 			contentType: "application/x-www-form-urlencoded",
 			status:      http.StatusOK,
 			mediaType:   "text/html",
-			bodyMarker:  "selected players were invalid",
+			bodyMarker:  "team IDs were invalid",
 			fragment:    true,
 		},
 		{

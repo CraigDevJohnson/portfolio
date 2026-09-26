@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,9 +11,59 @@ import (
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	internalsession "portfolio/internal/session"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
+
+// The invited principal a completed site sign-in leaves in a test browser.
+const (
+	testSiteIssuer  = "https://issuer.example.com/pool"
+	testSiteSubject = "granted-subject"
+	testSiteEmail   = "owner@example.com"
+)
+
+// signedInSiteCookie enables site identity on the test app, invites the test
+// principal with the given page grants in the current configuration, and
+// returns the site session cookie a completed Cognito sign-in would set.
+func signedInSiteCookie(t *testing.T, app *App, grants ...string) *http.Cookie {
+	t.Helper()
+	app.Config.SiteSessionKey = bytes.Repeat([]byte("s"), 32)
+	app.Config.SiteCognitoDomain = "https://auth.example.com"
+	app.Config.SiteCognitoIssuer = testSiteIssuer
+	app.Config.SiteCognitoClientID = "site-client"
+	app.Config.SiteCognitoRedirectURI = "https://app.example.com/auth/callback"
+	app.Config.SiteCognitoLogoutURI = "https://app.example.com/sign-in"
+	app.Config.SiteInvitations = map[string][]string{testSiteEmail: append([]string{}, grants...)}
+	value, err := internalsession.EncryptJSONValue(app.Config.SiteSessionKey, map[string]any{
+		"principal":  siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail},
+		"expires_at": time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("EncryptJSONValue returned error: %v", err)
+	}
+	return &http.Cookie{Name: config.SiteSessionCookieName, Value: value}
+}
+
+// ownedBySiteVisitor binds imported LPS access to the signed-in test
+// principal, as an import through that site session does.
+func ownedBySiteVisitor(session *types.SessionData) *types.SessionData {
+	session.OwnerIssuer = testSiteIssuer
+	session.OwnerSubject = testSiteSubject
+	return session
+}
+
+// grantedSoccerRoutes serves the real route assembly to a browser holding a
+// current site session with the soccer grant.
+func grantedSoccerRoutes(t *testing.T, app *App) http.Handler {
+	t.Helper()
+	cookie := signedInSiteCookie(t, app, "soccer")
+	mux, _ := buildMux(app, app.Logger, false)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.AddCookie(cookie)
+		mux.ServeHTTP(w, r)
+	})
+}
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()

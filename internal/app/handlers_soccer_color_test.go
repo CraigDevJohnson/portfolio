@@ -35,8 +35,10 @@ func newFakeLPSTeams(t *testing.T, payloads map[string]string) *httptest.Server 
 	return server
 }
 
-// fetchSoccerMatchRows posts a team selection to the real /soccer/fetch route
-// and returns every rendered match row keyed by its game checkbox value.
+// fetchSoccerMatchRows posts a discovered team selection to the real
+// /soccer/fetch route and returns every rendered match row keyed by its game
+// checkbox value. The discovered-team form is private, so mux must serve a
+// granted visitor.
 func fetchSoccerMatchRows(t *testing.T, mux http.Handler, teamIDs ...string) (rows map[string][]*html.Node, body string) {
 	t.Helper()
 	form := url.Values{"selection_mode": {"teams"}, "team_ids": teamIDs}
@@ -89,7 +91,7 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 		"/teams/901": `{"team":{"UTeamID":901,"team_name":"Plain FC"},"games":[{"UGameID":951,"SchedGameDateTime":"{future}","UTeam1":901,"UTeam2":910,"home_team":{"UTeamID":901,"team_name":"Plain FC"},"visitor_team":{"UTeamID":910,"team_name":"Visitor Three"}},{"UGameID":952,"SchedGameDateTime":"{future}","UTeam1":911,"UTeam2":901,"home_team":{"UTeamID":911,"team_name":"Visitor Four"},"visitor_team":{"UTeamID":901,"team_name":"Plain FC"}}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	fallbackAcrossRefetch := map[string]string{}
 	for attempt := range 2 {
@@ -173,7 +175,7 @@ func TestFetchSchedulesSharedMatchUsesEachSelectedTeamsOwnColor(t *testing.T) {
 		"/teams/200": `{"team":{"UTeamID":200,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":710,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"}},{"UGameID":711,"SchedGameDateTime":"{future}","UTeam1":200,"UTeam2":250,"home_team":{"UTeamID":200,"team_name":"Gold FC"},"visitor_team":{"UTeamID":250,"team_name":"Other FC"}}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	rows, _ := fetchSoccerMatchRows(t, mux, "100", "200")
 	if own := onlySoccerRow(t, rows, "711"); htmlAttr(own, "data-home-color") != "gold" {
@@ -196,7 +198,7 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 		"/teams/850": `{"team":{"UTeamID":850,"team_name":"Quiet FC"},"games":[{"UGameID":860,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC"}},{"UGameID":861,"SchedGameDateTime":"{future}","UTeam1":850,"UTeam2":870,"home_team":{"UTeamID":850,"team_name":"Quiet FC"},"visitor_team":{"UTeamID":870,"team_name":"Visitor Seven"}}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	rows, _ := fetchSoccerMatchRows(t, mux, "100", "800", "850")
 	for _, game := range []string{"801", "802"} {
@@ -234,7 +236,7 @@ func TestFetchSchedulesDoesNotGuessTheSelectedSideOfAGameWithoutTeamIDs(t *testi
 		"/teams/301": `{"team":{"UTeamID":301,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":3,"SchedGameDateTime":"{past}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"},"result":"2 - 0"}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	rows, _ := fetchSoccerMatchRows(t, mux, "300", "301")
 	row := onlySoccerRow(t, rows, "3")
@@ -286,7 +288,7 @@ func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 	}
 	server := newFakeLPSTeams(t, payloads)
 	app.Config.LPSAPIBaseURL = server.URL
-	mux, _ := buildMux(app, app.Logger, false)
+	mux := grantedSoccerRoutes(t, app)
 
 	rows, _ := fetchSoccerMatchRows(t, mux, teamIDs...)
 	for _, tc := range cases {

@@ -14,6 +14,7 @@ import (
 	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/logging"
 	internalsession "portfolio/internal/session"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -72,19 +73,35 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	if connectionID == "" {
 		return nil, nil
 	}
-	return h.Store().Get(ctx, connectionID)
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil || record == nil || !siteidentity.Evaluated(r.Context()) {
+		return record, err
+	}
+	principal, ok := siteidentity.PrincipalFromContext(r.Context())
+	if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
+		record.OwnerIssuer == "" || record.OwnerSubject == "" ||
+		record.OwnerIssuer != principal.Issuer || record.OwnerSubject != principal.Subject {
+		return nil, nil
+	}
+	return record, nil
 }
 
 // DeleteConnection removes the Google connection and clears the cookie.
 func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	connectionID := GetConnectionID(r)
 	if connectionID != "" {
-		if err := h.Store().Delete(ctx, connectionID); err != nil {
-			logging.WithContext(h.Logger, ctx).Error(
-				"google connection delete failed",
-				slog.String("connection_id", connectionID),
-				slog.Any("error", err),
-			)
+		record, loadErr := h.LoadConnectionRecord(ctx, r)
+		if loadErr != nil {
+			logging.WithContext(h.Logger, ctx).Error("google connection read before delete failed", slog.Any("error", loadErr))
+		}
+		if record != nil && loadErr == nil {
+			if err := h.Store().Delete(ctx, connectionID); err != nil {
+				logging.WithContext(h.Logger, ctx).Error(
+					"google connection delete failed",
+					slog.String("connection_id", connectionID),
+					slog.Any("error", err),
+				)
+			}
 		}
 	}
 	ClearConnectionCookie(w, r)

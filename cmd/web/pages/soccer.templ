@@ -6,6 +6,8 @@ import "portfolio/cmd/web/partials"
 type SoccerProps struct {
 	GoogleMessage        string
 	GoogleMessageKind    string
+	PrivateAccessMessage string
+	ShowSiteSignIn       bool
 	AuthState            partials.SoccerLoginStateProps
 	Preview              bool
 	ModalOpen            bool
@@ -110,6 +112,14 @@ templ Soccer(props SoccerProps) {
 					Description: "Your imported LPS access and optional Google Calendar destination stay visible here without interrupting the match workflow.",
 					HeadingID:   "soccer-connections-title",
 				})
+				if props.PrivateAccessMessage != "" {
+					<div class="soccer-workspace-feedback">
+						@partials.Feedback(partials.FeedbackProps{Kind: partials.FeedbackInfo, Title: "Private Soccer access", Message: props.PrivateAccessMessage})
+						if props.ShowSiteSignIn {
+							<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>
+						}
+					</div>
+				}
 				if props.GoogleMessage != "" {
 					<div class="soccer-workspace-feedback">
 						@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
@@ -243,6 +253,8 @@ templ Soccer(props SoccerProps) {
 				</section>
 			</section>
 		</div>
-		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, Feedback: props.ModalFeedback})
+		if props.AuthState.SupportsDiscovery() {
+			@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, Feedback: props.ModalFeedback})
+		}
 	}
 }

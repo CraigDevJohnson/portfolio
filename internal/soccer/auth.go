@@ -16,6 +16,7 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	internalsession "portfolio/internal/session"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -72,6 +73,10 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		SessionID: sessionID,
 		StartedAt: now,
 	}
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok {
+		session.OwnerIssuer = principal.Issuer
+		session.OwnerSubject = principal.Subject
+	}
 	if err := h.setSession(w, r, &session); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer import session write failed", slog.Any("error", err))
 		h.RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
@@ -115,6 +120,14 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	}
 	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
 		return nil, ErrSessionExpired
+	}
+	if siteidentity.Evaluated(r.Context()) && (session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported") {
+		principal, ok := siteidentity.PrincipalFromContext(r.Context())
+		if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
+			session.OwnerIssuer == "" || session.OwnerSubject == "" ||
+			session.OwnerIssuer != principal.Issuer || session.OwnerSubject != principal.Subject {
+			return nil, ErrSessionOwnerMismatch
+		}
 	}
 	session.Workflow = normalizeWorkflowState(&session.Workflow, session.Players)
 	return &session, nil
@@ -162,12 +175,14 @@ func (h *Handler) persistSessionRecord(ctx context.Context, sessionID string, se
 		return err
 	}
 	record := &SoccerSessionRecord{
-		SessionID:   sessionID,
-		UserName:    session.UserName,
-		PlayersJSON: playersJSON,
-		StartedAt:   session.StartedAt,
-		ExpiresAt:   session.ExpiresAt,
-		TTL:         session.ExpiresAt.Unix(),
+		SessionID:    sessionID,
+		OwnerIssuer:  session.OwnerIssuer,
+		OwnerSubject: session.OwnerSubject,
+		UserName:     session.UserName,
+		PlayersJSON:  playersJSON,
+		StartedAt:    session.StartedAt,
+		ExpiresAt:    session.ExpiresAt,
+		TTL:          session.ExpiresAt.Unix(),
 	}
 	return h.Store().Put(ctx, record)
 }

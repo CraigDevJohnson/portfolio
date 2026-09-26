@@ -15,6 +15,7 @@ import (
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/logging"
+	"portfolio/internal/siteidentity"
 )
 
 func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) { //nolint:gosec // Callers pass cookies created by httpx.NewSecureCookie.
@@ -43,7 +44,7 @@ func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
-func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, state OAuthState) error {
+func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, state *OAuthState) error {
 	encrypted, err := h.encryptJSONValue(state)
 	if err != nil {
 		return err
@@ -92,6 +93,16 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	connectionID := GetConnectionID(r)
+	if connectionID != "" && siteidentity.Evaluated(r.Context()) {
+		record, err := h.LoadConnectionRecord(r.Context(), r)
+		if err != nil {
+			h.failOAuthf(w, r, false, "google connection read before connect failed: %v", err)
+			return
+		}
+		if record == nil {
+			connectionID = ""
+		}
+	}
 	if connectionID == "" {
 		var err error
 		connectionID, err = NewRandomHex(16)
@@ -105,7 +116,11 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, false, "google oauth state generation failed: %v", err)
 		return
 	}
-	if err := h.SetOAuthStateCookie(w, r, state); err != nil {
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok {
+		state.OwnerIssuer = principal.Issuer
+		state.OwnerSubject = principal.Subject
+	}
+	if err := h.SetOAuthStateCookie(w, r, &state); err != nil {
 		h.failOAuthf(w, r, false, "google oauth state cookie write failed: %v", err)
 		return
 	}
@@ -140,6 +155,16 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		RedirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
+	if siteidentity.Evaluated(r.Context()) {
+		principal, ok := siteidentity.PrincipalFromContext(r.Context())
+		if !ok || !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) ||
+			state.OwnerIssuer == "" || state.OwnerSubject == "" ||
+			state.OwnerIssuer != principal.Issuer || state.OwnerSubject != principal.Subject {
+			ClearOAuthStateCookie(w, r)
+			RedirectSoccerWithGoogleStatus(w, r, "failed")
+			return
+		}
+	}
 	ctx := h.httpContext(r.Context())
 	token, err := h.oauthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
 	if err != nil {
@@ -158,11 +183,21 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, err := h.Store().Get(r.Context(), state.ConnectionID); err == nil && existing != nil {
+	if existing, getErr := h.Store().Get(r.Context(), state.ConnectionID); getErr != nil {
+		h.failOAuthf(w, r, true, "google connection read before save failed: %v", getErr)
+		return
+	} else if existing != nil {
+		if siteidentity.Evaluated(r.Context()) && (existing.OwnerIssuer != state.OwnerIssuer || existing.OwnerSubject != state.OwnerSubject) {
+			ClearOAuthStateCookie(w, r)
+			RedirectSoccerWithGoogleStatus(w, r, "failed")
+			return
+		}
 		createdAt = existing.CreatedAt
 	}
 	record := ConnectionRecord{
 		ConnectionID:    state.ConnectionID,
+		OwnerIssuer:     state.OwnerIssuer,
+		OwnerSubject:    state.OwnerSubject,
 		TokenCiphertext: encryptedToken,
 		CalendarID:      selectedCalendarID,
 		CalendarSummary: selectedCalendarSummary,

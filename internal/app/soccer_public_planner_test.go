@@ -654,16 +654,18 @@ func plannerOutputGate(node *html.Node) *html.Node {
 	return nil
 }
 
-// importedLPSCookies returns a valid imported LPS session cookie so a case can
-// prove the public Team ID path leaves that private credential untouched.
+// importedLPSCookies returns a granted site session and that owner's valid
+// imported LPS session cookie so a case can prove the public Team ID path
+// leaves that private credential untouched.
 func importedLPSCookies(t *testing.T, app *App) []*http.Cookie {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	addSessionCookie(t, app, req, &types.SessionData{
+	req.AddCookie(signedInSiteCookie(t, app, "soccer"))
+	addSessionCookie(t, app, req, ownedBySiteVisitor(&types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(time.Hour)),
 		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Linked", LastName: "Player", IsMainPlayer: true}},
 		ExpiresAt: time.Now().Add(time.Hour),
-	})
+	}))
 	return req.Cookies()
 }
 
@@ -759,10 +761,10 @@ func TestPublicPlannerRouteRejectedTeamDownloadKeepsImportedAccess(t *testing.T)
 }
 
 func TestPlannerDiscoveryErrorsPointBackToImport(t *testing.T) {
-	routes, _ := newPublicPlannerRoutes(t, func(string) (int, string) { return 0, "" })
+	routes, app := newPublicPlannerRoutes(t, func(string) (int, string) { return 0, "" })
 
-	// The imported session expired between import and "Find teams".
-	resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}})
+	// The granted visitor's imported session expired between import and "Find teams".
+	resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}}, signedInSiteCookie(t, app, "soccer"))
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("POST /soccer/discover-teams status = %d", resp.Code)

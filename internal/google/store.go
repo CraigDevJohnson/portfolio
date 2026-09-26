@@ -21,6 +21,8 @@ type ConnectionStore interface {
 // ConnectionRecord stores the encrypted Google token and selected calendar.
 type ConnectionRecord struct {
 	ConnectionID    string    `dynamodbav:"connection_id"`
+	OwnerIssuer     string    `dynamodbav:"owner_issuer"`
+	OwnerSubject    string    `dynamodbav:"owner_subject"`
 	TokenCiphertext string    `dynamodbav:"token_ciphertext"`
 	CalendarID      string    `dynamodbav:"calendar_id"`
 	CalendarSummary string    `dynamodbav:"calendar_summary"`

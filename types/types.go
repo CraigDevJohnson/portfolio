@@ -237,13 +237,15 @@ type SoccerWorkflowState struct {
 
 // SessionData stores the encrypted soccer session payload in the auth cookie.
 type SessionData struct {
-	JWT       string              `json:"jwt"`
-	UserName  string              `json:"user_name"`
-	Players   []LPSPlayer         `json:"players"`
-	ExpiresAt time.Time           `json:"expires_at"`
-	SessionID string              `json:"session_id,omitempty"`
-	StartedAt time.Time           `json:"started_at,omitempty"`
-	Workflow  SoccerWorkflowState `json:"workflow,omitempty"`
+	JWT          string              `json:"jwt"`
+	OwnerIssuer  string              `json:"owner_issuer,omitempty"`
+	OwnerSubject string              `json:"owner_subject,omitempty"`
+	UserName     string              `json:"user_name"`
+	Players      []LPSPlayer         `json:"players"`
+	ExpiresAt    time.Time           `json:"expires_at"`
+	SessionID    string              `json:"session_id,omitempty"`
+	StartedAt    time.Time           `json:"started_at,omitempty"`
+	Workflow     SoccerWorkflowState `json:"workflow,omitempty"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

@@ -14,22 +14,27 @@ import (
 func TestSoccerRoutesPreventCaching(t *testing.T) {
 	for _, tc := range []struct {
 		name, method, path string
+		granted            bool
 		authenticated      bool
 		wantStatus         int
 	}{
-		{"signed out", "GET", "/soccer", false, http.StatusOK},
-		{"signed in", "GET", "/soccer", true, http.StatusOK},
-		{"invalid import", "POST", "/soccer/import", false, http.StatusOK},
-		{"logout", "POST", "/soccer/logout", true, http.StatusOK},
-		{"wrong method", "GET", "/soccer/fetch", false, http.StatusMethodNotAllowed},
-		{"unknown route", "GET", "/soccer/unknown", true, http.StatusNotFound},
+		{"signed out", "GET", "/soccer", false, false, http.StatusOK},
+		{"signed in", "GET", "/soccer", true, true, http.StatusOK},
+		{"invalid import", "POST", "/soccer/import", true, false, http.StatusOK},
+		{"import without grant", "POST", "/soccer/import", false, false, http.StatusUnauthorized},
+		{"logout", "POST", "/soccer/logout", true, true, http.StatusOK},
+		{"wrong method", "GET", "/soccer/fetch", false, false, http.StatusMethodNotAllowed},
+		{"unknown route", "GET", "/soccer/unknown", true, true, http.StatusNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newTestApp(t)
 			handler, _ := buildMux(app, app.Logger, false)
 			request := httptest.NewRequest(tc.method, tc.path, nil)
+			if tc.granted {
+				request.AddCookie(signedInSiteCookie(t, app, "soccer"))
+			}
 			if tc.authenticated {
-				addSessionCookie(t, app, request, &types.SessionData{JWT: testutil.TestJWT(t, time.Now().Add(time.Hour)), UserName: "Cache Test", Players: []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Cache", LastName: "Test", IsMainPlayer: true}}, ExpiresAt: time.Now().Add(time.Hour)})
+				addSessionCookie(t, app, request, ownedBySiteVisitor(&types.SessionData{JWT: testutil.TestJWT(t, time.Now().Add(time.Hour)), UserName: "Cache Test", Players: []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Cache", LastName: "Test", IsMainPlayer: true}}, ExpiresAt: time.Now().Add(time.Hour)}))
 			}
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)

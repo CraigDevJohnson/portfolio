@@ -31,6 +31,8 @@ type SoccerBridge interface {
 
 type OAuthState struct {
 	ConnectionID string    `json:"connection_id"`
+	OwnerIssuer  string    `json:"owner_issuer,omitempty"`
+	OwnerSubject string    `json:"owner_subject,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	State        string    `json:"state"`
 }

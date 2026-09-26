@@ -12,6 +12,7 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -19,6 +20,16 @@ import (
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.LoadSession(w, r)
 	authState := h.LoginStateProps(w, r, session, false)
+	privateAccessMessage := ""
+	showSiteSignIn := false
+	if siteidentity.Evaluated(r.Context()) && !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) {
+		if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {
+			privateAccessMessage = "This account has not been granted access to linked players or Google Calendar. Team ID lookup and ICS download are still available."
+		} else {
+			privateAccessMessage = "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and ICS download are still available."
+			showSiteSignIn = true
+		}
+	}
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"), authState.GoogleAvailable, authState.GoogleConnected)
 	teamSelection, initialResults, restoreFeedback, manualTeamCodes := h.restoreSoccerWorkflow(r.Context(), session)
 	if initialResults != nil {
@@ -29,6 +40,8 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	props := pages.SoccerProps{
 		GoogleMessage:        googleMessage,
 		GoogleMessageKind:    googleMessageKind,
+		PrivateAccessMessage: privateAccessMessage,
+		ShowSiteSignIn:       showSiteSignIn,
 		AuthState:            authState,
 		InitialTeamSelection: teamSelection,
 		InitialResults:       initialResults,
@@ -90,10 +103,14 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 
 // LoginStateProps builds the shared login-state fragment props.
 func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
+	privateAllowed := !siteidentity.Evaluated(r.Context()) || siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer)
+	if !privateAllowed {
+		session = nil
+	}
 	props := partials.SoccerLoginStateProps{
 		Authenticated:   session != nil && strings.TrimSpace(session.JWT) != "",
-		GoogleAvailable: h.googleAvailable(),
-		LoginAvailable:  h.Config.LoginEnabled(),
+		GoogleAvailable: privateAllowed && h.googleAvailable(),
+		LoginAvailable:  privateAllowed && h.Config.LoginEnabled(),
 		SwapOOB:         swapOOB,
 		ResetWorkflow:   swapOOB,
 	}

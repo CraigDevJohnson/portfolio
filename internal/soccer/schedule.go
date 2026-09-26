@@ -17,6 +17,7 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
+	"portfolio/internal/siteidentity"
 	"portfolio/internal/soccerarchive"
 	"portfolio/types"
 )
@@ -30,6 +31,7 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	input := parseScheduleFormInput(r.Form)
+	privateAllowed := !siteidentity.Evaluated(r.Context()) || siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer)
 	session, swapAuthState := h.LoadSession(w, r)
 
 	// When team_ids[] is submitted (from the discover-teams step), carry them
@@ -42,10 +44,10 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	props := partials.SoccerTableFragmentProps{
 		TeamCodes:       teamCodes,
 		PlayerIDs:       input.PlayerIDs,
-		GoogleAvailable: h.googleAvailable(),
-		ImportAvailable: h.Config.LoginEnabled(),
+		GoogleAvailable: privateAllowed && h.googleAvailable(),
+		ImportAvailable: privateAllowed && h.Config.LoginEnabled(),
 	}
-	if h.googleHooks != nil {
+	if privateAllowed && h.googleHooks != nil {
 		props.GoogleConnected = h.googleHooks.GoogleConnected(r.Context(), w, r)
 	}
 	clearImportedSession, resolved := h.resolveScheduleData(r.Context(), session, &input, &props)

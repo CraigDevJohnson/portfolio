@@ -64,6 +64,12 @@ func HasGrant(ctx context.Context, grant Grant) bool {
 	return ok && identity.grants[grant]
 }
 
+// Evaluated reports whether site identity middleware populated this request.
+func Evaluated(ctx context.Context) bool {
+	_, ok := ctx.Value(contextKey{}).(requestIdentity)
+	return ok
+}
+
 // EmailForNavigation returns the current account label for shared navigation.
 func EmailForNavigation(ctx context.Context) string {
 	principal, ok := PrincipalFromContext(ctx)
