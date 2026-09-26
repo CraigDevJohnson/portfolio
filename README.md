@@ -18,8 +18,9 @@ The public site has Home, About, Experience, Skills, Projects, Education,
 Contact, and Soccer pages. The Skills and Soccer pages use HTMX fragments while
 keeping the main content server-rendered.
 
-The Soccer tool keeps Team ID schedule lookup and ICS download public. An
-invited site account with the current `soccer` grant can also:
+The Soccer planner starts with an ICS or Google Calendar output choice. Team ID
+schedule lookup and ICS download stay public. An invited site account with the
+current `soccer` grant can also:
 
 - import a JWT from an authenticated Let's Play Soccer browser session
 - discover linked players and their teams
@@ -292,19 +293,23 @@ Anyone can enter Team IDs on `/soccer`, fetch a schedule, and download an ICS
 file. Linked-player import requires a site account with the current `soccer`
 grant:
 
-1. Sign in to the site through `/sign-in` with an invited account holding the
-   `soccer` grant, then sign in to Let's Play Soccer in a browser.
-2. Copy the bearer JWT from the authenticated LPS session. The helper extension
-   in `chrome-extension/` can capture and copy it.
-3. Import the JWT on `/soccer`.
+1. Choose "Download an .ics file" on `/soccer`, then sign in to the site
+   through `/sign-in` with an invited account holding the `soccer` grant.
+2. Sign in to Let's Play Soccer in a browser and copy the bearer JWT from its
+   authenticated session. The helper extension in `chrome-extension/` can
+   capture and copy it.
+3. Import the JWT on `/soccer` to reveal the player and team steps.
 4. The server calls `/users/check`, filters deleted players, and shows the
    linked players.
-5. Select players and teams, then fetch schedules.
-6. Download an ICS file or separately connect Google Calendar to use its actions.
+5. Choose linked players and their current teams, then fetch schedules. Shared
+   games appear once, with upcoming matches ordered soonest first.
+6. Deselect unwanted games, review the selected count, and download the selected
+   upcoming games as an ICS file. Google Calendar consent and actions are separate.
 
 A new JWT import or explicit logout clears downstream workflow state. Google
 connect, reconnect, disconnect, and calendar selection preserve the current
-player and team workflow.
+player and team workflow. An expired import or rejected LPS team lookup asks
+for fresh access; manual Team ID lookup remains available.
 
 ## Source layout
 

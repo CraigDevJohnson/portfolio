@@ -75,3 +75,16 @@ templ SoccerTeamSelect(props SoccerTeamSelectProps) {
 		</fieldset>
 	</form>
 }
+
+templ SoccerTeamRecovery(message, hint string, canImport bool) {
+	<div class="soccer-recovery-state">
+		@Feedback(FeedbackProps{Kind: FeedbackError, Title: "Linked teams need attention", Message: message, ExtraClass: "soccer-stage-feedback"})
+		<p class="text-sm text-copy-muted">{ hint }</p>
+		<div class="soccer-recovery-actions">
+			if canImport {
+				<button type="button" class="btn soccer-secondary-btn" data-open-login-modal>Import fresh access</button>
+			}
+			<a class="btn soccer-secondary-btn" href="#team_codes">Use manual Team IDs</a>
+		</div>
+	</div>
+}

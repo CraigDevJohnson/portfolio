@@ -18,11 +18,27 @@ import (
 
 // SoccerPage renders the full soccer page.
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
-	session, _ := h.LoadSession(w, r)
+	session, sessionCleared := h.LoadSession(w, r)
+	teamSelection, initialResults, restoreFeedback, manualTeamCodes, restoreErr := h.restoreSoccerWorkflow(r.Context(), session)
+	var importFeedback *partials.SoccerLoginFeedbackProps
+	if sessionCleared {
+		importFeedback = &partials.SoccerLoginFeedbackProps{Kind: "error", Message: "Saved LPS access expired or could not be restored. Import a fresh JWT to use linked players."}
+	}
+	if restoreErr != nil {
+		detail := lps.ScheduleErrorDetailsFor(restoreErr)
+		importFeedback = &partials.SoccerLoginFeedbackProps{Kind: "error", Message: detail.FeedbackMessage + " " + detail.FeedbackHint}
+		if detail.ClearSession {
+			h.clearSession(w, r)
+			session = nil
+			teamSelection = nil
+			initialResults = nil
+			restoreFeedback = nil
+			manualTeamCodes = ""
+		}
+	}
 	authState := h.LoginStateProps(w, r, session, false)
 	privateAccessMessage, showSiteSignIn := PrivateAccessNotice(r.Context(), &authState)
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"), authState.GoogleAvailable, authState.GoogleConnected)
-	teamSelection, initialResults, restoreFeedback, manualTeamCodes := h.restoreSoccerWorkflow(r.Context(), session)
 	if initialResults != nil {
 		initialResults.GoogleAvailable = authState.GoogleAvailable
 		initialResults.GoogleConnected = authState.GoogleConnected
@@ -37,6 +53,7 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		InitialTeamSelection: teamSelection,
 		InitialResults:       initialResults,
 		InitialFeedback:      restoreFeedback,
+		ImportFeedback:       importFeedback,
 		ManualTeamCodes:      manualTeamCodes,
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
@@ -45,9 +62,9 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.SessionData) (*partials.SoccerTeamSelectProps, *partials.SoccerTableFragmentProps, *partials.SoccerLoginFeedbackProps, string) {
+func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.SessionData) (*partials.SoccerTeamSelectProps, *partials.SoccerTableFragmentProps, *partials.SoccerLoginFeedbackProps, string, error) {
 	if session == nil || session.Workflow.Source == "" {
-		return nil, nil, nil, ""
+		return nil, nil, nil, "", nil
 	}
 	workflow := normalizeWorkflowState(&session.Workflow, session.Players)
 	timeout := 15 * time.Second
@@ -59,7 +76,10 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 
 	var teamSelection *partials.SoccerTeamSelectProps
 	if workflow.Source == "imported" && len(workflow.SelectedPlayerIDs) > 0 {
-		groups := h.resolvePlayerTeams(ctx, session, workflow.SelectedPlayerIDs)
+		groups, err := h.resolvePlayerTeams(ctx, session, workflow.SelectedPlayerIDs)
+		if err != nil {
+			return nil, nil, nil, "", err
+		}
 		teamSelection = &partials.SoccerTeamSelectProps{
 			PlayerGroups:    groups,
 			PlayerIDs:       workflow.SelectedPlayerIDs,
@@ -67,7 +87,7 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 		}
 	}
 	if len(workflow.SelectedTeamIDs) == 0 {
-		return teamSelection, nil, nil, ""
+		return teamSelection, nil, nil, "", nil
 	}
 
 	games, err := lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, workflow.SelectedTeamIDs)
@@ -76,7 +96,7 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 			Kind:    "error",
 			Message: "Your saved player and team choices were restored, but the schedule could not be refreshed. Try fetching the selected schedules again.",
 		}
-		return teamSelection, nil, feedback, joinIntSlice(workflow.SelectedTeamIDs)
+		return teamSelection, nil, feedback, joinIntSlice(workflow.SelectedTeamIDs), nil
 	}
 	results := &partials.SoccerTableFragmentProps{
 		TeamCodes: joinIntSlice(workflow.SelectedTeamIDs),
@@ -89,7 +109,7 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 	if workflow.Source == "manual" {
 		manualCodes = results.TeamCodes
 	}
-	return teamSelection, results, nil, manualCodes
+	return teamSelection, results, nil, manualCodes, nil
 }
 
 // publicSoccerPaths closes every private Soccer access explanation.

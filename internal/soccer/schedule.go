@@ -635,7 +635,7 @@ func splitDelimitedValues(raw string) []string {
 	})
 }
 
-func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) []types.PlayerTeamGroup {
+func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) ([]types.PlayerTeamGroup, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
 	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
 	for _, p := range session.Players {
@@ -650,7 +650,7 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 		}
 		rawTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		var teams []types.LPSTeam
 		for _, t := range rawTeams {
@@ -668,7 +668,7 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
 		}
 	}
-	return groups
+	return groups, nil
 }
 
 // DiscoverTeamsHandler fetches current LPS teams for the selected players and
@@ -708,7 +708,37 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	groups, err := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	if err != nil {
+		detail := lps.ScheduleErrorDetailsFor(err)
+		if detail.ClearSession {
+			h.clearSession(w, r)
+			w.Header().Set("HX-Trigger", "soccer-workflow-reset")
+			props := h.LoginStateProps(w, r, nil, true)
+			props.ResetWorkflow = true
+			h.setHTMLContentType(w)
+			if renderErr := partials.SoccerLoginState(props).Render(r.Context(), w); renderErr != nil {
+				http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		h.setHTMLContentType(w)
+		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled()).Render(r.Context(), w); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	if len(groups) == 0 {
+		h.setHTMLContentType(w)
+		if renderErr := partials.SoccerTeamRecovery(
+			"No current teams were found for the selected linked players.",
+			"Choose another player, import fresh access, or use manual Team IDs.",
+			h.Config.LoginEnabled(),
+		).Render(r.Context(), w); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 	session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
 		Source:            "imported",
 		SelectedPlayerIDs: playerIDs,
