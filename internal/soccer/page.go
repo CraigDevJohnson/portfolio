@@ -13,6 +13,7 @@ import (
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
 	"portfolio/internal/siteidentity"
+	"portfolio/internal/soccerarchive"
 	"portfolio/types"
 )
 
@@ -45,20 +46,26 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		initialResults.ImportAvailable = authState.LoginAvailable
 	}
 	props := pages.SoccerProps{
-		GoogleMessage:        googleMessage,
-		GoogleMessageKind:    googleMessageKind,
-		PrivateAccessMessage: privateAccessMessage,
-		ShowSiteSignIn:       showSiteSignIn,
-		AuthState:            authState,
-		InitialTeamSelection: teamSelection,
-		InitialResults:       initialResults,
-		InitialFeedback:      restoreFeedback,
-		ManualTeamCodes:      manualTeamCodes,
+		GoogleMessage:            googleMessage,
+		GoogleMessageKind:        googleMessageKind,
+		PrivateAccessMessage:     privateAccessMessage,
+		ShowSiteSignIn:           showSiteSignIn,
+		HistoryCollectionEnabled: h.historyCollectionEnabled(),
+		AuthState:                authState,
+		InitialTeamSelection:     teamSelection,
+		InitialResults:           initialResults,
+		InitialFeedback:          restoreFeedback,
+		ManualTeamCodes:          manualTeamCodes,
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer page render failed", slog.Any("error", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (h *Handler) historyCollectionEnabled() bool {
+	_, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
+	return enabled
 }
 
 func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.SessionData) (*partials.SoccerTeamSelectProps, *partials.SoccerTableFragmentProps, *partials.SoccerLoginFeedbackProps, string, error) {

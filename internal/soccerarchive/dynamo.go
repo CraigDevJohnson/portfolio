@@ -56,6 +56,14 @@ type archiveItem struct {
 	PK                string         `dynamodbav:"pk"`
 	SK                string         `dynamodbav:"sk"`
 	Kind              string         `dynamodbav:"kind"`
+	PlayerID          int            `dynamodbav:"player_id,omitempty"`
+	FirstName         string         `dynamodbav:"first_name,omitempty"`
+	LastName          string         `dynamodbav:"last_name,omitempty"`
+	IsMainPlayer      *bool          `dynamodbav:"is_main_player,omitempty"`
+	OwnerIssuer       string         `dynamodbav:"owner_issuer,omitempty"`
+	OwnerSubject      string         `dynamodbav:"owner_subject,omitempty"`
+	Source            string         `dynamodbav:"source,omitempty"`
+	ObservedAt        string         `dynamodbav:"observed_at,omitempty"`
 	TeamID            int            `dynamodbav:"team_id,omitempty"`
 	TeamName          string         `dynamodbav:"team_name,omitempty"`
 	DivisionName      string         `dynamodbav:"division_name,omitempty"`

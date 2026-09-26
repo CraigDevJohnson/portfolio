@@ -8,6 +8,7 @@ type SoccerProps struct {
 	GoogleMessageKind    string
 	PrivateAccessMessage string
 	ShowSiteSignIn       bool
+	HistoryCollectionEnabled bool
 	AuthState            partials.SoccerLoginStateProps
 	Preview              bool
 	ModalOpen            bool
@@ -240,7 +241,7 @@ templ Soccer(props SoccerProps) {
 			</section>
 		</div>
 		if props.AuthState.SupportsDiscovery() {
-			@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, Feedback: props.ModalFeedback})
+			@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, HistoryCollectionEnabled: props.HistoryCollectionEnabled, Feedback: props.ModalFeedback})
 		}
 	}
 }

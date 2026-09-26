@@ -18,6 +18,7 @@ import (
 	"portfolio/internal/lps"
 	internalsession "portfolio/internal/session"
 	"portfolio/internal/siteidentity"
+	"portfolio/internal/soccerarchive"
 	"portfolio/types"
 )
 
@@ -65,6 +66,30 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
+	if membershipStore, enabled := h.ArchiveStore().(soccerarchive.MembershipStore); enabled {
+		principal, granted := siteidentity.PrincipalFromContext(r.Context())
+		if !granted || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
+			h.RenderLoginFeedback(w, r, "error", "Sign in with Soccer access before importing linked players.")
+			return
+		}
+		teams, memberships, lookupErr := h.discoverImportedPlayerTeams(r.Context(), jwt, discovery.Players)
+		if lookupErr != nil {
+			logging.WithContext(h.Logger, r.Context()).Warn("soccer player team discovery failed", slog.Any("error", lookupErr))
+			h.RenderLoginFeedback(w, r, "error", "Could not look up every linked player. No player history was saved; try the import again.")
+			return
+		}
+		persistCtx, cancelPersist := context.WithTimeout(r.Context(), 10*time.Second)
+		err = membershipStore.SavePlayerDiscovery(persistCtx, &soccerarchive.PlayerDiscovery{
+			OwnerIssuer: principal.Issuer, OwnerSubject: principal.Subject,
+			Players: discovery.Players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
+		})
+		cancelPersist()
+		if err != nil {
+			logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
+			h.RenderLoginFeedback(w, r, "error", "Linked-player history could not be saved. Try the import again.")
+			return
+		}
+	}
 	sessionID := generateSessionID()
 	session := types.SessionData{
 		JWT:         jwt,
@@ -99,6 +124,33 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved in this browser until its JWT expires, for up to 12 hours. Choose your players below.</div>`)
+}
+
+func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) ([]lps.TeamSummary, []soccerarchive.PlayerMembership, error) {
+	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
+	knownTeams := make(map[int]lps.TeamSummary)
+	memberships := make([]soccerarchive.PlayerMembership, 0)
+	for _, player := range players {
+		teams, err := resolver.FetchPlayerTeams(ctx, player.UPlayerID)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, team := range teams {
+			if team.UTeamID <= 0 {
+				continue
+			}
+			knownTeams[team.UTeamID] = team
+			if team.Season <= 0 {
+				continue
+			}
+			memberships = append(memberships, soccerarchive.PlayerMembership{PlayerID: player.UPlayerID, Team: team})
+		}
+	}
+	result := make([]lps.TeamSummary, 0, len(knownTeams))
+	for _, team := range knownTeams {
+		result = append(result, team)
+	}
+	return result, memberships, nil
 }
 
 // LogoutHandler clears the imported soccer session.

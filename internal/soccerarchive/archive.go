@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"portfolio/internal/lps"
+	"portfolio/types"
 )
 
 // Snapshot contains the source facts returned for one accepted Team ID lookup.
@@ -22,6 +23,31 @@ type Snapshot struct {
 // Store persists an accepted team response and its source coverage.
 type Store interface {
 	SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) error
+}
+
+// PlayerMembership is positive evidence from an authenticated LPS player lookup.
+// A team with no LPS season ID is not membership proof.
+type PlayerMembership struct {
+	PlayerID int
+	Team     lps.TeamSummary
+}
+
+// PlayerDiscovery is the durable, credential-free result of one granted import.
+// KnownTeams includes IDs with incomplete season metadata so they can still be
+// enrolled; only Memberships grants exact player-team-season evidence.
+type PlayerDiscovery struct {
+	OwnerIssuer  string
+	OwnerSubject string
+	Players      []types.LPSPlayer
+	KnownTeams   []lps.TeamSummary
+	Memberships  []PlayerMembership
+	ObservedAt   time.Time
+}
+
+// MembershipStore persists owner-bound player evidence and known-team enrollment.
+// It is wired with Store only when offline history collection is enabled.
+type MembershipStore interface {
+	SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error
 }
 
 // ErrNoArchive means no accepted snapshot has been stored for this team.
