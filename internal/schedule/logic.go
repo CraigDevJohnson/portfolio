@@ -73,6 +73,8 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	merged.Location = mergeStringValue(merged.Location, incoming.Location)
 	merged.Home = mergeStringValue(merged.Home, incoming.Home)
 	merged.Away = mergeStringValue(merged.Away, incoming.Away)
+	merged.HomeTeam = mergeTeamAppearance(merged.HomeTeam, incoming.HomeTeam)
+	merged.AwayTeam = mergeTeamAppearance(merged.AwayTeam, incoming.AwayTeam)
 	merged.Season = mergeStringValue(merged.Season, incoming.Season)
 	merged.PlayerTeamName = mergeStringValue(merged.PlayerTeamName, incoming.PlayerTeamName)
 	merged.OpponentTeamName = mergeStringValue(merged.OpponentTeamName, incoming.OpponentTeamName)
@@ -81,6 +83,17 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	merged.Result = mergeStringValue(merged.Result, incoming.Result)
 	normalizeScheduleGame(&merged)
 	return merged
+}
+
+func mergeTeamAppearance(base, incoming types.TeamAppearance) types.TeamAppearance {
+	if base.ID <= 0 {
+		base.ID = incoming.ID
+	}
+	if base.Color == "" {
+		base.Color = incoming.Color
+	}
+	base.Selected = base.Selected || incoming.Selected
+	return base
 }
 
 // stableGameFields returns the fields used to derive a stable fallback identifier.

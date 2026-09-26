@@ -150,10 +150,13 @@ func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int
 	if err != nil {
 		return nil, err
 	}
+	if response.Team.UTeamID <= 0 {
+		response.Team.UTeamID = teamID
+	}
 
 	games := make([]types.Game, 0, len(response.Games))
 	for i := range response.Games {
-		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], response.Team, selectedTeam)
+		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam)
 		if err != nil {
 			return nil, err
 		}
@@ -191,7 +194,7 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 }
 
 // MapTeamScheduleGame maps a raw team schedule game into the shared game model.
-func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (types.Game, error) {
+func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary) (types.Game, error) {
 	if rawGame == nil {
 		return types.Game{}, nil
 	}
@@ -230,6 +233,21 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
+	homeTeamID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
+	awayTeamID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
+	selectedTeamID := firstPositiveInt(selected.UTeamID, responseTeam.UTeamID)
+	selectedTeamName := firstNonEmptyString(selected.TeamName, responseTeam.TeamName)
+	homeSelected, awaySelected := selectedMatchSides(selectedTeamID, selectedTeamName, homeTeamID, awayTeamID, homeName, visitorName)
+	homeColor := approvedTeamColor(rawGame.HomeTeam.Color)
+	awayColor := approvedTeamColor(rawGame.VisitorTeam.Color)
+	if homeSelected {
+		homeTeamID = firstPositiveInt(homeTeamID, selectedTeamID)
+		homeColor = firstApprovedTeamColor(selected.Color, responseTeam.Color, rawGame.HomeTeam.Color)
+	}
+	if awaySelected {
+		awayTeamID = firstPositiveInt(awayTeamID, selectedTeamID)
+		awayColor = firstApprovedTeamColor(selected.Color, responseTeam.Color, rawGame.VisitorTeam.Color)
+	}
 	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected)
 	if playerTeamName == "" {
 		playerTeamName = homeName
@@ -250,6 +268,8 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,
 		Away:             visitorName,
+		HomeTeam:         types.TeamAppearance{ID: homeTeamID, Color: homeColor, Selected: homeSelected},
+		AwayTeam:         types.TeamAppearance{ID: awayTeamID, Color: awayColor, Selected: awaySelected},
 		Season:           firstNonEmptyString(intString(selected.Season), intString(responseTeam.Season), intString(rawGame.Season), intString(rawGame.HomeTeam.Season), intString(rawGame.VisitorTeam.Season)),
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
@@ -259,6 +279,23 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	}
 
 	return game, nil
+}
+
+func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int, homeName, awayName string) (home, away bool) {
+	switch {
+	case selectedID > 0 && homeID == selectedID:
+		return true, false
+	case selectedID > 0 && awayID == selectedID:
+		return false, true
+	case selectedName != "" && strings.EqualFold(selectedName, homeName):
+		return true, false
+	case selectedName != "" && strings.EqualFold(selectedName, awayName):
+		return false, true
+	case homeID <= 0 && awayID <= 0:
+		return true, false
+	default:
+		return false, false
+	}
 }
 
 // FetchFacility loads a facility and caches it for the lifetime of the resolver.
@@ -308,7 +345,7 @@ func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamID
 	return games, nil
 }
 
-func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (string, string, string) {
+func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary) (string, string, string) {
 	// Prefer an explicit selected team ID match first. If the upstream payload does
 	// not identify the selected team clearly, fall back to the response team name
 	// and treat the other side as the opponent.

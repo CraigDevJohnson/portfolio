@@ -195,11 +195,13 @@ func soccerPreviewUpcomingGames() []types.Game {
 		{
 			ID: "preview-upcoming-1", DateTime: "Fri, Sep 4 at 7:15 PM", StartAt: "2026-09-04T19:15:00-06:00", EndAt: "2026-09-04T20:30:00-06:00",
 			Field: "Field 2", Home: "Pond Mint United", Away: "Campfire Rovers", Season: "Fall 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Campfire Rovers", DivisionName: "Coed Premier",
+			HomeTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true}, AwayTeam: types.TeamAppearance{ID: 479147, Color: "orange", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 		{
 			ID: "preview-upcoming-2", DateTime: "Fri, Sep 11 at 8:30 PM", StartAt: "2026-09-11T20:30:00-06:00", EndAt: "2026-09-11T21:45:00-06:00",
 			Field: "Championship Field with the Extra-Long Sideline Name", Home: "Treasure Valley After-Work Cooperative Football Club", Away: "Rosehip Athletic", Season: "Fall 2026", PlayerTeamName: "Treasure Valley After-Work Cooperative Football Club", OpponentTeamName: "Rosehip Athletic", DivisionName: "Coed Premier",
+			HomeTeam: types.TeamAppearance{ID: 479692, Selected: true}, AwayTeam: types.TeamAppearance{ID: 479800},
 			Facility: &types.Facility{Name: "West Boise Indoor Soccer and Community Recreation Complex", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 	}
@@ -209,12 +211,14 @@ func soccerPreviewPastGames() []types.Game {
 	return []types.Game{
 		{
 			ID: "preview-past-2", DateTime: "Fri, Aug 28 at 8:30 PM", StartAt: "2026-08-28T20:30:00-06:00", EndAt: "2026-08-28T21:45:00-06:00",
-			Field: "Field 1", Home: "Pond Mint United", Away: "Night Mulberry FC", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Night Mulberry FC", DivisionName: "Coed Premier", Result: "4 - 2",
+			Field: "Field 1", Home: "Pond Mint United", Away: "Campfire Rovers", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Campfire Rovers", DivisionName: "Coed Premier", Result: "4 - 2",
+			HomeTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true}, AwayTeam: types.TeamAppearance{ID: 479147, Color: "orange", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 		{
 			ID: "preview-past-1", DateTime: "Fri, Aug 21 at 7:15 PM", StartAt: "2026-08-21T19:15:00-06:00", EndAt: "2026-08-21T20:30:00-06:00",
 			Field: "Field 3", Home: "Candle Oat Wanderers", Away: "Pond Mint United", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Candle Oat Wanderers", DivisionName: "Coed Premier", Result: "3 - 3",
+			HomeTeam: types.TeamAppearance{ID: 479803}, AwayTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 	}

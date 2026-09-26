@@ -109,10 +109,15 @@ func soccerGameMetaLabel(hasResult bool) string {
 
 templ SoccerGameRows(sectionKey string, games []types.Game) {
 	for _, game := range games {
-		{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
-		{{ isPast := strings.TrimSpace(game.Result) != "" }}
+		{{ row := soccerMatchRow(&game) }}
+		{{ isPast := row.HasResult }}
 		<li
 			class="soccer-match-row"
+			data-home-color={ row.HomeColor }
+			data-away-color={ row.AwayColor }
+			if row.Shared {
+				data-shared-match
+			}
 			if isPast {
 				data-past-game
 			}
@@ -146,10 +151,8 @@ templ SoccerGameRows(sectionKey string, games []types.Game) {
 			</div>
 			<div class="soccer-match-detail soccer-match-meta" data-label={ soccerGameMetaLabel(isPast) }>
 				<span class="season-badge">{ game.Season }</span>
-				if outcome.Parsed {
-					<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
-				} else if outcome.Raw != "" {
-					<span class={ resultBadgeClass("") }>{ outcome.Raw }</span>
+				if row.ResultText != "" {
+					<span class={ row.ResultClass }>{ row.ResultText }</span>
 				}
 			</div>
 		</li>

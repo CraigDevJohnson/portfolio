@@ -25,6 +25,7 @@ type UserCheckResponse struct {
 type TeamSummary struct {
 	UTeamID      int    `json:"UTeamID"`
 	TeamName     string `json:"team_name"`
+	Color        string `json:"Color"`
 	DivisionName string `json:"division_name"`
 	FacilityID   int    `json:"FacilityID"`
 	FacilityName string `json:"facility_name"`

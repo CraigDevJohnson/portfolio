@@ -1007,29 +1007,65 @@ body.soccer-modal-open {
 }
 
 .soccer-match-row {
+  --soccer-home-paint: var(--soccer-team-gray);
+  --soccer-away-paint: var(--soccer-team-gray);
   display: grid;
   min-width: 0;
   gap: var(--space-sm);
   padding: var(--space-md);
   border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 13%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--cocoa-cedar) 80%, var(--night-mulberry));
+  background: linear-gradient(90deg, var(--soccer-home-paint) 0 50%, var(--soccer-away-paint) 50% 100%);
   box-shadow: var(--shadow-sm);
 }
 
-.soccer-match-row:nth-child(even) {
-  background: color-mix(in srgb, var(--pond-mint) 5%, var(--cocoa-cedar));
-}
+.soccer-match-row[data-home-color='red'] { --soccer-home-paint: var(--soccer-team-red); }
+.soccer-match-row[data-home-color='blue'] { --soccer-home-paint: var(--soccer-team-blue); }
+.soccer-match-row[data-home-color='navy'] { --soccer-home-paint: var(--soccer-team-navy); }
+.soccer-match-row[data-home-color='green'] { --soccer-home-paint: var(--soccer-team-green); }
+.soccer-match-row[data-home-color='yellow'] { --soccer-home-paint: var(--soccer-team-yellow); }
+.soccer-match-row[data-home-color='gold'] { --soccer-home-paint: var(--soccer-team-gold); }
+.soccer-match-row[data-home-color='orange'] { --soccer-home-paint: var(--soccer-team-orange); }
+.soccer-match-row[data-home-color='purple'] { --soccer-home-paint: var(--soccer-team-purple); }
+.soccer-match-row[data-home-color='pink'] { --soccer-home-paint: var(--soccer-team-pink); }
+.soccer-match-row[data-home-color='teal'] { --soccer-home-paint: var(--soccer-team-teal); }
+.soccer-match-row[data-home-color='maroon'] { --soccer-home-paint: var(--soccer-team-maroon); }
+.soccer-match-row[data-home-color='black'] { --soccer-home-paint: var(--soccer-team-black); }
+.soccer-match-row[data-home-color='white'] { --soccer-home-paint: var(--soccer-team-white); }
+.soccer-match-row[data-home-color='gray'] { --soccer-home-paint: var(--soccer-team-gray); }
+
+.soccer-match-row[data-away-color='red'] { --soccer-away-paint: var(--soccer-team-red); }
+.soccer-match-row[data-away-color='blue'] { --soccer-away-paint: var(--soccer-team-blue); }
+.soccer-match-row[data-away-color='navy'] { --soccer-away-paint: var(--soccer-team-navy); }
+.soccer-match-row[data-away-color='green'] { --soccer-away-paint: var(--soccer-team-green); }
+.soccer-match-row[data-away-color='yellow'] { --soccer-away-paint: var(--soccer-team-yellow); }
+.soccer-match-row[data-away-color='gold'] { --soccer-away-paint: var(--soccer-team-gold); }
+.soccer-match-row[data-away-color='orange'] { --soccer-away-paint: var(--soccer-team-orange); }
+.soccer-match-row[data-away-color='purple'] { --soccer-away-paint: var(--soccer-team-purple); }
+.soccer-match-row[data-away-color='pink'] { --soccer-away-paint: var(--soccer-team-pink); }
+.soccer-match-row[data-away-color='teal'] { --soccer-away-paint: var(--soccer-team-teal); }
+.soccer-match-row[data-away-color='maroon'] { --soccer-away-paint: var(--soccer-team-maroon); }
+.soccer-match-row[data-away-color='black'] { --soccer-away-paint: var(--soccer-team-black); }
+.soccer-match-row[data-away-color='white'] { --soccer-away-paint: var(--soccer-team-white); }
+.soccer-match-row[data-away-color='gray'] { --soccer-away-paint: var(--soccer-team-gray); }
 
 .soccer-match-row:hover,
 .soccer-match-row:focus-within {
   border-color: color-mix(in srgb, var(--pond-mint) 46%, transparent);
-  background: color-mix(in srgb, var(--pond-mint) 8%, var(--cocoa-cedar));
+  box-shadow: 0 0 0 var(--line-accent) color-mix(in srgb, var(--pond-mint) 28%, transparent);
 }
 
 .soccer-match-row[data-past-game] {
   border-color: color-mix(in srgb, var(--rosehip) 34%, transparent);
-  background: color-mix(in srgb, var(--rosehip) 7%, var(--cocoa-cedar));
+}
+
+.soccer-match-select,
+.soccer-match-detail {
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--night-mulberry) 82%, transparent);
+  color: var(--candle-oat);
 }
 
 .soccer-match-select {
@@ -1049,9 +1085,7 @@ body.soccer-modal-open {
 
 .soccer-match-detail {
   display: grid;
-  min-width: 0;
   gap: var(--space-xs);
-  color: var(--color-copy-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   overflow-wrap: anywhere;
@@ -1245,6 +1279,22 @@ body.soccer-modal-open {
 }
 
 @media (forced-colors: active) {
+  .soccer-match-row,
+  .soccer-match-select,
+  .soccer-match-detail {
+    border-color: ButtonBorder;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+  }
+
+  .soccer-match-detail::before,
+  .soccer-match-datetime,
+  .soccer-matchup strong,
+  .soccer-match-versus {
+    color: CanvasText;
+  }
+
   .soccer-stage,
   .soccer-stage-legend li,
   .soccer-stage-number,

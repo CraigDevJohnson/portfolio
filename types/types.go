@@ -98,20 +98,31 @@ type Facility struct {
 // on every record. Optional schedule metadata is included when the upstream API
 // provides it.
 type Game struct {
-	ID               string    `json:"id"`
-	DateTime         string    `json:"datetime"`
-	StartAt          string    `json:"start_at,omitempty"`
-	EndAt            string    `json:"end_at,omitempty"`
-	Field            string    `json:"field"`
-	Location         string    `json:"location,omitempty"`
-	Home             string    `json:"home"`
-	Away             string    `json:"away"`
-	Season           string    `json:"season"`
-	PlayerTeamName   string    `json:"player_team_name,omitempty"`
-	OpponentTeamName string    `json:"opponent_team_name,omitempty"`
-	DivisionName     string    `json:"division_name,omitempty"`
-	Facility         *Facility `json:"facility,omitempty"`
-	Result           string    `json:"result,omitempty"`
+	ID               string         `json:"id"`
+	DateTime         string         `json:"datetime"`
+	StartAt          string         `json:"start_at,omitempty"`
+	EndAt            string         `json:"end_at,omitempty"`
+	Field            string         `json:"field"`
+	Location         string         `json:"location,omitempty"`
+	Home             string         `json:"home"`
+	Away             string         `json:"away"`
+	HomeTeam         TeamAppearance `json:"home_team,omitempty"`
+	AwayTeam         TeamAppearance `json:"away_team,omitempty"`
+	Season           string         `json:"season"`
+	PlayerTeamName   string         `json:"player_team_name,omitempty"`
+	OpponentTeamName string         `json:"opponent_team_name,omitempty"`
+	DivisionName     string         `json:"division_name,omitempty"`
+	Facility         *Facility      `json:"facility,omitempty"`
+	Result           string         `json:"result,omitempty"`
+}
+
+// TeamAppearance carries only approved display color names and selected-team
+// identity through schedule deduplication. Color is empty when LPS has no
+// recognizable value; the view supplies a stable Team ID fallback then.
+type TeamAppearance struct {
+	ID       int    `json:"id,omitempty"`
+	Color    string `json:"color,omitempty"`
+	Selected bool   `json:"selected,omitempty"`
 }
 
 // NewFacilityDetails builds and normalizes a Facility from legacy flat fields.

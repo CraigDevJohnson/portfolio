@@ -1,5 +1,65 @@
 package partials
 
+import (
+	"fmt"
+	"strings"
+
+	"portfolio/internal/schedule"
+	"portfolio/types"
+)
+
+var fallbackSoccerColors = [...]string{"blue", "red", "green", "purple", "orange", "teal", "pink", "gold"}
+
+type soccerMatchRowView struct {
+	HomeColor   string
+	AwayColor   string
+	Shared      bool
+	HasResult   bool
+	ResultText  string
+	ResultClass string
+}
+
+func soccerMatchRow(game *types.Game) soccerMatchRowView {
+	homeColor := soccerTeamColor(game.HomeTeam)
+	awayColor := soccerTeamColor(game.AwayTeam)
+	shared := game.HomeTeam.Selected && game.AwayTeam.Selected
+	if !shared {
+		switch {
+		case game.HomeTeam.Selected:
+			awayColor = homeColor
+		case game.AwayTeam.Selected:
+			homeColor = awayColor
+		}
+	}
+
+	outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home))
+	resultText := schedule.FormatResultLine(outcome)
+	resultClass := resultBadgeClass(outcome.Outcome)
+	if shared && outcome.Parsed && (outcome.Outcome == schedule.OutcomeWin || outcome.Outcome == schedule.OutcomeLoss || outcome.Outcome == schedule.OutcomeDraw) {
+		resultText = fmt.Sprintf("Home %d – Away %d", outcome.HomeScore, outcome.AwayScore)
+		resultClass = resultBadgeClass("")
+	}
+	return soccerMatchRowView{
+		HomeColor:   homeColor,
+		AwayColor:   awayColor,
+		Shared:      shared,
+		HasResult:   strings.TrimSpace(game.Result) != "",
+		ResultText:  resultText,
+		ResultClass: resultClass,
+	}
+}
+
+func soccerTeamColor(team types.TeamAppearance) string {
+	switch team.Color {
+	case "red", "blue", "navy", "green", "yellow", "gold", "orange", "purple", "pink", "teal", "maroon", "black", "white", "gray":
+		return team.Color
+	}
+	if team.ID > 0 {
+		return fallbackSoccerColors[team.ID%len(fallbackSoccerColors)]
+	}
+	return "gray"
+}
+
 // SoccerSecurityNoticeProps controls the layout density of the shared security
 // notice without changing its meaning.
 type SoccerSecurityNoticeProps struct {
