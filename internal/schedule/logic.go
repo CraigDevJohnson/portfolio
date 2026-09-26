@@ -217,12 +217,12 @@ func UpcomingScheduleGames(games []types.Game) []types.Game {
 	return filtered
 }
 
-// PastGamesWithResults filters to games that already started and have non-empty results.
+// PastGamesWithResults filters to games that already started and have numeric scores.
 func PastGamesWithResults(games []types.Game) []types.Game {
 	filtered := make([]types.Game, 0, len(games))
 	now := time.Now()
 	for i := range games {
-		if strings.TrimSpace(games[i].Result) == "" {
+		if !scorePattern.MatchString(strings.TrimSpace(games[i].Result)) {
 			continue
 		}
 		start, ok := GameStartTime(&games[i])

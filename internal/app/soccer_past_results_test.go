@@ -56,8 +56,11 @@ func TestGoogleModeReviewsScoredPastGamesFromTeamIDsAndLinkedPlayersWithoutWriti
 				{"UGameID":704,"SchedGameDateTime":%q,"home_team":{"team_name":"North FC"},"visitor_team":{"team_name":"Guests"}},
 				{"UGameID":702,"SchedGameDateTime":%q,"Result":"1-0","home_team":{"team_name":"Old FC"},"visitor_team":{"team_name":"Rivals"}},
 				{"UGameID":703,"SchedGameDateTime":%q,"home_team":{"team_name":"No Score FC"},"visitor_team":{"team_name":"Rivals"}},
+				{"UGameID":705,"SchedGameDateTime":%q,"Result":"canceled","home_team":{"team_name":"Canceled FC"},"visitor_team":{"team_name":"Rivals"}},
+				{"UGameID":706,"SchedGameDateTime":%q,"Result":"final","home_team":{"team_name":"Final FC"},"visitor_team":{"team_name":"Rivals"}},
+				{"UGameID":707,"SchedGameDateTime":%q,"Result":"postponed","home_team":{"team_name":"Postponed FC"},"visitor_team":{"team_name":"Rivals"}},
 				{"UGameID":701,"SchedGameDateTime":%q,"Result":"3-1","home_team":{"team_name":"Recent FC"},"visitor_team":{"team_name":"Rivals"}}
-			]}`, upcoming, old, unscored, recent)
+			]}`, upcoming, old, unscored, unscored, unscored, unscored, recent)
 		case "/teams/202":
 			_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":701,"SchedGameDateTime":%q,"Result":"3-1","home_team":{"team_name":"Recent FC"},"visitor_team":{"team_name":"Rivals"}}]}`, recent)
 		default:
@@ -111,8 +114,13 @@ func assertPastResultReview(t *testing.T, response *httptest.ResponseRecorder, s
 	body := response.Body.String()
 	newest := strings.Index(body, `value="701"`)
 	oldest := strings.Index(body, `value="702"`)
-	if newest < 0 || oldest <= newest || strings.Count(body, `value="701"`) != 1 || strings.Contains(body, `value="703"`) {
-		t.Fatalf("%s past results were missing, duplicated, out of order, or included an unscored game", source)
+	if newest < 0 || oldest <= newest || strings.Count(body, `value="701"`) != 1 {
+		t.Fatalf("%s scored past results were missing, duplicated, or out of order", source)
+	}
+	for _, gameID := range []string{"703", "705", "706", "707"} {
+		if strings.Contains(body, `value="`+gameID+`"`) {
+			t.Fatalf("%s sync selection included unscored game %s", source, gameID)
+		}
 	}
 	if !strings.Contains(body, `data-game-group="past-results"`) || !strings.Contains(body, "2 games selected") || !strings.Contains(body, "Select all past results") {
 		t.Fatalf("%s past results lack selected count or select-all controls", source)
