@@ -2,8 +2,8 @@
 
 This repository contains a server-rendered Go application built with Templ,
 HTMX, and Tailwind CSS. It serves the public portfolio, a soccer schedule tool,
-and an optional EC2 management portal. The same application can run as a
-regular HTTP server or behind API Gateway on AWS Lambda.
+optional invited site sign-in, and an optional EC2 management portal. The same
+application can run as a regular HTTP server or behind API Gateway on AWS Lambda.
 
 Pinned versions:
 
@@ -160,6 +160,11 @@ available when site sign-in is disabled, rejected, or expired. The site auth
 routes and configuration are offline application support; Cognito resources,
 Lambda runtime variables, and live activation require separate review.
 
+The session is an encrypted bearer cookie. Browser sign-out clears that cookie,
+but a previously copied cookie can be replayed until its token-bounded expiry.
+Immediate invalidation of copied cookies would require shared server-side
+session or revocation state.
+
 ### EC2 management portal
 
 The portal requires:
@@ -250,6 +255,8 @@ portfolio/
 │   ├── portfolio/          Portfolio handlers and embedded data
 │   ├── schedule/           Schedule normalization and ICS output
 │   ├── session/            Encryption and login rate limiting
+│   ├── siteauth/           Site Cognito sign-in and encrypted sessions
+│   ├── siteidentity/       Request principal and current page grants
 │   └── soccer/             Soccer auth and schedule handlers
 └── types/                  Shared application models
 ```
@@ -287,6 +294,16 @@ Public pages:
 | `GET` | `/education` | Education |
 | `GET` | `/contact` | Contact |
 | Any | `/soccer` | Soccer page and Google OAuth callback |
+
+Site account routes remain available to render sign-in status even when site
+identity is not configured:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/sign-in` | Signed-out landing and local return destination |
+| `POST` | `/sign-in` | Start Google-federated Cognito sign-in |
+| `GET` | `/auth/callback` | Complete site sign-in |
+| `POST` | `/sign-out` | Clear browser session and end managed login |
 
 HTMX and form endpoints:
 

@@ -512,24 +512,19 @@ a.tech-pill:hover {
 }
 
 .site-account-state {
-  display: flex;
-  align-items: center;
+  @apply flex items-center;
   gap: var(--space-xs);
 }
 
 .site-account-email {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
   max-width: calc(var(--space-3xl) * 2.5);
-  overflow: hidden;
   color: var(--candle-oat);
   font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .site-account-link {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
+  @apply cursor-pointer border-0 bg-transparent;
   font: inherit;
 }
 
@@ -560,8 +555,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
     padding: 0.75rem 1.25rem;
   }
   .site-account-state {
-    align-items: flex-start;
-    flex-direction: column;
+    @apply flex-col items-start;
     padding: var(--space-sm) var(--space-md);
   }
   .site-account-email {
