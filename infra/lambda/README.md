@@ -70,3 +70,7 @@ The review must also change settings and resources this module does not own:
   planned 10 and the worker's 1.
 
 Local OpenTofu tests use a mocked provider and create no resources.
+
+The [history-sync readiness packet](../../docs/deployment/2026-09-26-lps-history-activation-readiness.md)
+records the candidate limits, fake dry run, source-use questions, cost model,
+and blockers before any environment can activate collection or scheduling.
