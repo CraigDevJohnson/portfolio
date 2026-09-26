@@ -14,6 +14,8 @@ import (
 
 type resultSyncAction uint8
 
+const googleCancelledStatus = "cancelled" //nolint:misspell // Google Calendar's deleted-event wire status uses this spelling.
+
 const (
 	resultSyncSkipped resultSyncAction = iota
 	resultSyncUnchanged
@@ -59,7 +61,7 @@ func (h *Handler) syncResultEvent(ctx context.Context, calendarID string, token 
 	if err != nil || rejected || match == nil {
 		return resultSyncSkipped, rejected, err
 	}
-	description, safe := replaceOwnedResultLine(match.Description, "Result: "+schedule.FormatResultLine(outcome))
+	description, safe := schedule.ReplaceCanonicalResultLine(match.Description, "Result: "+schedule.FormatResultLine(outcome))
 	if !safe {
 		return resultSyncSkipped, false, nil
 	}
@@ -94,7 +96,7 @@ func (h *Handler) findUniqueSiteEvent(ctx context.Context, calendarID string, to
 		if !siteEventMatchesGame(event, gameID) {
 			continue
 		}
-		if candidate != nil || event.ID == "" || strings.EqualFold(event.Status, "canceled") {
+		if candidate != nil || event.ID == "" || isDeletedCalendarEvent(event.Status) {
 			return nil, false, nil
 		}
 		candidate = event
@@ -113,7 +115,7 @@ func (h *Handler) findUniqueSiteEvent(ctx context.Context, calendarID string, to
 		if decodeErr != nil {
 			return nil, false, decodeErr
 		}
-		if fresh.ID != candidate.ID || !siteEventMatchesGame(fresh, gameID) || strings.EqualFold(fresh.Status, "canceled") || strings.TrimSpace(fresh.ETag) == "" {
+		if fresh.ID != candidate.ID || !siteEventMatchesGame(fresh, gameID) || isDeletedCalendarEvent(fresh.Status) || strings.TrimSpace(fresh.ETag) == "" {
 			return nil, false, nil
 		}
 		return fresh, false, nil
@@ -132,22 +134,8 @@ func siteEventMatchesGame(event *Event, gameID string) bool {
 	return event != nil && event.ExtendedProperties.Private[eventGameIDProperty] == gameID && event.ExtendedProperties.Private[eventOwnerProperty] == eventOwnerValue
 }
 
-// replaceOwnedResultLine changes the canonical Add result slot and leaves every
-// other description line untouched. A modified or ambiguous slot is skipped.
-func replaceOwnedResultLine(description, desired string) (string, bool) {
-	lines := strings.Split(description, "\n")
-	if len(lines) < 5 || !strings.Contains(lines[0], " is playing ") ||
-		!strings.HasPrefix(lines[1], "Division: ") || !strings.HasPrefix(lines[2], "Facility: ") ||
-		!strings.HasPrefix(lines[3], "Field: ") || !strings.HasPrefix(lines[4], "Result: ") {
-		return "", false
-	}
-	for _, line := range lines[5:] {
-		if strings.HasPrefix(line, "Result: ") {
-			return "", false
-		}
-	}
-	lines[4] = desired
-	return strings.Join(lines, "\n"), true
+func isDeletedCalendarEvent(status string) bool {
+	return strings.EqualFold(status, googleCancelledStatus) || strings.EqualFold(status, "canceled")
 }
 
 func (h *Handler) patchResultDescription(ctx context.Context, calendarID string, token *oauth2.Token, event *Event, description string) (resultSyncAction, bool, error) {

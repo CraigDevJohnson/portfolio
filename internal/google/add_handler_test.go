@@ -99,6 +99,23 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	}
 }
 
+func TestSyncResultsHandlerReportsPartialProgressOnProviderError(t *testing.T) {
+	h, bridge, transport := newDeadlineMutationTestHandler(t, "")
+	bridge.syncResultsGames = deadlineMutationGames(t, true)
+	transport.seedSiteResultEvent("9301")
+	transport.seedSiteResultEvent("9302")
+	transport.failOnPatch = "9302"
+
+	response := httptest.NewRecorder()
+	h.SyncResultsHandler(response, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
+	if body := response.Body.String(); !strings.Contains(body, "1 game result(s) updated") || !strings.Contains(body, "Could not finish") {
+		t.Fatalf("provider failure hid the completed conditional update: %q", body)
+	}
+	if transport.updateCount("9301") != 1 || transport.updateCount("9302") != 0 || transport.insertCount("9301") != 0 {
+		t.Fatal("provider failure replayed a completed patch or inserted a past event")
+	}
+}
+
 func newDeadlineMutationTestHandler(t *testing.T, blockedGameID string) (*Handler, *stubSoccerBridge, *controlledCalendarTransport) {
 	t.Helper()
 	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
@@ -167,6 +184,7 @@ type controlledCalendarTransport struct {
 	blockedGameID  string
 	blocked        bool
 	blockedOnPatch bool
+	failOnPatch    string
 	events         map[string]Event
 	insertAttempts map[string]int
 	updateAttempts map[string]int
@@ -239,6 +257,9 @@ func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Respon
 		}
 		if req.Header.Get("If-Match") != existing.ETag {
 			return calendarJSONResponse(req, http.StatusPreconditionFailed, ""), nil
+		}
+		if gameID == t.failOnPatch {
+			return calendarJSONResponse(req, http.StatusInternalServerError, `{"error":"provider unavailable"}`), nil
 		}
 		var patch struct {
 			Description string `json:"description"`

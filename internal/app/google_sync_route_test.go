@@ -27,6 +27,8 @@ type resultSyncCalendar struct {
 	inserts   int
 }
 
+const deletedGoogleEventStatus = "cancelled" //nolint:misspell // Match Google Calendar's deleted-event wire status.
+
 func (fake *resultSyncCalendar) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
@@ -120,7 +122,7 @@ func TestGoogleResultSyncPatchesOnlyOwnedResultTextWithoutCreatingEvents(t *test
 	}
 	owned := internalgoogle.Event{
 		ID: "8101", ETag: `"v1"`, Status: "confirmed", Summary: "My edited title", Location: "My own location",
-		Description: "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: \nPersonal note: bring snacks",
+		Description: "Personal heading: travel early\nHome is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: \nPersonal note: bring snacks",
 		Start:       internalgoogle.EventDateTime{DateTime: "2026-09-20T19:00:00", TimeZone: "America/Denver"},
 		End:         internalgoogle.EventDateTime{DateTime: "2026-09-20T19:45:00", TimeZone: "America/Denver"},
 		Reminders:   &internalgoogle.EventReminders{UseDefault: false, Overrides: []internalgoogle.EventReminder{{Method: "popup", Minutes: 5}}},
@@ -128,15 +130,16 @@ func TestGoogleResultSyncPatchesOnlyOwnedResultTextWithoutCreatingEvents(t *test
 	owned.ExtendedProperties.Private = map[string]string{"game_id": "8101", "portfolio_app": "soccer"}
 	ics := internalgoogle.Event{ID: "8102", ETag: `"ics"`, Status: "confirmed", Description: "Personal ICS import"}
 	ics.ExtendedProperties.Private = map[string]string{"game_id": "8102"}
-	deleted := siteResultEvent("8104", "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: ", "canceled")
+	deleted := siteResultEvent("8104", "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: ", deletedGoogleEventStatus)
 	ambiguousA := siteResultEvent("a-8105", "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: ", "confirmed")
 	ambiguousA.ExtendedProperties.Private["game_id"] = "8105"
 	ambiguousB := siteResultEvent("b-8105", ambiguousA.Description, "confirmed")
 	ambiguousB.ExtendedProperties.Private["game_id"] = "8105"
 	concurrent := siteResultEvent("8106", "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: ", "confirmed")
 	malformed := siteResultEvent("8107", "Personal notes without the app result line", "confirmed")
+	annotated := siteResultEvent("8109", "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: Win (1-0) -- disputed call", "confirmed")
 	googleFake := &resultSyncCalendar{
-		events:  map[string]internalgoogle.Event{"8101": owned, "8102": ics, "8104": deleted, "a-8105": ambiguousA, "b-8105": ambiguousB, "8106": concurrent, "8107": malformed},
+		events:  map[string]internalgoogle.Event{"8101": owned, "8102": ics, "8104": deleted, "a-8105": ambiguousA, "b-8105": ambiguousB, "8106": concurrent, "8107": malformed, "8109": annotated},
 		patches: map[string]int{}, attempts: map[string]int{}, conflicts: map[string]bool{"8106": true}, listCalls: map[string]int{},
 	}
 	googleServer := httptest.NewServer(googleFake)
@@ -148,11 +151,11 @@ func TestGoogleResultSyncPatchesOnlyOwnedResultTextWithoutCreatingEvents(t *test
 			http.NotFound(w, r)
 			return
 		}
-		games := make([]string, 0, 8)
+		games := make([]string, 0, 9)
 		for _, game := range []struct {
 			id     int
 			result string
-		}{{8101, "2-1"}, {8102, "1-0"}, {8103, "3-0"}, {8104, "1-1"}, {8105, "4-2"}, {8106, "2-0"}, {8107, "5-1"}, {8108, "6-0"}} {
+		}{{8101, "2-1"}, {8102, "1-0"}, {8103, "3-0"}, {8104, "1-1"}, {8105, "4-2"}, {8106, "2-0"}, {8107, "5-1"}, {8108, "6-0"}, {8109, "2-1"}} {
 			games = append(games, fmt.Sprintf(`{"UGameID":%d,"UTeam1":4101,"UTeam2":4201,"Season":77,"SchedGameDateTime":%q,"result":%q,"home_team":{"UTeamID":4101,"team_name":"Home"},"visitor_team":{"UTeamID":4201,"team_name":"Away"}}`, game.id, past, game.result))
 		}
 		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":4101,"team_name":"Home","Season":77},"games":[%s]}`, strings.Join(games, ","))
@@ -178,9 +181,9 @@ func TestGoogleResultSyncPatchesOnlyOwnedResultTextWithoutCreatingEvents(t *test
 		t.Fatal("revoked Soccer grant authorized result Sync")
 	}
 	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer", "management"}
-	sync := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/sync-results", url.Values{"team_codes": {"4101"}, "selected": {"8101", "8102", "8103", "8104", "8105", "8106", "8107"}}, siteCookie, googleCookie)
-	if sync.Code != http.StatusOK || !strings.Contains(sync.Body.String(), "1 game result(s) updated") || !strings.Contains(sync.Body.String(), "Skipped 6") {
-		t.Fatalf("Sync did not report one update and six unsafe matches: %d %q", sync.Code, sync.Body.String())
+	sync := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/sync-results", url.Values{"team_codes": {"4101"}, "selected": {"8101", "8102", "8103", "8104", "8105", "8106", "8107", "8109"}}, siteCookie, googleCookie)
+	if sync.Code != http.StatusOK || !strings.Contains(sync.Body.String(), "1 game result(s) updated") || !strings.Contains(sync.Body.String(), "Skipped 7") {
+		t.Fatalf("Sync did not report one update and seven unsafe matches: %d %q", sync.Code, sync.Body.String())
 	}
 	googleFake.mu.Lock()
 	updated := googleFake.events["8101"]
@@ -192,15 +195,18 @@ func TestGoogleResultSyncPatchesOnlyOwnedResultTextWithoutCreatingEvents(t *test
 	deletedAfter := googleFake.events["8104"]
 	ambiguousAfter := googleFake.events["a-8105"]
 	malformedAfter := googleFake.events["8107"]
+	annotatedAfter := googleFake.events["8109"]
+	deletedPatches := googleFake.patches["8104"]
+	annotatedPatches := googleFake.patches["8109"]
 	unselectedCalls := googleFake.listCalls["8108"]
 	googleFake.mu.Unlock()
 	if patchCount != 1 || insertCount != 0 || updated.Summary != owned.Summary || updated.Start != owned.Start || updated.End != owned.End || updated.Location != owned.Location || updated.Reminders.Overrides[0].Minutes != 5 || icsAfter.Description != ics.Description {
 		t.Fatal("Sync replaced personal event edits, touched ICS, or inserted history")
 	}
-	if updated.Description != "Home is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: Win (2-1)\nPersonal note: bring snacks" {
+	if updated.Description != "Personal heading: travel early\nHome is playing Away\nDivision: Open\nFacility: Boise\nField: Field 1\nResult: Win (2-1)\nPersonal note: bring snacks" {
 		t.Fatalf("Sync changed text outside the app-owned result line: %q", updated.Description)
 	}
-	if conflictAttempts != 1 || !strings.Contains(concurrentAfter.Description, "Personal concurrent edit") || deletedAfter.Status != "canceled" || ambiguousAfter.Description != ambiguousA.Description || malformedAfter.Description != malformed.Description || unselectedCalls != 0 {
+	if conflictAttempts != 1 || !strings.Contains(concurrentAfter.Description, "Personal concurrent edit") || deletedAfter.Status != deletedGoogleEventStatus || deletedPatches != 0 || ambiguousAfter.Description != ambiguousA.Description || malformedAfter.Description != malformed.Description || annotatedAfter.Description != annotated.Description || annotatedPatches != 0 || unselectedCalls != 0 {
 		t.Fatal("Sync restored deletion, guessed an ambiguous or malformed match, overwrote concurrency, or touched an unselected game")
 	}
 	repeated := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/sync-results", url.Values{"team_codes": {"4101"}, "selected": {"8101"}}, siteCookie, googleCookie)

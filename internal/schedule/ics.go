@@ -3,6 +3,7 @@ package schedule
 import (
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,6 +21,8 @@ type FormattedGameEvent struct {
 	Status      string
 	Summary     string
 }
+
+var canonicalResultLine = regexp.MustCompile(`^Result: ((Win|Loss|Draw) \([0-9]+-[0-9]+\)|Canceled|Final)?$`)
 
 // BuildICS renders the provided games as an iCalendar payload.
 func BuildICS(games []types.Game) string {
@@ -104,6 +107,39 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 		Status:   status,
 		Summary:  fmt.Sprintf("%s vs %s - %s", playerTeam, opponentTeam, fieldName),
 	}, true
+}
+
+// ReplaceCanonicalResultLine changes only the result slot in one recognizable
+// Add description. Notes before or after the block remain byte-for-byte intact;
+// an annotated or duplicated result slot is left for the user to resolve.
+func ReplaceCanonicalResultLine(description, desired string) (string, bool) {
+	lines := strings.Split(description, "\n")
+	resultIndex := -1
+	for i := 0; i+4 < len(lines); i++ {
+		if !strings.Contains(lines[i], " is playing ") ||
+			!strings.HasPrefix(lines[i+1], "Division: ") || !strings.HasPrefix(lines[i+2], "Facility: ") ||
+			!strings.HasPrefix(lines[i+3], "Field: ") || !strings.HasPrefix(lines[i+4], "Result: ") {
+			continue
+		}
+		if resultIndex >= 0 {
+			return "", false
+		}
+		resultIndex = i + 4
+	}
+	if resultIndex < 0 || !canonicalResultLine.MatchString(strings.TrimSuffix(lines[resultIndex], "\r")) {
+		return "", false
+	}
+	for i, line := range lines {
+		if i != resultIndex && strings.HasPrefix(strings.TrimSuffix(line, "\r"), "Result: ") {
+			return "", false
+		}
+	}
+	suffix := ""
+	if strings.HasSuffix(lines[resultIndex], "\r") {
+		suffix = "\r"
+	}
+	lines[resultIndex] = desired + suffix
+	return strings.Join(lines, "\n"), true
 }
 
 func canonicalGameLocation(game *types.Game) string {

@@ -24,6 +24,7 @@ const (
 	googleCalendarChoiceMessage      = "Choose a writable calendar before continuing. Writes are paused until you save a destination."
 	safeCalendarMutationRetryMessage = "The request reached its time limit. Retry to finish; existing games will be matched instead of duplicated."
 	safeResultSyncRetryMessage       = "The request reached its time limit. Retry to finish; results already current will be left unchanged."
+	safeResultSyncFailureMessage     = "Could not finish result sync. Retry later; results already current will be left unchanged."
 )
 
 // AddHandler adds selected games to Google Calendar.
@@ -248,14 +249,10 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if calendarDestinationRejected(err) {
-			done := ""
-			if result.added+result.updated > 0 {
-				done = syncResultsMutationMessage(result)
-			}
-			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, done)
+			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, syncResultsMutationMessage(result))
 			return
 		}
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not sync past game results to Google Calendar. Try again.")
+		h.Soccer.RenderLoginFeedback(w, r, "error", syncResultsMutationMessage(result)+" "+safeResultSyncFailureMessage)
 		return
 	}
 	if result.authRejected {
