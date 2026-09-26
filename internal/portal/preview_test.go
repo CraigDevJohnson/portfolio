@@ -122,18 +122,3 @@ func TestPreviewHandlersRejectInvalidInstanceID(t *testing.T) {
 		}
 	}
 }
-
-func TestPreviewAuthURLsRedirectToDashboard(t *testing.T) {
-	handler := newPreviewTestHandler()
-	request := httptest.NewRequest(http.MethodGet, "/login", nil)
-	response := httptest.NewRecorder()
-
-	handler.RedirectToDashboardHandler(response, request)
-
-	if response.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusSeeOther)
-	}
-	if location := response.Header().Get("Location"); location != "/mgmt" {
-		t.Fatalf("Location = %q, want /mgmt", location)
-	}
-}

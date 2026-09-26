@@ -41,10 +41,10 @@ templ PortalDashboard(props DashboardProps) {
 							ExtraClass: "portal-session-action",
 						})
 					} else {
-						<form method="POST" action="/logout">
+						<form method="POST" action="/sign-out">
 							@partials.ActionButton(partials.ActionButtonProps{
 								Type:       "submit",
-								Label:      "Log out",
+								Label:      "Sign out",
 								Variant:    partials.ActionSecondary,
 								ExtraClass: "portal-session-action",
 							})

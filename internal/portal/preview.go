@@ -77,12 +77,6 @@ func (h *PreviewHandler) ErrorPageHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// RedirectToDashboardHandler keeps the production auth URLs harmless and
-// navigable while preview mode is active.
-func (h *PreviewHandler) RedirectToDashboardHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/mgmt", http.StatusSeeOther)
-}
-
 // InstanceActionHandler renders feedback without sending any AWS request.
 func (h *PreviewHandler) InstanceActionHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

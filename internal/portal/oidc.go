@@ -3,11 +3,8 @@ package portal
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,41 +20,7 @@ import (
 )
 
 // ──────────────────────────────────────────────
-// PKCE pure-function helpers (task 4.1)
-// ──────────────────────────────────────────────
-
-// generateCodeVerifier returns a 32-byte random value encoded as base64url
-// without padding, suitable for use as an OAuth 2.0 PKCE code_verifier.
-func generateCodeVerifier() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating code verifier: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-// codeChallenge computes the PKCE S256 code_challenge for the given verifier:
-//
-//	BASE64URL(SHA-256(ASCII(code_verifier)))
-//
-// No padding characters are included, as required by RFC 7636.
-func codeChallenge(verifier string) string {
-	h := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(h[:])
-}
-
-// generateState returns 16 random bytes encoded as a lowercase hex string,
-// suitable for use as an OAuth 2.0 state nonce.
-func generateState() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating state: %w", err)
-	}
-	return hex.EncodeToString(b), nil
-}
-
-// ──────────────────────────────────────────────
-// Token and Claims types (task 4.2)
+// Token and Claims types
 // ──────────────────────────────────────────────
 
 // TokenResponse is the JSON body returned by the Cognito token endpoint.
@@ -68,7 +31,7 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
-// Claims holds the subset of JWT claims the portal cares about.
+// Claims holds the subset of JWT claims needed for site identity.
 type Claims struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`

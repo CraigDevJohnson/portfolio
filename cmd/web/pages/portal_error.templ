@@ -3,6 +3,7 @@ package pages
 import "fmt"
 import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
+import "net/http"
 import "strconv"
 
 type ErrorPageProps struct {
@@ -17,16 +18,20 @@ templ PortalError(props ErrorPageProps) {
 				<div class="portal-error-code" aria-label={ "Status " + strconv.Itoa(props.StatusCode) }>{ strconv.Itoa(props.StatusCode) }</div>
 				<div class="portal-error-copy">
 					<p class="page-kit-eyebrow">Management portal</p>
-					<h1 id="portal-error-heading" class="page-section-title">Something interrupted the connection</h1>
+					if props.StatusCode == http.StatusForbidden {
+						<h1 id="portal-error-heading" class="page-section-title">Management access required</h1>
+					} else {
+						<h1 id="portal-error-heading" class="page-section-title">Something interrupted the connection</h1>
+					}
 					@partials.Feedback(partials.FeedbackProps{
 						Kind:       partials.FeedbackError,
-						Title:      "Connection status",
+						Title:      portalErrorTitle(props.StatusCode),
 						Message:    props.Message,
 						ExtraClass: "portal-error-feedback",
 					})
 					@partials.ActionLink(partials.ActionLinkProps{
-						Href:       "/login",
-						Label:      "Try again",
+						Href:       "/",
+						Label:      "Back to portfolio",
 						Variant:    partials.ActionPrimary,
 						ShowArrow:  true,
 						ExtraClass: "portal-error-action",
@@ -36,4 +41,11 @@ templ PortalError(props ErrorPageProps) {
 			</section>
 		</div>
 	}
+}
+
+func portalErrorTitle(status int) string {
+	if status == http.StatusForbidden {
+		return "Access denied"
+	}
+	return "Connection status"
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -16,17 +15,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 )
-
-func TestCodeChallengeRFC7636Vector(t *testing.T) {
-	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-	// The RFC vector is ASCII; compute the expected value directly to keep this
-	// test independent of the implementation under test.
-	hash := sha256.Sum256([]byte(verifier))
-	want := base64.RawURLEncoding.EncodeToString(hash[:])
-	if got := codeChallenge(verifier); got != want {
-		t.Fatalf("codeChallenge() = %q, want %q", got, want)
-	}
-}
 
 func TestAuthorizationURL(t *testing.T) {
 	client := NewOIDCClient("https://example.auth.us-east-1.amazoncognito.com", "https://issuer.example/pool", "client", "https://app.example/callback", "")

@@ -1,5 +1,4 @@
-// Package portal provides the EC2 management portal handlers, OIDC authentication,
-// and AWS client interfaces for the /login, /callback, and /mgmt route families.
+// Package portal provides the EC2 management portal and shared Cognito OIDC client.
 package portal
 
 import (
@@ -14,7 +13,6 @@ const htmlContentType = "text/html; charset=utf-8"
 // Handler owns all portal route handlers and their runtime dependencies.
 type Handler struct {
 	Config     *config.Config
-	OIDC       *OIDCClient
 	EC2        EC2ClientIface
 	CloudWatch CloudWatchClientIface
 	Logs       CloudWatchLogsClientIface
@@ -24,7 +22,6 @@ type Handler struct {
 // NewHandler constructs a portal Handler with its runtime dependencies.
 func NewHandler(
 	cfg *config.Config,
-	oidc *OIDCClient,
 	ec2 EC2ClientIface,
 	cw CloudWatchClientIface,
 	logs CloudWatchLogsClientIface,
@@ -35,7 +32,6 @@ func NewHandler(
 	}
 	return &Handler{
 		Config:     cfg,
-		OIDC:       oidc,
 		EC2:        ec2,
 		CloudWatch: cw,
 		Logs:       logs,

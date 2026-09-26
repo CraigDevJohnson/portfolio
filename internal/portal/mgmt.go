@@ -15,19 +15,20 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/siteidentity"
 )
 
 // DashboardHandler renders the authenticated EC2 instance dashboard.
 func (h *Handler) DashboardHandler(w http.ResponseWriter, r *http.Request) {
-	username, _ := UsernameFromContext(r.Context())
+	principal, _ := siteidentity.PrincipalFromContext(r.Context())
 	if h.EC2 == nil {
-		h.renderDashboard(w, r, pages.DashboardProps{Username: username, RetrievalError: "EC2 management is unavailable."})
+		h.renderDashboard(w, r, pages.DashboardProps{Username: principal.Email, RetrievalError: "EC2 management is unavailable."})
 		return
 	}
 	output, err := h.EC2.DescribeInstances(r.Context(), &ec2.DescribeInstancesInput{})
 	if err != nil {
 		h.Logger.Error("portal instance retrieval failed", slog.String("region", h.Config.PortalAWSRegion), slog.String("aws_error_code", awsErrorCode(err)), slog.Any("error", err))
-		h.renderDashboard(w, r, pages.DashboardProps{Username: username, RetrievalError: "Unable to retrieve instances right now."})
+		h.renderDashboard(w, r, pages.DashboardProps{Username: principal.Email, RetrievalError: "Unable to retrieve instances right now."})
 		return
 	}
 	instances := make([]InstanceSummary, 0)
@@ -37,7 +38,7 @@ func (h *Handler) DashboardHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.Slice(instances, func(i, j int) bool { return instances[i].ID < instances[j].ID })
-	h.renderDashboard(w, r, pages.DashboardProps{Username: username, Instances: instances})
+	h.renderDashboard(w, r, pages.DashboardProps{Username: principal.Email, Instances: instances})
 }
 
 func summarizeInstance(instance *ec2types.Instance) InstanceSummary {
@@ -100,13 +101,13 @@ func (h *Handler) InstanceActionHandler(w http.ResponseWriter, r *http.Request) 
 			_, err = h.EC2.StartInstances(r.Context(), &ec2.StartInstancesInput{InstanceIds: inputID})
 		}
 	}
-	username, _ := UsernameFromContext(r.Context())
+	principal, _ := siteidentity.PrincipalFromContext(r.Context())
 	if err != nil {
-		h.Logger.Error("portal instance action failed", slog.String("operator_username", username), slog.String("instance_id", id), slog.String("action", action), slog.String("outcome", "failure"), slog.Any("error", err))
+		h.Logger.Error("portal instance action failed", slog.String("operator_username", principal.Email), slog.String("instance_id", id), slog.String("action", action), slog.String("outcome", "failure"), slog.Any("error", err))
 		h.renderActionResultStatus(w, r, http.StatusInternalServerError, "The instance action failed.")
 		return
 	}
-	h.Logger.Info("portal instance action completed", slog.String("operator_username", username), slog.String("instance_id", id), slog.String("action", action), slog.String("outcome", "success"))
+	h.Logger.Info("portal instance action completed", slog.String("operator_username", principal.Email), slog.String("instance_id", id), slog.String("action", action), slog.String("outcome", "success"))
 	h.renderActionResult(w, r, true, fmt.Sprintf("Instance %s requested successfully.", action))
 }
 

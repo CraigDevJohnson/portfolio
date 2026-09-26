@@ -27,10 +27,9 @@ invited site account with the current `soccer` grant can also:
 
 Imported sessions can optionally write DynamoDB audit baselines.
 
-The management portal routes are disabled unless their Cognito and session
-settings are valid. A registered OAuth redirect URI is also required for sign-in.
-When enabled, the portal can list EC2 instances, request start, stop, and restart
-actions, and load CloudWatch metrics and logs.
+The management portal uses the invited site session and its current
+`management` grant. With site identity configured, it can list EC2 instances,
+request start, stop, and restart actions, and load CloudWatch metrics and logs.
 
 ## Requirements
 
@@ -187,36 +186,19 @@ sign-out; that would require shared server-side session or revocation state.
 
 ### EC2 management portal
 
-The portal requires:
+Configure the shared `SITE_*` identity settings above and give an invited,
+verified account the `management` grant in `SITE_INVITATIONS_JSON`. Each
+`/mgmt` page and action reads the site session and checks the grant from the
+current configuration. A valid site session without that grant receives a clear
+denial; a signed-out visitor is sent to `/sign-in` and then back to `/mgmt`.
+The portal's sign-out button uses the same `/sign-out` route as shared
+navigation. The old `/login`, `/callback`, and `/logout` routes and
+`mgmt_session` cookie do not authorize the portal. `MGMT_AWS_REGION` defaults
+to `us-east-1`.
 
-- `MGMT_SESSION_KEY`, generated with `openssl rand -hex 32`
-- `MGMT_COGNITO_DOMAIN`, the HTTPS hosted UI origin
-- `MGMT_COGNITO_ISSUER`, the HTTPS user-pool issuer, such as
-  `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example`
-- `MGMT_COGNITO_CLIENT_ID`, a public authorization-code + PKCE app client
-- `MGMT_COGNITO_REDIRECT_URI`, a registered HTTPS callback at `/callback`
-- `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL at `/login`
-- `MGMT_ALLOWED_EMAILS`, a nonempty comma-separated list of bare email addresses
-
-`GET /login` displays a signed-out page. Its sign-in button submits `POST /login`
-to start Google authentication through Cognito. Logout clears the portal session
-and pending OAuth state, then returns to the page without restarting sign-in.
-The application verifies the signed
-Cognito ID token using the configured user-pool issuer and its JWKS, then
-requires a boolean `email_verified: true` claim and an exact allowlist match.
-Addresses are trimmed and lowercased; dots and plus suffixes remain significant.
-The initial development allowlist is `craigdevjohnson@gmail.com`; each environment
-owns its allowlist, and the application has no default authorized address.
-
-For development, register `https://dev.craigdevjohnson.com/callback` and
-`https://dev.craigdevjohnson.com/login`. A registered HTTP loopback callback
-(such as `http://localhost:8080/callback`) also requires
-`MGMT_ALLOW_LOCAL_CALLBACK=true`; logout URLs remain HTTPS. This enables real
-Cognito sign-in locally and is separate from the mock preview below.
-Incomplete or invalid identity configuration disables portal routes. In Lambda,
-the management session key resolves separately from required secrets; a missing
-or inaccessible key disables the portal while the rest of the site can start.
-`MGMT_AWS_REGION` defaults to `us-east-1`.
+The shared site Cognito callback and logout URL must be registered before
+configuring the portal in an environment. Existing management-only Cognito
+registration and `MGMT_*` identity settings do not activate this flow.
 
 The runtime AWS identity needs these actions:
 
@@ -365,9 +347,9 @@ revoked grant is visible where the visitor acted.
 An environment without complete site sign-in configuration has no signed-in
 visitors, so its private Soccer actions stay unavailable and the page says so.
 
-Portal routes are registered only with valid runtime configuration or local
-preview mode. They include `/login`, `/callback`, `/logout`, `/mgmt`, and
-the instance action, metrics, and logs paths under `/mgmt/instances/{id}/`.
+Portal routes are registered with valid `SITE_*` identity configuration or
+local preview mode. They include `/mgmt` and the instance action, metrics, and
+logs paths under `/mgmt/instances/{id}/`.
 
 ## Chrome extension
 

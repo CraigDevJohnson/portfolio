@@ -16,8 +16,8 @@ import (
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/httpx"
-	"portfolio/internal/portal"
 	"portfolio/internal/session"
+	"portfolio/internal/siteauth"
 	internalsoccer "portfolio/internal/soccer"
 )
 
@@ -79,8 +79,7 @@ func responseHeader(response events.APIGatewayV2HTTPResponse, name string) strin
 }
 
 // Production breaks caught: trusting request headers instead of the typed gateway
-// context yields HTTP OAuth callbacks and cookies without Secure; enabling the
-// empty portal config exposes management routes; accepting an empty gateway domain
+// context yields HTTP OAuth callbacks and cookies without Secure; accepting an empty gateway domain
 // lets requests reach handlers without a trustworthy origin.
 func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -104,11 +103,7 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 		logger,
 	)
 
-	portalConfig := config.Config{}
-	portalHandler := portal.NewHandler(&portalConfig, nil, nil, nil, nil, logger)
-	if portalHandler.Config.PortalEnabled() {
-		t.Fatal("empty portal config unexpectedly enabled the portal")
-	}
+	siteHandler := siteauth.NewHandler(&config.Config{}, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /soccer/google/connect", googleHandler.ConnectHandler)
@@ -117,7 +112,7 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /test/soccer-logout", soccerHandler.LogoutHandler)
-	mux.HandleFunc("POST /test/portal-logout", portalHandler.LogoutHandler)
+	mux.HandleFunc("POST /test/site-logout", siteHandler.LogoutHandler)
 	mux.HandleFunc("GET /test/origin", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, httpx.RequestBaseURL(r))
 	})
@@ -168,12 +163,12 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 			},
 		},
 		{
-			name:  "Portal logout cookie remains secure and strict",
-			event: gatewayEvent(http.MethodPost, "/test/portal-logout"),
+			name:  "Shared site logout cookie remains secure and lax",
+			event: gatewayEvent(http.MethodPost, "/test/site-logout"),
 			assert: func(t *testing.T, response events.APIGatewayV2HTTPResponse) {
-				cookie := responseCookie(t, response, config.PortalSessionCookieName)
-				if !cookie.Secure || cookie.MaxAge >= 0 || cookie.Path != config.PortalCookiePath || cookie.SameSite != http.SameSiteStrictMode {
-					t.Fatalf("expired mgmt_session attributes = Secure:%t MaxAge:%d Path:%q SameSite:%d", cookie.Secure, cookie.MaxAge, cookie.Path, cookie.SameSite)
+				cookie := responseCookie(t, response, config.SiteSessionCookieName)
+				if !cookie.Secure || cookie.MaxAge >= 0 || cookie.Path != config.SiteCookiePath || cookie.SameSite != http.SameSiteLaxMode {
+					t.Fatalf("expired site_session attributes = Secure:%t MaxAge:%d Path:%q SameSite:%d", cookie.Secure, cookie.MaxAge, cookie.Path, cookie.SameSite)
 				}
 			},
 		},

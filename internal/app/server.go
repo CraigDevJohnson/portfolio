@@ -132,28 +132,20 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		mux.HandleFunc("POST /__preview/soccer/download", soccerPreviewDownloadHandler)
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
-		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("POST /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("GET /callback", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.InstanceActionHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.InstanceActionHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.InstanceActionHandler)
 		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.MetricsHandler)
 		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.LogsHandler)
-	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
+	} else if app.Config.SiteEnabled() && app.PortalHandler != nil {
 		ph := app.PortalHandler
-		mux.HandleFunc("GET /login", ph.LoginPageHandler)
-		mux.HandleFunc("POST /login", ph.LoginPageHandler)
-		mux.HandleFunc("GET /callback", ph.CallbackHandler)
-		mux.HandleFunc("POST /logout", ph.LogoutHandler)
-		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.RequireAuth(ph.MetricsHandler))
-		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.RequireAuth(ph.LogsHandler))
+		mux.HandleFunc("GET /mgmt", ph.RequireManagement(ph.DashboardHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.RequireManagement(ph.MetricsHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.RequireManagement(ph.LogsHandler))
 	}
 
 	// static files

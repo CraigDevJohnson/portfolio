@@ -229,8 +229,12 @@ against the first-launch criteria in #75 first.
 
 ## EC2 management portal
 
-The portal routes are disabled unless the session key, Cognito domain, and
-client ID are valid, and no environment enables them. Its runtime role has only
+The portal routes use the shared `SITE_*` session and the current `management`
+grant in `SITE_INVITATIONS_JSON`; they are registered only where site sign-in is
+configured, and no environment supplies those settings yet. The former
+management-only `MGMT_*` identity settings, `mgmt_session` cookie and
+`/callback` registration no longer authorize portal access. `MGMT_AWS_REGION`
+still selects the AWS region for portal operations. Its runtime role has only
 read-only EC2 and metric grants: no EC2 start/stop and no `/ec2/i-*` log reads
 (D22). The planned Foundry backend replaces direct EC2 control. Local mock
 review uses `task portal-preview`.
