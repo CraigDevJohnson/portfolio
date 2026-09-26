@@ -84,8 +84,14 @@ type archiveItem struct {
 	FetchedAt         string         `dynamodbav:"fetched_at"`
 	DuePK             string         `dynamodbav:"due_pk,omitempty"`
 	DueSK             string         `dynamodbav:"due_sk,omitempty"`
-	// Revision counts writes to a game record for conditional merges.
+	// Revision counts writes to a game or team enrollment record for
+	// conditional merges.
 	Revision int `dynamodbav:"revision,omitempty"`
+	// The team enrollment record also carries its latest refresh attempt.
+	RefreshStatus     RefreshStatus `dynamodbav:"refresh_status,omitempty"`
+	AttemptedAt       string        `dynamodbav:"attempted_at,omitempty"`
+	FailureKind       lps.ErrorKind `dynamodbav:"failure_kind,omitempty"`
+	FailureStatusCode int           `dynamodbav:"failure_status_code,omitempty"`
 }
 
 // SaveTeamSnapshot upserts stable source IDs. Coverage and then the team's
@@ -108,8 +114,10 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		return err
 	}
 
-	games := append([]lps.TeamScheduleGame(nil), snapshot.Games...)
-	sort.Slice(games, func(i, j int) bool { return games[i].UGameID < games[j].UGameID })
+	games, err := uniqueSourceGames(snapshot.Games)
+	if err != nil {
+		return err
+	}
 	seasonCounts := map[int]int{}
 	teamGameEdges := map[string]archiveItem{}
 	for i := range games {
@@ -181,13 +189,128 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		Kind:              "coverage",
 		TeamID:            snapshot.TeamID,
 		Status:            CoverageFetched,
-		ReturnedGameCount: len(snapshot.Games),
+		ReturnedGameCount: len(games),
 		SeasonIDs:         seasonIDs,
 		FetchedAt:         fetchedAt,
 	}); err != nil {
 		return fmt.Errorf("save team %d coverage: %w", snapshot.TeamID, err)
 	}
 	return s.saveTeam(ctx, snapshot, fetchedAt)
+}
+
+// uniqueSourceGames merges repeated entries for one stable game ID within a
+// response, the later entry winning each field it states, and orders the
+// result by game ID.
+func uniqueSourceGames(source []lps.TeamScheduleGame) ([]lps.TeamScheduleGame, error) {
+	byID := make(map[int][]byte, len(source))
+	for i := range source {
+		game := &source[i]
+		payload := game.SourceJSON
+		if len(payload) == 0 {
+			var err error
+			if payload, err = json.Marshal(game); err != nil {
+				return nil, fmt.Errorf("marshal game %d: %w", game.UGameID, err)
+			}
+		}
+		if previous, exists := byID[game.UGameID]; exists {
+			var err error
+			if payload, err = mergeSourceObject(previous, payload); err != nil {
+				return nil, fmt.Errorf("merge duplicate game %d: %w", game.UGameID, err)
+			}
+		}
+		byID[game.UGameID] = payload
+	}
+	ids := make([]int, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	games := make([]lps.TeamScheduleGame, 0, len(ids))
+	for _, id := range ids {
+		var game lps.TeamScheduleGame
+		if err := json.Unmarshal(byID[id], &game); err != nil {
+			return nil, fmt.Errorf("decode game %d: %w", id, err)
+		}
+		games = append(games, game)
+	}
+	return games, nil
+}
+
+// ReadRefreshState returns an enrolled team's latest refresh attempt. Only a
+// saved snapshot enrolls a team, so a team without one is ErrNotEnrolled.
+func (s *DynamoStore) ReadRefreshState(ctx context.Context, teamID int) (RefreshState, error) {
+	if teamID <= 0 {
+		return RefreshState{}, ErrNotEnrolled
+	}
+	team, err := s.get(ctx, teamKey(teamID), "META")
+	if err != nil {
+		return RefreshState{}, err
+	}
+	if team == nil {
+		return RefreshState{}, ErrNotEnrolled
+	}
+	state := RefreshState{
+		TeamID:              teamID,
+		Status:              team.RefreshStatus,
+		LastErrorKind:       team.FailureKind,
+		LastErrorStatusCode: team.FailureStatusCode,
+	}
+	if state.LastAttemptAt, err = time.Parse(sortableUTCFormat, team.AttemptedAt); err != nil {
+		return RefreshState{}, fmt.Errorf("decode team %d refresh attempt time: %w", teamID, err)
+	}
+	if team.DueSK != "" {
+		if state.NextDueAt, err = dueTime(team.DueSK); err != nil {
+			return RefreshState{}, fmt.Errorf("decode team %d next due time: %w", teamID, err)
+		}
+	}
+	return state, nil
+}
+
+// RecordRefreshFailure marks one enrolled team invalid or retryable without
+// touching its last successful team, game, facility, or coverage facts. An
+// invalid team leaves the due-team index; a retryable one stays due.
+func (s *DynamoStore) RecordRefreshFailure(ctx context.Context, failure *RefreshFailure) error {
+	if failure == nil {
+		return errors.New("refresh failure is required")
+	}
+	if failure.TeamID <= 0 || failure.AttemptedAt.IsZero() ||
+		(failure.Status != RefreshInvalid && failure.Status != RefreshRetryable) ||
+		(failure.Status == RefreshRetryable && !failure.NextDueAt.After(failure.AttemptedAt)) ||
+		(failure.Status == RefreshInvalid && !failure.NextDueAt.IsZero()) {
+		return errors.New("refresh failure requires an enrolled team, attempt time, and valid retry state")
+	}
+	attemptedAt := failure.AttemptedAt.UTC().Format(sortableUTCFormat)
+	for range maxRecordWriteAttempts {
+		previous, err := s.get(ctx, teamKey(failure.TeamID), "META")
+		if err != nil {
+			return err
+		}
+		if previous == nil {
+			return ErrNotEnrolled
+		}
+		if previous.AttemptedAt >= attemptedAt {
+			// A later attempt already recorded the team's refresh state.
+			return nil
+		}
+		record := *previous
+		record.Revision = previous.Revision + 1
+		record.RefreshStatus = failure.Status
+		record.AttemptedAt = attemptedAt
+		record.FailureKind = failure.ErrorKind
+		record.FailureStatusCode = failure.HTTPStatusCode
+		record.DuePK, record.DueSK = "", ""
+		if failure.Status == RefreshRetryable {
+			record.DuePK, record.DueSK = dueTeamsPK, dueKey(failure.NextDueAt, failure.TeamID)
+		}
+		written, err := s.putIfUnchanged(ctx, &record, previous)
+		if err != nil {
+			return fmt.Errorf("record team %d refresh failure: %w", failure.TeamID, err)
+		}
+		if written {
+			return nil
+		}
+	}
+	return fmt.Errorf("record team %d refresh failure: changed by concurrent writes %d times", failure.TeamID, maxRecordWriteAttempts)
 }
 
 // mergeSourceObject lays an incoming LPS game over the stored one. Both
@@ -359,9 +482,9 @@ func (s *DynamoStore) ReadTeamSeason(ctx context.Context, teamID, seasonID int) 
 	return history, nil
 }
 
-// maxGameWriteAttempts bounds how often one game write re-reads and merges
-// after concurrent lookups of the same game change it first.
-const maxGameWriteAttempts = 5
+// maxRecordWriteAttempts bounds how often one game or team enrollment write
+// re-reads and merges after concurrent writers change it first.
+const maxRecordWriteAttempts = 5
 
 // saveGame merges one returned game into its stable GAME#id record and returns
 // the merged game with its season. The write is conditional on the revision it
@@ -377,7 +500,7 @@ func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamSchedule
 		}
 	}
 	gameKey := "GAME#" + strconv.Itoa(sourceGame.UGameID)
-	for range maxGameWriteAttempts {
+	for range maxRecordWriteAttempts {
 		previous, err := s.get(ctx, gameKey, "META")
 		if err != nil {
 			return lps.TeamScheduleGame{}, 0, err
@@ -404,7 +527,7 @@ func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamSchedule
 		if game.SchedGameEndTime != nil {
 			endAt = *game.SchedGameEndTime
 		}
-		written, err := s.putGameIfUnchanged(ctx, &archiveItem{
+		written, err := s.putIfUnchanged(ctx, &archiveItem{
 			PK:             gameKey,
 			SK:             "META",
 			Kind:           "game",
@@ -432,13 +555,13 @@ func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamSchedule
 			return game, seasonID, nil
 		}
 	}
-	return lps.TeamScheduleGame{}, 0, fmt.Errorf("save game %d: changed by concurrent lookups %d times", sourceGame.UGameID, maxGameWriteAttempts)
+	return lps.TeamScheduleGame{}, 0, fmt.Errorf("save game %d: changed by concurrent lookups %d times", sourceGame.UGameID, maxRecordWriteAttempts)
 }
 
-// putGameIfUnchanged writes a game only if its record still has the revision
-// that was read (or is still absent). It reports false when another writer
-// changed the record first.
-func (s *DynamoStore) putGameIfUnchanged(ctx context.Context, record, read *archiveItem) (bool, error) {
+// putIfUnchanged writes a game or team enrollment record only if it still has
+// the revision that was read (or is still absent). It reports false when
+// another writer changed the record first.
+func (s *DynamoStore) putIfUnchanged(ctx context.Context, record, read *archiveItem) (bool, error) {
 	item, err := attributevalue.MarshalMap(record)
 	if err != nil {
 		return false, err
@@ -502,39 +625,92 @@ func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonI
 	return nil
 }
 
+// saveTeam writes the team's enrollment record: its latest team facts, which
+// keep a fact the response omits, and a successful refresh attempt that makes
+// the team due again a day after this fetch. A refresh failure recorded after
+// this fetch keeps its state.
 func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedAt string) error {
-	teamJSON, err := json.Marshal(snapshot.Team)
-	if err != nil {
-		return fmt.Errorf("marshal team %d: %w", snapshot.TeamID, err)
+	for range maxRecordWriteAttempts {
+		previous, err := s.get(ctx, teamKey(snapshot.TeamID), "META")
+		if err != nil {
+			return err
+		}
+		if previous != nil && previous.FetchedAt > fetchedAt {
+			// A newer response already holds the team facts.
+			return nil
+		}
+		team := snapshot.Team
+		teamItem := archiveItem{
+			PK:               teamKey(snapshot.TeamID),
+			SK:               "META",
+			Kind:             "team",
+			TeamID:           snapshot.TeamID,
+			EnrollmentSource: "manual",
+			FetchedAt:        fetchedAt,
+			Revision:         1,
+			RefreshStatus:    RefreshReady,
+			AttemptedAt:      fetchedAt,
+			DuePK:            dueTeamsPK,
+			DueSK:            dueKey(snapshot.FetchedAt.Add(24*time.Hour), snapshot.TeamID),
+		}
+		if previous != nil {
+			var priorTeam lps.TeamSummary
+			if err := json.Unmarshal([]byte(previous.RawSourceJSON), &priorTeam); err != nil {
+				return fmt.Errorf("decode team %d context: %w", snapshot.TeamID, err)
+			}
+			retainMissingTeamFacts(&team, &priorTeam)
+			if team.Season == 0 {
+				team.Season = priorTeam.Season
+			}
+			teamItem.Revision = previous.Revision + 1
+			if previous.EnrollmentSource != "" {
+				teamItem.EnrollmentSource = previous.EnrollmentSource
+			}
+			if previous.AttemptedAt > fetchedAt {
+				teamItem.RefreshStatus, teamItem.AttemptedAt = previous.RefreshStatus, previous.AttemptedAt
+				teamItem.FailureKind, teamItem.FailureStatusCode = previous.FailureKind, previous.FailureStatusCode
+				teamItem.DuePK, teamItem.DueSK = previous.DuePK, previous.DueSK
+			}
+		}
+		teamJSON, err := json.Marshal(team)
+		if err != nil {
+			return fmt.Errorf("marshal team %d: %w", snapshot.TeamID, err)
+		}
+		teamItem.TeamName = team.TeamName
+		teamItem.DivisionName = team.DivisionName
+		teamItem.SeasonID = team.Season
+		teamItem.FacilityID = team.FacilityID
+		teamItem.FacilityName = team.FacilityName
+		teamItem.RawSourceJSON = string(teamJSON)
+		written, err := s.putIfUnchanged(ctx, &teamItem, previous)
+		if err != nil {
+			return fmt.Errorf("save team %d: %w", snapshot.TeamID, err)
+		}
+		if written {
+			return nil
+		}
 	}
-	teamItem := archiveItem{
-		PK:               teamKey(snapshot.TeamID),
-		SK:               "META",
-		Kind:             "team",
-		TeamID:           snapshot.TeamID,
-		TeamName:         snapshot.Team.TeamName,
-		DivisionName:     snapshot.Team.DivisionName,
-		SeasonID:         snapshot.Team.Season,
-		FacilityID:       snapshot.Team.FacilityID,
-		FacilityName:     snapshot.Team.FacilityName,
-		EnrollmentSource: "manual",
-		RawSourceJSON:    string(teamJSON),
-		FetchedAt:        fetchedAt,
-		DuePK:            "TEAM_DUE",
-		DueSK:            snapshot.FetchedAt.UTC().Add(24*time.Hour).Format(sortableUTCFormat) + "#" + strconv.Itoa(snapshot.TeamID),
-	}
-	if err := s.put(ctx, &teamItem); err != nil {
-		return fmt.Errorf("save team %d: %w", snapshot.TeamID, err)
-	}
-	return nil
+	return fmt.Errorf("save team %d: changed by concurrent writes %d times", snapshot.TeamID, maxRecordWriteAttempts)
 }
 
 func (s *DynamoStore) saveFacilities(ctx context.Context, source []lps.FacilityResponse, fetchedAt string) error {
 	facilities := append([]lps.FacilityResponse(nil), source...)
 	sort.Slice(facilities, func(i, j int) bool { return facilities[i].FacilityID < facilities[j].FacilityID })
-	for _, facility := range facilities {
+	for i := range facilities {
+		facility := &facilities[i]
 		if facility.FacilityID <= 0 {
 			continue
+		}
+		previous, err := s.get(ctx, "FACILITY#"+strconv.Itoa(facility.FacilityID), "META")
+		if err != nil {
+			return err
+		}
+		if previous != nil {
+			var priorFacility lps.FacilityResponse
+			if err := json.Unmarshal([]byte(previous.RawSourceJSON), &priorFacility); err != nil {
+				return fmt.Errorf("decode facility %d context: %w", facility.FacilityID, err)
+			}
+			retainMissingFacilityFacts(facility, &priorFacility)
 		}
 		facilityJSON, err := json.Marshal(facility)
 		if err != nil {
@@ -557,6 +733,25 @@ func (s *DynamoStore) saveFacilities(ctx context.Context, source []lps.FacilityR
 		}
 	}
 	return nil
+}
+
+// retainMissingFacilityFacts fills the facility facts current lacks from previous.
+func retainMissingFacilityFacts(current, previous *lps.FacilityResponse) {
+	if current.FacilityName == "" {
+		current.FacilityName = previous.FacilityName
+	}
+	if current.Address == "" {
+		current.Address = previous.Address
+	}
+	if current.City == "" {
+		current.City = previous.City
+	}
+	if current.State == "" {
+		current.State = previous.State
+	}
+	if current.ZIP == "" {
+		current.ZIP = previous.ZIP
+	}
 }
 
 func (s *DynamoStore) readFacilities(ctx context.Context, team *lps.TeamSummary, games []lps.TeamScheduleGame) ([]lps.FacilityResponse, error) {
@@ -635,6 +830,22 @@ func (s *DynamoStore) get(ctx context.Context, pk, sk string) (*archiveItem, err
 }
 
 func teamKey(teamID int) string { return "TEAM#" + strconv.Itoa(teamID) }
+
+// dueTeamsPK partitions the due-team index; its sort key orders teams by
+// their next refresh time.
+const dueTeamsPK = "TEAM_DUE"
+
+func dueKey(dueAt time.Time, teamID int) string {
+	return dueAt.UTC().Format(sortableUTCFormat) + "#" + strconv.Itoa(teamID)
+}
+
+func dueTime(dueSK string) (time.Time, error) {
+	value, _, found := strings.Cut(dueSK, "#")
+	if !found {
+		return time.Time{}, errors.New("team refresh due key is missing its Team ID")
+	}
+	return time.Parse(sortableUTCFormat, value)
+}
 
 func seasonGameKey(seasonID, gameID int) string {
 	return fmt.Sprintf("SEASON#%010d#GAME#%d", seasonID, gameID)

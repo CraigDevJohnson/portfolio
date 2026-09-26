@@ -151,6 +151,22 @@ func FetchAllGamesForTeamsWithSource(ctx context.Context, baseURL string, httpCl
 	return mergeTeamGames(teamGames), sources, nil
 }
 
+// FetchTeamSource fetches one team's raw LPS response and the facilities it
+// uses, exactly as an entered Team ID lookup archives them. The caller decides
+// whether the response confirms teamID.
+func (resolver *ScheduleResolver) FetchTeamSource(ctx context.Context, teamID int) (TeamScheduleSource, error) {
+	// A worker may reuse its resolver across runs; facility details must be
+	// fetched again on each attempt, not served from a previous run's cache.
+	_, sources, err := FetchAllGamesForTeamsWithSource(ctx, resolver.baseURL, resolver.httpClient, []int{teamID})
+	if err != nil {
+		return TeamScheduleSource{}, err
+	}
+	if len(sources) != 1 {
+		return TeamScheduleSource{}, NewFetchError(ErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
+	}
+	return sources[0], nil
+}
+
 // FetchPlayerTeams loads the teams linked to a player.
 func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID int) ([]TeamSummary, error) {
 	if playerID <= 0 {

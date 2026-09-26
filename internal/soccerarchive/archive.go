@@ -27,6 +27,38 @@ type Store interface {
 // ErrNoArchive means no accepted snapshot has been stored for this team.
 var ErrNoArchive = errors.New("team has no archived LPS response")
 
+// ErrNotEnrolled means no valid source response has enrolled this Team ID.
+var ErrNotEnrolled = errors.New("team is not enrolled for LPS history refresh")
+
+// RefreshStatus identifies whether an enrolled team can be polled again.
+type RefreshStatus string
+
+const (
+	RefreshReady     RefreshStatus = "ready"
+	RefreshRetryable RefreshStatus = "retryable_failure"
+	RefreshInvalid   RefreshStatus = "invalid_team"
+)
+
+// RefreshState is the durable polling state for an enrolled team.
+type RefreshState struct {
+	TeamID              int
+	Status              RefreshStatus
+	LastAttemptAt       time.Time
+	NextDueAt           time.Time
+	LastErrorKind       lps.ErrorKind
+	LastErrorStatusCode int
+}
+
+// RefreshFailure records an upstream attempt without changing retained facts.
+type RefreshFailure struct {
+	TeamID         int
+	AttemptedAt    time.Time
+	Status         RefreshStatus
+	NextDueAt      time.Time
+	ErrorKind      lps.ErrorKind
+	HTTPStatusCode int
+}
+
 // CoverageStatus records whether an LPS team-season response was fetched.
 type CoverageStatus string
 
