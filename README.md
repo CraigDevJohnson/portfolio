@@ -139,6 +139,15 @@ available without sign-in. `LPS_API_BASE_URL` can override the upstream API
 for local testing. The application accepts HTTPS endpoints and loopback HTTP
 endpoints.
 
+When durable player history is enabled, an imported player can request removal
+from the Soccer connections panel. `POST /soccer/players/remove` requires the
+current site session and `soccer` grant, the same owner's unexpired import, and
+a fresh LPS lookup confirming the exact player ID. It erases that player's
+archive identity, owner links, and team-season membership proof across owners.
+Team, game, season, and facility facts remain. A successful request clears the
+current imported browser session; a later deliberate valid import can collect
+the player again.
+
 ### Google Calendar
 
 Google Calendar actions require the current site `soccer` grant, a separate
@@ -443,6 +452,7 @@ HTMX and form endpoints:
 | `GET` | `/skills/filtered` |
 | `GET` | `/skills/detail` |
 | `POST` | `/soccer/import` |
+| `POST` | `/soccer/players/remove` |
 | `POST` | `/soccer/logout` |
 | `GET` | `/soccer/history` |
 | `POST` | `/soccer/discover-teams` |

@@ -59,7 +59,9 @@ data "aws_iam_policy_document" "lambda" {
   dynamic "statement" {
     for_each = aws_dynamodb_table.soccer_history
     content {
-      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+      # DeleteItem serves only verified player removal (#102), which erases
+      # one player's partition and keeps team and game facts.
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]
       resources = [statement.value.arn]
     }
   }

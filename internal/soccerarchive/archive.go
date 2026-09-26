@@ -60,6 +60,11 @@ type MembershipStore interface {
 	SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error
 }
 
+// PlayerRemovalStore erases all retained evidence under a verified player ID.
+type PlayerRemovalStore interface {
+	DeletePlayerEvidence(ctx context.Context, playerID int) error
+}
+
 // ErrNoArchive means no accepted snapshot has been stored for this team.
 var ErrNoArchive = errors.New("team has no archived LPS response")
 

@@ -382,16 +382,19 @@ func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-// registerSoccerLPSRoutes registers the Soccer import, schedule, and
-// download routes with their soccer-grant guards and the import's same-origin
-// check. The server and the linked preview journey share it, so both serve
-// one authorization shape.
+// registerSoccerLPSRoutes registers the Soccer import, player removal,
+// schedule, and download routes with their soccer-grant guards and the
+// same-origin check on import and removal. The server and the linked preview
+// journey share it, so both serve one authorization shape.
 func registerSoccerLPSRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
 	// The import replaces this browser's imported access and, with durable
 	// collection wired, binds linked-player history to the signed-in owner
 	// indefinitely, so only this site's own pages may submit it.
 	sameOrigin := http.NewCrossOriginProtection()
 	mux.Handle("POST /soccer/import", sameOrigin.Handler(requireSoccerGrant(h.ImportHandler)))
+	// Removal erases a player's retained history for every owner, so only
+	// this site's own pages may submit it.
+	mux.Handle("POST /soccer/players/remove", sameOrigin.Handler(requireSoccerGrant(h.RemovePlayerHandler)))
 	mux.HandleFunc("POST /soccer/logout", requireSoccerGrant(h.LogoutHandler))
 	mux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(h.DiscoverTeamsHandler))
 	mux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(h.FetchSchedulesHandler))

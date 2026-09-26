@@ -10,6 +10,7 @@ type SoccerLoginStateProps struct {
 	SelectedTeamIDs    []int
 	ConfirmedTeamCount int
 	LoginAvailable     bool
+	HistoryRemovalAvailable bool
 	GoogleAvailable    bool
 	// ImportNeedsGrant and GoogleNeedsGrant mark a capability this server
 	// offers but the current visitor lacks the soccer page grant to use.
@@ -94,6 +95,18 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 					</button>
 				</div>
+				if props.HistoryRemovalAvailable && !props.Preview {
+					<details class="page-kit-panel mt-4 px-4 py-3">
+						<summary class="cursor-pointer font-medium">Remove retained player data</summary>
+						<p class="mt-2 text-sm text-copy-muted">Removal erases one player&apos;s identity and team-season links across the archive, including links recorded through other site accounts. Team, game, and facility facts remain. Your current import ends; a later valid import may collect the player again.</p>
+						for _, player := range props.Players {
+							<form method="POST" action="/soccer/players/remove" class="mt-3">
+								<input type="hidden" name="player_id" value={ fmt.Sprintf("%d", player.UPlayerID) }/>
+								<button type="submit" class="btn soccer-secondary-btn">Remove data for { player.FirstName + " " + player.LastName } (ID { fmt.Sprintf("%d", player.UPlayerID) })</button>
+							</form>
+						}
+					</details>
+				}
 			} else {
 				<div class="soccer-connection-copy">
 					<p class="soccer-connection-status">Not imported</p>

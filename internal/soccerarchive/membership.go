@@ -13,6 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
 	"portfolio/internal/lps"
 )
 
@@ -34,6 +39,54 @@ func (s *DynamoStore) HasPlayerMembership(ctx context.Context, issuer, subject s
 	}
 	return record != nil && record.Kind == "membership" && record.Source == authenticatedPlayerLookup && record.ObservedAt != "" &&
 		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID && record.TeamID == teamID && record.SeasonID == seasonID, nil
+}
+
+// DeletePlayerEvidence removes the complete player partition, including
+// associations made by other owners. Team, season, game, and facility records
+// live under other partitions and are retained. A later import may recreate it.
+func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) error {
+	if playerID <= 0 {
+		return errors.New("player removal requires a positive player ID")
+	}
+	playerPK := "PLAYER#" + strconv.Itoa(playerID)
+	var startKey map[string]types.AttributeValue
+	keys := make([]map[string]types.AttributeValue, 0)
+	for {
+		page, err := s.api.Query(ctx, &dynamodb.QueryInput{
+			TableName:                 aws.String(s.tableName),
+			KeyConditionExpression:    aws.String("pk = :pk"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":pk": &types.AttributeValueMemberS{Value: playerPK}},
+			ProjectionExpression:      aws.String("pk, sk"),
+			ConsistentRead:            aws.Bool(true),
+			ExclusiveStartKey:         startKey,
+		})
+		if err != nil {
+			return fmt.Errorf("list player %d evidence: %w", playerID, err)
+		}
+		for _, item := range page.Items {
+			var key struct {
+				PK string `dynamodbav:"pk"`
+				SK string `dynamodbav:"sk"`
+			}
+			if err := attributevalue.UnmarshalMap(item, &key); err != nil || key.PK != playerPK || key.SK == "" {
+				return fmt.Errorf("invalid player %d evidence key", playerID)
+			}
+			keys = append(keys, map[string]types.AttributeValue{
+				"pk": &types.AttributeValueMemberS{Value: key.PK},
+				"sk": &types.AttributeValueMemberS{Value: key.SK},
+			})
+		}
+		if len(page.LastEvaluatedKey) == 0 {
+			break
+		}
+		startKey = page.LastEvaluatedKey
+	}
+	for _, key := range keys {
+		if _, err := s.api.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: aws.String(s.tableName), Key: key}); err != nil {
+			return fmt.Errorf("remove player %d evidence: %w", playerID, err)
+		}
+	}
+	return nil
 }
 
 // SavePlayerDiscovery enrolls the known teams, then stores player identities

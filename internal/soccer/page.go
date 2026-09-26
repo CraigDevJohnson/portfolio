@@ -51,6 +51,7 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		PrivateAccessMessage:     privateAccessMessage,
 		ShowSiteSignIn:           showSiteSignIn,
 		HistoryCollectionEnabled: h.historyCollectionEnabled(),
+		PlayerRemovalMessage:     playerRemovalMessage(r.URL.Query().Get("player_removed")),
 		AuthState:                authState,
 		InitialTeamSelection:     teamSelection,
 		InitialResults:           initialResults,
@@ -63,8 +64,20 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func playerRemovalMessage(result string) string {
+	if result == "1" {
+		return "The retained player data was removed. Your current LPS import has been cleared. A later valid import may collect that player again."
+	}
+	return ""
+}
+
 func (h *Handler) historyCollectionEnabled() bool {
 	_, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
+	return enabled
+}
+
+func (h *Handler) playerRemovalEnabled() bool {
+	_, enabled := h.ArchiveStore().(soccerarchive.PlayerRemovalStore)
 	return enabled
 }
 
@@ -203,13 +216,14 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 		session = nil
 	}
 	props := partials.SoccerLoginStateProps{
-		Authenticated:    session != nil && strings.TrimSpace(session.JWT) != "",
-		GoogleAvailable:  privateAllowed && h.googleAvailable(),
-		LoginAvailable:   privateAllowed && h.Config.LoginEnabled(),
-		GoogleNeedsGrant: !privateAllowed && h.googleAvailable(),
-		ImportNeedsGrant: !privateAllowed && h.Config.LoginEnabled(),
-		SwapOOB:          swapOOB,
-		ResetWorkflow:    swapOOB,
+		Authenticated:           session != nil && strings.TrimSpace(session.JWT) != "",
+		GoogleAvailable:         privateAllowed && h.googleAvailable(),
+		LoginAvailable:          privateAllowed && h.Config.LoginEnabled(),
+		HistoryRemovalAvailable: privateAllowed && h.playerRemovalEnabled(),
+		GoogleNeedsGrant:        !privateAllowed && h.googleAvailable(),
+		ImportNeedsGrant:        !privateAllowed && h.Config.LoginEnabled(),
+		SwapOOB:                 swapOOB,
+		ResetWorkflow:           swapOOB,
 	}
 	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && privateAllowed {
 		props.GoogleSuggestedEmail = principal.Email

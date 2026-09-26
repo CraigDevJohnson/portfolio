@@ -265,3 +265,66 @@ func TestPlayerImportKeepsAnEnrolledTeamsRefreshState(t *testing.T) {
 		assertArchiveItem(t, backend, fmt.Sprintf("TEAM#%d/META", teamID), map[string]any{"enrollment_source": "player", "season_id": 79, "team_name": nil})
 	}
 }
+
+func TestDynamoArchiveRemovesOnePlayerGloballyAndRetainsSharedFacts(t *testing.T) {
+	backend := archivetest.NewTable()
+	// Two items per page, so the player's partition spans several pages.
+	backend.PageSize = 2
+	store := NewDynamoStoreWithAPI(backend, "soccer-history")
+	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	first := &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "first-subject", ObservedAt: observedAt,
+		Players:    []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Alex"}, {UPlayerID: 1002, FirstName: "Taylor"}},
+		KnownTeams: []lps.TeamSummary{{UTeamID: 4101, Season: 77}},
+		Memberships: []PlayerMembership{
+			{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, Season: 77}},
+			{PlayerID: 1002, Team: lps.TeamSummary{UTeamID: 4101, Season: 77}},
+		},
+	}
+	if err := store.SavePlayerDiscovery(t.Context(), first); err != nil {
+		t.Fatal(err)
+	}
+	second := *first
+	second.OwnerSubject = "second-subject"
+	second.ObservedAt = observedAt.Add(time.Second)
+	second.Players = []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Alex"}}
+	second.Memberships = []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, Season: 78}}}
+	if err := store.SavePlayerDiscovery(t.Context(), &second); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+		TeamID: 4101, Team: lps.TeamSummary{UTeamID: 4101, Season: 77},
+		Games:      []lps.TeamScheduleGame{{UGameID: 7001, UTeam1: 4101, UTeam2: 4201, Season: 77, FacilityID: 5}},
+		Facilities: []lps.FacilityResponse{{FacilityID: 5, FacilityName: "Shared Field"}}, FetchedAt: observedAt.Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.DeletePlayerEvidence(t.Context(), 1001); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := backend.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key := range stored {
+		if strings.HasPrefix(key, "PLAYER#1001/") {
+			t.Errorf("removed player's personal record remains: %s", key)
+		}
+	}
+	for _, key := range []string{"PLAYER#1002/META", "TEAM#4101/META", "GAME#7001/META", "FACILITY#5/META"} {
+		if stored[key] == nil {
+			t.Errorf("shared or another player's fact was removed: %s", key)
+		}
+	}
+
+	first.ObservedAt = observedAt.Add(2 * time.Minute)
+	first.Players = []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Alex"}}
+	first.Memberships = first.Memberships[:1]
+	if err := store.SavePlayerDiscovery(t.Context(), first); err != nil {
+		t.Fatalf("later deliberate import did not recollect player: %v", err)
+	}
+	if backend.Item("PLAYER#1001/META") == nil {
+		t.Fatal("later valid import did not restore player identity")
+	}
+}

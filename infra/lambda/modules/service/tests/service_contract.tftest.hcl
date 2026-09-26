@@ -479,8 +479,8 @@ run "soccer_history_enabled_contract" {
       length(data.aws_iam_policy_document.lambda.statement) == 6 &&
       length([
         for statement in data.aws_iam_policy_document.lambda.statement : statement
-        if length(statement.actions) == 3 &&
-        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]) &&
+        if length(statement.actions) == 4 &&
+        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]) &&
         length(statement.resources) == 1 &&
         toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn]) &&
         length(statement.condition) == 0
@@ -490,7 +490,7 @@ run "soccer_history_enabled_contract" {
         if contains(statement.resources, aws_dynamodb_table.soccer_history[0].arn)
       ]) == 1
     )
-    error_message = "enabled Soccer history must add exactly one read, write, and base-table query statement for its table"
+    error_message = "enabled Soccer history must add exactly one read, write, base-table query, and player-removal delete statement for its table"
   }
 
   assert {

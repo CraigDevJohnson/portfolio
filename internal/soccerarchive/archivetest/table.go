@@ -24,6 +24,9 @@ type Table struct {
 	// FailPut, when set, is called with each put's "pk/sk" key; a non-nil
 	// result fails that put as an unavailable or throttled table would.
 	FailPut func(key string) error
+	// PageSize, when positive, limits each query page to that many items and
+	// returns a LastEvaluatedKey for the rest, as DynamoDB's 1 MB page does.
+	PageSize int
 }
 
 // NewTable returns an empty table.
@@ -82,24 +85,58 @@ func (t *Table) GetItem(_ context.Context, input *dynamodb.GetItemInput, _ ...fu
 	return &dynamodb.GetItemOutput{Item: t.items[key.PK+"/"+key.SK]}, nil
 }
 
-// Query implements the archive's "pk = :pk AND begins_with(sk, :prefix)" query.
+// Query implements the archive's "pk = :pk" and
+// "pk = :pk AND begins_with(sk, :prefix)" queries, paged by PageSize from
+// ExclusiveStartKey.
 func (t *Table) Query(_ context.Context, input *dynamodb.QueryInput, _ ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	pk := stringValue(input.ExpressionAttributeValues[":pk"])
 	prefix := stringValue(input.ExpressionAttributeValues[":prefix"])
+	startSK := ""
+	if len(input.ExclusiveStartKey) > 0 {
+		var start itemKey
+		if err := attributevalue.UnmarshalMap(input.ExclusiveStartKey, &start); err != nil {
+			return nil, err
+		}
+		if start.PK != pk {
+			return nil, fmt.Errorf("archivetest query start key %q is outside partition %q", start.PK, pk)
+		}
+		startSK = start.SK
+	}
 	keys := make([]string, 0)
 	for key := range t.items {
-		if strings.HasPrefix(key, pk+"/"+prefix) {
+		if strings.HasPrefix(key, pk+"/"+prefix) && (startSK == "" || strings.TrimPrefix(key, pk+"/") > startSK) {
 			keys = append(keys, key)
 		}
 	}
 	sort.Strings(keys)
+	var lastKey map[string]types.AttributeValue
+	if t.PageSize > 0 && len(keys) > t.PageSize {
+		keys = keys[:t.PageSize]
+		lastKey = map[string]types.AttributeValue{
+			"pk": &types.AttributeValueMemberS{Value: pk},
+			"sk": &types.AttributeValueMemberS{Value: strings.TrimPrefix(keys[len(keys)-1], pk+"/")},
+		}
+	}
 	items := make([]map[string]types.AttributeValue, 0, len(keys))
 	for _, key := range keys {
 		items = append(items, t.items[key])
 	}
-	return &dynamodb.QueryOutput{Items: items}, nil
+	return &dynamodb.QueryOutput{Items: items, LastEvaluatedKey: lastKey}, nil
+}
+
+// DeleteItem implements the DynamoDB DeleteItem subset used by the archive.
+// Deleting an absent item succeeds, as it does in DynamoDB.
+func (t *Table) DeleteItem(_ context.Context, input *dynamodb.DeleteItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var key itemKey
+	if err := attributevalue.UnmarshalMap(input.Key, &key); err != nil {
+		return nil, err
+	}
+	delete(t.items, key.PK+"/"+key.SK)
+	return &dynamodb.DeleteItemOutput{}, nil
 }
 
 // Item returns the stored item for "pk/sk", or nil.
