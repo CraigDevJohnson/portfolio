@@ -19,6 +19,7 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/portal"
 	"portfolio/internal/portfolio"
+	"portfolio/internal/siteauth"
 	internalsoccer "portfolio/internal/soccer"
 )
 
@@ -51,9 +52,18 @@ func registerMIMETypes() error {
 	return nil
 }
 
-func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http.ServeMux, *internalsoccer.Handler) {
+func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.Handler, *internalsoccer.Handler) {
 	mux := http.NewServeMux()
+	siteHandler := app.SiteHandler
+	if siteHandler == nil {
+		siteHandler = siteauth.NewHandler(&app.Config, rootLogger)
+		app.SiteHandler = siteHandler
+	}
 	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
+	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
+	mux.HandleFunc("POST /sign-in", siteHandler.LoginHandler)
+	mux.HandleFunc("GET /auth/callback", siteHandler.CallbackHandler)
+	mux.HandleFunc("POST /sign-out", siteHandler.LogoutHandler)
 
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
@@ -155,7 +165,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		http.ServeFile(w, r, "cmd/web/static/images/favicon.ico")
 	})
 
-	return mux, soccerHandler
+	return siteHandler.WithIdentity(mux), soccerHandler
 }
 
 func initializeGoogleStore(ctx context.Context, app *App) error {
@@ -251,6 +261,13 @@ func Run() error {
 		cfg.PortalCognitoClientID = ""
 		cfg.PortalCognitoRedirectURI = ""
 		cfg.PortalCognitoLogoutURI = ""
+		cfg.SiteSessionKey = nil
+		cfg.SiteCognitoDomain = ""
+		cfg.SiteCognitoIssuer = ""
+		cfg.SiteCognitoClientID = ""
+		cfg.SiteCognitoRedirectURI = ""
+		cfg.SiteCognitoLogoutURI = ""
+		cfg.SiteInvitations = nil
 		appLogger.Warn(
 			"local portal preview enabled; mock data only and no AWS actions will be sent",
 			slog.String("preview_url", config.LocalServerURL(listenAddress)+"/mgmt"),

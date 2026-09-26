@@ -192,6 +192,13 @@ default to local tags and the current Git revision.
 
 ## EC2 management portal
 
+The site sign-in code accepts independent `SITE_*` runtime settings and a
+reviewed `SITE_INVITATIONS_JSON` map as described in README. This change does
+not provision or activate a site Cognito pool. Register `/auth/callback` and
+`/sign-in` with the environment's Cognito app client before supplying those
+settings to a deployment; do not assume the existing management-only callback
+registration supports the site flow.
+
 The portal routes are disabled unless the session key, Cognito domain, and
 client ID are valid, and no environment enables them. Its runtime role has only
 read-only EC2 and metric grants: no EC2 start/stop and no `/ec2/i-*` log reads

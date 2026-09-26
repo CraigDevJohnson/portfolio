@@ -1,0 +1,40 @@
+package pages
+
+import "portfolio/cmd/web/layouts"
+import "portfolio/cmd/web/partials"
+
+type SiteLoginProps struct {
+	ReturnTo  string
+	Message   string
+	Available bool
+}
+
+templ SiteLogin(props SiteLoginProps) {
+	@layouts.Base(layouts.BaseProps{Title: "Sign in - Craig Johnson", Page: "account"}) {
+		<div class="page-kit-page">
+			<section class="page-kit-panel-strong mx-auto flex max-w-xl flex-col gap-5 px-6 py-10 sm:px-10" aria-labelledby="site-login-heading">
+				<p class="page-kit-eyebrow">Site account</p>
+				<h1 id="site-login-heading" class="page-section-title">Sign in</h1>
+				<p class="page-kit-copy">Invited visitors can use their Google account through Cognito.</p>
+				if props.Message != "" {
+					<p class="page-kit-copy" role="status">{ props.Message }</p>
+				}
+				if props.Available {
+					<form method="POST" action="/sign-in">
+						<input type="hidden" name="return_to" value={ props.ReturnTo }/>
+						@partials.ActionButton(partials.ActionButtonProps{
+							Type: "submit",
+							Label: "Sign in with Google",
+							Variant: partials.ActionPrimary,
+						})
+					</form>
+				}
+				@partials.ActionLink(partials.ActionLinkProps{
+					Href: "/",
+					Label: "Back to portfolio",
+					Variant: partials.ActionSecondary,
+				})
+			</section>
+		</div>
+	}
+}

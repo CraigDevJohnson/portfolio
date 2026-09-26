@@ -28,6 +28,14 @@ const (
 )
 
 const (
+	SiteSessionCookieName    = "site_session"
+	SiteOAuthStateCookieName = "site_oauth_state"
+	SiteCookiePath           = "/"
+	SiteSessionTTL           = 12 * time.Hour
+	SiteOAuthStateTTL        = 10 * time.Minute
+)
+
+const (
 	PortalSessionCookieName    = "mgmt_session"
 	PortalCookiePath           = "/"
 	PortalSessionTTL           = 12 * time.Hour

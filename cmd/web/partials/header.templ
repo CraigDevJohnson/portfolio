@@ -10,11 +10,11 @@ templ SiteIdentity() {
 	</a>
 }
 
-templ Header(page string) {
+templ Header(page string, account AccountNavProps) {
 	<header class="site-header site-chrome-header site-dock" data-site-dock>
 		<div class="header-content site-dock-shell mx-auto flex h-full max-w-[var(--container-max)] items-center justify-between gap-3 px-4 sm:px-6">
 			@SiteIdentity()
-			@Nav(page)
+			@Nav(page, account)
 			<button type="button" id="mobile-menu-btn" class="mobile-menu-btn site-chrome-menu-button" aria-label="Open navigation menu" aria-controls="mobile-nav" aria-expanded="false" data-mobile-menu-trigger>
 				<span class="hamburger" aria-hidden="true"></span>
 				<span class="site-chrome-menu-label" data-menu-label>Menu</span>
@@ -22,6 +22,7 @@ templ Header(page string) {
 		</div>
 		<nav id="mobile-nav" class="mobile-nav site-chrome-mobile-nav site-dock-mobile-nav" aria-label="Mobile navigation" aria-hidden="true" tabindex="-1" data-mobile-nav>
 			@NavLinks(page)
+			@AccountNav(account)
 		</nav>
 	</header>
 }

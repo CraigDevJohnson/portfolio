@@ -511,6 +511,28 @@ a.tech-pill:hover {
   gap: var(--space-xs);
 }
 
+.site-account-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.site-account-email {
+  max-width: calc(var(--space-3xl) * 2.5);
+  overflow: hidden;
+  color: var(--candle-oat);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-account-link {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
 .site-operator-footer-shell {
   min-width: 0;
 }
@@ -536,6 +558,14 @@ body[data-shell='operator'] .site-operator-footer-shell {
     min-height: 2.75rem;
     justify-content: flex-start;
     padding: 0.75rem 1.25rem;
+  }
+  .site-account-state {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: var(--space-sm) var(--space-md);
+  }
+  .site-account-email {
+    max-width: 100%;
   }
 }
 

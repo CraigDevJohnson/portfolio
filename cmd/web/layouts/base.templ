@@ -73,7 +73,7 @@ templ Base(props BaseProps) {
 		</head>
 		<body class={ baseBodyClasses(props.Page) } data-shell={ string(normalizedShell(props.Shell)) }>
 			<a href="#maincontent" class="site-skip-link">Skip to main content</a>
-			@partials.Header(props.Page)
+			@partials.Header(props.Page, partials.AccountNavPropsFromContext(ctx))
 			<main id="maincontent" class="main-content flex-1 pt-[var(--header-height)]" tabindex="-1">
 				<div class="site-page-shell container mx-auto w-full px-4 sm:px-6">
 					{ children... }

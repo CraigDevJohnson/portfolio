@@ -20,6 +20,16 @@ type Config struct {
 	GoogleConnectionTableName string
 	SoccerSessionTableName    string
 
+	// Site identity is independent of the management AWS clients.
+	SiteSessionKey         []byte
+	SiteCognitoDomain      string
+	SiteCognitoIssuer      string
+	SiteCognitoClientID    string
+	SiteCognitoRedirectURI string
+	SiteCognitoLogoutURI   string
+	SiteAllowLocalCallback bool
+	SiteInvitations        map[string][]string
+
 	// Portal fields
 	PortalSessionKey         []byte
 	PortalCognitoDomain      string
@@ -45,6 +55,7 @@ func Load() Config {
 	if cfg.LPSAPIBaseURL == "" {
 		cfg.LPSAPIBaseURL = DefaultLPSAPIBaseURL
 	}
+	loadSiteConfig(logger, &cfg)
 	validatedURL, err := NormalizeLPSAPIBaseURL(cfg.LPSAPIBaseURL)
 	if err != nil {
 		logger.Warn(

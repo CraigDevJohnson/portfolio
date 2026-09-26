@@ -131,6 +131,35 @@ The encrypted browser cookie is the Soccer workflow source of truth. When
 baseline containing the username and discovered players; it does not restore
 workflow state from that table.
 
+### Site sign-in
+
+Site sign-in uses Cognito's Google federation and a separate encrypted session
+cookie. It can be configured without the management portal or AWS management
+clients. Set `SITE_SESSION_KEY` (a 64-character lowercase hex key),
+`SITE_COGNITO_DOMAIN`, `SITE_COGNITO_ISSUER`, `SITE_COGNITO_CLIENT_ID`,
+`SITE_COGNITO_REDIRECT_URI`, `SITE_COGNITO_LOGOUT_URI`, and
+`SITE_INVITATIONS_JSON` in each environment. The callback URL must end in
+`/auth/callback`, and the HTTPS logout return URL must end in `/sign-in`. A
+registered HTTP loopback callback also needs `SITE_ALLOW_LOCAL_CALLBACK=true`.
+
+`SITE_INVITATIONS_JSON` is a reviewed JSON object mapping normalized, verified
+email addresses to page grants. The initial owner entry is
+`{"craigdevjohnson@gmail.com":["soccer","management"]}`. Each environment
+must supply its own map and Cognito user pool; the app has no default invite.
+An invited address may have an empty grant list. Supported grants are `soccer`
+and `management`. Changes require updated environment configuration and a
+deployment. The app reads that current map for every request; grants are never
+stored in the browser cookie. The encrypted session retains the validated
+Cognito issuer, subject, email, and bounded expiry.
+
+Shared navigation links to `GET /sign-in` with a local return path. The landing
+page starts Google sign-in only on `POST /sign-in`; Cognito returns to
+`GET /auth/callback`. `POST /sign-out` clears the session and pending OAuth
+state before ending the Cognito managed-login journey. Public pages stay
+available when site sign-in is disabled, rejected, or expired. The site auth
+routes and configuration are offline application support; Cognito resources,
+Lambda runtime variables, and live activation require separate review.
+
 ### EC2 management portal
 
 The portal requires:
