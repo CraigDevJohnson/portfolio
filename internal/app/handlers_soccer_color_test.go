@@ -27,6 +27,8 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":200,"team_name":"Gold FC","Color":" GoLd "},"games":[{"UGameID":700,"SchedGameDateTime":%q,"UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"},"result":"2 - 1"}]}`, past)
 		case "/teams/300":
 			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":300,"team_name":"Fallback FC","Color":"url(javascript:alert(1))"},"games":[{"UGameID":701,"SchedGameDateTime":%q,"UTeam1":300,"UTeam2":400,"home_team":{"UTeamID":300,"team_name":"Fallback FC"},"visitor_team":{"UTeamID":400,"team_name":"Visitor One"}},{"UGameID":702,"SchedGameDateTime":%q,"UTeam1":300,"UTeam2":401,"home_team":{"UTeamID":300,"team_name":"Fallback FC"},"visitor_team":{"UTeamID":401,"team_name":"Visitor Two"}}]}`, future, future)
+		case "/teams/500":
+			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":500,"team_name":"Blue FC","Color":"red"},"games":[{"UGameID":703,"SchedGameDateTime":%q,"UTeam1":600,"UTeam2":700,"home_team":{"UTeamID":600,"team_name":"Blue FC","Color":"green"},"visitor_team":{"UTeamID":700,"team_name":"Other FC","Color":"yellow"}}]}`, future)
 		default:
 			t.Errorf("unexpected LPS request %s", r.URL.Path)
 			http.NotFound(w, r)
@@ -37,7 +39,7 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 
 	fetch := func() map[string]*html.Node {
 		t.Helper()
-		form := url.Values{"selection_mode": {"teams"}, "team_ids": {"100", "200", "300"}}
+		form := url.Values{"selection_mode": {"teams"}, "team_ids": {"100", "200", "300", "500"}}
 		req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		resp := httptest.NewRecorder()
@@ -71,8 +73,8 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 	fallbackAcrossRefetch := ""
 	for attempt := range 2 {
 		rows := fetch()
-		if len(rows) != 3 {
-			t.Fatalf("refetch %d rendered %d rows, want one shared and two fallback games", attempt, len(rows))
+		if len(rows) != 4 {
+			t.Fatalf("refetch %d rendered %d rows, want one shared, two fallback, and one name-collision game", attempt, len(rows))
 		}
 		shared := rows["700"]
 		if shared == nil || htmlAttr(shared, "data-shared-match") == "" {
@@ -96,6 +98,10 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 			t.Fatalf("team 300 fallback changed on refetch: %q then %q", fallbackAcrossRefetch, fallback)
 		}
 		fallbackAcrossRefetch = fallback
+		collision := rows["703"]
+		if collision == nil || htmlAttr(collision, "data-home-color") != "green" || htmlAttr(collision, "data-away-color") != "yellow" || htmlAttr(collision, "data-shared-match") != "" {
+			t.Fatalf("explicit team IDs were overridden by a matching name: %#v", collision)
+		}
 	}
 }
 

@@ -287,9 +287,9 @@ func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int,
 		return true, false
 	case selectedID > 0 && awayID == selectedID:
 		return false, true
-	case selectedName != "" && strings.EqualFold(selectedName, homeName):
+	case selectedName != "" && (selectedID <= 0 || homeID <= 0) && strings.EqualFold(selectedName, homeName):
 		return true, false
-	case selectedName != "" && strings.EqualFold(selectedName, awayName):
+	case selectedName != "" && (selectedID <= 0 || awayID <= 0) && strings.EqualFold(selectedName, awayName):
 		return false, true
 	case homeID <= 0 && awayID <= 0:
 		return true, false
