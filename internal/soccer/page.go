@@ -327,7 +327,15 @@ func (h *Handler) ResolveGoogleAddSelection(w http.ResponseWriter, r *http.Reque
 		return nil, nil, googleAddScheduleErrorMessage(err), false
 	}
 
-	filteredGames := selectedScheduleGames(games, selectedIDs)
+	upcoming := make([]types.Game, 0, len(games))
+	now := time.Now()
+	for i := range games {
+		start, valid := schedule.GameStartTime(&games[i])
+		if valid && !start.Before(now) {
+			upcoming = append(upcoming, games[i])
+		}
+	}
+	filteredGames := selectedScheduleGames(upcoming, selectedIDs)
 	if len(filteredGames) == 0 {
 		return nil, nil, "No selected games were found to add.", false
 	}

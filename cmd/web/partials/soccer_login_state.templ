@@ -26,6 +26,7 @@ type SoccerLoginStateProps struct {
 	GoogleSuggestedEmail     string
 	GoogleAccountEmail       string
 	GoogleCalendarSummary    string
+	GoogleCalendarNeedsSelection bool
 	SelectedGoogleCalendarID string
 	GoogleCalendars          []types.GoogleCalendarOption
 	SwapOOB                  bool
@@ -256,18 +257,24 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 		</div>
 		if props.GoogleConnected {
 			<div class="soccer-connection-copy">
-				<p class="soccer-connection-status">Calendar ready</p>
+				if props.GoogleCalendarNeedsSelection {
+					<p class="soccer-connection-status">Calendar selection needed</p>
+				} else {
+					<p class="soccer-connection-status">Calendar ready</p>
+				}
 				<p>Connected Google account: <strong data-google-account>{ props.GoogleAccountEmail }</strong></p>
 				if props.GoogleOffersSiteAccount() {
 					<p>Your site sign-in account, <strong>{ props.GoogleSuggestedEmail }</strong>, is a different Google account. Switch to it here if you prefer.</p>
 				}
-				if props.GoogleCalendarSummary != "" {
+				if props.GoogleCalendarNeedsSelection {
+					<p>Choose a writable calendar before adding games. Writes are paused until you save a destination.</p>
+				} else if props.GoogleCalendarSummary != "" {
 					<p>Connected to { props.GoogleCalendarSummary }. Loaded matches can be added or synced directly.</p>
 				} else {
 					<p>Connected — choose a destination calendar below.</p>
 				}
 			</div>
-			if props.GoogleCalendarSummary != "" {
+			if !props.GoogleCalendarNeedsSelection && props.GoogleCalendarSummary != "" {
 				<ul class="soccer-connection-meta" aria-label="Calendar connection status"><li>{ props.GoogleCalendarSummary }</li></ul>
 			}
 			if len(props.GoogleCalendars) > 0 {
@@ -292,10 +299,13 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 								aria-disabled="true"
 							}
 						>
+							if props.GoogleCalendarNeedsSelection {
+								<option value="" selected disabled>Choose a writable calendar</option>
+							}
 							for _, calendar := range props.GoogleCalendars {
 								<option
 									value={ calendar.ID }
-									if calendar.ID == props.SelectedGoogleCalendarID {
+									if !props.GoogleCalendarNeedsSelection && calendar.ID == props.SelectedGoogleCalendarID {
 										selected
 									}
 								>

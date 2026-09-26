@@ -167,6 +167,14 @@ the stored connection the same way, leaving the previous account's grant at
 Google. To withdraw the site's Calendar access entirely, remove the app from
 the Google Account's third-party access settings.
 
+The primary writable calendar is selected when consent completes. A visitor
+can save another writable destination; existing events stay in their original
+calendar, while later explicit Adds use the new one. If the chosen calendar
+disappears or rejects event access, Adds pause until the visitor selects a
+writable calendar again. Fetching schedules writes no Google events. Add sends
+only explicitly selected upcoming games, using stable game IDs and a private
+site marker so repeating Add matches the same event.
+
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and
 subject. Google connection records use the same owner coordinates and retain

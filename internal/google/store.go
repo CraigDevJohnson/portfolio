@@ -20,16 +20,17 @@ type ConnectionStore interface {
 
 // ConnectionRecord stores the encrypted Google token and selected calendar.
 type ConnectionRecord struct {
-	ConnectionID    string    `dynamodbav:"connection_id"`
-	OwnerIssuer     string    `dynamodbav:"owner_issuer"`
-	OwnerSubject    string    `dynamodbav:"owner_subject"`
-	AccountSubject  string    `dynamodbav:"account_subject"`
-	AccountEmail    string    `dynamodbav:"account_email"`
-	TokenCiphertext string    `dynamodbav:"token_ciphertext"`
-	CalendarID      string    `dynamodbav:"calendar_id"`
-	CalendarSummary string    `dynamodbav:"calendar_summary"`
-	CreatedAt       time.Time `dynamodbav:"created_at"`
-	UpdatedAt       time.Time `dynamodbav:"updated_at"`
+	ConnectionID              string    `dynamodbav:"connection_id"`
+	OwnerIssuer               string    `dynamodbav:"owner_issuer"`
+	OwnerSubject              string    `dynamodbav:"owner_subject"`
+	AccountSubject            string    `dynamodbav:"account_subject"`
+	AccountEmail              string    `dynamodbav:"account_email"`
+	TokenCiphertext           string    `dynamodbav:"token_ciphertext"`
+	CalendarID                string    `dynamodbav:"calendar_id"`
+	CalendarSummary           string    `dynamodbav:"calendar_summary"`
+	CalendarSelectionRequired bool      `dynamodbav:"calendar_selection_required,omitempty"`
+	CreatedAt                 time.Time `dynamodbav:"created_at"`
+	UpdatedAt                 time.Time `dynamodbav:"updated_at"`
 }
 
 // accountVerified reports whether the connection records the Google account

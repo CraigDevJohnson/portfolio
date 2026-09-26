@@ -255,7 +255,8 @@ func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 		Summary: formatted.Summary,
 	}
 	event.ExtendedProperties.Private = map[string]string{
-		"game_id": formatted.ID,
+		"game_id":       formatted.ID,
+		"portfolio_app": "soccer",
 	}
 	event.Source = &EventSource{
 		Title: "Soccer Schedule",

@@ -177,6 +177,9 @@ func newControlledCalendarTransport(blockedGameID string) *controlledCalendarTra
 }
 
 func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodGet && req.URL.Path == "/calendar/v3/users/me/calendarList" {
+		return calendarJSONResponse(req, http.StatusOK, `{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`), nil
+	}
 	gameID, event, err := calendarMutationRequestGame(req)
 	if err != nil {
 		return nil, err
@@ -331,6 +334,9 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/calendar/v3/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
 		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodPost:
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -517,6 +523,9 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/calendar/v3/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
 		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
 			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodGet:

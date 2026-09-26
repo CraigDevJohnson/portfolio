@@ -26,11 +26,18 @@ func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Reques
 	h.Soccer.RenderLoginFeedback(w, r, "error", message)
 }
 
-// SyncCalendarSelection ensures the connection record has a valid calendar selection.
+// SyncCalendarSelection defaults an unset connection to primary and retains a
+// missing selected destination in a paused state until the user chooses again.
 func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
 	calendarID = strings.TrimSpace(record.CalendarID)
+	if record.CalendarSelectionRequired {
+		return calendarID, calendarSummary(calendars, calendarID)
+	}
 	if calendarID == "" {
 		calendarID, summary = preferredCalendar(calendars)
+		if calendarID == "" {
+			return "", ""
+		}
 		record.CalendarID = calendarID
 		record.CalendarSummary = summary
 		record.UpdatedAt = time.Now().UTC()
@@ -41,7 +48,10 @@ func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionR
 	}
 	summary = calendarSummary(calendars, calendarID)
 	if summary == "" {
-		calendarID, summary = preferredCalendar(calendars)
+		if err := h.pauseCalendarSelection(ctx, record); err != nil {
+			logging.WithContext(h.Logger, ctx).Error("google unavailable calendar state save failed", slog.Any("error", err))
+		}
+		return calendarID, ""
 	}
 	if summary != "" && (record.CalendarID != calendarID || record.CalendarSummary != summary) {
 		record.CalendarID = calendarID
@@ -223,6 +233,7 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	props.GoogleAccountEmail = record.AccountEmail
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+	props.GoogleCalendarNeedsSelection = record.CalendarSelectionRequired || props.GoogleCalendarSummary == ""
 }
 
 // ownerHasUnverifiedConnection reports whether the browser-wide cookie names
