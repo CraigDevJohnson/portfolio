@@ -50,7 +50,9 @@ type calendarMutationResult struct {
 	// account read or change.
 	refused int
 	// undated counts games without a start time to give an event.
-	undated      int
+	undated int
+	// unchanged counts result sync games whose event already shows the result.
+	unchanged    int
 	authRejected bool
 }
 
@@ -220,13 +222,13 @@ func markEventRefused(err error) error {
 func (h *Handler) handleListEventsResponse(resp *http.Response, gameID string) (*Event, bool, bool, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
-		events, decodeErr := decodeEventList(resp)
+		page, decodeErr := decodeEventList(resp)
 		if decodeErr != nil {
 			return nil, false, false, decodeErr
 		}
-		for i := range events {
-			if eventMatchesGameID(&events[i], gameID) {
-				return &events[i], true, false, nil
+		for i := range page.Items {
+			if eventMatchesGameID(&page.Items[i], gameID) {
+				return &page.Items[i], true, false, nil
 			}
 		}
 		return nil, false, false, nil

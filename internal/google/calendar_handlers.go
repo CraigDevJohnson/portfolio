@@ -23,6 +23,7 @@ const (
 	googleInvalidConnectionMessage   = "Your Google Calendar connection is no longer valid. Connect again and retry."
 	googleCalendarChoiceMessage      = "Choose a writable calendar before continuing. Writes are paused until you save a destination."
 	safeCalendarMutationRetryMessage = "The request reached its time limit. Retry to finish; existing games will be matched instead of duplicated."
+	safeResultSyncRetryMessage       = "The request reached its time limit. Retry to finish; results already current will be left unchanged."
 )
 
 // AddHandler adds selected games to Google Calendar.
@@ -216,7 +217,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	logging.WithContext(h.Logger, workCtx).Info("google result sync candidate games", slog.Int("candidate_game_count", len(games)))
 	if len(games) == 0 {
 		logging.WithContext(h.Logger, workCtx).Info("google result sync found no past games with results")
-		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync.")
+		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync. "+syncResultsMutationMessage(calendarMutationResult{}))
 		return
 	}
 
@@ -233,14 +234,14 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No results were synced; try again later.") {
 		return
 	}
-	result, err := h.insertCalendarEvents(workCtx, workRequest, record, token, games)
+	result, err := h.syncResultEvents(h.httpContext(workCtx), record.CalendarID, token, games)
 	if err != nil {
 		logging.WithContext(h.Logger, workCtx).Error(
 			"google result sync failed",
 			slog.Any("error", err),
-			slog.Int("added_count", result.added),
 			slog.Int("updated_count", result.updated),
 			slog.Int("skipped_count", result.skipped),
+			slog.Int("unchanged_count", result.unchanged),
 		)
 		if calendarMutationContextEnded(workCtx, err) {
 			h.renderSyncResultsDeadline(w, r, result)
@@ -263,8 +264,9 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	logging.WithContext(h.Logger, workCtx).Info(
 		"google result sync completed",
-		slog.Int("updated_count", result.added+result.updated),
+		slog.Int("updated_count", result.updated),
 		slog.Int("skipped_count", result.skipped),
+		slog.Int("unchanged_count", result.unchanged),
 	)
 
 	h.Soccer.RenderLoginFeedback(w, r, "success", syncResultsMutationMessage(result))
@@ -284,11 +286,17 @@ func addMutationMessage(result calendarMutationResult) string {
 }
 
 func syncResultsMutationMessage(result calendarMutationResult) string {
-	message := fmt.Sprintf("%d game result(s) updated in Google Calendar.", result.added+result.updated)
-	return message + skippedGamesMessage(result)
+	message := fmt.Sprintf("%d game result(s) updated in Google Calendar. Skipped %d game(s) without a safe site-owned match or result slot.", result.updated, result.skipped)
+	if result.unchanged > 0 {
+		message += fmt.Sprintf(" %d result(s) already current.", result.unchanged)
+	}
+	if result.refused > 0 {
+		message += fmt.Sprintf(" Skipped %d game(s) whose existing event Google Calendar would not let this account change.", result.refused)
+	}
+	return message
 }
 
-// skippedGamesMessage reports the games an Add or result sync left alone.
+// skippedGamesMessage reports the games an Add left alone.
 func skippedGamesMessage(result calendarMutationResult) string {
 	message := ""
 	if result.skipped > 0 {
@@ -308,7 +316,7 @@ func (h *Handler) renderAddMutationDeadline(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) renderSyncResultsDeadline(w http.ResponseWriter, r *http.Request, result calendarMutationResult) {
-	h.Soccer.RenderLoginFeedback(w, r, "error", syncResultsMutationMessage(result)+" "+safeCalendarMutationRetryMessage)
+	h.Soccer.RenderLoginFeedback(w, r, "error", syncResultsMutationMessage(result)+" "+safeResultSyncRetryMessage)
 }
 
 // CalendarHandler handles calendar selection changes.

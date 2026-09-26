@@ -28,13 +28,13 @@ func decodeEvent(resp *http.Response) (*Event, error) {
 	return &event, nil
 }
 
-func decodeEventList(resp *http.Response) ([]Event, error) {
+func decodeEventList(resp *http.Response) (eventListResponse, error) {
 	defer resp.Body.Close()
 	var response eventListResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&response); err != nil {
-		return nil, err
+		return eventListResponse{}, err
 	}
-	return response.Items, nil
+	return response, nil
 }
 
 func (h *Handler) newAPIRequest(ctx context.Context, method, requestPath string, query url.Values, token *oauth2.Token, body any) (*http.Request, error) {

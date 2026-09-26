@@ -8,7 +8,8 @@ type calendarListResponse struct {
 }
 
 type eventListResponse struct {
-	Items []Event `json:"items"`
+	Items         []Event `json:"items"`
+	NextPageToken string  `json:"nextPageToken"`
 }
 
 type calendar struct {
@@ -39,6 +40,7 @@ type EventReminders struct {
 type Event struct {
 	Description        string        `json:"description,omitempty"`
 	End                EventDateTime `json:"end"`
+	ETag               string        `json:"etag,omitempty"`
 	ExtendedProperties struct {
 		Private map[string]string `json:"private,omitempty"`
 	} `json:"extendedProperties"`

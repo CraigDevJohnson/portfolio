@@ -57,13 +57,15 @@ func TestAddHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *testing.
 	}
 }
 
-// Production break caught: a canceled second result-sync call must retain the
-// first completed result count, and retrying both games must match the existing
-// canonical event rather than duplicate it.
+// A timed-out second result PATCH leaves the first update intact. Retry reads
+// the first result as current and changes only the still-pending event.
 func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *testing.T) {
 	h, bridge, transport := newDeadlineMutationTestHandler(t, "9302")
 	h.CalendarMutationTimeout = 20 * time.Millisecond
 	bridge.syncResultsGames = deadlineMutationGames(t, true)
+	transport.blockedOnPatch = true
+	transport.seedSiteResultEvent("9301")
+	transport.seedSiteResultEvent("9302")
 
 	firstResponse := httptest.NewRecorder()
 	h.SyncResultsHandler(firstResponse, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
@@ -72,7 +74,7 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	if !strings.Contains(firstBody, "1 game result(s) updated in Google Calendar.") {
 		t.Fatalf("expected one completed result sync before cancellation, got %q", firstBody)
 	}
-	if !strings.Contains(firstBody, safeCalendarMutationRetryMessage) {
+	if !strings.Contains(firstBody, safeResultSyncRetryMessage) {
 		t.Fatalf("expected safe retry guidance after cancellation, got %q", firstBody)
 	}
 
@@ -80,17 +82,20 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	retryResponse := httptest.NewRecorder()
 	h.SyncResultsHandler(retryResponse, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
 
-	if got := transport.insertCount("9301"); got != 1 {
-		t.Fatalf("retry duplicated the completed result event: insert count = %d, want 1", got)
+	if got := transport.insertCount("9301"); got != 0 {
+		t.Fatalf("result sync inserted event 9301: count = %d", got)
 	}
 	if got := transport.updateCount("9301"); got != 1 {
 		t.Fatalf("retry did not converge by updating the completed result event: update count = %d, want 1", got)
 	}
-	if got := transport.insertCount("9302"); got != 1 {
-		t.Fatalf("retry did not finish the pending result event: insert count = %d, want 1", got)
+	if got := transport.insertCount("9302"); got != 0 {
+		t.Fatalf("result sync inserted event 9302: count = %d", got)
 	}
-	if body := retryResponse.Body.String(); !strings.Contains(body, "2 game result(s) updated in Google Calendar.") {
-		t.Fatalf("expected retry to report both converged result updates, got %q", body)
+	if got := transport.updateCount("9302"); got != 1 {
+		t.Fatalf("retry did not patch the pending result event: patch count = %d, want 1", got)
+	}
+	if body := retryResponse.Body.String(); !strings.Contains(body, "1 game result(s) updated in Google Calendar.") || !strings.Contains(body, "1 result(s) already current.") {
+		t.Fatalf("expected retry to report one patch and one current result, got %q", body)
 	}
 }
 
@@ -161,6 +166,7 @@ type controlledCalendarTransport struct {
 	mu             sync.Mutex
 	blockedGameID  string
 	blocked        bool
+	blockedOnPatch bool
 	events         map[string]Event
 	insertAttempts map[string]int
 	updateAttempts map[string]int
@@ -186,7 +192,7 @@ func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Respon
 	}
 
 	t.mu.Lock()
-	blocked := t.blocked && gameID == t.blockedGameID
+	blocked := t.blocked && gameID == t.blockedGameID && (!t.blockedOnPatch || req.Method == http.MethodPatch)
 	t.mu.Unlock()
 	if blocked {
 		select {
@@ -226,9 +232,36 @@ func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Respon
 		event.ID = gameID
 		t.events[gameID] = event
 		return calendarJSONResponse(req, http.StatusOK, ""), nil
+	case req.Method == http.MethodPatch:
+		existing, ok := t.events[gameID]
+		if !ok {
+			return calendarJSONResponse(req, http.StatusNotFound, ""), nil
+		}
+		if req.Header.Get("If-Match") != existing.ETag {
+			return calendarJSONResponse(req, http.StatusPreconditionFailed, ""), nil
+		}
+		var patch struct {
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&patch); err != nil {
+			return nil, err
+		}
+		t.updateAttempts[gameID]++
+		existing.Description = patch.Description
+		existing.ETag = `"v2"`
+		t.events[gameID] = existing
+		return calendarJSONResponse(req, http.StatusOK, mustMarshalEvent(&existing)), nil
 	default:
 		return nil, fmt.Errorf("unexpected Google request: %s %s", req.Method, req.URL.String())
 	}
+}
+
+func (t *controlledCalendarTransport) seedSiteResultEvent(gameID string) {
+	event := Event{ID: gameID, ETag: `"v1"`, Status: "confirmed", Description: "Home is playing Away\nDivision: League\nFacility: Boise\nField: Field 1\nResult: "}
+	event.ExtendedProperties.Private = map[string]string{"game_id": gameID, "portfolio_app": "soccer"}
+	t.mu.Lock()
+	t.events[gameID] = event
+	t.mu.Unlock()
 }
 
 func calendarMutationRequestGame(req *http.Request) (string, Event, error) {
@@ -488,7 +521,7 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	}
 }
 
-func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
+func TestSyncResultsHandlerSkipsUnownedAndMissingPastEvents(t *testing.T) {
 	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
 	h := newTestHandler(t, store)
 	bridge := h.Soccer.(*stubSoccerBridge)
@@ -580,24 +613,11 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	h.SyncResultsHandler(resp, req)
 
 	body := resp.Body.String()
-	if !strings.Contains(body, "2 game result(s) updated in Google Calendar.") {
-		t.Fatalf("expected sync success message, got %q", body)
+	if !strings.Contains(body, "0 game result(s) updated in Google Calendar.") || !strings.Contains(body, "Skipped 2 game(s)") {
+		t.Fatalf("unowned or missing results were not reported as skipped: %q", body)
 	}
-	if len(updatedEvents) != 1 {
-		t.Fatalf("expected one updated event, got %d", len(updatedEvents))
-	}
-	if len(insertedEvents) != 1 {
-		t.Fatalf("expected one inserted event, got %d", len(insertedEvents))
-	}
-	if updated, ok := updatedEvents["legacy-8101"]; !ok {
-		t.Fatalf("expected legacy-8101 update, got %#v", updatedEvents)
-	} else if !strings.Contains(updated.Description, "Result: Win (2-1)") {
-		t.Fatalf("expected formatted win result in update, got %q", updated.Description)
-	}
-	if inserted, ok := insertedEvents["8102"]; !ok {
-		t.Fatalf("expected inserted event 8102, got %#v", insertedEvents)
-	} else if !strings.Contains(inserted.Description, "Result: Win (3-1)") {
-		t.Fatalf("expected formatted away-win result in insert, got %q", inserted.Description)
+	if len(updatedEvents) != 0 || len(insertedEvents) != 0 {
+		t.Fatalf("Sync changed unowned or missing events: updated %#v, inserted %#v", updatedEvents, insertedEvents)
 	}
 }
 

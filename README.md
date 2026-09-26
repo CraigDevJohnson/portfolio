@@ -395,6 +395,13 @@ requires a separate Google connection. ICS mode hides past results and exports
 selected upcoming games only. Google output needs the `soccer` grant, so a
 public Team ID lookup stays upcoming-only.
 
+Sync is update-only. It matches one event in the selected calendar using the
+private `game_id` and `portfolio_app=soccer` markers, reads its current ETag,
+then conditionally patches only the canonical result line in its description.
+Other description text and event settings remain intact. Missing, imported,
+deleted, ambiguous, or concurrently changed events are skipped and counted;
+Sync never inserts a past event.
+
 ## Source layout
 
 ```text
