@@ -80,13 +80,18 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	if !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
 		return nil, nil
 	}
+	if record.AccountSubject == "" || record.AccountEmail == "" {
+		return nil, nil
+	}
 	return record, nil
 }
 
-// DeleteConnection removes the visitor's Google connection and clears the cookie.
+// DeleteConnection removes the visitor's Google connection and clears the
+// cookie. A cookie naming another site owner's connection, or one whose
+// removal failed, stays so that connection is never stranded with its token.
 func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if connectionID := GetConnectionID(r); connectionID != "" {
-		h.releaseConnection(ctx, r, connectionID)
+	if connectionID := GetConnectionID(r); connectionID != "" && !h.releaseConnection(ctx, r, connectionID) {
+		return
 	}
 	ClearConnectionCookie(w, r)
 }
@@ -96,31 +101,32 @@ func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r
 // before connections had owners and presented by a granted visitor. Holding
 // the legacy cookie was the authority to delete it, and deleting grants no
 // access, so its stored token is not stranded. Another owner's connection
-// stays.
-func (h *Handler) releaseConnection(ctx context.Context, r *http.Request, connectionID string) {
+// stays. It reports whether the connection is gone.
+func (h *Handler) releaseConnection(ctx context.Context, r *http.Request, connectionID string) bool {
 	logger := logging.WithContext(h.Logger, ctx)
 	record, err := h.Store().Get(ctx, connectionID)
 	if err != nil {
 		logger.Error("google connection read before delete failed", slog.Any("error", err))
-		return
+		return false
 	}
 	if record == nil {
-		return
+		return true
 	}
 	legacy := record.OwnerIssuer == "" || record.OwnerSubject == ""
 	if legacy && !siteidentity.SoccerPrivateAllowed(r.Context()) {
-		return
+		return false
 	}
 	if !legacy && !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
-		return
+		return false
 	}
 	if err := h.Store().Delete(ctx, connectionID); err != nil {
 		logger.Error("google connection delete failed", slog.String("connection_id", connectionID), slog.Any("error", err))
-		return
+		return false
 	}
 	if legacy {
 		logger.Info("legacy ownerless google connection deleted", slog.String("connection_id", connectionID))
 	}
+	return true
 }
 
 // CurrentToken retrieves and refreshes the stored OAuth token.
@@ -200,6 +206,7 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 	props.GoogleConnected = true
+	props.GoogleAccountEmail = record.AccountEmail
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
 }
@@ -242,6 +249,8 @@ func (h *Handler) oauthConfigForRequest(r *http.Request) *oauth2.Config {
 		ClientSecret: h.Config.GoogleClientSecret,
 		RedirectURL:  internalhttpx.RequestBaseURL(r) + "/soccer",
 		Scopes: []string{
+			"openid",
+			"email",
 			"https://www.googleapis.com/auth/calendar.events",
 			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 		},

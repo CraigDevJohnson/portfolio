@@ -106,6 +106,9 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true},{"id":"team","summary":"Team Calendar","primary":false}]}`))
+		case "/userinfo":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"sub":"google-subject","email":"calendar@example.com","email_verified":true}`))
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -113,6 +116,7 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 	defer server.Close()
 
 	h := newTestHandlerWithURLs(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
+	h.OAuthUserInfoURL = server.URL + "/userinfo"
 
 	// Step 1: Initiate connect to get state cookie
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
@@ -180,6 +184,9 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 	if record.OwnerIssuer != testOwnerIssuer || record.OwnerSubject != testOwnerSubject {
 		t.Fatalf("stored connection was not bound to the consenting site owner: %#v", record)
 	}
+	if record.AccountSubject != "google-subject" || record.AccountEmail != "calendar@example.com" {
+		t.Fatalf("connected Google account was not recorded: %#v", record)
+	}
 	token, err := h.DecryptToken(record.TokenCiphertext)
 	if err != nil {
 		t.Fatalf("DecryptToken returned error: %v", err)
@@ -200,6 +207,63 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 	}
 	if connectionCookie.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("google connection cookie SameSite = %v, want Lax for the OAuth return", connectionCookie.SameSite)
+	}
+}
+
+func TestCallbackHandlerRejectsUnverifiedGoogleAccount(t *testing.T) {
+	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
+	calendarCalls, userInfoCalls := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/oauth/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer","expires_in":3600}`))
+		case "/userinfo":
+			userInfoCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"sub":"google-subject","email":"unverified@example.com","email_verified":false}`))
+		case "/calendar/v3/users/me/calendarList":
+			calendarCalls++
+		default:
+			t.Errorf("unexpected Google path: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	h := newTestHandlerWithURLs(t, store, server.URL+"/oauth/auth", server.URL+"/oauth/token", server.URL+"/calendar/v3")
+	h.OAuthUserInfoURL = server.URL + "/userinfo"
+	connect := httptest.NewRecorder()
+	h.ConnectHandler(connect, asGrantedSoccerOwner(httptest.NewRequest(http.MethodGet, "http://example.com/soccer/google/connect", nil)))
+	location, err := connect.Result().Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stateCookie *http.Cookie
+	for _, cookie := range connect.Result().Cookies() {
+		if cookie.Name == config.GoogleOAuthStateCookieName {
+			stateCookie = cookie
+		}
+	}
+	if stateCookie == nil {
+		t.Fatal("connect response lacked Google state cookie")
+	}
+	callbackRequest := httptest.NewRequest(http.MethodGet, "http://example.com/soccer?code=auth-code&state="+url.QueryEscape(location.Query().Get("state")), nil)
+	callbackRequest.AddCookie(stateCookie)
+	callback := httptest.NewRecorder()
+	h.CallbackHandler(callback, asGrantedSoccerOwner(callbackRequest))
+	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/soccer?google=failed" {
+		t.Fatalf("unverified Google callback = %d %q", callback.Code, callback.Header().Get("Location"))
+	}
+	if userInfoCalls != 1 {
+		t.Fatalf("callback read the Google account %d time(s), want 1", userInfoCalls)
+	}
+	if len(store.records) != 0 || calendarCalls != 0 {
+		t.Fatal("unverified Google account reached Calendar or persisted a connection")
+	}
+	for _, cookie := range callback.Result().Cookies() {
+		if cookie.Name == config.GoogleConnectionCookieName && cookie.Value != "" {
+			t.Fatal("unverified Google account received a connection cookie")
+		}
 	}
 }
 
@@ -224,6 +288,8 @@ func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 		ConnectionID:    "connection-1",
 		OwnerIssuer:     testOwnerIssuer,
 		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",

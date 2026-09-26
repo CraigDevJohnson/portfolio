@@ -19,12 +19,20 @@ import (
 const (
 	testOwnerIssuer  = "https://issuer.example.com/pool"
 	testOwnerSubject = "owner-subject"
+	testOwnerEmail   = "owner@example.com"
+)
+
+// The Google account that consented to Calendar access for stored
+// connections, verified by Google rather than taken from the site sign-in.
+const (
+	testAccountSubject = "google-account-subject"
+	testAccountEmail   = "calendar@example.com"
 )
 
 // asGrantedSoccerOwner gives a request that reaches a Google handler directly
 // the site identity of the test owner holding the soccer grant.
 func asGrantedSoccerOwner(req *http.Request) *http.Request {
-	principal := &siteidentity.Principal{Issuer: testOwnerIssuer, Subject: testOwnerSubject}
+	principal := &siteidentity.Principal{Issuer: testOwnerIssuer, Subject: testOwnerSubject, Email: testOwnerEmail}
 	ctx := siteidentity.WithRequestIdentity(req.Context(), principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer")
 	return req.WithContext(ctx)
 }

@@ -27,6 +27,9 @@ const (
 	// fake LPS refuses to describe with 401; refusedFacilityGameID is that game.
 	refusedFacilityTeamID = "4109"
 	refusedFacilityGameID = "7009"
+	// The Google account the fake Google reports as having consented.
+	grantWorldGoogleSubject = "owner-google-subject"
+	grantWorldGoogleEmail   = "owner.calendar@example.net"
 )
 
 // soccerGrantWorld is the real route assembly with site identity read from a
@@ -91,6 +94,8 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 		case r.URL.Path == "/oauth/token":
 			world.googleTokenCalls.Add(1)
 			_, _ = w.Write([]byte(`{"access_token":"new-access","refresh_token":"new-refresh","token_type":"Bearer","expires_in":3600}`))
+		case r.URL.Path == "/userinfo":
+			_, _ = fmt.Fprintf(w, `{"sub":%q,"email":%q,"email_verified":true}`, grantWorldGoogleSubject, grantWorldGoogleEmail)
 		case r.URL.Path == "/calendar/v3/users/me/calendarList":
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true,"accessRole":"owner"}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/calendar/v3/calendars/primary/events":
@@ -109,6 +114,7 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 	world.app.GoogleHandler.OAuthAuthURL = google.URL + "/oauth/authorize"
 	world.app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
 	world.app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
+	world.app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
 
 	ciphertext, err := world.app.GoogleHandler.EncryptToken(&oauth2.Token{AccessToken: "owner-access", RefreshToken: "owner-refresh", TokenType: "Bearer", Expiry: time.Now().Add(time.Hour)})
 	if err != nil {
@@ -117,6 +123,7 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 	world.store = &appTestGoogleConnectionStore{records: map[string]internalgoogle.ConnectionRecord{
 		grantWorldConnectionID: {
 			ConnectionID: grantWorldConnectionID, OwnerIssuer: testSiteIssuer, OwnerSubject: testSiteSubject,
+			AccountSubject: grantWorldGoogleSubject, AccountEmail: grantWorldGoogleEmail,
 			TokenCiphertext: ciphertext, CalendarID: "primary", CalendarSummary: "Primary Calendar",
 		},
 	}}

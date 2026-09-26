@@ -162,6 +162,9 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 		SwapOOB:          swapOOB,
 		ResetWorkflow:    swapOOB,
 	}
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && privateAllowed {
+		props.GoogleSuggestedEmail = principal.Email
+	}
 	if session != nil {
 		props.Players = session.Players
 		props.SelectedPlayerIDs = session.Workflow.SelectedPlayerIDs

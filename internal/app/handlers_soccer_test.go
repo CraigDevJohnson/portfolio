@@ -219,6 +219,9 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
+		case "/userinfo":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"sub":"google-subject","email":"calendar@example.com","email_verified":true}`))
 		default:
 			t.Fatalf("unexpected Google path: %s", r.URL.Path)
 		}
@@ -226,6 +229,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	defer googleServer.Close()
 	app.GoogleHandler.OAuthAuthURL = googleServer.URL + "/oauth/auth"
 	app.GoogleHandler.OAuthTokenURL = googleServer.URL + "/oauth/token"
+	app.GoogleHandler.OAuthUserInfoURL = googleServer.URL + "/userinfo"
 	app.GoogleHandler.CalendarAPIBaseURL = googleServer.URL + "/calendar/v3"
 
 	workflow := &types.SessionData{

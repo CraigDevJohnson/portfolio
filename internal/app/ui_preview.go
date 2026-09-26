@@ -158,7 +158,9 @@ func soccerPreviewAuthenticatedState(players []types.LPSPlayer, google bool) par
 func soccerPreviewGoogleState(connected bool) partials.SoccerLoginStateProps {
 	state := soccerPreviewAuthenticatedState(soccerPreviewPlayers(), true)
 	state.GoogleConnected = connected
+	state.GoogleSuggestedEmail = "site@example.com"
 	if connected {
+		state.GoogleAccountEmail = "calendar@example.com"
 		state.GoogleCalendarSummary = "Matchdays and travel notes"
 		state.SelectedGoogleCalendarID = "preview-matchdays"
 		state.GoogleCalendars = []types.GoogleCalendarOption{

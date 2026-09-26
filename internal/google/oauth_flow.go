@@ -1,10 +1,13 @@
 package google
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -125,12 +128,16 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, false, "google oauth state cookie write failed: %v", err)
 		return
 	}
-	authURL := h.oauthConfigForRequest(r).AuthCodeURL(
-		state.State,
+	options := []oauth2.AuthCodeOption{
 		oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
-		oauth2.SetAuthURLParam("prompt", "consent"),
-	)
+	}
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && r.URL.Query().Get("account") == "suggested" {
+		options = append(options, oauth2.SetAuthURLParam("login_hint", principal.Email), oauth2.SetAuthURLParam("prompt", "consent"))
+	} else {
+		options = append(options, oauth2.SetAuthURLParam("prompt", "select_account consent"))
+	}
+	authURL := h.oauthConfigForRequest(r).AuthCodeURL(state.State, options...)
 	http.Redirect(w, r, authURL, http.StatusSeeOther)
 }
 
@@ -167,6 +174,11 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, true, "google token exchange failed: %v", err)
 		return
 	}
+	account, err := h.loadGoogleAccount(ctx, token)
+	if err != nil {
+		h.failOAuthf(w, r, true, "google account verification failed: %v", err)
+		return
+	}
 	calendars, err := h.listCalendarsWithToken(ctx, token)
 	if err != nil || len(calendars) == 0 {
 		h.failOAuthf(w, r, true, "google calendar list after connect failed: %v", err)
@@ -194,6 +206,8 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		ConnectionID:    state.ConnectionID,
 		OwnerIssuer:     state.OwnerIssuer,
 		OwnerSubject:    state.OwnerSubject,
+		AccountSubject:  account.Subject,
+		AccountEmail:    account.Email,
 		TokenCiphertext: encryptedToken,
 		CalendarID:      selectedCalendarID,
 		CalendarSummary: selectedCalendarSummary,
@@ -207,6 +221,37 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	SetConnectionCookie(w, r, state.ConnectionID)
 	ClearOAuthStateCookie(w, r)
 	RedirectSoccerWithGoogleStatus(w, r, "connected")
+}
+
+type googleAccount struct {
+	Subject       string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+}
+
+func (h *Handler) loadGoogleAccount(ctx context.Context, token *oauth2.Token) (*googleAccount, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.OAuthUserInfoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	resp, err := h.LPSClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, readAPIError(resp)
+	}
+	defer resp.Body.Close()
+	var account googleAccount
+	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&account); err != nil {
+		return nil, err
+	}
+	account.Email, err = config.NormalizePortalEmail(account.Email)
+	if err != nil || strings.TrimSpace(account.Subject) == "" || !account.EmailVerified {
+		return nil, errors.New("Google account identity is incomplete or unverified")
+	}
+	return &account, nil
 }
 
 // DisconnectHandler removes the Google connection.

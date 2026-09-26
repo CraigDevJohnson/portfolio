@@ -83,6 +83,9 @@ func TestSoccerRoutesKeepTeamSchedulesPublicAndGatePrivateActions(t *testing.T) 
 		{http.MethodPost, "/soccer/download", url.Values{"player_ids": {"1001"}, "selected": {"7001"}}},
 		{http.MethodGet, "/soccer/google/connect", nil},
 		{http.MethodPost, "/soccer/google/add", url.Values{"selected": {"7001"}}},
+		{http.MethodPost, "/soccer/google/calendar", url.Values{"calendar_id": {"primary"}}},
+		{http.MethodPost, "/soccer/google/sync-results", url.Values{"selected": {"7001"}}},
+		{http.MethodPost, "/soccer/google/disconnect", nil},
 	} {
 		resp := soccerGrantRequest(mux, action.method, action.path, action.form)
 		if resp.Code != http.StatusUnauthorized {
@@ -97,7 +100,7 @@ func TestSoccerRoutesKeepTeamSchedulesPublicAndGatePrivateActions(t *testing.T) 
 	if deniedPage.Code != http.StatusOK || !strings.Contains(deniedPage.Body.String(), "has not been granted") || strings.Contains(deniedPage.Body.String(), "Import access") {
 		t.Fatal("revoked grant remained visible on the Soccer page")
 	}
-	for _, path := range []string{"/soccer/import", "/soccer/google/add"} {
+	for _, path := range []string{"/soccer/import", "/soccer/google/add", "/soccer/google/calendar", "/soccer/google/sync-results", "/soccer/google/disconnect"} {
 		resp := soccerGrantRequest(mux, http.MethodPost, path, url.Values{}, accountCookie)
 		if resp.Code != http.StatusForbidden {
 			t.Errorf("revoked grant %s = %d, want 403", path, resp.Code)
@@ -297,6 +300,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	}}
 	application.GoogleHandler.SetStore(store)
 	var tokenCalls atomic.Int32
+	connectedEmail := "calendar-owner@example.net"
 	googleAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/token":
@@ -306,6 +310,12 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		case "/calendar/v3/users/me/calendarList":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
+		case "/userinfo":
+			if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+				t.Errorf("userinfo authorization = %q", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"sub":"google-subject","email":%q,"email_verified":true}`, connectedEmail)
 		default:
 			t.Errorf("unexpected Google request: %s", r.URL.Path)
 			http.NotFound(w, r)
@@ -315,6 +325,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	application.GoogleHandler.OAuthAuthURL = googleAPI.URL + "/oauth/authorize"
 	application.GoogleHandler.OAuthTokenURL = googleAPI.URL + "/oauth/token"
 	application.GoogleHandler.CalendarAPIBaseURL = googleAPI.URL + "/calendar/v3"
+	application.GoogleHandler.OAuthUserInfoURL = googleAPI.URL + "/userinfo"
 	mux, _ := buildMux(application, application.Logger, false)
 	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
 	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
@@ -336,6 +347,11 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatal("disconnect left the ownerless Google connection and its token stored")
 	}
 	store.records["legacy"] = legacy
+	suggestedConnect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect?account=suggested", nil, ownerCookie)
+	suggestedURL, err := url.Parse(suggestedConnect.Header().Get("Location"))
+	if err != nil || suggestedURL.Query().Get("login_hint") != "owner@example.com" {
+		t.Fatalf("suggested Google account hint = %q, error %v", suggestedConnect.Header().Get("Location"), err)
+	}
 	connect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect", nil, ownerCookie, legacyCookie)
 	if connect.Code != http.StatusSeeOther {
 		t.Fatalf("Google connect status = %d", connect.Code)
@@ -362,19 +378,71 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got := connectURL.Query().Get("login_hint"); got != "" {
+		t.Fatalf("alternate account chooser had a forced hint = %q", got)
+	}
+	if prompt := connectURL.Query().Get("prompt"); !strings.Contains(prompt, "select_account") || !strings.Contains(prompt, "consent") {
+		t.Fatalf("Google consent did not permit alternate account choice: %q", prompt)
+	}
+	if scopes := connectURL.Query().Get("scope"); !strings.Contains(scopes, "openid") || !strings.Contains(scopes, "email") {
+		t.Fatalf("Google consent did not request account identity: %q", scopes)
+	}
+	badState := soccerGrantRequest(mux, http.MethodGet, "/soccer?code=auth-code&state=wrong", nil, ownerCookie, googleStateCookie)
+	if badState.Code != http.StatusSeeOther || badState.Header().Get("Location") != "/soccer?google=failed" || tokenCalls.Load() != 0 {
+		t.Fatalf("mismatched Google callback state reached token exchange: status %d, redirect %q, exchanges %d", badState.Code, badState.Header().Get("Location"), tokenCalls.Load())
+	}
 	callbackPath := "/soccer?code=auth-code&state=" + url.QueryEscape(connectURL.Query().Get("state"))
 	callback := soccerGrantRequest(mux, http.MethodGet, callbackPath, nil, ownerCookie, googleStateCookie)
 	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/soccer?google=connected" || tokenCalls.Load() != 1 {
 		t.Fatalf("granted Google callback did not connect: status %d, redirect %q, exchanges %d", callback.Code, callback.Header().Get("Location"), tokenCalls.Load())
 	}
 	connected := store.records[pending.ConnectionID]
-	if connected.OwnerIssuer != fixture.issuer || connected.OwnerSubject != "stable-subject" {
+	if connected.OwnerIssuer != fixture.issuer || connected.OwnerSubject != "stable-subject" || connected.AccountSubject != "google-subject" || connected.AccountEmail != connectedEmail {
 		t.Fatalf("Google connection lacked verified owner: %#v", connected)
+	}
+	var connectionCookie *http.Cookie
+	for _, cookie := range callback.Result().Cookies() {
+		if cookie.Name == config.GoogleConnectionCookieName {
+			connectionCookie = cookie
+		}
+	}
+	if connectionCookie == nil {
+		t.Fatal("Google callback did not set connection cookie")
+	}
+	ownerPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie, connectionCookie)
+	if ownerPage.Code != http.StatusOK || !strings.Contains(ownerPage.Body.String(), "Connected Google account") || !strings.Contains(ownerPage.Body.String(), connectedEmail) {
+		t.Fatalf("owner page omitted actual Google account: status %d", ownerPage.Code)
+	}
+	if strings.Contains(ownerPage.Body.String(), "Connected Google account: owner@example.com") {
+		t.Fatal("site account suggestion was presented as connected account")
+	}
+	if !strings.Contains(ownerPage.Body.String(), "owner@example.com") || !strings.Contains(ownerPage.Body.String(), "account=suggested") {
+		t.Fatal("owner page did not offer the site Google account as a suggestion")
+	}
+	publicPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, connectionCookie)
+	if publicPage.Code != http.StatusOK || strings.Contains(publicPage.Body.String(), connectedEmail) || strings.Contains(publicPage.Body.String(), "Calendar ready") {
+		t.Fatal("signed-out visitor inherited owner Google connection")
 	}
 
 	fixture.subject = "different-subject"
 	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
 	otherCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, connectionCookie)
+	if otherPage.Code != http.StatusOK || strings.Contains(otherPage.Body.String(), connectedEmail) || strings.Contains(otherPage.Body.String(), "Calendar ready") {
+		t.Fatal("different site owner inherited Google connection")
+	}
+	otherDisconnect := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/disconnect", nil, otherCookie, connectionCookie)
+	if otherDisconnect.Code != http.StatusOK {
+		t.Fatalf("different owner disconnect status = %d", otherDisconnect.Code)
+	}
+	if _, exists := store.records[pending.ConnectionID]; !exists {
+		t.Fatal("different site owner deleted the Google connection")
+	}
+	for _, cookie := range otherDisconnect.Result().Cookies() {
+		if cookie.Name == config.GoogleConnectionCookieName && cookie.MaxAge < 0 {
+			t.Fatal("different site owner cleared the Google connection cookie")
+		}
+	}
 	otherCallback := soccerGrantRequest(mux, http.MethodGet, callbackPath, nil, otherCookie, googleStateCookie)
 	if otherCallback.Code != http.StatusSeeOther || otherCallback.Header().Get("Location") != "/soccer?google=failed" || tokenCalls.Load() != 1 {
 		t.Fatalf("another owner reused pending Google consent: status %d, redirect %q, exchanges %d", otherCallback.Code, otherCallback.Header().Get("Location"), tokenCalls.Load())
@@ -387,6 +455,33 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	signedOutCallback := soccerGrantRequest(mux, http.MethodGet, callbackPath, nil, googleStateCookie)
 	if signedOutCallback.Code != http.StatusUnauthorized || tokenCalls.Load() != 1 {
 		t.Fatalf("signed-out browser reached Google callback: status %d, exchanges %d", signedOutCallback.Code, tokenCalls.Load())
+	}
+	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer"}
+	signOut := soccerGrantRequest(mux, http.MethodPost, "/sign-out", nil, ownerCookie, connectionCookie)
+	if signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+	if _, exists := store.records[pending.ConnectionID]; !exists {
+		t.Fatal("site sign-out deleted the owner Google connection")
+	}
+	for _, cookie := range signOut.Result().Cookies() {
+		if cookie.Name == config.GoogleConnectionCookieName && cookie.MaxAge < 0 {
+			t.Fatal("site sign-out cleared the Google connection cookie")
+		}
+	}
+	fixture.subject = "stable-subject"
+	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
+	returningOwnerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+	ownerPage = soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, returningOwnerCookie, connectionCookie)
+	if !strings.Contains(ownerPage.Body.String(), connectedEmail) {
+		t.Fatal("returning site owner did not regain Google connection")
+	}
+	disconnected := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/disconnect", nil, returningOwnerCookie, connectionCookie)
+	if disconnected.Code != http.StatusOK {
+		t.Fatalf("Google disconnect status = %d", disconnected.Code)
+	}
+	if _, exists := store.records[pending.ConnectionID]; exists {
+		t.Fatal("Google disconnect retained the owner's connection")
 	}
 }
 

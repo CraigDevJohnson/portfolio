@@ -29,6 +29,8 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 		ConnectionID:    "connection-1",
 		OwnerIssuer:     testOwnerIssuer,
 		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
