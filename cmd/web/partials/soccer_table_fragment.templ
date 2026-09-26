@@ -165,35 +165,18 @@ templ SoccerGamesList(sectionID string, games []types.Game) {
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if visibleGamesCount(props) == 0 {
+		{{ empty := props.emptyState() }}
 		<div class="no-results">
 			<div class="no-results-icon" aria-hidden="true">
 				@UIIcon(UIIconCalendar)
 			</div>
-			if props.FetchError {
-				<h4>Could not fetch games</h4>
-			} else if props.Message != "" {
-				<h4>Schedule needs attention</h4>
-			} else {
-				<h4>No upcoming games found</h4>
-			}
-			if props.Message != "" {
-				<p>{ props.Message }</p>
-			} else {
-				<p>There are no upcoming games for the selected teams.</p>
-			}
-			if props.Hint != "" {
-				<p class="hint">{ props.Hint }</p>
-			} else {
-				<p class="hint">Check your team IDs and try again later.</p>
-			}
-			if len(props.PlayerIDs) > 0 {
-				<p class="no-results-next-step">Confirm that your selected players and teams are still current, then fetch again.</p>
-			} else {
-				<p class="no-results-next-step">Check your Team IDs, then fetch their schedules again.</p>
-			}
+			<h4>{ empty.Heading }</h4>
+			<p>{ empty.Message }</p>
+			<p class="hint">{ empty.Hint }</p>
+			<p class="no-results-next-step">{ empty.NextStep }</p>
 			<div class="soccer-recovery-actions">
 				<a class="btn soccer-secondary-btn" href="#team_codes">Return to manual team IDs</a>
-				if props.ImportAvailable {
+				if empty.ShowImportAction {
 					<button type="button" class="btn soccer-secondary-btn" data-open-login-modal data-soccer-linked-source hidden>Import fresh access</button>
 				}
 			</div>
@@ -279,6 +262,10 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 						</form>
 					</section>
 				} else if len(props.PastGames) > 0 {
+					<div class="games-empty-panel" role="status" data-soccer-output-only="ics">
+						<h4>No upcoming games to download</h4>
+						<p>Try again later or fetch another team schedule.</p>
+					</div>
 					<div class="games-empty-panel" role="status" data-soccer-output-only="google" hidden>
 						<h4>No upcoming games right now</h4>
 						<p>Past results are still available below if you want to review or sync them.</p>
