@@ -1,108 +1,132 @@
 # Production Lambda promotion
 
-Production release preparation is in progress. Production application is hard-disabled
-in the apply script, in addition to having no workflow job. Environment variables
-cannot enable it. A successful `production-plan` job is not a production
-deployment and does not authorize any live mutation.
+The [accepted Issue #75 scope](https://github.com/CraigDevJohnson/portfolio/issues/75)
+governs the first launch. Production apply is hard-disabled in both apply
+entrypoints and has no workflow job. A successful `production-plan` job is
+rehearsal evidence, not a deployment or live-change authorization. The
+[September 25 readiness review](2026-09-25-production-launch-readiness.md)
+identifies the remaining implementation work and observed development blockage.
+
+## Accepted launch contract
+
+- Launch the public portfolio, Soccer, and Google Calendar in account
+  `180294223248`, `us-west-2`. Foundation/member migration is later work and
+  is not a prerequisite to this current-account launch.
+- Promote the exact development-verified immutable image without rebuilding.
+  The reviewed promotion PR changes only `deploy/production-release.json`;
+  application source and promotion commit remain distinct.
+- Use fresh production data and a fresh session key. Reconnect Google accounts;
+  do not copy legacy encrypted connections.
+- Serve the application on `craigdevjohnson.com`; permanently redirect `www`
+  to that canonical apex. Keep Soccer authorization/callbacks on the apex.
+- Defer the EC2 management portal. Its Cognito login, callback, and logout are
+  not first-launch acceptance requirements.
+- Accept downtime while fixing failures. Do not require a fallback origin or
+  fabricate prior verified production history. Optional alias-only rollback
+  requires an actual prior verified version and separate authorization.
+- Require 30 uninterrupted minutes of successful public acceptance. Any
+  required failure, including an upstream failure, invalidates the window;
+  diagnose and repair it, then begin a fresh full window.
 
 ## Authority boundaries
 
-- `portfolio-production-planner-ci`, trusted only by `production-plan`, validates
-  the manifest and creates evidence. It cannot write production state or services.
-- `portfolio-production-deployer-ci`, trusted only by `production`, is defined but
-  must not be provisioned or used until the readiness and activation gates below.
-  It can write only the exact production state object and release the existing
-  production Lambda function and `live` alias.
-- `portfolio-deployer` remains the guarded local SSO path for separately approved
-  bootstrap or recovery work. It is not a substitute for protected CI promotion.
-- Release automation must not change IAM/OIDC resources, state backends, runtime
-  parameters, DNS/Cloudflare, API Gateway domains, ACM, App Runner, Amplify, or
-  unrelated environments.
+- `portfolio-production-planner-ci`, trusted only by `production-plan`,
+  validates the manifest and creates evidence. It cannot write production
+  state or services.
+- `portfolio-production-deployer-ci`, trusted only by `production`, is defined
+  in source. Provisioning and use require a reviewed activation plan. Routine
+  release authority covers only the exact production state/lock objects and
+  approved existing Lambda release resources.
+- `portfolio-deployer` is the guarded local SSO path for separately approved
+  bootstrap or recovery. It does not replace protected CI promotion.
+- Release automation excludes IAM/OIDC provisioning, state bootstrap, runtime
+  parameter/data writes, DNS/Cloudflare, API Gateway domains, ACM, legacy
+  hosting, and unrelated environments. Review those prerequisites in their
+  owning operator plans.
 
-## Readiness gate
+## Readiness before activation
 
-Before activation, retain sanitized evidence proving all of the following without
-recording parameter or secret values:
+Retain dated, sanitized evidence for these gates without secret values:
 
-1. The production OpenTofu root and state already own the function, `live` alias,
-   API Gateway, custom domains, certificate, logs, tables, and five alarms.
-2. Required runtime parameters exist, are encrypted as approved, and are readable
-   by the production execution role.
-3. The certificate covers `craigdevjohnson.com` and `www.craigdevjohnson.com` and
-   both API Gateway mappings pass direct-origin HTTPS probes.
-4. OAuth callback and logout allowlists use the exact production HTTPS URLs, and
-   secure session-cookie behavior has been tested at the production origin.
-5. The alarm actions are configured and all five alarms are healthy.
-6. The current public origin and exact DNS/Cloudflare rollback coordinates have
-   been recorded, and that rollback origin has been tested.
-7. The public cutover and rollback procedures have been reviewed. DNS/Cloudflare
-   changes remain manual, exact-record operations outside release automation.
+1. Resolve the development backlog and independently revalidate the chosen
+   source SHA, successful trusted development deployment, existing ECR digest,
+   scan, live alias/version, and application verification.
+2. Inventory production state and resources. Under an approved bootstrap plan,
+   establish the function, `live` alias, API Gateway, isolated tables, encrypted
+   runtime parameters, logs, alarms, and chosen HTTPS/domain route. Record any
+   missing resources rather than treating source declarations as live proof.
+3. Verify the exact production execution role can resolve approved runtime
+   parameters. Exercise the application without recording decrypted values,
+   JWTs, OAuth codes, cookies, calendar contents, or tokens in evidence.
+4. Verify certificate coverage and the actual apex/`www` routing design,
+   including direct-origin apex HTTPS, permanent public `www` redirect, the
+   canonical Soccer Google callback allowlist, and secure session cookies.
+   A separate application served at the `www` origin is not required.
+5. Verify five configured alarms and their notification path, and collect
+   healthy alarm/error observations. A configured topic is not inbox delivery.
+6. Record exact existing and proposed DNS/Cloudflare record/rule changes and
+   review the public-cutover sequence. Keeping that inventory does not require
+   a fallback hosting service or authorize its retirement.
+7. Complete the applicable pinned foundation baseline review, itemized
+   recurring and temporary costs, and explicit exceptions with expiry/review
+   triggers. Do not inherit an unrelated foundation stage's spending limit
+   or logging/detection exception.
 
-## Separate activation gate
+## First deployment evidence
 
-The maintainer must separately authorize each operation below in the session where
-it occurs. Issue assignment, this document, a code review, or a plan-only run is
-not authorization.
+The planner already records null prior-production fields and
+`BOOTSTRAP_REQUIRED` when no durable verified production deployment exists.
+The apply validator and downstream tools still require a prior verified
+coordinate. They must be reconciled and tested together before activation.
 
-1. Create and review an isolated CI-role plan. Confirm it adds only
-   `portfolio-production-deployer-ci` and its exact inline policy, then separately
-   authorize applying the checksum- and provenance-bound plan.
-2. Verify all four deterministic role ARNs with `task lambda-ci-roles-verify` and
-   test that the production deployer can assume only from the exact `production`
-   Environment subject. Test representative denied builder, development,
-   bootstrap, DNS, IAM, SSM-write, and unrelated-state actions.
-3. Create the `production` GitHub Environment before any workflow references it.
-   Require the designated reviewer, protected branches, and no administrator
-   bypass. Set only `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` to the verified ARN.
-4. Review the live Environment through the GitHub API. Stop if its reviewer,
-   branch policy, bypass setting, or role variable differs from this contract.
-5. Merge a separate activation PR that adds the production apply/verify job. That
-   job must use `environment: production`, `deployments: write`, `id-token: write`,
-   the non-cancelling `lambda-production` concurrency group, and the evidence from
-   the same successful planning run. PR-head jobs receive no AWS credentials.
+The first-deployment path must bind independently reviewed bootstrap evidence
+to the exact account, backend/workspace, source/digest, live function/alias
+state, and saved plan. Preserve the distinction between an observed bootstrap
+alias and a **verified production predecessor**. Only public acceptance can
+create the first durable verified production record. Unknown or conflicting
+history must fail closed; do not populate prior-success fields to pass a guard.
 
-## Promotion and failure handling
+## Activation and approval
 
-Create a new manifest-only promotion PR after revalidating the current development
-deployment, successful latest status, source SHA, ECR digest, completed scan, live
-development alias/version, and verification evidence. Do not reuse an old manifest
-merely because it once passed, rebuild the image, or use a mutable tag.
+Prepare a concrete versioned plan before requesting live authorization. It
+must name exact resource/configuration changes, source revisions, cost bounds,
+work window, verification, and any baseline exceptions. Once Craig approves
+that scope, carry out its necessary steps without asking again for each
+command. Stop for a material expansion or failed prerequisite.
 
-The plan evidence includes `promotion.json`, `scan.json`, plan binary/JSON/text,
-checksum, policy result, durable prior verified deployment evidence, and
-`release-identity.json`. The planner downloads the one exact, non-expired
-`release-<development-source-sha>` artifact from the successful Release run and
-accepts only its top-level `scan.json`; this reuses the digest-bound
-`DescribeImageScanFindings` result without expanding the deployed planner's AWS
-permissions. A bundle with `apply_authorized: false` is rehearsal evidence only.
-Application must use `task lambda-ci-apply-production`; it binds the current
-manifest and workflow identity, verifies the checksum and plan policy, checks
-current `main`, checks the durable production coordinate and current alias, and repeats both mutable-state checks
-immediately before applying the saved plan.
+1. Review the isolated CI-role saved plan, expected role/policy changes, and
+   checksum. Verify exact OIDC repository/environment/audience, separate
+   builder/development/planner/deployer permissions, and representative
+   allowed/denied operations.
+2. Create the `production` GitHub Environment before its workflow job is
+   enabled. Require Craig's review, permit self-review, restrict to protected
+   branches, disable administrator bypass, and set only the verified
+   `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` needed by that job. Read back the result.
+3. Review and merge the activation change only after its implementation and
+   readiness gates pass and live activation is authorized. The job uses
+   `environment: production`, `deployments: write`, `id-token: write`, and the
+   non-cancelling `lambda-production` group. PR-head jobs get no AWS credentials.
+4. Generate a new manifest-only promotion after renewed development evidence
+   checks. Do not reuse a stale manifest solely because it once passed.
+5. Bind protected approval and apply to the reviewed binary plan, its JSON/text
+   and policy/checksums, exact backend/workspace, release identity, planning
+   run/attempt, and actual approval identity. Recheck current `main` before
+   credentials and immediately before apply; preserve state locks and
+   stale-release checks.
 
-Before application, create the protected GitHub production deployment through
-`task lambda-ci-record-production`. On success, verify and retain the exact alias,
-version, digest, `/healthz` revision, direct-origin route probes, public apex and
-`www` routes, required pages/assets, OAuth and cookies, and all alarm samples.
-The deployment payload also binds the release-identity and scan checksums,
-planning run and attempt, approval identifier, and reviewer login. Only then
-record a successful deployment and public-cutover verdict.
+## Public verification and failure handling
 
-On any apply or verification failure, preserve the evidence, record failure on the
-same GitHub deployment, and stop. A production rollback plan may move only the
-`live` alias to the recorded prior verified version; it must pass policy and
-checksum validation. Applying rollback requires a new operator authorization and
-must never be automatic.
+Record a protected production deployment before application, then retain the
+exact final Lambda alias/version/digest and `/healthz` revision, public pages
+and assets, HTTPS, canonical redirect, secure cookies, successful Soccer/Google
+authorization and an authorized calendar operation, and alarm/error samples.
+The 30-minute window covers the required public acceptance checks together;
+separate short smoke runs do not establish an uninterrupted window. Development
+verification and recovery behavior remain unchanged.
 
-## Remaining live work before activation
-
-This preparation is not activation. Live AWS state, runtime parameters, certificate
-and OAuth configuration, both public routes, alarm actions, the protected GitHub
-Environment, and any first-cutover bootstrap coordinate remain unverified. The
-later activation change must review those facts and must not merely remove the hard
-stop.
-
-The active planner retains its existing authority and reads the digest-bound scan
-summary through its existing `ecr:DescribeImages` permission. Missing, incomplete,
-or critical scan evidence fails planning closed. No role policy has been applied by
-this repository change.
+On apply or verification failure, preserve evidence, record failure or
+unverified status on the original GitHub deployment, and stop. Resolve the
+failure under the approved scope or a newly reviewed repair plan. Mark success
+only after a complete clean acceptance window. Never apply rollback
+automatically. Legacy retirement and later account migration have separate
+observation periods, inventories, and approvals.

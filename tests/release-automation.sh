@@ -2067,15 +2067,30 @@ then
   echo 'authorize job can mint AWS credentials or write deployments' >&2
   exit 1
 fi
-if grep -Fq '    actions: read' << EOF
-$build_job
-$development_job
+for recovery_job in "$development_review_job" "$build_job" "$development_job"; do
+  grep -Fq '    actions: read' << EOF
+$recovery_job
 EOF
-then
-  echo 'build or development received unnecessary Actions read authority' >&2
-  exit 1
-fi
+  grep -Fq '    pull-requests: read' << EOF
+$recovery_job
+EOF
+  grep -Fq "DEVELOPMENT_RECOVERY: ${literal_dollar}{{ github.event_name == 'workflow_dispatch' }}" << EOF
+$recovery_job
+EOF
+done
+grep -Fq "inputs.recovery_source_sha == github.sha" << EOF
+$authorize_job
+EOF
+grep -Fq "github.ref == 'refs/heads/main'" << EOF
+$authorize_job
+EOF
+grep -Fq "ref: ${literal_dollar}{{ github.event.workflow_run.head_sha || github.sha }}" << EOF
+$authorize_job
+EOF
 grep -Fq '    actions: read' << EOF
+$production_job
+EOF
+grep -Fq '    pull-requests: read' << EOF
 $production_job
 EOF
 grep -Fq '    environment: release-review' << EOF

@@ -273,6 +273,7 @@ tasks:
       - sh tests/lambda-observation-window.sh
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
+      - python3 tests/development-recovery.py
       - sh tests/production-activation.sh
       - sh tests/production-deployment.sh
       - sh tests/production-recording.sh

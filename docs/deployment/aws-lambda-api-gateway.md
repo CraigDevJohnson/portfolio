@@ -149,6 +149,13 @@ then blocked on the same protected `release-review` Environment before the
 ordinary development job may run. This recovery path cannot include a
 production promotion, grants the review job no AWS or deployment-write
 authority, and rechecks current `main` after approval.
+The separately reviewed [one-time September recovery](2026-09-25-production-launch-readiness.md)
+uses a manual full-SHA input on the same workflow. Its frozen source/base/manifest
+contract admits only this mixed backlog through protected `development-reviewed`
+execution. It rechecks review and CI before credentials and mutation, and a
+successful real development deployment consumes it. Normal workflow-triggered
+classification is unchanged; manual recovery never promotes the old manifest.
+
 The trusted success status includes the verified Lambda version. Authorization
 uses that status to classify the backlog, then the serialized development job
 resolves the status again immediately before mutation. A converged retry thus
@@ -163,16 +170,23 @@ hard runner loss.
 Production promotion changes only `deploy/production-release.json`. Its source
 SHA, ECR digest, and successful development deployment ID must agree with live
 GitHub/AWS records. The image is never rebuilt. Production automation is
-deliberately **plan-only** until custom-domain activation, apex and `www`
-routing, certificates/HTTPS, runtime parameters, OAuth callbacks and cookies,
-alarms, a verified rollback origin, and the public-cutover procedure have all
-been independently rehearsed and approved. Do not claim the Go/Lambda service
-is public in production before that cutover evidence exists.
+deliberately **plan-only** until production readiness and a concrete activation
+plan are independently reviewed and approved. The accepted
+[Issue #75 scope](https://github.com/CraigDevJohnson/portfolio/issues/75) requires
+the canonical apex, permanent `www` redirect, certificates/HTTPS, fresh runtime
+data and session key, Soccer/Google Calendar callbacks and secure cookies,
+alarms, and the public-cutover procedure. It defers the management portal and
+requires no healthy fallback origin. Do not claim the Go/Lambda service is
+public in production before public acceptance evidence exists.
 
 An accepted production plan now retains `release-identity.json`, binding the
 promotion commit, development source/deployment/digest, workflow run and attempt,
-prior production alias, and saved-plan checksum. Every bundle remains explicitly
-not apply-ready while preparation and plan-only rehearsal continue.
+prior verified production coordinate when one exists, and saved-plan checksum.
+On the first deployment the planner records null prior fields and
+`BOOTSTRAP_REQUIRED`; that is an honest absence of history, not authority to
+apply. The apply validator still requires a prior verified coordinate, so a
+separately reviewed first-deployment contract is needed. Every current bundle
+remains explicitly not apply-ready.
 The planner obtains `scan.json` from the exact successful Release artifact for
 the promoted development source rather than relying on the deprecated scan
 summary fields returned by `ecr:DescribeImages` or expanding the live planner's
@@ -190,9 +204,12 @@ readiness, activation, promotion, verification, and rollback gates.
 Automation authority excludes legacy deploy tasks, DNS and Cloudflare, App
 Runner, Amplify, state bootstrap, and SSM application-data mutation. During an
 incident, preserve failed evidence, stop promotion, review the saved rollback
-plan/checksum, and use the local SSO path for an approved apply. Initial public
-cutover and retirement still use the longer observation gate below; routine
-development releases use bounded route, identity, and alarm verification.
+plan/checksum when a prior verified version exists, and use the local SSO path
+only for an explicitly approved recovery apply. Initial production acceptance
+requires 30 uninterrupted healthy minutes under Issue #75; any required failure
+starts a fresh full window after repair. The older seven-day observation tools
+do not implement that contract. Later retirement has separate observation and
+approval gates. Routine development verification and recovery are unchanged.
 
 The tracked [bootstrap policy inputs](../../infra/lambda/bootstrap/README.md)
 are authoritative for their reviewed initial bytes. Checking them in grants no

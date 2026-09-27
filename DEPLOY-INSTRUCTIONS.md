@@ -1,11 +1,17 @@
 # Deployment instructions
 
-The [September 19 production decision record](./docs/deployment/2026-09-19-production-deployment-decisions.md)
-captures the accepted rollout scope: use the current AWS account, keep a
-separate production role and manual self-approval, and fix failures without a
-production rollback requirement. The implementation still stops at production
-planning. Older rollback and observation requirements below need reconciliation
-before the production cutover plan is executed.
+The accepted [Issue #75 scope](https://github.com/CraigDevJohnson/portfolio/issues/75)
+launches the portfolio, Soccer, and Google Calendar in the current AWS account.
+It keeps a separate production role, protected manual self-approval, and a
+30-minute uninterrupted public verification window. The apex is canonical;
+`www` permanently redirects to it. The management portal is deferred, and no
+fallback origin or mandatory rollback is required.
+
+Production apply remains hard-disabled. Read the
+[production promotion runbook](./docs/deployment/production-lambda-promotion.md)
+and [dated readiness review](./docs/deployment/2026-09-25-production-launch-readiness.md)
+before preparing an activation change. Documentation approval does not enable
+the unfinished first-deployment or verification contracts.
 
 ## Retained shared infrastructure
 
@@ -297,13 +303,20 @@ apply approval. Prove OAuth against the API Gateway target before changing the
 traffic record. Record the current origin and complete DNS rollback coordinates
 before that traffic mutation.
 
-Observation commands reinitialize artifact and environment roots before reading
-outputs. They append sanitized samples and workflow request IDs to the release
-record's evidence path. Production stays blocked unless the first sample and
-every later gap are within 26 hours, all timestamps are current and internally
-consistent, and the window spans seven full days. It also requires stable
-release coordinates, distinct request IDs for two complete workflows, five
-non-ALARM alarm states, no blocker, and a strict HTTPS rollback origin.
+The existing observation commands reinitialize artifact and environment roots
+before reading outputs and append sanitized samples and workflow request IDs.
+Their implementation still requires seven days, two workflows, and a healthy
+fallback origin. Those requirements are historical for the initial production
+launch and must not be used as its acceptance contract or bypassed with
+fabricated evidence. Development recovery behavior remains unchanged.
+
+Issue #75 instead requires 30 uninterrupted minutes of successful public-route,
+Soccer/Google authentication and authorized calendar-operation, HTTPS/cookie,
+revision/digest/alias, and alarm/error checks. Any required failure invalidates
+the window, including an upstream failure. Resolve the failure, then start a
+fresh full window. The production verifier and evidence recorder need the
+corresponding implementation and tests before activation; neither a successful
+plan nor several short smoke tests proves this window.
 
 The application behavior and direct-endpoint checks are also documented in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

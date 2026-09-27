@@ -5,6 +5,12 @@ set -eu
 : "${GITHUB_OUTPUT:?set GITHUB_OUTPUT}"
 script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 
+if [ "${GITHUB_EVENT_NAME:-}" = workflow_dispatch ]; then
+  python3 "$script_dir/validate-development-recovery.py" \
+    --source-sha "$EVENT_SHA" --phase preflight --github-output "$GITHUB_OUTPUT"
+  exit 0
+fi
+
 fail() {
   printf 'Lambda release authorization failed: %s\n' "$1" >&2
   exit 1

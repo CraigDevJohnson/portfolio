@@ -3,12 +3,15 @@
 <!-- markdownlint-disable MD013 MD010 -->
 
 > [!IMPORTANT]
-> The [September 19 production decisions](../../deployment/2026-09-19-production-deployment-decisions.md)
-> supersede this plan's production rollback requirements. Craig chose the
-> current AWS account, a separate production role, manual self-approval, and
-> downtime while fixing failures instead of rollback to earlier hosting.
-> This plan still contains the older rollback and observation contracts.
-> Reconcile it with the decision record before execution.
+> Historical plan; do not execute it as the current launch procedure.
+> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) supersedes
+> its fallback-origin, mandatory rollback, management-portal, and seven-day
+> initial production acceptance requirements. The accepted launch uses the
+> current account, protected self-approval, portfolio/Soccer/Google Calendar,
+> canonical apex with permanent `www` redirect, and 30 uninterrupted healthy
+> minutes. Follow the [current runbook](../../deployment/production-lambda-promotion.md)
+> and [readiness review](../../deployment/2026-09-25-production-launch-readiness.md).
+> This historical evidence is retained without rewriting its original steps.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
