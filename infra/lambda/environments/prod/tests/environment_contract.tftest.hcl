@@ -15,6 +15,25 @@ mock_provider "aws" {
     defaults = { json = "{}" }
   }
 
+  mock_resource "aws_acm_certificate" {
+    defaults = {
+      arn = "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000"
+      domain_validation_options = [
+        { domain_name = "craigdevjohnson.com", resource_record_name = "_apex.craigdevjohnson.com", resource_record_type = "CNAME", resource_record_value = "_apex.acm-validations.aws" },
+        { domain_name = "www.craigdevjohnson.com", resource_record_name = "_www.www.craigdevjohnson.com", resource_record_type = "CNAME", resource_record_value = "_www.acm-validations.aws" },
+      ]
+    }
+  }
+
+  mock_resource "aws_apigatewayv2_domain_name" {
+    defaults = {
+      domain_name_configuration = {
+        target_domain_name = "example.execute-api.us-west-2.amazonaws.com"
+        hosted_zone_id     = "example-zone"
+      }
+    }
+  }
+
   mock_resource "aws_cloudwatch_log_group" {
     defaults = { arn = "arn:aws:logs:us-west-2:180294223248:log-group:portfolio-test" }
   }
@@ -77,8 +96,8 @@ run "production_environment_contract" {
       var.enable_deletion_protection &&
       toset(var.alarm_action_arns) == toset([]) &&
       toset(var.domain_names) == toset(["craigdevjohnson.com", "www.craigdevjohnson.com"]) &&
-      !var.request_custom_domain &&
-      !var.activate_custom_domain
+      var.request_custom_domain &&
+      var.activate_custom_domain
     )
     error_message = "production must use the reviewed isolated environment values"
   }
@@ -145,9 +164,12 @@ run "production_environment_contract" {
         "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
         "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
       ]) &&
-      output.certificate_arn == tostring(null) &&
-      length(output.acm_validation_records) == 0 &&
-      length(output.api_gateway_domain_targets) == 0 &&
+      output.certificate_arn == "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000" &&
+      length(output.acm_validation_records) == 2 &&
+      output.api_gateway_domain_targets == tomap({
+        "craigdevjohnson.com"     = "example.execute-api.us-west-2.amazonaws.com"
+        "www.craigdevjohnson.com" = "example.execute-api.us-west-2.amazonaws.com"
+      }) &&
       output.oauth_redirect_uris == tolist([
         "https://craigdevjohnson.com/soccer",
         "https://www.craigdevjohnson.com/soccer",

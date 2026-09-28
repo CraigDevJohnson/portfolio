@@ -1888,6 +1888,63 @@ done
 
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
+prod_certificate_plan="$tmp_dir/prod-certificate.json"
+jq '
+  .variables.request_custom_domain.value = true |
+  .variables.activate_custom_domain.value = false |
+  .variables.domain_names.value = ["craigdevjohnson.com", "www.craigdevjohnson.com"] |
+  .resource_changes += [{
+    address: "module.service.aws_acm_certificate.custom[0]", mode: "managed",
+    type: "aws_acm_certificate", name: "custom", index: 0,
+    change: {actions: ["create"], before: null, after: {
+      arn: "arn:aws:acm:us-west-2:180294223248:certificate/test",
+      domain_name: "craigdevjohnson.com",
+      subject_alternative_names: ["craigdevjohnson.com", "www.craigdevjohnson.com"],
+      validation_method: "DNS", certificate_authority_arn: null
+    }, after_unknown: {}, before_sensitive: false, after_sensitive: false}
+  }]
+' "$prod_plan" > "$prod_certificate_plan"
+expect_pass "production certificate bootstrap retains exact domains" run_check "$prod_certificate_plan" prod
+prod_domains_plan="$tmp_dir/prod-domains.json"
+jq '
+  .variables.activate_custom_domain.value = true |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api") | .change.after.id) = "api-123" |
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.actions) = ["no-op"] |
+  .resource_changes += [{
+    address: "module.service.aws_acm_certificate_validation.custom[0]", mode: "managed",
+    type: "aws_acm_certificate_validation", name: "custom", index: 0,
+    change: {actions: ["create"], before: null,
+      after: {certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test"},
+      after_unknown: {}, before_sensitive: false, after_sensitive: false}
+  }] + (["craigdevjohnson.com", "www.craigdevjohnson.com"] | map(. as $domain | [
+    {address: ("module.service.aws_apigatewayv2_domain_name.custom[" + ($domain | tojson) + "]"),
+      mode: "managed", type: "aws_apigatewayv2_domain_name", name: "custom", index: $domain,
+      change: {actions: ["create"], before: null, after: {domain_name: $domain,
+        domain_name_configuration: [{endpoint_type: "REGIONAL", security_policy: "TLS_1_2",
+          certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test"}]},
+        after_unknown: {}, before_sensitive: false, after_sensitive: false}},
+    {address: ("module.service.aws_apigatewayv2_api_mapping.custom[" + ($domain | tojson) + "]"),
+      mode: "managed", type: "aws_apigatewayv2_api_mapping", name: "custom", index: $domain,
+      change: {actions: ["create"], before: null,
+        after: {domain_name: $domain, api_id: "api-123", stage: "$default", api_mapping_key: null},
+        after_unknown: {}, before_sensitive: false, after_sensitive: false}}
+  ]) | flatten)
+' "$prod_certificate_plan" > "$prod_domains_plan"
+expect_pass "production domain activation binds exact regional TLS and API mappings" \
+  run_check "$prod_domains_plan" prod
+prod_domains_deferred_plan="$tmp_dir/prod-domains-deferred.json"
+jq '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.certificate_authority_arn) = "" |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change) |=
+    (del(.after.domain_name) | .after_unknown.domain_name = true) |
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom")) |=
+    (.expressions.domain_name.references = ["aws_apigatewayv2_domain_name.custom", "each.key"] |
+      .for_each_expression.references = ["var.activate_custom_domain", "var.domain_names"])
+' "$prod_domains_plan" > "$prod_domains_deferred_plan"
+expect_pass "production mappings allow provider-deferred IDs bound to exact configured domains" \
+  run_check "$prod_domains_deferred_plan" prod
 expect_fail \
   "production replacement plan rejects an incomplete managed topology" \
   run_check "$prod_missing_integration_plan" prod
@@ -2077,6 +2134,32 @@ mutate_and_reject() {
   expect_fail "$name" run_check "$mutated" "$environment"
 }
 
+for domain_mutation in \
+  '.variables.request_custom_domain.value = false' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.validation_method) = "EMAIL"' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.domain_name) = "other.example"' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.certificate_authority_arn) = "private"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name) = "other.example"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change.after.api_id) = "other-api"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change.after.stage) = "other-stage"'; do
+  mutate_and_reject "production domain bootstrap rejects coordinate or validation drift" \
+    "$prod_domains_plan" "$domain_mutation"
+done
+mutate_and_reject "production domain bootstrap rejects weaker TLS" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].security_policy) = "TLS_1_0"
+'
+mutate_and_reject "production domain bootstrap rejects an unrelated certificate" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].certificate_arn) = "arn:aws:acm:us-west-2:180294223248:certificate/other"
+'
+mutate_and_reject "production deferred mappings reject an unreviewed domain reference" "$prod_domains_deferred_plan" '
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom") |
+    .expressions.domain_name.references) = ["var.unreviewed_domain"]
+'
 mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
 mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'
 mutate_and_reject \

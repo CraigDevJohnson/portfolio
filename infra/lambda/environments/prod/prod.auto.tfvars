@@ -8,5 +8,5 @@ log_retention_days         = 30
 enable_pitr                = true
 enable_deletion_protection = true
 domain_names               = ["craigdevjohnson.com", "www.craigdevjohnson.com"]
-request_custom_domain      = false
-activate_custom_domain     = false
+request_custom_domain      = true
+activate_custom_domain     = true
