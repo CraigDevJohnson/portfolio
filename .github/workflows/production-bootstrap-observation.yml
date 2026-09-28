@@ -1,0 +1,52 @@
+name: Production bootstrap observation
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: lambda-production
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.actor_id == '42454849' &&
+      github.run_attempt == 1
+    environment: production-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-west-2
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify Craig and current protected main before requesting AWS credentials
+        run: python3 scripts/observe-production-bootstrap.py --authorize-only
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify exact existing production planner role
+        env:
+          AWS_ACCOUNT_ID: "180294223248"
+        run: sh scripts/check-ci-aws-identity.sh arn:aws:iam::180294223248:role/portfolio-production-planner-ci
+      - name: Observe the immutable image and stable live alias
+        env:
+          OBSERVATION_DIR: ${{ runner.temp }}/production-bootstrap-observation
+        run: python3 scripts/observe-production-bootstrap.py --output-dir "$OBSERVATION_DIR"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: production-bootstrap-observation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/production-bootstrap-observation/
+          retention-days: 90
+          if-no-files-found: error

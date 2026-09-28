@@ -279,6 +279,7 @@ tasks:
       - python3 tests/foundation-alarm-route.py
       - sh tests/production-activation.sh
       - sh tests/production-bootstrap.sh
+      - python3 tests/production-bootstrap-observation.py
       - sh tests/production-deployment.sh
       - sh tests/production-recording.sh
       - sh tests/production-rollback-coordinate.sh
