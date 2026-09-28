@@ -38,7 +38,7 @@ case "$RELEASE_ENVIRONMENT" in
     root=infra/lambda/environments/prod
     environment=prod
     name_prefix=portfolio-lambda-prod
-    expected_alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+    expected_alarm_actions='[]'
     ;;
   *)
     echo 'RELEASE_ENVIRONMENT must be development or production' >&2

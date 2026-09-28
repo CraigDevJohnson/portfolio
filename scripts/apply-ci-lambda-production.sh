@@ -24,6 +24,20 @@ production_deployment_id=$(printf '%s\n' "$identity" | jq -r .production_deploym
 prior_alias_version=$(printf '%s\n' "$identity" | jq -r .prior_verified_version)
 
 check_alias_version() {
+  if [ "$production_deployment_id" = null ]; then
+    bootstrap=$(printf '%s\n' "$identity" | jq -c .bootstrap)
+    alias=$(aws lambda get-alias --function-name portfolio-lambda-prod --name live --output json)
+    printf '%s\n' "$alias" | jq -e --argjson bootstrap "$bootstrap" '
+      .FunctionVersion == $bootstrap.alias_version and .RevisionId == $bootstrap.alias_revision_id
+    ' >/dev/null || { echo 'Production bootstrap alias changed after planning' >&2; return 1; }
+    image=$(aws lambda get-function --function-name portfolio-lambda-prod \
+      --qualifier "$(printf '%s\n' "$bootstrap" | jq -r .alias_version)" \
+      --query Code.ImageUri --output text)
+    [ "$image" = "$(printf '%s\n' "$bootstrap" | jq -r .image_uri)" ] || {
+      echo 'Production bootstrap image changed after planning' >&2; return 1;
+    }
+    return 0
+  fi
   current_alias_version=$(aws lambda get-alias \
     --function-name portfolio-lambda-prod \
     --name live \
@@ -35,25 +49,33 @@ check_alias_version() {
   }
 }
 check_alias_version
-current_coordinate=$(sh scripts/resolve-production-rollback-coordinate.sh)
-[ "$(printf '%s\n' "$current_coordinate" | cut -f1)" = "$production_deployment_id" ] &&
-  [ "$(printf '%s\n' "$current_coordinate" | cut -f4)" = "$prior_alias_version" ] || {
-  echo 'Latest verified production coordinate changed after planning' >&2
-  exit 1
-}
+if current_coordinate=$(sh scripts/resolve-production-rollback-coordinate.sh); then
+  [ "$production_deployment_id" != null ] &&
+    [ "$(printf '%s\n' "$current_coordinate" | cut -f1)" = "$production_deployment_id" ] &&
+    [ "$(printf '%s\n' "$current_coordinate" | cut -f4)" = "$prior_alias_version" ] || {
+    echo 'Latest verified production coordinate changed after planning' >&2; exit 1;
+  }
+else
+  coordinate_status=$?
+  [ "$coordinate_status" -eq 2 ] && [ "$production_deployment_id" = null ] || exit 1
+fi
 sh scripts/check-current-main.sh "$SOURCE_SHA"
 check_alias_version
+python3 scripts/collect-production-approval.py --evidence-dir "$EVIDENCE_DIR" --verify
+python3 scripts/check-foundation-alarm-route.py
 
 if ! tofu -chdir=infra/lambda/environments/prod apply \
   -lock-timeout=5m \
   -input=false \
   "$validated_plan_file"; then
-  RELEASE_ENVIRONMENT=production \
-    PRIOR_VERSION="$prior_alias_version" \
-    IMAGE_DIGEST="$image_digest" \
-    EVIDENCE_DIR="$EVIDENCE_DIR" \
-    ECR_URL="$ECR_URL" \
-    sh scripts/create-ci-lambda-rollback-plan.sh || true
+  if [ "$prior_alias_version" != null ]; then
+    RELEASE_ENVIRONMENT=production \
+      PRIOR_VERSION="$prior_alias_version" \
+      IMAGE_DIGEST="$image_digest" \
+      EVIDENCE_DIR="$EVIDENCE_DIR" \
+      ECR_URL="$ECR_URL" \
+      sh scripts/create-ci-lambda-rollback-plan.sh || true
+  fi
   echo 'Production apply failed; any accepted rollback plan still requires separate authorization' >&2
   exit 1
 fi

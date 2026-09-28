@@ -270,6 +270,22 @@ case "$command_name" in
         }
         printf '{"Code":{"ImageUri":"%s"}}\n' "${FAKE_QUALIFIED_IMAGE_URI:?set FAKE_QUALIFIED_IMAGE_URI}"
         ;;
+      events/describe-rule)
+        jq -nc '{
+          Arn:"arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services",State:"ENABLED",
+          EventPattern:({account:["180294223248"],"$or":[{
+            source:["aws.cloudwatch"],"detail-type":["CloudWatch Alarm State Change"],
+            resources:(["api-5xx","api-latency","lambda-duration","lambda-errors","lambda-throttles"] |
+              map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-prod-" + .)),
+            detail:{state:{value:["ALARM","OK"]}}
+          }]} | tojson)
+        }'
+        ;;
+      events/list-targets-by-rule)
+        jq -nc '{Targets:[{Id:"foundation-notifications",
+          Arn:"arn:aws:events:us-east-2:180294223248:event-bus/foundation-notifications",
+          RoleArn:"arn:aws:iam::180294223248:role/FoundationNotificationForward"}]}'
+        ;;
       cloudwatch/describe-alarms)
         expected_alarm_args='cloudwatch describe-alarms --alarm-names'
         expected_alarm_args="$expected_alarm_args portfolio-lambda-dev-api-5xx"

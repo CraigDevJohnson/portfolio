@@ -51,11 +51,11 @@ make_rollback() {
 }
 
 make_alarm_delivery() {
-	jq -n '{schema_version: 1, environment: "production", account_id: "180294223248", region: "us-west-2", topic_arn: "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts", confirmed_subscription_count: 1, message_id: "11111111-2222-4333-8444-555555555555", sent_at: "1970-01-01T00:10:00Z", receipt_confirmed_at: "1970-01-01T00:12:00Z", receipt_token_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}' >"$1"
+	jq -n '{schema_version: 1, environment: "production", account_id: "180294223248", region: "us-east-2", topic_arn: "arn:aws:sns:us-east-2:180294223248:foundation-security", confirmed_subscription_count: 1, message_id: "11111111-2222-4333-8444-555555555555", sent_at: "1970-01-01T00:10:00Z", receipt_confirmed_at: "1970-01-01T00:12:00Z", receipt_token_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}' >"$1"
 }
 
 make_boolean_only_alarm_delivery() {
-	jq -n '{schema_version: 1, environment: "production", account_id: "180294223248", region: "us-west-2", topic_arn: "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts", delivery_verified: true}' >"$1"
+	jq -n '{schema_version: 1, environment: "production", account_id: "180294223248", region: "us-east-2", topic_arn: "arn:aws:sns:us-east-2:180294223248:foundation-security", delivery_verified: true}' >"$1"
 }
 
 make_release() {
@@ -298,10 +298,27 @@ cat >"$fake_bin/aws" <<'EOF'
 set -eu
 printf 'aws %s\n' "$*" >>"$COMMAND_LOG"
 case "$*" in
+  *"events describe-rule"*)
+        jq -nc '{
+          Arn:"arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services",State:"ENABLED",
+          EventPattern:({account:["180294223248"],"$or":[{
+            source:["aws.cloudwatch"],"detail-type":["CloudWatch Alarm State Change"],
+            resources:(["api-5xx","api-latency","lambda-duration","lambda-errors","lambda-throttles"] |
+              map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-prod-" + .)),
+            detail:{state:{value:["ALARM","OK"]}}
+          }]} | tojson)
+        }'
+        ;;
+      *"events list-targets-by-rule"*)
+        jq -nc '{Targets:[{Id:"foundation-notifications",
+          Arn:"arn:aws:events:us-east-2:180294223248:event-bus/foundation-notifications",
+          RoleArn:"arn:aws:iam::180294223248:role/FoundationNotificationForward"}]}'
+        ;;
+
 	*"lambda get-alias"*) printf '42\n' ;;
 	*"lambda get-function"*) printf '180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' ;;
 	*"cloudwatch describe-alarms"*)
-		if [ "${ENVIRONMENT:-development}" = production ]; then prefix=portfolio-lambda-prod; action=arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts; else prefix=portfolio-lambda-dev; action=; fi
+		if [ "${ENVIRONMENT:-development}" = production ]; then prefix=portfolio-lambda-prod; action=; else prefix=portfolio-lambda-dev; action=; fi
 		[ "${FAKE_WRONG_ALARM_ACTION:-false}" = true ] && action=arn:aws:sns:us-east-1:000000000000:wrong
 		jq -nc --arg prefix "$prefix" --arg action "$action" '{MetricAlarms: ["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] | map({AlarmName: ($prefix + "-" + .), StateValue: "OK", AlarmActions: (if $action == "" then [] else [$action] end)})}'
 		;;

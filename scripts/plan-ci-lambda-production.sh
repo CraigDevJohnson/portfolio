@@ -38,6 +38,7 @@ sh scripts/check-current-main.sh "$SOURCE_SHA"
 sh scripts/check-ci-state-bucket.sh
 production_deployment_id=null
 prior_verified_version=null
+bootstrap=null
 if coordinate=$(sh scripts/resolve-production-rollback-coordinate.sh \
   2> "$evidence_dir/rollback-coordinate-error.txt"); then
   production_deployment_id=$(printf '%s\n' "$coordinate" | cut -f1)
@@ -59,6 +60,31 @@ RELEASE_ENVIRONMENT=production \
   IMAGE_DIGEST="$digest" \
   EVIDENCE_DIR="$evidence_dir" \
   sh scripts/create-ci-lambda-release-plan.sh
+if [ "$production_deployment_id" = null ] && [ -n "${BOOTSTRAP_EVIDENCE_FILE:-}" ]; then
+  bootstrap=$(jq -ce '
+    select(
+      (keys | sort) == (["alias_name", "alias_revision_id", "alias_version", "function_name", "image_uri"] | sort) and
+      .function_name == "portfolio-lambda-prod" and .alias_name == "live" and
+      (.alias_version | type == "string" and test("^[1-9][0-9]*$")) and
+      (.alias_revision_id | type == "string" and length > 0) and
+      (.image_uri | type == "string" and
+        startswith("180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@") and
+        test("@sha256:[0-9a-f]{64}$")))
+  ' "$BOOTSTRAP_EVIDENCE_FILE") || {
+    echo 'Invalid production bootstrap evidence' >&2; exit 1;
+  }
+  jq -e --argjson bootstrap "$bootstrap" '
+    [.resource_changes[] | select(.address == "module.service.aws_lambda_alias.live")][0].change.before as $alias |
+    [.resource_changes[] | select(.address == "module.service.aws_lambda_function.app")][0].change.before as $function |
+    $alias.function_name == $bootstrap.function_name and $alias.name == $bootstrap.alias_name and
+    $alias.function_version == $bootstrap.alias_version and
+    $function.function_name == $bootstrap.function_name and
+    $function.version == $bootstrap.alias_version and $function.image_uri == $bootstrap.image_uri
+  ' "$evidence_dir/plan.json" >/dev/null || {
+    echo 'Production plan does not match the observed bootstrap resources' >&2; exit 1;
+  }
+  rm -f "$evidence_dir/BOOTSTRAP_REQUIRED"
+fi
 plan_sha256=$(awk 'NR == 1 {print $1}' "$evidence_dir/plan.sha256")
 manifest_sha256=$(sha256sum deploy/production-release.json | awk '{print $1}')
 scan_sha256=$(sha256sum "$evidence_dir/scan.json" | awk '{print $1}')
@@ -75,6 +101,7 @@ jq -n \
   --arg planning_run_attempt "$GITHUB_RUN_ATTEMPT" \
   --argjson production_deployment_id "$production_deployment_id" \
   --argjson prior_verified_version "$prior_verified_version" \
+  --argjson bootstrap "$bootstrap" \
   --arg plan_sha256 "$plan_sha256" \
   --arg manifest_sha256 "$manifest_sha256" \
   --arg scan_sha256 "$scan_sha256" \
@@ -101,6 +128,7 @@ jq -n \
     },
     production_deployment_id: $production_deployment_id,
     prior_verified_version: $prior_verified_version,
+    bootstrap: $bootstrap,
     plan_sha256: $plan_sha256,
     manifest_sha256: $manifest_sha256,
     scan_sha256: $scan_sha256,

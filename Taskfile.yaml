@@ -274,7 +274,11 @@ tasks:
       - sh tests/lambda-plan-contract.sh
       - sh tests/release-automation.sh
       - python3 tests/development-recovery.py
+      - python3 tests/production-approval.py
+      - python3 tests/production-finalization.py
+      - python3 tests/foundation-alarm-route.py
       - sh tests/production-activation.sh
+      - sh tests/production-bootstrap.sh
       - sh tests/production-deployment.sh
       - sh tests/production-recording.sh
       - sh tests/production-rollback-coordinate.sh
@@ -497,7 +501,35 @@ tasks:
       SOURCE_SHA: '{{default "" .SOURCE_SHA}}'
       STATE_BUCKET: portfolio-tofu-state-180294223248
     cmds:
-      - sh scripts/plan-ci-lambda-production.sh
+      - sh scripts/prepare-ci-production-plan.sh
+
+  lambda-ci-review-production:
+    desc: Bind the protected review to trusted planning-job outputs before AWS access
+    cmds:
+      - sh scripts/check-current-main.sh "$SOURCE_SHA"
+      - python3 scripts/collect-production-approval.py --evidence-dir "$GITHUB_WORKSPACE/evidence"
+
+  lambda-ci-apply-reviewed-production:
+    desc: Consume the protected same-run plan and leave browser acceptance pending
+    cmds:
+      - |
+        export EVIDENCE_DIR="$GITHUB_WORKSPACE/evidence"
+        export APPROVED_PLAN_SHA256="$PLANNED_PLAN_SHA256"
+        export APPROVED_IDENTITY_SHA256="$PLANNED_IDENTITY_SHA256"
+        APPROVED_BACKEND_SHA256=$(sha256sum infra/lambda/environments/prod/backend.hcl | cut -d' ' -f1)
+        APPROVED_APPROVAL_SHA256=$(sha256sum evidence/approval.json | cut -d' ' -f1)
+        export APPROVED_BACKEND_SHA256 APPROVED_APPROVAL_SHA256
+        task lambda-ci-apply-production
+
+  lambda-ci-prepare-production-acceptance:
+    desc: Retrieve immutable applied-release evidence after protected operator approval
+    cmds:
+      - EVIDENCE_DIR="$RUNNER_TEMP/production-acceptance" python3 scripts/finalize-production.py prepare
+
+  lambda-ci-finalize-production:
+    desc: Validate actual browser observations and final telemetry before recording success
+    cmds:
+      - EVIDENCE_DIR="$RUNNER_TEMP/production-acceptance" python3 scripts/finalize-production.py finalize
 
   lambda-ci-apply-production:
     desc: Apply, verify, and record one separately authorized production release
@@ -987,6 +1019,7 @@ tasks:
       PLAN_FILE: '{{default "" .PLAN_FILE}}'
     cmds:
       - task: _lambda-identity-check
+      - python3 scripts/check-foundation-alarm-route.py
       - task: _lambda-state-lock-check
         vars:
           EXPECTED_STATE_LOCK_URI: s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock
@@ -1004,8 +1037,8 @@ tasks:
           echo "IMAGE_DIGEST must be a SHA-256 digest" >&2
           exit 1
         }
-        printf '%s\n' "$ALARM_ACTION_ARNS_JSON" | jq -e 'type == "array" and length > 0 and all(.[]; test("^arn:aws:sns:us-west-2:180294223248:"))' >/dev/null || {
-          echo "ALARM_ACTION_ARNS_JSON must contain reviewed production SNS ARNs" >&2
+        printf '%s\n' "$ALARM_ACTION_ARNS_JSON" | jq -e 'type == "array" and length == 0' >/dev/null || {
+          echo "ALARM_ACTION_ARNS_JSON must be [] for the reviewed foundation EventBridge route" >&2
           exit 1
         }
         repository_url=$(tofu -chdir=infra/lambda/artifacts output -raw ecr_repository_url)

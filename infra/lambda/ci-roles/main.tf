@@ -139,7 +139,7 @@ locals {
   )
 
   environment_read_statements = {
-    for key, configuration in local.environment_configuration : key => [
+    for key, configuration in local.environment_configuration : key => concat([
       {
         Sid      = "CallerIdentity"
         Effect   = "Allow"
@@ -304,7 +304,15 @@ locals {
           "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${configuration.function_name}-${suffix}"
         ]
       },
-    ]
+      ], key == "prod" ? [{
+        Sid      = "FoundationAlarmRouteRead"
+        Effect   = "Allow"
+        Action   = ["events:DescribeRule", "events:ListTargetsByRule"]
+        Resource = "arn:aws:events:${local.region}:${local.account_id}:rule/foundation-notifications-services"
+        Condition = {
+          StringEquals = { "aws:RequestedRegion" = local.region }
+        }
+    }] : [])
   }
 
   development_mutation_statements = [
@@ -462,6 +470,17 @@ resource "aws_iam_role_policy" "production_deployer" {
     Statement = concat(
       local.environment_read_statements.prod,
       local.production_mutation_statements,
+      [{
+        Sid      = "ProductionMetricRead"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:GetMetricStatistics"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = local.region
+          }
+        }
+      }],
     )
   })
 }

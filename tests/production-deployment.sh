@@ -34,7 +34,7 @@ if [ "$DEPLOYMENT_STATE" = in_progress ]; then
     printf '{}\n' > "$EVIDENCE_DIR/github-production-deployment-response.json"
     exit 1
   fi
-  printf '{}\n' > "$EVIDENCE_DIR/github-production-deployment.json"
+  printf '{"production_deployment_id":91}\n' > "$EVIDENCE_DIR/github-production-deployment.json"
 fi
 FAKE
 cat > "$tmp/scripts/apply-ci-lambda-production.sh" <<'FAKE'
@@ -48,17 +48,20 @@ cat > "$tmp/scripts/verify-ci-lambda-production.sh" <<'FAKE'
 set -eu
 : "${EXPECTED_VERIFICATION_SHA:?}"
 [ "$SOURCE_SHA" = "$EXPECTED_VERIFICATION_SHA" ]
-printf 'origins:%s|%s\n' "$APEX_ORIGIN_HOST" "$WWW_ORIGIN_HOST" >> "$CALL_LOG"
+[ "$PROMOTION_SHA" != "$SOURCE_SHA" ]
+[ "$PRODUCTION_DEPLOYMENT_ID" = 91 ]
+[ "$API_ID" = api123 ]
+printf 'origin:%s\n' "$APEX_ORIGIN_HOST" >> "$CALL_LOG"
 printf 'verify\n' >> "$CALL_LOG"
 [ "${FAIL_STAGE:-}" != verify ]
-printf '{"lambda_version":"8"}\n' > "$EVIDENCE_DIR/production-verification.json"
+printf '{"lambda_version":"8"}\n' > "$EVIDENCE_DIR/automated-window.json"
 FAKE
 cat > "$tmp/bin/tofu" <<'FAKE'
 #!/bin/sh
 set -eu
 printf 'output\n' >> "$CALL_LOG"
 [ "${FAIL_STAGE:-}" != output ]
-printf '{"api_gateway_domain_targets":{"value":{"craigdevjohnson.com":"apex-origin.example","www.craigdevjohnson.com":"www-origin.example"}}}\n'
+printf '{"api_id":{"value":"api123"},"api_gateway_domain_targets":{"value":{"craigdevjohnson.com":"apex-origin.example"}}}\n'
 FAKE
 chmod +x "$tmp/scripts/"*.sh "$tmp/bin/tofu"
 
@@ -97,11 +100,12 @@ cat > "$tmp/expected-success" <<'EOF'
 record:in_progress
 apply
 output
-origins:apex-origin.example|www-origin.example
+origin:apex-origin.example
 verify
-record:success
 EOF
 cmp "$tmp/expected-success" "$success/calls"
+test -s "$success/APPLIED_NOT_VERIFIED"
+test ! -e "$success/production-verification.json"
 
 for stage in apply output verify; do
   evidence="$tmp/failure-$stage"

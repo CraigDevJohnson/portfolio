@@ -328,7 +328,13 @@ make_ci_roles_plan() {
           ("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function_name + "-lambda-throttles")
         ]
       }
-    ];
+    ] + (if $environment == "prod" then [{
+      Sid: "FoundationAlarmRouteRead",
+      Effect: "Allow",
+      Action: ["events:DescribeRule", "events:ListTargetsByRule"],
+      Resource: "arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services",
+      Condition: {StringEquals: {"aws:RequestedRegion": "us-west-2"}}
+    }] else [] end);
     def development_mutations: [
       {
         Sid: "DevelopmentStateWrite",
@@ -416,7 +422,13 @@ make_ci_roles_plan() {
           "prod";
           "portfolio-lambda-prod";
           "portfolio-lambda-http-api/prod/terraform.tfstate"
-        ) + production_mutations
+        ) + production_mutations + [{
+          Sid: "ProductionMetricRead",
+          Effect: "Allow",
+          Action: ["cloudwatch:GetMetricStatistics"],
+          Resource: "*",
+          Condition: {StringEquals: {"aws:RequestedRegion": "us-west-2"}}
+        }]
       )
     } | tojson);
     def role_policy($address; $resource_name; $index; $policy_name; $role_name; $policy):
@@ -702,9 +714,9 @@ make_environment_plan() {
   image_uri=$release_image
   if [ "$environment" = prod ]; then
     protection=true
-    retention=90
+    retention=30
     reserved_concurrency=10
-    alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+    alarm_actions='[]'
   else
     protection=false
     retention=14
@@ -1016,7 +1028,7 @@ run_check() {
   else
     prefix="portfolio-lambda-$environment"
     if [ "$environment" = prod ]; then
-      actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+      actions='[]'
     else
       actions='[]'
     fi
@@ -1569,7 +1581,7 @@ jq '
 prod_provider_known_alarm_actions_plan="$tmp_dir/prod-provider-known-alarm-actions.json"
 jq '
   (.resource_changes[] | select(.type == "aws_cloudwatch_metric_alarm") | .change) |= (
-    .after_unknown.alarm_actions = [false]
+    .after_unknown.alarm_actions = []
   )
 ' "$prod_plan" > "$prod_provider_known_alarm_actions_plan"
 
@@ -1640,6 +1652,43 @@ mutate_ci_roles_and_reject() {
   jq "$filter" "$ci_roles_plan" > "$mutated"
   expect_fail "$name" run_ci_roles_check "$mutated"
 }
+
+mutate_ci_roles_and_reject "CI role plan rejects wrong metric-read region" '
+  (.resource_changes[] | select(.address == "aws_iam_role_policy.production_deployer") | .change.after.policy) |=
+    (fromjson | (.Statement[] | select(.Sid == "ProductionMetricRead") |
+      .Condition.StringEquals["aws:RequestedRegion"]) = "us-east-1" | tojson)
+'
+mutate_ci_roles_and_reject "CI role plan rejects unrestricted metric reads" '
+  (.resource_changes[] | select(.address == "aws_iam_role_policy.production_deployer") | .change.after.policy) |=
+    (fromjson | (.Statement[] | select(.Sid == "ProductionMetricRead")) |= del(.Condition) | tojson)
+'
+mutate_ci_roles_and_reject "CI role plan rejects metric writes" '
+  (.resource_changes[] | select(.address == "aws_iam_role_policy.production_deployer") | .change.after.policy) |=
+    (fromjson | (.Statement[] | select(.Sid == "ProductionMetricRead") | .Action) +=
+      ["cloudwatch:PutMetricData"] | tojson)
+'
+
+ci_roles_cached_inline_plan="$tmp_dir/ci-roles-cached-inline.json"
+jq '
+  (.resource_changes[] | select(.address == "aws_iam_role_policy.environment[\"prod\"]")) as $owned |
+  ($owned.change.after.policy | fromjson |
+    .Statement |= map(select(.Sid != "FoundationAlarmRouteRead")) | tojson) as $before |
+  (.resource_changes[] | select(.address == $owned.address) | .change) |=
+    (.before = (.after | .policy = $before) | .actions = ["update"]) |
+  (.resource_changes[] | select(.address == "aws_iam_role.ci[\"prod\"]") | .change) |=
+    (.actions = ["no-op"] | .after_unknown = {} |
+      .after.inline_policy = [{name: $owned.change.after.name, policy: $before}])
+' "$ci_roles_plan" > "$ci_roles_cached_inline_plan"
+expect_pass "CI role plan accepts its owned inline policy readback during an update" \
+  env PLAN_JSON="$ci_roles_cached_inline_plan" sh "$repo_root/scripts/check-ci-roles-plan.sh"
+ci_roles_mismatched_inline_plan="$tmp_dir/ci-roles-mismatched-inline.json"
+jq '
+  (.resource_changes[] | select(.address == "aws_iam_role.ci[\"prod\"]") |
+    .change.after.inline_policy[0].policy) |=
+    (fromjson | .Statement[0].Action = ["iam:*"] | tojson)
+' "$ci_roles_cached_inline_plan" > "$ci_roles_mismatched_inline_plan"
+expect_fail "CI role plan rejects inline readback unrelated to its owned policy" \
+  env PLAN_JSON="$ci_roles_mismatched_inline_plan" sh "$repo_root/scripts/check-ci-roles-plan.sh"
 
 mutate_ci_roles_and_reject "CI role plan rejects delete actions" '
   (.resource_changes[] | select(.address == "aws_iam_role.ci[\"release\"]") | .change.actions) = ["delete"]
@@ -1855,7 +1904,7 @@ expect_fail \
   "production replacement plan rejects a dormant nested module" \
   run_check "$prod_dormant_nested_module_plan" prod
 expect_pass \
-  "production plan with provider-known alarm action elements" \
+  "production plan with provider-known empty alarm actions" \
   run_check "$prod_provider_known_alarm_actions_plan" prod
 expect_pass "development plan with decoded runtime policy" run_check "$dev_known_policy_plan" dev
 expect_pass "development plan with converged runtime policy" run_check "$dev_converged_runtime_policy_plan" dev
@@ -2134,7 +2183,8 @@ mutate_and_reject \
   "$prod_plan" \
   '.resource_changes[6].change.after.deletion_protection_enabled = false'
 mutate_and_reject "log retention drift" "$dev_plan" '.resource_changes[4].change.after.retention_in_days = 7'
-mutate_and_reject "alarm action mismatch" "$prod_plan" '.resource_changes[8].change.after.alarm_actions = []'
+mutate_and_reject "alarm action mismatch" "$prod_plan" \
+  '.resource_changes[8].change.after.alarm_actions = ["arn:aws:sns:us-west-2:180294223248:unapproved-direct-topic"]'
 mutate_and_reject \
   "production alarm actions reject a deferred provider element" \
   "$prod_provider_known_alarm_actions_plan" \
@@ -2544,6 +2594,23 @@ set -eu
 fake_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 printf 'aws %s\n' "$*" >>"$COMMAND_LOG"
 case "$*" in
+  *"events describe-rule"*)
+        jq -nc '{
+          Arn:"arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services",State:"ENABLED",
+          EventPattern:({account:["180294223248"],"$or":[{
+            source:["aws.cloudwatch"],"detail-type":["CloudWatch Alarm State Change"],
+            resources:(["api-5xx","api-latency","lambda-duration","lambda-errors","lambda-throttles"] |
+              map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-prod-" + .)),
+            detail:{state:{value:["ALARM","OK"]}}
+          }]} | tojson)
+        }'
+        ;;
+      *"events list-targets-by-rule"*)
+        jq -nc '{Targets:[{Id:"foundation-notifications",
+          Arn:"arn:aws:events:us-east-2:180294223248:event-bus/foundation-notifications",
+          RoleArn:"arn:aws:iam::180294223248:role/FoundationNotificationForward"}]}'
+        ;;
+
   *"sts get-caller-identity"*"--query Arn"*)
     printf '%s\n' "${FAKE_ARN:-arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_abc/craig}"
     ;;
@@ -3189,7 +3256,7 @@ TASK7_PLAN_JSON="$prod_plan" expect_pass \
   "production plan accepts only its exact lock acknowledgement" \
   run_task lambda-prod-plan \
   PLAN_FILE="$prod_plan_file" IMAGE_DIGEST="$release_digest" \
-  ALARM_ACTION_ARNS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' \
+  ALARM_ACTION_ARNS_JSON='[]' \
   APPROVED_STATE_LOCK_URI="$prod_lock_uri"
 
 ci_roles_plan_file="$tmp_dir/ci-roles.tfplan"

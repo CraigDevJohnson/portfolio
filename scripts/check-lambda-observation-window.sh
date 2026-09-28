@@ -86,8 +86,8 @@ if [ "$ENVIRONMENT" = production ]; then
 		.schema_version == 1 and
 		.environment == "production" and
 		.account_id == "180294223248" and
-		.region == "us-west-2" and
-		.topic_arn == "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts" and
+		.region == "us-east-2" and
+		.topic_arn == "arn:aws:sns:us-east-2:180294223248:foundation-security" and
 		(.confirmed_subscription_count | type) == "number" and
 		.confirmed_subscription_count >= 1 and
 		.confirmed_subscription_count == (.confirmed_subscription_count | floor) and
