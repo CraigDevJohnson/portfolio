@@ -521,6 +521,9 @@ if [ "$ENVIRONMENT" = prod ]; then
 
   if [ "$AUTOMATED_RELEASE" = false ]; then
     jq -e '
+      def expected_domain_tags: {
+        Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"
+      };
       def fully_known: (. // false) | [.. | scalars] | all(.[]; . == false);
       ([.configuration.root_module.module_calls.service.module.resources[] |
         select(.address == "aws_apigatewayv2_api_mapping.custom")][0]) as $mapping_config |
@@ -541,8 +544,12 @@ if [ "$ENVIRONMENT" = prod ]; then
           ($cert_resource.change.after_unknown.certificate_authority_arn | fully_known) and
           ($cert.options == null or ($cert.options | type == "array" and length <= 1)) and
           all(($cert.options // [])[];
-            type == "object" and (.export == null or .export == "" or .export == "DISABLED")) and
+            type == "object" and (.export == null or .export == "DISABLED") and
+            (.certificate_transparency_logging_preference == null or
+              .certificate_transparency_logging_preference == "ENABLED")) and
           ($cert_resource.change.after_unknown.options | fully_known) and
+          $cert.tags_all == expected_domain_tags and
+          ($cert_resource.change.after_unknown.tags_all | fully_known) and
           all(["certificate_body", "certificate_chain", "private_key"][];
             . as $field | ($cert[$field] == null or $cert[$field] == "") and
               ($cert_resource.change.after_unknown[$field] | fully_known)) and
@@ -562,8 +569,19 @@ if [ "$ENVIRONMENT" = prod ]; then
               (.change.after.validation_record_fqdns | sort) ==
                 ([$cert.domain_validation_options[].resource_record_name] | sort) and
               (.change.after_unknown.validation_record_fqdns | fully_known)) and
+            ($mapping_config.expressions | keys | sort) == ["api_id", "domain_name", "stage"] and
+            ($mapping_config.expressions.domain_name.references | sort) ==
+              ["aws_apigatewayv2_domain_name.custom", "each.key"] and
+            ($mapping_config.expressions.api_id.references | sort) ==
+              ["aws_apigatewayv2_api.app", "aws_apigatewayv2_api.app.id"] and
+            ($mapping_config.expressions.stage.references | sort) ==
+              ["aws_apigatewayv2_stage.default", "aws_apigatewayv2_stage.default.id"] and
+            ($mapping_config.for_each_expression.references | sort) ==
+              ["var.activate_custom_domain", "var.domain_names"] and
             all(.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name");
               .change.after.domain_name == .index and
+              .change.after.tags_all == expected_domain_tags and
+              (.change.after_unknown.tags_all | fully_known) and
               .change.after.routing_mode == "API_MAPPING_ONLY" and
               ((.change.after_unknown.routing_mode // false) == false) and
               (.change.after.mutual_tls_authentication == null or .change.after.mutual_tls_authentication == []) and
@@ -578,11 +596,7 @@ if [ "$ENVIRONMENT" = prod ]; then
               (($api_resource.change.after_unknown.id // false) == false) and
               all(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping");
                 (.change.after.domain_name == .index or
-                  (.change.after.domain_name == null and .change.after_unknown.domain_name == true and
-                    ($mapping_config.expressions.domain_name.references | sort) ==
-                      ["aws_apigatewayv2_domain_name.custom", "each.key"] and
-                    ($mapping_config.for_each_expression.references | sort) ==
-                      ["var.activate_custom_domain", "var.domain_names"])) and
+                  (.change.after.domain_name == null and .change.after_unknown.domain_name == true)) and
                 .change.after.api_id == $api and
                 ((.change.after_unknown.api_id // false) == false) and
                 .change.after.stage == "$default" and

@@ -1901,6 +1901,7 @@ jq '
       domain_name: "craigdevjohnson.com",
       subject_alternative_names: ["www.craigdevjohnson.com"],
       validation_method: "DNS", certificate_authority_arn: null,
+      tags_all: {Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"},
       domain_validation_options: [
         {domain_name: "craigdevjohnson.com", resource_record_type: "CNAME",
           resource_record_name: "_apex.craigdevjohnson.com."},
@@ -1921,6 +1922,13 @@ expect_pass "production certificate accepts provider-normalized SANs including t
 prod_domains_plan="$tmp_dir/prod-domains.json"
 jq '
   .variables.activate_custom_domain.value = true |
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom")) |=
+    (.expressions = {
+      api_id: {references: ["aws_apigatewayv2_api.app.id", "aws_apigatewayv2_api.app"]},
+      domain_name: {references: ["aws_apigatewayv2_domain_name.custom", "each.key"]},
+      stage: {references: ["aws_apigatewayv2_stage.default.id", "aws_apigatewayv2_stage.default"]}
+    } | .for_each_expression.references = ["var.activate_custom_domain", "var.domain_names"]) |
   (.resource_changes[] | select(.type == "aws_apigatewayv2_api") | .change.after.id) = "api-123" |
   (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.actions) = ["no-op"] |
   .resource_changes += [{
@@ -1934,6 +1942,7 @@ jq '
     {address: ("module.service.aws_apigatewayv2_domain_name.custom[" + ($domain | tojson) + "]"),
       mode: "managed", type: "aws_apigatewayv2_domain_name", name: "custom", index: $domain,
       change: {actions: ["create"], before: null, after: {domain_name: $domain, routing_mode: "API_MAPPING_ONLY",
+        tags_all: {Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"},
         domain_name_configuration: [{endpoint_type: "REGIONAL", security_policy: "TLS_1_2",
           certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test"}]},
         after_unknown: {}, before_sensitive: false, after_sensitive: false}},
@@ -2226,6 +2235,20 @@ for certificate_material in certificate_body certificate_chain private_key; do
   mutate_and_reject "public certificate rejects deferred import material" "$prod_certificate_plan" \
     "(.resource_changes[] |
       select(.type == \"aws_acm_certificate\") | .change.after_unknown.$certificate_material) = true"
+done
+mutate_and_reject "public certificate rejects disabled transparency logging" "$prod_certificate_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.options) =
+    [{export: "DISABLED", certificate_transparency_logging_preference: "DISABLED"}]
+'
+mutate_and_reject "known domain mappings retain the domain dependency" "$prod_domains_plan" '
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.type == "aws_apigatewayv2_api_mapping") | .expressions.domain_name.references) = ["each.key"]
+'
+for tagged_resource in aws_acm_certificate aws_apigatewayv2_domain_name; do
+  mutate_and_reject "domain resources retain CI-readable ownership tags" "$prod_domains_plan" \
+    "(.resource_changes[] | select(.type == \"$tagged_resource\") | .change.after.tags_all.Project) = \"other\""
+  mutate_and_reject "domain ownership tags cannot be deferred" "$prod_domains_plan" \
+    "(.resource_changes[] | select(.type == \"$tagged_resource\") | .change.after_unknown.tags_all.Project) = true"
 done
 mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
 mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'
