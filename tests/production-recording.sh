@@ -9,7 +9,9 @@ cat > "$tmp/bin/gh" <<'CLI'
 set -eu
 printf '%s\n' "$*" >> "$CALL_LOG"
 case "$*" in
-  *'/commits/main'*) printf '%s\n' "${REMOTE_MAIN_SHA:-$SOURCE_SHA}"; exit 0 ;;
+  *'/commits/main'*)
+    if [ -n "${CLOCK_AFTER_REMOTE_READ:-}" ]; then printf '%s' "$CLOCK_AFTER_REMOTE_READ" > "$CLOCK_FILE"; fi
+    printf '%s\n' "${REMOTE_MAIN_SHA:-$SOURCE_SHA}"; exit 0 ;;
   *'/statuses?per_page=100'*)
     [ "${REMOTE_READ_FAIL:-false}" = false ] || exit 23
     if [ -f "$EVIDENCE_DIR/remote-statuses.json" ]; then
@@ -32,6 +34,10 @@ for arg do
   case "$arg" in description=*) description=${arg#description=} ;; esac
 done
 if [ -n "$state" ]; then
+  if [ "$state" = success ] && [ -n "${CLOCK_AFTER_FAILED_POST:-}" ]; then
+    printf '%s' "$CLOCK_AFTER_FAILED_POST" > "$CLOCK_FILE"
+    exit 23
+  fi
   [ "${#description}" -le 140 ] || {
     echo 'deployment status description exceeds 140 characters' >&2
     exit 1
@@ -44,6 +50,7 @@ if [ -n "$state" ]; then
   jq '[[.]]' "$EVIDENCE_DIR/remote-status.json" > "$EVIDENCE_DIR/remote-statuses.json"
   if [ "${POST_LOST_RESPONSE:-false}" = true ] && [ ! -f "$EVIDENCE_DIR/lost-response" ]; then
     touch "$EVIDENCE_DIR/lost-response"
+    if [ -n "${CLOCK_AFTER_LOST_POST:-}" ]; then printf '%s' "$CLOCK_AFTER_LOST_POST" > "$CLOCK_FILE"; fi
     exit 23
   fi
   cat "$EVIDENCE_DIR/remote-status.json"
@@ -84,12 +91,31 @@ create_verification() {
   for file in ci-origin-window.json browser-receipt.json public-receipt.json final-metrics.json; do
     printf '{"fixture":"%s"}\n' "$file" > "$EVIDENCE_DIR/$file"
   done
-  jq -n --arg source "$DEVELOPMENT_SOURCE_SHA" --arg promotion "$SOURCE_SHA" --arg digest "$IMAGE_DIGEST" \
+  python3 - "$root" "$EVIDENCE_DIR" <<'PYFIXTURE'
+import importlib.util,json,os,sys,time
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('observer',Path(sys.argv[1])/'scripts/observe-lambda-production.py')
+p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
+now=time.time(); start=now-2100
+binding=dict(promotion_sha=os.environ['SOURCE_SHA'],source_sha=os.environ['DEVELOPMENT_SOURCE_SHA'],
+             image_digest=os.environ['IMAGE_DIGEST'],production_deployment_id='91',lambda_version='8',base_url=p.APEX)
+binding['window_id']=p.window_id(binding['promotion_sha'],'91')
+window=dict(binding,schema_version=1,ci_origin_window='passed',started_at=p.utc(start),ended_at=p.utc(start+1800),
+            observations=[dict(observed_at=p.utc(start+t),elapsed_seconds=t,lambda_version='8') for t in range(0,1801,30)])
+public=dict(binding,schema_version=1,operator='CraigDevJohnson',collector_sha=binding['promotion_sha'],
+            operator_public_window='passed',interval_seconds=30,started_at=window['started_at'],ended_at=window['ended_at'],
+            observations=[dict(item,checks=p.PUBLIC_CHECKS) for item in window['observations']],
+            fresh_public_read=dict(observed_at=p.utc(now),duration_seconds=1,checks=p.PUBLIC_CHECKS,binding_sha256=p.binding_digest(binding)))
+for name,value in [('ci-origin-window.json',window),('public-receipt.json',public)]:
+ (Path(sys.argv[2])/name).write_text(json.dumps(value))
+PYFIXTURE
+  jq -n --arg window_id "$(jq -r .window_id "$EVIDENCE_DIR/public-receipt.json")" \
+    --arg source "$DEVELOPMENT_SOURCE_SHA" --arg promotion "$SOURCE_SHA" --arg digest "$IMAGE_DIGEST" \
     --arg public "$(sha256sum "$EVIDENCE_DIR/public-receipt.json" | cut -d' ' -f1)" \
     --arg window "$(sha256sum "$EVIDENCE_DIR/ci-origin-window.json" | cut -d' ' -f1)" \
     --arg browser "$(sha256sum "$EVIDENCE_DIR/browser-receipt.json" | cut -d' ' -f1)" \
     --arg metrics "$(sha256sum "$EVIDENCE_DIR/final-metrics.json" | cut -d' ' -f1)" '{
-      schema_version:3,status:"verified",source_sha:$source,promotion_sha:$promotion,
+      schema_version:3,status:"verified",window_id:$window_id,source_sha:$source,promotion_sha:$promotion,
       image_digest:$digest,lambda_version:"8",production_deployment_id:91,
       ci_origin_window:"passed",operator_public_window:"passed",browser_contract:"passed",metric_coverage:"passed",
       operator:"CraigDevJohnson",provenance:"protected-github-operator",acceptance_run_id:"456",
@@ -303,3 +329,42 @@ POST_LOST_RESPONSE=true record success
 jq -e '.status == "success" and .status_recorded' "$EVIDENCE_DIR/github-production-deployment.json" >/dev/null
 grep -Fq -- '-F auto_inactive=false' "$CALL_LOG"
 echo 'Remote terminal transitions reject stale or conflicting writes and retry idempotently'
+
+# A fake clock advances only in the mocked GitHub API, proving the last local
+# check occurs after remote reads and again after failed POST retry delays.
+mkdir "$tmp/clock-module"
+cat > "$tmp/clock-module/sitecustomize.py" <<'PYTIME'
+import os,time
+clock_file=os.environ.get('CLOCK_FILE')
+if clock_file:
+    def clock():
+        with open(clock_file) as stream:
+            return float(stream.read())
+    time.time=clock
+PYTIME
+export CLOCK_FILE="$tmp/clock" PYTHONPATH="$tmp/clock-module"
+printf '1800003000' > "$CLOCK_FILE"
+prepare_terminal_case fresh-at-entry-stale-after-read
+before=$(post_count)
+if (CLOCK_AFTER_REMOTE_READ=1800003301 record success) > "$tmp/stale-read.out" 2>&1; then
+  echo 'Recorder posted success after remote reads exhausted freshness' >&2; exit 1
+fi
+grep -q 'stale or future' "$tmp/stale-read.out"
+[ "$(post_count)" -eq "$before" ]
+printf '1800003000' > "$CLOCK_FILE"
+prepare_terminal_case fresh-first-post-stale-retry
+before=$(post_count)
+if (CLOCK_AFTER_FAILED_POST=1800003301 record success) > "$tmp/stale-retry.out" 2>&1; then
+  echo 'Recorder posted a retry after freshness expired' >&2; exit 1
+fi
+grep -q 'stale or future' "$tmp/stale-retry.out"
+[ "$(post_count)" -eq "$((before + 1))" ]
+printf '1800003000' > "$CLOCK_FILE"
+prepare_terminal_case successful-post-lost-response-expired
+before=$(post_count)
+POST_LOST_RESPONSE=true CLOCK_AFTER_LOST_POST=1800003301 record success
+[ "$(post_count)" -eq "$((before + 1))" ]
+record success
+[ "$(post_count)" -eq "$((before + 1))" ]
+unset CLOCK_FILE PYTHONPATH
+echo 'Freshness is required before each new success POST; existing success remains idempotent'

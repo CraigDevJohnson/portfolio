@@ -157,6 +157,27 @@ class ProductionObservation(unittest.TestCase):
                 self.assertFalse((Path(directory) / "production-verification.json").exists())
                 with self.assertRaises(FileExistsError): p.observe()
 
+    def test_ci_first_complete_sample_is_flushed_for_operator_coordination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = {"SOURCE_SHA": "a" * 40, "PROMOTION_SHA": "b" * 40,
+                      "IMAGE_DIGEST": "sha256:" + "c" * 64, "PRODUCTION_DEPLOYMENT_ID": "123",
+                      "API_ID": "api", "APEX_ORIGIN_HOST": "api.execute-api.us-west-2.amazonaws.com",
+                      "EVIDENCE_DIR": directory}
+            samples = self.run_window()
+            def observe(*args, **kwargs):
+                for item in samples:
+                    kwargs["on_sample"](item)
+                return samples
+            with patch.dict(os.environ, config, clear=True), patch.object(p, "public_probe"), \
+                    patch.object(p, "observe_window", side_effect=observe), patch("builtins.print") as printed:
+                p.observe()
+            first = printed.call_args_list[0]
+            self.assertTrue(first.kwargs["flush"])
+            self.assertEqual(json.loads(first.args[0]), {
+                "ci_origin_window_id": p.window_id(config["PROMOTION_SHA"], "123"),
+                "first_complete_sample_at": samples[0]["observed_at"]})
+            self.assertEqual(len(printed.call_args_list), 2)
+
     def test_success_persists_unverified_window_without_finalizing(self):
         with tempfile.TemporaryDirectory() as directory:
             config = {"SOURCE_SHA": "a" * 40, "PROMOTION_SHA": "b" * 40,

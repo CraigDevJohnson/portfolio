@@ -118,6 +118,22 @@ class PublicEvidence(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 p.dispatch_inputs(self.window, self.receipt, browser, "777", target)
 
+    def test_cli_duration_defaults_to_35_minutes_and_accepts_explicit_duration(self):
+        with tempfile.TemporaryDirectory() as folder:
+            binding, output = Path(folder) / "binding.json", Path(folder) / "public.json"
+            binding.write_text(json.dumps(self.binding))
+            for extra, expected in (([], 2100), (["2400"], 2400)):
+                with patch.object(p.sys, "argv", ["observer", "observe-public", str(binding), str(output), *extra]), \
+                        patch.object(p, "observe_public") as collect:
+                    p.main()
+                    self.assertEqual(collect.call_args.kwargs["duration"], expected)
+            for invalid in (1799, 3601):
+                target = Path(folder) / str(invalid)
+                with patch.object(p, "checked_operator", return_value="CraigDevJohnson"), \
+                        patch.object(p, "public_probe") as probe:
+                    with self.assertRaises(ValueError): p.observe_public(self.binding, target, duration=invalid)
+                    probe.assert_not_called()
+
     def test_public_curl_disables_user_config_proxies_and_origin_override(self):
         with patch.object(p.subprocess, 'run', side_effect=RuntimeError('capture invocation')) as run:
             with self.assertRaises(RuntimeError): p.fetch(p.APEX, '/healthz')

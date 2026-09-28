@@ -334,6 +334,11 @@ def observe():
             def append(item):
                 output.write(json.dumps(item) + "\n")
                 output.flush()
+                if not append.started:
+                    print(json.dumps({"ci_origin_window_id": identity["window_id"],
+                                      "first_complete_sample_at": item["observed_at"]}), flush=True)
+                    append.started = True
+            append.started = False
             observations = observe_window(sample, duration, interval, on_sample=append)
         result = dict(identity, ci_origin_window="passed",
                       started_at=observations[0]["observed_at"], ended_at=observations[-1]["observed_at"],
@@ -423,7 +428,7 @@ def public_read(binding):
             "binding_sha256": binding_digest(binding)}
 
 
-def observe_public(binding, output, duration=MIN_WINDOW, interval=30):
+def observe_public(binding, output, duration=2100, interval=30):
     binding = dict(binding)
     binding.setdefault("window_id", window_id(binding["promotion_sha"], binding["production_deployment_id"]))
     require(set(binding) == set(BINDING), "unknown or missing public binding fields")
@@ -467,11 +472,26 @@ def dispatch_inputs(window, public, browser, apply_run, output):
         stream.write(raw + "\n")
 
 
+def validate_public_before_post(directory):
+    result = json.loads((directory / "production-verification.json").read_text())
+    window_path, receipt_path = directory / "ci-origin-window.json", directory / "public-receipt.json"
+    for path, field in ((window_path, "ci_origin_window_sha256"), (receipt_path, "public_receipt_sha256")):
+        require(hashlib.sha256(path.read_bytes()).hexdigest() == result[field], "public evidence changed before success POST")
+    window, receipt = json.loads(window_path.read_text()), json.loads(receipt_path.read_text())
+    for key in BINDING:
+        if key != "base_url":
+            require(str(result[key]) == receipt[key], "public result binding changed before success POST")
+    validate_public(window, receipt)
+
+
 def main():
     if sys.argv[1:] == ["observe"]:
         observe()
-    elif len(sys.argv) == 4 and sys.argv[1] == "observe-public":
-        observe_public(json.loads(Path(sys.argv[2]).read_text()), Path(sys.argv[3]))
+    elif len(sys.argv) in (4, 5) and sys.argv[1] == "observe-public":
+        observe_public(json.loads(Path(sys.argv[2]).read_text()), Path(sys.argv[3]),
+                       duration=int(sys.argv[4]) if len(sys.argv) == 5 else 2100)
+    elif len(sys.argv) == 3 and sys.argv[1] == "check-public-before-post":
+        validate_public_before_post(Path(sys.argv[2]))
     elif len(sys.argv) == 5 and sys.argv[1] == "refresh-public":
         refresh_public(json.loads(Path(sys.argv[2]).read_text()), json.loads(Path(sys.argv[3]).read_text()), Path(sys.argv[4]))
     elif len(sys.argv) == 7 and sys.argv[1] == "dispatch-inputs":
@@ -484,7 +504,7 @@ def main():
         receipt = json.loads(Path(sys.argv[3]).read_text())
         save(Path(sys.argv[4]), validate_browser(window, receipt))
     else:
-        raise ValueError("usage: observe-lambda-production.py observe | validate-browser WINDOW RECEIPT OUTPUT | final-metrics WINDOW OUTPUT | observe-public BINDING OUTPUT | refresh-public WINDOW RECEIPT OUTPUT | dispatch-inputs WINDOW PUBLIC BROWSER APPLY_RUN OUTPUT")
+        raise ValueError("usage: observe-lambda-production.py observe | validate-browser WINDOW RECEIPT OUTPUT | final-metrics WINDOW OUTPUT | observe-public BINDING OUTPUT [SECONDS] | refresh-public WINDOW RECEIPT OUTPUT | dispatch-inputs WINDOW PUBLIC BROWSER APPLY_RUN OUTPUT")
 
 
 if __name__ == "__main__":

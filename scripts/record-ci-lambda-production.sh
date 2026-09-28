@@ -367,6 +367,10 @@ attempt=1
 while :; do
   check_remote_transition
   [ "$remote_same" = false ] || break
+  if [ "$DEPLOYMENT_STATE" = success ]; then
+    # Remote checks and retry delays may consume the remaining freshness bound.
+    python3 "$script_dir/observe-lambda-production.py" check-public-before-post "$EVIDENCE_DIR"
+  fi
   if gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
     -f state="$DEPLOYMENT_STATE" \
     -f environment=production \
