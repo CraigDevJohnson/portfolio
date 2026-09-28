@@ -6,18 +6,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/scripts" "$tmp/bin"
 
-# Exercise the dormant body in isolation while retaining the repository entrypoint's
-# unconditional hard stop. Activation must remove exactly these two executable lines.
-awk '
-  !removed && $0 == "echo \"Production apply is disabled pending readiness and activation review\" >&2" {
-    getline
-    if ($0 != "exit 1") exit 98
-    removed=1
-    next
-  }
-  { print }
-  END { if (!removed) exit 99 }
-' "$root/scripts/deploy-ci-lambda-production.sh" > "$tmp/scripts/deploy-ci-lambda-production.sh"
+cp "$root/scripts/deploy-ci-lambda-production.sh" "$tmp/scripts/deploy-ci-lambda-production.sh"
 
 cat > "$tmp/scripts/record-ci-lambda-production.sh" <<'FAKE'
 #!/bin/sh
@@ -133,13 +122,13 @@ grep -Fqx 'record:in_progress' "$response_only/calls"
 grep -Fqx 'record:failure' "$response_only/calls"
 test -f "$response_only/github-production-deployment-response.json"
 
-# The real entrypoint must remain disabled before reading evidence or invoking a child.
-if PATH="$tmp/bin:$PATH" CALL_LOG="$tmp/hard-stop-calls" \
-  sh "$root/scripts/deploy-ci-lambda-production.sh" >"$tmp/hard-stop.out" 2>&1; then
-  echo 'Production deployment entrypoint unexpectedly enabled' >&2
+# An incomplete invocation must fail before touching deployment state.
+if (unset EVIDENCE_DIR; PATH="$tmp/bin:$PATH" CALL_LOG="$tmp/missing-input-calls" \
+  sh "$root/scripts/deploy-ci-lambda-production.sh") >"$tmp/missing-input.out" 2>&1; then
+  echo 'Production deployment accepted missing evidence' >&2
   exit 1
 fi
-grep -Fq 'Production apply is disabled pending readiness and activation review' "$tmp/hard-stop.out"
-test ! -e "$tmp/hard-stop-calls"
+grep -Fq 'set EVIDENCE_DIR' "$tmp/missing-input.out"
+test ! -e "$tmp/missing-input-calls"
 
 echo 'Production deployment orchestration contracts passed'

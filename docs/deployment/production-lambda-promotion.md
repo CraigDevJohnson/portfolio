@@ -1,9 +1,10 @@
 # Production Lambda promotion
 
 The [accepted Issue #75 scope](https://github.com/CraigDevJohnson/portfolio/issues/75)
-governs the first launch. Production apply is hard-disabled in both apply
-entrypoints. Its workflow job is additionally gated by the absent
-`PRODUCTION_APPLY_ENABLED` variable. A successful `production-plan` job is
+governs the first launch. The production entrypoints now execute the reviewed
+protected-approval and saved-plan contracts. The workflow job remains gated by
+`PRODUCTION_APPLY_ENABLED`, which must be explicitly enabled after readiness
+readback under the approved activation plan. A successful `production-plan` job is
 rehearsal evidence, not a deployment or live-change authorization. The
 [September 25 readiness review](2026-09-25-production-launch-readiness.md)
 records the earlier findings. The September 27 continuation restored development

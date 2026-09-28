@@ -4,14 +4,7 @@ root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/scripts" "$tmp/bin" "$tmp/evidence"
-# Exercise the dormant body without changing the repository activation stop.
-awk '
-  !removed && $0 == "echo \"Production apply is disabled pending readiness and activation review\" >&2" {
-    getline; if ($0 != "exit 1") exit 98; removed=1; next
-  }
-  { print }
-  END { if (!removed) exit 99 }
-' "$root/scripts/apply-ci-lambda-production.sh" > "$tmp/scripts/apply-ci-lambda-production.sh"
+cp "$root/scripts/apply-ci-lambda-production.sh" "$tmp/scripts/apply-ci-lambda-production.sh"
 cat > "$tmp/scripts/validate-ci-lambda-production-apply.sh" <<'FAKE'
 #!/bin/sh
 set -eu

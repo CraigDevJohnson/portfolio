@@ -1,9 +1,6 @@
 #!/bin/sh
 set -eu
 
-# Remove only in the separately authorized activation change after contract review.
-echo "Production apply is disabled pending readiness and activation review" >&2
-exit 1
 
 : "${SOURCE_SHA:?set SOURCE_SHA to the promotion commit}"
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR to the reviewed plan artifact directory}"
