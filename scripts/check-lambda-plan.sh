@@ -413,7 +413,7 @@ expected_retention=14
 expected_protection=false
 expected_reserved_concurrency=-1
 if [ "$ENVIRONMENT" = prod ]; then
-  expected_retention=90
+  expected_retention=30
   expected_protection=true
   expected_reserved_concurrency=10
 fi

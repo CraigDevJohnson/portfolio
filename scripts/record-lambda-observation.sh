@@ -94,6 +94,7 @@ alarms=$(printf '%s\n' "$alarms_json" | jq -ce --argjson names "$alarm_names" '
 ') || fail "AWS did not return the exact five live alarms"
 
 if [ "$ENVIRONMENT" = production ]; then
+	python3 scripts/check-foundation-alarm-route.py >/dev/null
 	alarm_delivery=$(printf '%s\n' "$environment_record" | jq -er '.alarm_delivery_evidence | select(type == "string" and length > 0)') || fail "production release has no alarm-delivery evidence"
 	test -f "$alarm_delivery" || fail "production alarm-delivery evidence does not exist"
 	topic_arn=$(jq -er --argjson cutover "$cutover_epoch" '
@@ -113,8 +114,8 @@ if [ "$ENVIRONMENT" = production ]; then
 			.schema_version == 1 and
 			.environment == "production" and
 			.account_id == "180294223248" and
-			.region == "us-west-2" and
-			.topic_arn == "arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts" and
+			.region == "us-east-2" and
+			.topic_arn == "arn:aws:sns:us-east-2:180294223248:foundation-security" and
 			(.confirmed_subscription_count | type) == "number" and
 			.confirmed_subscription_count >= 1 and
 			.confirmed_subscription_count == (.confirmed_subscription_count | floor) and
@@ -132,8 +133,8 @@ if [ "$ENVIRONMENT" = production ]; then
 		.topic_arn
 	' "$alarm_delivery") || fail "production alarm-delivery evidence is invalid"
 	printf '%s\n' "$alarms_json" | jq -e --arg topic "$topic_arn" '
-		(.MetricAlarms | length) == 5 and all(.MetricAlarms[]; .AlarmActions == [$topic])
-	' >/dev/null || fail "the production topic is not the sole action on all five alarms"
+		(.MetricAlarms | length) == 5 and all(.MetricAlarms[]; .AlarmActions == [])
+	' >/dev/null || fail "production alarms must use the verified shared route without direct actions"
 fi
 
 observed_epoch=$(jq -nr 'now | floor')

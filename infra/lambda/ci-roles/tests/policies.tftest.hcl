@@ -230,6 +230,8 @@ run "least_privilege_release_roles" {
       "ecr:BatchGetImage",
       "ecr:DescribeImages",
       "ecr:GetDownloadUrlForLayer",
+      "events:DescribeRule",
+      "events:ListTargetsByRule",
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
@@ -319,12 +321,13 @@ run "least_privilege_release_roles" {
         try(tolist(statement.Action), [statement.Action])
       ])),
       toset([
+        "cloudwatch:GetMetricStatistics",
         "lambda:PublishVersion",
         "lambda:UpdateAlias",
         "lambda:UpdateFunctionCode",
       ]),
     )
-    error_message = "production deployment may add only exact state and Lambda release writes to planner reads"
+    error_message = "production deployment adds only regional metric reads and exact state/Lambda release writes"
   }
 
   assert {
@@ -349,6 +352,24 @@ run "least_privilege_release_roles" {
       ]) == "arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate"
     )
     error_message = "production writes must be limited to the exact state object and existing Lambda release resources"
+  }
+
+  assert {
+    condition = one([
+      for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement : statement
+      if statement.Sid == "ProductionMetricRead"
+      ]) == {
+      Sid      = "ProductionMetricRead"
+      Effect   = "Allow"
+      Action   = ["cloudwatch:GetMetricStatistics"]
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "aws:RequestedRegion" = "us-west-2"
+        }
+      }
+    }
+    error_message = "production observation may only read metric statistics in us-west-2"
   }
 
   assert {

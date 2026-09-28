@@ -36,7 +36,7 @@ case "$RELEASE_ENVIRONMENT" in
     plan_name=prod.tfplan
     environment=prod
     name_prefix=portfolio-lambda-prod
-    expected_alarm_actions='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+    expected_alarm_actions='[]'
     automated_release=false
     ;;
   *)

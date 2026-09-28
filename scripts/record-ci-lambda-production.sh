@@ -73,10 +73,28 @@ final_version=null
 case "$DEPLOYMENT_STATE" in
   in_progress)
     : "${PRIOR_VERSION:?set PRIOR_VERSION for an in-progress deployment}"
-    printf '%s\n' "$PRIOR_VERSION" | grep -Eq '^[1-9][0-9]*$' || {
-      echo 'PRIOR_VERSION must be a positive Lambda version' >&2
-      exit 1
-    }
+    if [ "$PRIOR_VERSION" = null ]; then
+      identity_file="$EVIDENCE_DIR/release-identity.json"
+      [ "$(sha256sum "$identity_file" | awk '{print $1}')" = "$RELEASE_IDENTITY_SHA256" ] &&
+        jq -e --arg source "$SOURCE_SHA" --arg digest "$IMAGE_DIGEST" '
+          .promotion_sha == $source and .image_digest == $digest and
+          .production_deployment_id == null and .prior_verified_version == null and
+          (.bootstrap | type == "object" and .function_name == "portfolio-lambda-prod" and
+            .alias_name == "live" and (.alias_version | type == "string" and test("^[1-9][0-9]*$")) and
+            (.alias_revision_id | type == "string" and length > 0) and
+            (.image_uri | type == "string" and
+              startswith("180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@") and
+              test("@sha256:[0-9a-f]{64}$")))
+        ' "$identity_file" >/dev/null || {
+        echo 'First production deployment requires bound bootstrap evidence' >&2; exit 1;
+      }
+      release_description="Lambda $IMAGE_DIGEST first-deployment"
+    else
+      printf '%s\n' "$PRIOR_VERSION" | grep -Eq '^[1-9][0-9]*$' || {
+        echo 'PRIOR_VERSION must be a positive Lambda version or null for bootstrap' >&2; exit 1;
+      }
+      release_description="Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION"
+    fi
     test ! -e "$evidence_file" || {
       echo 'production deployment evidence already exists' >&2
       exit 1
@@ -86,7 +104,7 @@ case "$DEPLOYMENT_STATE" in
       -f task=portfolio-lambda-production \
       -f environment=production \
       -F auto_merge=false \
-      -f description="Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION" \
+      -f description="$release_description" \
       -F 'payload[schema_version]=1' \
       -f "payload[development_source_sha]=$DEVELOPMENT_SOURCE_SHA" \
       -f "payload[release_identity_sha256]=$RELEASE_IDENTITY_SHA256" \
@@ -98,7 +116,7 @@ case "$DEPLOYMENT_STATE" in
       > "$response_file"
     deployment_id=$(jq -er '.id | select(type == "number" and . > 0 and floor == .)' "$response_file")
     jq -e --arg sha "$SOURCE_SHA" \
-      --arg description "Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION" '
+      --arg description "$release_description" '
       .ref == $sha and .sha == $sha and .environment == "production" and
       .task == "portfolio-lambda-production" and .description == $description and
       (.payload | keys | sort) == (["approval_id", "development_source_sha", "planning_run_attempt",
@@ -144,9 +162,9 @@ case "$DEPLOYMENT_STATE" in
           .reviewer_login == env.REVIEWER_LOGIN and
           .development_deployment_id == $development_deployment_id and
           (.production_deployment_id | type == "number" and . > 0 and floor == .) and
-          (.prior_version | type == "string" and test("^[1-9][0-9]*$"))
+          (.prior_version == null or (.prior_version | type == "string" and test("^[1-9][0-9]*$")))
         ) |
-        [.production_deployment_id, .prior_version] | @tsv
+        [.production_deployment_id, (.prior_version // "null")] | @tsv
       ' "$evidence_file") || {
         echo 'production deployment evidence is missing or inconsistent' >&2
         exit 1
@@ -156,7 +174,7 @@ case "$DEPLOYMENT_STATE" in
         --arg source_sha "$SOURCE_SHA" \
         --arg image_digest "$IMAGE_DIGEST" '
         (.description | capture(
-          "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<prior>[1-9][0-9]*)$"
+          "^Lambda (?<digest>sha256:[0-9a-f]{64}) (?:rollback-v(?<prior>[1-9][0-9]*)|first-deployment)$"
         )) as $release |
         select(
           (.id | type == "number" and . > 0 and floor == .) and
@@ -175,7 +193,7 @@ case "$DEPLOYMENT_STATE" in
           .payload.approval_id == env.APPROVAL_ID and
           .payload.reviewer_login == env.REVIEWER_LOGIN
         ) |
-        [.id, $release.prior] | @tsv
+        [.id, ($release.prior // "null")] | @tsv
       ' "$response_file") || {
         echo 'production deployment response is missing or inconsistent' >&2
         exit 1
@@ -195,25 +213,29 @@ case "$DEPLOYMENT_STATE" in
       verification_file="$EVIDENCE_DIR/production-verification.json"
       jq -e \
         --arg source_sha "$DEVELOPMENT_SOURCE_SHA" \
+        --arg promotion_sha "$SOURCE_SHA" \
+        --argjson deployment_id "$deployment_id" \
+        --arg acceptance_run "${GITHUB_RUN_ID:-}" \
         --arg image_digest "$IMAGE_DIGEST" \
         --arg version "$LAMBDA_VERSION" '
+        .schema_version == 2 and .status == "verified" and
         .source_sha == $source_sha and .image_digest == $image_digest and
-        .lambda_version == $version and .origin == "verified" and
-        .public_apex == "verified" and .public_www == "verified" and
-        .oauth_redirect == "verified" and .oauth_callback == "verified" and
-        .oauth_logout == "verified" and .secure_cookies == "verified"
+        .promotion_sha == $promotion_sha and .production_deployment_id == $deployment_id and
+        .lambda_version == $version and .automated_public_window == "passed" and
+        .browser_contract == "passed" and .metric_coverage == "passed" and
+        .operator == "CraigDevJohnson" and .provenance == "protected-github-operator" and
+        .acceptance_run_id == $acceptance_run and ($acceptance_run | test("^[1-9][0-9]*$"))
       ' "$verification_file" > /dev/null || {
         echo 'production verification evidence is missing or inconsistent' >&2
         exit 1
       }
-      for route in origin-apex origin-www public-apex public-www; do
-        test -s "$EVIDENCE_DIR/$route/verification.json" || {
-          echo "production verification omitted $route evidence" >&2
-          exit 1
-        }
-        test -s "$EVIDENCE_DIR/$route/alarms.json" || {
-          echo "production verification omitted $route alarm evidence" >&2
-          exit 1
+      for binding in automated-window.json:automated_window_sha256 \
+        browser-receipt.json:browser_receipt_sha256 final-metrics.json:final_metrics_sha256; do
+        file=${binding%:*}; field=${binding#*:}
+        test -s "$EVIDENCE_DIR/$file" &&
+          test "$(sha256sum "$EVIDENCE_DIR/$file" | awk '{print $1}')" = \
+          "$(jq -er ".$field" "$verification_file")" || {
+          echo "production verification omitted or changed $file" >&2; exit 1;
         }
       done
       description="Verified v$LAMBDA_VERSION public-apex=ok public-www=ok"
@@ -227,6 +249,79 @@ case "$DEPLOYMENT_STATE" in
     exit 1
     ;;
 esac
+
+# The shared production workflow concurrency group must cover apply and
+# finalization. GitHub's status API has no conditional-write operation; these
+# authoritative checks are repeated before every POST, including retries.
+status_file="$EVIDENCE_DIR/github-production-deployment-status-$DEPLOYMENT_STATE-response.json"
+check_remote_transition() {
+  remote_same=false
+  remote_deployment=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$deployment_id")
+  if [ "$PRIOR_VERSION" = null ]; then
+    expected_description="Lambda $IMAGE_DIGEST first-deployment"
+  else
+    expected_description="Lambda $IMAGE_DIGEST rollback-v$PRIOR_VERSION"
+  fi
+  printf '%s\n' "$remote_deployment" | jq -e \
+    --argjson id "$deployment_id" --arg source "$SOURCE_SHA" --arg description "$expected_description" '
+    .id == $id and .sha == $source and .ref == $source and
+    .environment == "production" and .task == "portfolio-lambda-production" and
+    .description == $description and
+    (.created_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T")) and
+    .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
+    .payload == {
+      schema_version:1, development_source_sha:env.DEVELOPMENT_SOURCE_SHA,
+      release_identity_sha256:env.RELEASE_IDENTITY_SHA256, scan_sha256:env.SCAN_SHA256,
+      planning_run_id:env.PLANNING_RUN_ID, planning_run_attempt:env.PLANNING_RUN_ATTEMPT,
+      approval_id:env.APPROVAL_ID, reviewer_login:env.REVIEWER_LOGIN
+    }
+  ' >/dev/null || {
+    echo 'Remote production deployment identity differs from this release' >&2; return 1;
+  }
+  pages=$(gh api --paginate --slurp \
+    "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses?per_page=100")
+  statuses=$(printf '%s\n' "$pages" | jq -ce '
+    if type == "array" and length > 0 and all(.[]; type == "array") then add else error("invalid pages") end |
+    if all(.[]; (.id | type == "number" and . > 0 and floor == .) and
+      (.created_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))) and
+      ((map(.id) | unique | length) == length)
+    then sort_by([.created_at,.id]) | reverse else error("invalid statuses") end
+  ') || { echo 'Remote production statuses are malformed' >&2; return 1; }
+  latest=$(printf '%s\n' "$statuses" | jq -c '.[0] // null')
+  if [ "$latest" != null ]; then
+    printf '%s\n' "$latest" | jq -e '
+      .environment == "production" and .environment_url == "https://craigdevjohnson.com" and
+      .creator.login == "github-actions[bot]" and .creator.type == "Bot"
+    ' >/dev/null || { echo 'Remote production status is not trusted' >&2; return 1; }
+    if printf '%s\n' "$latest" | jq -e --arg state "$DEPLOYMENT_STATE" --arg description "$description" \
+      '.state == $state and .description == $description' >/dev/null; then
+      printf '%s\n' "$latest" > "$status_file"
+      remote_same=true
+      return 0
+    fi
+    printf '%s\n' "$latest" | jq -e '.state == "in_progress" or .state == "pending" or .state == "queued"' >/dev/null || {
+      echo 'Refusing to overwrite a terminal production result' >&2; return 1;
+    }
+  elif [ "$DEPLOYMENT_STATE" = success ]; then
+    echo 'Production success requires an existing in-progress remote status' >&2; return 1
+  fi
+  if [ "$DEPLOYMENT_STATE" = success ]; then
+    deployments=$(gh api --paginate --slurp \
+      "repos/$GITHUB_REPOSITORY/deployments?environment=production&task=portfolio-lambda-production&per_page=100")
+    printf '%s\n' "$deployments" | jq -e --argjson current "$remote_deployment" '
+      if type == "array" and length > 0 and all(.[]; type == "array") then add else error("invalid pages") end |
+      all(.[]; (.id | type == "number" and . > 0 and floor == .) and
+        (.created_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))) and
+      ([.[] | select(.id == $current.id)] | length) == 1 and
+      all(.[]; [.created_at,.id] <= [$current.created_at,$current.id])
+    ' >/dev/null || {
+      echo 'A newer production deployment exists or deployment history is inconsistent' >&2; return 1;
+    }
+    script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
+    sh "$script_dir/check-current-main.sh" "$SOURCE_SHA"
+  fi
+}
+check_remote_transition
 
 tmp=$(mktemp "$EVIDENCE_DIR/.github-production-deployment.XXXXXX")
 jq -n \
@@ -252,7 +347,7 @@ jq -n \
     source_sha: $source_sha,
     development_source_sha: $development_source_sha,
     image_digest: $image_digest,
-    prior_version: $prior_version,
+    prior_version: (if $prior_version == "null" then null else $prior_version end),
     plan_sha256: $plan_sha256,
     release_identity_sha256: $release_identity_sha256,
     scan_sha256: $scan_sha256,
@@ -266,13 +361,15 @@ jq -n \
   }' > "$tmp"
 mv "$tmp" "$evidence_file"
 
-status_file="$EVIDENCE_DIR/github-production-deployment-status-$DEPLOYMENT_STATE-response.json"
 attempt=1
 while :; do
+  check_remote_transition
+  [ "$remote_same" = false ] || break
   if gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$deployment_id/statuses" \
     -f state="$DEPLOYMENT_STATE" \
     -f environment=production \
     -f environment_url=https://craigdevjohnson.com \
+    -F auto_inactive=false \
     -f description="$description" > "$status_file"; then
     break
   fi

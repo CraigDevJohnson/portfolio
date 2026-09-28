@@ -67,3 +67,15 @@ if grep -Fq 'apply_ready' "$root/scripts/plan-ci-lambda-production.sh"; then
   echo 'production preparation uses ambiguous apply-ready terminology' >&2
   exit 1
 fi
+
+DEPLOYMENTS_FIXTURE="$tmp/first-deployment.json"; export DEPLOYMENTS_FIXTURE
+jq '.[0] = [.[0][1]] | .[0][0].description |= sub("rollback-v6"; "first-deployment")' \
+  "$tmp/deployments.json" > "$DEPLOYMENTS_FIXTURE"
+[ "$(sh "$root/scripts/resolve-production-rollback-coordinate.sh")" = "101	$development_sha	$digest	7" ]
+STATUS_101_FIXTURE="$tmp/status102.json"; export STATUS_101_FIXTURE
+if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
+  echo 'Accepted a failed first deployment as a verified predecessor' >&2; exit 1
+else
+  [ "$?" -eq 2 ]
+fi
+echo 'First production success becomes a durable coordinate; failure does not'

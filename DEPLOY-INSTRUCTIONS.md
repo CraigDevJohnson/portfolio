@@ -314,9 +314,10 @@ Issue #75 instead requires 30 uninterrupted minutes of successful public-route,
 Soccer/Google authentication and authorized calendar-operation, HTTPS/cookie,
 revision/digest/alias, and alarm/error checks. Any required failure invalidates
 the window, including an upstream failure. Resolve the failure, then start a
-fresh full window. The production verifier and evidence recorder need the
-corresponding implementation and tests before activation; neither a successful
-plan nor several short smoke tests proves this window.
+fresh full window. The production observer and protected acceptance finalizer implement that
+contract; see [production promotion](docs/deployment/production-lambda-promotion.md).
+Production apply remains disabled until the live readiness gates pass. Neither a
+successful plan nor several short smoke tests proves this window.
 
 The application behavior and direct-endpoint checks are also documented in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).
