@@ -63,8 +63,9 @@ apex_origin_host=$(jq -er '.api_gateway_domain_targets.value["craigdevjohnson.co
   "$EVIDENCE_DIR/outputs.json")
 api_id=$(jq -er '.api_id.value' "$EVIDENCE_DIR/outputs.json")
 deployment_id=$(jq -er .production_deployment_id "$deployment_evidence")
+promotion_sha=$SOURCE_SHA
 SOURCE_SHA="$development_source_sha" \
-  PROMOTION_SHA="$SOURCE_SHA" PRODUCTION_DEPLOYMENT_ID="$deployment_id" API_ID="$api_id" \
+  PROMOTION_SHA="$promotion_sha" PRODUCTION_DEPLOYMENT_ID="$deployment_id" API_ID="$api_id" \
   APEX_ORIGIN_HOST="$apex_origin_host" \
   IMAGE_DIGEST="$image_digest" \
   sh scripts/verify-ci-lambda-production.sh
