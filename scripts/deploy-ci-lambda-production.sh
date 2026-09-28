@@ -61,17 +61,13 @@ sh scripts/apply-ci-lambda-production.sh
 tofu -chdir=infra/lambda/environments/prod output -json > "$EVIDENCE_DIR/outputs.json"
 apex_origin_host=$(jq -er '.api_gateway_domain_targets.value["craigdevjohnson.com"]' \
   "$EVIDENCE_DIR/outputs.json")
-www_origin_host=$(jq -er '.api_gateway_domain_targets.value["www.craigdevjohnson.com"]' \
-  "$EVIDENCE_DIR/outputs.json")
+api_id=$(jq -er '.api_id.value' "$EVIDENCE_DIR/outputs.json")
+deployment_id=$(jq -er .production_deployment_id "$deployment_evidence")
+promotion_sha=$SOURCE_SHA
 SOURCE_SHA="$development_source_sha" \
-  APEX_ORIGIN_HOST="$apex_origin_host" WWW_ORIGIN_HOST="$www_origin_host" \
+  PROMOTION_SHA="$promotion_sha" PRODUCTION_DEPLOYMENT_ID="$deployment_id" API_ID="$api_id" \
+  APEX_ORIGIN_HOST="$apex_origin_host" \
   IMAGE_DIGEST="$image_digest" \
   sh scripts/verify-ci-lambda-production.sh
-lambda_version=$(jq -er .lambda_version "$EVIDENCE_DIR/production-verification.json")
-DEPLOYMENT_STATE=success \
-  DEVELOPMENT_SOURCE_SHA="$development_source_sha" \
-  IMAGE_DIGEST="$image_digest" \
-  DEVELOPMENT_DEPLOYMENT_ID="$development_deployment_id" \
-  PLAN_SHA256="$plan_sha256" \
-  LAMBDA_VERSION="$lambda_version" \
-  sh scripts/record-ci-lambda-production.sh
+printf '%s\n' 'Applied; protected browser acceptance and final metric checks remain required.' \
+  > "$EVIDENCE_DIR/APPLIED_NOT_VERIFIED"

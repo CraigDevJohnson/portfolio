@@ -31,10 +31,8 @@ variable "alarm_action_arns" {
   type = list(string)
 
   validation {
-    condition = length(var.alarm_action_arns) > 0 && alltrue([
-      for arn in var.alarm_action_arns : can(regex("^arn:[^:]+:[^:]+:[^:]*:[^:]*:.+$", arn))
-    ])
-    error_message = "alarm_action_arns must contain at least one ARN"
+    condition     = length(var.alarm_action_arns) == 0
+    error_message = "Production alarms use the verified shared foundation route; direct alarm actions must be empty."
   }
 }
 

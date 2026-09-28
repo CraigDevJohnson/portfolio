@@ -1,0 +1,66 @@
+name: Production acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_run_id:
+        description: Successful Release run containing the applied production evidence
+        required: true
+        type: string
+      browser_receipt_json:
+        description: Sanitized actual Soccer and Google Calendar observations from that window
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: lambda-production
+  cancel-in-progress: false
+
+jobs:
+  accept:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'CraigDevJohnson' &&
+      vars.PRODUCTION_APPLY_ENABLED == 'true'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      deployments: write
+      id-token: write
+    env:
+      AWS_REGION: us-west-2
+      GH_TOKEN: ${{ github.token }}
+      APPLY_RUN_ID: ${{ inputs.apply_run_id }}
+      BROWSER_RECEIPT_JSON: ${{ inputs.browser_receipt_json }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - name: Verify protected provenance and retrieve the original applied evidence
+        run: task lambda-ci-prepare-production-acceptance
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify production identity
+        env:
+          EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
+          AWS_ACCOUNT_ID: "180294223248"
+        run: task lambda-ci-check-aws-identity
+      - name: Validate real browser evidence and final telemetry before recording success
+        run: task lambda-ci-finalize-production
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-acceptance-${{ github.run_id }}
+          path: ${{ runner.temp }}/production-acceptance/
+          retention-days: 90
+          if-no-files-found: warn

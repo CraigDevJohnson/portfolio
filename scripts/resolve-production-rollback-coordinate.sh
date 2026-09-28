@@ -44,7 +44,7 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
         test("^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"))
     ) |
     (.description | capture(
-      "^Lambda (?<digest>sha256:[0-9a-f]{64}) rollback-v(?<prior>[1-9][0-9]*)$"
+      "^Lambda (?<digest>sha256:[0-9a-f]{64}) (?:rollback-v(?<prior>[1-9][0-9]*)|first-deployment)$"
     )) as $r |
     [.payload.development_source_sha, $r.digest,
       .payload.release_identity_sha256, .payload.scan_sha256,

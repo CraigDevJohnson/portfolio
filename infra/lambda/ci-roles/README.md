@@ -122,3 +122,19 @@ APPROVED_CI_ROLES_ADMIN=portfolio-lambda-http-api/ci-roles \
 
 No release workflow may provision or modify these roles. The root must not be
 added to any automated deployer's permissions.
+
+## Shared alert-route verification
+
+Both production roles can describe only the Oregon
+`foundation-notifications-services` rule and list that rule's targets. The
+permission cannot update routing. The production deployer also reads regional
+CloudWatch metric statistics to verify the acceptance window; metric APIs do not
+support resource-level ARN scoping, so this read uses `*` with `us-west-2` required.
+Builder and development-role permissions do not change.
+
+The plan checker compares each separately managed inline policy with its exact
+approved resulting document. AWS role readback can retain that policy's older
+snapshot until the inline-policy resource updates; the checker accepts it only
+when it matches the same plan's corresponding owned policy before the update.
+An unrelated embedded policy, extra attachment or widened resulting document
+still fails.

@@ -189,3 +189,32 @@ fi
 grep -Eq 'approval identity is inconsistent|release identity does not match' "$tmp/plan"
 
 echo 'Production activation and dormant validation contracts passed'
+
+# Missing history requires explicit bootstrap metadata, not a relaxed null check.
+unset PLAN_APPROVAL
+for case_name in missing-bootstrap contradictory-history malformed-bootstrap; do
+  make_valid_bundle 0
+  jq '.production_deployment_id = null | .prior_verified_version = null' \
+    "$evidence/release-identity.json" > "$tmp/identity"
+  case "$case_name" in
+    contradictory-history) jq '.prior_verified_version = 7' "$tmp/identity" > "$evidence/release-identity.json" ;;
+    malformed-bootstrap) jq '.bootstrap = {alias_version:"1"}' "$tmp/identity" > "$evidence/release-identity.json" ;;
+    *) cp "$tmp/identity" "$evidence/release-identity.json" ;;
+  esac
+  if CASE_NAME="$case_name" run_valid_bundle > "$tmp/$case_name" 2>&1; then
+    echo "Production validator accepted $case_name" >&2; exit 1
+  fi
+  grep -Fq 'release identity does not match' "$tmp/$case_name"
+done
+make_valid_bundle 0
+jq --arg image "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@$development_digest" '
+  .production_deployment_id = null | .prior_verified_version = null |
+  .bootstrap = {function_name:"portfolio-lambda-prod",alias_name:"live",alias_version:"1",
+    alias_revision_id:"revision-1",image_uri:$image}
+' "$evidence/release-identity.json" > "$tmp/identity"
+cp "$tmp/identity" "$evidence/release-identity.json"
+if TF_CLI_ARGS_plan=-refresh=false CASE_NAME=valid-bootstrap run_valid_bundle > "$tmp/valid-bootstrap" 2>&1; then
+  echo 'Production bootstrap bypassed ambient override guard' >&2; exit 1
+fi
+grep -Fq 'Refusing ambient OpenTofu override' "$tmp/valid-bootstrap"
+echo 'Production identity distinguishes bootstrap from verified history'

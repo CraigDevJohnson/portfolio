@@ -2067,15 +2067,30 @@ then
   echo 'authorize job can mint AWS credentials or write deployments' >&2
   exit 1
 fi
-if grep -Fq '    actions: read' << EOF
-$build_job
-$development_job
+for recovery_job in "$development_review_job" "$build_job" "$development_job"; do
+  grep -Fq '    actions: read' << EOF
+$recovery_job
 EOF
-then
-  echo 'build or development received unnecessary Actions read authority' >&2
-  exit 1
-fi
+  grep -Fq '    pull-requests: read' << EOF
+$recovery_job
+EOF
+  grep -Fq "DEVELOPMENT_RECOVERY: ${literal_dollar}{{ github.event_name == 'workflow_dispatch' }}" << EOF
+$recovery_job
+EOF
+done
+grep -Fq "inputs.recovery_source_sha == github.sha" << EOF
+$authorize_job
+EOF
+grep -Fq "github.ref == 'refs/heads/main'" << EOF
+$authorize_job
+EOF
+grep -Fq "ref: ${literal_dollar}{{ github.event.workflow_run.head_sha || github.sha }}" << EOF
+$authorize_job
+EOF
 grep -Fq '    actions: read' << EOF
+$production_job
+EOF
+grep -Fq '    pull-requests: read' << EOF
 $production_job
 EOF
 grep -Fq '    environment: release-review' << EOF
@@ -2213,7 +2228,7 @@ if grep -Eq 'run: \||^[[:space:]]+(aws|docker|gh|jq|sh|tofu)[[:space:]]' \
   echo 'release workflow bypasses its Taskfile entrypoints' >&2
   exit 1
 fi
-test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 6
+test "$(grep -Fc 'uses: go-task/setup-task@v2.2.0' "$root_dir/.github/workflows/release.yml")" -eq 7
 grep -Fq 'run: task lambda-ci-authorize-release' << EOF
 $authorize_job
 EOF
@@ -2746,10 +2761,21 @@ grep -Fq 'AWS_PRODUCTION_DEPLOYER_ROLE_ARN=%s' "$root_dir/Taskfile.yaml" || {
   echo 'CI role verification does not export the production deployer role' >&2
   exit 1
 }
-if grep -Eq '^    environment: production$' "$root_dir/.github/workflows/release.yml"; then
-  echo 'production apply automation was activated before the separate readiness gate' >&2
-  exit 1
-fi
+production_apply_job=$(workflow_job production-apply)
+grep -Fq "vars.PRODUCTION_APPLY_ENABLED == 'true'" << EOF
+$production_apply_job
+EOF
+grep -Fq 'group: lambda-production' << EOF
+$production_apply_job
+EOF
+grep -Fq 'cancel-in-progress: false' << EOF
+$production_apply_job
+EOF
+assert_before "$production_apply_job" 'run: task lambda-ci-review-production' \
+  'uses: aws-actions/configure-aws-credentials@v6'
+for entrypoint in apply-ci-lambda-production.sh deploy-ci-lambda-production.sh; do
+  grep -Fq 'Production apply is disabled pending readiness and activation review' "$root_dir/scripts/$entrypoint"
+done
 if RELEASE_ENVIRONMENT=invalid \
   IMAGE_DIGEST="$image_digest" \
   PRIOR_VERSION=7 \

@@ -90,8 +90,22 @@ identity=$(jq -cer \
     (.development_source_sha | type == "string" and test("^[0-9a-f]{40}$")) and
     (.image_digest | type == "string" and test("^sha256:[0-9a-f]{64}$")) and
     (.development_deployment_id | type == "number" and . > 0 and floor == .) and
-    (.production_deployment_id | type == "number" and . > 0 and floor == .) and
-    (.prior_verified_version | type == "number" and . > 0 and floor == .) and
+    has("production_deployment_id") and has("prior_verified_version") and
+    (if .production_deployment_id == null then
+      .prior_verified_version == null and
+      (.bootstrap | type == "object" and
+        (keys | sort) == (["alias_name", "alias_revision_id", "alias_version", "function_name", "image_uri"] | sort) and
+        .function_name == "portfolio-lambda-prod" and .alias_name == "live" and
+        (.alias_version | type == "string" and test("^[1-9][0-9]*$")) and
+        (.alias_revision_id | type == "string" and length > 0) and
+        (.image_uri | type == "string" and
+          startswith("180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@") and
+          test("@sha256:[0-9a-f]{64}$")))
+    else
+      (.production_deployment_id | type == "number" and . > 0 and floor == .) and
+      (.prior_verified_version | type == "number" and . > 0 and floor == .) and
+      .bootstrap == null
+    end) and
     (.manifest_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
     (.scan_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
     (.plan_json_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
@@ -187,6 +201,19 @@ AUTOMATED_RELEASE=production \
   ENVIRONMENT=prod \
   NAME_PREFIX=portfolio-lambda-prod \
   IMAGE_URI="$ECR_URL@$image_digest" \
-  EXPECTED_ALARM_ACTIONS_JSON='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]' \
+  EXPECTED_ALARM_ACTIONS_JSON='[]' \
   sh scripts/check-lambda-plan.sh
 sh scripts/validate-production-release.sh "$manifest_file"
+
+if [ "$(printf '%s\n' "$identity" | jq -r .production_deployment_id)" = null ]; then
+  jq -e --argjson bootstrap "$(printf '%s\n' "$identity" | jq -c .bootstrap)" '
+    [.resource_changes[] | select(.address == "module.service.aws_lambda_alias.live")][0].change.before as $alias |
+    [.resource_changes[] | select(.address == "module.service.aws_lambda_function.app")][0].change.before as $function |
+    $alias.function_name == $bootstrap.function_name and $alias.name == $bootstrap.alias_name and
+    $alias.function_version == $bootstrap.alias_version and
+    $function.function_name == $bootstrap.function_name and
+    $function.version == $bootstrap.alias_version and $function.image_uri == $bootstrap.image_uri
+  ' "$rendered_plan_json" >/dev/null || {
+    echo 'Production plan differs from the bound bootstrap resources' >&2; exit 1;
+  }
+fi

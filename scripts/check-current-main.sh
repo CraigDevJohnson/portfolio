@@ -12,3 +12,9 @@ test "$current_sha" = "$expected_sha" || {
   echo 'A newer main commit exists; refusing stale release authority.' >&2
   exit 1
 }
+
+if [ "${DEVELOPMENT_RECOVERY:-false}" = true ]; then
+  script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
+  python3 "$script_dir/validate-development-recovery.py" \
+    --source-sha "$expected_sha" --phase approved
+fi

@@ -25,21 +25,29 @@ gh api --method GET \
   -f "head_sha=$DEVELOPMENT_SOURCE_SHA" \
   -f status=success \
   -F per_page=100 > "$runs_file"
-run_id=$(jq -er --arg sha "$DEVELOPMENT_SOURCE_SHA" '
+run_fields=$(jq -er --arg sha "$DEVELOPMENT_SOURCE_SHA" '
   select((.total_count | type == "number") and .total_count <= 100) |
   [.workflow_runs[] | select(
-    .head_sha == $sha and .event == "workflow_run" and
+    .head_sha == $sha and (.event == "workflow_run" or .event == "workflow_dispatch") and
     .status == "completed" and .conclusion == "success" and
     (.id | type == "number" and . > 0 and floor == .) and
     (.run_attempt | type == "number" and . > 0 and floor == .) and
     (.created_at | type == "string")
   )] |
   sort_by([.created_at, .run_attempt, .id]) | reverse |
-  select(length > 0) | .[0].id
+  select(length > 0) | .[0] | [.id, .event] | @tsv
 ' "$runs_file") || {
   echo 'Could not resolve a trusted successful release run for scan evidence' >&2
   exit 1
 }
+run_id=$(printf '%s\n' "$run_fields" | cut -f1)
+run_event=$(printf '%s\n' "$run_fields" | cut -f2)
+if [ "$run_event" = workflow_dispatch ]; then
+  script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
+  python3 "$script_dir/validate-development-recovery.py" \
+    --source-sha "$DEVELOPMENT_SOURCE_SHA" --phase completed --run-id "$run_id" \
+    > "$tmp/recovery-provenance.json"
+fi
 
 artifacts_file="$tmp/artifacts.json"
 gh api --method GET \

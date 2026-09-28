@@ -319,7 +319,12 @@ jq -e '
           ["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"];
           (["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] |
             map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:" + $function + "-" + .)); null)
-      ] + if $environment == "dev" then [
+      ] + (if $environment == "prod" then [
+        allow("FoundationAlarmRouteRead";
+          ["events:DescribeRule", "events:ListTargetsByRule"];
+          ["arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services"];
+          {StringEquals: {"aws:RequestedRegion": ["us-west-2"]}})
+      ] else [] end) + if $environment == "dev" then [
         allow("DevelopmentStateWrite";
           ["s3:PutObject", "s3:DeleteObject"];
           [$state_bucket + "/" + $state_key]; null),
@@ -340,6 +345,10 @@ jq -e '
   def expected_production_deployer_policy:
     expected_environment_policy("prod") |
     .Statement += [
+      allow("ProductionMetricRead";
+        ["cloudwatch:GetMetricStatistics"];
+        ["*"];
+        {StringEquals: {"aws:RequestedRegion": ["us-west-2"]}}),
       allow("ProductionStateWrite";
         ["s3:PutObject", "s3:DeleteObject"];
         ["arn:aws:s3:::portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate"];
@@ -372,16 +381,22 @@ jq -e '
     $value == null or $value == "";
   def exact_references($expression; $expected):
     (($expression.references // []) | sort) == ($expected | sort);
-  def inline_policy_contract($value; $name; $expected):
+  def inline_policy_contract($value; $name; $expected; $owned_before):
     ($value // []) as $policies |
     ($policies | type) == "array" and
     (($policies | length) == 0 or
      (($policies | length) == 1 and
       exact_keys_or_fewer($policies[0]; ["name", "policy"]) and
       $policies[0].name == $name and
-      policy_matches($policies[0].policy; $expected)));
+      (policy_matches($policies[0].policy; $expected) or
+       (($owned_before | type) == "string" and policy_matches($policies[0].policy; $owned_before)))));
   def role_contract($address; $name; $subject; $inline_name; $inline_policy):
     by_address($address) as $resource |
+    # The role readback caches the separately managed inline policy before its update.
+    # Accept that snapshot only when it matches the exact owned policy before this plan.
+    ([.resource_changes[] | select(.type == "aws_iam_role_policy" and
+      .change.after.role == $name and .change.after.name == $inline_name) |
+      .change.before.policy] | if length == 1 then .[0] else null end) as $owned_before |
     $resource.change as $change |
     $change.after as $after |
     ($change.actions == ["create"]) as $creating |
@@ -400,7 +415,7 @@ jq -e '
     $after.tags == {ManagedBy: "opentofu", Project: "portfolio", Purpose: "github-release"} and
     $after.tags_all == $after.tags and
     policy_matches($after.assume_role_policy; expected_trust($subject)) and
-    inline_policy_contract($after.inline_policy; $inline_name; $inline_policy) and
+    inline_policy_contract($after.inline_policy; $inline_name; $inline_policy; $owned_before) and
     ($after.managed_policy_arns // []) == [] and
     only_unknown_attributes($change;
       ["arn", "create_date", "id", "name_prefix", "unique_id"] +
