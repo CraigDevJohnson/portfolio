@@ -2773,9 +2773,9 @@ $production_apply_job
 EOF
 assert_before "$production_apply_job" 'run: task lambda-ci-review-production' \
   'uses: aws-actions/configure-aws-credentials@v6'
-for entrypoint in apply-ci-lambda-production.sh deploy-ci-lambda-production.sh; do
-  grep -Fq 'Production apply is disabled pending readiness and activation review' "$root_dir/scripts/$entrypoint"
-done
+# Executable entrypoints retain the protected evidence checks after activation.
+grep -Fq 'sh scripts/validate-ci-lambda-production-apply.sh' "$root_dir/scripts/apply-ci-lambda-production.sh"
+grep -Fq 'sh scripts/apply-ci-lambda-production.sh' "$root_dir/scripts/deploy-ci-lambda-production.sh"
 if RELEASE_ENVIRONMENT=invalid \
   IMAGE_DIGEST="$image_digest" \
   PRIOR_VERSION=7 \

@@ -8,14 +8,14 @@ for command in aws tofu gh; do
   printf '#!/bin/sh\nprintf "external command invoked\\n" >> "$CALL_LOG"\nexit 99\n' > "$tmp/bin/$command"
   chmod +x "$tmp/bin/$command"
 done
+# Activation never replaces required evidence and protected approval.
 for entrypoint in apply-ci-lambda-production.sh deploy-ci-lambda-production.sh; do
-  if PATH="$tmp/bin:$PATH" CALL_LOG="$tmp/calls" \
-    PRODUCTION_APPLY_ENABLED=true PRODUCTION_ACTIVATION_PREPARATION=true \
-    sh "$root/scripts/$entrypoint" > "$tmp/output" 2>&1; then
-    echo "Production entrypoint unexpectedly enabled: $entrypoint" >&2
+  if (unset SOURCE_SHA EVIDENCE_DIR; PATH="$tmp/bin:$PATH" CALL_LOG="$tmp/calls" \
+    sh "$root/scripts/$entrypoint") > "$tmp/output" 2>&1; then
+    echo "Production entrypoint accepted missing inputs: $entrypoint" >&2
     exit 1
   fi
-  grep -Fq 'Production apply is disabled pending readiness and activation review' "$tmp/output"
+  grep -Eq 'set SOURCE_SHA|set EVIDENCE_DIR' "$tmp/output"
 done
 test ! -e "$tmp/calls"
 apply_contract=$(cat "$root/scripts/apply-ci-lambda-production.sh" \
@@ -188,7 +188,7 @@ if PLAN_APPROVAL="$sha64" CASE_NAME=plan run_valid_bundle > "$tmp/plan" 2>&1; th
 fi
 grep -Eq 'approval identity is inconsistent|release identity does not match' "$tmp/plan"
 
-echo 'Production activation and dormant validation contracts passed'
+echo 'Production activation and protected validation contracts passed'
 
 # Missing history requires explicit bootstrap metadata, not a relaxed null check.
 unset PLAN_APPROVAL

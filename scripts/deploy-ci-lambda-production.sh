@@ -1,10 +1,6 @@
 #!/bin/sh
 set -eu
 
-# Remove only in the separately reviewed activation change after the protected
-# production Environment and role have been independently verified.
-echo "Production apply is disabled pending readiness and activation review" >&2
-exit 1
 
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR}"
 : "${SOURCE_SHA:?set SOURCE_SHA to the promotion commit}"
