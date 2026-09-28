@@ -134,6 +134,43 @@ class PublicEvidence(unittest.TestCase):
                     with self.assertRaises(ValueError): p.observe_public(self.binding, target, duration=invalid)
                     probe.assert_not_called()
 
+    def test_parser_accepts_repeated_report_to_but_rejects_duplicate_decision_headers(self):
+        def response(extra):
+            def run(command, **kwargs):
+                Path(command[command.index("-D") + 1]).write_text(
+                    "HTTP/2 301\r\nLocation: " + p.APEX + "/\r\n" + extra + "\r\n")
+                Path(command[command.index("-o") + 1]).write_bytes(b"")
+                return type("Result", (), {"stdout": "301"})()
+            return run
+        with patch.object(p.subprocess, "run", side_effect=response("Report-To: first\r\nreport-to: second\r\n")):
+            status, headers, _ = p.fetch(p.WWW, "/")
+            self.assertEqual(status, 301)
+            self.assertEqual(headers["location"], p.APEX + "/")
+        for name in ("Content-Type", "Cache-Control", "Location", "X-Unapproved"):
+            extra = name + ": first\r\n" + name.lower() + ": second\r\n"
+            with self.subTest(name=name), patch.object(p.subprocess, "run", side_effect=response(extra)):
+                with self.assertRaisesRegex(ValueError, "duplicate response header"):
+                    p.fetch(p.WWW, "/")
+
+    def test_public_first_completed_sample_is_flushed_without_response_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "receipt.json"
+            samples = self.receipt["observations"]
+            def observe(*args, **kwargs):
+                for sample in samples:
+                    kwargs["on_sample"](sample)
+                return samples
+            with patch.object(p, "checked_operator", return_value="CraigDevJohnson"), \
+                    patch.object(p, "observe_window", side_effect=observe), \
+                    patch.object(p, "public_read", return_value=self.receipt["fresh_public_read"]), \
+                    patch("builtins.print") as printed:
+                p.observe_public(self.binding, target)
+            printed.assert_called_once()
+            self.assertTrue(printed.call_args.kwargs["flush"])
+            self.assertEqual(json.loads(printed.call_args.args[0]), {
+                "operator_public_window_id": self.binding["window_id"],
+                "first_complete_sample_at": samples[0]["observed_at"]})
+
     def test_public_curl_disables_user_config_proxies_and_origin_override(self):
         with patch.object(p.subprocess, 'run', side_effect=RuntimeError('capture invocation')) as run:
             with self.assertRaises(RuntimeError): p.fetch(p.APEX, '/healthz')

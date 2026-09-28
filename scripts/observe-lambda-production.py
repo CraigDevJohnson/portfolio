@@ -79,7 +79,9 @@ def fetch(base, route, origin=""):
             if ":" in line:
                 key, value = line.split(":", 1)
                 key = key.lower()
-                require(key not in fields or key == "set-cookie", "duplicate response header")
+                # Cloudflare may repeat list-valued Report-To telemetry. It is
+                # not used by any acceptance assertion; decision headers stay strict.
+                require(key not in fields or key in {"set-cookie", "report-to"}, "duplicate response header")
                 fields[key] = value.strip()
         return int(result.stdout), fields, body.read_bytes()
 
@@ -439,7 +441,14 @@ def observe_public(binding, output, duration=2100, interval=30):
         stream.write('{}\n')
     def sample(start, end):
         return {"lambda_version": binding["lambda_version"], "checks": public_probe(binding["source_sha"])}
-    observations = observe_window(sample, duration, interval)
+    first_sample = True
+    def announce(item):
+        nonlocal first_sample
+        if first_sample:
+            print(json.dumps({"operator_public_window_id": binding["window_id"],
+                              "first_complete_sample_at": item["observed_at"]}), flush=True)
+            first_sample = False
+    observations = observe_window(sample, duration, interval, on_sample=announce)
     result = {**{key: binding[key] for key in BINDING}, "schema_version": 1,
               "operator": operator, "collector_sha": binding["promotion_sha"],
               "operator_public_window": "passed", "interval_seconds": interval,
