@@ -1,6 +1,6 @@
 {
-    "development_deployment_id": 6702360976,
-    "image_digest": "sha256:03a2d04b9629988bb57dd7ea6697739daca3467cd8fc560fd6030f19a4948e14",
-    "schema_version": 1,
-    "source_sha": "bba16c4eb6c5bbfcd44749ea3472416829222d2a"
+  "development_deployment_id": 6702360976,
+  "image_digest": "sha256:03a2d04b9629988bb57dd7ea6697739daca3467cd8fc560fd6030f19a4948e14",
+  "schema_version": 1,
+  "source_sha": "bba16c4eb6c5bbfcd44749ea3472416829222d2a"
 }
