@@ -25,15 +25,25 @@ def validate(rule, targets):
     require(rule.get("Arn") == RULE_ARN and rule.get("State") == "ENABLED",
             "foundation notification rule is absent, disabled or in another account")
     pattern = json.loads(rule["EventPattern"])
-    require(pattern.get("account") == [ACCOUNT], "notification rule must retain exact account filtering")
-    matching = [branch for branch in pattern.get("$or", [])
-                if branch.get("source") == ["aws.cloudwatch"]
-                and branch.get("detail-type") == ["CloudWatch Alarm State Change"]
-                and branch.get("detail", {}).get("state", {}).get("value") == ["ALARM", "OK"]
-                and isinstance(branch.get("resources"), list)
-                and all(isinstance(arn, str) for arn in branch["resources"])
-                and ALARMS <= set(branch["resources"])]
-    require(len(matching) == 1, "the five production alarms lack exact native ALARM/OK selectors")
+    expected = {"account": [ACCOUNT], "$or": [
+        {"source": ["aws.guardduty"], "detail-type": ["GuardDuty Finding"]},
+        {"source": ["aws.backup"],
+         "detail-type": ["Backup Job State Change", "Copy Job State Change", "Restore Job State Change"],
+         "detail": {"state": ["FAILED", "ABORTED", "EXPIRED", "PARTIAL"]}},
+        {"source": ["aws.cloudwatch"], "detail-type": ["CloudWatch Alarm State Change"],
+         "resources": sorted(ALARMS) + [
+             f"arn:aws:cloudwatch:us-east-2:{ACCOUNT}:alarm:foundation-health-unhealthy",
+             f"arn:aws:cloudwatch:us-east-2:{ACCOUNT}:alarm:foundation-health-missing"],
+         "detail": {"state": {"value": ["ALARM", "OK"]}}},
+    ]}
+    def canonical(value):
+        if isinstance(value, dict):
+            return {key: canonical(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return sorted((canonical(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
+        return value
+    require(canonical(pattern) == canonical(expected),
+            "foundation notification pattern has missing or unexpected selectors or constraints")
     actual = targets.get("Targets", [])
     require(len(actual) == 1 and actual[0].get("Id") == "foundation-notifications"
             and actual[0].get("Arn") == BUS_ARN and actual[0].get("RoleArn") == ROLE_ARN,

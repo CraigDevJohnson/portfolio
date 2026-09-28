@@ -273,10 +273,16 @@ case "$command_name" in
       events/describe-rule)
         jq -nc '{
           Arn:"arn:aws:events:us-west-2:180294223248:rule/foundation-notifications-services",State:"ENABLED",
-          EventPattern:({account:["180294223248"],"$or":[{
+          EventPattern:({account:["180294223248"],"$or":[
+            {source:["aws.guardduty"],"detail-type":["GuardDuty Finding"]},
+            {source:["aws.backup"],
+              "detail-type":["Backup Job State Change","Copy Job State Change","Restore Job State Change"],
+              detail:{state:["FAILED","ABORTED","EXPIRED","PARTIAL"]}}, {
             source:["aws.cloudwatch"],"detail-type":["CloudWatch Alarm State Change"],
-            resources:(["api-5xx","api-latency","lambda-duration","lambda-errors","lambda-throttles"] |
-              map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-prod-" + .)),
+            resources:((["api-5xx","api-latency","lambda-duration","lambda-errors","lambda-throttles"] |
+              map("arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-lambda-prod-" + .)) + [
+                "arn:aws:cloudwatch:us-east-2:180294223248:alarm:foundation-health-unhealthy",
+                "arn:aws:cloudwatch:us-east-2:180294223248:alarm:foundation-health-missing"]),
             detail:{state:{value:["ALARM","OK"]}}
           }]} | tojson)
         }'
