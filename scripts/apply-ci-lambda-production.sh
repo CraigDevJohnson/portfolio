@@ -13,6 +13,11 @@ trap 'exit 1' HUP INT TERM
 validated_plan_file="$snapshot_dir/prod.tfplan"
 VALIDATED_PLAN_FILE="$validated_plan_file" \
   sh scripts/validate-ci-lambda-production-apply.sh
+validated_cli_config="$snapshot_dir/empty.tfrc"
+[ -f "$validated_cli_config" ] && [ ! -s "$validated_cli_config" ] || {
+  echo 'Validated production CLI configuration is missing or nonempty' >&2
+  exit 1
+}
 
 identity_file="$EVIDENCE_DIR/release-identity.json"
 identity=$(jq -cer . "$identity_file")
@@ -61,7 +66,7 @@ check_alias_version
 python3 scripts/collect-production-approval.py --evidence-dir "$EVIDENCE_DIR" --verify
 python3 scripts/check-foundation-alarm-route.py
 
-if ! tofu -chdir=infra/lambda/environments/prod apply \
+if ! TF_CLI_CONFIG_FILE="$validated_cli_config" tofu -chdir=infra/lambda/environments/prod apply \
   -lock-timeout=5m \
   -input=false \
   "$validated_plan_file"; then
