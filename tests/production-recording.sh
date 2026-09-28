@@ -81,18 +81,19 @@ export DEVELOPMENT_DEPLOYMENT_ID=90 PRIOR_VERSION=7 LAMBDA_VERSION=8
 export GITHUB_REPOSITORY=CraigDevJohnson/portfolio EVIDENCE_DIR="$tmp/success"
 export GITHUB_RUN_ID=456
 create_verification() {
-  for file in automated-window.json browser-receipt.json final-metrics.json; do
+  for file in ci-origin-window.json browser-receipt.json public-receipt.json final-metrics.json; do
     printf '{"fixture":"%s"}\n' "$file" > "$EVIDENCE_DIR/$file"
   done
   jq -n --arg source "$DEVELOPMENT_SOURCE_SHA" --arg promotion "$SOURCE_SHA" --arg digest "$IMAGE_DIGEST" \
-    --arg window "$(sha256sum "$EVIDENCE_DIR/automated-window.json" | cut -d' ' -f1)" \
+    --arg public "$(sha256sum "$EVIDENCE_DIR/public-receipt.json" | cut -d' ' -f1)" \
+    --arg window "$(sha256sum "$EVIDENCE_DIR/ci-origin-window.json" | cut -d' ' -f1)" \
     --arg browser "$(sha256sum "$EVIDENCE_DIR/browser-receipt.json" | cut -d' ' -f1)" \
     --arg metrics "$(sha256sum "$EVIDENCE_DIR/final-metrics.json" | cut -d' ' -f1)" '{
-      schema_version:2,status:"verified",source_sha:$source,promotion_sha:$promotion,
+      schema_version:3,status:"verified",source_sha:$source,promotion_sha:$promotion,
       image_digest:$digest,lambda_version:"8",production_deployment_id:91,
-      automated_public_window:"passed",browser_contract:"passed",metric_coverage:"passed",
+      ci_origin_window:"passed",operator_public_window:"passed",browser_contract:"passed",metric_coverage:"passed",
       operator:"CraigDevJohnson",provenance:"protected-github-operator",acceptance_run_id:"456",
-      automated_window_sha256:$window,browser_receipt_sha256:$browser,final_metrics_sha256:$metrics
+      ci_origin_window_sha256:$window,public_receipt_sha256:$public,browser_receipt_sha256:$browser,final_metrics_sha256:$metrics
     }' > "$EVIDENCE_DIR/production-verification.json"
 }
 record() { DEPLOYMENT_STATE="$1" sh "$root/scripts/record-ci-lambda-production.sh"; }
@@ -118,7 +119,7 @@ jq -e '
   .reviewer_login == env.REVIEWER_LOGIN
 ' \
   "$EVIDENCE_DIR/github-production-deployment.json" >/dev/null
-grep -Fq -- '-f description=Verified v8 public-apex=ok public-www=ok' "$CALL_LOG"
+grep -Fq -- '-f description=Verified v8 ci-origin=ok operator-public=ok' "$CALL_LOG"
 # Both terminal updates must address the original deployment, never create another.
 grep -Fq 'deployments/91/statuses' "$CALL_LOG"
 [ "$(grep -c -- '--method POST .*task=portfolio-lambda-production' "$CALL_LOG")" -eq 1 ]

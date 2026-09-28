@@ -126,7 +126,7 @@ Record a protected production deployment before application, then retain the
 exact final Lambda alias/version/digest and `/healthz` revision, public pages
 and assets, HTTPS, canonical redirect, secure cookies, successful Soccer/Google
 authorization and an authorized calendar operation, and alarm/error samples.
-The 30-minute window covers the required public acceptance checks together;
+The [operator public observation procedure](production-public-observation.md) keeps Cloudflare security unchanged. CI continuously observes origin TLS/routes and AWS identity/telemetry; the identified operator observes public DNS/TLS and canonical redirects. Both windows must share at least 30 actual minutes, with the real authenticated browser checks throughout that common interval. The 30-minute window covers the required public acceptance checks together;
 separate short smoke runs do not establish an uninterrupted window. Development
 verification and recovery behavior remain unchanged.
 

@@ -43,6 +43,15 @@ STATUS_101_FIXTURE="$tmp/unverified.json"; export STATUS_101_FIXTURE
 if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
   echo 'accepted production status without both public host verifications' >&2; exit 1
 fi
+# New dual-vantage evidence remains a durable target, but requires both verdicts.
+sed 's/public-apex=ok public-www=ok/ci-origin=ok operator-public=ok/' "$tmp/status101.json" > "$tmp/dual.json"
+STATUS_101_FIXTURE="$tmp/dual.json"; export STATUS_101_FIXTURE
+[ "$(sh "$root/scripts/resolve-production-rollback-coordinate.sh")" = "101	$development_sha	$digest	7" ]
+sed 's/ operator-public=ok//' "$tmp/dual.json" > "$tmp/partial-dual.json"
+STATUS_101_FIXTURE="$tmp/partial-dual.json"; export STATUS_101_FIXTURE
+if sh "$root/scripts/resolve-production-rollback-coordinate.sh" >/dev/null 2>&1; then
+  echo 'accepted CI origin success without operator public evidence' >&2; exit 1
+fi
 # A success attached to incomplete or malformed approval provenance is not trusted.
 STATUS_101_FIXTURE="$tmp/status101.json"; export STATUS_101_FIXTURE
 jq '.[0][1].payload.approval_id = ""' "$tmp/deployments.json" > "$tmp/untrusted-provenance.json"

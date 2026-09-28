@@ -218,10 +218,11 @@ case "$DEPLOYMENT_STATE" in
         --arg acceptance_run "${GITHUB_RUN_ID:-}" \
         --arg image_digest "$IMAGE_DIGEST" \
         --arg version "$LAMBDA_VERSION" '
-        .schema_version == 2 and .status == "verified" and
+        .schema_version == 3 and .status == "verified" and
         .source_sha == $source_sha and .image_digest == $image_digest and
         .promotion_sha == $promotion_sha and .production_deployment_id == $deployment_id and
-        .lambda_version == $version and .automated_public_window == "passed" and
+        .lambda_version == $version and .ci_origin_window == "passed" and
+        .operator_public_window == "passed" and
         .browser_contract == "passed" and .metric_coverage == "passed" and
         .operator == "CraigDevJohnson" and .provenance == "protected-github-operator" and
         .acceptance_run_id == $acceptance_run and ($acceptance_run | test("^[1-9][0-9]*$"))
@@ -229,8 +230,9 @@ case "$DEPLOYMENT_STATE" in
         echo 'production verification evidence is missing or inconsistent' >&2
         exit 1
       }
-      for binding in automated-window.json:automated_window_sha256 \
-        browser-receipt.json:browser_receipt_sha256 final-metrics.json:final_metrics_sha256; do
+      for binding in ci-origin-window.json:ci_origin_window_sha256 \
+        browser-receipt.json:browser_receipt_sha256 public-receipt.json:public_receipt_sha256 \
+        final-metrics.json:final_metrics_sha256; do
         file=${binding%:*}; field=${binding#*:}
         test -s "$EVIDENCE_DIR/$file" &&
           test "$(sha256sum "$EVIDENCE_DIR/$file" | awk '{print $1}')" = \
@@ -238,7 +240,7 @@ case "$DEPLOYMENT_STATE" in
           echo "production verification omitted or changed $file" >&2; exit 1;
         }
       done
-      description="Verified v$LAMBDA_VERSION public-apex=ok public-www=ok"
+      description="Verified v$LAMBDA_VERSION ci-origin=ok operator-public=ok"
       final_version=$LAMBDA_VERSION
     else
       description="Failed $DEVELOPMENT_SOURCE_SHA at $IMAGE_DIGEST"

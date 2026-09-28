@@ -154,16 +154,16 @@ class FinalizationTest(unittest.TestCase):
         (directory / "github-production-deployment.json").write_text(json.dumps(deployment))
         (directory / "approval.json").write_text(json.dumps({"approval_id": "approved-11"}))
         window = {
-            "schema_version": 1, "window_id": "observed-window", "production_deployment_id": "91",
+            "schema_version": 1, "window_id": observer.window_id(self.source, "91"), "production_deployment_id": "91",
             "promotion_sha": self.source, "source_sha": identity["development_source_sha"],
             "image_digest": identity["image_digest"], "lambda_version": "8",
-            "base_url": "https://craigdevjohnson.com", "automated_public_window": "passed",
+            "base_url": "https://craigdevjohnson.com", "ci_origin_window": "passed",
             "started_at": observer.utc(start), "ended_at": observer.utc(start + 1800),
             "observations": [{"observed_at": observer.utc(start + step * 30),
                               "elapsed_seconds": step * 30, "lambda_version": "8"}
                              for step in range(61)],
         }
-        (directory / "automated-window.json").write_text(json.dumps(window))
+        (directory / "ci-origin-window.json").write_text(json.dumps(window))
         receipt = {key: window[key] for key in (
             "schema_version", "window_id", "production_deployment_id", "promotion_sha", "source_sha",
             "image_digest", "lambda_version", "base_url")}
@@ -174,13 +174,22 @@ class FinalizationTest(unittest.TestCase):
             "cookie": {"secure": True, "http_only": True, "same_site": "Lax", "path": "/soccer"},
             "authenticated_cache_control": "no-store, max-age=0",
         } for step in range(61)])
+        public = {key: window[key] for key in observer.BINDING}
+        public.update(schema_version=1, operator="CraigDevJohnson", collector_sha=self.source,
+                      operator_public_window="passed", started_at=window["started_at"], ended_at=window["ended_at"],
+                      interval_seconds=30, observations=[dict(item, checks=observer.PUBLIC_CHECKS)
+                                                        for item in window["observations"]],
+                      fresh_public_read={"observed_at": observer.utc(time.time()), "duration_seconds": 1,
+                                         "checks": observer.PUBLIC_CHECKS, "binding_sha256": observer.binding_digest(window)})
+        self.public = public
         return observer, receipt
 
     def test_finalization_records_original_deployment_only_after_actual_contract_checks(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             observer, receipt = self.evidence_bundle(directory)
-            context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt))
+            context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt, separators=(",", ":")),
+                           PUBLIC_RECEIPT_JSON=json.dumps(self.public, separators=(",", ":")))
             with mock.patch.dict(module.os.environ, context, clear=True), \
                     mock.patch.object(module.sys, "argv", ["finalize-production.py", "finalize"]), \
                     mock.patch.object(module, "provenance", return_value={"id": 44}), \
@@ -195,12 +204,63 @@ class FinalizationTest(unittest.TestCase):
             self.assertEqual(result["acceptance_run_id"], "22")
             self.assertEqual(result["browser_receipt_sha256"], module.digest(directory / "browser-receipt.json"))
 
+    def test_invalid_public_receipts_never_record_success(self):
+        for failure in ("missing", "route", "stale", "binding", "oversized"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                observer, receipt = self.evidence_bundle(directory)
+                public = copy.deepcopy(self.public)
+                if failure == "missing": public = {}
+                if failure == "route": public["observations"][-1]["checks"] = []
+                if failure == "stale": public["fresh_public_read"]["observed_at"] = observer.utc(time.time() - 301)
+                if failure == "binding": public["image_digest"] = "sha256:" + "0" * 64
+                if failure == "oversized": public["padding"] = "x" * 60000
+                context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt),
+                               PUBLIC_RECEIPT_JSON=json.dumps(public))
+                with mock.patch.dict(module.os.environ, context, clear=True), \
+                        mock.patch.object(module.sys, "argv", ["finalize-production.py", "finalize"]), \
+                        mock.patch.object(module, "provenance", return_value={"id": 44}), \
+                        mock.patch.object(module, "observer_module", return_value=observer), \
+                        mock.patch.object(observer, "final_metrics") as metrics, \
+                        mock.patch.object(module.subprocess, "run") as record:
+                    with self.assertRaises((ValueError, KeyError)):
+                        module.main()
+                record.assert_not_called()
+                metrics.assert_not_called()
+                self.assertFalse((directory / "production-verification.json").exists())
+
+    def test_public_freshness_is_rechecked_after_final_remote_checks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            observer, receipt = self.evidence_bundle(directory)
+            context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt),
+                           PUBLIC_RECEIPT_JSON=json.dumps(self.public))
+            real_validate = observer.validate_public
+            calls = []
+            def validate(*args):
+                calls.append(True)
+                if len(calls) == 2:
+                    raise ValueError("fresh public read is stale")
+                return real_validate(*args)
+            with mock.patch.dict(module.os.environ, context, clear=True), \
+                    mock.patch.object(module.sys, "argv", ["finalize-production.py", "finalize"]), \
+                    mock.patch.object(module, "provenance", return_value={"id": 44}), \
+                    mock.patch.object(module, "observer_module", return_value=observer), \
+                    mock.patch.object(observer, "validate_public", side_effect=validate), \
+                    mock.patch.object(observer, "final_metrics", return_value={}), \
+                    mock.patch.object(module.subprocess, "run") as record:
+                with self.assertRaisesRegex(ValueError, "stale"):
+                    module.main()
+            record.assert_not_called()
+            self.assertFalse((directory / "production-verification.json").exists())
+
     def test_failed_browser_journey_never_records_success(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             observer, receipt = self.evidence_bundle(directory)
             receipt["observations"][-1]["soccer"] = "session_expired"
-            context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt))
+            context = dict(self.context, EVIDENCE_DIR=str(directory), BROWSER_RECEIPT_JSON=json.dumps(receipt, separators=(",", ":")),
+                           PUBLIC_RECEIPT_JSON=json.dumps(self.public, separators=(",", ":")))
             with mock.patch.dict(module.os.environ, context, clear=True), \
                     mock.patch.object(module.sys, "argv", ["finalize-production.py", "finalize"]), \
                     mock.patch.object(module, "provenance", return_value={"id": 44}), \
