@@ -185,6 +185,13 @@ validation_dir=$(dirname "$VALIDATED_PLAN_FILE")
 export TF_CLI_CONFIG_FILE="$validation_dir/empty.tfrc"
 : > "$TF_CLI_CONFIG_FILE"
 rendered_plan_json="$validation_dir/plan.json"
+tofu -chdir=infra/lambda/environments/prod init \
+  -backend-config=backend.hcl -reconfigure -lockfile=readonly -input=false
+workspace=$(tofu -chdir=infra/lambda/environments/prod workspace show)
+[ "$workspace" = default ] || {
+  echo 'Refusing non-default production OpenTofu workspace' >&2
+  exit 1
+}
 tofu -chdir=infra/lambda/environments/prod show -json "$VALIDATED_PLAN_FILE" > "$rendered_plan_json"
 for binding in \
   "$manifest_file:manifest_sha256" "$scan_file:scan_sha256" \

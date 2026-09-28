@@ -9,6 +9,12 @@ cat > "$tmp/scripts/validate-ci-lambda-production-apply.sh" <<'FAKE'
 #!/bin/sh
 set -eu
 printf 'reviewed plan\n' > "$VALIDATED_PLAN_FILE"
+export TF_CLI_CONFIG_FILE="$(dirname "$VALIDATED_PLAN_FILE")/empty.tfrc"
+case "${MOCK_CONFIG_STATE:-empty}" in
+  empty) : > "$TF_CLI_CONFIG_FILE" ;;
+  nonempty) printf 'unexpected configuration\n' > "$TF_CLI_CONFIG_FILE" ;;
+  missing) ;;
+esac
 FAKE
 cat > "$tmp/scripts/collect-production-approval.py" <<'FAKE'
 import os
@@ -62,6 +68,10 @@ FAKE
 cat > "$tmp/bin/tofu" <<'FAKE'
 #!/bin/sh
 set -eu
+for argument in "$@"; do plan_file=$argument; done
+[ "${TF_CLI_CONFIG_FILE:-}" = "$(dirname "$plan_file")/empty.tfrc" ]
+test -f "$TF_CLI_CONFIG_FILE"
+test ! -s "$TF_CLI_CONFIG_FILE"
 printf 'apply\n' >> "$CALL_LOG"
 [ "${APPLY_FAIL:-false}" = false ]
 FAKE
@@ -87,7 +97,8 @@ grep -q '^approval$' "$tmp/calls"
 [ "$(grep -c '^alias$' "$tmp/calls")" -eq 2 ]
 test -s "$tmp/evidence/APPLIED_NOT_VERIFIED"
 for failure in HISTORY=error HISTORY=existing ALIAS_DRIFT=true SECOND_ALIAS_DRIFT=true \
-  LIVE_IMAGE=wrong APPROVAL_REVOKED=true ROUTE_UNAVAILABLE=true; do
+  LIVE_IMAGE=wrong APPROVAL_REVOKED=true ROUTE_UNAVAILABLE=true \
+  MOCK_CONFIG_STATE=missing MOCK_CONFIG_STATE=nonempty; do
   if run_apply "$failure" > "$tmp/output" 2>&1; then
     echo "First production apply accepted $failure" >&2; exit 1
   fi
@@ -149,7 +160,24 @@ FAKE
 cat > "$tmp/bin/tofu" <<'FAKE'
 #!/bin/sh
 set -eu
-case "$*" in *' show -json '*) cat "$4" ;; *) exit 97 ;; esac
+[ "${TF_CLI_CONFIG_FILE:-}" = "$(dirname "$VALIDATED_PLAN_FILE")/empty.tfrc" ]
+test -f "$TF_CLI_CONFIG_FILE"
+test ! -s "$TF_CLI_CONFIG_FILE"
+case "$*" in
+  '-chdir=infra/lambda/environments/prod init -backend-config=backend.hcl -reconfigure -lockfile=readonly -input=false')
+    printf 'init\n' >> "$MOCK_TOFU_LOG"
+    [ "${MOCK_INIT_FAIL:-false}" = false ] || exit 55
+    : > "$MOCK_TOFU_INITIALIZED" ;;
+  '-chdir=infra/lambda/environments/prod workspace show')
+    test -f "$MOCK_TOFU_INITIALIZED"
+    printf 'workspace\n' >> "$MOCK_TOFU_LOG"
+    printf '%s\n' "${MOCK_WORKSPACE:-default}" ;;
+  *' show -json '*)
+    test -f "$MOCK_TOFU_INITIALIZED"
+    printf 'show\n' >> "$MOCK_TOFU_LOG"
+    cat "$4" ;;
+  *) exit 97 ;;
+esac
 FAKE
 chmod +x "$tmp/bin/"* "$tmp/scripts/"*.sh
 (cd "$tmp" && sh scripts/plan-ci-lambda-production.sh)
@@ -167,7 +195,26 @@ jq -n --arg source "$SOURCE_SHA" --arg plan "$APPROVED_PLAN_SHA256" '{schema_ver
   planning_run_attempt:"1",reviewer_login:"CraigDevJohnson",approval_id:"review-10"}' > "$EVIDENCE_DIR/approval.json"
 export APPROVED_APPROVAL_SHA256="$(sha256sum "$EVIDENCE_DIR/approval.json" | awk '{print $1}')"
 export APPROVED_IDENTITY_SHA256="$(sha256sum "$EVIDENCE_DIR/release-identity.json" | awk '{print $1}')"
+export MOCK_TOFU_LOG="$tmp/tofu-calls" MOCK_TOFU_INITIALIZED="$tmp/tofu-initialized"
 (cd "$tmp" && VALIDATED_PLAN_FILE="$tmp/accepted/prod.tfplan" sh scripts/validate-ci-lambda-production-apply.sh)
+printf 'init\nworkspace\nshow\n' > "$tmp/expected-tofu-calls"
+cmp "$tmp/expected-tofu-calls" "$MOCK_TOFU_LOG"
+: > "$MOCK_TOFU_LOG"
+rm "$MOCK_TOFU_INITIALIZED"
+if (cd "$tmp" && MOCK_INIT_FAIL=true VALIDATED_PLAN_FILE="$tmp/init-failed/prod.tfplan" \
+  sh scripts/validate-ci-lambda-production-apply.sh) > "$tmp/init-failed-output" 2>&1; then
+  echo 'Validator ignored initialization failure' >&2; exit 1
+fi
+printf 'init\n' > "$tmp/expected-tofu-calls"
+cmp "$tmp/expected-tofu-calls" "$MOCK_TOFU_LOG"
+: > "$MOCK_TOFU_LOG"
+if (cd "$tmp" && MOCK_WORKSPACE=other VALIDATED_PLAN_FILE="$tmp/wrong-workspace/prod.tfplan" \
+  sh scripts/validate-ci-lambda-production-apply.sh) > "$tmp/wrong-workspace-output" 2>&1; then
+  echo 'Validator accepted a non-default production workspace' >&2; exit 1
+fi
+grep -Fq 'Refusing non-default production OpenTofu workspace' "$tmp/wrong-workspace-output"
+printf 'init\nworkspace\n' > "$tmp/expected-tofu-calls"
+cmp "$tmp/expected-tofu-calls" "$MOCK_TOFU_LOG"
 # Even a consistently checksummed identity cannot substitute a different observed bootstrap.
 jq '.bootstrap.alias_version = "2"' "$EVIDENCE_DIR/release-identity.json" > "$tmp/changed-identity"
 cp "$tmp/changed-identity" "$EVIDENCE_DIR/release-identity.json"
