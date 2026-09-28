@@ -1888,6 +1888,86 @@ done
 
 expect_pass "development replacement plan" run_check "$dev_plan" dev
 expect_pass "production replacement plan" run_check "$prod_plan" prod
+prod_certificate_plan="$tmp_dir/prod-certificate.json"
+jq '
+  .variables.request_custom_domain.value = true |
+  .variables.activate_custom_domain.value = false |
+  .variables.domain_names.value = ["craigdevjohnson.com", "www.craigdevjohnson.com"] |
+  .resource_changes += [{
+    address: "module.service.aws_acm_certificate.custom[0]", mode: "managed",
+    type: "aws_acm_certificate", name: "custom", index: 0,
+    change: {actions: ["create"], before: null, after: {
+      arn: "arn:aws:acm:us-west-2:180294223248:certificate/test",
+      domain_name: "craigdevjohnson.com",
+      subject_alternative_names: ["www.craigdevjohnson.com"],
+      validation_method: "DNS", certificate_authority_arn: null,
+      tags_all: {Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"},
+      domain_validation_options: [
+        {domain_name: "craigdevjohnson.com", resource_record_type: "CNAME",
+          resource_record_name: "_apex.craigdevjohnson.com."},
+        {domain_name: "www.craigdevjohnson.com", resource_record_type: "CNAME",
+          resource_record_name: "_www.www.craigdevjohnson.com."}
+      ]
+    }, after_unknown: {}, before_sensitive: false, after_sensitive: false}
+  }]
+' "$prod_plan" > "$prod_certificate_plan"
+expect_pass "production certificate bootstrap retains exact domains" run_check "$prod_certificate_plan" prod
+prod_certificate_normalized_plan="$tmp_dir/prod-certificate-normalized.json"
+jq '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.subject_alternative_names) += ["craigdevjohnson.com"]
+' "$prod_certificate_plan" > "$prod_certificate_normalized_plan"
+expect_pass "production certificate accepts provider-normalized SANs including the primary name" \
+  run_check "$prod_certificate_normalized_plan" prod
+prod_domains_plan="$tmp_dir/prod-domains.json"
+jq '
+  .variables.activate_custom_domain.value = true |
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom")) |=
+    (.expressions = {
+      api_id: {references: ["aws_apigatewayv2_api.app.id", "aws_apigatewayv2_api.app"]},
+      domain_name: {references: ["aws_apigatewayv2_domain_name.custom", "each.key"]},
+      stage: {references: ["aws_apigatewayv2_stage.default.id", "aws_apigatewayv2_stage.default"]}
+    } | .for_each_expression.references = ["var.activate_custom_domain", "var.domain_names"]) |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api") | .change.after.id) = "api-123" |
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.actions) = ["no-op"] |
+  .resource_changes += [{
+    address: "module.service.aws_acm_certificate_validation.custom[0]", mode: "managed",
+    type: "aws_acm_certificate_validation", name: "custom", index: 0,
+    change: {actions: ["create"], before: null,
+      after: {certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test",
+        validation_record_fqdns: ["_apex.craigdevjohnson.com.", "_www.www.craigdevjohnson.com."]},
+      after_unknown: {}, before_sensitive: false, after_sensitive: false}
+  }] + (["craigdevjohnson.com", "www.craigdevjohnson.com"] | map(. as $domain | [
+    {address: ("module.service.aws_apigatewayv2_domain_name.custom[" + ($domain | tojson) + "]"),
+      mode: "managed", type: "aws_apigatewayv2_domain_name", name: "custom", index: $domain,
+      change: {actions: ["create"], before: null, after: {domain_name: $domain, routing_mode: "API_MAPPING_ONLY",
+        tags_all: {Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"},
+        domain_name_configuration: [{endpoint_type: "REGIONAL", security_policy: "TLS_1_2",
+          certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test"}]},
+        after_unknown: {}, before_sensitive: false, after_sensitive: false}},
+    {address: ("module.service.aws_apigatewayv2_api_mapping.custom[" + ($domain | tojson) + "]"),
+      mode: "managed", type: "aws_apigatewayv2_api_mapping", name: "custom", index: $domain,
+      change: {actions: ["create"], before: null,
+        after: {domain_name: $domain, api_id: "api-123", stage: "$default", api_mapping_key: null},
+        after_unknown: {}, before_sensitive: false, after_sensitive: false}}
+  ]) | flatten)
+' "$prod_certificate_plan" > "$prod_domains_plan"
+expect_pass "production domain activation binds exact regional TLS and API mappings" \
+  run_check "$prod_domains_plan" prod
+prod_domains_deferred_plan="$tmp_dir/prod-domains-deferred.json"
+jq '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.certificate_authority_arn) = "" |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change) |=
+    (del(.after.domain_name) | .after_unknown.domain_name = true) |
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom")) |=
+    (.expressions.domain_name.references = ["aws_apigatewayv2_domain_name.custom", "each.key"] |
+      .for_each_expression.references = ["var.activate_custom_domain", "var.domain_names"])
+' "$prod_domains_plan" > "$prod_domains_deferred_plan"
+expect_pass "production mappings allow provider-deferred IDs bound to exact configured domains" \
+  run_check "$prod_domains_deferred_plan" prod
 expect_fail \
   "production replacement plan rejects an incomplete managed topology" \
   run_check "$prod_missing_integration_plan" prod
@@ -2077,6 +2157,99 @@ mutate_and_reject() {
   expect_fail "$name" run_check "$mutated" "$environment"
 }
 
+for domain_mutation in \
+  '.variables.request_custom_domain.value = false' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.validation_method) = "EMAIL"' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.domain_name) = "other.example"' \
+  '(.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.certificate_authority_arn) = "private"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name) = "other.example"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change.after.api_id) = "other-api"' \
+  '(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change.after.stage) = "other-stage"'; do
+  mutate_and_reject "production domain bootstrap rejects coordinate or validation drift" \
+    "$prod_domains_plan" "$domain_mutation"
+done
+mutate_and_reject "production domain bootstrap rejects weaker TLS" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].security_policy) = "TLS_1_0"
+'
+mutate_and_reject "production domain bootstrap rejects an unrelated certificate" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].certificate_arn) = "arn:aws:acm:us-west-2:180294223248:certificate/other"
+'
+mutate_and_reject "production deferred mappings reject an unreviewed domain reference" "$prod_domains_deferred_plan" '
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.address == "aws_apigatewayv2_api_mapping.custom") |
+    .expressions.domain_name.references) = ["var.unreviewed_domain"]
+'
+mutate_and_reject "production domains reject routing-rule-only mode" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.routing_mode) = "ROUTING_RULE_ONLY"
+'
+mutate_and_reject "production domains reject deferred routing mode" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after_unknown.routing_mode) = true
+'
+mutate_and_reject "production root mappings reject deferred mapping keys" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") |
+    .change.after_unknown.api_mapping_key) = true
+'
+mutate_and_reject "domain activation requires a captured API ID" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api") | .change) |=
+    (.after.id = null | .after_unknown.id = true) |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change) |=
+    (.after.api_id = null | .after_unknown.api_id = true)
+'
+mutate_and_reject "domain activation requires a captured certificate ARN" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change) |=
+    (.after.arn = null | .after_unknown.arn = true) |
+  (.resource_changes[] | select(.type == "aws_acm_certificate_validation") | .change) |=
+    (.after.certificate_arn = null | .after_unknown.certificate_arn = true) |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].certificate_arn) = null
+'
+mutate_and_reject "production certificate rejects a deferred private CA" "$prod_certificate_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after_unknown.certificate_authority_arn) = true
+'
+mutate_and_reject "production certificate rejects exportable keys" "$prod_certificate_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.options) = [{export: "ENABLED"}]
+'
+mutate_and_reject "production certificate rejects deferred export options" "$prod_certificate_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after_unknown.options) = [{export: true}]
+'
+mutate_and_reject "production domains reject deferred mutual TLS" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after_unknown.mutual_tls_authentication) = true
+'
+mutate_and_reject "production certificate validation rejects unrelated DNS names" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate_validation") |
+    .change.after.validation_record_fqdns) = ["_other.example.com."]
+'
+mutate_and_reject "production certificate validation rejects deferred DNS names" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate_validation") |
+    .change.after_unknown.validation_record_fqdns) = [true, false]
+'
+for certificate_material in certificate_body certificate_chain private_key; do
+  mutate_and_reject "public certificate rejects deferred import material" "$prod_certificate_plan" \
+    "(.resource_changes[] |
+      select(.type == \"aws_acm_certificate\") | .change.after_unknown.$certificate_material) = true"
+done
+mutate_and_reject "public certificate rejects disabled transparency logging" "$prod_certificate_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change.after.options) =
+    [{export: "DISABLED", certificate_transparency_logging_preference: "DISABLED"}]
+'
+mutate_and_reject "known domain mappings retain the domain dependency" "$prod_domains_plan" '
+  (.configuration.root_module.module_calls.service.module.resources[] |
+    select(.type == "aws_apigatewayv2_api_mapping") | .expressions.domain_name.references) = ["each.key"]
+'
+for tagged_resource in aws_acm_certificate aws_apigatewayv2_domain_name; do
+  mutate_and_reject "domain resources retain CI-readable ownership tags" "$prod_domains_plan" \
+    "(.resource_changes[] | select(.type == \"$tagged_resource\") | .change.after.tags_all.Project) = \"other\""
+  mutate_and_reject "domain ownership tags cannot be deferred" "$prod_domains_plan" \
+    "(.resource_changes[] | select(.type == \"$tagged_resource\") | .change.after_unknown.tags_all.Project) = true"
+done
 mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
 mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'
 mutate_and_reject \

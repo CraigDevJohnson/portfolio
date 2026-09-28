@@ -49,7 +49,8 @@ resource "aws_acm_certificate_validation" "custom" {
 resource "aws_apigatewayv2_domain_name" "custom" {
   for_each = var.activate_custom_domain ? var.domain_names : toset([])
 
-  domain_name = each.value
+  domain_name  = each.value
+  routing_mode = "API_MAPPING_ONLY"
 
   domain_name_configuration {
     certificate_arn = aws_acm_certificate_validation.custom[0].certificate_arn

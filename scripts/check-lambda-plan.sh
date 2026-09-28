@@ -500,8 +500,11 @@ if [ "$ENVIRONMENT" = prod ]; then
       ["module.service.aws_lambda_alias.live", "aws_lambda_alias"],
       ["module.service.aws_lambda_function.app", "aws_lambda_function"],
       ["module.service.aws_lambda_permission.api", "aws_lambda_permission"]
-    ] + if $mode == "production" or $mode == "rollback" then [
-      ["module.service.aws_acm_certificate.custom[0]", "aws_acm_certificate"],
+    ] + (if $mode == "production" or $mode == "rollback" or
+      .variables.request_custom_domain.value == true then [
+      ["module.service.aws_acm_certificate.custom[0]", "aws_acm_certificate"]
+    ] else [] end) + (if $mode == "production" or $mode == "rollback" or
+      .variables.activate_custom_domain.value == true then [
       ["module.service.aws_acm_certificate_validation.custom[0]", "aws_acm_certificate_validation"],
       ["module.service.aws_apigatewayv2_domain_name.custom[\"craigdevjohnson.com\"]", "aws_apigatewayv2_domain_name"],
       [
@@ -513,8 +516,97 @@ if [ "$ENVIRONMENT" = prod ]; then
         "module.service.aws_apigatewayv2_api_mapping.custom[\"www.craigdevjohnson.com\"]",
         "aws_apigatewayv2_api_mapping"
       ]
-    ] else [] end) | sort)
+    ] else [] end)) | sort)
   ' "$PLAN_JSON" > /dev/null || fail "production plan managed topology drifted"
+
+  if [ "$AUTOMATED_RELEASE" = false ]; then
+    jq -e '
+      def expected_domain_tags: {
+        Environment: "prod", ManagedBy: "opentofu", Platform: "lambda-http-api", Project: "portfolio"
+      };
+      def fully_known: (. // false) | [.. | scalars] | all(.[]; . == false);
+      ([.configuration.root_module.module_calls.service.module.resources[] |
+        select(.address == "aws_apigatewayv2_api_mapping.custom")][0]) as $mapping_config |
+      (.variables.request_custom_domain.value // false) as $request |
+      (.variables.activate_custom_domain.value // false) as $activate |
+      ($request | type == "boolean") and ($activate | type == "boolean") and
+      (if $activate then $request else true end) and
+      (if $request then
+        (.variables.domain_names.value | sort) == ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
+        ([.resource_changes[] | select(.type == "aws_acm_certificate")][0] as $cert_resource |
+          $cert_resource.change.after as $cert |
+          $cert.domain_name == "craigdevjohnson.com" and
+          ($cert.subject_alternative_names | type == "array" and all(.[]; type == "string")) and
+          ([$cert.domain_name] + $cert.subject_alternative_names | unique | sort) ==
+            ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
+          $cert.validation_method == "DNS" and
+          ($cert.certificate_authority_arn == null or $cert.certificate_authority_arn == "") and
+          ($cert_resource.change.after_unknown.certificate_authority_arn | fully_known) and
+          ($cert.options == null or ($cert.options | type == "array" and length <= 1)) and
+          all(($cert.options // [])[];
+            type == "object" and (.export == null or .export == "DISABLED") and
+            (.certificate_transparency_logging_preference == null or
+              .certificate_transparency_logging_preference == "ENABLED")) and
+          ($cert_resource.change.after_unknown.options | fully_known) and
+          $cert.tags_all == expected_domain_tags and
+          ($cert_resource.change.after_unknown.tags_all | fully_known) and
+          all(["certificate_body", "certificate_chain", "private_key"][];
+            . as $field | ($cert[$field] == null or $cert[$field] == "") and
+              ($cert_resource.change.after_unknown[$field] | fully_known)) and
+          (if $activate then
+            ($cert.arn | type == "string" and
+              test("^arn:aws:acm:us-west-2:180294223248:certificate/[a-zA-Z0-9-]+$")) and
+            (($cert_resource.change.after_unknown.arn // false) == false) and
+            ($cert.domain_validation_options | type == "array" and length == 2 and
+              all(.[]; .resource_record_type == "CNAME" and
+                (.resource_record_name | type == "string" and length > 0))) and
+            ([$cert.domain_validation_options[].domain_name] | sort) ==
+              ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
+            ($cert_resource.change.after_unknown.domain_validation_options | fully_known) and
+            all(.resource_changes[] | select(.type == "aws_acm_certificate_validation");
+              .change.after.certificate_arn == $cert.arn and
+              ((.change.after_unknown.certificate_arn // false) == false) and
+              (.change.after.validation_record_fqdns | sort) ==
+                ([$cert.domain_validation_options[].resource_record_name] | sort) and
+              (.change.after_unknown.validation_record_fqdns | fully_known)) and
+            ($mapping_config.expressions | keys | sort) == ["api_id", "domain_name", "stage"] and
+            ($mapping_config.expressions.domain_name.references | sort) ==
+              ["aws_apigatewayv2_domain_name.custom", "each.key"] and
+            ($mapping_config.expressions.api_id.references | sort) ==
+              ["aws_apigatewayv2_api.app", "aws_apigatewayv2_api.app.id"] and
+            ($mapping_config.expressions.stage.references | sort) ==
+              ["aws_apigatewayv2_stage.default", "aws_apigatewayv2_stage.default.id"] and
+            ($mapping_config.for_each_expression.references | sort) ==
+              ["var.activate_custom_domain", "var.domain_names"] and
+            all(.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name");
+              .change.after.domain_name == .index and
+              .change.after.tags_all == expected_domain_tags and
+              (.change.after_unknown.tags_all | fully_known) and
+              .change.after.routing_mode == "API_MAPPING_ONLY" and
+              ((.change.after_unknown.routing_mode // false) == false) and
+              (.change.after.mutual_tls_authentication == null or .change.after.mutual_tls_authentication == []) and
+              (.change.after_unknown.mutual_tls_authentication | fully_known) and
+              (.change.after.domain_name_configuration | length) == 1 and
+              .change.after.domain_name_configuration[0].certificate_arn == $cert.arn and
+              .change.after.domain_name_configuration[0].endpoint_type == "REGIONAL" and
+              .change.after.domain_name_configuration[0].security_policy == "TLS_1_2") and
+            ([.resource_changes[] | select(.type == "aws_apigatewayv2_api")][0] as $api_resource |
+              $api_resource.change.after.id as $api |
+              ($api | type == "string" and length > 0) and
+              (($api_resource.change.after_unknown.id // false) == false) and
+              all(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping");
+                (.change.after.domain_name == .index or
+                  (.change.after.domain_name == null and .change.after_unknown.domain_name == true)) and
+                .change.after.api_id == $api and
+                ((.change.after_unknown.api_id // false) == false) and
+                .change.after.stage == "$default" and
+                ((.change.after_unknown.stage // false) == false) and
+                ((.change.after_unknown.api_mapping_key // false) == false) and
+                (.change.after.api_mapping_key == null or .change.after.api_mapping_key == "")))
+          else true end))
+      else true end)
+    ' "$PLAN_JSON" > /dev/null || fail "production certificate or domain provisioning drifted"
+  fi
 
   jq -e '
     (.configuration.root_module | has("resources") | not) and
