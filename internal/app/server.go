@@ -83,24 +83,32 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	mux.HandleFunc("GET /education", portfolio.EducationHandler)
 	mux.HandleFunc("GET /contact", portfolio.ContactHandler)
 
-	// soccer routes
-	mux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
+	// Soccer responses contain account data or authentication state.
+	soccerMux := http.NewServeMux()
+	soccerMux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
 		if isGoogleCallbackRequest(r) {
 			app.GoogleHandler.CallbackHandler(w, r)
 			return
 		}
 		soccerHandler.SoccerPage(w, r)
 	})
-	mux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
-	mux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
-	mux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
-	mux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
-	mux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
-	mux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
-	mux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
-	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
-	mux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
-	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+	soccerMux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
+	soccerMux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
+	soccerMux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
+	soccerMux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
+	soccerMux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
+	soccerMux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
+	soccerMux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
+	soccerMux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
+	soccerMux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
+	soccerMux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+
+	soccerRoutes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		soccerMux.ServeHTTP(w, r)
+	})
+	mux.Handle("/soccer", soccerRoutes)
+	mux.Handle("/soccer/", soccerRoutes)
 
 	// portal routes
 	if localPortalPreview {
