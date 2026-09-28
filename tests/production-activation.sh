@@ -107,8 +107,9 @@ grep -Fq 'Protected production approval checksum does not match' "$tmp/validator
 test ! -e "$tmp/validated/prod.tfplan"
 
 promotion_sha=dddddddddddddddddddddddddddddddddddddddd
-development_sha=9528b784088f71fa39d1d7fce8570278c0d3acaf
-development_digest=sha256:affaf0a7e2ff3add63db709107785c49faf5b08a8a86959bd4719402372b5776
+development_sha=$(jq -er .source_sha "$root/deploy/production-release.json")
+development_digest=$(jq -er .image_digest "$root/deploy/production-release.json")
+development_deployment=$(jq -er .development_deployment_id "$root/deploy/production-release.json")
 plan_sha=$(sha256sum "$evidence/prod.tfplan" | awk '{print $1}')
 backend_sha=$(sha256sum "$root/infra/lambda/environments/prod/backend.hcl" | awk '{print $1}')
 make_valid_bundle() {
@@ -124,12 +125,12 @@ make_valid_bundle() {
   plan_text_sha=$(sha256sum "$evidence/plan.txt" | awk '{print $1}')
   policy_sha=$(sha256sum "$evidence/policy.txt" | awk '{print $1}')
   jq -n --arg promotion "$promotion_sha" --arg development "$development_sha" \
-    --arg digest "$development_digest" --arg plan "$plan_sha" \
+    --arg digest "$development_digest" --argjson deployment "$development_deployment" --arg plan "$plan_sha" \
     --arg backend "$backend_sha" --arg manifest "$manifest_sha" \
     --arg scan "$scan_evidence_sha" --arg plan_json "$plan_json_sha" \
     --arg plan_text "$plan_text_sha" --arg policy "$policy_sha" '{
       schema_version:1,promotion_sha:$promotion,development_source_sha:$development,
-      image_digest:$digest,development_deployment_id:6179270539,
+      image_digest:$digest,development_deployment_id:$deployment,
       planning_run_id:"10",planning_run_attempt:"1",planning_environment:"production-plan",
       production_root:"infra/lambda/environments/prod",backend:{
         bucket:"portfolio-tofu-state-180294223248",
