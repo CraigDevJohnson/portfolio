@@ -36,14 +36,18 @@ References checked September 27, 2026:
 The reviewed execution uses a private single-resource OpenTofu configuration
 with the final address `module.service.aws_apigatewayv2_api.app`, the existing
 production backend/key and the pinned provider. It creates only the named HTTP
-API with the final four ownership tags. Before applying, require absent
+API shell initially without tags. Add the four ownership tags immediately after
+capturing its exact ID, before creating an integration, stage or public route. Before applying, require absent
 production state and a saved plan containing exactly this one create, no data
 or other managed resources, no updates or deletes and no secret inputs.
 
 The temporary first-stage policy adds only name-constrained API creation and
 write access to the exact production state object; the existing temporary
 planning policy supplies metadata and lock access. The pinned provider sends
-tags in CreateApi and reads them back in GetApi. After capturing the ID, withdraw
+tags in CreateApi, but AWS additionally authorizes a wildcard encoded tag
+resource before allocating an ID. The initial tagged attempt was denied before
+creation; the revised stage omits tags rather than widening tag authority.
+After capturing the ID, withdraw
 creation authority and refine subsequent resource grants to that exact API.
 The complete owner configuration then uses the same state/address and must show
 that API unchanged. Never run the single-resource stage again after other
