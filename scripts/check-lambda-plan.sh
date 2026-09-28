@@ -529,23 +529,35 @@ if [ "$ENVIRONMENT" = prod ]; then
       (if $activate then $request else true end) and
       (if $request then
         (.variables.domain_names.value | sort) == ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
-        ([.resource_changes[] | select(.type == "aws_acm_certificate")][0].change.after as $cert |
+        ([.resource_changes[] | select(.type == "aws_acm_certificate")][0] as $cert_resource |
+          $cert_resource.change.after as $cert |
           $cert.domain_name == "craigdevjohnson.com" and
-          ($cert.subject_alternative_names | sort) == ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
+          ($cert.subject_alternative_names | type == "array" and all(.[]; type == "string")) and
+          ([$cert.domain_name] + $cert.subject_alternative_names | unique | sort) ==
+            ["craigdevjohnson.com", "www.craigdevjohnson.com"] and
           $cert.validation_method == "DNS" and
           ($cert.certificate_authority_arn == null or $cert.certificate_authority_arn == "") and
           $cert.certificate_body == null and $cert.private_key == null and
           (if $activate then
+            ($cert.arn | type == "string" and
+              test("^arn:aws:acm:us-west-2:180294223248:certificate/[a-zA-Z0-9-]+$")) and
+            (($cert_resource.change.after_unknown.arn // false) == false) and
             all(.resource_changes[] | select(.type == "aws_acm_certificate_validation");
-              .change.after.certificate_arn == $cert.arn) and
+              .change.after.certificate_arn == $cert.arn and
+              ((.change.after_unknown.certificate_arn // false) == false)) and
             all(.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name");
               .change.after.domain_name == .index and
+              .change.after.routing_mode == "API_MAPPING_ONLY" and
+              ((.change.after_unknown.routing_mode // false) == false) and
               (.change.after.mutual_tls_authentication // []) == [] and
               (.change.after.domain_name_configuration | length) == 1 and
               .change.after.domain_name_configuration[0].certificate_arn == $cert.arn and
               .change.after.domain_name_configuration[0].endpoint_type == "REGIONAL" and
               .change.after.domain_name_configuration[0].security_policy == "TLS_1_2") and
-            ([.resource_changes[] | select(.type == "aws_apigatewayv2_api")][0].change.after.id as $api |
+            ([.resource_changes[] | select(.type == "aws_apigatewayv2_api")][0] as $api_resource |
+              $api_resource.change.after.id as $api |
+              ($api | type == "string" and length > 0) and
+              (($api_resource.change.after_unknown.id // false) == false) and
               all(.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping");
                 (.change.after.domain_name == .index or
                   (.change.after.domain_name == null and .change.after_unknown.domain_name == true and
@@ -554,7 +566,10 @@ if [ "$ENVIRONMENT" = prod ]; then
                     ($mapping_config.for_each_expression.references | sort) ==
                       ["var.activate_custom_domain", "var.domain_names"])) and
                 .change.after.api_id == $api and
+                ((.change.after_unknown.api_id // false) == false) and
                 .change.after.stage == "$default" and
+                ((.change.after_unknown.stage // false) == false) and
+                ((.change.after_unknown.api_mapping_key // false) == false) and
                 (.change.after.api_mapping_key == null or .change.after.api_mapping_key == "")))
           else true end))
       else true end)

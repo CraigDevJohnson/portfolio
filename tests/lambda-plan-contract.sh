@@ -1899,12 +1899,19 @@ jq '
     change: {actions: ["create"], before: null, after: {
       arn: "arn:aws:acm:us-west-2:180294223248:certificate/test",
       domain_name: "craigdevjohnson.com",
-      subject_alternative_names: ["craigdevjohnson.com", "www.craigdevjohnson.com"],
+      subject_alternative_names: ["www.craigdevjohnson.com"],
       validation_method: "DNS", certificate_authority_arn: null
     }, after_unknown: {}, before_sensitive: false, after_sensitive: false}
   }]
 ' "$prod_plan" > "$prod_certificate_plan"
 expect_pass "production certificate bootstrap retains exact domains" run_check "$prod_certificate_plan" prod
+prod_certificate_normalized_plan="$tmp_dir/prod-certificate-normalized.json"
+jq '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") |
+    .change.after.subject_alternative_names) += ["craigdevjohnson.com"]
+' "$prod_certificate_plan" > "$prod_certificate_normalized_plan"
+expect_pass "production certificate accepts provider-normalized SANs including the primary name" \
+  run_check "$prod_certificate_normalized_plan" prod
 prod_domains_plan="$tmp_dir/prod-domains.json"
 jq '
   .variables.activate_custom_domain.value = true |
@@ -1919,7 +1926,7 @@ jq '
   }] + (["craigdevjohnson.com", "www.craigdevjohnson.com"] | map(. as $domain | [
     {address: ("module.service.aws_apigatewayv2_domain_name.custom[" + ($domain | tojson) + "]"),
       mode: "managed", type: "aws_apigatewayv2_domain_name", name: "custom", index: $domain,
-      change: {actions: ["create"], before: null, after: {domain_name: $domain,
+      change: {actions: ["create"], before: null, after: {domain_name: $domain, routing_mode: "API_MAPPING_ONLY",
         domain_name_configuration: [{endpoint_type: "REGIONAL", security_policy: "TLS_1_2",
           certificate_arn: "arn:aws:acm:us-west-2:180294223248:certificate/test"}]},
         after_unknown: {}, before_sensitive: false, after_sensitive: false}},
@@ -2159,6 +2166,32 @@ mutate_and_reject "production deferred mappings reject an unreviewed domain refe
   (.configuration.root_module.module_calls.service.module.resources[] |
     select(.address == "aws_apigatewayv2_api_mapping.custom") |
     .expressions.domain_name.references) = ["var.unreviewed_domain"]
+'
+mutate_and_reject "production domains reject routing-rule-only mode" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.routing_mode) = "ROUTING_RULE_ONLY"
+'
+mutate_and_reject "production domains reject deferred routing mode" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after_unknown.routing_mode) = true
+'
+mutate_and_reject "production root mappings reject deferred mapping keys" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") |
+    .change.after_unknown.api_mapping_key) = true
+'
+mutate_and_reject "domain activation requires a captured API ID" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api") | .change) |=
+    (.after.id = null | .after_unknown.id = true) |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_api_mapping") | .change) |=
+    (.after.api_id = null | .after_unknown.api_id = true)
+'
+mutate_and_reject "domain activation requires a captured certificate ARN" "$prod_domains_plan" '
+  (.resource_changes[] | select(.type == "aws_acm_certificate") | .change) |=
+    (.after.arn = null | .after_unknown.arn = true) |
+  (.resource_changes[] | select(.type == "aws_acm_certificate_validation") | .change) |=
+    (.after.certificate_arn = null | .after_unknown.certificate_arn = true) |
+  (.resource_changes[] | select(.type == "aws_apigatewayv2_domain_name") |
+    .change.after.domain_name_configuration[0].certificate_arn) = null
 '
 mutate_and_reject "delete action" "$dev_plan" '.resource_changes[0].change.actions = ["delete"]'
 mutate_and_reject "replace action" "$dev_plan" '.resource_changes[0].change.actions = ["delete", "create"]'

@@ -98,11 +98,28 @@ has not yet been switched at this checkpoint.
 | ENC-01 | Encrypted SecureStrings and tables; verified public-certificate HTTPS and Regional TLS 1.2. No new customer-managed encryption key was needed. |
 | LOG-01 | Existing organization logging remains foundation-owned; this change did not alter its selectors or archive. |
 | LOG-02 | Both new application log groups use 30 days; old log retention was not changed. API access logging is configured. |
-| OPS-01 | Five exact alarms use the existing encrypted Ohio foundation route. Full-pattern validation, targets and native selector tests passed. Application alarm-to-inbox proof remains a pre-cutover gate. |
+| OPS-01 | Five exact alarms use the existing encrypted Ohio foundation route. Full-pattern validation, targets and native selector tests passed. A controlled native ALARM event and its automatic OK recovery both reached the confirmed mailbox; event IDs and times match CloudWatch history. Test-only alarm permission was removed. |
 | DET-01 | Live Oregon and Ohio detector reads show enabled foundational coverage, S3 data protection and Lambda network protection. Unselected plans remain disabled. |
 | REC-01, REC-02 | PITR and deletion protection are enabled. Complete Ohio restoration, scheduled recovery history and later member cutovers remain owner-local migration gates; PITR does not prove them. |
 | FIN-01 | Existing consolidated cost monitoring remains. Incremental rates and an explicit usage scenario appear below; actual usage and native cost-email delivery are separate evidence. |
 | EVD-01, EVD-02 | Private saved-plan/live evidence, repository contract checks, live readbacks and free policy validation. No paid analysis service was enabled. |
+
+## Native delivery and plan-review follow-up
+
+The controlled `portfolio-lambda-prod-lambda-errors` transition at 02:05:17 UTC
+and automatic metric reevaluation to OK at 02:07:07 UTC both reached the confirmed
+notification mailbox. All five initial native OK messages were also observed.
+This exercised the shared EventBridge-to-encrypted-SNS route without introducing
+an application error or modifying alarm thresholds. The temporary exact-alarm
+test grant was removed and the metadata-only policy was independently verified.
+
+Review tightened the domain gate further: effective certificate names accept
+both provider SAN representations, routing is explicitly `API_MAPPING_ONLY`,
+activation requires a previously captured certificate ARN and API ID, and root
+mapping keys cannot be provider-deferred. The only deferred mapping coordinate
+accepted is the new domain resource ID, bound to the exact declared domain.
+The existing development domain already reports `API_MAPPING_ONLY`; the shared
+source pin preserves its observed behavior.
 
 ## Incremental cost model
 

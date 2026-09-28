@@ -417,6 +417,11 @@ run "staged_custom_domain_contract" {
     condition     = toset(keys(output.api_gateway_domain_targets)) == toset(["api.example.com", "www.example.com"])
     error_message = "activated custom domains must expose one Regional API target per hostname"
   }
+
+  assert {
+    condition     = alltrue([for domain in aws_apigatewayv2_domain_name.custom : domain.routing_mode == "API_MAPPING_ONLY"])
+    error_message = "custom domains must route through the declared API mappings"
+  }
 }
 
 run "runtime_policy_attachment_contract" {
