@@ -722,17 +722,23 @@ if grep -Fq -- '--method POST' "$delayed_promotion_log"; then
 fi
 unset FAKE_GH_LOG
 
+promotion_fixture() {
+  jq -nc --argjson id "$1" '{schema_version:1,development_deployment_id:$id,
+    source_sha:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    image_digest:"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}'
+}
+
 pending_promotion_repo="$test_dir/pending-promotion-review-repository"
 mkdir -p "$pending_promotion_repo/.github/workflows" "$pending_promotion_repo/deploy"
 git -C "$pending_promotion_repo" init -q
 git -C "$pending_promotion_repo" config user.email test@example.com
 git -C "$pending_promotion_repo" config user.name Test
 echo release > "$pending_promotion_repo/.github/workflows/release.yml"
-echo '{"schema_version":1}' > "$pending_promotion_repo/deploy/production-release.json"
+promotion_fixture 1 > "$pending_promotion_repo/deploy/production-release.json"
 git -C "$pending_promotion_repo" add .
 git -C "$pending_promotion_repo" commit -qm development-base
 pending_promotion_development_base=$(git -C "$pending_promotion_repo" rev-parse HEAD)
-echo '{"schema_version":1,"source_sha":"verified"}' \
+promotion_fixture 2 \
   > "$pending_promotion_repo/deploy/production-release.json"
 git -C "$pending_promotion_repo" commit -qam standalone-promotion
 pending_promotion_merge=$(git -C "$pending_promotion_repo" rev-parse HEAD)
@@ -796,7 +802,7 @@ export FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
 
 git -C "$pending_promotion_repo" checkout -qb multiple-promotions \
   "$pending_promotion_merge"
-echo '{"schema_version":1,"source_sha":"verified-again"}' \
+promotion_fixture 3 \
   > "$pending_promotion_repo/deploy/production-release.json"
 git -C "$pending_promotion_repo" commit -qam second-standalone-promotion
 second_pending_promotion=$(git -C "$pending_promotion_repo" rev-parse HEAD)
@@ -830,6 +836,62 @@ grep -Fq 'checkpoint recovery contains multiple production promotions' \
   echo 'multiple-promotion test did not reach the exact checkpoint guard' >&2
   exit 1
 }
+# A reviewed formatting retry of the same complete coordinate is not a second promotion.
+git -C "$pending_promotion_repo" checkout -qb formatting-retry "$pending_promotion_merge"
+jq -S . "$pending_promotion_repo/deploy/production-release.json" > "$test_dir/formatted-manifest"
+cp "$test_dir/formatted-manifest" "$pending_promotion_repo/deploy/production-release.json"
+git -C "$pending_promotion_repo" commit -qam formatting-only-promotion-retry
+formatting_retry=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+echo formatting-checkpoint >> "$pending_promotion_repo/.github/workflows/release.yml"
+git -C "$pending_promotion_repo" commit -qam review-after-formatting-retry
+formatting_review=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+FAKE_MAIN_SHA=$formatting_review
+FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+  --arg review "$formatting_review" --arg retry "$formatting_retry" --arg first "$pending_promotion_merge" \
+  --argjson review_pull "$(reviewed_pull_json "$formatting_review" "$formatting_retry")" \
+  --argjson retry_pull "$(reviewed_pull_json "$formatting_retry" "$pending_promotion_merge")" \
+  --argjson first_pull "$(reviewed_pull_json "$pending_promotion_merge" "$pending_promotion_development_base")" \
+  '{($review):$review_pull,($retry):$retry_pull,($first):$first_pull}')
+export FAKE_MAIN_SHA FAKE_PULLS_BY_COMMIT_JSON
+(cd "$pending_promotion_repo" && EVENT_SHA="$formatting_review" \
+  GITHUB_OUTPUT="$test_dir/formatting-retry-output" sh "$root_dir/scripts/authorize-ci-lambda-release.sh")
+grep -Fqx 'classification=review' "$test_dir/formatting-retry-output"
+# The same reviewed retry is also safe when the development cursor already selects that coordinate.
+(cd "$pending_promotion_repo" && sh "$root_dir/scripts/validate-release-review-backlog.sh" \
+  "$pending_promotion_merge" "$formatting_retry" "$formatting_review")
+# It cannot bypass the unique reviewed-PR ancestry check.
+saved_formatting_pulls=$FAKE_PULLS_BY_COMMIT_JSON
+FAKE_PULLS_BY_COMMIT_JSON=$(printf '%s' "$saved_formatting_pulls" | jq --arg retry "$formatting_retry" '.[$retry]=[]')
+export FAKE_PULLS_BY_COMMIT_JSON
+if (cd "$pending_promotion_repo" && sh "$root_dir/scripts/validate-release-review-backlog.sh" \
+  "$pending_promotion_development_base" "$formatting_retry" "$formatting_review") > /dev/null 2>&1; then
+  echo 'formatting retry bypassed reviewed ancestry' >&2; exit 1
+fi
+
+# Malformed complete-looking retries must fail schema validation, not become formatting no-ops.
+for malformed in extra-key duplicate-key invalid-source; do
+  git -C "$pending_promotion_repo" checkout -qb "malformed-$malformed" "$pending_promotion_merge"
+  case "$malformed" in
+    extra-key) promotion_fixture 2 | jq '.extra=true' ;;
+    duplicate-key) promotion_fixture 2 | sed 's/{/{"schema_version":1,/' ;;
+    invalid-source) promotion_fixture 2 | jq '.source_sha="invalid"' ;;
+  esac > "$pending_promotion_repo/deploy/production-release.json"
+  git -C "$pending_promotion_repo" commit -qam malformed-promotion-retry
+  malformed_retry=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+  echo malformed-checkpoint >> "$pending_promotion_repo/.github/workflows/release.yml"
+  git -C "$pending_promotion_repo" commit -qam review-after-malformed-retry
+  malformed_review=$(git -C "$pending_promotion_repo" rev-parse HEAD)
+  FAKE_PULLS_BY_COMMIT_JSON=$(jq -nc \
+    --arg retry "$malformed_retry" \
+    --argjson pull "$(reviewed_pull_json "$malformed_retry" "$pending_promotion_merge")" '{($retry):$pull}')
+  export FAKE_PULLS_BY_COMMIT_JSON
+  if (cd "$pending_promotion_repo" && sh "$root_dir/scripts/validate-release-review-backlog.sh" \
+    "$pending_promotion_merge" "$malformed_retry" "$malformed_review") \
+      > "$test_dir/malformed-$malformed.log" 2>&1; then
+    echo "accepted malformed $malformed retry" >&2; exit 1
+  fi
+  grep -Fq 'invalid reviewed production manifest' "$test_dir/malformed-$malformed.log"
+done
 unset FAKE_PULLS_BY_COMMIT_JSON FAKE_REVIEW_DEPLOYMENT_PAGES_JSON
 unset FAKE_REVIEW_STATUSES_JSON
 
@@ -842,7 +904,7 @@ assert_pending_promotion_prefix_rejected() {
   git -C "$blocked_repo" config user.email test@example.com
   git -C "$blocked_repo" config user.name Test
   echo release > "$blocked_repo/.github/workflows/release.yml"
-  echo '{"schema_version":1}' > "$blocked_repo/deploy/production-release.json"
+  promotion_fixture 1 > "$blocked_repo/deploy/production-release.json"
   git -C "$blocked_repo" add .
   git -C "$blocked_repo" commit -qm development-base
   blocked_development_base=$(git -C "$blocked_repo" rev-parse HEAD)
@@ -851,7 +913,7 @@ assert_pending_promotion_prefix_rejected() {
   git -C "$blocked_repo" add .
   git -C "$blocked_repo" commit -qm "pending-$blocked_label"
   blocked_prefix=$(git -C "$blocked_repo" rev-parse HEAD)
-  echo '{"schema_version":1,"source_sha":"verified"}' \
+  promotion_fixture 2 \
     > "$blocked_repo/deploy/production-release.json"
   git -C "$blocked_repo" commit -qam standalone-promotion
   blocked_promotion=$(git -C "$blocked_repo" rev-parse HEAD)
