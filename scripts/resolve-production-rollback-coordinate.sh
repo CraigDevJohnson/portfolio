@@ -71,7 +71,7 @@ for deployment_id in $(printf '%s\n' "$deployments" | jq -r '.[].id'); do
   version=$(printf '%s\n' "$statuses" | jq -er '
     .[0] |
     (.description | capture(
-      "^Verified v(?<version>[1-9][0-9]*) public-apex=ok public-www=ok$"
+      "^Verified v(?<version>[1-9][0-9]*) (public-apex=ok public-www=ok|ci-origin=ok operator-public=ok)$"
     )) as $v |
     select(
       .state == "success" and .environment == "production" and

@@ -121,7 +121,7 @@ def unpack(archive, expected, destination):
 def bind(directory, context):
     identity = json.loads((directory / "release-identity.json").read_text())
     deployment = json.loads((directory / "github-production-deployment.json").read_text())
-    window = json.loads((directory / "automated-window.json").read_text())
+    window = json.loads((directory / "ci-origin-window.json").read_text())
     approval = json.loads((directory / "approval.json").read_text())
     source, run_id = context["GITHUB_SHA"], context["APPLY_RUN_ID"]
     require(identity["promotion_sha"] == deployment["source_sha"] == window["promotion_sha"] == source
@@ -160,27 +160,34 @@ def main():
     require(sys.argv[1:] == ["finalize"], "expected prepare or finalize")
     identity, deployment, window = bind(directory, os.environ)
     raw = os.environ["BROWSER_RECEIPT_JSON"]
-    require(len(raw.encode()) <= 50000, "browser receipt exceeds input limit")
-    receipt = json.loads(raw)
+    public_raw = os.environ["PUBLIC_RECEIPT_JSON"]
+    require(len(json.dumps({"apply_run_id": os.environ["APPLY_RUN_ID"],
+            "browser_receipt_json": raw, "public_receipt_json": public_raw}).encode()) <= 60000,
+            "combined acceptance inputs exceed the conservative dispatch limit")
+    receipt, public = json.loads(raw), json.loads(public_raw)
     require(receipt.get("operator") == REVIEWER["login"], "browser operator differs from authenticated submitter")
     observer = observer_module()
-    observer.validate_browser(window, receipt)
+    coverage = observer.validate_public(window, public)
+    observer.validate_browser(window, receipt, coverage=coverage)
     metrics = observer.final_metrics(window)
     provenance(os.environ)
+    # Recheck after remote reads, immediately before producing success evidence.
+    observer.validate_public(window, public)
     result = {
-        "schema_version": 2, "source_sha": identity["development_source_sha"],
+        "schema_version": 3, "source_sha": identity["development_source_sha"],
         "promotion_sha": identity["promotion_sha"], "image_digest": identity["image_digest"],
         "lambda_version": window["lambda_version"], "production_deployment_id": deployment["production_deployment_id"],
-        "window_id": window["window_id"], "started_at": window["started_at"], "ended_at": window["ended_at"],
-        "automated_public_window": "passed", "browser_contract": "passed", "metric_coverage": "passed",
+        "window_id": window["window_id"], **coverage,
+        "ci_origin_window": "passed", "operator_public_window": "passed", "browser_contract": "passed", "metric_coverage": "passed",
         "operator": REVIEWER["login"], "acceptance_run_id": os.environ["GITHUB_RUN_ID"],
         "provenance": "protected-github-operator", "status": "verified",
     }
-    for name, value in (("browser-receipt.json", receipt), ("final-metrics.json", metrics)):
+    for name, value in (("browser-receipt.json", receipt), ("public-receipt.json", public), ("final-metrics.json", metrics)):
         (directory / name).write_text(json.dumps(value, indent=2) + "\n")
     result.update({
-        "automated_window_sha256": digest(directory / "automated-window.json"),
+        "ci_origin_window_sha256": digest(directory / "ci-origin-window.json"),
         "browser_receipt_sha256": digest(directory / "browser-receipt.json"),
+        "public_receipt_sha256": digest(directory / "public-receipt.json"),
         "final_metrics_sha256": digest(directory / "final-metrics.json"),
     })
     (directory / "production-verification.json").write_text(json.dumps(result, indent=2) + "\n")

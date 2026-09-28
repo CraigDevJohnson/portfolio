@@ -358,7 +358,7 @@ jobs:
         env:
           EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
         run: task lambda-ci-check-aws-identity
-      - name: Apply reviewed plan and observe public production
+      - name: Apply reviewed plan and observe production origin and AWS
         run: task lambda-ci-apply-reviewed-production
       - if: always()
         uses: actions/upload-artifact@v7

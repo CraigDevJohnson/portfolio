@@ -97,7 +97,7 @@ class ProductionObservation(unittest.TestCase):
             return 200, {"content-type": "text/css"}, b"body{}"
         if route.endswith(".jpg"):
             return 200, {"content-type": "image/jpeg"}, b"\xff\xd8\xff"
-        return 200, {"content-type": "text/html"}, b"<!doctype html><html></html>"
+        return 200, {"content-type": "text/html", "cache-control": "no-store"}, b"<!doctype html><html></html>"
 
     def test_real_routes_assets_and_permanent_redirect(self):
         with patch.object(p, "fetch", self.fake_fetch):
@@ -153,9 +153,30 @@ class ProductionObservation(unittest.TestCase):
                     patch.object(p, "observe_window", side_effect=ValueError("late failure")):
                 with self.assertRaises(ValueError): p.observe()
                 self.assertTrue((Path(directory) / "window-failed.json").exists())
-                self.assertFalse((Path(directory) / "automated-window.json").exists())
+                self.assertFalse((Path(directory) / "ci-origin-window.json").exists())
                 self.assertFalse((Path(directory) / "production-verification.json").exists())
                 with self.assertRaises(FileExistsError): p.observe()
+
+    def test_ci_first_complete_sample_is_flushed_for_operator_coordination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = {"SOURCE_SHA": "a" * 40, "PROMOTION_SHA": "b" * 40,
+                      "IMAGE_DIGEST": "sha256:" + "c" * 64, "PRODUCTION_DEPLOYMENT_ID": "123",
+                      "API_ID": "api", "APEX_ORIGIN_HOST": "api.execute-api.us-west-2.amazonaws.com",
+                      "EVIDENCE_DIR": directory}
+            samples = self.run_window()
+            def observe(*args, **kwargs):
+                for item in samples:
+                    kwargs["on_sample"](item)
+                return samples
+            with patch.dict(os.environ, config, clear=True), patch.object(p, "public_probe"), \
+                    patch.object(p, "observe_window", side_effect=observe), patch("builtins.print") as printed:
+                p.observe()
+            first = printed.call_args_list[0]
+            self.assertTrue(first.kwargs["flush"])
+            self.assertEqual(json.loads(first.args[0]), {
+                "ci_origin_window_id": p.window_id(config["PROMOTION_SHA"], "123"),
+                "first_complete_sample_at": samples[0]["observed_at"]})
+            self.assertEqual(len(printed.call_args_list), 2)
 
     def test_success_persists_unverified_window_without_finalizing(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -166,7 +187,7 @@ class ProductionObservation(unittest.TestCase):
             with patch.dict(os.environ, config, clear=True), patch.object(p, "public_probe"), \
                     patch.object(p, "observe_window", return_value=self.run_window()):
                 p.observe()
-                result = json.loads((Path(directory) / "automated-window.json").read_text())
+                result = json.loads((Path(directory) / "ci-origin-window.json").read_text())
                 self.assertEqual(result["status"], "APPLIED_NOT_VERIFIED")
                 self.assertEqual(result["browser_evidence"], "pending")
                 self.assertEqual(result["metric_coverage"], "pending_final_ingestion_check")
@@ -176,7 +197,7 @@ class ProductionObservation(unittest.TestCase):
 class BrowserEvidence(unittest.TestCase):
     def setUp(self):
         self.start = 1800000000
-        self.window = {"schema_version": 1, "automated_public_window": "passed", "window_id": "id",
+        self.window = {"schema_version": 1, "ci_origin_window": "passed", "window_id": "id",
                        "production_deployment_id": "123", "promotion_sha": "p", "source_sha": "s",
                        "image_digest": "d", "lambda_version": "8", "base_url": p.APEX,
                        "started_at": p.utc(self.start), "ended_at": p.utc(self.start + 1800),
@@ -241,6 +262,7 @@ class BrowserEvidence(unittest.TestCase):
 
     def test_final_metric_coverage_includes_both_endpoints(self):
         self.window["api_id"] = "api"
+        self.window["origin_host"] = "api.execute-api.us-west-2.amazonaws.com"
         periods = list(range(self.start, self.start + 1801, 60))
         signals = {metric: {"periods": periods, "observed_sum": 0} for metric in ("Errors", "Throttles", "5xx")}
         points = [{"Timestamp": p.utc(period), "Sum": 1} for period in periods]

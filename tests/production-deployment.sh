@@ -43,7 +43,7 @@ set -eu
 printf 'origin:%s\n' "$APEX_ORIGIN_HOST" >> "$CALL_LOG"
 printf 'verify\n' >> "$CALL_LOG"
 [ "${FAIL_STAGE:-}" != verify ]
-printf '{"lambda_version":"8"}\n' > "$EVIDENCE_DIR/automated-window.json"
+printf '{"lambda_version":"8"}\n' > "$EVIDENCE_DIR/ci-origin-window.json"
 FAKE
 cat > "$tmp/bin/tofu" <<'FAKE'
 #!/bin/sh

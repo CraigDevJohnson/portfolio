@@ -36,6 +36,44 @@ current_checkpoint_classification=$(sh "$script_dir/classify-release-change.sh" 
 [ "$checkpoint_classification" = development ] ||
   fail 'checkpoint range is not review-class'
 
+# Compare business coordinates, not JSON formatting. Both sides must satisfy
+# the exact promotion schema; malformed or duplicate-key JSON is not a retry.
+canonical_manifest() {
+  python3 - "$1" <<'PYMANIFEST'
+import json
+import re
+import subprocess
+import sys
+
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate key")
+        result[key] = value
+    return result
+
+
+try:
+    raw = subprocess.run(["git", "show", sys.argv[1] + ":deploy/production-release.json"],
+                         check=True, capture_output=True, text=True).stdout
+    value = json.loads(raw, object_pairs_hook=unique)
+    if not (isinstance(value, dict) and set(value) == {
+            "schema_version", "source_sha", "image_digest", "development_deployment_id"}
+            and type(value["schema_version"]) is int and value["schema_version"] == 1
+            and type(value["development_deployment_id"]) is int and value["development_deployment_id"] > 0
+            and isinstance(value["source_sha"], str) and re.fullmatch(r"[0-9a-f]{40}", value["source_sha"])
+            and isinstance(value["image_digest"], str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", value["image_digest"])):
+        raise ValueError("schema")
+    print(json.dumps(value, sort_keys=True, separators=(",", ":")))
+except (ValueError, TypeError, OSError, subprocess.SubprocessError):
+    print("Invalid production manifest in reviewed history", file=sys.stderr)
+    sys.exit(1)
+PYMANIFEST
+}
+
 cursor_sha=$source_sha
 pull_base_sha=$reviewed_base_sha
 pull_count=0
@@ -58,9 +96,13 @@ while [ "$cursor_sha" != "$development_base_sha" ]; do
   case "$pull_classification:$pull_checkpoint_classification" in
     review:review | skip:skip) ;;
     production:development)
-      promotion_count=$((promotion_count + 1))
-      [ "$promotion_count" -eq 1 ] ||
-        fail 'checkpoint recovery contains multiple production promotions'
+      before_manifest=$(canonical_manifest "$pull_base_sha") || fail 'invalid prior production manifest'
+      after_manifest=$(canonical_manifest "$cursor_sha") || fail 'invalid reviewed production manifest'
+      if [ "$before_manifest" != "$after_manifest" ]; then
+        promotion_count=$((promotion_count + 1))
+        [ "$promotion_count" -eq 1 ] ||
+          fail 'checkpoint recovery contains multiple production promotions'
+      fi
       ;;
     *) fail 'checkpoint recovery contains a runtime, mixed, or unknown pull request' ;;
   esac
@@ -72,5 +114,5 @@ while [ "$cursor_sha" != "$development_base_sha" ]; do
     fail 'checkpoint recovery contains a commit without a unique reviewed pull request'
 done
 
-[ "$promotion_count" -eq 1 ] ||
-  fail 'checkpoint recovery does not contain exactly one production promotion'
+# Zero semantic changes is valid when every manifest-only PR just reformats
+# the already-selected coordinate. Every PR above still requires review authority.

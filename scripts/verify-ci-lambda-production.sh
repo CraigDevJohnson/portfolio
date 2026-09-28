@@ -10,6 +10,6 @@ set -eu
 : "${EVIDENCE_DIR:?set EVIDENCE_DIR}"
 
 # This driver never exercises the deferred management portal. Browser acceptance
-# is handed off separately after the public observation window completes.
+# is handed off separately alongside the CI origin/AWS observation window.
 script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 exec python3 "$script_dir/observe-lambda-production.py" observe
