@@ -27,12 +27,12 @@ Run `task cognito-dev-init`, then `task cognito-dev-plan` from the isolated
 | Setting | Value |
 | --- | --- |
 | AWS profile | `portfolio-deployer` |
-| Account / region | `180294223248` / `us-west-2` |
+| Account / region | `<management-account-id>` / `us-west-2` |
 | Root | `infra/lambda/auth/dev` |
 | Workspace | `default` |
-| Backend bucket | `portfolio-tofu-state-180294223248` |
+| Backend bucket | `portfolio-tofu-state-<management-account-id>` |
 | State key | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` |
-| Native lock object | `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/auth/dev/terraform.tfstate.tflock` |
+| Native lock object | `s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/auth/dev/terraform.tfstate.tflock` |
 | Private directory | `/Users/craigjohnson/.config/portfolio/cognito-dev` |
 | Credential input | `google.json` in that private directory |
 | New saved plan | `auth-initial-20260907.tfplan` in that private directory |
@@ -60,12 +60,12 @@ been generated:
 | User pool | `portfolio-lambda-dev-mgmt`, Essentials tier, no self-service signup |
 | Google provider | Only OpenID/email/profile, reviewed attribute mapping and private client credentials |
 | Public app client | `portfolio-lambda-dev-mgmt-web`, code flow, Google identity provider, no client secret |
-| Cognito domain | `portfolio-lambda-dev-mgmt-180294223248`, managed login version 2 |
+| Cognito domain | `portfolio-lambda-dev-mgmt-<management-account-id>`, managed login version 2 |
 | Managed login branding | Cognito-provided values for this pool and client |
 
 The only callback is `https://dev.craigdevjohnson.com/callback`; logout is
 `https://dev.craigdevjohnson.com/login`. The Google redirect is
-`https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`.
+`https://portfolio-lambda-dev-mgmt-<management-account-id>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`.
 Local callback is disabled. Deletions, replacements, extra resources or changed
 backend/account/region are rejected.
 

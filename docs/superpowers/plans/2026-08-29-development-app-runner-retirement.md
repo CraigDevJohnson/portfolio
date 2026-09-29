@@ -223,7 +223,7 @@ backend block (not `backend.hcl`) and rejects a non-default workspace.
 
 Add `legacy-apprunner-retirement-plan` that runs the identity check, requires
 `APPROVED_STATE_LOCK_URI` to equal
-`s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`,
+`s3://portfolio-tofu-state-<management-account-id>/portfolio/terraform.tfstate.tflock`,
 rejects the same OpenTofu override variables and non-default workspace, requires
 a new absolute `PLAN_FILE`, runs a full-refresh locked saved
 `tofu -chdir=infra plan`, converts it to temporary JSON, invokes the checker,

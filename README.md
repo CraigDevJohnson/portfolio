@@ -292,19 +292,17 @@ Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The managed replacement Lambda/API Gateway environment contract uses a
-29-second Lambda timeout.
-The Google add and result-sync handlers reserve 24 seconds of that window, which
-leaves five seconds outside their application work budget.
+The portfolio runs on AWS Lambda behind an API Gateway HTTP API in the
+workloads AWS account, us-west-2, with prod at `craigdevjohnson.com` and dev at
+`dev.craigdevjohnson.com`. The OpenTofu roots live under `infra/lambda/`. A
+merge to `main` builds one image, deploys it to dev, and plans prod; Craig
+approves the `production` GitHub Environment to apply it. The legacy `infra/`
+root is retired. Dated designs and plans under `docs/superpowers/` are
+historical records rather than operator instructions.
 
-The checked-in `infra/` directory retains the shared legacy ECR repository,
-DynamoDB tables, IAM policies, and SSM configuration. It does not declare or
-operate App Runner or the formerly declared legacy Lambda/API Gateway stack.
-Replacement deployment commands use only the independent roots under
-`infra/lambda/`; App Runner is not a deployment or rollback path. Dated
-retirement designs, plans, and evidence remain under `docs/superpowers/` and
-`docs/deployment/evidence/` as historical records rather than operator
-instructions.
+The Lambda timeout is 29 seconds. The Google add and result-sync handlers
+reserve 24 seconds of that window, which leaves five seconds outside their
+application work budget.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;
@@ -328,7 +326,8 @@ which is not immutable provenance proof. `task test-images` verifies the image
 contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
-Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for current Lambda
-deployment and retained shared-resource guidance.
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for accounts,
+approvals, the release workflow and rollback, and the
+[Cloudflare runbook](./docs/deployment/cloudflare-dns.md) for DNS records.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

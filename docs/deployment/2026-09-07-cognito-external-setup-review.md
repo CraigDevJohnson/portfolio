@@ -10,7 +10,7 @@ has been applied.
 
 The non-root `portfolio-auth-policy-admin` profile uses the dedicated
 `PortfolioAuthPolicyAdministrator` Identity Center permission set in account
-`180294223248`, region `us-west-2`, with one-hour role sessions. Its current
+`<management-account-id>`, region `us-west-2`, with one-hour role sessions. Its current
 grants permit only policy inspection/validation and scoped prerequisite reads.
 SSO provisioning succeeded, the installed policy matched its prepared document,
 and STS verified the expected assumed role after the shared session refresh.
@@ -31,11 +31,11 @@ Final live checks on September 7, 2026 established:
   `portfolio-lambda-dev-execution`; every production statement is unchanged.
 - `/portfolio/setup/PortfolioAuthDevelopmentSetup` defaults to `v1` and matches
   the reviewed auth setup document.
-- State bucket `portfolio-tofu-state-180294223248` uses AES256 encryption,
+- State bucket `portfolio-tofu-state-<management-account-id>` uses AES256 encryption,
   has versioning enabled and all four public-access blocks enabled. Listing
   `portfolio-lambda-http-api/auth/dev/terraform.tfstate` returned zero keys.
 - Cognito returned an empty domain description for
-  `portfolio-lambda-dev-mgmt-180294223248`; no current domain was found.
+  `portfolio-lambda-dev-mgmt-<management-account-id>`; no current domain was found.
 - Google Cloud confirms project `portoflio-dev-508000` and the expected signed-in
   account. The dedicated client `portfolio-lambda-dev-mgmt-google` is created
   with the sole reviewed Cognito redirect and no JavaScript origins.
@@ -59,7 +59,7 @@ The non-root administrator profile installed these exact reviewed documents:
 
 The 6,606-character deployer document remains in the Identity Center inline slot;
 the 2,951-character auth setup document is a separate managed policy. Deployer
-provisioning to account `180294223248` reached `SUCCEEDED`. Installed documents,
+provisioning to account `<management-account-id>` reached `SUCCEEDED`. Installed documents,
 attachments, production statements and the effective role matched the reviewed
 inputs. Existing policy files above the `candidates/` directory remain historical
 baselines; do not reinstall them as current inputs.
@@ -126,7 +126,7 @@ operation or application deployment was performed as part of this installation.
 | Client type / name | Web application / `portfolio-lambda-dev-mgmt-google` |
 | Scopes | `openid`, email, profile |
 | Authorized JavaScript origins | None; exchange is server-side through Cognito |
-| Redirect URI | `https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse` |
+| Redirect URI | `https://portfolio-lambda-dev-mgmt-<management-account-id>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse` |
 
 The user accepted the
 [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)
