@@ -122,7 +122,7 @@ GitHub configuration:
 | Repository | `AWS_RELEASE_BUILDER_ROLE_ARN` | |
 | `release-review` | | Required reviewer: Craig |
 | `development` | `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN`, optional `MANAGEMENT_RUNTIME_JSON` | Protected branches |
-| `production-plan` | `AWS_PRODUCTION_PLANNER_ROLE_ARN` | Protected branches |
+| `production-plan` | `AWS_PRODUCTION_PLANNER_ROLE_ARN` | Protected branches. It still requires Craig as a reviewer, so a release asks for approval twice. Removing that reviewer is a separate GitHub change that needs Craig's approval |
 | `production` | `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` | Required reviewer: Craig |
 
 `tofu -chdir=infra/lambda/ci-roles output role_arns` prints the four role ARNs.
