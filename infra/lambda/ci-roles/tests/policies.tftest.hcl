@@ -514,6 +514,7 @@ run "state_bucket_contract" {
       aws_s3_bucket_public_access_block.state.ignore_public_acls &&
       aws_s3_bucket_public_access_block.state.restrict_public_buckets &&
       one(one(aws_s3_bucket_server_side_encryption_configuration.state.rule).apply_server_side_encryption_by_default).sse_algorithm == "AES256" &&
+      tolist(one(aws_s3_bucket_server_side_encryption_configuration.state.rule).blocked_encryption_types) == tolist(["SSE-C"]) &&
       one(aws_s3_bucket_ownership_controls.state.rule).object_ownership == "BucketOwnerEnforced"
     )
     error_message = "the state bucket stays versioned, private, SSE-S3 encrypted and owner-enforced"

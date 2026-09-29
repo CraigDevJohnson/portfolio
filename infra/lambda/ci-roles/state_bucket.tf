@@ -44,6 +44,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
+
+    # S3 blocks SSE-C on new buckets by default; keep it so the import plans
+    # no change.
+    blocked_encryption_types = ["SSE-C"]
   }
 }
 
