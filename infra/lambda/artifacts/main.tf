@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_ecr_repository" "lambda_releases" {
   name                 = "portfolio-lambda-releases"
   image_tag_mutability = "IMMUTABLE"
@@ -45,10 +47,10 @@ resource "aws_ecr_repository_policy" "lambda_releases" {
       ]
       Condition = {
         StringEquals = {
-          "aws:SourceAccount" = "180294223248"
+          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
         }
         ArnLike = {
-          "aws:SourceArn" = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"
+          "aws:SourceArn" = "arn:aws:lambda:us-west-2:${data.aws_caller_identity.current.account_id}:function:portfolio-lambda-*"
         }
       }
     }]

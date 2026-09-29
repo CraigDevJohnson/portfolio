@@ -12,6 +12,7 @@ mock_provider "aws" {
 }
 
 variables {
+  aws_account_id       = "111122223333"
   google_client_id     = "mock-google-client-id.apps.googleusercontent.com"
   google_client_secret = "mock-google-client-secret-sentinel"
 }
@@ -21,7 +22,7 @@ run "default_google_only_auth_contract" {
 
   assert {
     condition = (
-      local.aws_account_id == "180294223248" &&
+      var.aws_account_id == "111122223333" &&
       local.aws_region == "us-west-2" &&
       local.user_pool_name == "portfolio-lambda-dev-mgmt" &&
       local.app_client_name == "portfolio-lambda-dev-mgmt-web" &&
@@ -83,7 +84,7 @@ run "default_google_only_auth_contract" {
 
   assert {
     condition = (
-      aws_cognito_user_pool_domain.management.domain == "portfolio-lambda-dev-mgmt-180294223248" &&
+      aws_cognito_user_pool_domain.management.domain == "portfolio-lambda-dev-mgmt-111122223333" &&
       aws_cognito_user_pool_domain.management.managed_login_version == 2 &&
       aws_cognito_managed_login_branding.management.use_cognito_provided_values
     )
@@ -93,10 +94,10 @@ run "default_google_only_auth_contract" {
   assert {
     condition = (
       output.cognito_user_pool_id == "us-west-2_mockpool" &&
-      output.cognito_domain == "https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com" &&
+      output.cognito_domain == "https://portfolio-lambda-dev-mgmt-111122223333.auth.us-west-2.amazoncognito.com" &&
       output.cognito_issuer == "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mockpool" &&
       output.cognito_client_id == "mockpublicclientid" &&
-      output.google_redirect_uri == "https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse" &&
+      output.google_redirect_uri == "https://portfolio-lambda-dev-mgmt-111122223333.auth.us-west-2.amazoncognito.com/oauth2/idpresponse" &&
       output.session_parameter_path == "/portfolio/lambda/dev/MGMT_SESSION_KEY"
     )
     error_message = "individual outputs must expose only the reviewed public Cognito settings and session parameter name"

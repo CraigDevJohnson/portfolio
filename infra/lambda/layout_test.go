@@ -182,10 +182,9 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 13, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 12, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
 		"management_reject_prod":        true,
 		"management_reject_region":      true,
-		"management_reject_account":     true,
 		"management_reject_email":       true,
 		"management_reject_empty_email": true,
 		"management_reject_callback":    true,
@@ -197,11 +196,10 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		wantPlans := 1
-		if environment == "dev" {
-			wantPlans = 2
-		}
-		runOpenTofuTest(t, directory, wantPlans, serviceOutputTypes, serviceIAMResourceCounts)
+		// dev also plans the management runtime; prod also plans a rejected alarm topic.
+		runOpenTofuTestWithSkippedRuns(t, directory, 2, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+			"reject_other_alarm_topic": true,
+		})
 	}
 }
 
@@ -324,14 +322,15 @@ func terraformTestEnvironment() []string {
 	for _, entry := range os.Environ() {
 		if strings.HasPrefix(entry, "TF_VAR_ecr_repository_url=") ||
 			strings.HasPrefix(entry, "TF_VAR_image_digest=") ||
-			strings.HasPrefix(entry, "TF_VAR_alarm_action_arns=") {
+			strings.HasPrefix(entry, "TF_VAR_alarm_action_arns=") ||
+			strings.HasPrefix(entry, "TF_VAR_aws_account_id=") {
 			continue
 		}
 		environment = append(environment, entry)
 	}
 
 	return append(environment,
-		"TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases",
+		"TF_VAR_ecr_repository_url=111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases",
 		"TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	)
 }

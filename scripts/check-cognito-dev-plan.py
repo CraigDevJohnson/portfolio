@@ -5,10 +5,11 @@ import os
 import re
 import sys
 
-ACCOUNT = '180294223248'
+# The Taskfile supplies PORTFOLIO_ACCOUNT_ID; the wrapper refuses an empty value.
+ACCOUNT = os.environ.get('PORTFOLIO_ACCOUNT_ID', '')
 REGION = 'us-west-2'
-PREFIX = 'portfolio-lambda-dev-mgmt-180294223248'
-BACKEND = dict(type='s3', bucket='portfolio-tofu-state-180294223248', key='portfolio-lambda-http-api/auth/dev/terraform.tfstate', region=REGION, encrypt=True, use_lockfile=True)
+PREFIX = f'portfolio-lambda-dev-mgmt-{ACCOUNT}'
+BACKEND = dict(type='s3', bucket=f'portfolio-tofu-state-{ACCOUNT}', key='portfolio-lambda-http-api/auth/dev/terraform.tfstate', region=REGION, encrypt=True, use_lockfile=True)
 RESOURCES = {
  'aws_cognito_user_pool.management': dict(name='portfolio-lambda-dev-mgmt', user_pool_tier='ESSENTIALS', admin_create_user_config=[{'allow_admin_create_user_only': True}], username_configuration=[{'case_sensitive': False}]),
  'aws_cognito_identity_provider.google': dict(provider_name='Google', provider_type='Google', attribute_mapping={'email': 'email', 'email_verified': 'email_verified', 'name': 'name'}),
@@ -70,7 +71,8 @@ def check(plan):
     require(set(providers) == {'aws'})
     expressions = providers['aws']['expressions']
     require(expressions['region'] == {'constant_value': REGION})
-    require(expressions['allowed_account_ids'] == {'constant_value': [ACCOUNT]})
+    require(expressions['allowed_account_ids'] == {'references': ['var.aws_account_id']})
+    require(plan.get('variables', {}).get('aws_account_id', {}).get('value') == ACCOUNT)
     require(not (set(expressions) - {'region', 'allowed_account_ids', 'default_tags'}))
     config = plan['configuration']['root_module']
     require(not config.get('module_calls'))

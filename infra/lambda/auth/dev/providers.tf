@@ -1,13 +1,13 @@
 provider "aws" {
   region              = "us-west-2"
-  allowed_account_ids = ["180294223248"]
+  allowed_account_ids = [var.aws_account_id]
 
   default_tags {
     tags = {
       Environment = "dev"
       ManagedBy   = "opentofu"
       Platform    = "cognito-auth"
-      Project     = "portfolio"
+      project     = "portfolio"
     }
   }
 }

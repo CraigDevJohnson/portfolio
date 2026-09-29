@@ -12,6 +12,18 @@ vars:
   TAILWIND_BIN: '{{if eq OS "windows"}}{{.TAILWIND_DIR}}/tailwindcss.exe{{else}}{{.TAILWIND_DIR}}/tailwindcss{{end}}'
   TAILWIND_INPUT: cmd/web/tailwind/app.css
   TAILWIND_OUTPUT: cmd/web/static/css/tailwind.css
+  # The workloads account that runs the portfolio. Scripts read it from
+  # PORTFOLIO_ACCOUNT_ID; each OpenTofu root has a matching aws_account_id input.
+  AWS_ACCOUNT_ID: "793680745829"
+  AWS_REGION: us-west-2
+  ADMIN_PROFILE: workloads-admin
+  STATE_BUCKET: portfolio-tofu-state-{{.AWS_ACCOUNT_ID}}
+  ECR_URL: "{{.AWS_ACCOUNT_ID}}.dkr.ecr.{{.AWS_REGION}}.amazonaws.com/portfolio-lambda-releases"
+
+env:
+  PORTFOLIO_ACCOUNT_ID: "{{.AWS_ACCOUNT_ID}}"
+  STATE_BUCKET: "{{.STATE_BUCKET}}"
+  ECR_URL: "{{.ECR_URL}}"
 
 tasks:
   default:

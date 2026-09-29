@@ -8,8 +8,10 @@ terraform {
     }
   }
 
+  # Retired root. Its live resources are destroyed from the management-final
+  # tag (refactor Phase 14); never apply this root in the workloads account.
   backend "s3" {
-    bucket       = "portfolio-tofu-state-180294223248"
+    bucket       = "portfolio-tofu-state-793680745829"
     key          = "portfolio/terraform.tfstate"
     region       = "us-west-2"
     use_lockfile = true
@@ -18,11 +20,12 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region              = var.aws_region
+  allowed_account_ids = [var.aws_account_id]
 
   default_tags {
     tags = {
-      Project   = "portfolio"
+      project   = "portfolio"
       ManagedBy = "opentofu"
     }
   }

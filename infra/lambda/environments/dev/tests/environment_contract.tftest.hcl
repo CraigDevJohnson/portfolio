@@ -1,6 +1,6 @@
 mock_provider "aws" {
   mock_data "aws_caller_identity" {
-    defaults = { account_id = "180294223248" }
+    defaults = { account_id = "111122223333" }
   }
 
   mock_data "aws_partition" {
@@ -8,7 +8,7 @@ mock_provider "aws" {
   }
 
   mock_data "aws_kms_alias" {
-    defaults = { target_key_arn = "arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000" }
+    defaults = { target_key_arn = "arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000000" }
   }
 
   mock_data "aws_iam_policy_document" {
@@ -16,12 +16,12 @@ mock_provider "aws" {
   }
 
   mock_resource "aws_cloudwatch_log_group" {
-    defaults = { arn = "arn:aws:logs:us-west-2:180294223248:log-group:portfolio-test" }
+    defaults = { arn = "arn:aws:logs:us-west-2:111122223333:log-group:portfolio-test" }
   }
 
   mock_resource "aws_acm_certificate" {
     defaults = {
-      arn = "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000"
+      arn = "arn:aws:acm:us-west-2:111122223333:certificate/00000000-0000-0000-0000-000000000000"
       domain_validation_options = [
         {
           domain_name           = "dev.craigdevjohnson.com"
@@ -34,21 +34,21 @@ mock_provider "aws" {
   }
 
   mock_resource "aws_cloudwatch_metric_alarm" {
-    defaults = { arn = "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test" }
+    defaults = { arn = "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test" }
   }
 
   mock_resource "aws_dynamodb_table" {
-    defaults = { arn = "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-test" }
+    defaults = { arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" }
   }
 
   mock_resource "aws_iam_role" {
-    defaults = { arn = "arn:aws:iam::180294223248:role/portfolio-lambda-test" }
+    defaults = { arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test" }
   }
 
   mock_resource "aws_apigatewayv2_api" {
     defaults = {
       api_endpoint  = "https://test.execute-api.us-west-2.amazonaws.com"
-      execution_arn = "arn:aws:execute-api:us-west-2:180294223248:test-api"
+      execution_arn = "arn:aws:execute-api:us-west-2:111122223333:test-api"
       id            = "test-api"
     }
   }
@@ -63,18 +63,22 @@ mock_provider "aws" {
 
   mock_resource "aws_lambda_function" {
     defaults = {
-      arn        = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev"
-      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev/invocations"
+      arn        = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev"
+      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev/invocations"
       version    = "1"
     }
   }
 
   mock_resource "aws_lambda_alias" {
     defaults = {
-      arn        = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live"
-      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live/invocations"
+      arn        = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev:live"
+      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev:live/invocations"
     }
   }
+}
+
+variables {
+  aws_account_id = "111122223333"
 }
 
 run "development_environment_contract" {
@@ -85,7 +89,7 @@ run "development_environment_contract" {
       var.environment == "dev" &&
       var.name_prefix == "portfolio-lambda-dev" &&
       var.aws_region == "us-west-2" &&
-      var.ecr_repository_url == "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases" &&
+      var.ecr_repository_url == "111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases" &&
       var.image_digest == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" &&
       var.lambda_memory_mb == 512 &&
       var.lambda_timeout_seconds == 29 &&
@@ -104,12 +108,12 @@ run "development_environment_contract" {
   assert {
     condition = (
       output.environment == "dev" &&
-      output.image_uri == "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" &&
+      output.image_uri == "111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" &&
       output.lambda_function_name == "portfolio-lambda-dev" &&
-      output.lambda_function_arn == "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev" &&
+      output.lambda_function_arn == "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev" &&
       output.lambda_published_version == "1" &&
       output.lambda_alias_name == "live" &&
-      output.lambda_alias_arn == "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live" &&
+      output.lambda_alias_arn == "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev:live" &&
       output.api_id == "test-api" &&
       output.api_default_url == "https://test.execute-api.us-west-2.amazonaws.com"
     )
@@ -119,7 +123,7 @@ run "development_environment_contract" {
   assert {
     condition = (
       output.lambda_execution_role_name == "portfolio-lambda-dev-execution" &&
-      output.lambda_execution_permissions_boundary_arn == "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      output.lambda_execution_permissions_boundary_arn == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
       output.lambda_runtime_policy_name == "portfolio-lambda-dev-runtime" &&
       output.api_name == "portfolio-lambda-dev-http" &&
       output.alarm_names == tolist([
@@ -138,9 +142,9 @@ run "development_environment_contract" {
       output.lambda_log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
       output.api_access_log_group_name == "/aws/apigateway/portfolio-lambda-dev/access" &&
       output.google_connection_table_name == "portfolio-lambda-dev-google-connections" &&
-      output.google_connection_table_arn == "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-test" &&
+      output.google_connection_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" &&
       output.soccer_session_table_name == "portfolio-lambda-dev-soccer-sessions" &&
-      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-test"
+      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
     )
     error_message = "development storage and log outputs must forward the evaluated service values"
   }
@@ -157,13 +161,13 @@ run "development_environment_contract" {
   assert {
     condition = (
       output.alarm_arns == tolist([
-        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
-        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
-        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
-        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
-        "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test",
+        "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test",
+        "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test",
+        "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test",
+        "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test",
+        "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test",
       ]) &&
-      output.certificate_arn == "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000" &&
+      output.certificate_arn == "arn:aws:acm:us-west-2:111122223333:certificate/00000000-0000-0000-0000-000000000000" &&
       length(output.acm_validation_records) == 1 &&
       output.acm_validation_records[0].domain_name == "dev.craigdevjohnson.com" &&
       output.acm_validation_records[0].resource_record_name == "_dev.craigdevjohnson.com" &&

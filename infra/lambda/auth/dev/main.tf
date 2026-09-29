@@ -1,6 +1,6 @@
 locals {
-  aws_account_id           = "180294223248"
   aws_region               = "us-west-2"
+  cognito_domain_prefix    = coalesce(var.cognito_domain_prefix, "portfolio-lambda-dev-mgmt-${var.aws_account_id}")
   user_pool_name           = "portfolio-lambda-dev-mgmt"
   app_client_name          = "portfolio-lambda-dev-mgmt-web"
   callback_uri             = "https://dev.craigdevjohnson.com/callback"
@@ -10,7 +10,7 @@ locals {
   allowed_emails           = toset(["craigdevjohnson@gmail.com"])
   ec2_management_tag_key   = "PortfolioManagement"
   ec2_management_tag_value = "dev"
-  cognito_domain           = "https://${var.cognito_domain_prefix}.auth.${local.aws_region}.amazoncognito.com"
+  cognito_domain           = "https://${local.cognito_domain_prefix}.auth.${local.aws_region}.amazoncognito.com"
   cognito_issuer           = "https://${aws_cognito_user_pool.management.endpoint}"
   google_redirect_uri      = "${local.cognito_domain}/oauth2/idpresponse"
 }
@@ -65,7 +65,7 @@ resource "aws_cognito_user_pool_client" "management" {
 }
 
 resource "aws_cognito_user_pool_domain" "management" {
-  domain                = var.cognito_domain_prefix
+  domain                = local.cognito_domain_prefix
   user_pool_id          = aws_cognito_user_pool.management.id
   managed_login_version = 2
 }
