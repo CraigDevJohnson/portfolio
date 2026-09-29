@@ -1,12 +1,12 @@
 name: Release
 
+# CI on main -> build -> development deploy -> production plan ->
+# production reviewer approval -> production apply (D24).
+# Changes to release tooling or infrastructure, and every manual run, first
+# wait for approval in the release-review environment (D23).
+
 on:
   workflow_dispatch:
-    inputs:
-      recovery_source_sha:
-        description: Exact reviewed current-main SHA for the one-time development recovery
-        required: true
-        type: string
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -14,7 +14,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: release-dispatch-${{ github.event.workflow_run.head_sha || inputs.recovery_source_sha }}
+  group: release-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -25,8 +25,7 @@ jobs:
     if: >-
       (
         github.event_name == 'workflow_dispatch' &&
-        github.ref == 'refs/heads/main' &&
-        inputs.recovery_source_sha == github.sha
+        github.ref == 'refs/heads/main'
       ) ||
       (
         github.event.workflow_run.conclusion == 'success' &&
@@ -37,120 +36,76 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: read
       contents: read
-      deployments: read
-      pull-requests: read
     outputs:
       classification: ${{ steps.authorize.outputs.classification }}
       source_sha: ${{ steps.authorize.outputs.source_sha }}
-      base_sha: ${{ steps.authorize.outputs.base_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
       - id: authorize
         env:
-          EVENT_SHA: ${{ github.event.workflow_run.head_sha || inputs.recovery_source_sha }}
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: task lambda-ci-authorize-release
 
+  # D23: approval in this environment is the release-review gate. The job gets
+  # no AWS credentials.
   release-review:
     needs: authorize
     if: needs.authorize.outputs.classification == 'review'
     environment: release-review
-    concurrency:
-      group: lambda-release-review
-      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: read
       contents: read
-      deployments: write
-      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
-      - name: Record the protected release review checkpoint
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
-        run: task lambda-ci-record-release-review
-
-  development-review:
-    needs: authorize
-    if: needs.authorize.outputs.classification == 'development-reviewed'
-    environment: release-review
-    concurrency:
-      group: lambda-release-review
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      DEVELOPMENT_RECOVERY: ${{ github.event_name == 'workflow_dispatch' }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
-      - uses: go-task/setup-task@v2.2.0
-        with:
-          version: 3.53.1
-      - name: Recheck source authority after protected development review
+      - name: Recheck that the reviewed source is still current main
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
         run: task lambda-ci-check-current-main
 
   build:
-    needs: [authorize, development-review]
+    needs: [authorize, release-review]
     if: >-
       !cancelled() &&
       needs.authorize.result == 'success' &&
       (
         (
-          needs.authorize.outputs.classification == 'development' &&
-          needs.development-review.result == 'skipped'
+          needs.authorize.outputs.classification == 'release' &&
+          needs.release-review.result == 'skipped'
         ) ||
         (
-          needs.authorize.outputs.classification == 'development-reviewed' &&
-          needs.development-review.result == 'success'
+          needs.authorize.outputs.classification == 'review' &&
+          needs.release-review.result == 'success'
         )
       )
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      DEVELOPMENT_RECOVERY: ${{ github.event_name == 'workflow_dispatch' }}
     permissions:
-      actions: read
       contents: read
-      deployments: read
       id-token: write
-      pull-requests: read
     outputs:
       digest: ${{ steps.image.outputs.digest }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
@@ -183,33 +138,20 @@ jobs:
 
   development:
     needs: [authorize, build]
-    if: >-
-      !cancelled() &&
-      needs.authorize.result == 'success' &&
-      needs.build.result == 'success' &&
-      (
-        needs.authorize.outputs.classification == 'development' ||
-        needs.authorize.outputs.classification == 'development-reviewed'
-      )
     environment: development
     concurrency:
       group: lambda-development
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      DEVELOPMENT_RECOVERY: ${{ github.event_name == 'workflow_dispatch' }}
     permissions:
-      actions: read
       contents: read
-      deployments: write
       id-token: write
-      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
@@ -230,7 +172,7 @@ jobs:
         env:
           EXPECTED_ROLE_ARN: ${{ vars.AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN }}
         run: task lambda-ci-check-aws-identity
-      - name: Plan, apply, verify, and record the development release
+      - name: Plan, apply and verify the development release
         env:
           EXPECTED_MANAGEMENT_JSON: ${{ vars.MANAGEMENT_RUNTIME_JSON || 'null' }}
           GH_TOKEN: ${{ github.token }}
@@ -240,14 +182,13 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: development-evidence-${{ needs.authorize.outputs.source_sha }}
+          name: development-${{ needs.authorize.outputs.source_sha }}
           path: evidence/
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
   production-plan:
-    needs: authorize
-    if: needs.authorize.outputs.classification == 'production'
+    needs: [authorize, build, development]
     environment: production-plan
     concurrency:
       group: lambda-production
@@ -255,20 +196,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      actions: read
       contents: read
-      deployments: read
       id-token: write
-      pull-requests: read
     outputs:
       plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
-      identity_sha256: ${{ steps.plan.outputs.identity_sha256 }}
       artifact_id: ${{ steps.artifact.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
@@ -289,18 +226,14 @@ jobs:
         env:
           EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}
         run: task lambda-ci-check-aws-identity
-      - name: Validate promotion and retain the production plan
+      - name: Save the production plan for review
         id: plan
         env:
-          BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
           GH_TOKEN: ${{ github.token }}
-          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
           SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
-          BOOTSTRAP_EVIDENCE_JSON: ${{ vars.PRODUCTION_BOOTSTRAP_EVIDENCE_JSON }}
         run: task lambda-ci-plan-production
       - id: artifact
-        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: production-plan-${{ needs.authorize.outputs.source_sha }}
@@ -308,34 +241,24 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
-  production-apply:
-    needs: [authorize, production-plan]
-    if: >-
-      needs.authorize.outputs.classification == 'production' &&
-      needs.production-plan.result == 'success' &&
-      vars.PRODUCTION_APPLY_ENABLED == 'true'
+  # D24: Craig reviews the plan in the production-plan job summary, then
+  # approves this environment. The job applies exactly that saved plan.
+  production:
+    needs: [authorize, build, production-plan]
     environment: production
     concurrency:
       group: lambda-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
-      actions: read
       contents: read
-      deployments: write
       id-token: write
-      pull-requests: read
-    env:
-      SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
-      PLANNED_PLAN_SHA256: ${{ needs.production-plan.outputs.plan_sha256 }}
-      PLANNED_IDENTITY_SHA256: ${{ needs.production-plan.outputs.identity_sha256 }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.authorize.outputs.source_sha }}
-          fetch-depth: 0
+          persist-credentials: false
       - uses: go-task/setup-task@v2.2.0
         with:
           version: 3.53.1
@@ -348,8 +271,11 @@ jobs:
           artifact-ids: ${{ needs.production-plan.outputs.artifact_id }}
           path: evidence
           merge-multiple: true
-      - name: Bind protected approval to the trusted planning outputs
-        run: task lambda-ci-review-production
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
@@ -358,12 +284,10 @@ jobs:
         env:
           EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
         run: task lambda-ci-check-aws-identity
-      - name: Apply reviewed plan and observe production origin and AWS
-        run: task lambda-ci-apply-reviewed-production
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: production-evidence-${{ needs.authorize.outputs.source_sha }}
-          path: evidence/
-          retention-days: 90
-          if-no-files-found: error
+      - name: Apply the approved plan and verify production
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          PLANNED_PLAN_SHA256: ${{ needs.production-plan.outputs.plan_sha256 }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-apply-production

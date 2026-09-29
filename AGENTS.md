@@ -6,7 +6,7 @@
 1. `Taskfile.yaml` for all commands
 2. `cmd/server/main.go` + `internal/app/` for app wiring
 3. `README.md` for architecture / usage
-4. `DEPLOY-INSTRUCTIONS.md` + `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` + `infra/lambda/` for deployment
 
 ## Commands
 
@@ -21,12 +21,13 @@
 - `task fmt` — `golangci-lint fmt` (NOT `go fmt ./...`)
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
+- `task infrastructure-ci` — offline OpenTofu fmt/validate/tests and release-script tests (no AWS access)
 - `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
-- GitHub Actions roles: `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, `task lambda-ci-roles-apply`, and `task lambda-ci-roles-verify`
-- Replacement artifact infrastructure: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
-- Replacement development infrastructure: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
-- Replacement production infrastructure: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`
-- See `DEPLOY-INSTRUCTIONS.md` before any deployment operation
+- Account root (CI roles, execution boundary, state bucket): `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, and `task lambda-ci-roles-apply`
+- Release artifacts: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
+- Development: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
+- Production: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`
+- Deploy tasks run as the `workloads-admin` SSO profile in the workloads account; see `DEPLOY-INSTRUCTIONS.md` before any deployment operation
 
 ## Architecture
 
@@ -37,6 +38,8 @@
   the managed Lambda image.
 - `internal/portal` contains the optional Cognito-authenticated EC2 management
   portal, including instance actions, CloudWatch metrics, and CloudWatch Logs.
+  It is disabled in both environments, and its Lambda role has no EC2 start/stop
+  or instance log grants (D22).
 - See `.github/instructions/templ.instructions.md` and `.github/instructions/tailwind.instructions.md` for detailed authoring rules
 
 ## Gotchas
@@ -88,3 +91,14 @@ The five canonical triage roles use their default, same-named GitHub labels. See
 ### Domain docs
 
 This repository uses a single-context layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## AWS changes
+
+- The portfolio runs in the workloads account. `AWS_ACCOUNT_ID` in `Taskfile.yaml`
+  and `aws_account_id` in each OpenTofu root are the only account configuration;
+  build ARNs from `data.aws_caller_identity`.
+- Agents may run `tofu init`, `validate`, `fmt`, `test` and `plan`. Applies,
+  imports, state commands and the Taskfile apply and push wrappers need Craig's
+  approval of that specific change; `.claude/settings.json` asks before them.
+- Releases need no time windows or observation periods: CI deploys dev, plans
+  prod, and Craig approves the `production` environment to apply (G11).

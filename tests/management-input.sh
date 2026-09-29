@@ -16,11 +16,11 @@ rejection='Management input rejected: expected management must be the exact revi
 
 reject_private_input() {
   input=$1
-  for command in check-management-input create-ci-lambda-release-plan create-ci-lambda-rollback-plan; do
+  for command in check-management-input create-ci-lambda-release-plan; do
     if env PATH="$test_dir/bin:$PATH" MANAGEMENT_TOFU_LOG="$test_dir/tofu.log" \
       ENVIRONMENT=dev EXPECTED_MANAGEMENT_JSON="$input" RELEASE_ENVIRONMENT=development \
       IMAGE_DIGEST=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-      EVIDENCE_DIR="$test_dir/evidence" ECR_URL=unused PRIOR_VERSION=7 \
+      EVIDENCE_DIR="$test_dir/evidence" ECR_URL=unused PORTFOLIO_ACCOUNT_ID=111122223333 \
       sh "$root_dir/scripts/$command.sh" > "$test_dir/stdout" 2> "$test_dir/stderr"; then
       printf 'FAIL: %s accepted invalid management input\n' "$command" >&2
       exit 1

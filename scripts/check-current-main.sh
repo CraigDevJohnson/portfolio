@@ -1,7 +1,9 @@
 #!/bin/sh
+# Refuse to act on a source commit that is no longer the tip of main.
 set -eu
 
 expected_sha=${1:?usage: check-current-main.sh EXPECTED_SHA}
+: "${GITHUB_REPOSITORY:?set GITHUB_REPOSITORY}"
 printf '%s\n' "$expected_sha" | grep -Eq '^[0-9a-f]{40}$' || {
   echo 'expected source SHA must be a full lowercase commit SHA' >&2
   exit 1
@@ -12,9 +14,3 @@ test "$current_sha" = "$expected_sha" || {
   echo 'A newer main commit exists; refusing stale release authority.' >&2
   exit 1
 }
-
-if [ "${DEVELOPMENT_RECOVERY:-false}" = true ]; then
-  script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
-  python3 "$script_dir/validate-development-recovery.py" \
-    --source-sha "$expected_sha" --phase approved
-fi
