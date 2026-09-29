@@ -1,6 +1,6 @@
 #!/bin/sh
-# Create one environment's saved release plan in EVIDENCE_DIR and check that it
-# only releases the new image.
+# Create one environment's saved release plan, check that it only releases the
+# new image, then copy it to EVIDENCE_DIR.
 set -eu
 
 : "${RELEASE_ENVIRONMENT:?set RELEASE_ENVIRONMENT to development or production}"
@@ -38,11 +38,21 @@ ENVIRONMENT="$environment" EXPECTED_MANAGEMENT_JSON="$management" \
   sh "$(dirname "$0")/check-management-input.sh"
 
 mkdir -p "$EVIDENCE_DIR"
-plan_file="$EVIDENCE_DIR/$environment.tfplan"
-test ! -e "$plan_file" || {
-  printf 'Refusing existing plan: %s\n' "$plan_file" >&2
-  exit 1
-}
+for name in "$environment.tfplan" "$environment-plan.json" "$environment-plan.txt"; do
+  test ! -e "$EVIDENCE_DIR/$name" || {
+    printf 'Refusing existing plan evidence: %s\n' "$EVIDENCE_DIR/$name" >&2
+    exit 1
+  }
+done
+
+# The saved plan and its JSON hold the prior state and inputs, and the evidence
+# directory is uploaded as a workflow artifact even when a job fails. Build
+# them in a private directory and publish them only once the check passes.
+umask 077
+plan_dir=$(mktemp -d)
+trap 'rm -rf "$plan_dir"' EXIT
+trap 'exit 1' HUP INT TERM
+plan_file="$plan_dir/$environment.tfplan"
 
 tofu -chdir="$root" init -backend-config=backend.hcl -reconfigure -input=false
 workspace=$(tofu -chdir="$root" workspace show)
@@ -55,9 +65,12 @@ TF_VAR_management="$management" \
   TF_VAR_ecr_repository_url="$ECR_URL" \
   TF_VAR_image_digest="$IMAGE_DIGEST" \
   tofu -chdir="$root" plan -lock-timeout=5m -input=false -out="$plan_file"
-tofu -chdir="$root" show -json "$plan_file" > "$EVIDENCE_DIR/$environment-plan.json"
-tofu -chdir="$root" show -no-color "$plan_file" > "$EVIDENCE_DIR/$environment-plan.txt"
+tofu -chdir="$root" show -json "$plan_file" > "$plan_dir/$environment-plan.json"
+tofu -chdir="$root" show -no-color "$plan_file" > "$plan_dir/$environment-plan.txt"
 
-PLAN_JSON="$EVIDENCE_DIR/$environment-plan.json" \
+PLAN_JSON="$plan_dir/$environment-plan.json" \
   IMAGE_URI="$ECR_URL@$IMAGE_DIGEST" \
   sh "$(dirname "$0")/check-lambda-plan.sh"
+
+cp "$plan_file" "$plan_dir/$environment-plan.json" "$plan_dir/$environment-plan.txt" \
+  "$EVIDENCE_DIR/"
