@@ -10,6 +10,7 @@ terraform {
 
   # Retired root. Its live resources are destroyed from the management-final
   # tag (refactor Phase 14); never apply this root in the workloads account.
+  # retired.tf fails every plan here.
   backend "s3" {
     bucket       = "portfolio-tofu-state-793680745829"
     key          = "portfolio/terraform.tfstate"

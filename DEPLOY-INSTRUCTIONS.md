@@ -22,7 +22,7 @@ native lock files).
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10, logs (30 days), alarms to `alerts` |
 | `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
-| `infra` | `portfolio/terraform.tfstate` | Retired legacy root. Its management-account resources are destroyed from the `management-final` tag. Never apply it |
+| `infra` | `portfolio/terraform.tfstate` | Retired legacy root. Its management-account resources are destroyed from the `management-final` tag. A guard (`infra/retired.tf`) fails every plan here |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
 execution roles attach the boundary by ARN, so the account root comes first.

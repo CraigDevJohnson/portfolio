@@ -21,7 +21,8 @@ expected_resources=$(printf '%s\n' \
 	'aws_ecr_lifecycle_policy.app' \
 	'aws_ecr_repository.app' \
 	'aws_iam_policy.google_connections_dynamodb' \
-	'aws_iam_policy.soccer_sessions_dynamodb')
+	'aws_iam_policy.soccer_sessions_dynamodb' \
+	'terraform_data.retired')
 test "$actual_resources" = "$expected_resources" || {
 	printf 'Unexpected shared-root managed resources:\n%s\n' "$actual_resources" >&2
 	exit 1
