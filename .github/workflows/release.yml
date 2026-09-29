@@ -293,3 +293,11 @@ jobs:
           PLANNED_PLAN_SHA256: ${{ needs.production-plan.outputs.plan_sha256 }}
           SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
         run: task lambda-ci-apply-production
+      # A record of each production apply: outputs, route probes, alias and alarms.
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-${{ needs.authorize.outputs.source_sha }}
+          path: evidence/verify-prod/
+          retention-days: 90
+          if-no-files-found: warn
