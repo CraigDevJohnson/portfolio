@@ -140,6 +140,12 @@ jobs:
 
   development:
     needs: [authorize, build]
+    # Explicit guard: release-review is skipped for app-only releases, and the
+    # implicit success() check would then skip this job too.
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success'
     environment: development
     concurrency:
       group: lambda-development
@@ -191,6 +197,11 @@ jobs:
 
   production-plan:
     needs: [authorize, build, development]
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.development.result == 'success'
     environment: production-plan
     concurrency:
       group: lambda-production
@@ -247,6 +258,11 @@ jobs:
   # approves this environment. The job applies exactly that saved plan.
   production:
     needs: [authorize, build, production-plan]
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.production-plan.result == 'success'
     environment: production
     concurrency:
       group: lambda-production

@@ -231,4 +231,16 @@ if (cd "$root_dir" && FAKE_MAIN_SHA=$head_sha SOURCE_SHA=$head_sha \
 fi
 [ ! -s "$FAKE_TOFU_LOG" ] || fail 'production apply ran tofu before checking the plan checksum'
 
+# --- release.yml job routing -----------------------------------------------
+# release-review is skipped for app-only releases. Every job after build needs
+# an explicit !cancelled() guard, or the implicit success() check skips it.
+for job in development production-plan production; do
+  guard=$(awk -v job="  $job:" '
+    $0 == job { in_job = 1; next }
+    in_job && /^  [a-z-]+:$/ { exit }
+    in_job && /!cancelled\(\)/ { print "yes"; exit }
+  ' "$root_dir/.github/workflows/release.yml")
+  [ "$guard" = yes ] || fail "release.yml job $job lacks an explicit !cancelled() guard"
+done
+
 printf 'Release script contracts passed\n'
