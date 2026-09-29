@@ -95,8 +95,10 @@ This repository uses a single-context layout with root `CONTEXT.md` and `docs/ad
 ## AWS changes
 
 - The portfolio runs in the workloads account. `AWS_ACCOUNT_ID` in `Taskfile.yaml`
-  and `aws_account_id` in each OpenTofu root are the only account configuration;
-  build ARNs from `data.aws_caller_identity`.
+  and `aws_account_id` in each OpenTofu root configure the account. The state
+  bucket name in each `backend.hcl` (and the test that checks it) also contains
+  the ID, because backends can't read variables. Build ARNs from
+  `data.aws_caller_identity`.
 - Agents may run `tofu init`, `validate`, `fmt`, `test` and `plan`. Applies,
   imports, state commands and the Taskfile apply and push wrappers need Craig's
   approval of that specific change; `.claude/settings.json` asks before them.
