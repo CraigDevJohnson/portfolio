@@ -86,10 +86,13 @@ after the first SecureString.
 `.github/workflows/release.yml` runs after a successful `CI` push to `main`, or
 manually with `workflow_dispatch`:
 
-1. **authorize** classifies the pushed change: docs and tests only skip;
+1. **authorize** classifies every change since the commit of the last
+   successful `development` deployment, so an unapproved tooling change can't
+   ship with a later application change. Docs and tests only skip;
    application changes release; changes to `.github/`, `infra/`, `scripts/`,
    `Taskfile.yaml`, `Dockerfile*` or `deploy/` need release review. A manual
-   run always needs release review.
+   run, or a commit with no successful `development` deployment in its
+   history, always needs release review.
 2. **release-review** waits for Craig's approval in the `release-review`
    environment when needed (D23). It has no AWS credentials.
 3. **build** builds `git-<sha>` once, pushes it, and requires a completed scan

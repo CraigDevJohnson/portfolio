@@ -16,7 +16,21 @@ mkdir -p "$test_dir/bin"
 cat > "$test_dir/bin/gh" << 'CLI'
 #!/bin/sh
 # gh api repos/<repo>/commits/main --jq .sha
-printf '%s\n' "$FAKE_MAIN_SHA"
+# gh api --paginate --slurp repos/<repo>/deployments?environment=development&...
+# gh api repos/<repo>/deployments/<id>/statuses?...
+args=$*
+case "$args" in
+  *"/commits/main"*) printf '%s\n' "$FAKE_MAIN_SHA" ;;
+  *"/deployments?environment=development&"*)
+    [ -z "${FAKE_DEPLOYMENTS_FAIL:-}" ] || exit 1
+    cat "$FAKE_DEPLOYMENTS_DIR/deployments.json"
+    ;;
+  *"/statuses?"*)
+    id=${args##*/deployments/}
+    cat "$FAKE_DEPLOYMENTS_DIR/statuses.${id%%/*}.json"
+    ;;
+  *) exit 1 ;;
+esac
 CLI
 cat > "$test_dir/bin/aws" << 'CLI'
 #!/bin/sh
@@ -74,11 +88,52 @@ authorize() {
   (cd "$repo" && EVENT_SHA=$1 GITHUB_OUTPUT="$test_dir/output" \
     sh "$root_dir/scripts/authorize-ci-lambda-release.sh" > /dev/null)
 }
+# Write the development deployment history. Each argument is SHA:STATE, oldest
+# first. Like GitHub, the fake lists deployments and statuses newest first, and
+# --paginate --slurp wraps the pages in an array.
+export FAKE_DEPLOYMENTS_DIR="$test_dir/deployments"
+deployments() {
+  rm -rf "$FAKE_DEPLOYMENTS_DIR"
+  mkdir -p "$FAKE_DEPLOYMENTS_DIR"
+  n=0
+  list='[]'
+  for entry in "$@"; do
+    n=$((n + 1))
+    list=$(printf '%s\n' "$list" | jq --argjson id "$n" --arg sha "${entry%%:*}" \
+      '[{id: $id, sha: $sha, created_at: "2026-09-\(10 + $id)T00:00:00Z"}] + .')
+    jq -n --argjson id "$n" --arg state "${entry#*:}" '[
+      {id: ($id * 10 + 1), state: $state, created_at: "2026-09-\(10 + $id)T00:02:00Z"},
+      {id: ($id * 10), state: "in_progress", created_at: "2026-09-\(10 + $id)T00:01:00Z"}]' \
+      > "$FAKE_DEPLOYMENTS_DIR/statuses.$n.json"
+  done
+  printf '%s\n' "$list" | jq '[.]' > "$FAKE_DEPLOYMENTS_DIR/deployments.json"
+}
+# expect_release CLASSIFICATION EVENT_SHA MESSAGE: a push of EVENT_SHA to main.
+expect_release() {
+  : > "$test_dir/output"
+  FAKE_MAIN_SHA=$2 GITHUB_EVENT_NAME=workflow_run authorize "$2"
+  grep -Fxq "classification=$1" "$test_dir/output" || fail "$3"
+}
+
+released_sha=$(git -C "$repo" rev-parse HEAD)
 head_sha=$(commit internal/app/server.go)
-: > "$test_dir/output"
-FAKE_MAIN_SHA=$head_sha GITHUB_EVENT_NAME=workflow_run authorize "$head_sha"
-grep -Fxq "classification=release" "$test_dir/output" || fail 'push of app code must release'
+deployments "$released_sha:success"
+expect_release release "$head_sha" 'push of app code must release'
 grep -Fxq "source_sha=$head_sha" "$test_dir/output" || fail 'authorization must emit the source SHA'
+
+deployments "$released_sha:success" "$head_sha:failure"
+expect_release release "$head_sha" 'a failed deployment must not move the release base'
+
+deployments
+expect_release review "$head_sha" 'a push with no verified development release must wait for review'
+
+deployments "$(printf '%040d' 0 | tr 0 a):success"
+expect_release review "$head_sha" 'a release base outside this history must wait for review'
+
+deployments "$released_sha:success"
+export FAKE_DEPLOYMENTS_FAIL=1
+expect_release review "$head_sha" 'an unreadable deployment history must wait for review'
+unset FAKE_DEPLOYMENTS_FAIL
 
 : > "$test_dir/output"
 FAKE_MAIN_SHA=$head_sha GITHUB_EVENT_NAME=workflow_dispatch authorize "$head_sha"
@@ -88,6 +143,18 @@ if FAKE_MAIN_SHA=0000000000000000000000000000000000000000 GITHUB_EVENT_NAME=work
   authorize "$head_sha" 2> /dev/null; then
   fail 'a stale main commit must not be authorized'
 fi
+
+# Backlog: a tooling change whose release never reached development must still
+# be reviewed when a later application change ships it. A multi-commit push is
+# the same case.
+tooling_sha=$(commit scripts/check-lambda-plan.sh)
+app_sha=$(commit internal/app/app.go)
+deployments "$released_sha:inactive" "$head_sha:success" "$tooling_sha:failure"
+expect_release review "$app_sha" 'an unreviewed tooling change must not ship with a later app change'
+deployments "$released_sha:inactive" "$head_sha:success"
+expect_release review "$app_sha" 'a multi-commit push with a tooling change must wait for review'
+deployments "$released_sha:inactive" "$head_sha:inactive" "$tooling_sha:success"
+expect_release release "$app_sha" 'a verified tooling release must not hold back later app changes'
 
 # --- check-ci-aws-identity.sh ---------------------------------------------
 identity() {

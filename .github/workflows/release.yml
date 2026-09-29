@@ -37,6 +37,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # Reads the last successful development deployment to classify the release.
+      deployments: read
     outputs:
       classification: ${{ steps.authorize.outputs.classification }}
       source_sha: ${{ steps.authorize.outputs.source_sha }}
