@@ -68,7 +68,8 @@ Per D22 the boundary grants no EC2 start/stop and no `/ec2/i-*` log reads.
 The bucket is created once with the AWS CLI, because this root keeps its own
 state in it. The first plan then adopts it through the `import` blocks in
 `state_bucket.tf`: versioning, full public access block, SSE-S3 and
-`BucketOwnerEnforced`. `prevent_destroy` protects it. Once the bucket is in
+`BucketOwnerEnforced`. `prevent_destroy` protects the bucket, its versioning
+and its public access block. Once the bucket is in
 state, the import blocks are no-ops. The tests set `import_state_bucket = false`
 because mock providers cannot import.
 

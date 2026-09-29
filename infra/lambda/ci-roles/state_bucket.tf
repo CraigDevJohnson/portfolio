@@ -10,11 +10,17 @@ resource "aws_s3_bucket" "state" {
   }
 }
 
+# Destroying either of these would suspend versioning or remove the public
+# access block on the bucket that holds all portfolio state.
 resource "aws_s3_bucket_versioning" "state" {
   bucket = aws_s3_bucket.state.id
 
   versioning_configuration {
     status = "Enabled"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -25,6 +31,10 @@ resource "aws_s3_bucket_public_access_block" "state" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
