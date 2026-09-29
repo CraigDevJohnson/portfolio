@@ -27,7 +27,8 @@
       "mcp__*aws*",
       "Bash(task *apply*)",
       "Bash(task *deploy*)",
-      "Bash(task *push*)"
+      "Bash(task *push*)",
+      "Bash(task *release-image*)"
     ],
     "disableBypassPermissionsMode": "disable"
   }
