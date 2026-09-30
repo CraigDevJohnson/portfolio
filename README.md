@@ -167,13 +167,31 @@ the stored connection the same way, leaving the previous account's grant at
 Google. To withdraw the site's Calendar access entirely, remove the app from
 the Google Account's third-party access settings.
 
-The primary writable calendar is selected when consent completes. A visitor
-can save another writable destination; existing events stay in their original
-calendar, while later explicit Adds use the new one. If the chosen calendar
-disappears or rejects event access, Adds pause until the visitor selects a
-writable calendar again. Fetching schedules writes no Google events. Add sends
-only explicitly selected upcoming games, using stable game IDs and a private
-site marker so repeating Add matches the same event.
+The primary calendar is the destination as soon as consent completes, with
+no separate confirmation. A visitor can save another calendar the connected
+account can write; events already added stay in their original calendar, and
+later Adds go to the new one. If the chosen calendar disappears or stops
+accepting this account's events, Add and result sync pause and the card asks
+for a new choice; they never fall back to primary, and the calendar returning
+does not resume them without that choice. When Google rejects the connection
+itself, the site removes it and asks the visitor to connect again; a Google
+usage limit only asks them to retry.
+
+Viewing the page and fetching schedules write no Google events. **Add selected
+to calendar** writes only the selected upcoming games. Each event it writes
+carries this provenance, which result sync relies on to recognize the site's
+own events:
+
+- The Google event ID is the game's canonical ID: the LPS game ID, or a hash
+  of the game's schedule fields when LPS gives none.
+- The private extended property `game_id` repeats that ID.
+- The private extended property `portfolio_app=soccer` marks the event as added
+  by this site, unlike an event imported from an .ics file.
+- The event source is titled `Soccer Schedule` and links to the site's
+  `/soccer` page.
+
+Repeating Add in the same calendar finds the existing event by event ID or
+`game_id` and updates it instead of inserting another.
 
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and

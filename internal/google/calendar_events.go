@@ -13,6 +13,26 @@ import (
 	"portfolio/types"
 )
 
+// Provenance written on every event the Soccer planner adds to Google
+// Calendar. Result sync relies on it to recognize the site's own events, so
+// changing a name or value orphans events already added:
+//
+//   - The event ID is the canonical game ID from schedule.CanonicalGameEvent:
+//     the LPS game ID, or a hash of the game's schedule fields when LPS gives
+//     none. Repeating Add in the same calendar addresses the same event.
+//   - The private extended property eventGameIDProperty repeats that game ID,
+//     so an event whose ID differs is still found by game.
+//   - The private extended property eventOwnerProperty set to eventOwnerValue
+//     marks the event as added by this site rather than imported from an .ics
+//     file or created by hand.
+//   - The event source names the site's Soccer page.
+const (
+	eventGameIDProperty = "game_id"
+	eventOwnerProperty  = "portfolio_app"
+	eventOwnerValue     = "soccer"
+	eventSourceTitle    = "Soccer Schedule"
+)
+
 type calendarMutationResult struct {
 	added        int
 	updated      int
@@ -197,7 +217,7 @@ func eventMatchesGameID(event *Event, gameID string) bool {
 		return false
 	}
 	eventID := strings.TrimSpace(event.ID)
-	storedGameID := strings.TrimSpace(event.ExtendedProperties.Private["game_id"])
+	storedGameID := strings.TrimSpace(event.ExtendedProperties.Private[eventGameIDProperty])
 	if eventID == gameID {
 		return true
 	}
@@ -255,11 +275,11 @@ func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 		Summary: formatted.Summary,
 	}
 	event.ExtendedProperties.Private = map[string]string{
-		"game_id":       formatted.ID,
-		"portfolio_app": "soccer",
+		eventGameIDProperty: formatted.ID,
+		eventOwnerProperty:  eventOwnerValue,
 	}
 	event.Source = &EventSource{
-		Title: "Soccer Schedule",
+		Title: eventSourceTitle,
 		URL:   internalhttpx.RequestBaseURL(r) + "/soccer",
 	}
 	return event, true

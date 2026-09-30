@@ -90,7 +90,7 @@ func (h *Handler) updateCalendarEvent(ctx context.Context, calendarID, eventID s
 func (h *Handler) listCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
 	req, err := h.newAPIRequest(ctx, http.MethodGet, calendarEventsPath+url.PathEscape(calendarID)+"/events", url.Values{
 		"maxResults":              {"10"},
-		"privateExtendedProperty": {"game_id=" + gameID},
+		"privateExtendedProperty": {eventGameIDProperty + "=" + gameID},
 		"showDeleted":             {"true"},
 	}, token, nil)
 	if err != nil {
