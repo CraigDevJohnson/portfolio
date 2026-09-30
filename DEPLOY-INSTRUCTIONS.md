@@ -230,7 +230,9 @@ deployed environment until that environment has site sign-in:
   Calendar scopes; the `/soccer` redirect URIs are unchanged. The server now
   also calls Google's UserInfo endpoint after consent. An owner-bound
   connection saved before #93 has no verified Google account, so it is not used
-  until its owner reconnects.
+  until its owner reconnects; the Soccer page marks it **Reconnect needed** and
+  offers Disconnect. Connections made on #93 or later are kept in a cookie per
+  site owner instead of the browser-wide `google_connection` cookie.
 
 Record the release order as an explicit decision before approving the next
 `production` apply that contains #86. Either accept that production LPS import

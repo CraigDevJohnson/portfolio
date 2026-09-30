@@ -16,6 +16,9 @@ type SoccerLoginStateProps struct {
 	ImportNeedsGrant         bool
 	GoogleNeedsGrant         bool
 	GoogleConnected          bool
+	// GoogleNeedsReconnect marks the owner's connection saved before its
+	// Google account was verified; it stays unused until the owner reconnects.
+	GoogleNeedsReconnect     bool
 	GoogleSuggestedEmail     string
 	GoogleAccountEmail       string
 	GoogleCalendarSummary    string
@@ -274,33 +277,32 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 					@soccerGoogleConnectAction(soccerGoogleConnectPath, "Switch to site account", "btn soccer-secondary-btn", props.Preview)
 				}
 				@soccerGoogleConnectAction(soccerGoogleChooseAccountPath, "Change Google account", "btn soccer-secondary-btn", props.Preview)
-				<button
-					type="button"
-					class="btn soccer-secondary-btn btn-loading"
-					data-loading-button
-					if props.Preview {
-						disabled
-						aria-disabled="true"
-					} else {
-						hx-post="/soccer/google/disconnect"
-						hx-target="#soccer-google-connection"
-						hx-swap="outerHTML"
-						hx-disabled-elt="this"
-					}
-				><span class="btn-text">Disconnect</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></button>
+				@soccerGoogleDisconnectAction(props.Preview)
 			</div>
 		} else {
 			<div class="soccer-connection-copy">
-				<p class="soccer-connection-status">Not connected</p>
-				<p>Google Calendar asks for its own consent, separate from site sign-in. You can download an .ics file without connecting.</p>
+				if props.GoogleNeedsReconnect {
+					<p class="soccer-connection-status">Reconnect needed</p>
+					<p>This Google Calendar connection was saved before the page confirmed its Google account. Reconnect to use it again, or disconnect to remove it.</p>
+				} else {
+					<p class="soccer-connection-status">Not connected</p>
+					<p>Google Calendar asks for its own consent, separate from site sign-in. You can download an .ics file without connecting.</p>
+				}
 				if props.GoogleSuggestedEmail != "" {
 					<p>Google will suggest <strong data-google-suggested-account>{ props.GoogleSuggestedEmail }</strong>, your site sign-in account. You can use another Google account instead.</p>
 				}
 			</div>
 			<div class="soccer-connection-actions">
-				@soccerGoogleConnectAction(soccerGoogleConnectPath, "Connect Google Calendar", "btn btn-primary", props.Preview)
+				if props.GoogleNeedsReconnect {
+					@soccerGoogleConnectAction(soccerGoogleConnectPath, "Reconnect Google Calendar", "btn btn-primary", props.Preview)
+				} else {
+					@soccerGoogleConnectAction(soccerGoogleConnectPath, "Connect Google Calendar", "btn btn-primary", props.Preview)
+				}
 				if props.GoogleSuggestedEmail != "" {
 					@soccerGoogleConnectAction(soccerGoogleChooseAccountPath, "Use another Google account", "btn soccer-secondary-btn", props.Preview)
+				}
+				if props.GoogleNeedsReconnect {
+					@soccerGoogleDisconnectAction(props.Preview)
 				}
 			</div>
 		}
@@ -326,6 +328,25 @@ templ soccerGoogleConnectAction(href, label, class string, preview bool) {
 	} else {
 		<a href={ templ.SafeURL(href) } class={ class + " btn-loading" } data-loading-link><span class="btn-text">{ label }</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></a>
 	}
+}
+
+// soccerGoogleDisconnectAction removes the owner's stored Google connection.
+// The preview renders the same control disabled.
+templ soccerGoogleDisconnectAction(preview bool) {
+	<button
+		type="button"
+		class="btn soccer-secondary-btn btn-loading"
+		data-loading-button
+		if preview {
+			disabled
+			aria-disabled="true"
+		} else {
+			hx-post="/soccer/google/disconnect"
+			hx-target="#soccer-google-connection"
+			hx-swap="outerHTML"
+			hx-disabled-elt="this"
+		}
+	><span class="btn-text">Disconnect</span><span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span></button>
 }
 
 templ SoccerGoogleConnection(props SoccerLoginStateProps) {

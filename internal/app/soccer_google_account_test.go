@@ -372,27 +372,45 @@ func TestOwnerConnectionWithoutAVerifiedGoogleAccountNeedsReconnection(t *testin
 		{name: "reconnect", method: http.MethodGet, path: "/soccer/google/connect"},
 	} {
 		t.Run(action.name, func(t *testing.T) {
-			world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
-			// A connection saved before consent recorded the Google account.
+			world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}, otherSiteEmail: {"soccer"}})
+			// A connection saved before consent recorded the Google account
+			// sits behind the browser-wide cookie that owners then shared.
 			unverified := world.store.records[grantWorldConnectionID]
 			unverified.AccountSubject, unverified.AccountEmail = "", ""
 			world.store.records[grantWorldConnectionID] = unverified
-			cookies := []*http.Cookie{
-				testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail),
-				{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID},
-			}
+			savedBefore93 := &http.Cookie{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID}
+			owner := testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail)
 
-			page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, cookies...)
-			if body := page.Body.String(); strings.Contains(body, "Calendar ready") || !strings.Contains(body, "Connect Google Calendar") {
+			page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, owner, savedBefore93).Body.String()
+			if strings.Contains(page, "Calendar ready") {
 				t.Error("page presented a connection whose Google account was never verified")
+			}
+			for _, want := range []string{"Reconnect needed", "Reconnect Google Calendar", "/soccer/google/disconnect"} {
+				if !strings.Contains(page, want) {
+					t.Errorf("owner's unverified connection page lacks %q", want)
+				}
 			}
 			if calls := world.googleCalls.Load(); calls != 0 {
 				t.Errorf("page used the unverified connection's token %d time(s)", calls)
 			}
 
-			soccerGrantRequest(world.mux, action.method, action.path, nil, cookies...)
+			// Another site owner in the same browser neither sees nor removes it.
+			other := testSiteSessionCookie(t, world.app, otherSiteSubject, otherSiteEmail)
+			otherPage := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, other, savedBefore93).Body.String()
+			if strings.Contains(otherPage, "Reconnect needed") || !strings.Contains(otherPage, "Not connected") {
+				t.Error("another site owner was told to reconnect the owner's connection")
+			}
+			soccerGrantRequest(world.mux, action.method, action.path, nil, other, savedBefore93)
+			if _, kept := world.store.records[grantWorldConnectionID]; !kept {
+				t.Fatalf("another site owner's %s removed the owner's connection", action.name)
+			}
+
+			soccerGrantRequest(world.mux, action.method, action.path, nil, owner, savedBefore93)
 			if _, kept := world.store.records[grantWorldConnectionID]; kept {
 				t.Errorf("%s left the owner's unverified connection and its token stored", action.name)
+			}
+			if calls := world.googleCalls.Load(); calls != 0 {
+				t.Errorf("%s reached Google %d time(s) for the unverified connection", action.name, calls)
 			}
 		})
 	}

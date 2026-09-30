@@ -148,8 +148,9 @@ site sign-in email to Google as `login_hint`; **Use another Google account**
 opens Google's account chooser instead. The callback reads the consenting
 account from Google's UserInfo endpoint, stores it with the connection, and the
 page shows that address; the site email is never treated as confirmation of
-the Calendar owner. A connection without a verified Google account is not used
-and is replaced on reconnection.
+the Calendar owner. A connection without a verified Google account is not
+used: the page marks its owner's card **Reconnect needed** and offers to
+reconnect or disconnect it.
 
 The connection belongs to the site owner who consented. Site sign-out keeps it
 for that owner's next sign-in in the same browser, while a signed-out visitor

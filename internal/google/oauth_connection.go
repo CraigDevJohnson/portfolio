@@ -81,7 +81,7 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	if !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
 		return nil, nil
 	}
-	if record.AccountSubject == "" || record.AccountEmail == "" {
+	if !record.accountVerified() {
 		return nil, nil
 	}
 	return record, nil
@@ -205,6 +205,7 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 	if record == nil {
+		props.GoogleNeedsReconnect = h.ownerHasUnverifiedConnection(ctx, r)
 		return
 	}
 	calendars, err := h.ListCalendars(ctx, r, record)
@@ -222,6 +223,23 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	props.GoogleAccountEmail = record.AccountEmail
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+}
+
+// ownerHasUnverifiedConnection reports whether the browser-wide cookie names
+// the current owner's connection saved before its Google account was
+// verified. That connection stays unused until the owner reconnects or
+// disconnects it.
+func (h *Handler) ownerHasUnverifiedConnection(ctx context.Context, r *http.Request) bool {
+	connectionID := browserWideConnectionID(r)
+	if connectionID == "" {
+		return false
+	}
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil {
+		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
+		return false
+	}
+	return record != nil && !record.accountVerified() && siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject)
 }
 
 func isGoogleAuthRejected(err error) bool {

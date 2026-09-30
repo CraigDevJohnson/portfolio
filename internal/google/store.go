@@ -32,6 +32,12 @@ type ConnectionRecord struct {
 	UpdatedAt       time.Time `dynamodbav:"updated_at"`
 }
 
+// accountVerified reports whether the connection records the Google account
+// that consented. Connections saved before #93 do not, so they are not used.
+func (record *ConnectionRecord) accountVerified() bool {
+	return record.AccountSubject != "" && record.AccountEmail != ""
+}
+
 // DynamoStore implements ConnectionStore using DynamoDB.
 type DynamoStore struct {
 	client    *dynamodb.Client
