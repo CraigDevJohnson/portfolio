@@ -261,11 +261,8 @@ tasks:
   infrastructure-ci:
     desc: Run the authoritative offline infrastructure gate
     cmds:
-      - tofu fmt -check -recursive infra
-      - tofu -chdir=infra init -backend=false -lockfile=readonly -input=false
-      - tofu -chdir=infra validate
       - task: lambda-infrastructure-ci
-      - sh tests/shared-root-config.sh
+      - sh tests/repository-contract.sh
 
   lambda-infrastructure-ci:
     desc: Run the authoritative offline Lambda infrastructure and release gate

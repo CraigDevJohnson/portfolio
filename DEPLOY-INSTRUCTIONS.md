@@ -5,9 +5,9 @@ behind an API Gateway HTTP API in the **workloads** AWS account, us-west-2. The
 account ID is configured in one place per tool: `AWS_ACCOUNT_ID` in
 `Taskfile.yaml` and the `aws_account_id` input of each OpenTofu root. The state
 bucket name in each `backend.hcl` also contains it, because backends can't read
-variables. Every
-ARN is built from `data.aws_caller_identity`, and every provider refuses
-credentials for any other account.
+variables. Every ARN is built from `data.aws_caller_identity`, or from the
+configured account ID where no provider is available, and every provider
+refuses credentials for any other account.
 
 aws-setup owns the account itself, the GitHub OIDC provider and the `alerts`
 SNS topics. This repository owns everything in the table below.
@@ -26,7 +26,6 @@ native lock files).
 | `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
 | `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
 | `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
-| `infra` | `portfolio/terraform.tfstate` | Retired legacy root. Its management-account resources are destroyed from the `management-final` tag. A guard (`infra/retired.tf`) fails every plan here |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
 execution roles attach the boundary by ARN, so the account root comes first.
@@ -175,10 +174,7 @@ set by hand (D19) and listed in the
 DNS-only ACM validation records and the proxied traffic records.
 
 An API Gateway custom domain name is unique within a Region across all
-accounts, so a hostname can exist in only one account at a time. Moving one
-means: delete it in the old account, plan and apply the new environment
-without `ACTIVATE_CUSTOM_DOMAIN` (so `activate_custom_domain=true` from its
-`auto.tfvars`), then repoint Cloudflare.
+accounts, so a hostname can exist in only one account at a time.
 
 ## Alarms
 

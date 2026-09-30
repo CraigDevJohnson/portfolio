@@ -37,23 +37,23 @@ The inventory covered the repository, remote OpenTofu state, ECR metadata and po
 
 ### Legacy repository ownership and publisher remnants
 
-- [infra/main.tf](../../infra/main.tf#L27-L60) declares <code>aws_ecr_repository.app</code> from the default app name <code>portfolio</code>, with mutable tags, scan-on-push, and <code>force_delete = false</code>. It also declares the untagged-image lifecycle policy.
-- [infra/outputs.tf](../../infra/outputs.tf#L1-L4) exposes that repository URL specifically for tagging and pushing an image.
-- [Taskfile.yaml](../../Taskfile.yaml#L337-L381) contains three legacy internal helpers:
+- [infra/main.tf](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/infra/main.tf#L27-L60) declares <code>aws_ecr_repository.app</code> from the default app name <code>portfolio</code>, with mutable tags, scan-on-push, and <code>force_delete = false</code>. It also declares the untagged-image lifecycle policy.
+- [infra/outputs.tf](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/infra/outputs.tf#L1-L4) exposes that repository URL specifically for tagging and pushing an image.
+- [Taskfile.yaml](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/Taskfile.yaml#L337-L381) contains three legacy internal helpers:
   - <code>_check-aws</code>;
   - <code>_ecr-ensure-repo</code>, which can target-apply the legacy repository and lifecycle policy; and
   - <code>_ecr-docker-push</code>, which builds <code>Dockerfile</code> and pushes <code>portfolio:latest</code>.
 - A repository-wide caller search found no task that invokes either ECR helper. <code>task --summary _ecr-docker-push</code> exited 202 with <code>Task "_ecr-docker-push" is internal</code>, so the helper is not a current user-facing task. The commands still document a manual publisher path and should be removed with any later repository retirement.
 - The only checked-in workflow, [.github/workflows/ci.yml](../../.github/workflows/ci.yml), grants <code>contents: read</code>, runs local build/test/infrastructure validation, and contains no AWS credential, ECR login, Docker push, App Runner deployment, or Lambda deployment step.
 - [docker-compose.yml](../../docker-compose.yml#L1-L14) builds the local image <code>portfolio-app:latest</code>; that name is not an ECR URI and is not evidence of a registry consumer.
-- [DEPLOY-INSTRUCTIONS.md](../../DEPLOY-INSTRUCTIONS.md#L295-L298) explicitly preserves the legacy repository and requires this separate consumer audit before a later cleanup decision.
+- [DEPLOY-INSTRUCTIONS.md](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/DEPLOY-INSTRUCTIONS.md#L528-L531) explicitly preserves the legacy repository and requires this separate consumer audit before a later cleanup decision.
 
 Git history contains earlier deployment work, but history is not a current caller. The current tree still contains enough legacy HCL, output, and internal helper material to recreate or republish the repository if an operator bypasses the documented task surface.
 
 ### Replacement Lambda repository is distinct and active
 
 - [infra/lambda/artifacts/main.tf](../../infra/lambda/artifacts/main.tf#L1-L55) separately owns <code>portfolio-lambda-releases</code>, enforces immutable tags, and grants a conditioned Lambda service pull policy only for <code>portfolio-lambda-*</code> functions in this account and Region.
-- [Taskfile.yaml](../../Taskfile.yaml#L537-L631) derives and pushes full-SHA release tags only to <code>portfolio-lambda-releases</code>.
+- [Taskfile.yaml](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/Taskfile.yaml#L537-L631) derives and pushes full-SHA release tags only to <code>portfolio-lambda-releases</code>.
 - The live <code>portfolio-lambda-dev</code> function, its <code>$LATEST</code> configuration, published version <code>1</code>, and <code>live</code> alias all resolve to:
 
     ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:970bdb10…60c49

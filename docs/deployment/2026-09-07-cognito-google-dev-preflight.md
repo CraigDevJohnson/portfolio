@@ -1,5 +1,9 @@
 # Cognito Google development setup preflight
 
+> [!IMPORTANT]
+> Historical record of the earlier management-account setup; those resources
+> are deleted. Follow [cognito-google-dev.md](cognito-google-dev.md) instead.
+
 Date: 2026-09-07
 
 ## Design retrieval (resolved)
@@ -119,7 +123,7 @@ Task 4 and the offline part of Task 5 are implemented through `a18869ae`:
 - Private credential/plan/apply/export tools enforce exact identity/backend,
   private files, guarded reads, saved-plan/provenance checksums, five-resource
   contracts and public-only output. The local private directory is ready.
-- Three separately named [policy candidates](../../infra/lambda/bootstrap/candidates/README.md)
+- Three separately named [policy candidates](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/candidates/README.md)
   include reviewed hashes, scope and remaining live-validation requirements.
   Previously approved artifacts and their hashes are unchanged.
 

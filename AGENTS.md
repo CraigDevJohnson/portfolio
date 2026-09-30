@@ -98,7 +98,8 @@ This repository uses a single-context layout with root `CONTEXT.md` and `docs/ad
   and `aws_account_id` in each OpenTofu root configure the account. The state
   bucket name in each `backend.hcl` (and the test that checks it) also contains
   the ID, because backends can't read variables. Build ARNs from
-  `data.aws_caller_identity`.
+  `data.aws_caller_identity`, or from the configured account ID where no
+  provider is available.
 - Agents may run `tofu init`, `validate`, `fmt`, `test` and `plan`. Applies,
   imports, state commands and the Taskfile apply and push wrappers need Craig's
   approval of that specific change; `.claude/settings.json` asks before them.

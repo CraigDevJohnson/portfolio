@@ -80,8 +80,9 @@ limit there is no collection and no worker; see
 [infra/lambda/README.md](infra/lambda/README.md#soccer-history-collection-and-daily-refresh).
 
 The management portal uses the invited site session and its current
-`management` grant. With site identity configured, it can list EC2 instances,
-request start, stop, and restart actions, and load CloudWatch metrics and logs.
+`management` grant. With site identity configured, it lists EC2 instances and
+loads their CloudWatch metrics. Its start, stop, restart and log views remain
+in the code, but the deployed runtime role does not allow them (D22).
 
 ## Requirements
 
@@ -332,20 +333,17 @@ application ignores `MGMT_SESSION_KEY`, `MGMT_COGNITO_*`,
 `MGMT_ALLOWED_EMAILS`, and `MGMT_ALLOW_LOCAL_CALLBACK`, and logs one warning
 naming any that remain set.
 
-The runtime AWS identity needs these actions:
+The deployed runtime role grants the portal only these actions (D22):
 
 - `ec2:DescribeInstances`
-- `ec2:StartInstances`
-- `ec2:StopInstances`
 - `cloudwatch:GetMetricStatistics`
-- `logs:FilterLogEvents`
 
-The development dashboard enables start, stop and restart only for instances
-tagged `PortfolioManagement=dev`, subject to their lifecycle state. Other
-instances remain visible with read-only metrics and logs; IAM enforces actions.
-The deployed runtime role grants only `ec2:DescribeInstances` and
-`cloudwatch:GetMetricStatistics` (D22), so start, stop, restart, and log reads
-report a failure there even for an account with the `management` grant.
+It has no EC2 start/stop or CloudWatch Logs grants, so IAM denies the portal's
+start, stop and restart actions and its instance log reads; they report a
+failure there even for an account with the `management` grant. The planned
+Foundry backend replaces direct EC2 control. The dashboard offers start, stop
+and restart only for instances tagged `PortfolioManagement=dev`, subject to
+their lifecycle state; IAM stays authoritative.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 
@@ -441,7 +439,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Shared ECR, DynamoDB, and IAM resources
+├── infra/lambda/           OpenTofu roots for the AWS deployment
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -464,7 +462,7 @@ The source-of-truth order is:
 1. `Taskfile.yaml` for commands
 2. `cmd/server/main.go` and `internal/app/` for application wiring
 3. this README for local usage and architecture
-4. `DEPLOY-INSTRUCTIONS.md` and `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` and `infra/lambda/` for deployment
 
 Edit `.templ` and `cmd/web/tailwind/` sources. Do not hand-edit generated
 `*_templ.go` files or `cmd/web/static/css/tailwind.css`.
@@ -576,9 +574,9 @@ The portfolio runs on AWS Lambda behind an API Gateway HTTP API in the
 workloads AWS account, us-west-2, with prod at `craigdevjohnson.com` and dev at
 `dev.craigdevjohnson.com`. The OpenTofu roots live under `infra/lambda/`. A
 merge to `main` builds one image, deploys it to dev, and plans prod; Craig
-approves the `production` GitHub Environment to apply it. The legacy `infra/`
-root is retired. Dated designs and plans under `docs/superpowers/` are
-historical records rather than operator instructions.
+approves the `production` GitHub Environment to apply it. Dated designs and
+plans under `docs/superpowers/` are historical records rather than operator
+instructions.
 
 The Lambda timeout is 29 seconds. The Google add and result-sync handlers
 reserve 24 seconds of that window, which leaves five seconds outside their

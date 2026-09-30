@@ -484,51 +484,31 @@ run "execution_boundary_contract" {
   }
 
   assert {
-    condition = (
-      one([
-        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Resource
-        if statement.Sid == "ProdParameters"
-        ]) == [
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/LPS_SESSION_KEY",
-      ] &&
-      one([
-        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Condition.StringEquals
-        if statement.Sid == "ProdParameterDecryption"
-        ]) == {
-        "kms:CallerAccount" = "111122223333"
-        "kms:ViaService"    = "ssm.us-west-2.amazonaws.com"
-        "kms:EncryptionContext:PARAMETER_ARN" = [
-          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
-          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
-          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/LPS_SESSION_KEY",
-        ]
-      }
-    )
-    error_message = "production parameter reads and decryption are limited to its three SecureStrings"
-  }
-
-  assert {
-    condition = (
-      one([
-        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Resource
-        if statement.Sid == "DevParameters"
-        ]) == [
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
-      ] &&
-      one([
-        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Condition.StringEquals["kms:EncryptionContext:PARAMETER_ARN"]
-        if statement.Sid == "DevParameterDecryption"
-        ]) == [
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
-      ]
-    )
-    error_message = "development parameter reads and decryption are limited to its three SecureStrings; the retired MGMT_SESSION_KEY is not readable"
+    condition = alltrue([
+      for environment, sid in { dev = "Dev", prod = "Prod" } : (
+        one([
+          for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Resource
+          if statement.Sid == "${sid}Parameters"
+          ]) == [
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_ID_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/LPS_SESSION_KEY",
+        ] &&
+        one([
+          for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Condition.StringEquals
+          if statement.Sid == "${sid}ParameterDecryption"
+          ]) == {
+          "kms:CallerAccount" = "111122223333"
+          "kms:ViaService"    = "ssm.us-west-2.amazonaws.com"
+          "kms:EncryptionContext:PARAMETER_ARN" = [
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/LPS_SESSION_KEY",
+          ]
+        }
+      )
+    ])
+    error_message = "each environment's parameter reads and decryption are limited to its three SecureStrings; the retired MGMT_SESSION_KEY is not readable"
   }
 }
 

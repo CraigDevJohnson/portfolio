@@ -1,7 +1,7 @@
 # The OpenTofu state bucket for every portfolio root. It is created once with
-# the AWS CLI (refactor Phase 12) because this root stores its own state in it,
-# then adopted here through the import blocks below. Once the bucket is in
-# state, the import blocks are no-ops.
+# the AWS CLI because this root stores its own state in it, then adopted here
+# through the import blocks below. Once the bucket is in state, the import
+# blocks are no-ops.
 resource "aws_s3_bucket" "state" {
   bucket = local.state_bucket_name
 

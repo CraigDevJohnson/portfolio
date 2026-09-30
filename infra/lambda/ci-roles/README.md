@@ -55,10 +55,10 @@ own environment's execution role (`aws:PrincipalArn`):
 
 - the environment's two DynamoDB tables;
 - `ssm:GetParameters` and SSM-mediated `kms:Decrypt` for the environment's
-  `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY` and `LPS_SESSION_KEY` under
-  `/portfolio/lambda/<env>/` (the retired `MGMT_SESSION_KEY` is not readable;
-  `SITE_SESSION_KEY` is added when that environment's site sign-in is
-  activated);
+  three SecureStrings under `/portfolio/lambda/<env>/`: `CLIENT_ID_KEY`,
+  `CLIENT_SECRET_KEY` and `LPS_SESSION_KEY`. The retired `MGMT_SESSION_KEY`
+  is not readable; `SITE_SESSION_KEY` is added when that environment's site
+  sign-in is activated;
 - the environment's Lambda log group;
 - for dev only, the portal's read-only `ec2:DescribeInstances` and
   `cloudwatch:GetMetricStatistics` in us-west-2.
