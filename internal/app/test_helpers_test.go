@@ -23,26 +23,39 @@ const (
 	testSiteEmail   = "owner@example.com"
 )
 
-// signedInSiteCookie enables site identity on the test app, invites the test
-// principal with the given page grants in the current configuration, and
-// returns the site session cookie a completed Cognito sign-in would set.
-func signedInSiteCookie(t *testing.T, app *App, grants ...string) *http.Cookie {
-	t.Helper()
+// enableTestSiteIdentity configures complete site identity on the test app
+// with the given reviewed invitation map of emails to page grants.
+func enableTestSiteIdentity(app *App, invitations map[string][]string) {
 	app.Config.SiteSessionKey = bytes.Repeat([]byte("s"), 32)
 	app.Config.SiteCognitoDomain = "https://auth.example.com"
 	app.Config.SiteCognitoIssuer = testSiteIssuer
 	app.Config.SiteCognitoClientID = "site-client"
 	app.Config.SiteCognitoRedirectURI = "https://app.example.com/auth/callback"
 	app.Config.SiteCognitoLogoutURI = "https://app.example.com/sign-in"
-	app.Config.SiteInvitations = map[string][]string{testSiteEmail: append([]string{}, grants...)}
+	app.Config.SiteInvitations = invitations
+}
+
+// testSiteSessionCookie returns the site session cookie a completed Cognito
+// sign-in sets for the given subject and invited email.
+func testSiteSessionCookie(t *testing.T, app *App, subject, email string) *http.Cookie {
+	t.Helper()
 	value, err := internalsession.EncryptJSONValue(app.Config.SiteSessionKey, map[string]any{
-		"principal":  siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail},
+		"principal":  siteidentity.Principal{Issuer: testSiteIssuer, Subject: subject, Email: email},
 		"expires_at": time.Now().Add(time.Hour),
 	})
 	if err != nil {
 		t.Fatalf("EncryptJSONValue returned error: %v", err)
 	}
 	return &http.Cookie{Name: config.SiteSessionCookieName, Value: value}
+}
+
+// signedInSiteCookie enables site identity on the test app, invites the test
+// principal with the given page grants in the current configuration, and
+// returns the site session cookie a completed Cognito sign-in would set.
+func signedInSiteCookie(t *testing.T, app *App, grants ...string) *http.Cookie {
+	t.Helper()
+	enableTestSiteIdentity(app, map[string][]string{testSiteEmail: append([]string{}, grants...)})
+	return testSiteSessionCookie(t, app, testSiteSubject, testSiteEmail)
 }
 
 // ownedBySiteVisitor binds imported LPS access to the signed-in test
