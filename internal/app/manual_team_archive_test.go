@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -260,6 +261,38 @@ func TestManualTeamLookupWithArchiveKeepsTheUsualSchedule(t *testing.T) {
 		t.Fatalf("confirmed team was not archived: %v", err)
 	}
 	route.assertNotArchived(t, 888888)
+}
+
+func TestManualTeamLookupWithArchiveKeepsScoredPastResultsForGoogleReview(t *testing.T) {
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-24 * time.Hour))
+	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/teams/479691" {
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":479691,"team_name":"Boise FC","Season":169},"games":[`+
+			`{"UGameID":8001,"SchedGameDateTime":%q,"Season":169,"UTeam1":479691,"UTeam2":222,"home_team":{"UTeamID":479691,"team_name":"Boise FC"},"visitor_team":{"UTeamID":222,"team_name":"Away FC"}},`+
+			`{"UGameID":8002,"SchedGameDateTime":%q,"Season":169,"UTeam1":479691,"UTeam2":223,"home_team":{"UTeamID":479691,"team_name":"Boise FC"},"visitor_team":{"UTeamID":223,"team_name":"Last Week FC"},"result":"2-1"}]}`,
+			future, past)
+	})
+	route.handler.SetArchiveStore(nil)
+	usual := route.lookup(t, "479691")
+	if past := plannerRowIDs(plannerGameRows(parsePlannerHTML(t, usual), "past-results")); !slices.Equal(past, []string{"8002"}) {
+		t.Fatalf("usual manual lookup past results = %v, want the scored game 8002", past)
+	}
+
+	route.handler.SetArchiveStore(route.store)
+	archived := route.lookup(t, "479691")
+
+	if !strings.HasSuffix(archived, usual) {
+		t.Fatalf("archive changed the visitor's schedule\nusual:    %q\narchived: %q", usual, archived)
+	}
+	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil || len(history.Games) != 2 {
+		t.Fatalf("archived team season = %v games, error %v; want both games", len(history.Games), err)
+	}
 }
 
 func TestManualTeamLookupWithArchiveKeepsOneColorPerSelectedTeam(t *testing.T) {

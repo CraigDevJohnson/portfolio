@@ -241,7 +241,7 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 	if err != nil {
 		return applyScheduleFetchError(props, err), false
 	}
-	setTableFragmentGames(props, schedule.UpcomingScheduleGames(games))
+	setTableFragmentGames(props, games)
 	if !allTeamIDEntriesValid(teamCodes) {
 		props.EnrollmentFeedback = &partials.FeedbackProps{
 			Kind: partials.FeedbackWarning, Title: "History collection",
