@@ -602,16 +602,55 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 	if err != nil || len(saved.Games) != 1 || saved.Games[0].Result != "0-2" || !saved.Coverage.FetchedAt.Equal(refreshedAt) {
 		t.Fatalf("successful team 303 history = %#v, err = %v", saved, err)
 	}
-	// The partly saved team keeps its last complete history and refresh
-	// record, so it is neither shown as refreshed nor dropped from refresh.
+	// The partly saved team keeps its last complete history, and its refresh
+	// record says this attempt failed and when to retry it, so the team is
+	// neither shown as refreshed nor dropped from refresh.
 	partial, err := store.ReadTeamSeason(t.Context(), 101, 169)
 	if err != nil || len(partial.Games) != 1 || partial.Games[0].UGameID != 8101 || partial.Games[0].Result != "1-0" ||
 		!partial.Coverage.FetchedAt.Equal(seededAt) || partial.Coverage.ReturnedGameCount != 1 {
 		t.Fatalf("partly saved team 101 history = %#v, err = %v", partial, err)
 	}
 	state, err := store.ReadRefreshState(t.Context(), 101)
-	if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(seededAt) || !state.NextDueAt.Equal(seededAt.Add(24*time.Hour)) {
-		t.Fatalf("partly saved team 101 refresh state = %#v, err = %v", state, err)
+	want := RefreshState{
+		TeamID: 101, Status: RefreshRetryable, LastAttemptAt: refreshedAt, NextDueAt: refreshedAt.Add(15 * time.Minute),
+		LastErrorKind: RefreshStoreErrorKind,
+	}
+	if err != nil || fmt.Sprint(state) != fmt.Sprint(want) {
+		t.Fatalf("partly saved team 101 refresh state = %+v, err = %v\nwant %+v", state, err, want)
+	}
+	assertArchiveItem(t, backend, "TEAM#101/META", map[string]any{"due_pk": "TEAM_DUE"})
+}
+
+func TestRefreshWorkerReportsWhenAFailedSaveCannotBeRecorded(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+		TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
+		Games: []lps.TeamScheduleGame{{UGameID: 9001, UTeam1: 101, UTeam2: 202, Season: 169, Result: "1-0"}}, FetchedAt: seededAt,
+	}); err != nil {
+		t.Fatalf("enroll team: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"result":"3-0"}]}`)
+	}))
+	defer server.Close()
+	// The enrollment record, written last by a snapshot and by a failure
+	// record, cannot be written at all.
+	backend.FailPut = func(key string) error {
+		if key == "TEAM#101/META" {
+			return errors.New("throttled")
+		}
+		return nil
+	}
+	refreshedAt := seededAt.Add(24 * time.Hour)
+	worker := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return refreshedAt })
+
+	report := worker.Run(t.Context(), []int{101})
+
+	if report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshStoreFailed ||
+		!strings.Contains(report.Results[0].Error, "save team 101: throttled") || !strings.Contains(report.Results[0].Error, "recording failure: record team 101 refresh failure: throttled") {
+		t.Fatalf("worker result = %#v", report)
 	}
 }
 

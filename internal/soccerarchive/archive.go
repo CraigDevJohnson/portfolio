@@ -82,3 +82,7 @@ type TeamSeason struct {
 	Games      []lps.TeamScheduleGame
 	Facilities []lps.FacilityResponse
 }
+
+// RefreshStoreErrorKind marks a refresh attempt whose fetched LPS response
+// could not be stored.
+const RefreshStoreErrorKind lps.ErrorKind = "store"

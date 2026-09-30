@@ -98,12 +98,7 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 				// before any write so no part of the response is stored.
 				result = w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team %d response contains a game without a stable ID", teamID))
 			} else {
-				fetchedAt := w.now().UTC()
-				if err := w.store.SaveTeamSnapshot(ctx, &Snapshot{TeamID: teamID, Team: source.Response.Team, Games: source.Response.Games, Facilities: source.Facilities, FetchedAt: fetchedAt}); err != nil {
-					result.Outcome, result.Error = RefreshStoreFailed, err.Error()
-				} else {
-					result.Outcome = RefreshSucceeded
-				}
+				result = w.saveSnapshot(ctx, teamID, &source)
 			}
 		}
 		if result.Outcome != RefreshSucceeded {
@@ -112,6 +107,23 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 		report.Results = append(report.Results, result)
 	}
 	return report
+}
+
+// saveSnapshot stores a confirmed response. A response that could not be
+// stored is still recorded as a failed attempt, so the team's record shows
+// the failure and keeps the team due after the retry delay.
+func (w *RefreshWorker) saveSnapshot(ctx context.Context, teamID int, source *lps.TeamScheduleSource) RefreshResult {
+	fetchedAt := w.now().UTC()
+	err := w.store.SaveTeamSnapshot(ctx, &Snapshot{TeamID: teamID, Team: source.Response.Team, Games: source.Response.Games, Facilities: source.Facilities, FetchedAt: fetchedAt})
+	if err == nil {
+		return RefreshResult{TeamID: teamID, Outcome: RefreshSucceeded}
+	}
+	result := RefreshResult{TeamID: teamID, Outcome: RefreshStoreFailed, Error: err.Error()}
+	failure := RefreshFailure{TeamID: teamID, AttemptedAt: fetchedAt, Status: RefreshRetryable, NextDueAt: fetchedAt.Add(retryableFailureDelay), ErrorKind: RefreshStoreErrorKind}
+	if err := w.store.RecordRefreshFailure(ctx, &failure); err != nil {
+		result.Error += "; recording failure: " + err.Error()
+	}
+	return result
 }
 
 func (w *RefreshWorker) recordFailure(ctx context.Context, teamID int, fetchErr error) RefreshResult {
