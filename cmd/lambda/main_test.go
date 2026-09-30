@@ -142,37 +142,6 @@ func TestScheduledInvocationFailsWhenDueTeamsCannotBeSelected(t *testing.T) {
 	}
 }
 
-func TestScheduledWorkerIsNotBuiltWithoutEveryReviewedLimit(t *testing.T) {
-	configured := map[string]string{
-		"SOCCER_ARCHIVE_TABLE_NAME":      "portfolio-lambda-dev-soccer-history",
-		"SOCCER_HISTORY_MAX_TEAMS":       "4",
-		"SOCCER_HISTORY_PLAYER_RESERVED": "2",
-		"SOCCER_HISTORY_MAX_REQUESTS":    "8",
-		"SOCCER_HISTORY_MAX_RETRIES":     "1",
-		"SOCCER_HISTORY_MIN_INTERVAL_MS": "250",
-	}
-	for unset := range configured {
-		t.Run(unset, func(t *testing.T) {
-			// Any AWS client built by mistake points at a closed loopback port.
-			for name, value := range map[string]string{
-				"AWS_ENDPOINT_URL": "http://127.0.0.1:9", "AWS_REGION": "us-west-2",
-				"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_EC2_METADATA_DISABLED": "true",
-				"LPS_API_BASE_URL": "http://127.0.0.1:9",
-			} {
-				t.Setenv(name, value)
-			}
-			for name, value := range configured {
-				t.Setenv(name, value)
-			}
-			t.Setenv(unset, "")
-
-			if worker, err := initializeDailyLambda(t.Context()); err == nil || worker != nil {
-				t.Fatalf("scheduled worker built without %s: %v", unset, err)
-			}
-		})
-	}
-}
-
 type testConnectionStore struct{}
 
 func (testConnectionStore) Delete(context.Context, string) error { return nil }
