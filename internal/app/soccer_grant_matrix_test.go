@@ -283,3 +283,81 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 		})
 	}
 }
+
+func TestGrantedVisitorCannotInheritOwnerlessOrAnotherOwnersPrivateState(t *testing.T) {
+	invitations := map[string][]string{testSiteEmail: {"soccer"}, otherSiteEmail: {"soccer"}}
+	for _, tc := range []struct {
+		name    string
+		cookies func(t *testing.T, world *soccerGrantWorld) []*http.Cookie
+	}{
+		{
+			name: "legacy ownerless import and Google connection",
+			cookies: func(t *testing.T, world *soccerGrantWorld) []*http.Cookie {
+				legacy := world.store.records[grantWorldConnectionID]
+				legacy.ConnectionID, legacy.OwnerIssuer, legacy.OwnerSubject = "legacy-connection", "", ""
+				world.store.records[legacy.ConnectionID] = legacy
+				imported := &types.SessionData{
+					JWT:       world.jwt,
+					Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Legacy", LastName: "Player", IsMainPlayer: true}},
+					ExpiresAt: time.Now().Add(time.Hour),
+				}
+				return []*http.Cookie{
+					testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail),
+					{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, world.app, imported)},
+					{Name: config.GoogleConnectionCookieName, Value: legacy.ConnectionID},
+				}
+			},
+		},
+		{
+			name: "another granted visitor holding the owner's state",
+			cookies: func(t *testing.T, world *soccerGrantWorld) []*http.Cookie {
+				return append(world.ownerPrivateState(t), testSiteSessionCookie(t, world.app, otherSiteSubject, otherSiteEmail))
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			world := newSoccerGrantWorld(t, invitations)
+			page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, tc.cookies(t, world)...)
+			if page.Code != http.StatusOK {
+				t.Fatalf("Soccer page status = %d", page.Code)
+			}
+			for _, inherited := range []string{"Imported for this session", "Legacy Player", "Calendar ready"} {
+				if strings.Contains(page.Body.String(), inherited) {
+					t.Errorf("page presented inherited private state %q", inherited)
+				}
+			}
+			if cleared := findSessionCookie(t, page.Result()); cleared == nil || cleared.Value != "" || cleared.MaxAge >= 0 {
+				t.Error("page kept an imported LPS session this visitor does not own")
+			}
+
+			for _, route := range []struct {
+				method, path string
+				form         url.Values
+				status       int
+				want         string
+			}{
+				{http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}}, http.StatusOK, "Import a bearer JWT to discover teams."},
+				{http.MethodPost, "/soccer/fetch", url.Values{"player_ids": {"1001"}}, http.StatusOK, "Import a bearer JWT again to fetch schedules for your discovered players."},
+				{http.MethodPost, "/soccer/download", url.Values{"player_ids": {"1001"}, "selected": {"7001"}}, http.StatusUnauthorized, "import a bearer JWT again"},
+				{http.MethodPost, "/soccer/google/add", url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, http.StatusOK, "Connect Google Calendar before adding selected games."},
+				{http.MethodPost, "/soccer/google/sync-results", url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, http.StatusOK, "Connect Google Calendar before syncing results."},
+				{http.MethodPost, "/soccer/google/calendar", url.Values{"calendar_id": {"primary"}}, http.StatusOK, "Connect Google Calendar"},
+				{http.MethodPost, "/soccer/google/disconnect", url.Values{}, http.StatusOK, "Connect Google Calendar"},
+			} {
+				world := newSoccerGrantWorld(t, invitations)
+				cookies := tc.cookies(t, world)
+				stored := len(world.store.records)
+				resp := soccerGrantRequest(world.mux, route.method, route.path, route.form, cookies...)
+				if resp.Code != route.status || !strings.Contains(resp.Body.String(), route.want) {
+					t.Errorf("%s %s = %d, want %d with %q; body %q", route.method, route.path, resp.Code, route.status, route.want, resp.Body.String())
+				}
+				if calls := world.lpsCredentialCalls.Load() + world.googleCalls.Load(); calls != 0 {
+					t.Errorf("%s %s used inherited LPS or Google credentials %d time(s)", route.method, route.path, calls)
+				}
+				if len(world.store.records) != stored {
+					t.Errorf("%s %s changed a Google connection this visitor does not own", route.method, route.path)
+				}
+			}
+		})
+	}
+}
