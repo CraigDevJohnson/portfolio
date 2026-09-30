@@ -193,6 +193,51 @@ func TestDynamoArchiveKeepsOmittedGameFieldsAndAppliesExplicitCorrection(t *test
 	}
 }
 
+func TestDynamoArchiveAppliesExplicitNullCorrections(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	team := lps.TeamSummary{UTeamID: 479691, Season: 169}
+	firstFetch := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
+	for i, source := range []string{
+		`{"UGameID":8001,"Season":169,"UTeam1":479691,"UTeam2":222,"SchedGameDateTime":"2026-09-26T18:00:00Z","schedGameEndTime":"2026-09-26T19:00:00Z","result":"2-1"}`,
+		`{"UGameID":8001,"SchedGameDateTime":"2026-10-03T18:00:00Z","schedGameEndTime":null,"result":null}`,
+	} {
+		var game lps.TeamScheduleGame
+		if err := json.Unmarshal([]byte(source), &game); err != nil {
+			t.Fatalf("decode LPS game %d: %v", i, err)
+		}
+		snapshot := Snapshot{TeamID: 479691, Team: team, Games: []lps.TeamScheduleGame{game}, FetchedAt: firstFetch.Add(time.Duration(i) * time.Hour)}
+		if err := store.SaveTeamSnapshot(context.Background(), &snapshot); err != nil {
+			t.Fatalf("SaveTeamSnapshot %d: %v", i, err)
+		}
+	}
+
+	history, err := store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	if len(history.Games) != 1 {
+		t.Fatalf("games = %#v, want the rescheduled game", history.Games)
+	}
+	game := history.Games[0]
+	if game.SchedGameDateTime != "2026-10-03T18:00:00Z" || game.SchedGameEndTime != nil || game.Result != "" || game.UTeam1 != 479691 {
+		t.Fatalf("explicit null corrections were not applied: %#v", game)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(game.SourceJSON, &raw); err != nil {
+		t.Fatalf("decode stored source: %v", err)
+	}
+	if string(raw["schedGameEndTime"]) != "null" || string(raw["result"]) != "null" {
+		t.Fatalf("stored source end time %s and result %s, want explicit nulls", raw["schedGameEndTime"], raw["result"])
+	}
+	item := backend.Item("GAME#8001/META")
+	for _, attribute := range []string{"scheduled_end_at", "result"} {
+		if _, found := item[attribute]; found {
+			t.Errorf("GAME#8001/META keeps %s after LPS set it to null", attribute)
+		}
+	}
+}
+
 func TestDynamoArchiveReadsSeasonSpecificTeamAndFacilityContext(t *testing.T) {
 	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
 	first := Snapshot{

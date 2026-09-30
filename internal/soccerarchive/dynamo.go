@@ -248,8 +248,10 @@ func mergeSourceObject(previous, incoming []byte) ([]byte, error) {
 		return nil, errors.New("game source must be a JSON object")
 	}
 	for key, oldValue := range oldFields {
+		// Only an omitted field keeps its old value; an explicit null is an
+		// LPS correction and replaces it.
 		newValue, present := newFields[key]
-		if !present || bytes.Equal(bytes.TrimSpace(newValue), []byte("null")) {
+		if !present {
 			newFields[key] = oldValue
 			continue
 		}
