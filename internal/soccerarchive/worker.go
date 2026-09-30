@@ -10,7 +10,8 @@ import (
 	"portfolio/internal/lps"
 )
 
-// TeamSource fetches one confirmed LPS team response with facility context.
+// TeamSource fetches one team's LPS response with its facility context; the
+// worker checks that the response confirms the requested Team ID.
 type TeamSource interface {
 	FetchTeamSource(ctx context.Context, teamID int) (lps.TeamScheduleSource, error)
 }
@@ -46,6 +47,11 @@ type RefreshReport struct {
 	Complete bool
 	Results  []RefreshResult
 }
+
+// retryableFailureDelay is how long a temporary LPS failure keeps a team from
+// being due again. It is a fixed interval until scheduled refresh adds
+// backoff and retry budgets.
+const retryableFailureDelay = 15 * time.Minute
 
 // RefreshWorker refreshes explicitly requested enrolled teams without scheduling.
 type RefreshWorker struct {
@@ -107,7 +113,7 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 func (w *RefreshWorker) recordFailure(ctx context.Context, teamID int, fetchErr error) RefreshResult {
 	result := RefreshResult{TeamID: teamID, Outcome: RefreshRetryableFailure, Error: fetchErr.Error()}
 	attemptedAt := w.now().UTC()
-	failure := RefreshFailure{TeamID: teamID, AttemptedAt: attemptedAt, Status: RefreshRetryable, NextDueAt: attemptedAt.Add(15 * time.Minute), ErrorKind: lps.ErrorUpstream}
+	failure := RefreshFailure{TeamID: teamID, AttemptedAt: attemptedAt, Status: RefreshRetryable, NextDueAt: attemptedAt.Add(retryableFailureDelay), ErrorKind: lps.ErrorUpstream}
 	var upstream *lps.FetchError
 	if errors.As(fetchErr, &upstream) {
 		failure.ErrorKind = upstream.Kind
