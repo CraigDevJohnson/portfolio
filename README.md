@@ -39,6 +39,15 @@ cannot restore usable access. An anonymous Team ID
 lookup saves its choices only in a cookie that ends with the browser session,
 and never replaces a retained import.
 
+Durable Soccer history collection is off in every environment until the issue
+#80 activation review wires the history archive. Once wired, the import dialog
+says that linked-player history is kept indefinitely, and only an import sent
+from that dialog collects it: every linked player's team and LPS season
+memberships, including unselected players, stored under the importing site
+identity with their source and observation time, never the JWT and without a
+session TTL. Their teams are enrolled for refresh without selecting any
+planner games. A Team ID lookup never records player membership.
+
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,
 request start, stop, and restart actions, and load CloudWatch metrics and logs.
