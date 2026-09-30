@@ -27,6 +27,9 @@ type SoccerLoginStateProps struct {
 	GoogleAccountEmail       string
 	GoogleCalendarSummary    string
 	GoogleCalendarNeedsSelection bool
+	// GoogleCalendarsUnavailable reports a kept connection whose calendars
+	// could not be checked for this page, such as under a Google usage limit.
+	GoogleCalendarsUnavailable bool
 	SelectedGoogleCalendarID string
 	GoogleCalendars          []types.GoogleCalendarOption
 	SwapOOB                  bool
@@ -257,7 +260,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 		</div>
 		if props.GoogleConnected {
 			<div class="soccer-connection-copy">
-				if props.GoogleCalendarNeedsSelection {
+				if props.GoogleCalendarsUnavailable {
+					<p class="soccer-connection-status">Calendar check unavailable</p>
+				} else if props.GoogleCalendarNeedsSelection {
 					<p class="soccer-connection-status">Calendar selection needed</p>
 				} else {
 					<p class="soccer-connection-status">Calendar ready</p>
@@ -266,7 +271,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 				if props.GoogleOffersSiteAccount() {
 					<p>Your site sign-in account, <strong>{ props.GoogleSuggestedEmail }</strong>, is a different Google account. Switch to it here if you prefer.</p>
 				}
-				if props.GoogleCalendarNeedsSelection {
+				if props.GoogleCalendarsUnavailable {
+					<p>Could not check your calendars right now. Try again in a moment.</p>
+				} else if props.GoogleCalendarNeedsSelection {
 					<p>Choose a writable calendar before adding games. Writes are paused until you save a destination.</p>
 				} else if props.GoogleCalendarSummary != "" {
 					<p>Connected to { props.GoogleCalendarSummary }. Loaded matches can be added or synced directly.</p>

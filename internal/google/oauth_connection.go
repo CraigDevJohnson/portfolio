@@ -219,18 +219,20 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 	calendars, err := h.ListCalendars(ctx, r, record)
-	if err != nil {
-		logger := logging.WithContext(h.Logger, ctx)
-		if isGoogleAuthRejected(err) {
-			logger.Warn("google calendar connection expired", slog.Any("error", err))
-			h.DeleteConnection(ctx, w, r)
-		} else {
-			logger.Error("google calendar list failed", slog.Any("error", err))
-		}
+	if err != nil && isGoogleAuthRejected(err) {
+		logging.WithContext(h.Logger, ctx).Warn("google calendar connection expired", slog.Any("error", err))
+		h.DeleteConnection(ctx, w, r)
 		return
 	}
 	props.GoogleConnected = true
 	props.GoogleAccountEmail = record.AccountEmail
+	if err != nil {
+		// The connection stays: Google refused only this check, so the card
+		// asks for a retry rather than offering to connect again.
+		logging.WithContext(h.Logger, ctx).Error("google calendar list failed", slog.Any("error", err))
+		props.GoogleCalendarsUnavailable = true
+		return
+	}
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
 	props.GoogleCalendarNeedsSelection = record.CalendarSelectionRequired || props.GoogleCalendarSummary == ""

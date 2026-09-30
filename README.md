@@ -174,8 +174,9 @@ later Adds go to the new one. If the chosen calendar disappears or stops
 accepting this account's events, Add and result sync pause and the card asks
 for a new choice; they never fall back to primary, and the calendar returning
 does not resume them without that choice. When Google rejects the connection
-itself, the site removes it and asks the visitor to connect again; a Google
-usage limit only asks them to retry.
+itself, the site removes it and asks the visitor to connect again. Any other
+refusal, such as a Google usage limit, keeps the connection: the card still
+names the connected account and asks the visitor to retry.
 
 Viewing the page and fetching schedules write no Google events. **Add selected
 to calendar** writes only the selected upcoming games. Each event it writes

@@ -429,6 +429,10 @@ func TestCalendarCheckRefusedForAnotherReasonThanTheConnectionKeepsItAndItsDesti
 			if added := world.add(t, nextGameID); !strings.Contains(added, "try again later") || strings.Contains(added, "Connect again") {
 				t.Fatalf("Add with the calendar check refused as %s did not ask the visitor to retry: %q", refusal.reason, added)
 			}
+			// The kept connection is shown as connected, not offered again.
+			if page := world.page(t); strings.Contains(page, "Not connected") || !strings.Contains(page, calendarAccount) || !strings.Contains(page, "Could not check your calendars right now. Try again in a moment.") {
+				t.Fatalf("the page with the calendar check refused as %s did not show the kept connection and ask for a retry", refusal.reason)
+			}
 			world.google.refuseCalendarList(nil)
 			if len(world.store.records) != 1 || !strings.Contains(world.page(t), calendarReady) {
 				t.Fatalf("a calendar check refused as %s removed the connection or paused its destination", refusal.reason)
