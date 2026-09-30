@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 
 	"portfolio/internal/lps"
 	"portfolio/internal/soccerarchive/archivetest"
@@ -275,6 +276,79 @@ func TestDynamoArchiveDoesNotMixTeamFactsAfterASideIsReassigned(t *testing.T) {
 	if history.Team != wantHome {
 		t.Fatalf("team 3 season context = %#v, want %#v", history.Team, wantHome)
 	}
+}
+
+func TestDynamoArchiveKeepsGameFactsFromAConcurrentLookup(t *testing.T) {
+	older := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Second)
+	// Team 1's older response carries the score and field; team 2's newer
+	// response reschedules the shared game and omits both.
+	full := teamLookup(t, 1, older, `{"UGameID":8001,"Season":169,"UTeam1":1,"UTeam2":2,"SchedGameDateTime":"2026-09-26T18:00:00Z","result":"2-1","field_name":"North"}`)
+	partial := teamLookup(t, 2, newer, `{"UGameID":8001,"Season":169,"UTeam1":1,"UTeam2":2,"SchedGameDateTime":"2026-10-03T18:00:00Z"}`)
+	for _, tc := range []struct {
+		name               string
+		reading, competing *Snapshot
+	}{
+		{name: "newer lookup read before the older write", reading: partial, competing: full},
+		{name: "older lookup read before the newer write", reading: full, competing: partial},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			table := archivetest.NewTable()
+			competingStore := NewDynamoStoreWithAPI(table, "durable-soccer-history")
+			readingStore := NewDynamoStoreWithAPI(&interleavingAPI{Table: table, watch: "GAME#8001/META", competing: func() {
+				if err := competingStore.SaveTeamSnapshot(context.Background(), tc.competing); err != nil {
+					t.Errorf("competing SaveTeamSnapshot: %v", err)
+				}
+			}}, "durable-soccer-history")
+
+			if err := readingStore.SaveTeamSnapshot(context.Background(), tc.reading); err != nil {
+				t.Fatalf("interleaved SaveTeamSnapshot: %v", err)
+			}
+
+			assertArchiveItem(t, table, "GAME#8001/META", map[string]any{
+				"result": "2-1", "field_name": "North", "scheduled_at": "2026-10-03T18:00:00Z",
+				"fetched_at": newer.Format(sortableUTCFormat),
+			})
+			history, err := NewDynamoStoreWithAPI(table, "durable-soccer-history").ReadTeamSeason(context.Background(), 2, 169)
+			if err != nil {
+				t.Fatalf("ReadTeamSeason: %v", err)
+			}
+			if len(history.Games) != 1 || history.Games[0].Result != "2-1" || history.Games[0].FieldName != "North" || history.Games[0].SchedGameDateTime != "2026-10-03T18:00:00Z" {
+				t.Fatalf("shared game after concurrent lookups = %#v", history.Games)
+			}
+		})
+	}
+}
+
+func teamLookup(t *testing.T, teamID int, fetchedAt time.Time, gameSource string) *Snapshot {
+	t.Helper()
+	var game lps.TeamScheduleGame
+	if err := json.Unmarshal([]byte(gameSource), &game); err != nil {
+		t.Fatalf("decode LPS game: %v", err)
+	}
+	return &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, Games: []lps.TeamScheduleGame{game}, FetchedAt: fetchedAt}
+}
+
+// interleavingAPI runs a competing lookup once, right after the archive reads
+// the watched item, as a concurrent request for a shared game would.
+type interleavingAPI struct {
+	*archivetest.Table
+	watch     string
+	competing func()
+}
+
+func (api *interleavingAPI) GetItem(ctx context.Context, input *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	output, err := api.Table.GetItem(ctx, input, optFns...)
+	var key struct {
+		PK string `dynamodbav:"pk"`
+		SK string `dynamodbav:"sk"`
+	}
+	if decodeErr := attributevalue.UnmarshalMap(input.Key, &key); decodeErr == nil && api.competing != nil && key.PK+"/"+key.SK == api.watch {
+		competing := api.competing
+		api.competing = nil
+		competing()
+	}
+	return output, err
 }
 
 func TestDynamoArchiveReadsSeasonSpecificTeamAndFacilityContext(t *testing.T) {

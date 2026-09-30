@@ -84,6 +84,8 @@ type archiveItem struct {
 	FetchedAt         string         `dynamodbav:"fetched_at"`
 	DuePK             string         `dynamodbav:"due_pk,omitempty"`
 	DueSK             string         `dynamodbav:"due_sk,omitempty"`
+	// Revision counts writes to a game record for conditional merges.
+	Revision int `dynamodbav:"revision,omitempty"`
 }
 
 // SaveTeamSnapshot upserts stable source IDs. Coverage and then the team's
@@ -111,57 +113,11 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	seasonCounts := map[int]int{}
 	teamGameEdges := map[string]archiveItem{}
 	for i := range games {
-		sourceGame := &games[i]
-		gameJSON := sourceGame.SourceJSON
-		if len(gameJSON) == 0 {
-			var err error
-			gameJSON, err = json.Marshal(sourceGame)
-			if err != nil {
-				return fmt.Errorf("marshal game %d: %w", sourceGame.UGameID, err)
-			}
-		}
-		previous, err := s.get(ctx, "GAME#"+strconv.Itoa(sourceGame.UGameID), "META")
+		game, seasonID, err := s.saveGame(ctx, &games[i], snapshot.Team.Season, fetchedAt)
 		if err != nil {
 			return err
 		}
-		if previous != nil {
-			gameJSON, err = mergeSourceObject([]byte(previous.RawSourceJSON), gameJSON)
-			if err != nil {
-				return fmt.Errorf("merge game %d source fields: %w", sourceGame.UGameID, err)
-			}
-		}
-		var game lps.TeamScheduleGame
-		if err := json.Unmarshal(gameJSON, &game); err != nil {
-			return fmt.Errorf("decode game %d source fields: %w", sourceGame.UGameID, err)
-		}
-		seasonID := firstPositive(game.Season, snapshot.Team.Season, game.HomeTeam.Season, game.VisitorTeam.Season)
 		seasonCounts[seasonID]++
-		endAt := ""
-		if game.SchedGameEndTime != nil {
-			endAt = *game.SchedGameEndTime
-		}
-		if err := s.put(ctx, &archiveItem{
-			PK:             "GAME#" + strconv.Itoa(game.UGameID),
-			SK:             "META",
-			Kind:           "game",
-			GameID:         game.UGameID,
-			SeasonID:       seasonID,
-			HomeTeamID:     firstPositive(game.UTeam1, game.HomeTeam.UTeamID),
-			AwayTeamID:     firstPositive(game.UTeam2, game.VisitorTeam.UTeamID),
-			HomeTeamName:   game.HomeTeam.TeamName,
-			AwayTeamName:   game.VisitorTeam.TeamName,
-			FacilityID:     game.FacilityID,
-			FacilityName:   game.FacilityName,
-			ScheduledAt:    game.SchedGameDateTime,
-			ScheduledEndAt: endAt,
-			FieldID:        game.Field,
-			FieldName:      game.FieldName,
-			Result:         game.Result,
-			RawSourceJSON:  string(gameJSON),
-			FetchedAt:      fetchedAt,
-		}); err != nil {
-			return fmt.Errorf("save game %d: %w", game.UGameID, err)
-		}
 		games[i] = game
 		for _, teamID := range []int{snapshot.TeamID, game.UTeam1, game.UTeam2, game.HomeTeam.UTeamID, game.VisitorTeam.UTeamID} {
 			if teamID <= 0 || seasonID <= 0 {
@@ -232,6 +188,110 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		return fmt.Errorf("save team %d coverage: %w", snapshot.TeamID, err)
 	}
 	return s.saveTeam(ctx, snapshot, fetchedAt)
+}
+
+// maxGameWriteAttempts bounds how often one game write re-reads and merges
+// after concurrent lookups of the same game change it first.
+const maxGameWriteAttempts = 5
+
+// saveGame merges one returned game into its stable GAME#id record and returns
+// the merged game with its season. The write is conditional on the revision it
+// read, so a concurrent lookup of a shared game is re-read and merged rather
+// than overwritten. The newest fetch wins each field it states; an older
+// response only fills fields the stored newer one omits.
+func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamScheduleGame, responseSeason int, fetchedAt string) (lps.TeamScheduleGame, int, error) {
+	incoming := sourceGame.SourceJSON
+	if len(incoming) == 0 {
+		var err error
+		if incoming, err = json.Marshal(sourceGame); err != nil {
+			return lps.TeamScheduleGame{}, 0, fmt.Errorf("marshal game %d: %w", sourceGame.UGameID, err)
+		}
+	}
+	gameKey := "GAME#" + strconv.Itoa(sourceGame.UGameID)
+	for range maxGameWriteAttempts {
+		previous, err := s.get(ctx, gameKey, "META")
+		if err != nil {
+			return lps.TeamScheduleGame{}, 0, err
+		}
+		gameJSON, itemFetchedAt, revision := incoming, fetchedAt, 1
+		if previous != nil {
+			revision = previous.Revision + 1
+			if previous.FetchedAt > fetchedAt {
+				gameJSON, err = mergeSourceObject(incoming, []byte(previous.RawSourceJSON))
+				itemFetchedAt = previous.FetchedAt
+			} else {
+				gameJSON, err = mergeSourceObject([]byte(previous.RawSourceJSON), incoming)
+			}
+			if err != nil {
+				return lps.TeamScheduleGame{}, 0, fmt.Errorf("merge game %d source fields: %w", sourceGame.UGameID, err)
+			}
+		}
+		var game lps.TeamScheduleGame
+		if err := json.Unmarshal(gameJSON, &game); err != nil {
+			return lps.TeamScheduleGame{}, 0, fmt.Errorf("decode game %d source fields: %w", sourceGame.UGameID, err)
+		}
+		seasonID := firstPositive(game.Season, responseSeason, game.HomeTeam.Season, game.VisitorTeam.Season)
+		endAt := ""
+		if game.SchedGameEndTime != nil {
+			endAt = *game.SchedGameEndTime
+		}
+		written, err := s.putGameIfUnchanged(ctx, &archiveItem{
+			PK:             gameKey,
+			SK:             "META",
+			Kind:           "game",
+			GameID:         game.UGameID,
+			SeasonID:       seasonID,
+			HomeTeamID:     firstPositive(game.UTeam1, game.HomeTeam.UTeamID),
+			AwayTeamID:     firstPositive(game.UTeam2, game.VisitorTeam.UTeamID),
+			HomeTeamName:   game.HomeTeam.TeamName,
+			AwayTeamName:   game.VisitorTeam.TeamName,
+			FacilityID:     game.FacilityID,
+			FacilityName:   game.FacilityName,
+			ScheduledAt:    game.SchedGameDateTime,
+			ScheduledEndAt: endAt,
+			FieldID:        game.Field,
+			FieldName:      game.FieldName,
+			Result:         game.Result,
+			RawSourceJSON:  string(gameJSON),
+			FetchedAt:      itemFetchedAt,
+			Revision:       revision,
+		}, previous)
+		if err != nil {
+			return lps.TeamScheduleGame{}, 0, fmt.Errorf("save game %d: %w", game.UGameID, err)
+		}
+		if written {
+			return game, seasonID, nil
+		}
+	}
+	return lps.TeamScheduleGame{}, 0, fmt.Errorf("save game %d: changed by concurrent lookups %d times", sourceGame.UGameID, maxGameWriteAttempts)
+}
+
+// putGameIfUnchanged writes a game only if its record still has the revision
+// that was read (or is still absent). It reports false when another writer
+// changed the record first.
+func (s *DynamoStore) putGameIfUnchanged(ctx context.Context, record, read *archiveItem) (bool, error) {
+	item, err := attributevalue.MarshalMap(record)
+	if err != nil {
+		return false, err
+	}
+	input := &dynamodb.PutItemInput{
+		TableName:           aws.String(s.tableName),
+		Item:                item,
+		ConditionExpression: aws.String("attribute_not_exists(pk)"),
+	}
+	if read != nil {
+		input.ConditionExpression = aws.String("#revision = :read_revision")
+		input.ExpressionAttributeNames = map[string]string{"#revision": "revision"}
+		input.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":read_revision": &types.AttributeValueMemberN{Value: strconv.Itoa(read.Revision)},
+		}
+	}
+	_, err = s.api.PutItem(ctx, input)
+	var changed *types.ConditionalCheckFailedException
+	if errors.As(err, &changed) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // mergeSourceObject lays an incoming LPS game over the stored one. Both

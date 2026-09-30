@@ -5,6 +5,7 @@ package archivetest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -14,8 +15,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-// Table stores items by pk/sk. Puts must carry the archive's newest-fetch
-// condition; an older fetched_at fails the condition as DynamoDB would.
+// Table stores items by pk/sk. Every put must carry one of the archive's
+// condition expressions, which the table evaluates as DynamoDB would: a
+// failed condition returns ConditionalCheckFailedException.
 type Table struct {
 	mu    sync.Mutex
 	items map[string]map[string]types.AttributeValue
@@ -50,10 +52,20 @@ func (t *Table) PutItem(_ context.Context, input *dynamodb.PutItemInput, _ ...fu
 	if input.ConditionExpression == nil || *input.ConditionExpression == "" {
 		return nil, errors.New("archive writes must protect newer source facts")
 	}
-	if previous := t.items[key.PK+"/"+key.SK]; previous != nil {
-		if fetchedAt(previous) > fetchedAt(input.Item) {
-			return nil, &types.ConditionalCheckFailedException{}
-		}
+	previous := t.items[key.PK+"/"+key.SK]
+	var holds bool
+	switch condition := *input.ConditionExpression; condition {
+	case "attribute_not_exists(fetched_at) OR fetched_at <= :fetched_at":
+		holds = previous == nil || fetchedAt(previous) <= stringValue(input.ExpressionAttributeValues[":fetched_at"])
+	case "attribute_not_exists(pk)":
+		holds = previous == nil
+	case "#revision = :read_revision":
+		holds = previous != nil && numberValue(previous[input.ExpressionAttributeNames["#revision"]]) == numberValue(input.ExpressionAttributeValues[":read_revision"])
+	default:
+		return nil, fmt.Errorf("archivetest does not evaluate condition %q", condition)
+	}
+	if !holds {
+		return nil, &types.ConditionalCheckFailedException{}
 	}
 	t.items[key.PK+"/"+key.SK] = input.Item
 	return &dynamodb.PutItemOutput{}, nil
@@ -121,6 +133,13 @@ func (t *Table) Len() int {
 
 func fetchedAt(item map[string]types.AttributeValue) string {
 	return stringValue(item["fetched_at"])
+}
+
+func numberValue(value types.AttributeValue) string {
+	if n, ok := value.(*types.AttributeValueMemberN); ok {
+		return n.Value
+	}
+	return ""
 }
 
 func stringValue(value types.AttributeValue) string {
