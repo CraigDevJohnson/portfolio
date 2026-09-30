@@ -312,7 +312,9 @@ func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int,
 		return true, false
 	case selectedName != "" && (selectedID <= 0 || awayID <= 0) && strings.EqualFold(selectedName, awayName):
 		return false, true
-	case homeID <= 0 && awayID <= 0:
+	case selectedName == "" && homeID <= 0 && awayID <= 0:
+		// Nothing identifies either side, so keep the historical home default.
+		// A known name that matches neither side is not guessed.
 		return true, false
 	default:
 		return false, false

@@ -206,6 +206,27 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 	}
 }
 
+func TestFetchSchedulesDoesNotGuessTheSelectedSideOfAGameWithoutTeamIDs(t *testing.T) {
+	app := newTestApp(t)
+	// Game 3 carries no team IDs. Gold FC's schedule names it as the home side;
+	// Blue FC's name matches neither side, so its schedule must not claim one.
+	server := newFakeLPSTeams(t, map[string]string{
+		"/teams/300": `{"team":{"UTeamID":300,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":3,"SchedGameDateTime":"{future}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"}}]}`,
+		"/teams/301": `{"team":{"UTeamID":301,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":3,"SchedGameDateTime":"{future}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"}}]}`,
+	})
+	app.Config.LPSAPIBaseURL = server.URL
+	mux, _ := buildMux(app, app.Logger, false)
+
+	rows, _ := fetchSoccerMatchRows(t, mux, "300", "301")
+	row := onlySoccerRow(t, rows, "3")
+	if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != "gold" || away != "gold" {
+		t.Errorf("game 3 colors = %q/%q, want Gold FC's gold on both halves", home, away)
+	}
+	if htmlAttr(row, "data-shared-match") != "" {
+		t.Error("game 3 was marked shared although Blue FC matched neither side")
+	}
+}
+
 func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 	app := newTestApp(t)
 	// Each team plays one home game, so both halves of its row show its color.
