@@ -20,6 +20,7 @@ const (
 	googleUnavailableMessage         = "Google Calendar add is unavailable until Google OAuth and server-side storage are configured."
 	googleReadSelectedGamesMessage   = "Could not read the selected games. Try again."
 	googleExpiredConnectionMessage   = "Your Google Calendar connection has expired. Connect again and retry."
+	googleInvalidConnectionMessage   = "Your Google Calendar connection is no longer valid. Connect again and retry."
 	googleCalendarChoiceMessage      = "Choose a writable calendar before continuing. Writes are paused until you save a destination."
 	safeCalendarMutationRetryMessage = "The request reached its time limit. Retry to finish; existing games will be matched instead of duplicated."
 )
@@ -77,6 +78,10 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 	writable, err := h.ensureWritableCalendar(workCtx, record, token)
 	if err != nil {
 		logging.WithContext(h.Logger, workCtx).Warn("google destination check failed", slog.Any("error", err))
+		if isGoogleAuthRejected(err) {
+			h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
+			return
+		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not verify the selected calendar. No games were added; try again later.")
 		return
 	}
@@ -106,15 +111,21 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.authRejected {
-		h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record)
+		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
 		return
 	}
 	h.Soccer.RenderLoginFeedback(w, r, "success", addMutationMessage(result))
 }
 
+// calendarDestinationRejected reports whether the chosen calendar refused an
+// event request because it is gone or no longer accepts this account's
+// writes, rather than because of the connection or a usage limit.
 func calendarDestinationRejected(err error) bool {
 	var apiErr *APIError
-	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone)
+	if !errors.As(err, &apiErr) || apiErr.credentialsRejected() || apiErr.usageLimited() {
+		return false
+	}
+	return apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone
 }
 
 func (h *Handler) renderCalendarChoiceRequired(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
@@ -233,6 +244,10 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	writable, err := h.ensureWritableCalendar(workCtx, record, token)
 	if err != nil {
 		logging.WithContext(h.Logger, workCtx).Warn("google destination check failed", slog.Any("error", err))
+		if isGoogleAuthRejected(err) {
+			h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
+			return
+		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not verify the selected calendar. No results were synced; try again later.")
 		return
 	}
@@ -261,7 +276,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.authRejected {
-		h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record)
+		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
 		return
 	}
 	logging.WithContext(h.Logger, workCtx).Info(
@@ -356,7 +371,7 @@ func apiResponseError(logger *slog.Logger, resp *http.Response) (bool, error) {
 	}
 	logger.Warn("google event insert rejected", slog.Any("error", apiErr))
 	var googleErr *APIError
-	return errors.As(apiErr, &googleErr) && (googleErr.StatusCode == http.StatusUnauthorized || googleErr.StatusCode == http.StatusForbidden), apiErr
+	return errors.As(apiErr, &googleErr) && googleErr.credentialsRejected(), apiErr
 }
 
 func parseGoogleForm(r *http.Request, w http.ResponseWriter) error {

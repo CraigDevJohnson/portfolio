@@ -1,5 +1,7 @@
 package google
 
+import "net/http"
+
 type calendarListResponse struct {
 	Items []calendar `json:"items"`
 }
@@ -58,6 +60,28 @@ type EventSource struct {
 type APIError struct {
 	StatusCode int
 	Message    string
+	// Reason is the first reason in Google's error body, such as
+	// requiredAccessLevel or rateLimitExceeded.
+	Reason string
+}
+
+// credentialsRejected reports whether Google refused the connection itself:
+// its token is no longer valid, or it lacks the Calendar access consent
+// asked for. Only a new consent can recover it.
+func (err *APIError) credentialsRejected() bool {
+	return err.StatusCode == http.StatusUnauthorized ||
+		(err.StatusCode == http.StatusForbidden && (err.Reason == "insufficientPermissions" || err.Reason == "authError"))
+}
+
+// usageLimited reports whether Google refused the request only because a
+// usage limit was reached, so a later retry can succeed.
+func (err *APIError) usageLimited() bool {
+	switch err.Reason {
+	case "rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "quotaExceeded":
+		return err.StatusCode == http.StatusForbidden || err.StatusCode == http.StatusTooManyRequests
+	default:
+		return false
+	}
 }
 
 func (err *APIError) Error() string {

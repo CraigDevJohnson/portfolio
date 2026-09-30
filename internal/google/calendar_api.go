@@ -106,9 +106,21 @@ func readAPIError(resp *http.Response) error {
 	if message == "" {
 		message = resp.Status
 	}
+	var googleError struct {
+		Error struct {
+			Errors []struct {
+				Reason string `json:"reason"`
+			} `json:"errors"`
+		} `json:"error"`
+	}
+	reason := ""
+	if json.Unmarshal(body, &googleError) == nil && len(googleError.Error.Errors) > 0 {
+		reason = googleError.Error.Errors[0].Reason
+	}
 	return &APIError{
 		StatusCode: resp.StatusCode,
 		Message:    message,
+		Reason:     reason,
 	}
 }
 
