@@ -539,6 +539,42 @@ func TestLostDestinationPausesWritesUntilTheVisitorChoosesAgain(t *testing.T) {
 	}
 }
 
+func TestViewingThePageAfterTheDestinationIsLostPausesWritesBeforeAnyAdd(t *testing.T) {
+	for _, lost := range []struct{ name, access string }{
+		{name: "removed from the account", access: ""},
+		{name: "now read-only", access: "reader"},
+	} {
+		t.Run(lost.name, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.choose(t, teamCalendarID)
+			world.fetch(t)
+			world.google.setAccess(teamCalendarID, lost.access)
+
+			page := world.page(t)
+			if strings.Contains(page, calendarReady) || !strings.Contains(page, "Calendar selection needed") || selectedCalendar(t, page) != "" {
+				t.Fatal("the first page view after the destination was lost did not pause writes and ask for a new choice")
+			}
+			for _, record := range world.store.records {
+				if !record.CalendarSelectionRequired || record.CalendarID != teamCalendarID {
+					t.Errorf("stored destination = %q, paused %t; want %q kept and paused", record.CalendarID, record.CalendarSelectionRequired, teamCalendarID)
+				}
+			}
+
+			// Neither the calendar returning nor primary receives the next Add.
+			world.google.setAccess(teamCalendarID, "writer")
+			mark := world.google.callCount()
+			added := world.add(t, nextGameID)
+			if !strings.Contains(added, calendarChoiceNeeded) {
+				t.Fatalf("Add after the page paused writes did not ask for a new choice: %q", added)
+			}
+			if calls := world.google.callsSince(mark); len(calls) != 0 || len(world.google.events(primaryCalendarID)) != 0 {
+				t.Fatalf("Add after the page paused writes sent event requests %v", calls)
+			}
+		})
+	}
+}
+
 func TestAddWritesOnlyExplicitlySelectedUpcomingGames(t *testing.T) {
 	world := newCalendarDestinationWorld(t)
 	mark := world.google.callCount()
