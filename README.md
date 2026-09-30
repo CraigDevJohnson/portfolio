@@ -152,13 +152,18 @@ deployment. The app reads that current map for every request; grants are never
 stored in the browser cookie. The encrypted session retains the validated
 Cognito issuer, subject, email, and bounded expiry.
 
-Shared navigation links to `GET /sign-in` with a local return path. The landing
-page starts Google sign-in only on `POST /sign-in`; Cognito returns to
-`GET /auth/callback`. `POST /sign-out` clears the session and pending OAuth
-state before ending the Cognito managed-login journey. Public pages stay
-available when site sign-in is disabled, rejected, or expired. The site auth
-routes and configuration are offline application support; Cognito resources,
-Lambda runtime variables, and live activation require separate review.
+When site sign-in is configured, shared navigation links to `GET /sign-in`
+with a local return path; without complete configuration it shows no sign-in
+entry. The landing page starts Google sign-in only on `POST /sign-in`; Cognito
+returns to `GET /auth/callback`. Return paths must be local, and a return path
+to the callback itself falls back to `/`. `POST /sign-out` clears the session
+and pending OAuth state before ending the Cognito managed-login journey. Public
+pages stay available when site sign-in is disabled, rejected, or expired.
+Responses from the sign-in routes and pages rendered for a signed-in account
+send `Cache-Control: no-store`; anonymous portfolio pages keep their existing
+cache headers. The site auth routes and configuration are offline application
+support; Cognito resources, Lambda runtime variables, and live activation
+require separate review.
 
 The session is an encrypted bearer cookie. Browser sign-out clears that cookie,
 but a previously copied cookie can be replayed until its token-bounded expiry.
@@ -218,6 +223,9 @@ task portal-preview
 
 Then open the `/mgmt` URL printed at startup (port `8080` by default). Preview
 mode requires a loopback listener and is unavailable in the Lambda handler.
+It also serves `/__preview/account/signed-out` and
+`/__preview/account/signed-in`, which render the About page with each shared
+navigation account state; preview mode never enables real site sign-in.
 
 ## Soccer import flow
 
@@ -295,8 +303,8 @@ Public pages:
 | `GET` | `/contact` | Contact |
 | Any | `/soccer` | Soccer page and Google OAuth callback |
 
-Site account routes remain available to render sign-in status even when site
-identity is not configured:
+Site account routes remain registered even when site identity is not
+configured; the landing page then reports that sign-in is unavailable:
 
 | Method | Path | Purpose |
 | --- | --- | --- |

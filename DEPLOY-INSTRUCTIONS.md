@@ -190,14 +190,17 @@ task test-images
 The build tasks accept optional `IMAGE_TAG` and `BUILD_REVISION` values. They
 default to local tags and the current Git revision.
 
-## EC2 management portal
+## Site sign-in
 
 The site sign-in code accepts independent `SITE_*` runtime settings and a
-reviewed `SITE_INVITATIONS_JSON` map as described in README. This change does
+reviewed `SITE_INVITATIONS_JSON` map as described in README. No environment
+supplies them yet, so deployed pages show no sign-in entry. This change does
 not provision or activate a site Cognito pool. Register `/auth/callback` and
 `/sign-in` with the environment's Cognito app client before supplying those
 settings to a deployment; do not assume the existing management-only callback
 registration supports the site flow.
+
+## EC2 management portal
 
 The portal routes are disabled unless the session key, Cognito domain, and
 client ID are valid, and no environment enables them. Its runtime role has only
