@@ -1,59 +1,78 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
 )
 
-type recordingTeamArchive struct {
-	snapshots []soccerarchive.Snapshot
+// playerHistoryRoute is the real route assembly with fake Cognito site
+// sign-in, a fake LPS account that links two players, and the durable archive
+// over an in-memory DynamoDB table, as an approved activation would wire it.
+type playerHistoryRoute struct {
+	cognito *fakeSiteCognito
+	app     *App
+	mux     http.Handler
+	handler *internalsoccer.Handler
+	table   *archivetest.Table
+	store   *soccerarchive.DynamoStore
+	jwt     string
+
+	mu       sync.Mutex
+	requests map[string]int
+	// failingPlayer, when set, is a player whose team lookup LPS fails.
+	failingPlayer int
 }
 
-func (archive *recordingTeamArchive) SaveTeamSnapshot(_ context.Context, snapshot *soccerarchive.Snapshot) error {
-	archive.snapshots = append(archive.snapshots, *snapshot)
-	return nil
-}
+// The fake LPS account links Craig (the account's main player) and Taylor.
+// Both play for team 4101 in LPS season 77; Craig also played for 4102 in
+// season 78, and Taylor plays for 4202 in season 79 and for 4300, which LPS
+// returns without a season.
+const playerHistoryAccount = `{"first_name":"Craig","last_name":"Johnson",` +
+	`"players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson","is_main_player":true},` +
+	`{"UPlayerID":1002,"FirstName":"Taylor","LastName":"Johnson","is_main_player":false}],` +
+	`"user_players":[{"player_id":1001},{"player_id":1002}]}`
 
-type recordingPlayerArchive struct {
-	recordingTeamArchive
-
-	discoveries []soccerarchive.PlayerDiscovery
-}
-
-func (archive *recordingPlayerArchive) SavePlayerDiscovery(_ context.Context, discovery *soccerarchive.PlayerDiscovery) error {
-	archive.discoveries = append(archive.discoveries, *discovery)
-	return nil
-}
-
-func TestSoccerImportDisclosesAndCapturesEveryLinkedPlayersMembership(t *testing.T) {
-	fixture := newFakeSiteCognito(t)
-	application := fixture.app(t)
+func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
+	t.Helper()
+	cognito := newFakeSiteCognito(t)
+	application := cognito.app(t)
 	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	token := testutil.TestJWT(t, time.Now().Add(time.Hour))
-	requests := map[string]int{}
+	route := &playerHistoryRoute{cognito: cognito, app: application, jwt: testutil.TestJWT(t, time.Now().Add(time.Hour)), requests: map[string]int{}}
 	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests[r.URL.Path]++
+		route.mu.Lock()
+		route.requests[r.URL.Path]++
+		failingPlayer := route.failingPlayer
+		route.mu.Unlock()
+		authorized := r.Header.Get("Authorization") == "Bearer "+route.jwt
+		switch r.URL.Path {
+		case "/users/check", "/players/1001/my_teams", "/players/1002/my_teams":
+			if !authorized {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
 		switch r.URL.Path {
 		case "/users/check":
-			if r.Header.Get("Authorization") != "Bearer "+token {
-				t.Errorf("users/check did not receive imported JWT")
-			}
-			_, _ = fmt.Fprint(w, `{"players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson","is_main_player":true},{"UPlayerID":1002,"FirstName":"Taylor","LastName":"Johnson","is_main_player":false}],"user_players":[{"player_id":1001},{"player_id":1002}]}`)
+			_, _ = fmt.Fprint(w, playerHistoryAccount)
+		case fmt.Sprintf("/players/%d/my_teams", failingPlayer):
+			http.Error(w, "temporary failure", http.StatusBadGateway)
 		case "/players/1001/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`)
+			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`)
 		case "/players/1002/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79},{"UTeamID":4300,"team_name":"Unknown Season"}]`)
-		case "/teams/4101":
-			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4101,"team_name":"Craig FC","Season":77},"games":[]}`)
+			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79},{"UTeamID":4300,"team_name":"Unknown Season"}]`)
+		case "/teams/4202":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4202,"team_name":"Taylor FC","Season":79},"games":[]}`)
 		default:
 			t.Errorf("unexpected LPS request %s", r.URL.Path)
 			http.NotFound(w, r)
@@ -61,123 +80,194 @@ func TestSoccerImportDisclosesAndCapturesEveryLinkedPlayersMembership(t *testing
 	}))
 	t.Cleanup(lpsServer.Close)
 	application.Config.LPSAPIBaseURL = lpsServer.URL
-	mux, handler := buildMux(application, application.Logger, false)
-	archive := &recordingPlayerArchive{}
-	handler.SetArchiveStore(archive)
-	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
-	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+	route.mux, route.handler = buildMux(application, application.Logger, false)
+	route.table = archivetest.NewTable()
+	route.store = soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history")
+	route.handler.SetArchiveStore(route.store)
+	return route
+}
 
-	handler.SetArchiveStore(nil)
-	offPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie)
-	if !strings.Contains(offPage.Body.String(), "History collection is currently off") || strings.Contains(offPage.Body.String(), "are retained indefinitely") {
-		t.Fatal("disabled collection page described durable collection as active")
+// lpsRequests returns how many requests the fake LPS received for path.
+func (route *playerHistoryRoute) lpsRequests(path string) int {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	return route.requests[path]
+}
+
+// lpsRequestTotal returns how many requests the fake LPS received.
+func (route *playerHistoryRoute) lpsRequestTotal() int {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	total := 0
+	for _, count := range route.requests {
+		total += count
 	}
-	handler.SetArchiveStore(archive)
-	page := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie)
-	for _, notice := range []string{"retained indefinitely", "every linked player", "refresh"} {
-		if !strings.Contains(page.Body.String(), notice) {
-			t.Errorf("import page omitted %q", notice)
+	return total
+}
+
+// signedInOwner signs a new browser in through the fake Cognito as whoever
+// the fake identity currently names.
+func (route *playerHistoryRoute) signedInOwner(t *testing.T) *siteBrowser {
+	t.Helper()
+	browser := newSiteBrowser(t, route.mux)
+	if landing := browser.signIn("/soccer"); landing.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-in status = %d", landing.Code)
+	}
+	return browser
+}
+
+// items returns the stored items of one kind, keyed by "pk/sk".
+func (route *playerHistoryRoute) items(t *testing.T, kind string) map[string]map[string]any {
+	t.Helper()
+	items, err := route.table.Items()
+	if err != nil {
+		t.Fatalf("decode stored items: %v", err)
+	}
+	matched := make(map[string]map[string]any)
+	for key, item := range items {
+		if item["kind"] == kind {
+			matched[key] = item
 		}
 	}
-	if len(archive.discoveries) != 0 {
-		t.Fatal("opening the import page stored player evidence")
+	return matched
+}
+
+// membershipTriple names one player-team-season association.
+type membershipTriple struct{ player, team, season int }
+
+// memberships returns each stored membership by owner subject.
+func (route *playerHistoryRoute) memberships(t *testing.T) map[string]map[membershipTriple]map[string]any {
+	t.Helper()
+	byOwner := make(map[string]map[membershipTriple]map[string]any)
+	for _, item := range route.items(t, "membership") {
+		subject := fmt.Sprint(item["owner_subject"])
+		if byOwner[subject] == nil {
+			byOwner[subject] = make(map[membershipTriple]map[string]any)
+		}
+		triple := membershipTriple{player: intAttribute(item, "player_id"), team: intAttribute(item, "team_id"), season: intAttribute(item, "season_id")}
+		if _, duplicate := byOwner[subject][triple]; duplicate {
+			t.Errorf("owner %s has two membership records for %+v", subject, triple)
+		}
+		byOwner[subject][triple] = item
+	}
+	return byOwner
+}
+
+func intAttribute(item map[string]any, name string) int {
+	value, _ := item[name].(float64)
+	return int(value)
+}
+
+// observedWithin parses a stored observation time and requires it to fall
+// between before and after.
+func observedWithin(t *testing.T, key string, item map[string]any, before, after time.Time) {
+	t.Helper()
+	observed, err := time.Parse(time.RFC3339Nano, fmt.Sprint(item["observed_at"]))
+	if err != nil {
+		t.Errorf("%s observed_at %q: %v", key, item["observed_at"], err)
+		return
+	}
+	if observed.Before(before.Add(-time.Millisecond)) || observed.After(after) {
+		t.Errorf("%s observed_at = %s, want between %s and %s", key, observed, before, after)
+	}
+}
+
+// the four exact associations the fake LPS account returns.
+var linkedPlayerMemberships = map[membershipTriple]bool{
+	{1001, 4101, 77}: true, {1001, 4102, 78}: true, {1002, 4101, 77}: true, {1002, 4202, 79}: true,
+}
+
+func TestGrantedSoccerImportRecordsEveryLinkedPlayersOwnerBoundTeamSeasons(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	owner := route.signedInOwner(t)
+
+	before := time.Now()
+	imported := owner.postForm("/soccer/import", url.Values{"jwt": {route.jwt}})
+	after := time.Now()
+
+	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), `name="player_ids"`) {
+		t.Fatalf("granted import did not list linked players: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	if route.lpsRequests("/users/check") != 1 || route.lpsRequests("/players/1001/my_teams") != 1 || route.lpsRequests("/players/1002/my_teams") != 1 || route.lpsRequestTotal() != 3 {
+		t.Fatalf("import did not look up every linked player's teams, and only those: %v", route.requests)
 	}
 
-	unauthorized := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}})
-	if unauthorized.Code != http.StatusUnauthorized || len(archive.discoveries) != 0 || len(requests) != 0 {
-		t.Fatalf("anonymous import collected data: status %d, discoveries %d, LPS requests %#v", unauthorized.Code, len(archive.discoveries), requests)
+	byOwner := route.memberships(t)
+	if len(byOwner) != 1 || len(byOwner["stable-subject"]) != len(linkedPlayerMemberships) {
+		t.Fatalf("stored memberships by owner = %v, want the four associations for stable-subject", byOwner)
 	}
-	application.Config.SiteInvitations["owner@example.com"] = nil
-	revoked := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
-	if revoked.Code != http.StatusForbidden || len(archive.discoveries) != 0 || len(requests) != 0 {
-		t.Fatalf("revoked import collected data: status %d, discoveries %d, LPS requests %#v", revoked.Code, len(archive.discoveries), requests)
+	for triple, item := range byOwner["stable-subject"] {
+		key := fmt.Sprintf("%+v", triple)
+		if !linkedPlayerMemberships[triple] {
+			t.Errorf("unexpected membership %s", key)
+		}
+		if item["owner_issuer"] != route.cognito.issuer || item["source"] != "authenticated_player_lookup" {
+			t.Errorf("membership %s owner or source = %v/%v", key, item["owner_issuer"], item["source"])
+		}
+		observedWithin(t, key, item, before, after)
 	}
-	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer"}
+	if craig := byOwner["stable-subject"][membershipTriple{1001, 4101, 77}]; craig["team_name"] != "Craig FC" || craig["division_name"] != "Open A" {
+		t.Errorf("membership team facts = %v/%v, want Craig FC in Open A", craig["team_name"], craig["division_name"])
+	}
 
-	imported := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
-	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), "Choose your players") {
-		t.Fatalf("granted import failed: status %d, body %q", imported.Code, imported.Body.String())
+	players := route.items(t, "player")
+	if craig, taylor := players["PLAYER#1001/META"], players["PLAYER#1002/META"]; len(players) != 2 ||
+		craig["first_name"] != "Craig" || craig["last_name"] != "Johnson" || taylor["first_name"] != "Taylor" || taylor["last_name"] != "Johnson" {
+		t.Fatalf("stored player identities = %v", players)
 	}
-	if requests["/users/check"] != 1 || requests["/players/1001/my_teams"] != 1 || requests["/players/1002/my_teams"] != 1 || requests["/teams/4101"] != 0 {
-		t.Fatalf("import did not discover all players before planner selection: %#v", requests)
-	}
-	if len(archive.discoveries) != 1 {
-		t.Fatalf("stored discoveries = %d, want 1", len(archive.discoveries))
-	}
-	got := archive.discoveries[0]
-	if got.OwnerIssuer != fixture.issuer || got.OwnerSubject != "stable-subject" || len(got.Players) != 2 || len(got.Memberships) != 4 || got.ObservedAt.IsZero() {
-		t.Fatalf("owner-bound all-player evidence missing: %#v", got)
-	}
-	if got.Players[0].UPlayerID != 1001 || !got.Players[0].IsMainPlayer || got.Players[1].UPlayerID != 1002 || got.Players[1].IsMainPlayer {
-		t.Fatalf("player identity or flags missing: %#v", got.Players)
-	}
-	want := map[[3]int]bool{{1001, 4101, 77}: true, {1001, 4102, 78}: true, {1002, 4101, 77}: true, {1002, 4202, 79}: true}
-	for _, membership := range got.Memberships {
-		key := [3]int{membership.PlayerID, membership.Team.UTeamID, membership.Team.Season}
-		if !want[key] {
-			t.Errorf("unexpected membership %#v", membership)
+	mainPlayer := map[int]bool{}
+	for key, link := range route.items(t, "player_owner") {
+		if link["owner_issuer"] != route.cognito.issuer || link["owner_subject"] != "stable-subject" || link["source"] != "authenticated_player_lookup" {
+			t.Errorf("owner link %s = %v", key, link)
 		}
-		delete(want, key)
-	}
-	if len(want) != 0 {
-		t.Errorf("missing exact membership associations: %#v", want)
-	}
-	known := map[int]bool{4101: true, 4102: true, 4202: true, 4300: true}
-	for _, team := range got.KnownTeams {
-		if !known[team.UTeamID] {
-			t.Errorf("unexpected enrolled team %#v", team)
+		observedWithin(t, key, link, before, after)
+		main, ok := link["is_main_player"].(bool)
+		if !ok {
+			t.Errorf("owner link %s has no main-player flag: %v", key, link)
 		}
-		delete(known, team.UTeamID)
+		mainPlayer[intAttribute(link, "player_id")] = main
 	}
-	if len(known) != 0 {
-		t.Errorf("unselected or seasonless teams were not enrolled: %#v", known)
+	if len(mainPlayer) != 2 || !mainPlayer[1001] || mainPlayer[1002] {
+		t.Errorf("owner links' main-player flags = %v, want Craig main and Taylor not", mainPlayer)
 	}
-	if len(archive.snapshots) != 0 {
-		t.Fatal("player import selected or fetched planner games")
+
+	teams := route.items(t, "team")
+	if len(teams) != 4 {
+		t.Errorf("enrolled teams = %d, want the four discovered teams", len(teams))
 	}
+	for _, teamID := range []int{4101, 4102, 4202, 4300} {
+		team := teams[fmt.Sprintf("TEAM#%d/META", teamID)]
+		if team["enrollment_source"] != "player" || team["due_pk"] != "TEAM_DUE" {
+			t.Errorf("discovered team %d enrollment = %v", teamID, team)
+		}
+	}
+
+	stored, err := route.table.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, item := range stored {
+		for _, sessionAttribute := range []string{"ttl", "expires_at"} {
+			if _, found := item[sessionAttribute]; found {
+				t.Errorf("durable item %s carries the import session attribute %q", key, sessionAttribute)
+			}
+		}
+		for attribute, value := range item {
+			if strings.Contains(fmt.Sprint(value), route.jwt) {
+				t.Errorf("durable item %s attribute %q holds the imported JWT", key, attribute)
+			}
+		}
+	}
+
 	sessionCookie := findSessionCookie(t, imported.Result())
 	if sessionCookie == nil {
 		t.Fatal("import did not retain LPS access")
 	}
-	session := decryptTestSession(t, application, sessionCookie.Value)
-	if session.Workflow.Source != "" || len(session.Workflow.SelectedPlayerIDs) != 0 || len(session.Workflow.SelectedTeamIDs) != 0 {
-		t.Fatalf("import preselected planner choices: %#v", session.Workflow)
+	session := decryptTestSession(t, route.app, sessionCookie.Value)
+	if len(session.Players) != 2 || session.Workflow.Source != "" || len(session.Workflow.SelectedPlayerIDs) != 0 || len(session.Workflow.SelectedTeamIDs) != 0 {
+		t.Fatalf("import selected planner choices: players %d, workflow %+v", len(session.Players), session.Workflow)
 	}
-
-	manual := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"4101"}})
-	if manual.Code != http.StatusOK || len(archive.snapshots) != 1 || len(archive.discoveries) != 1 {
-		t.Fatalf("manual lookup created membership or failed to archive team: status %d, snapshots %d, discoveries %d", manual.Code, len(archive.snapshots), len(archive.discoveries))
-	}
-}
-
-func TestSoccerImportDoesNotStorePartialMembershipWhenAPlayerLookupFails(t *testing.T) {
-	fixture := newFakeSiteCognito(t)
-	application := fixture.app(t)
-	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	token := testutil.TestJWT(t, time.Now().Add(time.Hour))
-	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/users/check":
-			_, _ = fmt.Fprint(w, `{"players":[{"UPlayerID":1001},{"UPlayerID":1002}]}`)
-		case "/players/1001/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"Season":77}]`)
-		case "/players/1002/my_teams":
-			http.Error(w, "temporary failure", http.StatusBadGateway)
-		default:
-			t.Errorf("unexpected LPS request %s", r.URL.Path)
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(lpsServer.Close)
-	application.Config.LPSAPIBaseURL = lpsServer.URL
-	mux, handler := buildMux(application, application.Logger, false)
-	archive := &recordingPlayerArchive{}
-	handler.SetArchiveStore(archive)
-	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
-	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-
-	result := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
-	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), "Could not look up every linked player") || len(archive.discoveries) != 0 || findSessionCookie(t, result.Result()) != nil {
-		t.Fatalf("partial discovery was treated as a complete import: status %d, body %q, writes %d", result.Code, result.Body.String(), len(archive.discoveries))
+	if route.table.Item("TEAM#4101/COVERAGE") != nil {
+		t.Error("the import fetched a discovered team's games")
 	}
 }

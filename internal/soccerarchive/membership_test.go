@@ -42,11 +42,12 @@ func TestDynamoArchivePersistsOwnerBoundPlayerSeasonEvidenceAndTeamEnrollment(t 
 	}
 
 	assertArchiveItem(t, backend, "PLAYER#1001/META", map[string]any{
-		"kind": "player", "player_id": 1001, "first_name": "Craig", "last_name": "Johnson", "is_main_player": true,
+		// The main-player flag is owner-relative, so the shared identity omits it.
+		"kind": "player", "player_id": 1001, "first_name": "Craig", "last_name": "Johnson", "is_main_player": nil,
 		"observed_at": observedAt.Format(sortableUTCFormat),
 	})
 	assertArchiveItem(t, backend, "PLAYER#1002/META", map[string]any{
-		"kind": "player", "player_id": 1002, "first_name": "Taylor", "is_main_player": false,
+		"kind": "player", "player_id": 1002, "first_name": "Taylor", "is_main_player": nil,
 	})
 	assertArchiveItem(t, backend, "TEAM#4101/META", map[string]any{
 		"kind": "team", "team_id": 4101, "enrollment_source": "player", "season_id": 77, "due_pk": "TEAM_DUE",

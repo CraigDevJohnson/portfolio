@@ -55,17 +55,19 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 	sort.Slice(players, func(i, j int) bool { return players[i].UPlayerID < players[j].UPlayerID })
 	for _, player := range players {
 		playerPK := "PLAYER#" + strconv.Itoa(player.UPlayerID)
-		mainPlayer := player.IsMainPlayer
 		if err := s.put(ctx, &archiveItem{
 			PK: playerPK, SK: "META", Kind: "player", PlayerID: player.UPlayerID,
-			FirstName: player.FirstName, LastName: player.LastName, IsMainPlayer: &mainPlayer,
+			FirstName: player.FirstName, LastName: player.LastName,
 			Source: authenticatedPlayerLookup, ObservedAt: observedAt, FetchedAt: observedAt,
 		}); err != nil {
 			return fmt.Errorf("save player %d: %w", player.UPlayerID, err)
 		}
+		// The main-player flag describes the player's place in this owner's
+		// LPS account, so it belongs to the owner link, not the shared identity.
+		mainPlayer := player.IsMainPlayer
 		if err := s.put(ctx, &archiveItem{
 			PK: playerPK, SK: ownerPrefix + "#META", Kind: "player_owner", PlayerID: player.UPlayerID,
-			OwnerIssuer: discovery.OwnerIssuer, OwnerSubject: discovery.OwnerSubject,
+			IsMainPlayer: &mainPlayer, OwnerIssuer: discovery.OwnerIssuer, OwnerSubject: discovery.OwnerSubject,
 			Source: authenticatedPlayerLookup, ObservedAt: observedAt, FetchedAt: observedAt,
 		}); err != nil {
 			return fmt.Errorf("save player %d owner: %w", player.UPlayerID, err)
