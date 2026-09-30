@@ -153,7 +153,9 @@ and is replaced on reconnection.
 
 The connection belongs to the site owner who consented. Site sign-out keeps it
 for that owner's next sign-in in the same browser, while a signed-out visitor
-or another site owner cannot see or use it. **Disconnect** deletes the stored
+or another site owner cannot see or use it. Each site owner's connection has
+its own cookie, named from the owner's Cognito issuer and subject, so owners
+who share a browser keep separate connections. **Disconnect** deletes the stored
 connection and its cookie, so the site keeps no token for it. It does not
 revoke the grant at Google, because Google withdraws a grant for the whole
 Google account and OAuth client: that would also disconnect the same account's
@@ -164,9 +166,11 @@ from the Google Account's third-party access settings.
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and
 subject. Google connection records use the same owner coordinates and retain
-the consenting Google account identity. An old ownerless connection is never
-used, but a granted visitor holding its cookie deletes it by disconnecting or
-reconnecting. When `SOCCER_SESSION_TABLE_NAME` is set, the application also
+the consenting Google account identity. Connections saved before #93 sit
+behind the single browser-wide `google_connection` cookie and are never used:
+an old ownerless connection, or an owner's connection without a verified Google
+account. A granted visitor holding that cookie deletes an ownerless connection
+or their own by disconnecting or reconnecting; another owner's stays. When `SOCCER_SESSION_TABLE_NAME` is set, the application also
 writes an owner-bound import baseline containing the username and discovered
 players; it does not restore workflow state from that table.
 

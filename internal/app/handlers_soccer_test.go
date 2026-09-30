@@ -19,6 +19,8 @@ import (
 
 type appTestGoogleConnectionStore struct {
 	records map[string]internalgoogle.ConnectionRecord
+	// getErr, when set, fails every read as an unavailable table would.
+	getErr error
 }
 
 func (s *appTestGoogleConnectionStore) Delete(_ context.Context, connectionID string) error {
@@ -27,6 +29,9 @@ func (s *appTestGoogleConnectionStore) Delete(_ context.Context, connectionID st
 }
 
 func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID string) (*internalgoogle.ConnectionRecord, error) {
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
 	record, ok := s.records[connectionID]
 	if !ok {
 		return nil, nil
@@ -287,7 +292,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 	var connectionCookie *http.Cookie
 	for _, cookie := range callbackResult.Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == ownerGoogleConnectionName {
 			connectionCookie = cookie
 		}
 		if cookie.Name == config.LPSSessionCookieName && cookie.MaxAge < 0 {

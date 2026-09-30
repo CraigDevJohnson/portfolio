@@ -29,6 +29,12 @@ const (
 	testAccountEmail   = "calendar@example.com"
 )
 
+// ownerConnectionCookie is the test owner's Google connection cookie naming
+// the given connection.
+func ownerConnectionCookie(connectionID string) *http.Cookie {
+	return &http.Cookie{Name: ConnectionCookieName(testOwnerIssuer, testOwnerSubject), Value: connectionID}
+}
+
 // asGrantedSoccerOwner gives a request that reaches a Google handler directly
 // the site identity of the test owner holding the soccer grant.
 func asGrantedSoccerOwner(req *http.Request) *http.Request {

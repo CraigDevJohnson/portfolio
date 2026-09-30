@@ -197,7 +197,7 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 
 	var connectionCookie *http.Cookie
 	for _, cookie := range callbackResult.Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == ConnectionCookieName(testOwnerIssuer, testOwnerSubject) {
 			connectionCookie = cookie
 			break
 		}
@@ -261,7 +261,7 @@ func TestCallbackHandlerRejectsUnverifiedGoogleAccount(t *testing.T) {
 		t.Fatal("unverified Google account reached Calendar or persisted a connection")
 	}
 	for _, cookie := range callback.Result().Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName && cookie.Value != "" {
+		if strings.HasPrefix(cookie.Name, config.GoogleConnectionCookieName) && cookie.Value != "" {
 			t.Fatal("unverified Google account received a connection cookie")
 		}
 	}
@@ -314,7 +314,7 @@ func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.CalendarHandler(resp, req)

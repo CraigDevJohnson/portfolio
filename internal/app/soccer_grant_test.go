@@ -397,7 +397,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	}
 	var connectionCookie *http.Cookie
 	for _, cookie := range callback.Result().Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == internalgoogle.ConnectionCookieName(fixture.issuer, "stable-subject") {
 			connectionCookie = cookie
 		}
 	}
@@ -422,11 +422,14 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	fixture.subject = "different-subject"
 	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
 	otherCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, connectionCookie)
+	// The other owner also holds the connection under their own cookie name,
+	// as if copied, so only the stored owner binding can refuse it.
+	copiedConnectionCookie := &http.Cookie{Name: internalgoogle.ConnectionCookieName(fixture.issuer, "different-subject"), Value: connectionCookie.Value}
+	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, connectionCookie, copiedConnectionCookie)
 	if otherPage.Code != http.StatusOK || strings.Contains(otherPage.Body.String(), connectedEmail) || strings.Contains(otherPage.Body.String(), "Calendar ready") {
 		t.Fatal("different site owner inherited Google connection")
 	}
-	otherDisconnect := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/disconnect", nil, otherCookie, connectionCookie)
+	otherDisconnect := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/disconnect", nil, otherCookie, connectionCookie, copiedConnectionCookie)
 	if otherDisconnect.Code != http.StatusOK {
 		t.Fatalf("different owner disconnect status = %d", otherDisconnect.Code)
 	}
@@ -434,8 +437,8 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatal("different site owner deleted the Google connection")
 	}
 	for _, cookie := range otherDisconnect.Result().Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName && cookie.MaxAge < 0 {
-			t.Fatal("different site owner cleared the Google connection cookie")
+		if strings.HasPrefix(cookie.Name, config.GoogleConnectionCookieName) && cookie.MaxAge < 0 {
+			t.Fatal("different site owner cleared a cookie naming the owner's Google connection")
 		}
 	}
 	otherCallback := soccerGrantRequest(mux, http.MethodGet, callbackPath, nil, otherCookie, googleStateCookie)
@@ -460,7 +463,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatal("site sign-out deleted the owner Google connection")
 	}
 	for _, cookie := range signOut.Result().Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName && cookie.MaxAge < 0 {
+		if cookie.Name == connectionCookie.Name && cookie.MaxAge < 0 {
 			t.Fatal("site sign-out cleared the Google connection cookie")
 		}
 	}

@@ -75,6 +75,10 @@ func asGrantedSoccerOwner(req *http.Request) *http.Request {
 	return req.WithContext(ctx)
 }
 
+// ownerGoogleConnectionName is the name of the test site owner's Google
+// connection cookie.
+var ownerGoogleConnectionName = internalgoogle.ConnectionCookieName(testSiteIssuer, testSiteSubject)
+
 // grantedSoccerRoutes serves the real route assembly to a browser holding a
 // current site session with the soccer grant.
 func grantedSoccerRoutes(t *testing.T, app *App) http.Handler {

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/logging"
 	internalsession "portfolio/internal/session"
@@ -86,14 +87,25 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	return record, nil
 }
 
-// DeleteConnection removes the visitor's Google connection and clears the
-// cookie. A cookie naming another site owner's connection, or one whose
-// removal failed, stays so that connection is never stranded with its token.
+// DeleteConnection removes the current site owner's Google connection and
+// clears its cookie. A cookie naming another site owner's connection, or one
+// whose removal failed, stays so that connection is never stranded with its
+// token.
 func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	if connectionID := GetConnectionID(r); connectionID != "" && !h.releaseConnection(ctx, r, connectionID) {
 		return
 	}
 	ClearConnectionCookie(w, r)
+}
+
+// releaseBrowserWideConnection releases the connection named by the
+// browser-wide cookie that site owners shared before each had their own, and
+// clears that cookie once the connection is gone. Another owner's connection
+// stays with the cookie for that owner to release.
+func (h *Handler) releaseBrowserWideConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	if connectionID := browserWideConnectionID(r); connectionID != "" && h.releaseConnection(ctx, r, connectionID) {
+		clearSoccerCookie(w, r, config.GoogleConnectionCookieName)
+	}
 }
 
 // releaseConnection deletes the stored connection when this request may let
@@ -166,15 +178,16 @@ func (h *Handler) ListCalendars(ctx context.Context, r *http.Request, record *Co
 	return h.listCalendarsWithToken(h.httpContext(ctx), token)
 }
 
-// GoogleConnected returns true if a valid Google connection exists for the request.
-func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+// GoogleConnected returns true if a valid Google connection exists for the
+// request. A failed read reports no connection but keeps the cookie, so a
+// transient storage error never strands the owner's connection.
+func (h *Handler) GoogleConnected(ctx context.Context, _ http.ResponseWriter, r *http.Request) bool {
 	if !h.GoogleAvailable() {
 		return false
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
 		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
-		ClearConnectionCookie(w, r)
 		return false
 	}
 	return record != nil
@@ -187,8 +200,8 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
+		// Keep the cookie: the connection may still exist once storage recovers.
 		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
-		ClearConnectionCookie(w, r)
 		return
 	}
 	if record == nil {

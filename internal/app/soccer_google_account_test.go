@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -132,12 +133,13 @@ func TestGrantedVisitorConnectsGoogleWithTheSuggestedSiteAccountOrAnother(t *tes
 	}
 }
 
-// holdsGoogleConnectionCookie reports whether the browser would send a Google
-// connection cookie to the Soccer page.
+// holdsGoogleConnectionCookie reports whether the browser would send the
+// site owner's Google connection cookie to the Soccer page.
 func (journey *googleAccountJourney) holdsGoogleConnectionCookie() bool {
 	soccer, _ := url.Parse("https://app.example.com/soccer")
+	owner := internalgoogle.ConnectionCookieName(journey.cognito.issuer, journey.cognito.subject)
 	for _, cookie := range journey.browser.jar.Cookies(soccer) {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == owner {
 			return true
 		}
 	}
@@ -288,6 +290,77 @@ func TestDisconnectLeavesOtherConnectionsToTheSameGoogleAccountConnected(t *test
 				t.Errorf("disconnecting the laptop left the other connection showing %q, want %q still connected", got, journeyAlternateAccount)
 			}
 		})
+	}
+}
+
+// signOut ends the browser's site session.
+func (journey *googleAccountJourney) signOut(t *testing.T) {
+	t.Helper()
+	if signOut := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+}
+
+func TestSiteOwnersSharingABrowserEachKeepTheirGoogleConnection(t *testing.T) {
+	journey := newGoogleAccountJourney(t)
+	journey.browser.signIn("/soccer")
+	journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect?account=choose"), journeyAlternateAccount)
+	journey.signOut(t)
+
+	// A second owner signs in on the same browser and connects their own
+	// Google account.
+	journey.signInAs(t, journeySecondOwnerEmail, journeySecondOwnerSubject)
+	if got := journey.connectedAccount(t); got != "" {
+		t.Fatalf("second site owner saw the first owner's Google account %q", got)
+	}
+	journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect"), journeySecondOwnerEmail)
+	if got := journey.connectedAccount(t); got != journeySecondOwnerEmail {
+		t.Fatalf("second site owner's connected account = %q, want %q", got, journeySecondOwnerEmail)
+	}
+	journey.signOut(t)
+
+	journey.browser.signIn("/soccer")
+	if got := journey.connectedAccount(t); got != journeyAlternateAccount {
+		t.Errorf("first site owner returned to connected account %q, want %q", got, journeyAlternateAccount)
+	}
+	journey.signOut(t)
+	journey.signInAs(t, journeySecondOwnerEmail, journeySecondOwnerSubject)
+	if got := journey.connectedAccount(t); got != journeySecondOwnerEmail {
+		t.Errorf("second site owner returned to connected account %q, want %q", got, journeySecondOwnerEmail)
+	}
+	if len(journey.store.records) != 2 {
+		t.Errorf("the two owners' connections left %d stored rows, want 2", len(journey.store.records))
+	}
+}
+
+func TestAFailedGoogleConnectionReadKeepsTheOwnersConnection(t *testing.T) {
+	world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+	cookies := []*http.Cookie{
+		testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail),
+		{Name: ownerGoogleConnectionName, Value: grantWorldConnectionID},
+	}
+	world.store.getErr = errors.New("connection table unavailable")
+	for _, request := range []struct {
+		method, path string
+		form         url.Values
+	}{
+		{method: http.MethodGet, path: "/soccer"},
+		{method: http.MethodPost, path: "/soccer/fetch", form: url.Values{"team_codes": {"4101"}}},
+	} {
+		response := soccerGrantRequest(world.mux, request.method, request.path, request.form, cookies...)
+		if response.Code != http.StatusOK {
+			t.Errorf("%s %s status = %d during a failed connection read", request.method, request.path, response.Code)
+		}
+		for _, cookie := range response.Result().Cookies() {
+			if cookie.Name == ownerGoogleConnectionName && cookie.MaxAge < 0 {
+				t.Errorf("%s %s cleared the owner's Google connection cookie after a failed read", request.method, request.path)
+			}
+		}
+	}
+
+	world.store.getErr = nil
+	if page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, cookies...); !strings.Contains(page.Body.String(), "Calendar ready") {
+		t.Error("the owner's Google connection did not return once the connection table recovered")
 	}
 }
 

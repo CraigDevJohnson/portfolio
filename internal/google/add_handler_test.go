@@ -15,7 +15,6 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"portfolio/internal/config"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
@@ -154,7 +153,7 @@ func newMutationRequest(t *testing.T, requestPath string, selected []string) *ht
 	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	return req
 }
 
@@ -408,7 +407,7 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.AddHandler(resp, req)
@@ -566,7 +565,7 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.SyncResultsHandler(resp, req)
@@ -620,7 +619,7 @@ func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader("team_codes=479691"))
 	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.SyncResultsHandler(resp, req)

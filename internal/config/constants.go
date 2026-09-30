@@ -9,7 +9,10 @@ const (
 	LPSSessionCookieName = "lps_session"
 	// LPSImportGuardCookieName holds the guard an import shares with its
 	// lps_session payload. Only an import writes it; sign-out deletes it.
-	LPSImportGuardCookieName   = "lps_import_guard"
+	LPSImportGuardCookieName = "lps_import_guard"
+	// GoogleConnectionCookieName is the browser-wide Google connection cookie
+	// that site owners shared before #93, and the prefix of each owner's own
+	// connection cookie.
 	GoogleConnectionCookieName = "google_connection"
 	GoogleOAuthStateCookieName = "google_oauth_state"
 	DefaultSessionTTL          = 12 * time.Hour

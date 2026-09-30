@@ -151,7 +151,7 @@ func (world *soccerGrantWorld) ownerPrivateState(t *testing.T) []*http.Cookie {
 		t.Fatal(err)
 	}
 	cookies := append(pending.Result().Cookies(), importedAccessCookies(t, world.app, ownedBySiteVisitor(imported))...)
-	return append(cookies, &http.Cookie{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID})
+	return append(cookies, &http.Cookie{Name: ownerGoogleConnectionName, Value: grantWorldConnectionID})
 }
 
 type soccerGrantRoute struct {

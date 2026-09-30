@@ -18,6 +18,7 @@ import (
 	"portfolio/internal/httpx"
 	"portfolio/internal/session"
 	"portfolio/internal/siteauth"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 )
 
@@ -107,7 +108,9 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /soccer/google/connect", googleHandler.ConnectHandler)
+	owner := siteidentity.Principal{Issuer: "https://issuer.example.com/pool", Subject: "owner-subject"}
 	mux.HandleFunc("GET /test/google-connection", func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(siteidentity.WithRequestIdentity(r.Context(), &owner, []siteidentity.Grant{siteidentity.GrantSoccer}, r.URL.Path))
 		internalgoogle.SetConnectionCookie(w, r, "connection-id")
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -147,8 +150,8 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 			name:  "Google connection cookie remains secure",
 			event: gatewayEvent(http.MethodGet, "/test/google-connection"),
 			assert: func(t *testing.T, response events.APIGatewayV2HTTPResponse) {
-				if cookie := responseCookie(t, response, config.GoogleConnectionCookieName); !cookie.Secure {
-					t.Fatal("google_connection cookie is not Secure")
+				if cookie := responseCookie(t, response, internalgoogle.ConnectionCookieName(owner.Issuer, owner.Subject)); !cookie.Secure {
+					t.Fatal("Google connection cookie is not Secure")
 				}
 			},
 		},

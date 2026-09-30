@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -26,24 +27,70 @@ func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires tim
 	http.SetCookie(w, cookie)
 }
 
-// GetConnectionID returns the Google connection ID stored in the request cookie.
-func GetConnectionID(r *http.Request) string {
-	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
+// ConnectionCookieName names the cookie that holds a site owner's Google
+// connection. Each owner has their own cookie, derived from their Cognito
+// issuer and subject, so owners who share a browser never replace one
+// another's connection. It is "" without an owner.
+func ConnectionCookieName(ownerIssuer, ownerSubject string) string {
+	if ownerIssuer == "" || ownerSubject == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(ownerIssuer + "\x00" + ownerSubject))
+	return config.GoogleConnectionCookieName + "_" + hex.EncodeToString(sum[:16])
+}
+
+// connectionCookieName names the current site owner's connection cookie.
+func connectionCookieName(r *http.Request) string {
+	principal, _ := siteidentity.PrincipalFromContext(r.Context())
+	return ConnectionCookieName(principal.Issuer, principal.Subject)
+}
+
+func cookieValue(r *http.Request, name string) string {
+	if name == "" {
+		return ""
+	}
+	cookie, err := r.Cookie(name)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(cookie.Value)
 }
 
-// SetConnectionCookie persists the Google connection ID in a secure cookie.
+// GetConnectionID returns the current site owner's Google connection ID.
+func GetConnectionID(r *http.Request) string {
+	return cookieValue(r, connectionCookieName(r))
+}
+
+// browserWideConnectionID returns the connection ID held in the browser-wide
+// cookie that every site owner shared before each had their own. The
+// connection it names predates verified Google accounts, so it is never used;
+// a granted visitor may only release it.
+func browserWideConnectionID(r *http.Request) string {
+	return cookieValue(r, config.GoogleConnectionCookieName)
+}
+
+// SetConnectionCookie persists the current site owner's Google connection ID
+// in a secure cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
+	name := connectionCookieName(r)
+	if name == "" {
+		return
+	}
+	cookie := internalhttpx.NewSecureCookie(r, name, connectionID, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
-// ClearConnectionCookie removes the Google connection cookie.
+// ClearConnectionCookie removes the current site owner's Google connection
+// cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
+	clearSoccerCookie(w, r, connectionCookieName(r))
+}
+
+func clearSoccerCookie(w http.ResponseWriter, r *http.Request, name string) {
+	if name == "" {
+		return
+	}
+	cookie := internalhttpx.NewSecureCookie(r, name, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
@@ -76,8 +123,7 @@ func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 }
 
 func ClearOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
-	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
+	clearSoccerCookie(w, r, config.GoogleOAuthStateCookieName)
 }
 
 // RedirectSoccerWithGoogleStatus redirects to /soccer with an optional google= query parameter.
@@ -99,6 +145,7 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		RedirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
+	h.releaseBrowserWideConnection(r.Context(), w, r)
 	connectionID := GetConnectionID(r)
 	if connectionID != "" {
 		record, err := h.LoadConnectionRecord(r.Context(), r)
@@ -268,6 +315,7 @@ func (h *Handler) loadGoogleAccount(ctx context.Context, token *oauth2.Token) (*
 func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.Soccer.LoadSession(w, r)
 	h.DeleteConnection(r.Context(), w, r)
+	h.releaseBrowserWideConnection(r.Context(), w, r)
 	h.Soccer.RenderLoginStateRefresh(w, r, session)
 }
 
