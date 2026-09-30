@@ -127,20 +127,3 @@ func TestBuildMuxPortalPreviewDoesNotAdvertiseUnavailableGoogleStore(t *testing.
 		t.Fatalf("portal preview did not explain the unavailable Google runtime: %s", body)
 	}
 }
-
-func TestBuildMuxRetiresManagementOnlyAuthRoutes(t *testing.T) {
-	application := newSiteSignInTestApp(t)
-	mux, _ := buildMux(application, application.Logger, false)
-	for _, route := range []struct{ method, path string }{
-		{http.MethodGet, "/login"},
-		{http.MethodPost, "/login"},
-		{http.MethodGet, "/callback"},
-		{http.MethodPost, "/logout"},
-	} {
-		response := httptest.NewRecorder()
-		mux.ServeHTTP(response, httptest.NewRequest(route.method, route.path, nil))
-		if response.Code != http.StatusNotFound {
-			t.Fatalf("former management auth route %s %s remains active: %d", route.method, route.path, response.Code)
-		}
-	}
-}

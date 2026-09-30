@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +18,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/smithy-go"
 
+	"portfolio/internal/config"
 	"portfolio/internal/portal"
 	"portfolio/internal/session"
 )
@@ -311,5 +315,86 @@ func TestSiteSignOutEndsManagementPortalAccess(t *testing.T) {
 	}
 	if portalApp.aws.describes != 1 {
 		t.Fatalf("signed-out request reached AWS: describes = %d", portalApp.aws.describes)
+	}
+}
+
+// Production break caught: an environment still carrying the retired
+// management-only Cognito settings would keep a second sign-in authority, or a
+// cookie minted under its session key would open the portal.
+func TestFormerManagementIdentitySettingsGrantNoPortalAccess(t *testing.T) {
+	formerKey := []byte("0123456789abcdef0123456789abcdef")
+	former := map[string]string{
+		"LPS_SESSION_KEY":           "",
+		"MGMT_SESSION_KEY":          hex.EncodeToString(formerKey),
+		"MGMT_COGNITO_DOMAIN":       "https://mgmt.auth.us-west-2.amazoncognito.com",
+		"MGMT_COGNITO_ISSUER":       "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mgmt",
+		"MGMT_COGNITO_CLIENT_ID":    "mgmtclient",
+		"MGMT_COGNITO_REDIRECT_URI": "https://app.example.com/callback",
+		"MGMT_COGNITO_LOGOUT_URI":   "https://app.example.com/login",
+		"MGMT_ALLOWED_EMAILS":       "owner@example.com",
+		"MGMT_ALLOW_LOCAL_CALLBACK": "false",
+	}
+	site := map[string]string{
+		"SITE_SESSION_KEY":          strings.Repeat("ab", 32),
+		"SITE_COGNITO_DOMAIN":       "https://site.auth.us-west-2.amazoncognito.com",
+		"SITE_COGNITO_ISSUER":       "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_site",
+		"SITE_COGNITO_CLIENT_ID":    "siteclient",
+		"SITE_COGNITO_REDIRECT_URI": "https://app.example.com/auth/callback",
+		"SITE_COGNITO_LOGOUT_URI":   "https://app.example.com/sign-in",
+		"SITE_INVITATIONS_JSON":     `{"owner@example.com":["soccer","management"]}`,
+	}
+	formerSession := formerManagementSession(t, formerKey, "owner@example.com")
+	retiredRoutes := []struct{ method, path string }{
+		{http.MethodGet, "/login"},
+		{http.MethodPost, "/login"},
+		{http.MethodGet, "/callback?code=former-code&state=former-state"},
+		{http.MethodPost, "/logout"},
+	}
+	serve := func(t *testing.T, mux http.Handler, method, path string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+		t.Helper()
+		request := httptest.NewRequest(method, "https://app.example.com"+path, nil)
+		for _, cookie := range cookies {
+			request.AddCookie(cookie)
+		}
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		return response
+	}
+	for _, tc := range []struct {
+		name       string
+		withSite   bool
+		mgmtStatus int
+	}{
+		{name: "former settings alone", mgmtStatus: http.StatusNotFound},
+		{name: "former settings beside site sign-in", withSite: true, mgmtStatus: http.StatusSeeOther},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for key, value := range former {
+				t.Setenv(key, value)
+			}
+			for key, value := range site {
+				if !tc.withSite {
+					value = ""
+				}
+				t.Setenv(key, value)
+			}
+			cfg := config.Load()
+			application := New(&cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			t.Cleanup(application.LoginLimiter.Close)
+			mux, _ := buildMux(application, application.Logger, false)
+
+			for _, route := range retiredRoutes {
+				if response := serve(t, mux, route.method, route.path, formerSession); response.Code != http.StatusNotFound {
+					t.Errorf("retired management-only route %s %s remains active: %d", route.method, route.path, response.Code)
+				}
+			}
+			response := serve(t, mux, http.MethodGet, "/mgmt", formerSession)
+			if response.Code != tc.mgmtStatus {
+				t.Fatalf("former management session on /mgmt = %d, want %d", response.Code, tc.mgmtStatus)
+			}
+			if tc.withSite && response.Header().Get("Location") != "/sign-in?return_to=%2Fmgmt" {
+				t.Fatalf("former management session was not sent to site sign-in: %q", response.Header().Get("Location"))
+			}
+		})
 	}
 }
