@@ -153,9 +153,13 @@ and is replaced on reconnection.
 
 The connection belongs to the site owner who consented. Site sign-out keeps it
 for that owner's next sign-in in the same browser, while a signed-out visitor
-or another site owner cannot see or use it. **Disconnect** asks Google to
-revoke the Calendar grant, then deletes the stored connection and its cookie;
-the stored connection is deleted even when Google cannot be reached.
+or another site owner cannot see or use it. **Disconnect** deletes the stored
+connection and its cookie, so the site keeps no token for it. It does not
+revoke the grant at Google, because Google withdraws a grant for the whole
+Google account and OAuth client: that would also disconnect the same account's
+connections in other browsers, for other site owners, and in other
+environments. To withdraw the site's Calendar access entirely, remove the app
+from the Google Account's third-party access settings.
 
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and

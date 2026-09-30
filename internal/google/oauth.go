@@ -15,7 +15,6 @@ const (
 	OAuthAuthURL       = "https://accounts.google.com/o/oauth2/auth"
 	OAuthTokenURL      = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
 	OAuthUserInfoURL   = "https://openidconnect.googleapis.com/v1/userinfo"
-	OAuthRevokeURL     = "https://oauth2.googleapis.com/revoke"
 	CalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 )
 
@@ -44,7 +43,6 @@ type Handler struct {
 	OAuthAuthURL            string
 	OAuthTokenURL           string
 	OAuthUserInfoURL        string
-	OAuthRevokeURL          string
 	CalendarAPIBaseURL      string
 	CalendarMutationTimeout time.Duration
 	LPSClient               *http.Client
@@ -67,7 +65,6 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, logger *slog.Logger,
 		OAuthAuthURL:       OAuthAuthURL,
 		OAuthTokenURL:      OAuthTokenURL,
 		OAuthUserInfoURL:   OAuthUserInfoURL,
-		OAuthRevokeURL:     OAuthRevokeURL,
 		CalendarAPIBaseURL: CalendarAPIBaseURL,
 		LPSClient:          lpsClient,
 		Logger:             logger,

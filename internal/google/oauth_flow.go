@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -261,53 +260,15 @@ func (h *Handler) loadGoogleAccount(ctx context.Context, token *oauth2.Token) (*
 	return &account, nil
 }
 
-// DisconnectHandler revokes the owner's Google Calendar access and removes the
-// connection. Site sign-out does neither.
+// DisconnectHandler removes the owner's stored Google connection and its
+// cookie. It does not revoke the grant at Google: Google withdraws a grant for
+// the whole Google account and OAuth client, which would also disconnect the
+// same account's connections on other devices, for other site owners, and in
+// other environments. Site sign-out keeps the connection.
 func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	session, _ := h.Soccer.LoadSession(w, r)
-	if record, err := h.LoadConnectionRecord(ctx, r); err != nil {
-		logging.WithContext(h.Logger, ctx).Error("google connection read before revoke failed", slog.Any("error", err))
-	} else if record != nil {
-		h.revokeGrant(ctx, record)
-	}
-	h.DeleteConnection(ctx, w, r)
+	h.DeleteConnection(r.Context(), w, r)
 	h.Soccer.RenderLoginStateRefresh(w, r, session)
-}
-
-// revokeGrant asks Google to revoke the Calendar access a connection holds.
-// It is best effort: disconnect still removes the stored connection when
-// Google cannot be reached or has already revoked the token.
-func (h *Handler) revokeGrant(ctx context.Context, record *ConnectionRecord) {
-	logger := logging.WithContext(h.Logger, ctx)
-	token, err := h.DecryptToken(record.TokenCiphertext)
-	if err != nil {
-		logger.Error("google token decrypt before revoke failed", slog.Any("error", err))
-		return
-	}
-	value := token.RefreshToken
-	if value == "" {
-		value = token.AccessToken
-	}
-	if value == "" {
-		return
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.OAuthRevokeURL, strings.NewReader(url.Values{"token": {value}}.Encode()))
-	if err != nil {
-		logger.Error("google revoke request build failed", slog.Any("error", err))
-		return
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := h.LPSClient.Do(req)
-	if err != nil {
-		logger.Warn("google grant revocation failed", slog.Any("error", err))
-		return
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, config.MaxRequestBodySize))
-	if resp.StatusCode != http.StatusOK {
-		logger.Warn("google grant revocation rejected", slog.Int("status", resp.StatusCode))
-	}
 }
 
 // NewRandomHex generates a random hex string of the given byte length.

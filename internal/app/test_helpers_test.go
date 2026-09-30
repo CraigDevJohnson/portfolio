@@ -123,7 +123,6 @@ func withoutLiveGoogle(app *App) {
 	app.GoogleHandler.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
 	app.GoogleHandler.OAuthTokenURL = unreachableGoogle + "/oauth/token"
 	app.GoogleHandler.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
-	app.GoogleHandler.OAuthRevokeURL = unreachableGoogle + "/revoke"
 	app.GoogleHandler.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 }
 

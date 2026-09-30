@@ -57,7 +57,6 @@ func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	h.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
 	h.OAuthTokenURL = unreachableGoogle + "/oauth/token"
 	h.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
-	h.OAuthRevokeURL = unreachableGoogle + "/revoke"
 	h.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 	h.SetStore(store)
 	return h

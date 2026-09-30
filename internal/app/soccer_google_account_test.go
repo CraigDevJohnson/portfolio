@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 
 	"portfolio/internal/config"
@@ -24,15 +23,14 @@ const (
 // googleAccountJourney is the real route assembly behind fake Cognito sign-in
 // and a fake Google that grants Calendar access to whichever account the
 // visitor chose on Google's consent page, identified by the authorization
-// code Google returns.
+// code Google returns. Any other Google request, such as a grant revocation,
+// fails the test.
 type googleAccountJourney struct {
 	cognito *fakeSiteCognito
 	app     *App
+	mux     http.Handler
 	store   *appTestGoogleConnectionStore
 	browser *siteBrowser
-
-	mu      sync.Mutex
-	revoked []string
 }
 
 func newGoogleAccountJourney(t *testing.T) *googleAccountJourney {
@@ -61,14 +59,6 @@ func newGoogleAccountJourney(t *testing.T) *googleAccountJourney {
 			_, _ = fmt.Fprintf(w, `{"sub":"google-%s","email":%q,"email_verified":true}`, account, account)
 		case "/calendar/v3/users/me/calendarList":
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true,"accessRole":"owner"}]}`))
-		case "/revoke":
-			if err := r.ParseForm(); err != nil {
-				t.Errorf("revoke request form: %v", err)
-			}
-			journey.mu.Lock()
-			journey.revoked = append(journey.revoked, r.PostForm.Get("token"))
-			journey.mu.Unlock()
-			w.WriteHeader(http.StatusOK)
 		default:
 			t.Errorf("unexpected Google request %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
@@ -78,12 +68,19 @@ func newGoogleAccountJourney(t *testing.T) *googleAccountJourney {
 	journey.app.GoogleHandler.OAuthAuthURL = google.URL + "/oauth/authorize"
 	journey.app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
 	journey.app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
-	journey.app.GoogleHandler.OAuthRevokeURL = google.URL + "/revoke"
 	journey.app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
 
-	mux, _ := buildMux(journey.app, journey.app.Logger, false)
-	journey.browser = newSiteBrowser(t, mux)
+	journey.mux, _ = buildMux(journey.app, journey.app.Logger, false)
+	journey.browser = newSiteBrowser(t, journey.mux)
 	return journey
+}
+
+// on returns the journey continued in another browser against the same site
+// and the same fake Google.
+func (journey *googleAccountJourney) on(browser *siteBrowser) *googleAccountJourney {
+	other := *journey
+	other.browser = browser
+	return &other
 }
 
 // startConsent follows a Google Calendar connect control to Google's consent
@@ -133,13 +130,6 @@ func TestGrantedVisitorConnectsGoogleWithTheSuggestedSiteAccountOrAnother(t *tes
 	if prompt := another.Query().Get("prompt"); !strings.Contains(prompt, "select_account") {
 		t.Errorf("another-account consent prompt = %q, want Google's account chooser", prompt)
 	}
-}
-
-// revocations returns the tokens the fake Google was asked to revoke.
-func (journey *googleAccountJourney) revocations() []string {
-	journey.mu.Lock()
-	defer journey.mu.Unlock()
-	return append([]string(nil), journey.revoked...)
 }
 
 // holdsGoogleConnectionCookie reports whether the browser would send a Google
@@ -220,7 +210,7 @@ func TestChosenGoogleAccountStaysWithItsSiteOwnerUntilChanged(t *testing.T) {
 	}
 }
 
-func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T) {
+func TestDisconnectRemovesTheOwnersGoogleConnectionWhileSignOutKeepsIt(t *testing.T) {
 	journey := newGoogleAccountJourney(t)
 	journey.browser.signIn("/soccer")
 	journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect"), journeySiteAccount)
@@ -228,8 +218,8 @@ func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T)
 	if signOut := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
 		t.Fatalf("site sign-out status = %d", signOut.Code)
 	}
-	if len(journey.store.records) != 1 || len(journey.revocations()) != 0 || !journey.holdsGoogleConnectionCookie() {
-		t.Fatalf("site sign-out removed the Google connection: %d stored, revoked %q", len(journey.store.records), journey.revocations())
+	if len(journey.store.records) != 1 || !journey.holdsGoogleConnectionCookie() {
+		t.Fatalf("site sign-out removed the Google connection: %d stored", len(journey.store.records))
 	}
 
 	journey.browser.signIn("/soccer")
@@ -243,11 +233,61 @@ func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T)
 	if journey.holdsGoogleConnectionCookie() {
 		t.Error("disconnect left the Google connection cookie in the browser")
 	}
-	if got, want := journey.revocations(), "refresh:"+journeySiteAccount; len(got) != 1 || got[0] != want {
-		t.Errorf("Google received revocations %q, want only the connection's refresh token %q", got, want)
-	}
 	if got := journey.connectedAccount(t); got != "" {
 		t.Errorf("after disconnect the page still reports %q connected", got)
+	}
+}
+
+// A second invited site owner who shares the family's Google account.
+const (
+	journeySecondOwnerEmail   = "second.owner@example.com"
+	journeySecondOwnerSubject = "second-owner-subject"
+)
+
+// signInAs signs the journey's browser in as another invited site owner.
+func (journey *googleAccountJourney) signInAs(t *testing.T, email, subject string) {
+	t.Helper()
+	journey.app.Config.SiteInvitations[email] = []string{"soccer"}
+	previousEmail, previousSubject := journey.cognito.email, journey.cognito.subject
+	journey.cognito.email, journey.cognito.subject = email, subject
+	defer func() { journey.cognito.email, journey.cognito.subject = previousEmail, previousSubject }()
+	journey.browser.signIn("/soccer")
+}
+
+func TestDisconnectLeavesOtherConnectionsToTheSameGoogleAccountConnected(t *testing.T) {
+	for _, other := range []struct {
+		name   string
+		signIn func(t *testing.T, journey *googleAccountJourney)
+	}{
+		{name: "same owner on another device", signIn: func(_ *testing.T, journey *googleAccountJourney) { journey.browser.signIn("/soccer") }},
+		{name: "another site owner", signIn: func(t *testing.T, journey *googleAccountJourney) {
+			journey.signInAs(t, journeySecondOwnerEmail, journeySecondOwnerSubject)
+		}},
+	} {
+		t.Run(other.name, func(t *testing.T) {
+			laptop := newGoogleAccountJourney(t)
+			laptop.browser.signIn("/soccer")
+			phone := laptop.on(newSiteBrowser(t, laptop.mux))
+			other.signIn(t, phone)
+			// Both connect the shared family Google account.
+			for _, device := range []*googleAccountJourney{laptop, phone} {
+				device.consentAs(t, device.startConsent(t, "/soccer/google/connect?account=choose"), journeyAlternateAccount)
+				if got := device.connectedAccount(t); got != journeyAlternateAccount {
+					t.Fatalf("connected account = %q, want %q", got, journeyAlternateAccount)
+				}
+			}
+
+			disconnect := laptop.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/soccer/google/disconnect", nil))
+			if disconnect.Code != http.StatusOK || !strings.Contains(disconnect.Body.String(), "Not connected") {
+				t.Fatalf("disconnect = %d %q", disconnect.Code, disconnect.Body.String())
+			}
+			if got := laptop.connectedAccount(t); got != "" {
+				t.Errorf("after disconnect the laptop still reports %q connected", got)
+			}
+			if got := phone.connectedAccount(t); got != journeyAlternateAccount {
+				t.Errorf("disconnecting the laptop left the other connection showing %q, want %q still connected", got, journeyAlternateAccount)
+			}
+		})
 	}
 }
 
