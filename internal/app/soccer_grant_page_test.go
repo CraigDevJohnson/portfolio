@@ -66,3 +66,19 @@ func TestSoccerPageNamesTheMissingGrantInsteadOfAnUnavailableServer(t *testing.T
 		}
 	}
 }
+
+func TestSoccerPageExplainsMissingAccessOnlyForPrivateActionsTheServerOffers(t *testing.T) {
+	application := newTestApp(t)
+	application.Config.SessionKey = nil
+	enableTestSiteIdentity(application, map[string][]string{testSiteEmail: {"soccer"}})
+	mux, _ := buildMux(application, application.Logger, false)
+	body := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil).Body.String()
+	for _, notice := range []string{"Private Soccer access", "Sign in for Soccer access"} {
+		if strings.Contains(body, notice) {
+			t.Errorf("Soccer page showed %q on a server without LPS import or Google Calendar", notice)
+		}
+	}
+	if !strings.Contains(body, `href="/sign-in?return_to=%2Fsoccer"`) {
+		t.Error("shared navigation stopped offering site sign-in")
+	}
+}

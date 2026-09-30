@@ -20,18 +20,7 @@ import (
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.LoadSession(w, r)
 	authState := h.LoginStateProps(w, r, session, false)
-	privateAccessMessage := ""
-	showSiteSignIn := false
-	if siteidentity.Evaluated(r.Context()) && !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) {
-		if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {
-			privateAccessMessage = "This account has not been granted access to linked players or Google Calendar. Team ID lookup and ICS download are still available."
-		} else if !siteidentity.SignInAvailable(r.Context()) {
-			privateAccessMessage = "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and ICS download are still available."
-		} else {
-			privateAccessMessage = "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and ICS download are still available."
-			showSiteSignIn = true
-		}
-	}
+	privateAccessMessage, showSiteSignIn := PrivateAccessNotice(r.Context(), &authState)
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"), authState.GoogleAvailable, authState.GoogleConnected)
 	teamSelection, initialResults, restoreFeedback, manualTeamCodes := h.restoreSoccerWorkflow(r.Context(), session)
 	if initialResults != nil {
@@ -101,6 +90,22 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 		manualCodes = results.TeamCodes
 	}
 	return teamSelection, results, nil, manualCodes
+}
+
+// PrivateAccessNotice explains why the visitor cannot use the private Soccer
+// actions this server offers and reports whether site sign-in could change
+// that. It is empty when nothing offered is withheld.
+func PrivateAccessNotice(ctx context.Context, state *partials.SoccerLoginStateProps) (message string, offerSignIn bool) {
+	if !state.ImportNeedsGrant && !state.GoogleNeedsGrant {
+		return "", false
+	}
+	if _, signedIn := siteidentity.PrincipalFromContext(ctx); signedIn {
+		return "This account has not been granted access to linked players or Google Calendar. Team ID lookup and ICS download are still available.", false
+	}
+	if !siteidentity.SignInAvailable(ctx) {
+		return "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and ICS download are still available.", false
+	}
+	return "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and ICS download are still available.", true
 }
 
 // LoginStateProps builds the shared login-state fragment props.
