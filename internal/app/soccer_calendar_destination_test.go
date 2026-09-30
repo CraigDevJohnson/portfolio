@@ -426,3 +426,173 @@ func TestRateLimitedCalendarCheckKeepsTheConnectionAndItsDestination(t *testing.
 		t.Fatalf("retry after the usage limit did not add the game to the same calendar: %q", added)
 	}
 }
+
+// selectedCalendar returns the destination calendar the Google card's select
+// marks as chosen, or "" when none is.
+func selectedCalendar(t *testing.T, card string) string {
+	t.Helper()
+	for _, calendarID := range []string{"", primaryCalendarID, teamCalendarID, readOnlyCalendarID} {
+		if strings.Contains(card, fmt.Sprintf(`<option value=%q selected`, calendarID)) {
+			return calendarID
+		}
+	}
+	t.Fatal("Google card offered no destination calendar choice")
+	return ""
+}
+
+func TestConsentLeavesThePrimaryCalendarReadyAndAnotherCanBeChosen(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	page := world.connect(t)
+	if !strings.Contains(page, calendarReady) || !strings.Contains(page, "Connected to "+primaryCalendarName) || selectedCalendar(t, page) != primaryCalendarID {
+		t.Fatal("completed consent did not leave the primary calendar selected and ready")
+	}
+	if !strings.Contains(page, fmt.Sprintf(`<option value=%q>%s</option>`, teamCalendarID, teamCalendarName)) || strings.Contains(page, readOnlyCalendarID) {
+		t.Error("destination choices were not exactly the account's writable calendars")
+	}
+
+	// The first Add needs no calendar confirmation.
+	world.fetch(t)
+	world.add(t, nextGameID)
+	if _, added := world.google.events(primaryCalendarID)[nextGameID]; !added {
+		t.Fatal("Add straight after consent did not write to the primary calendar")
+	}
+
+	card := world.choose(t, teamCalendarID)
+	if selectedCalendar(t, card) != teamCalendarID || !strings.Contains(card, "Connected to "+teamCalendarName) {
+		t.Fatal("saving another writable calendar did not make it the destination")
+	}
+	if page := world.page(t); selectedCalendar(t, page) != teamCalendarID || !strings.Contains(page, calendarReady) {
+		t.Error("the chosen destination did not stay chosen on the next page load")
+	}
+}
+
+func TestChangingDestinationLeavesEarlierEventsAndSendsLaterAddsToTheNewCalendar(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	world.fetch(t)
+	world.add(t, nextGameID)
+	earlier := world.google.events(primaryCalendarID)[nextGameID]
+
+	world.choose(t, teamCalendarID)
+	mark := world.google.callCount()
+	world.add(t, laterGameID)
+	world.add(t, nextGameID)
+
+	for _, call := range world.google.callsSince(mark) {
+		if strings.Contains(call, " "+primaryCalendarID) {
+			t.Errorf("an Add after the destination changed sent %q to the old calendar", call)
+		}
+	}
+	primary, team := world.google.events(primaryCalendarID), world.google.events(teamCalendarID)
+	if len(primary) != 1 || primary[nextGameID].Summary != earlier.Summary || primary[nextGameID].Start != earlier.Start {
+		t.Errorf("the event added before the change did not stay in the old calendar: %v", primary)
+	}
+	if _, ok := team[laterGameID]; !ok || len(team) != 2 {
+		t.Errorf("Adds after the change did not go to the new calendar: %v", team)
+	}
+}
+
+func TestLostDestinationPausesWritesUntilTheVisitorChoosesAgain(t *testing.T) {
+	for _, lost := range []struct{ name, access string }{
+		{name: "removed from the account", access: ""},
+		{name: "now read-only", access: "reader"},
+	} {
+		t.Run(lost.name, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.choose(t, teamCalendarID)
+			world.fetch(t)
+			world.google.setAccess(teamCalendarID, lost.access)
+
+			mark := world.google.callCount()
+			added := world.add(t, nextGameID)
+			synced := world.browser.postForm("/soccer/google/sync-results", url.Values{"team_codes": {destinationTeamID}, "selected": {scoredPastGameID}}).Body.String()
+			if !strings.Contains(added, calendarChoiceNeeded) || !strings.Contains(synced, calendarChoiceNeeded) {
+				t.Fatalf("writes to a lost calendar did not ask for a new choice: add %q", added)
+			}
+			if calls := world.google.callsSince(mark); len(calls) != 0 {
+				t.Fatalf("writes to a lost calendar still sent event requests %v", calls)
+			}
+			page := world.page(t)
+			if strings.Contains(page, calendarReady) || !strings.Contains(page, "Calendar selection needed") || selectedCalendar(t, page) != "" {
+				t.Fatal("the page did not pause the lost destination and ask for a new choice")
+			}
+
+			// Neither the calendar returning nor an unknown choice resumes writes.
+			world.google.setAccess(teamCalendarID, "writer")
+			world.choose(t, "not-a-calendar")
+			if added := world.add(t, nextGameID); !strings.Contains(added, calendarChoiceNeeded) || len(world.google.callsSince(mark)) != 0 {
+				t.Fatalf("writes resumed without an explicit new choice: %q", added)
+			}
+
+			world.choose(t, primaryCalendarID)
+			world.add(t, nextGameID)
+			if _, ok := world.google.events(primaryCalendarID)[nextGameID]; !ok || len(world.google.events(teamCalendarID)) != 0 {
+				t.Fatal("the new choice did not receive the next Add")
+			}
+		})
+	}
+}
+
+func TestAddWritesOnlyExplicitlySelectedUpcomingGames(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	mark := world.google.callCount()
+	world.connect(t)
+	world.page(t)
+	fetched := world.fetch(t)
+	if !strings.Contains(fetched, `hx-post="/soccer/google/add"`) || !strings.Contains(fetched, fmt.Sprintf(`value=%q`, laterGameID)) {
+		t.Fatal("the fetched schedule did not offer Google Add for its upcoming games")
+	}
+	if calls := world.google.callsSince(mark); len(calls) != 0 {
+		t.Fatalf("connecting, viewing, and fetching sent event requests %v", calls)
+	}
+
+	added := world.add(t, nextGameID, scoredPastGameID)
+	events := world.google.events(primaryCalendarID)
+	if _, ok := events[nextGameID]; !ok || len(events) != 1 || !strings.Contains(added, "Added 1 selected game") {
+		t.Fatalf("Add wrote %d events for one selected upcoming game, one past game, and one unselected game: %q", len(events), added)
+	}
+
+	mark = world.google.callCount()
+	if added := world.add(t, scoredPastGameID); !strings.Contains(added, "No selected games were found to add") || len(world.google.callsSince(mark)) != 0 {
+		t.Fatalf("Add of only a past game reached Google: %q", added)
+	}
+}
+
+func TestAddedEventsCarryGameIdentityAndTheSiteMarkerSoRepeatedAddsMatchThem(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	world.fetch(t)
+	world.add(t, nextGameID)
+
+	event := world.google.events(primaryCalendarID)[nextGameID]
+	if event.ID != nextGameID || event.ExtendedProperties.Private["game_id"] != nextGameID {
+		t.Errorf("added event identity = id %q, game_id %q; want the game ID %q", event.ID, event.ExtendedProperties.Private["game_id"], nextGameID)
+	}
+	if event.ExtendedProperties.Private["portfolio_app"] != "soccer" || event.Source == nil || event.Source.URL != "https://app.example.com/soccer" {
+		t.Errorf("added event lacks the site's ownership marker: private %v, source %+v", event.ExtendedProperties.Private, event.Source)
+	}
+
+	// An event this site added before event IDs followed game IDs is found by
+	// its private game ID.
+	world.google.mu.Lock()
+	world.google.calendar(primaryCalendarID).events["olderevent0001"] = internalgoogle.Event{ID: "olderevent0001", Summary: "Craig FC vs Strikers"}
+	older := world.google.calendar(primaryCalendarID).events["olderevent0001"]
+	older.ExtendedProperties.Private = map[string]string{"game_id": laterGameID}
+	world.google.calendar(primaryCalendarID).events["olderevent0001"] = older
+	world.google.mu.Unlock()
+
+	mark := world.google.callCount()
+	repeated := world.add(t, nextGameID, laterGameID)
+	for _, call := range world.google.callsSince(mark) {
+		if strings.HasPrefix(call, http.MethodPost+" ") {
+			t.Errorf("repeated Add inserted a new event: %s", call)
+		}
+	}
+	if events := world.google.events(primaryCalendarID); len(events) != 2 || strings.Contains(repeated, "Added 1") || strings.Contains(repeated, "Added 2") {
+		t.Fatalf("repeated Add left %d events and answered %q; want the two existing events matched", len(events), repeated)
+	}
+	if marked := world.google.events(primaryCalendarID)["olderevent0001"]; marked.ExtendedProperties.Private["portfolio_app"] != "soccer" {
+		t.Error("the matched older event did not gain the site's ownership marker")
+	}
+}
