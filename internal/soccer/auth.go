@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"portfolio/cmd/web/partials"
@@ -68,8 +70,9 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if message, collected := h.collectLinkedPlayerHistory(r, jwt, discovery.Players); !collected {
-		h.RenderLoginFeedback(w, r, "error", message)
+	historyNotice, historyFailure := h.collectLinkedPlayerHistory(r, jwt, discovery.Players)
+	if historyFailure != "" {
+		h.RenderLoginFeedback(w, r, "error", historyFailure)
 		return
 	}
 	now := time.Now()
@@ -102,7 +105,9 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	h.setHTMLContentType(w)
-	if err := partials.SoccerLoginState(h.LoginStateProps(w, r, &session, true)).Render(r.Context(), w); err != nil {
+	loginState := h.LoginStateProps(w, r, &session, true)
+	loginState.ImportNotice = historyNotice
+	if err := partials.SoccerLoginState(loginState).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -111,22 +116,24 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 
 // collectLinkedPlayerHistory records every linked player's teams in the
 // durable archive when collection is enabled and the visitor submitted the
-// import form that disclosed it. It reports false, with the reason to show,
-// when the history the visitor accepted could not be collected in full; the
-// import then stops so the visitor can try again.
-func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, players []types.LPSPlayer) (string, bool) {
+// import form that disclosed it. It returns the reason to show, and the
+// import then stops so the visitor can try again, when the history the
+// visitor accepted could not be collected. A new team refused because the
+// reviewed history capacity is full does not stop the import: the rest of
+// the history is saved, and the returned notice names the refused teams.
+func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, players []types.LPSPlayer) (notice *partials.FeedbackProps, failure string) {
 	membershipStore, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
 	if !enabled || r.FormValue(partials.SoccerHistoryNoticeField) != partials.SoccerHistoryNoticeIndefinite {
-		return "", true
+		return nil, ""
 	}
 	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
 	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
-		return "Sign in with Soccer access before importing linked players.", false
+		return nil, "Sign in with Soccer access before importing linked players."
 	}
 	teams, memberships, err := h.discoverImportedPlayerTeams(r.Context(), jwt, players)
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("soccer player team discovery failed", slog.Any("error", err))
-		return "Could not look up every linked player. No player history was saved; try the import again.", false
+		return nil, "Could not look up every linked player. No player history was saved; try the import again."
 	}
 	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancelPersist()
@@ -134,25 +141,36 @@ func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, player
 		OwnerIssuer: principal.Issuer, OwnerSubject: principal.Subject,
 		Players: players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
 	})
-	if err != nil {
-		var refused *soccerarchive.AdmissionError
-		if errors.As(err, &refused) {
-			h.logAdmissionRejected(r.Context(), refused)
-		} else {
-			logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
-		}
-		return historyImportFailureMessage(err), false
+	var refused *soccerarchive.AdmissionError
+	switch {
+	case errors.As(err, &refused):
+		h.logAdmissionRejected(r.Context(), refused)
+		return &partials.FeedbackProps{
+			Kind:    partials.FeedbackWarning,
+			Title:   "History collection is full",
+			Message: teamsNotAdded(refused.TeamIDs) + " Your import and your other teams' history were saved.",
+		}, ""
+	case err != nil:
+		logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
+		return nil, "Linked-player history could not be saved. Try the import again."
 	}
-	return "", true
+	return nil, ""
 }
 
-// historyImportFailureMessage tells the visitor why linked-player history
-// was not saved: a full admission budget is not a temporary failure to retry.
-func historyImportFailureMessage(err error) string {
-	if errors.Is(err, soccerarchive.ErrAdmissionFull) {
-		return "Linked-player history collection is full. Your import was not saved; try again after capacity is reviewed."
+// teamsNotAdded says which teams history collection refused at capacity.
+func teamsNotAdded(teamIDs []int) string {
+	names := make([]string, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		names = append(names, strconv.Itoa(teamID))
 	}
-	return "Linked-player history could not be saved. Try the import again."
+	switch len(names) {
+	case 0:
+		return "Some teams were not added to history collection because its reviewed capacity is full."
+	case 1:
+		return "Team " + names[0] + " was not added to history collection because its reviewed capacity is full."
+	default:
+		return "Teams " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1] + " were not added to history collection because its reviewed capacity is full."
+	}
 }
 
 // discoverImportedPlayerTeams looks up every linked player's teams. A player

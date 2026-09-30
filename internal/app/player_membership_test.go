@@ -28,6 +28,8 @@ type playerHistoryRoute struct {
 	table   *archivetest.Table
 	store   *soccerarchive.DynamoStore
 	jwt     string
+	// logs receives the route's application log.
+	logs *runtimeLogs
 
 	mu       sync.Mutex
 	requests map[string]int
@@ -96,6 +98,8 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 	}))
 	t.Cleanup(lpsServer.Close)
 	application.Config.LPSAPIBaseURL = lpsServer.URL
+	route.logs = &runtimeLogs{}
+	application.Logger = route.logs.logger()
 	route.mux, route.handler = buildMux(application, application.Logger, false)
 	route.table = archivetest.NewTable()
 	route.limitHistory(t, generousArchiveLimits)
@@ -485,33 +489,25 @@ func TestManualTeamIDLookupNeverCreatesPlayerMembership(t *testing.T) {
 func TestSoccerImportStopsWhenLinkedPlayerHistoryIsIncomplete(t *testing.T) {
 	for _, failure := range []struct {
 		name    string
-		arrange func(t *testing.T, route *playerHistoryRoute)
+		arrange func(route *playerHistoryRoute)
 		message string
 	}{
 		{
 			name:    "an unselected player's team lookup fails",
-			arrange: func(_ *testing.T, route *playerHistoryRoute) { route.failingPlayer = 1002 },
+			arrange: func(route *playerHistoryRoute) { route.failingPlayer = 1002 },
 			message: "Could not look up every linked player. No player history was saved; try the import again.",
 		},
 		{
 			name: "the durable table is unavailable",
-			arrange: func(_ *testing.T, route *playerHistoryRoute) {
+			arrange: func(route *playerHistoryRoute) {
 				route.table.FailPut = func(string) error { return fmt.Errorf("table unavailable") }
 			},
 			message: "Linked-player history could not be saved. Try the import again.",
 		},
-		{
-			// The account's four teams do not fit a capacity of three.
-			name: "the reviewed history capacity is full",
-			arrange: func(t *testing.T, route *playerHistoryRoute) {
-				route.limitHistory(t, soccerarchive.Limits{MaxEnrolledTeams: 3, ReservedPlayerSlots: 2, MaxRequestsPerRun: 10, MinRequestInterval: time.Second})
-			},
-			message: "Linked-player history collection is full. Your import was not saved; try again after capacity is reviewed.",
-		},
 	} {
 		t.Run(failure.name, func(t *testing.T) {
 			route := newPlayerHistoryRoute(t)
-			failure.arrange(t, route)
+			failure.arrange(route)
 			owner := route.signedInOwner(t)
 
 			imported := route.disclosedImport(t, owner)
@@ -526,6 +522,56 @@ func TestSoccerImportStopsWhenLinkedPlayerHistoryIsIncomplete(t *testing.T) {
 				t.Errorf("incomplete history left %d durable items", stored)
 			}
 		})
+	}
+}
+
+func TestSoccerImportAtHistoryCapacityKeepsTheImportAndEnrollsWhatFits(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	// Player imports may fill both slots; the account's four teams do not
+	// fit, so 4101 and 4102 are admitted and 4202 and 4300 are refused.
+	route.limitHistory(t, soccerarchive.Limits{MaxEnrolledTeams: 2, ReservedPlayerSlots: 1, MaxRequestsPerRun: 10, MinRequestInterval: time.Second})
+	route.logs.includeDefaultLogger(t)
+	owner := route.signedInOwner(t)
+	route.logs.take(t)
+
+	imported := route.disclosedImport(t, owner)
+
+	body := imported.Body.String()
+	if imported.Code != http.StatusOK || !strings.Contains(body, "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("a full history capacity took the import away: status %d, body %q", imported.Code, body)
+	}
+	if !strings.Contains(body, "History collection is full") ||
+		!strings.Contains(body, "Teams 4202 and 4300 were not added to history collection because its reviewed capacity is full.") {
+		t.Fatalf("import does not say which teams history collection refused: %q", body)
+	}
+	teams := route.items(t, "team")
+	if len(teams) != 2 || teams["TEAM#4101/META"] == nil || teams["TEAM#4102/META"] == nil {
+		t.Fatalf("enrolled teams = %v, want only 4101 and 4102", teams)
+	}
+	byOwner := route.memberships(t)
+	admitted := map[membershipTriple]bool{{1001, 4101, 77}: true, {1001, 4102, 78}: true, {1002, 4101, 77}: true}
+	if len(byOwner) != 1 || len(byOwner["stable-subject"]) != len(admitted) {
+		t.Fatalf("stored memberships = %v, want the three for admitted teams", byOwner)
+	}
+	for triple := range byOwner["stable-subject"] {
+		if !admitted[triple] {
+			t.Errorf("membership %+v names a team history collection refused", triple)
+		}
+	}
+	if players, links := len(route.items(t, "player")), len(route.items(t, "player_owner")); players != 2 || links != 2 {
+		t.Errorf("stored %d player identities and %d owner links, want both players", players, links)
+	}
+	route.assertEvidenceOnlyForEnrolledTeams(t)
+
+	records := route.logs.take(t)
+	rejections, errorRecords := admissionAlarmRecords(records)
+	if len(rejections) != 2 || len(errorRecords) != 0 {
+		t.Fatalf("capacity refusal logs = %v, want one admission warning per refused team and no error", records)
+	}
+	for i, teamID := range []int{4202, 4300} {
+		if rejection := rejections[i]; rejection["level"] != "WARN" || rejection["team_id"] != float64(teamID) || rejection["source"] != "player" || rejection["limit"] != float64(2) {
+			t.Errorf("admission rejection record %d = %v", i, rejection)
+		}
 	}
 }
 

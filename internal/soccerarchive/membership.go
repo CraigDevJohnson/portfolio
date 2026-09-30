@@ -123,11 +123,14 @@ func (s *DynamoStore) playerEvidenceKeys(ctx context.Context, playerID int) ([]m
 // SavePlayerDiscovery enrolls the known teams, then stores player identities
 // and owner links, then exact owner-bound membership proof. A new team takes
 // a slot of the reviewed admission capacity, which reserves slots for these
-// player-linked teams; if the new teams do not fit, nothing is written and
-// the error wraps ErrAdmissionFull. The records are
-// written one at a time, so a failed save can leave some of them stored, but
-// never a membership whose team is not enrolled or whose player identity and
-// owner link are missing. Stable keys make a retry complete the set without
+// player-linked teams. A new team that does not fit is refused on its own:
+// it is not enrolled and keeps no membership, while the teams already
+// enrolled or admitted keep this import's evidence and every player keeps
+// its identity and owner link. The refused teams are then returned as an
+// *AdmissionError, after everything else is saved. The records are written
+// one at a time, so a failed save can leave some of them stored, but never a
+// membership whose team is not enrolled or whose player identity and owner
+// link are missing. Stable keys make a retry complete the set without
 // multiplying membership edges.
 func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error {
 	if discovery == nil || strings.TrimSpace(discovery.OwnerIssuer) == "" || strings.TrimSpace(discovery.OwnerSubject) == "" || discovery.ObservedAt.IsZero() || len(discovery.Players) == 0 {
@@ -155,18 +158,23 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 
 	teams := slices.Clone(discovery.KnownTeams)
 	sort.Slice(teams, func(i, j int) bool { return teams[i].UTeamID < teams[j].UTeamID })
-	knownTeamIDs := make([]int, 0, len(teams))
+	// New teams take the slots left in Team ID order; each enrollment takes
+	// its slot atomically, so a concurrent import can only refuse more.
+	enrolled := make(map[int]bool, len(teams))
+	var refused *AdmissionError
 	for i := range teams {
-		knownTeamIDs = append(knownTeamIDs, teams[i].UTeamID)
-	}
-	// Refuse before anything is written when the import's new teams would
-	// not all fit, so a refused import takes no admission slot.
-	if err := s.checkAdmission(ctx, playerEnrollment, knownTeamIDs...); err != nil {
-		return err
-	}
-	for i := range teams {
-		if err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt); err != nil {
+		err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt)
+		var full *AdmissionError
+		switch {
+		case errors.As(err, &full):
+			if refused == nil {
+				refused = &AdmissionError{Source: full.Source, Limit: full.Limit}
+			}
+			refused.TeamIDs = append(refused.TeamIDs, full.TeamIDs...)
+		case err != nil:
 			return err
+		default:
+			enrolled[teams[i].UTeamID] = true
 		}
 	}
 
@@ -206,6 +214,9 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 		return memberships[i].Team.Season < memberships[j].Team.Season
 	})
 	for _, membership := range memberships {
+		if !enrolled[membership.Team.UTeamID] {
+			continue
+		}
 		teamJSON, err := json.Marshal(membership.Team)
 		if err != nil {
 			return fmt.Errorf("marshal player %d team: %w", membership.PlayerID, err)
@@ -224,6 +235,9 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 		}
 	}
 
+	if refused != nil {
+		return refused
+	}
 	return nil
 }
 

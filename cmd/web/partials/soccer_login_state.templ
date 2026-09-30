@@ -18,8 +18,9 @@ type SoccerLoginStateProps struct {
 	ImportNeedsGrant         bool
 	GoogleNeedsGrant         bool
 	// ImportNotice explains why imported LPS access ended or could not be
-	// used. The LPS card shows it, since that card stays visible once an
-	// output is chosen while the player and team stages close.
+	// used, or which linked teams an import could not add to history
+	// collection. The LPS card shows it, since that card stays visible once
+	// an output is chosen while the player and team stages close.
 	ImportNotice             *FeedbackProps
 	GoogleConnected          bool
 	// GoogleNeedsReconnect marks the owner's connection saved before its
