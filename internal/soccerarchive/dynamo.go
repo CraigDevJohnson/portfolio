@@ -158,8 +158,8 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	}
 	sort.Ints(seasonIDs)
 	for _, seasonID := range seasonIDs {
-		seasonTeam := teamSummaryForSeason(snapshot.TeamID, snapshot.Team, games, seasonID)
-		if err := s.saveSeasonTeamContext(ctx, snapshot.TeamID, seasonID, seasonTeam, fetchedAt); err != nil {
+		seasonTeam := teamSummaryForSeason(snapshot.TeamID, &snapshot.Team, games, seasonID)
+		if err := s.saveSeasonTeamContext(ctx, snapshot.TeamID, seasonID, &seasonTeam, fetchedAt); err != nil {
 			return err
 		}
 		if err := s.put(ctx, &archiveItem{
@@ -352,7 +352,7 @@ func (s *DynamoStore) ReadTeamSeason(ctx context.Context, teamID, seasonID int) 
 		}
 		cursor = page.LastEvaluatedKey
 	}
-	history.Facilities, err = s.readFacilities(ctx, history.Team, history.Games)
+	history.Facilities, err = s.readFacilities(ctx, &history.Team, history.Games)
 	if err != nil {
 		return history, err
 	}
@@ -463,10 +463,11 @@ func (s *DynamoStore) putGameIfUnchanged(ctx context.Context, record, read *arch
 	return err == nil, err
 }
 
-func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonID int, seasonTeam lps.TeamSummary, fetchedAt string) error {
-	if seasonTeam.UTeamID <= 0 {
+func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonID int, responseTeam *lps.TeamSummary, fetchedAt string) error {
+	if responseTeam.UTeamID <= 0 {
 		return nil
 	}
+	seasonTeam := *responseTeam
 	seasonKey := seasonTeamKey(seasonID)
 	previous, err := s.get(ctx, teamKey(teamID), seasonKey)
 	if err != nil {
@@ -477,7 +478,7 @@ func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonI
 		if err := json.Unmarshal([]byte(previous.RawSourceJSON), &priorTeam); err != nil {
 			return fmt.Errorf("decode season %d team context: %w", seasonID, err)
 		}
-		seasonTeam = retainMissingTeamFacts(seasonTeam, priorTeam)
+		retainMissingTeamFacts(&seasonTeam, &priorTeam)
 	}
 	seasonTeamJSON, err := json.Marshal(seasonTeam)
 	if err != nil {
@@ -558,7 +559,7 @@ func (s *DynamoStore) saveFacilities(ctx context.Context, source []lps.FacilityR
 	return nil
 }
 
-func (s *DynamoStore) readFacilities(ctx context.Context, team lps.TeamSummary, games []lps.TeamScheduleGame) ([]lps.FacilityResponse, error) {
+func (s *DynamoStore) readFacilities(ctx context.Context, team *lps.TeamSummary, games []lps.TeamScheduleGame) ([]lps.FacilityResponse, error) {
 	facilityIDs := make(map[int]struct{})
 	if team.FacilityID > 0 {
 		facilityIDs[team.FacilityID] = struct{}{}
@@ -647,9 +648,9 @@ func seasonTeamKey(seasonID int) string {
 	return fmt.Sprintf("SEASON#%010d#META", seasonID)
 }
 
-func teamSummaryForSeason(teamID int, responseTeam lps.TeamSummary, games []lps.TeamScheduleGame, seasonID int) lps.TeamSummary {
+func teamSummaryForSeason(teamID int, responseTeam *lps.TeamSummary, games []lps.TeamScheduleGame, seasonID int) lps.TeamSummary {
 	if responseTeam.UTeamID == teamID && responseTeam.Season == seasonID {
-		return responseTeam
+		return *responseTeam
 	}
 	for i := range games {
 		game := &games[i]
@@ -663,7 +664,8 @@ func teamSummaryForSeason(teamID int, responseTeam lps.TeamSummary, games []lps.
 	return lps.TeamSummary{}
 }
 
-func retainMissingTeamFacts(current, previous lps.TeamSummary) lps.TeamSummary {
+// retainMissingTeamFacts fills the team facts current lacks from previous.
+func retainMissingTeamFacts(current, previous *lps.TeamSummary) {
 	if current.TeamName == "" {
 		current.TeamName = previous.TeamName
 	}
@@ -676,5 +678,4 @@ func retainMissingTeamFacts(current, previous lps.TeamSummary) lps.TeamSummary {
 	if current.FacilityName == "" {
 		current.FacilityName = previous.FacilityName
 	}
-	return current
 }

@@ -137,7 +137,7 @@ func FetchAllGamesForTeamsWithSource(ctx context.Context, baseURL string, httpCl
 		// keeps the response exactly as LPS sent it; the games still belong to the
 		// visitor's usual schedule either way, mapped from the schedule's own copy.
 		sources = append(sources, TeamScheduleSource{TeamID: teamID, Response: response, FetchedAt: time.Now().UTC()})
-		schedules = append(schedules, selectedTeamSchedule(response, teamID))
+		schedules = append(schedules, selectedTeamSchedule(&response, teamID))
 	}
 	teamGames, err := resolver.mapSelectedTeamSchedules(ctx, teamIDs, nil, schedules)
 	if err != nil {
@@ -421,16 +421,17 @@ func (resolver *ScheduleResolver) fetchSelectedTeamSchedule(ctx context.Context,
 	if err != nil {
 		return response, err
 	}
-	return selectedTeamSchedule(response, teamID), nil
+	return selectedTeamSchedule(&response, teamID), nil
 }
 
 // selectedTeamSchedule returns a copy of a selected team's schedule whose team
-// summary carries the requested Team ID.
-func selectedTeamSchedule(response TeamScheduleResponse, teamID int) TeamScheduleResponse {
-	if response.Team.UTeamID <= 0 {
-		response.Team.UTeamID = teamID
+// summary carries the requested Team ID, leaving the given response unchanged.
+func selectedTeamSchedule(response *TeamScheduleResponse, teamID int) TeamScheduleResponse {
+	selected := *response
+	if selected.Team.UTeamID <= 0 {
+		selected.Team.UTeamID = teamID
 	}
-	return response
+	return selected
 }
 
 // mapTeamGames maps one selected team's schedule, painting every fetched team
