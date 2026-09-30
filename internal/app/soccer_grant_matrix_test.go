@@ -289,9 +289,14 @@ func TestGrantedVisitorCannotInheritOwnerlessOrAnotherOwnersPrivateState(t *test
 	for _, tc := range []struct {
 		name    string
 		cookies func(t *testing.T, world *soccerGrantWorld) []*http.Cookie
+		// releasedByDisconnect is a legacy ownerless connection that
+		// disconnect deletes, since holding its cookie was the authority to
+		// delete it and deleting grants no access.
+		releasedByDisconnect string
 	}{
 		{
-			name: "legacy ownerless import and Google connection",
+			name:                 "legacy ownerless import and Google connection",
+			releasedByDisconnect: "legacy-connection",
 			cookies: func(t *testing.T, world *soccerGrantWorld) []*http.Cookie {
 				legacy := world.store.records[grantWorldConnectionID]
 				legacy.ConnectionID, legacy.OwnerIssuer, legacy.OwnerSubject = "legacy-connection", "", ""
@@ -354,8 +359,18 @@ func TestGrantedVisitorCannotInheritOwnerlessOrAnotherOwnersPrivateState(t *test
 				if calls := world.lpsCredentialCalls.Load() + world.googleCalls.Load(); calls != 0 {
 					t.Errorf("%s %s used inherited LPS or Google credentials %d time(s)", route.method, route.path, calls)
 				}
-				if len(world.store.records) != stored {
-					t.Errorf("%s %s changed a Google connection this visitor does not own", route.method, route.path)
+				if _, kept := world.store.records[grantWorldConnectionID]; !kept {
+					t.Errorf("%s %s deleted the owner's Google connection", route.method, route.path)
+				}
+				want := stored
+				if route.path == "/soccer/google/disconnect" && tc.releasedByDisconnect != "" {
+					want--
+					if _, kept := world.store.records[tc.releasedByDisconnect]; kept {
+						t.Errorf("%s %s left the ownerless Google connection and its token stored", route.method, route.path)
+					}
+				}
+				if len(world.store.records) != want {
+					t.Errorf("%s %s stored %d Google connections, want %d", route.method, route.path, len(world.store.records), want)
 				}
 			}
 		})

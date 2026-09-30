@@ -135,9 +135,11 @@ credential chain.
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and
 subject. Google connection records use the same owner coordinates; an old
-ownerless connection is denied. When `SOCCER_SESSION_TABLE_NAME` is set, the
-application also writes an owner-bound import baseline containing the username
-and discovered players; it does not restore workflow state from that table.
+ownerless connection is never used, but a granted visitor holding its cookie
+deletes it by disconnecting or reconnecting. When `SOCCER_SESSION_TABLE_NAME`
+is set, the application also writes an owner-bound import baseline containing
+the username and discovered players; it does not restore workflow state from
+that table.
 
 ### Site sign-in
 

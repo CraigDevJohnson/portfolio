@@ -100,6 +100,7 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if record == nil {
+			h.releaseConnection(r.Context(), r, connectionID)
 			connectionID = ""
 		}
 	}

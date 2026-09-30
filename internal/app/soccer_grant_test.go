@@ -219,16 +219,24 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatal("ownerless Google connection was presented or used")
 	}
 
+	// Holding the cookie was the authority to delete a connection saved
+	// before connections had owners. Disconnecting or reconnecting releases
+	// it rather than stranding its stored token, and neither grants access.
+	legacy := store.records["legacy"]
 	disconnect := soccerGrantRequest(mux, http.MethodPost, "/soccer/google/disconnect", nil, ownerCookie, legacyCookie)
-	if disconnect.Code != http.StatusOK {
+	if disconnect.Code != http.StatusOK || strings.Contains(disconnect.Body.String(), "Calendar ready") {
 		t.Fatalf("disconnect status = %d", disconnect.Code)
 	}
-	if _, exists := store.records["legacy"]; !exists {
-		t.Fatal("a new site owner deleted the ownerless Google connection")
+	if _, exists := store.records["legacy"]; exists {
+		t.Fatal("disconnect left the ownerless Google connection and its token stored")
 	}
+	store.records["legacy"] = legacy
 	connect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect", nil, ownerCookie, legacyCookie)
 	if connect.Code != http.StatusSeeOther {
 		t.Fatalf("Google connect status = %d", connect.Code)
+	}
+	if _, exists := store.records["legacy"]; exists {
+		t.Fatal("reconnecting stranded the ownerless Google connection and its token")
 	}
 	var googleStateCookie *http.Cookie
 	for _, cookie := range connect.Result().Cookies() {

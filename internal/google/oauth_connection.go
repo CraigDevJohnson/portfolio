@@ -83,25 +83,44 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	return record, nil
 }
 
-// DeleteConnection removes the Google connection and clears the cookie.
+// DeleteConnection removes the visitor's Google connection and clears the cookie.
 func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	connectionID := GetConnectionID(r)
-	if connectionID != "" {
-		record, loadErr := h.LoadConnectionRecord(ctx, r)
-		if loadErr != nil {
-			logging.WithContext(h.Logger, ctx).Error("google connection read before delete failed", slog.Any("error", loadErr))
-		}
-		if record != nil && loadErr == nil {
-			if err := h.Store().Delete(ctx, connectionID); err != nil {
-				logging.WithContext(h.Logger, ctx).Error(
-					"google connection delete failed",
-					slog.String("connection_id", connectionID),
-					slog.Any("error", err),
-				)
-			}
-		}
+	if connectionID := GetConnectionID(r); connectionID != "" {
+		h.releaseConnection(ctx, r, connectionID)
 	}
 	ClearConnectionCookie(w, r)
+}
+
+// releaseConnection deletes the stored connection when this request may let
+// it go: the current granted owner's connection, or a legacy connection saved
+// before connections had owners and presented by a granted visitor. Holding
+// the legacy cookie was the authority to delete it, and deleting grants no
+// access, so its stored token is not stranded. Another owner's connection
+// stays.
+func (h *Handler) releaseConnection(ctx context.Context, r *http.Request, connectionID string) {
+	logger := logging.WithContext(h.Logger, ctx)
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil {
+		logger.Error("google connection read before delete failed", slog.Any("error", err))
+		return
+	}
+	if record == nil {
+		return
+	}
+	legacy := record.OwnerIssuer == "" || record.OwnerSubject == ""
+	if legacy && !siteidentity.SoccerPrivateAllowed(r.Context()) {
+		return
+	}
+	if !legacy && !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
+		return
+	}
+	if err := h.Store().Delete(ctx, connectionID); err != nil {
+		logger.Error("google connection delete failed", slog.String("connection_id", connectionID), slog.Any("error", err))
+		return
+	}
+	if legacy {
+		logger.Info("legacy ownerless google connection deleted", slog.String("connection_id", connectionID))
+	}
 }
 
 // CurrentToken retrieves and refreshes the stored OAuth token.
