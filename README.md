@@ -470,12 +470,15 @@ visitors, so its private Soccer actions stay unavailable and the page says so.
 JSON read contract for one LPS team season when a durable archive is wired.
 It requires the current site `soccer` grant, a valid same-owner LPS import that
 confirms the player ID, and exact current or stored authenticated membership for
-the requested team and LPS season. The response includes completed games, a
+the requested team and LPS season. A name match, game date, or entered Team ID
+never proves membership; an unproven season returns `403` as unverified while
+its stored games remain. The response includes completed games, a
 team-relative record labeled as calculated from numeric scores rather than
 official standings, season coverage with its fetch time, and the latest team
-refresh status or failure. `not_fetched` coverage and a retryable refresh failure
-remain distinct from a fetched season with zero games. Public Team ID lookup does
-not establish membership.
+refresh status or failure. The record places each side by its LPS team ID;
+canceled, unscored, and unparseable results are listed as unclassified and do
+not change the totals. `not_fetched` coverage and a retryable refresh failure
+remain distinct from a fetched season with zero games.
 Until the separate collection activation, the route returns `503` because no
 durable archive is wired into the production server.
 
