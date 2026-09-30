@@ -38,6 +38,6 @@ async page => {
   if (!(await selectAll.isChecked()) || (await selectAll.evaluate(input => input.indeterminate))) fail('select-all does not show every game selected')
   if (!(await page.locator('#download-button').isVisible())) fail('the .ics download is not visible')
   if (await page.locator('[data-soccer-output-only="google"]:visible').count()) fail('a Google-only element is visible on the .ics path')
-  if (await page.locator('#past-results-form').isVisible()) fail('past results are visible on the manual .ics path')
+  if (await page.locator('#past-results-form').count()) fail('past results appeared on the manual .ics path')
   return { rows, count }
 }

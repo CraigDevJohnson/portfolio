@@ -1,6 +1,6 @@
 // The linked-player source reviews the same scored past games. The browser
-// opens the preview's granted account, imports a fake token through the real
-// dialog (never a real JWT), keeps both players and their teams, chooses
+// reopens the preview's granted account, imports a fake token through the
+// real dialog (never a real JWT), keeps both players and their teams, chooses
 // Google Calendar with the keyboard, and fetches. Selection memory is cleared
 // first, because the Team ID steps used the same team set. As in the Team ID
 // step, the disabled Google option is enabled in the page only to drive the

@@ -1,17 +1,25 @@
-// Choose Google Calendar with the keyboard and look up both preview teams by
-// Team ID. The review lists every scored past game once, newest first and
-// selected, including one from over a year ago, and leaves out the postponed
-// game without a score. The preview has no Google configuration, so its
-// Google option is disabled; this step enables that radio in the page to
-// drive the client-side output switch. It proves the review, not Google
-// availability or a Google write.
+// Open the preview's granted account, choose Google Calendar with the
+// keyboard, and look up both preview teams by Team ID. Only a visitor with the
+// soccer grant has Google mode, so a public lookup shows no past results. The
+// review lists every scored past game once, newest first and selected,
+// including one from over a year ago, and leaves out the postponed game
+// without a score. The preview has no Google configuration, so its Google
+// option is disabled; this step enables that radio in the page to drive the
+// client-side output switch. It proves the review, not Google availability or
+// a Google write.
 async page => {
   const fail = message => {
     throw new Error(`soccer past results proof (Team IDs in Google mode): ${message}`)
   }
   const squash = text => (text || '').replace(/\s+/g, ' ').trim()
 
-  if (new URL(page.url()).pathname !== '/soccer') fail(`the proof starts on ${page.url()}, want /soccer`)
+  const { origin } = new URL(page.url())
+  await page.goto(`${origin}/__preview/account/soccer-linked`, { waitUntil: 'domcontentloaded' })
+  await page.evaluate(() => window.sessionStorage.clear())
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  if (new URL(page.url()).pathname !== '/soccer') fail(`the preview entry landed on ${page.url()}`)
+  const account = squash(await page.locator('nav[aria-label="Main navigation"] .site-account-email').first().textContent())
+  if (account !== 'invited.visitor@example.com') fail(`navigation account is ${JSON.stringify(account)}`)
   const google = page.locator('input[name="calendar_output"][value="google"]')
   await google.evaluate(input => {
     input.disabled = false
@@ -58,5 +66,5 @@ async page => {
   if (!googleNote.includes('Google Calendar add is unavailable in this environment')) fail(`Google note is ${JSON.stringify(googleNote)}`)
   const scope = await page.locator('[data-team-fingerprint]').getAttribute('data-team-fingerprint')
   if (scope !== '479147-479691') fail(`team-set scope is ${scope}`)
-  return { route: '/soccer', rows, heading, count, scope, googleNote }
+  return { route: '/soccer', account, rows, heading, count, scope, googleNote }
 }
