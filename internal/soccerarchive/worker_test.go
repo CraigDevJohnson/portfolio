@@ -562,11 +562,18 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 	backend := archivetest.NewTable()
 	store := newTestStore(t, backend)
 	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	seededGames := map[int][]lps.TeamScheduleGame{
+		101: {
+			{UGameID: 8050, UTeam1: 101, UTeam2: 404, Season: 169, Result: "1-0"},
+			{UGameID: 8101, UTeam1: 101, UTeam2: 404, Season: 169, Result: "1-0"},
+		},
+		303: {{UGameID: 8303, UTeam1: 303, UTeam2: 404, Season: 169, Result: "1-0"}},
+	}
 	for _, id := range []int{101, 303} {
 		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
 			TeamID:    id,
 			Team:      lps.TeamSummary{UTeamID: id, Season: 169},
-			Games:     []lps.TeamScheduleGame{{UGameID: 8000 + id, UTeam1: id, UTeam2: 404, Season: 169, Result: "1-0"}},
+			Games:     seededGames[id],
 			FetchedAt: seededAt,
 		}); err != nil {
 			t.Fatalf("enroll team %d: %v", id, err)
@@ -575,7 +582,7 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/teams/101":
-			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":7101,"UTeam1":101,"UTeam2":404,"Season":169,"result":"3-3"},{"UGameID":8101,"UTeam1":101,"UTeam2":404,"Season":169,"result":"4-0"}]}`)
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":7101,"UTeam1":101,"UTeam2":404,"Season":169,"result":"3-3"},{"UGameID":8050,"UTeam1":101,"UTeam2":404,"Season":169,"result":"2-2"},{"UGameID":8101,"UTeam1":101,"UTeam2":404,"Season":169,"result":"4-0"}]}`)
 		case "/teams/303":
 			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":303,"Season":169},"games":[{"UGameID":8303,"UTeam1":303,"UTeam2":404,"Season":169,"result":"0-2"}]}`)
 		default:
@@ -583,7 +590,8 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 		}
 	}))
 	defer server.Close()
-	// Team 101's second game write fails after its first one landed.
+	// Team 101's games are written in ID order, so its new game 7101 and its
+	// corrected game 8050 land before the write of 8101 fails.
 	backend.FailPut = func(key string) error {
 		if key == "GAME#8101/META" {
 			return errors.New("throttled")
@@ -602,13 +610,20 @@ func TestRefreshWorkerReportsAPartlySavedTeamWithoutDiscardingAnotherTeam(t *tes
 	if err != nil || len(saved.Games) != 1 || saved.Games[0].Result != "0-2" || !saved.Coverage.FetchedAt.Equal(refreshedAt) {
 		t.Fatalf("successful team 303 history = %#v, err = %v", saved, err)
 	}
-	// The partly saved team keeps its last complete history, and its refresh
-	// record says this attempt failed and when to retry it, so the team is
-	// neither shown as refreshed nor dropped from refresh.
+	// The partly saved team's coverage keeps its last response saved in
+	// full, and its refresh record says this attempt failed and when to
+	// retry it, so the team is neither shown as refreshed nor dropped from
+	// refresh. The games written before the failure keep their newer values:
+	// the corrected 8050 already reads with its new score, while the new 7101
+	// stays off the team until a saved response links it.
 	partial, err := store.ReadTeamSeason(t.Context(), 101, 169)
-	if err != nil || len(partial.Games) != 1 || partial.Games[0].UGameID != 8101 || partial.Games[0].Result != "1-0" ||
-		!partial.Coverage.FetchedAt.Equal(seededAt) || partial.Coverage.ReturnedGameCount != 1 {
-		t.Fatalf("partly saved team 101 history = %#v, err = %v", partial, err)
+	results := map[int]string{}
+	for _, game := range partial.Games {
+		results[game.UGameID] = game.Result
+	}
+	if err != nil || fmt.Sprint(results) != "map[8050:2-2 8101:1-0]" ||
+		!partial.Coverage.FetchedAt.Equal(seededAt) || partial.Coverage.ReturnedGameCount != 2 {
+		t.Fatalf("partly saved team 101 games = %v, coverage %+v, err = %v; want 8050 corrected to 2-2 and 8101 still 1-0 under the seeded coverage", results, partial.Coverage, err)
 	}
 	state, err := store.ReadRefreshState(t.Context(), 101)
 	want := RefreshState{

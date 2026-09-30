@@ -113,8 +113,13 @@ const (
 	CoverageNotFetched CoverageStatus = "not_fetched"
 )
 
-// Coverage describes only what the latest team response returned for a season.
-// Retained games may outlive a later response that omits them.
+// Coverage describes only what the latest team response returned for a season
+// once all of that response's games were saved. Retained games may outlive a
+// later response that omits them. A response saved only in part leaves
+// coverage unchanged, but the games it wrote before failing keep their newer
+// values, so a season's games can be newer than its coverage. Only the team's
+// refresh state shows that store failure, and only until the team's next
+// response is saved.
 type Coverage struct {
 	Status            CoverageStatus
 	FetchedAt         time.Time

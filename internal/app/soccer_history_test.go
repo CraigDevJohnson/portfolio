@@ -445,10 +445,15 @@ func TestSoccerHistoryReadTellsAnEmptySeasonFromMissingOrFailedCollection(t *tes
 }
 
 // A season can be partly collected: a later team response no longer returns
-// it, or a later response could not be saved in full. Neither may read as a
-// current fetch. The season keeps the games and fetch time of the last
-// response that returned it, while the refresh record shows the later
-// attempt and its outcome.
+// it, or a later response is saved only in part. Neither may read as a
+// current fetch. Coverage keeps the fetch time and game count of the last
+// response that returned the season and had all its games saved, and the
+// refresh record shows the later attempt and its outcome. An omitted season
+// keeps that response's games. A response saved in part has already changed
+// the games it wrote before failing, because the archive keeps each game's
+// latest fetched value, so until the team's next response is saved the
+// refresh record's store failure, not the coverage time, says the season's
+// games may come from more than one response.
 func TestSoccerHistoryReadTellsAPartlyCollectedSeasonFromACurrentFetch(t *testing.T) {
 	route := newTeamHistoryRoute(t)
 	route.setTeam(4101, craigFCSeason77)
@@ -477,31 +482,38 @@ func TestSoccerHistoryReadTellsAPartlyCollectedSeasonFromACurrentFetch(t *testin
 		t.Errorf("the omission changed season 77's games: %d games, record %+v", len(omitted.Games), omitted.Record)
 	}
 
-	// LPS returns season 77 again with game 7003's score corrected, but the
-	// archive cannot write its games.
+	// LPS returns season 77 again with the scores of games 7001 and 7003
+	// corrected. The archive writes games in ID order and fails at 7003, so
+	// 7001's correction is saved and 7003's is not.
 	failedAt := omittedAt.Add(24 * time.Hour)
-	route.setTeam(4101, strings.Replace(craigFCSeason77, `"result":"4 - 0"`, `"result":"0 - 4"`, 1))
+	corrected := strings.Replace(craigFCSeason77, `"result":"3 - 1"`, `"result":"1 - 3"`, 1)
+	corrected = strings.Replace(corrected, `"result":"4 - 0"`, `"result":"0 - 4"`, 1)
+	route.setTeam(4101, corrected)
 	route.table.FailPut = func(key string) error {
-		if strings.HasPrefix(key, "GAME#") {
+		if key == "GAME#7003/META" {
 			return fmt.Errorf("throttled")
 		}
 		return nil
 	}
 	if report := route.refreshTeams(t, failedAt, 4101); report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != soccerarchive.RefreshStoreFailed {
-		t.Fatalf("refresh whose save failed: %+v", report)
+		t.Fatalf("refresh whose save failed partway: %+v", report)
 	}
 	route.table.FailPut = nil
-	unsaved := readHistory(t, owner, 1001, 4101, 77)
-	if unsaved.Coverage.FetchedAt == nil || !unsaved.Coverage.FetchedAt.Equal(fetchedAt) {
-		t.Errorf("coverage after an unsaved refresh = %+v, want the fetch of %s kept", unsaved.Coverage, fetchedAt)
+	partial := readHistory(t, owner, 1001, 4101, 77)
+	if partial.Coverage.Status != "fetched" || partial.Coverage.FetchedAt == nil || !partial.Coverage.FetchedAt.Equal(fetchedAt) || partial.Coverage.ReturnedGameCount != 10 {
+		t.Errorf("coverage after a partly saved response = %+v, want the fetch of %s that returned ten games", partial.Coverage, fetchedAt)
 	}
-	if unsaved.Refresh == nil || unsaved.Refresh.Status != "retryable_failure" || unsaved.Refresh.LastErrorKind != "store" || unsaved.Refresh.LastErrorStatusCode != 0 ||
-		unsaved.Refresh.LastAttemptAt == nil || !unsaved.Refresh.LastAttemptAt.Equal(failedAt) ||
-		unsaved.Refresh.NextDueAt == nil || !unsaved.Refresh.NextDueAt.Equal(failedAt.Add(15*time.Minute)) {
-		t.Errorf("refresh after an unsaved response = %+v, want a store failure retried 15 minutes after %s", unsaved.Refresh, failedAt)
+	if partial.Refresh == nil || partial.Refresh.Status != "retryable_failure" || partial.Refresh.LastErrorKind != "store" || partial.Refresh.LastErrorStatusCode != 0 ||
+		partial.Refresh.LastAttemptAt == nil || !partial.Refresh.LastAttemptAt.Equal(failedAt) ||
+		partial.Refresh.NextDueAt == nil || !partial.Refresh.NextDueAt.Equal(failedAt.Add(15*time.Minute)) {
+		t.Errorf("refresh after a partly saved response = %+v, want a store failure retried 15 minutes after %s", partial.Refresh, failedAt)
 	}
-	if unsaved.Record.Wins != 2 || unsaved.Record.Losses != 1 || unsaved.classifications()[7003] != "loss" {
-		t.Errorf("an unsaved correction reached the record: %+v, game 7003 %q", unsaved.Record, unsaved.classifications()[7003])
+	if byGame := partial.classifications(); len(partial.Games) != 9 || byGame[7001] != "loss" || byGame[7003] != "loss" {
+		t.Errorf("games after a partly saved response: %d games, 7001 %q, 7003 %q; want 7001's saved correction as a loss and 7003's unsaved one still a loss",
+			len(partial.Games), byGame[7001], byGame[7003])
+	}
+	if record := partial.Record; record.Wins != 1 || record.Losses != 2 || record.Draws != 1 || record.ScoredGames != 4 || record.Unclassified != 5 {
+		t.Errorf("record after a partly saved response = %+v, want 1-2-1 with only 7001's correction", record)
 	}
 
 	// The retry saves the whole response.
@@ -514,8 +526,9 @@ func TestSoccerHistoryReadTellsAPartlyCollectedSeasonFromACurrentFetch(t *testin
 		current.Refresh == nil || current.Refresh.Status != "ready" || current.Refresh.LastErrorKind != "" {
 		t.Errorf("season after the retry = coverage %+v, refresh %+v; want fetched at %s", current.Coverage, current.Refresh, savedAt)
 	}
-	if record := current.Record; record.Wins != 3 || record.Losses != 0 || record.Draws != 1 || record.ScoredGames != 4 || current.classifications()[7003] != "win" {
-		t.Errorf("record after the corrected score was saved = %+v, game 7003 %q; want 3-0-1", record, current.classifications()[7003])
+	if byGame, record := current.classifications(), current.Record; record.Wins != 2 || record.Losses != 1 || record.Draws != 1 || record.ScoredGames != 4 ||
+		byGame[7001] != "loss" || byGame[7003] != "win" {
+		t.Errorf("record after both corrections were saved = %+v, 7001 %q, 7003 %q; want 2-1-1 with 7001 a loss and 7003 a win", record, byGame[7001], byGame[7003])
 	}
 }
 

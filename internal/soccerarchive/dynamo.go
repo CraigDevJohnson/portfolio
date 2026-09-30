@@ -170,7 +170,8 @@ type archiveItem struct {
 // SaveTeamSnapshot upserts stable source IDs. Coverage and then the team's
 // enrollment record, which carries the due-team marker, are written last: a
 // failed mid-response write never reports that response as stored and never
-// enrolls a team whose snapshot is incomplete.
+// enrolls a team whose snapshot is incomplete. The games written before such
+// a failure keep their newer values.
 func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) error {
 	if snapshot == nil || snapshot.TeamID <= 0 || snapshot.Team.UTeamID != snapshot.TeamID || snapshot.FetchedAt.IsZero() {
 		return errors.New("archive snapshot requires a confirmed team ID and fetch time")
