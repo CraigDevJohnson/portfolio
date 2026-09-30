@@ -93,7 +93,8 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		h.renderLogin(w, r, http.StatusServiceUnavailable, returnTo, "Site sign-in is unavailable right now.")
 		return
 	}
-	if r.Method == http.MethodGet {
+	// Only POST starts sign-in; the GET route also serves HEAD, which must stay side-effect free.
+	if r.Method != http.MethodPost {
 		h.renderLogin(w, r, http.StatusOK, returnTo, "")
 		return
 	}

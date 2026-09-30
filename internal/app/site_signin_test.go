@@ -342,3 +342,19 @@ func TestSiteSessionExpiryAndOtherEnvironmentAreDenied(t *testing.T) {
 		t.Fatal("one environment's site session authorized another environment")
 	}
 }
+
+func TestSiteSignInHeadRendersLandingWithoutStartingSignIn(t *testing.T) {
+	application := newSiteSignInTestApp(t)
+	mux, _ := buildMux(application, application.Logger, false)
+
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodHead, "https://app.example.com/sign-in?return_to=%2Fabout", nil))
+	if response.Code != http.StatusOK || response.Header().Get("Location") != "" {
+		t.Fatalf("HEAD sign-in started a redirect: %d %q", response.Code, response.Header().Get("Location"))
+	}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == config.SiteOAuthStateCookieName {
+			t.Fatal("HEAD sign-in replaced pending OAuth state")
+		}
+	}
+}
