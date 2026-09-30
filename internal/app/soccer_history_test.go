@@ -444,6 +444,81 @@ func TestSoccerHistoryReadTellsAnEmptySeasonFromMissingOrFailedCollection(t *tes
 	}
 }
 
+// A season can be partly collected: a later team response no longer returns
+// it, or a later response could not be saved in full. Neither may read as a
+// current fetch. The season keeps the games and fetch time of the last
+// response that returned it, while the refresh record shows the later
+// attempt and its outcome.
+func TestSoccerHistoryReadTellsAPartlyCollectedSeasonFromACurrentFetch(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, craigFCSeason77)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	fetchedAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if report := route.refreshTeams(t, fetchedAt, 4101); !report.Complete {
+		t.Fatalf("first refresh: %+v", report)
+	}
+
+	// Craig FC moves on to season 80, and LPS stops returning season 77.
+	omittedAt := fetchedAt.Add(24 * time.Hour)
+	route.setTeam(4101, `{"team":{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":80},"games":[
+{"UGameID":7501,"Season":80,"UTeam1":4101,"UTeam2":5001,"SchedGameDateTime":"2099-09-01T19:00:00Z","result":""}]}`)
+	if report := route.refreshTeams(t, omittedAt, 4101); !report.Complete {
+		t.Fatalf("refresh without season 77: %+v", report)
+	}
+	omitted := readHistory(t, owner, 1001, 4101, 77)
+	if omitted.Coverage.Status != "fetched" || omitted.Coverage.FetchedAt == nil || !omitted.Coverage.FetchedAt.Equal(fetchedAt) || omitted.Coverage.ReturnedGameCount != 10 {
+		t.Errorf("coverage of the omitted season = %+v, want the fetch of %s that returned its ten games", omitted.Coverage, fetchedAt)
+	}
+	if omitted.Refresh == nil || omitted.Refresh.Status != "ready" || omitted.Refresh.LastAttemptAt == nil || !omitted.Refresh.LastAttemptAt.Equal(omittedAt) {
+		t.Errorf("refresh after the omission = %+v, want a ready team last attempted at %s", omitted.Refresh, omittedAt)
+	}
+	if len(omitted.Games) != 9 || omitted.Record.Wins != 2 || omitted.Record.Losses != 1 || omitted.Record.Draws != 1 || omitted.Record.Unclassified != 5 {
+		t.Errorf("the omission changed season 77's games: %d games, record %+v", len(omitted.Games), omitted.Record)
+	}
+
+	// LPS returns season 77 again with game 7003's score corrected, but the
+	// archive cannot write its games.
+	failedAt := omittedAt.Add(24 * time.Hour)
+	route.setTeam(4101, strings.Replace(craigFCSeason77, `"result":"4 - 0"`, `"result":"0 - 4"`, 1))
+	route.table.FailPut = func(key string) error {
+		if strings.HasPrefix(key, "GAME#") {
+			return fmt.Errorf("throttled")
+		}
+		return nil
+	}
+	if report := route.refreshTeams(t, failedAt, 4101); report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != soccerarchive.RefreshStoreFailed {
+		t.Fatalf("refresh whose save failed: %+v", report)
+	}
+	route.table.FailPut = nil
+	unsaved := readHistory(t, owner, 1001, 4101, 77)
+	if unsaved.Coverage.FetchedAt == nil || !unsaved.Coverage.FetchedAt.Equal(fetchedAt) {
+		t.Errorf("coverage after an unsaved refresh = %+v, want the fetch of %s kept", unsaved.Coverage, fetchedAt)
+	}
+	if unsaved.Refresh == nil || unsaved.Refresh.Status != "retryable_failure" || unsaved.Refresh.LastErrorKind != "store" || unsaved.Refresh.LastErrorStatusCode != 0 ||
+		unsaved.Refresh.LastAttemptAt == nil || !unsaved.Refresh.LastAttemptAt.Equal(failedAt) ||
+		unsaved.Refresh.NextDueAt == nil || !unsaved.Refresh.NextDueAt.Equal(failedAt.Add(15*time.Minute)) {
+		t.Errorf("refresh after an unsaved response = %+v, want a store failure retried 15 minutes after %s", unsaved.Refresh, failedAt)
+	}
+	if unsaved.Record.Wins != 2 || unsaved.Record.Losses != 1 || unsaved.classifications()[7003] != "loss" {
+		t.Errorf("an unsaved correction reached the record: %+v, game 7003 %q", unsaved.Record, unsaved.classifications()[7003])
+	}
+
+	// The retry saves the whole response.
+	savedAt := failedAt.Add(15 * time.Minute)
+	if report := route.refreshTeams(t, savedAt, 4101); !report.Complete {
+		t.Fatalf("retried refresh: %+v", report)
+	}
+	current := readHistory(t, owner, 1001, 4101, 77)
+	if current.Coverage.FetchedAt == nil || !current.Coverage.FetchedAt.Equal(savedAt) || current.Coverage.ReturnedGameCount != 10 ||
+		current.Refresh == nil || current.Refresh.Status != "ready" || current.Refresh.LastErrorKind != "" {
+		t.Errorf("season after the retry = coverage %+v, refresh %+v; want fetched at %s", current.Coverage, current.Refresh, savedAt)
+	}
+	if record := current.Record; record.Wins != 3 || record.Losses != 0 || record.Draws != 1 || record.ScoredGames != 4 || current.classifications()[7003] != "win" {
+		t.Errorf("record after the corrected score was saved = %+v, game 7003 %q; want 3-0-1", record, current.classifications()[7003])
+	}
+}
+
 // assertHistoryDenied requires a read to be refused with status and to
 // disclose no stored game.
 func assertHistoryDenied(t *testing.T, browser *siteBrowser, status, playerID, teamID, seasonID int) {
