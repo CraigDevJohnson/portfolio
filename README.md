@@ -192,7 +192,10 @@ own events:
   `/soccer` page.
 
 Repeating Add in the same calendar finds the existing event by event ID or
-`game_id` and updates it instead of inserting another.
+`game_id` and updates it instead of inserting another. When Google refuses a
+change to one existing event, such as an invitation copy another organizer
+owns, Add skips and reports that game and keeps the destination; only a
+refusal that names the calendar pauses writes.
 
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and

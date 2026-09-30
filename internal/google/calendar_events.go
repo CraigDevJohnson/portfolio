@@ -2,6 +2,9 @@ package google
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -9,6 +12,7 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	"portfolio/internal/logging"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
@@ -33,10 +37,18 @@ const (
 	eventSourceTitle    = "Soccer Schedule"
 )
 
+// errEventRefused marks Google's refusal of a request about one existing
+// event while the calendar may still accept this account's writes. Only that
+// game is skipped; the destination stays.
+var errEventRefused = errors.New("google refused the request for this event")
+
 type calendarMutationResult struct {
-	added        int
-	updated      int
-	skipped      int
+	added   int
+	updated int
+	skipped int
+	// refused counts games whose existing event Google would not let this
+	// account read or change.
+	refused      int
 	authRejected bool
 }
 
@@ -48,6 +60,11 @@ func (h *Handler) insertCalendarEvents(ctx context.Context, r *http.Request, rec
 			continue
 		}
 		action, authRejected, err := h.syncCalendarEvent(h.httpContext(ctx), record.CalendarID, token, &event)
+		if errors.Is(err, errEventRefused) {
+			logging.WithContext(h.Logger, ctx).Warn("google refused one event; game skipped", slog.String("event_id", event.ID), slog.Any("error", err))
+			result.refused++
+			continue
+		}
 		if err != nil {
 			return result, err
 		}
@@ -133,7 +150,7 @@ func (h *Handler) refreshCalendarEvent(ctx context.Context, calendarID string, t
 		if authRejected {
 			return calendarEventSkipped, true, nil
 		}
-		return calendarEventSkipped, false, apiErr
+		return calendarEventSkipped, false, markEventRefused(apiErr)
 	}
 }
 
@@ -181,8 +198,20 @@ func (h *Handler) handleGetEventByIDResponse(resp *http.Response, gameID string)
 		if authRejected {
 			return nil, false, true, nil
 		}
-		return nil, false, false, apiErr
+		return nil, false, false, markEventRefused(apiErr)
 	}
+}
+
+// markEventRefused marks a refusal of a request about one existing event, a
+// read or update by its ID, so that only its game is skipped. Other errors,
+// including a refusal that names the calendar's access level, are returned
+// unchanged.
+func markEventRefused(err error) error {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.eventRefused() {
+		return fmt.Errorf("%w: %w", errEventRefused, err)
+	}
+	return err
 }
 
 func (h *Handler) handleListEventsResponse(resp *http.Response, gameID string) (*Event, bool, bool, error) {

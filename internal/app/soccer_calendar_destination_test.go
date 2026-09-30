@@ -59,6 +59,9 @@ type fakeGoogleCalendars struct {
 	// event insert or update; refuseList, for every calendar list request.
 	refuseWrites *googleRefusal
 	refuseList   *googleRefusal
+	// refuseEvents is Google's refusal of any insert or update of the event
+	// with that ID.
+	refuseEvents map[string]googleRefusal
 	eventCalls   []string
 }
 
@@ -148,6 +151,10 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if refusal, refused := fake.refuseEvents[event.ID]; refused {
+			writeGoogleError(w, refusal)
+			return
+		}
 		if _, exists := calendar.events[event.ID]; exists && r.Method == http.MethodPost {
 			writeGoogleError(w, googleRefusal{status: http.StatusConflict, domain: "global", reason: "duplicate"})
 			return
@@ -186,6 +193,22 @@ func (fake *fakeGoogleCalendars) refuseEventWrites(refusal *googleRefusal) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.refuseWrites = refusal
+}
+
+func (fake *fakeGoogleCalendars) refuseEventWrite(eventID string, refusal googleRefusal) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.refuseEvents == nil {
+		fake.refuseEvents = map[string]googleRefusal{}
+	}
+	fake.refuseEvents[eventID] = refusal
+}
+
+// addEvent places an event in a calendar as if another client had written it.
+func (fake *fakeGoogleCalendars) addEvent(calendarID string, event *internalgoogle.Event) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.calendar(calendarID).events[event.ID] = *event
 }
 
 func (fake *fakeGoogleCalendars) refuseCalendarList(refusal *googleRefusal) {
@@ -411,6 +434,27 @@ func TestGoogleRefusalOfAnEventWriteDecidesBetweenReconnectRetryAndANewChoice(t 
 				t.Fatalf("retry after the refusal did not add the game to the same calendar: %q", retried)
 			}
 		})
+	}
+}
+
+func TestGoogleRefusingAnUpdateToOneEventSkipsThatGameAndKeepsTheDestination(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	world.fetch(t)
+	// The primary calendar holds another organizer's copy of the next game
+	// under the game's ID, and Google refuses this account's changes to it.
+	world.google.addEvent(primaryCalendarID, &internalgoogle.Event{ID: nextGameID, Summary: "Craig FC vs Rivals (invited)"})
+	world.google.refuseEventWrite(nextGameID, googleRefusal{http.StatusForbidden, "calendar", "forbiddenForNonOrganizer"})
+
+	added := world.add(t, nextGameID, laterGameID)
+	if strings.Contains(added, calendarChoiceNeeded) || !strings.Contains(added, "Added 1 selected game") || !strings.Contains(added, "Skipped 1 game(s) whose existing event Google Calendar would not let this account change") {
+		t.Fatalf("Add with one refused event update answered %q; want the other game added and the refused one reported", added)
+	}
+	if _, ok := world.google.events(primaryCalendarID)[laterGameID]; !ok {
+		t.Fatal("the game after the refused update was not added")
+	}
+	if page := world.page(t); !strings.Contains(page, calendarReady) || selectedCalendar(t, page) != primaryCalendarID {
+		t.Fatal("a refusal of one event paused the whole destination")
 	}
 }
 
@@ -668,9 +712,7 @@ func TestAddedEventsCarryGameIdentityAndTheSiteMarkerSoRepeatedAddsMatchThem(t *
 	// its private game ID.
 	older := internalgoogle.Event{ID: "olderevent0001", Summary: "Craig FC vs Strikers"}
 	older.ExtendedProperties.Private = map[string]string{"game_id": laterGameID}
-	world.google.mu.Lock()
-	world.google.calendar(primaryCalendarID).events[older.ID] = older
-	world.google.mu.Unlock()
+	world.google.addEvent(primaryCalendarID, &older)
 
 	mark := world.google.callCount()
 	repeated := world.add(t, nextGameID, laterGameID)

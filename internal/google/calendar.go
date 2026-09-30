@@ -94,6 +94,23 @@ func (err *APIError) usageLimited() bool {
 	}
 }
 
+// destinationRejected reports whether the calendar itself refused the
+// request: it is gone, or it no longer accepts this account's writes.
+func (err *APIError) destinationRejected() bool {
+	if err.credentialsRejected() || err.usageLimited() {
+		return false
+	}
+	return err.StatusCode == http.StatusForbidden || err.StatusCode == http.StatusNotFound || err.StatusCode == http.StatusGone
+}
+
+// eventRefused reports whether Google refused a request about one existing
+// event for a reason that names neither the connection, a usage limit, nor
+// the calendar's access level, such as an update to an event another
+// organizer owns. The calendar may still accept this account's writes.
+func (err *APIError) eventRefused() bool {
+	return err.StatusCode == http.StatusForbidden && !err.credentialsRejected() && !err.usageLimited() && err.Reason != "requiredAccessLevel"
+}
+
 type calendarEventAction int
 
 const (

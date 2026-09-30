@@ -111,10 +111,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 // writes, rather than because of the connection or a usage limit.
 func calendarDestinationRejected(err error) bool {
 	var apiErr *APIError
-	if !errors.As(err, &apiErr) || apiErr.credentialsRejected() || apiErr.usageLimited() {
-		return false
-	}
-	return apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone
+	return errors.As(err, &apiErr) && apiErr.destinationRejected()
 }
 
 // destinationReady reports whether the chosen calendar still accepts this
@@ -259,16 +256,22 @@ func addMutationMessage(result calendarMutationResult) string {
 	if result.updated > 0 {
 		message += fmt.Sprintf(" Updated/restored %d matching game(s).", result.updated)
 	}
-	if result.skipped > 0 {
-		message += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", result.skipped)
-	}
-	return message
+	return message + skippedGamesMessage(result)
 }
 
 func syncResultsMutationMessage(result calendarMutationResult) string {
 	message := fmt.Sprintf("%d game result(s) updated in Google Calendar.", result.added+result.updated)
+	return message + skippedGamesMessage(result)
+}
+
+// skippedGamesMessage reports the games an Add or result sync left alone.
+func skippedGamesMessage(result calendarMutationResult) string {
+	message := ""
 	if result.skipped > 0 {
 		message += fmt.Sprintf(" Skipped %d game(s) that could not be matched to the same Google game ID.", result.skipped)
+	}
+	if result.refused > 0 {
+		message += fmt.Sprintf(" Skipped %d game(s) whose existing event Google Calendar would not let this account change.", result.refused)
 	}
 	return message
 }
