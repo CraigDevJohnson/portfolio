@@ -25,6 +25,7 @@ async page => {
       send('POST', '/soccer/fetch', { player_ids: '1001' }),
       send('POST', '/soccer/download', { player_ids: '1001', selected: '7001' }),
       send('GET', '/soccer/google/connect'),
+      send('GET', '/soccer/history?player_id=1001&team_id=479691&season_id=169'),
       send('POST', '/soccer/google/add', { team_codes: '479147', selected: '7002' }),
       send('POST', '/soccer/fetch', { team_codes: '479147' }),
     ])
