@@ -408,6 +408,16 @@ func (fake *fakeGoogleCalendars) deleteEvent(calendarID, eventID string) {
 	})
 }
 
+// dropETag stores an event without the version Google normally lists it
+// with.
+func (fake *fakeGoogleCalendars) dropETag(calendarID, eventID string) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	event := fake.calendar(calendarID).events[eventID]
+	event.ETag = ""
+	fake.calendar(calendarID).events[eventID] = event
+}
+
 // changeEventBeforeNextPatch makes edit land on the event just before the
 // site's next patch of it reaches Google.
 func (fake *fakeGoogleCalendars) changeEventBeforeNextPatch(eventID string, edit func(*internalgoogle.Event)) {

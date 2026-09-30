@@ -461,6 +461,65 @@ func TestSyncUpdatesTheOneLiveEventLeftAfterTheVisitorDeletesACopy(t *testing.T)
 	}
 }
 
+// Sync changes an event only through a patch conditional on the version it
+// read. It skips an event listed without a version, and reports an event
+// that disappears before the patch lands as deleted, without restoring it.
+func TestSyncSkipsAnEventItCannotConditionallyUpdate(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		prepare func(*fakeGoogleCalendars)
+		// wantPatches is how many patches Sync attempts; want, what it
+		// reports.
+		wantPatches int
+		want        string
+	}{
+		{
+			name:    "an event listed without its version",
+			prepare: func(google *fakeGoogleCalendars) { google.dropETag(primaryCalendarID, syncWonGameID) },
+			want:    "Skipped 1 game(s): 1 changed in Google Calendar during Sync.",
+		},
+		{
+			name: "an event deleted before the patch lands",
+			prepare: func(google *fakeGoogleCalendars) {
+				google.refuseEventWrite(syncWonGameID, googleRefusal{http.StatusGone, "global", "deleted"})
+			},
+			wantPatches: 1, want: "Skipped 1 game(s): 1 deleted.",
+		},
+		{
+			name: "an event gone before the patch lands",
+			prepare: func(google *fakeGoogleCalendars) {
+				google.refuseEventWrite(syncWonGameID, googleRefusal{http.StatusNotFound, "global", "notFound"})
+			},
+			wantPatches: 1, want: "Skipped 1 game(s): 1 deleted.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			world := newResultSyncWorld(t)
+			world.add(t, syncNorthTeamID, syncWonGameID)
+			world.lps.play(syncWonGameID, "2-1")
+			form := world.reviewForm(t, syncNorthTeamID)
+			tc.prepare(world.google)
+			before := world.google.events(primaryCalendarID)
+
+			calls, patches := world.google.callCount(), world.google.patchCount()
+			if synced := world.sync(t, form, syncWonGameID); !strings.Contains(synced, "0 game result(s) updated in Google Calendar. "+tc.want) {
+				t.Fatalf("Sync answered %q, want %q", synced, tc.want)
+			}
+			if sent := world.google.patchesSince(patches); len(sent) != tc.wantPatches {
+				t.Errorf("Sync sent patches %+v, want %d", sent, tc.wantPatches)
+			}
+			if after := world.google.events(primaryCalendarID); !reflect.DeepEqual(after, before) {
+				t.Errorf("Sync changed the calendar:\nbefore %+v\nafter  %+v", before, after)
+			}
+			for _, call := range world.google.callsSince(calls) {
+				if strings.HasPrefix(call, http.MethodPost+" ") || strings.HasPrefix(call, http.MethodPut+" ") {
+					t.Errorf("Sync sent %q", call)
+				}
+			}
+		})
+	}
+}
+
 // Google may answer a search with a page holding fewer events than asked
 // for, or none, while more follow. Sync reads on until the search ends, and
 // judges the match only by every event it found.
