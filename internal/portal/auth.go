@@ -6,6 +6,9 @@ import (
 	"portfolio/internal/siteidentity"
 )
 
+// managementAccessDenied explains a signed-in account without the management grant.
+const managementAccessDenied = "Your account does not have management access."
+
 // RequireManagement protects every live portal route using the current site grant.
 func (h *Handler) RequireManagement(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +28,7 @@ func (h *Handler) RequireManagement(next http.HandlerFunc) http.HandlerFunc {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			h.renderErrorPage(w, r, http.StatusForbidden, "Your account does not have management access.")
+			h.renderErrorPage(w, r, http.StatusForbidden, managementAccessDenied)
 			return
 		}
 		next(w, r)

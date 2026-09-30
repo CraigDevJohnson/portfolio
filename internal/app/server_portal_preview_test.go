@@ -127,3 +127,32 @@ func TestBuildMuxPortalPreviewDoesNotAdvertiseUnavailableGoogleStore(t *testing.
 		t.Fatalf("portal preview did not explain the unavailable Google runtime: %s", body)
 	}
 }
+
+func TestPortalPreviewShowsManagementAccessDenial(t *testing.T) {
+	application := newTestApp(t)
+	preview, _ := buildMux(application, application.Logger, true)
+	live, _ := buildMux(application, application.Logger, false)
+	serve := func(mux http.Handler, path string) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		return response
+	}
+
+	denied := serve(preview, "/__preview/portal/error?fixture=access-denied")
+	body := denied.Body.String()
+	if denied.Code != http.StatusForbidden || !strings.Contains(body, "Management access required") || !strings.Contains(body, "Your account does not have management access.") {
+		t.Fatalf("access-denied preview did not render the management denial: %d", denied.Code)
+	}
+	if !strings.Contains(body, `<span class="site-account-email" title="local.preview@portfolio.test">local.preview@portfolio.test</span>`) || !strings.Contains(body, `action="/sign-out"`) {
+		t.Fatal("access-denied preview did not show the signed-in account in shared navigation")
+	}
+	if interruption := serve(preview, "/__preview/portal/error"); interruption.Code != http.StatusServiceUnavailable || !strings.Contains(interruption.Body.String(), "Something interrupted the connection") {
+		t.Fatalf("default preview error changed: %d", interruption.Code)
+	}
+	if unknown := serve(preview, "/__preview/portal/error?fixture=admin"); unknown.Code != http.StatusNotFound {
+		t.Fatalf("unknown preview error fixture status = %d, want 404", unknown.Code)
+	}
+	if exposed := serve(live, "/__preview/portal/error?fixture=access-denied"); exposed.Code != http.StatusNotFound {
+		t.Fatalf("non-preview access-denied fixture status = %d, want 404", exposed.Code)
+	}
+}
