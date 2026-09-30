@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -459,5 +460,75 @@ func TestDailyRunsAttemptDormantAndEnteredTeamsEveryDay(t *testing.T) {
 		if err != nil || !report.Complete || len(report.Results) != 2 || requests[101] != day || requests[202] != day {
 			t.Fatalf("day %d run skipped a dormant entered team: report %#v, err %v, requests %v", day, report, err, requests)
 		}
+	}
+}
+
+func TestDailyPacingDoesNotSpendARequestsTimeout(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	enteredAt := time.Now().Add(-25 * time.Hour)
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: enteredAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var mu sync.Mutex
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		requests[teamID]++
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	// Each request may take 150ms, and requests are spaced 400ms apart on the
+	// real clock, so the second team's pacing wait outlasts that timeout.
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 150 * time.Millisecond}, Limits{
+		MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: 400 * time.Millisecond,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	mu.Lock()
+	defer mu.Unlock()
+	if err != nil || !report.Complete || len(report.Results) != 2 || requests[101] != 1 || requests[202] != 1 {
+		t.Fatalf("a paced request timed out before reaching LPS: report %#v, err %v, requests %v", report, err, requests)
+	}
+}
+
+func TestDailyRequestTimeoutStillBoundsASlowResponse(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 150 * time.Millisecond}, Limits{
+		MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Millisecond,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	if err != nil || report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshRetryableFailure {
+		t.Fatalf("an unanswered LPS request was not timed out: report %#v, err %v", report, err)
 	}
 }

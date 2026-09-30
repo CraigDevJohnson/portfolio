@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -177,8 +178,11 @@ func NewDailyWorker(store DailyStore, baseURL string, client *http.Client, limit
 func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	start := w.clock.Now().UTC()
 	client := *w.client
-	transport := &pacedTransport{base: client.Transport, clock: w.clock, maxRequests: w.limits.MaxRequestsPerRun, interval: w.limits.MinRequestInterval}
-	client.Transport = transport
+	// The client's timeout bounds each LPS request from when it is sent, so
+	// the transport applies it after the pacing wait instead of letting that
+	// wait spend it.
+	transport := &pacedTransport{base: client.Transport, clock: w.clock, maxRequests: w.limits.MaxRequestsPerRun, interval: w.limits.MinRequestInterval, timeout: client.Timeout}
+	client.Transport, client.Timeout = transport, 0
 	source := &retryingTeamSource{source: lps.NewScheduleResolver(w.baseURL, &client, ""), retries: w.limits.MaxRetriesPerTeam, clock: w.clock}
 	refresh := NewRefreshWorker(w.store, source, w.clock.Now)
 	report := DailyReport{Complete: true, Results: make([]RefreshResult, 0)}
@@ -271,13 +275,15 @@ func retryableSourceFailure(ctx context.Context, err error) bool {
 var ErrRequestBudget = errors.New("daily LPS request budget exhausted")
 
 // pacedTransport counts every LPS request of a run, team and facility alike,
-// refuses requests past the budget, and spaces requests by the interval.
+// refuses requests past the budget, and spaces requests by the interval. A
+// request's timeout starts once its pacing wait is over.
 type pacedTransport struct {
 	mu          sync.Mutex
 	base        http.RoundTripper
 	clock       DailyClock
 	maxRequests int
 	interval    time.Duration
+	timeout     time.Duration
 	used        int
 	lastRequest time.Time
 }
@@ -289,23 +295,56 @@ func (transport *pacedTransport) Used() int {
 }
 
 func (transport *pacedTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if err := transport.admit(request.Context()); err != nil {
+		return nil, err
+	}
+	base := transport.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if transport.timeout <= 0 {
+		return base.RoundTrip(request)
+	}
+	ctx, cancel := context.WithTimeout(request.Context(), transport.timeout)
+	response, err := base.RoundTrip(request.WithContext(ctx))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	// The timeout also bounds reading the body, so it ends when the body is
+	// closed.
+	response.Body = &cancelOnClose{ReadCloser: response.Body, cancel: cancel}
+	return response, nil
+}
+
+// admit waits out the pacing interval and counts the request, or refuses it
+// once the run's request budget is used.
+func (transport *pacedTransport) admit(ctx context.Context) error {
 	transport.mu.Lock()
 	defer transport.mu.Unlock()
 	if transport.used >= transport.maxRequests {
-		return nil, ErrRequestBudget
+		return ErrRequestBudget
 	}
 	if !transport.lastRequest.IsZero() {
 		if delay := transport.lastRequest.Add(transport.interval).Sub(transport.clock.Now()); delay > 0 {
-			if err := transport.clock.Sleep(request.Context(), delay); err != nil {
-				return nil, err
+			if err := transport.clock.Sleep(ctx, delay); err != nil {
+				return err
 			}
 		}
 	}
 	transport.used++
 	transport.lastRequest = transport.clock.Now()
-	base := transport.base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	return base.RoundTrip(request)
+	return nil
+}
+
+// cancelOnClose releases a request's timeout once its response body closes.
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (body *cancelOnClose) Close() error {
+	err := body.ReadCloser.Close()
+	body.cancel()
+	return err
 }
