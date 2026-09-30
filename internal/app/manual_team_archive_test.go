@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/html"
+
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/internal/soccerarchive"
 	"portfolio/internal/soccerarchive/archivetest"
@@ -258,6 +260,44 @@ func TestManualTeamLookupWithArchiveKeepsTheUsualSchedule(t *testing.T) {
 		t.Fatalf("confirmed team was not archived: %v", err)
 	}
 	route.assertNotArchived(t, 888888)
+}
+
+func TestManualTeamLookupWithArchiveKeepsOneColorPerSelectedTeam(t *testing.T) {
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	// Team 850's own schedule names no color, while team 100's schedule nests
+	// red for it in their shared match. On the archive path, as on the ordinary
+	// manual lookup, every row paints team 850 red, including its own game 861.
+	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/100":
+			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":100,"team_name":"Blue FC","Color":"blue","Season":169},"games":[{"UGameID":860,"SchedGameDateTime":%q,"Season":169,"UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC","Color":"red"}}]}`, future)
+		case "/teams/850":
+			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":850,"team_name":"Quiet FC","Season":169},"games":[{"UGameID":860,"SchedGameDateTime":%[1]q,"Season":169,"UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC"}},{"UGameID":861,"SchedGameDateTime":%[1]q,"Season":169,"UTeam1":850,"UTeam2":870,"home_team":{"UTeamID":850,"team_name":"Quiet FC"},"visitor_team":{"UTeamID":870,"team_name":"Visitor Seven"}}]}`, future)
+		default:
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	})
+	route.handler.SetArchiveStore(nil)
+	usual := route.lookup(t, "100, 850")
+
+	route.handler.SetArchiveStore(route.store)
+	archived := route.lookup(t, "100, 850")
+
+	if !strings.HasSuffix(archived, usual) {
+		t.Fatalf("archive changed the visitor's schedule\nusual:    %q\narchived: %q", usual, archived)
+	}
+	doc, err := html.Parse(strings.NewReader(archived))
+	if err != nil {
+		t.Fatalf("parse archived fragment: %v", err)
+	}
+	rows := soccerMatchRows(doc)
+	if shared := onlySoccerRow(t, rows, "860"); htmlAttr(shared, "data-home-color") != "blue" || htmlAttr(shared, "data-away-color") != "red" {
+		t.Fatalf("archived shared game colors = %q/%q, want blue/red", htmlAttr(shared, "data-home-color"), htmlAttr(shared, "data-away-color"))
+	}
+	if own := onlySoccerRow(t, rows, "861"); htmlAttr(own, "data-home-color") != "red" {
+		t.Fatalf("archived team 850 row color = %q, want the red another schedule names for it", htmlAttr(own, "data-home-color"))
+	}
 }
 
 func TestManualTeamLookupKeepsTheScheduleWhenOnlyTheTeamFacilityFails(t *testing.T) {
