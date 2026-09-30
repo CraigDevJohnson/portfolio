@@ -80,6 +80,7 @@ run "least_privilege_release_roles" {
       "lambda:GetFunctionCodeSigningConfig",
       "lambda:GetFunctionConcurrency",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionEventInvokeConfig",
       "lambda:GetPolicy",
       "lambda:GetRuntimeManagementConfig",
       "lambda:ListTags",
@@ -88,6 +89,7 @@ run "least_privilege_release_roles" {
       "lambda:UpdateAlias",
       "lambda:UpdateFunctionCode",
       "logs:DescribeLogGroups",
+      "logs:DescribeMetricFilters",
       "logs:ListTagsForResource",
       "s3:DeleteObject",
       "s3:GetBucketLocation",
@@ -95,6 +97,9 @@ run "least_privilege_release_roles" {
       "s3:GetObject",
       "s3:ListBucket",
       "s3:PutObject",
+      "scheduler:GetSchedule",
+      "sqs:GetQueueAttributes",
+      "sqs:ListQueueTags",
       "sts:GetCallerIdentity",
     ])
     error_message = "development automation must have only refresh, state, and immutable-image release actions"
@@ -221,11 +226,152 @@ run "least_privilege_release_roles" {
             "lambda-duration",
             "lambda-errors",
             "lambda-throttles",
+            "soccer-history-admission-rejected",
+            "soccer-history-incomplete",
+            "soccer-history-errors",
+            "soccer-history-dead-letter",
           ] : "arn:aws:cloudwatch:us-west-2:111122223333:alarm:${function_name}-${suffix}"
         ])
       )
     ])
-    error_message = "alarm refresh must remain scoped to the five exact environment alarms"
+    error_message = "alarm refresh must remain scoped to the five exact environment alarms and the four history alarms"
+  }
+
+  # LPS history (readiness packet 6.1 item 4): every CI role reads its own
+  # environment's history resources, so a release plan can still refresh
+  # state once a history stage is applied. Stage 2 resources do not exist yet.
+  assert {
+    condition = alltrue(flatten([
+      for role in [
+        { statements = jsondecode(aws_iam_role_policy.environment["dev"].policy).Statement, f = "portfolio-lambda-dev" },
+        { statements = jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement, f = "portfolio-lambda-prod" },
+        { statements = jsondecode(aws_iam_role_policy.production_deployer.policy).Statement, f = "portfolio-lambda-prod" },
+        ] : [
+        for expected in [
+          {
+            sid     = "TableRead"
+            actions = ["dynamodb:DescribeContinuousBackups", "dynamodb:DescribeTable", "dynamodb:DescribeTimeToLive", "dynamodb:ListTagsOfResource"]
+            resources = [
+              "arn:aws:dynamodb:us-west-2:111122223333:table/${role.f}-google-connections",
+              "arn:aws:dynamodb:us-west-2:111122223333:table/${role.f}-soccer-sessions",
+              "arn:aws:dynamodb:us-west-2:111122223333:table/${role.f}-soccer-history",
+            ]
+          },
+          {
+            sid     = "MetricFilterRead"
+            actions = ["logs:DescribeMetricFilters"]
+            resources = [
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}:*",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}-soccer-history",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}-soccer-history:*",
+            ]
+          },
+          {
+            sid     = "ExecutionRoleRead"
+            actions = ["iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:ListRoleTags"]
+            resources = [
+              "arn:aws:iam::111122223333:role/${role.f}-execution",
+              "arn:aws:iam::111122223333:role/${role.f}-soccer-history-execution",
+              "arn:aws:iam::111122223333:role/${role.f}-soccer-history-scheduler",
+            ]
+          },
+          {
+            sid = "LambdaRead"
+            actions = [
+              "lambda:GetAlias", "lambda:GetFunction", "lambda:GetFunctionCodeSigningConfig", "lambda:GetFunctionConcurrency",
+              "lambda:GetFunctionConfiguration", "lambda:GetPolicy", "lambda:GetRuntimeManagementConfig", "lambda:ListTags",
+              "lambda:ListVersionsByFunction",
+            ]
+            resources = [
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}",
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}:*",
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}-soccer-history",
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}-soccer-history:*",
+            ]
+          },
+          {
+            sid     = "LogGroupRead"
+            actions = ["logs:ListTagsForResource"]
+            resources = [
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/apigateway/${role.f}/access",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/apigateway/${role.f}/access:*",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}:*",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}-soccer-history",
+              "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/${role.f}-soccer-history:*",
+            ]
+          },
+          {
+            sid     = "HistoryWorkerInvokeConfigRead"
+            actions = ["lambda:GetFunctionEventInvokeConfig"]
+            resources = [
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}-soccer-history",
+              "arn:aws:lambda:us-west-2:111122223333:function:${role.f}-soccer-history:*",
+            ]
+          },
+          {
+            sid       = "HistoryQueueRead"
+            actions   = ["sqs:GetQueueAttributes", "sqs:ListQueueTags"]
+            resources = ["arn:aws:sqs:us-west-2:111122223333:${role.f}-soccer-history-failures"]
+          },
+          {
+            sid       = "HistoryScheduleRead"
+            actions   = ["scheduler:GetSchedule"]
+            resources = ["arn:aws:scheduler:us-west-2:111122223333:schedule/default/${role.f}-soccer-history-daily"]
+          },
+          ] : length([
+            for statement in role.statements : statement
+            if statement.Sid == expected.sid && statement.Effect == "Allow" && !contains(keys(statement), "Condition") &&
+            toset(try(tolist(statement.Action), [statement.Action])) == toset(expected.actions) &&
+            toset(try(tolist(statement.Resource), [statement.Resource])) == toset(expected.resources)
+        ]) == 1
+      ]
+    ]))
+    error_message = "every CI role must read exactly its own environment's history table, metric filters, roles, worker, log groups, invoke configuration, failure queue and schedule"
+  }
+
+  # A release moves the history worker to the release image, so each deployer
+  # may publish only that worker's code, under the same tag conditions as the
+  # service function. The production planner writes nothing.
+  assert {
+    condition = (
+      [
+        for statement in jsondecode(aws_iam_role_policy.environment["dev"].policy).Statement : statement
+        if statement.Sid == "DevelopmentHistoryWorkerReleaseWrite"
+        ] == [{
+          Sid      = "DevelopmentHistoryWorkerReleaseWrite"
+          Effect   = "Allow"
+          Action   = ["lambda:PublishVersion", "lambda:UpdateFunctionCode"]
+          Resource = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev-soccer-history"
+          Condition = { StringEquals = {
+            "aws:ResourceTag/Environment" = "dev"
+            "aws:ResourceTag/ManagedBy"   = "opentofu"
+            "aws:ResourceTag/Platform"    = "lambda-http-api"
+            "aws:ResourceTag/project"     = "portfolio"
+          } }
+      }] &&
+      [
+        for statement in jsondecode(aws_iam_role_policy.production_deployer.policy).Statement : statement
+        if statement.Sid == "ProductionHistoryWorkerReleaseWrite"
+        ] == [{
+          Sid      = "ProductionHistoryWorkerReleaseWrite"
+          Effect   = "Allow"
+          Action   = ["lambda:PublishVersion", "lambda:UpdateFunctionCode"]
+          Resource = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-prod-soccer-history"
+          Condition = { StringEquals = {
+            "aws:ResourceTag/Environment" = "prod"
+            "aws:ResourceTag/ManagedBy"   = "opentofu"
+            "aws:ResourceTag/Platform"    = "lambda-http-api"
+            "aws:ResourceTag/project"     = "portfolio"
+          } }
+      }] &&
+      length([
+        for statement in jsondecode(aws_iam_role_policy.environment["prod"].policy).Statement : statement
+        if endswith(statement.Sid, "Write")
+      ]) == 0
+    )
+    error_message = "each deployer may release only its own environment's history worker image, and the production planner writes nothing"
   }
 
   assert {
@@ -257,11 +403,13 @@ run "least_privilege_release_roles" {
       "lambda:GetFunctionCodeSigningConfig",
       "lambda:GetFunctionConcurrency",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionEventInvokeConfig",
       "lambda:GetPolicy",
       "lambda:GetRuntimeManagementConfig",
       "lambda:ListTags",
       "lambda:ListVersionsByFunction",
       "logs:DescribeLogGroups",
+      "logs:DescribeMetricFilters",
       "logs:ListTagsForResource",
       "s3:DeleteObject",
       "s3:GetBucketLocation",
@@ -269,6 +417,9 @@ run "least_privilege_release_roles" {
       "s3:GetObject",
       "s3:ListBucket",
       "s3:PutObject",
+      "scheduler:GetSchedule",
+      "sqs:GetQueueAttributes",
+      "sqs:ListQueueTags",
       "sts:GetCallerIdentity",
     ])
     error_message = "production planning must have only the exact refresh and state-lock allowlist"

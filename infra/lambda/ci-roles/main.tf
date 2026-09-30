@@ -183,7 +183,11 @@ locals {
           "iam:ListRolePolicies",
           "iam:ListRoleTags",
         ]
-        Resource = "arn:aws:iam::${local.account_id}:role/${configuration.function_name}-execution"
+        Resource = [
+          "arn:aws:iam::${local.account_id}:role/${configuration.function_name}-execution",
+          "arn:aws:iam::${local.account_id}:role/${configuration.function_name}-soccer-history-execution",
+          "arn:aws:iam::${local.account_id}:role/${configuration.function_name}-soccer-history-scheduler",
+        ]
       },
       {
         Sid    = "LambdaRead"
@@ -202,6 +206,8 @@ locals {
         Resource = [
           "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}",
           "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}:*",
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}-soccer-history",
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}-soccer-history:*",
         ]
       },
       {
@@ -219,6 +225,8 @@ locals {
           "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/apigateway/${configuration.function_name}/access:*",
           "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}",
           "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}:*",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}-soccer-history",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}-soccer-history:*",
         ]
       },
       {
@@ -244,6 +252,7 @@ locals {
         Resource = [
           "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-google-connections",
           "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-soccer-sessions",
+          "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-soccer-history",
         ]
       },
       {
@@ -288,9 +297,47 @@ locals {
         Effect = "Allow"
         Action = ["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"]
         Resource = [
-          for suffix in ["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] :
+          for suffix in [
+            "api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles",
+            "soccer-history-admission-rejected", "soccer-history-incomplete", "soccer-history-errors", "soccer-history-dead-letter",
+          ] :
           "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${configuration.function_name}-${suffix}"
         ]
+      },
+      # Reads for the LPS history resources (readiness packet 6.1 item 4), so a
+      # release plan can refresh them once a history stage is applied. The
+      # table, roles, worker, log group and alarms are in the statements above.
+      {
+        Sid    = "MetricFilterRead"
+        Effect = "Allow"
+        Action = ["logs:DescribeMetricFilters"]
+        Resource = [
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}:*",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}-soccer-history",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}-soccer-history:*",
+        ]
+      },
+      {
+        Sid    = "HistoryWorkerInvokeConfigRead"
+        Effect = "Allow"
+        Action = ["lambda:GetFunctionEventInvokeConfig"]
+        Resource = [
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}-soccer-history",
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}-soccer-history:*",
+        ]
+      },
+      {
+        Sid      = "HistoryQueueRead"
+        Effect   = "Allow"
+        Action   = ["sqs:GetQueueAttributes", "sqs:ListQueueTags"]
+        Resource = "arn:aws:sqs:${local.region}:${local.account_id}:${configuration.function_name}-soccer-history-failures"
+      },
+      {
+        Sid      = "HistoryScheduleRead"
+        Effect   = "Allow"
+        Action   = ["scheduler:GetSchedule"]
+        Resource = "arn:aws:scheduler:${local.region}:${local.account_id}:schedule/default/${configuration.function_name}-soccer-history-daily"
       },
     ]
   }
@@ -323,6 +370,22 @@ locals {
         }
       }
     },
+    # Once the LPS history worker exists, every release moves it to the release
+    # image too. It has no alias.
+    {
+      Sid      = "DevelopmentHistoryWorkerReleaseWrite"
+      Effect   = "Allow"
+      Action   = ["lambda:PublishVersion", "lambda:UpdateFunctionCode"]
+      Resource = "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.dev.function_name}-soccer-history"
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Environment" = "dev"
+          "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+          "aws:ResourceTag/Platform"    = local.required_tags.Platform
+          "aws:ResourceTag/project"     = local.required_tags.project
+        }
+      }
+    },
   ]
 
   production_mutation_statements = [
@@ -344,6 +407,22 @@ locals {
         "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}",
         "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}:live",
       ]
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Environment" = "prod"
+          "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+          "aws:ResourceTag/Platform"    = local.required_tags.Platform
+          "aws:ResourceTag/project"     = local.required_tags.project
+        }
+      }
+    },
+    # Once the LPS history worker exists, every release moves it to the release
+    # image too. It has no alias.
+    {
+      Sid      = "ProductionHistoryWorkerReleaseWrite"
+      Effect   = "Allow"
+      Action   = ["lambda:PublishVersion", "lambda:UpdateFunctionCode"]
+      Resource = "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}-soccer-history"
       Condition = {
         StringEquals = {
           "aws:ResourceTag/Environment" = "prod"
