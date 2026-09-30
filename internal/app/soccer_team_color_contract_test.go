@@ -31,8 +31,8 @@ var (
 // row text keeps WCAG AA text contrast over the translucent cell overlay on
 // each half; the checked selection control and its keyboard focus outline keep
 // 3:1 non-text contrast there; and no width breakpoint repaints those surfaces.
-// It computes declared token values only. Rendered narrow, forced-colors, and
-// focus layouts need a browser check.
+// It computes declared token values only. The prove-soccer-team-colors browser
+// check covers the rendered narrow, forced-colors, and focus layouts.
 func TestSoccerTeamColorStylesheetKeepsRowsLegible(t *testing.T) {
 	emitted := soccerEmittedTeamColors(t)
 

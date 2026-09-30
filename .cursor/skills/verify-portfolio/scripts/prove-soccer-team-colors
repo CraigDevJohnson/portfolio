@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+STEPS="$SCRIPT_DIR/soccer-team-colors"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+fail() {
+  printf 'prove-soccer-team-colors: %s\n' "$*" >&2
+  exit 1
+}
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'invalid VERIFY_RUN_ID'
+command -v npx >/dev/null 2>&1 || fail 'npx is required by the Playwright CLI wrapper'
+[[ -x "$PWCLI" ]] || fail "Playwright CLI wrapper is not executable: $PWCLI"
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/soccer-team-colors"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+ASSERTIONS="$EVIDENCE_DIR/assertions.txt"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+: >"$ASSERTIONS"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+# Run one journey step; its assertions throw, which fails the CLI and this proof.
+step() {
+  local name="$1"
+  shift
+  printf '\n## %s\n' "$name" >>"$ASSERTIONS"
+  run_pw run-code "$@" | tee -a "$ASSERTIONS"
+}
+
+capture() {
+  run_pw snapshot --filename "$EVIDENCE_DIR/$1.md" >/dev/null
+  run_pw screenshot --filename "$EVIDENCE_DIR/$1.png" --full-page >/dev/null
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+
+run_pw open "$VERIFY_URL/"
+run_pw resize 1440 1000
+run_pw run-code "async (page) => { await page.context().clearCookies(); await page.evaluate(() => window.sessionStorage.clear()); if (await page.evaluate(() => typeof window.htmx) === 'undefined') throw new Error('HTMX did not load'); }"
+run_pw click "nav[aria-label='Main navigation'] a[data-nav-page='soccer']"
+capture 01-before-output-choice
+
+step 'Choose .ics and fetch both teams from the fake LPS' --filename "$STEPS/01-fetch-colors.js"
+capture 02-colored-rows
+
+step 'Operate the shared game with the keyboard' --filename "$STEPS/02-keyboard.js"
+capture 03-keyboard
+
+step 'Refetch keeps each team color' --filename "$STEPS/03-refetch.js"
+capture 04-refetched
+
+step 'Narrow layout' --filename "$STEPS/04-narrow.js"
+capture 05-narrow
+
+step 'Shared past result in Google mode (preview fixture)' --filename "$STEPS/05-shared-result.js"
+capture 06-shared-result-narrow
+
+step 'Forced colors (preview fixture)' --filename "$STEPS/06-forced-colors.js"
+run_pw run-code "async (page) => { await page.emulateMedia({ forcedColors: 'active' }) }" >/dev/null
+capture 07-forced-colors
+run_pw run-code "async (page) => { await page.emulateMedia({ forcedColors: 'none' }) }" >/dev/null
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
+
+# Painting rows is read-only: no download, Google Calendar, or LPS import route was called.
+if rg -q '/soccer/(google/|download|import)' "$EVIDENCE_DIR/browser-requests.txt"; then
+  fail 'the team color journey requested a Google, download, or import route'
+fi
+printf '\n## Side effects\nno /soccer/google/, /soccer/download, or /soccer/import request in the browser request list\n' | tee -a "$ASSERTIONS"
+
+run_pw run-code "async (page) => { await page.context().clearCookies(); await page.evaluate(() => window.sessionStorage.clear()); }"
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'soccer-team-colors proof captured at %s (preview fake LPS and preview fixtures; live LPS colors and Google were not tested)\n' "$EVIDENCE_DIR"
