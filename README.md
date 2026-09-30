@@ -225,19 +225,22 @@ never fall back to primary, and the calendar returning does not resume them on
 its own. An Add that loses its destination
 partway reports the games it already added, which stay in that calendar. When Google rejects the connection
 itself, including rejecting its grant when the site renews access, the site
-removes it and asks the visitor to connect again. Any other refusal or failure,
-such as a Google usage limit or outage, a network error, or a failed save of
-renewed access, keeps the connection and its chosen calendar: the card still
-names the connected account and asks the visitor to retry. An Add or result
-sync that could not renew access writes nothing.
+removes it and asks the visitor to connect again. It does the same when it can
+no longer read the connection's stored access, for example after
+`LPS_SESSION_KEY` changes. Any other refusal or failure, such as a Google usage
+limit or outage, a network error, or a failed save of renewed access, keeps the
+connection and its chosen calendar: the card still names the connected account
+and asks the visitor to retry. An Add or result sync that could not renew
+access writes nothing.
 
 Consenting again as the same Google account while the owner's connection is
 still stored, for example through **Change Google account**, keeps the chosen
 calendar as the destination if that account can write it, and resumes writes
 that were paused for it. A consent starts at primary when it uses a different
 Google account or when the chosen calendar is gone or read-only. Connecting
-after **Disconnect**, or after Google rejected the connection, also starts at
-primary, because the site no longer holds the earlier connection.
+after **Disconnect**, or after the site removed a connection Google rejected or
+it could not read, also starts at primary, because the site no longer holds the
+earlier connection.
 
 Viewing the page and fetching schedules write no Google events. **Add selected
 to calendar** writes only the selected upcoming games; one LPS has not given a

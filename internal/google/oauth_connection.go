@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -113,11 +114,16 @@ func (h *Handler) releaseConnection(ctx context.Context, r *http.Request, connec
 	return true
 }
 
+// errStoredTokenUnreadable reports a stored OAuth token the site cannot
+// decrypt, such as one sealed under a previous session key. Unlike a failed
+// renewal, retrying never helps.
+var errStoredTokenUnreadable = errors.New("stored google token unreadable")
+
 // CurrentToken retrieves and refreshes the stored OAuth token.
 func (h *Handler) CurrentToken(ctx context.Context, r *http.Request, record *ConnectionRecord) (*oauth2.Token, error) {
 	storedToken, err := h.DecryptToken(record.TokenCiphertext)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errStoredTokenUnreadable, err)
 	}
 	tokenSource := h.oauthConfigForRequest(r).TokenSource(h.httpContext(ctx), storedToken)
 	token, err := tokenSource.Token()
@@ -181,8 +187,8 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 	calendars, err := h.ListCalendars(ctx, r, record)
-	if err != nil && isGoogleAuthRejected(err) {
-		logging.WithContext(h.Logger, ctx).Warn("google calendar connection expired", slog.Any("error", err))
+	if connectionUnusable(err) {
+		logging.WithContext(h.Logger, ctx).Warn("google calendar connection unusable", slog.Any("error", err))
 		h.DeleteConnection(ctx, w, r)
 		return
 	}
@@ -215,6 +221,13 @@ func (h *Handler) ownerHasUnverifiedConnection(ctx context.Context, r *http.Requ
 		return false
 	}
 	return record != nil && !record.accountVerified() && siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject)
+}
+
+// connectionUnusable reports whether err shows the stored connection can
+// never work again: Google rejected its grant, or the site cannot read its
+// stored token. Any other failure may pass, so the connection stays.
+func connectionUnusable(err error) bool {
+	return isGoogleAuthRejected(err) || errors.Is(err, errStoredTokenUnreadable)
 }
 
 func isGoogleAuthRejected(err error) bool {

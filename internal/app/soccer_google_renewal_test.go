@@ -185,3 +185,72 @@ func TestGoogleRejectingTheGrantAtRenewalRemovesTheConnectionAndAsksToReconnect(
 		})
 	}
 }
+
+// makeStoredAccessUnreadable replaces every stored connection's token with
+// ciphertext the site cannot read, as a changed session key leaves it.
+func (world *calendarDestinationWorld) makeStoredAccessUnreadable() {
+	world.store.edit(func(records map[string]internalgoogle.ConnectionRecord) {
+		for id := range records {
+			record := records[id]
+			record.TokenCiphertext = "not-a-sealed-token"
+			records[id] = record
+		}
+	})
+}
+
+func TestAWriteWithStoredAccessTheSiteCannotReadRemovesTheConnectionAndAsksToReconnect(t *testing.T) {
+	for _, action := range googleWriteActions {
+		t.Run(action.name, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.choose(t, teamCalendarID)
+			world.fetch(t)
+			world.makeStoredAccessUnreadable()
+			renewals, calls := world.google.renewalCount(), world.google.callCount()
+
+			answer := action.run(t, world)
+			if !strings.Contains(answer, "Connect again") || strings.Contains(answer, "try again later") {
+				t.Fatalf("%s with unreadable stored access answered %q; want a request to reconnect", action.name, answer)
+			}
+			if world.google.renewalCount() != renewals {
+				t.Errorf("%s asked Google to renew access it could not read", action.name)
+			}
+			if sent := world.google.callsSince(calls); len(sent) != 0 {
+				t.Errorf("%s with unreadable stored access sent event requests %v", action.name, sent)
+			}
+			if len(world.store.snapshot()) != 0 || world.holdsConnectionCookie() {
+				t.Error("a connection whose stored access cannot be read was kept")
+			}
+			if page := world.page(t); !strings.Contains(page, "Not connected") {
+				t.Error("the Soccer page still presented the unreadable connection")
+			}
+		})
+	}
+}
+
+func TestTheGoogleCardRemovesAConnectionWhoseStoredAccessTheSiteCannotRead(t *testing.T) {
+	for _, view := range []struct {
+		name string
+		show func(t *testing.T, world *calendarDestinationWorld) string
+	}{
+		{name: "Soccer page", show: func(t *testing.T, world *calendarDestinationWorld) string { return world.page(t) }},
+		{name: "calendar choice", show: func(t *testing.T, world *calendarDestinationWorld) string {
+			return world.choose(t, teamCalendarID)
+		}},
+	} {
+		t.Run(view.name, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.choose(t, teamCalendarID)
+			world.makeStoredAccessUnreadable()
+
+			card := view.show(t, world)
+			if !strings.Contains(card, "Not connected") || strings.Contains(card, "Try again in a moment") {
+				t.Errorf("the %s still presents a connection whose stored access cannot be read", view.name)
+			}
+			if len(world.store.snapshot()) != 0 || world.holdsConnectionCookie() {
+				t.Errorf("the %s kept a connection whose stored access cannot be read", view.name)
+			}
+		})
+	}
+}

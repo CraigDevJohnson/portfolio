@@ -115,17 +115,21 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderRenewalFailure answers a write whose access token could not be
-// renewed. Only Google rejecting the grant itself removes the connection and
-// asks the visitor to reconnect. Any other failure, such as Google being
+// renewed. Only a connection that can never work again, because Google
+// rejected the grant or the site cannot read the stored token, is removed
+// with a request to reconnect. Any other failure, such as Google being
 // unavailable or rate limiting, a network error, or a failed save of the
 // renewed token, keeps the connection and its destination and asks the
 // visitor to retry with retryMessage.
 func (h *Handler) renderRenewalFailure(w http.ResponseWriter, r *http.Request, session *types.SessionData, err error, retryMessage string) {
-	if isGoogleAuthRejected(err) {
+	switch {
+	case isGoogleAuthRejected(err):
 		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
-		return
+	case errors.Is(err, errStoredTokenUnreadable):
+		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
+	default:
+		h.Soccer.RenderLoginFeedback(w, r, "error", retryMessage)
 	}
-	h.Soccer.RenderLoginFeedback(w, r, "error", retryMessage)
 }
 
 // calendarDestinationRejected reports whether the chosen calendar refused an
@@ -350,8 +354,8 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 	calendars, err := h.ListCalendars(r.Context(), r, record)
 	if err != nil {
 		logger := logging.WithContext(h.Logger, r.Context())
-		if isGoogleAuthRejected(err) {
-			logger.Warn("google calendar connection expired", slog.Any("error", err))
+		if connectionUnusable(err) {
+			logger.Warn("google calendar connection unusable", slog.Any("error", err))
 			h.DeleteConnection(r.Context(), w, r)
 		} else {
 			logger.Error("google calendar list failed", slog.Any("error", err))
