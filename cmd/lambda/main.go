@@ -43,7 +43,8 @@ func newDailyLambdaHandler(runner dailyRunner) dailyHandlerFunc {
 			return report, err
 		}
 		if !report.Complete {
-			slog.Warn(soccerarchive.DailyIncompleteLog, slog.Int("requests", report.Requests), slog.Bool("pending_due_work", report.PendingDueWork), slog.Any("results", report.Results))
+			slog.Warn(soccerarchive.DailyIncompleteLog, slog.Int("requests", report.Requests), slog.Bool("pending_due_work", report.PendingDueWork),
+				slog.Int("unselected_due_teams", report.UnselectedDueTeams), slog.Any("results", report.Results))
 		} else {
 			slog.Info(soccerarchive.DailyCompletedLog, slog.Int("requests", report.Requests), slog.Any("results", report.Results))
 		}

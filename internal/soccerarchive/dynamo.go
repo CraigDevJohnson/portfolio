@@ -69,14 +69,14 @@ func NewDynamoStoreWithAPI(api DynamoAPI, tableName string, limits Limits) (*Dyn
 // marker that enrollment records carry while they are due for refresh.
 const dueTeamsIndex = "due-teams"
 
-// QueryDueTeams returns up to maxTeams enrolled Team IDs due at or before
-// cutoff, earliest first, reading only the due-teams index, never the whole
-// table. more reports that further due teams were left unread.
-func (s *DynamoStore) QueryDueTeams(ctx context.Context, cutoff time.Time, maxTeams int) (teamIDs []int, more bool, err error) {
-	if cutoff.IsZero() || maxTeams <= 0 {
-		return nil, false, errors.New("due query requires a cutoff and a positive team limit")
+// QueryDueTeams returns every enrolled team due at or before cutoff, earliest
+// first, reading only the due-teams index, never the whole table.
+func (s *DynamoStore) QueryDueTeams(ctx context.Context, cutoff time.Time) ([]DueTeam, error) {
+	if cutoff.IsZero() {
+		return nil, errors.New("due query requires a cutoff")
 	}
 	seen := make(map[int]bool)
+	teams := make([]DueTeam, 0)
 	var startKey map[string]types.AttributeValue
 	for {
 		page, err := s.api.Query(ctx, &dynamodb.QueryInput{
@@ -92,24 +92,25 @@ func (s *DynamoStore) QueryDueTeams(ctx context.Context, cutoff time.Time, maxTe
 			ExclusiveStartKey: startKey,
 		})
 		if err != nil {
-			return nil, false, fmt.Errorf("query due teams: %w", err)
+			return nil, fmt.Errorf("query due teams: %w", err)
 		}
 		for _, raw := range page.Items {
 			var item archiveItem
 			if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-				return nil, false, fmt.Errorf("decode due team: %w", err)
+				return nil, fmt.Errorf("decode due team: %w", err)
 			}
 			if item.Kind != "team" || item.TeamID <= 0 || seen[item.TeamID] {
 				continue
 			}
-			if len(teamIDs) == maxTeams {
-				return teamIDs, true, nil
-			}
 			seen[item.TeamID] = true
-			teamIDs = append(teamIDs, item.TeamID)
+			nextDueAt, err := dueTime(item.DueSK)
+			if err != nil {
+				return nil, fmt.Errorf("decode team %d due time: %w", item.TeamID, err)
+			}
+			teams = append(teams, DueTeam{TeamID: item.TeamID, NextDueAt: nextDueAt, Status: item.RefreshStatus})
 		}
 		if len(page.LastEvaluatedKey) == 0 {
-			return teamIDs, false, nil
+			return teams, nil
 		}
 		startKey = page.LastEvaluatedKey
 	}

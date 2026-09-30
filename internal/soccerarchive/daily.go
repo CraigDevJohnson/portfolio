@@ -122,7 +122,15 @@ func (systemDailyClock) Sleep(ctx context.Context, delay time.Duration) error {
 // same refresh operations the on-demand worker uses.
 type DailyStore interface {
 	RefreshStore
-	QueryDueTeams(ctx context.Context, cutoff time.Time, maxTeams int) (teamIDs []int, more bool, err error)
+	QueryDueTeams(ctx context.Context, cutoff time.Time) ([]DueTeam, error)
+}
+
+// DueTeam is one entry of the due-teams index: an enrolled team, when it is
+// next due, and its refresh status when the index was read.
+type DueTeam struct {
+	TeamID    int
+	NextDueAt time.Time
+	Status    RefreshStatus
 }
 
 // The structured log messages a scheduled run reports, and is alerted on.
@@ -131,12 +139,33 @@ const (
 	DailyIncompleteLog = "soccer_history_daily_incomplete"
 )
 
-// DailyReport distinguishes a complete daily pass from budget-limited work.
+// DailyReport distinguishes a complete daily pass from partial work. Results
+// name every team the run attempted and every due team it left for a later
+// run, with the reason. UnselectedDueTeams counts due teams past the run's
+// team ceiling, which the run did not read.
 type DailyReport struct {
-	Complete       bool            `json:"complete"`
-	PendingDueWork bool            `json:"pending_due_work"`
-	Requests       int             `json:"requests"`
-	Results        []RefreshResult `json:"results"`
+	Complete           bool            `json:"complete"`
+	PendingDueWork     bool            `json:"pending_due_work"`
+	Requests           int             `json:"requests"`
+	Results            []RefreshResult `json:"results"`
+	UnselectedDueTeams int             `json:"unselected_due_teams"`
+}
+
+// leaveDue names each team in teams that the due index shows due in the run
+// that started at start, as left for a later run with outcome.
+func (report *DailyReport) leaveDue(teams []DueTeam, start time.Time, outcome RefreshOutcome) {
+	report.Complete, report.PendingDueWork = false, true
+	for _, team := range teams {
+		if indexedDue(team, start) {
+			report.Results = append(report.Results, RefreshResult{TeamID: team.TeamID, Outcome: outcome})
+		}
+	}
+}
+
+// indexedDue reports whether a due-index entry, as read, is due in the run
+// that started at start.
+func indexedDue(team DueTeam, start time.Time) bool {
+	return dueInRun(&RefreshState{Status: team.Status, NextDueAt: team.NextDueAt}, start, start) != notDue
 }
 
 // refreshedTeamGuard is how long a successful fetch keeps a team from being
@@ -191,20 +220,28 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	report := DailyReport{Complete: true, Results: make([]RefreshResult, 0)}
 	// The query also finds teams whose backoff after a temporary failure ends
 	// during the run, so a team still backing off at its turn is reported.
-	dueIDs, more, err := w.store.QueryDueTeams(ctx, start.Add(retryableFailureDelay), w.limits.MaxEnrolledTeams)
+	due, err := w.store.QueryDueTeams(ctx, start.Add(retryableFailureDelay))
 	if err != nil {
 		report.Complete = false
 		return report, fmt.Errorf("select due teams: %w", err)
 	}
-	if more {
-		report.Complete, report.PendingDueWork = false, true
+	if len(due) > w.limits.MaxEnrolledTeams {
+		for _, team := range due[w.limits.MaxEnrolledTeams:] {
+			if indexedDue(team, start) {
+				report.UnselectedDueTeams++
+			}
+		}
+		due = due[:w.limits.MaxEnrolledTeams]
+		if report.UnselectedDueTeams > 0 {
+			report.Complete, report.PendingDueWork = false, true
+		}
 	}
-	for _, teamID := range dueIDs {
-		state, err := w.store.ReadRefreshState(ctx, teamID)
+	for i, team := range due {
+		state, err := w.store.ReadRefreshState(ctx, team.TeamID)
 		if err != nil {
 			report.Complete = false
 			report.Requests = transport.Used()
-			return report, fmt.Errorf("check due team %d: %w", teamID, err)
+			return report, fmt.Errorf("check due team %d: %w", team.TeamID, err)
 		}
 		switch dueInRun(&state, start, w.clock.Now()) {
 		case notDue:
@@ -212,22 +249,22 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 			// or during this run, or it is invalid.
 			continue
 		case backingOff:
-			report.Results = append(report.Results, RefreshResult{TeamID: teamID, Outcome: RefreshBackingOff})
+			report.Results = append(report.Results, RefreshResult{TeamID: team.TeamID, Outcome: RefreshBackingOff})
 			report.Complete, report.PendingDueWork = false, true
 			continue
 		}
 		if transport.Used() >= w.limits.MaxRequestsPerRun {
-			report.Complete, report.PendingDueWork = false, true
+			report.leaveDue(due[i:], start, RefreshBudgetExhausted)
 			report.Requests = transport.Used()
 			return report, nil
 		}
-		result := refresh.refreshTeam(ctx, teamID)
+		result := refresh.refreshTeam(ctx, team.TeamID)
 		report.Results = append(report.Results, result)
 		if result.Outcome != RefreshSucceeded {
 			report.Complete = false
 		}
 		if result.Outcome == RefreshBudgetExhausted {
-			report.PendingDueWork = true
+			report.leaveDue(due[i+1:], start, RefreshBudgetExhausted)
 			report.Requests = transport.Used()
 			return report, nil
 		}

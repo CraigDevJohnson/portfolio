@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -150,10 +151,12 @@ func TestDailyWorkerLeavesBudgetLimitedTeamsDueForNextInvocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Team 101's retry spends the request team 303 would have used.
+	// Team 101's retry spends the request team 303 would have used, so the
+	// run names 303 as left for the next invocation.
 	first, err := worker.Run(t.Context())
-	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 3 || len(first.Results) != 2 ||
-		first.Results[0].Outcome != RefreshSucceeded || first.Results[1].Outcome != RefreshSucceeded || requests[303] != 0 {
+	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 3 || len(first.Results) != 3 ||
+		first.Results[0].Outcome != RefreshSucceeded || first.Results[1].Outcome != RefreshSucceeded ||
+		first.Results[2] != (RefreshResult{TeamID: 303, Outcome: RefreshBudgetExhausted}) || requests[303] != 0 {
 		t.Fatalf("first budget-limited pass = %#v, err %v, requests %#v", first, err, requests)
 	}
 	second, err := worker.Run(t.Context())
@@ -642,5 +645,53 @@ func TestDailyRunReportsATeamStillBackingOffWhenItsTurnComes(t *testing.T) {
 		report.Results[0] != (RefreshResult{TeamID: 101, Outcome: RefreshSucceeded}) || report.Results[1] != (RefreshResult{TeamID: 202, Outcome: RefreshBackingOff}) ||
 		requests(101) != 1 || requests(202) != 0 {
 		t.Fatalf("a team backing off at its turn was skipped silently or retried early: report %#v, err %v, requests %d/%d", report, err, requests(101), requests(202))
+	}
+}
+
+func TestBudgetLimitedRunNamesEveryDueTeamItLeft(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// Teams are due in the order they were last fetched.
+	for teamID, fetchedAt := range map[int]time.Time{
+		202: time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC),
+		101: time.Date(2026, 9, 20, 11, 0, 0, 0, time.UTC),
+		303: time.Date(2026, 9, 20, 11, 30, 0, 0, time.UTC),
+		404: time.Date(2026, 9, 20, 11, 45, 0, 0, time.UTC),
+	} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: fetchedAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/teams/101":
+			// Team 101's games use two facilities, one lookup each.
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":5},{"UGameID":9002,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":6}]}`)
+		case "/teams/202":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":202,"Season":169},"games":[]}`)
+		case "/facilities/5", "/facilities/6":
+			_, _ = fmt.Fprintf(w, `{"FacilityID":%s}`, strings.TrimPrefix(r.URL.Path, "/facilities/"))
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	clock := &fakeDailyClock{now: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)}
+	// Three teams a run, three requests: 202 takes one, and 101's second
+	// facility lookup is refused; 303 is never started, and 404 is past the
+	// run's team ceiling.
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{MaxEnrolledTeams: 3, MaxRequestsPerRun: 3, MinRequestInterval: time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	want := []RefreshResult{{TeamID: 202, Outcome: RefreshSucceeded}, {TeamID: 101, Outcome: RefreshBudgetExhausted}, {TeamID: 303, Outcome: RefreshBudgetExhausted}}
+	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 3 || !slices.Equal(report.Results, want) || report.UnselectedDueTeams != 1 ||
+		!slices.Equal(requests, []string{"/teams/202", "/teams/101", "/facilities/5"}) {
+		t.Fatalf("budget-limited run = %#v, err %v, requests %v; want results %v and one unselected due team", report, err, requests, want)
 	}
 }
