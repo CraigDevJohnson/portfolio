@@ -486,3 +486,83 @@ func TestSoccerImportStopsWhenLinkedPlayerHistoryIsIncomplete(t *testing.T) {
 		})
 	}
 }
+
+// assertEvidenceOnlyForEnrolledTeams requires every stored membership to name
+// an enrolled team and a player whose identity and owner link are stored, so
+// whatever an interrupted save left behind is still consistent evidence.
+func (route *playerHistoryRoute) assertEvidenceOnlyForEnrolledTeams(t *testing.T) {
+	t.Helper()
+	teams := route.items(t, "team")
+	players := route.items(t, "player")
+	owned := map[string]bool{}
+	for _, link := range route.items(t, "player_owner") {
+		owned[fmt.Sprintf("%v/%d", link["owner_subject"], intAttribute(link, "player_id"))] = true
+	}
+	for subject, memberships := range route.memberships(t) {
+		for triple := range memberships {
+			if team := teams[fmt.Sprintf("TEAM#%d/META", triple.team)]; team["due_pk"] != "TEAM_DUE" {
+				t.Errorf("owner %s membership %+v names team %d, which is not enrolled for refresh", subject, triple, triple.team)
+			}
+			if players[fmt.Sprintf("PLAYER#%d/META", triple.player)] == nil || !owned[fmt.Sprintf("%s/%d", subject, triple.player)] {
+				t.Errorf("owner %s membership %+v has no stored player identity and owner link", subject, triple)
+			}
+		}
+	}
+}
+
+func TestSoccerImportRetryCompletesLinkedPlayerHistoryAnInterruptedSaveLeftIncomplete(t *testing.T) {
+	for _, failure := range []struct {
+		name  string
+		fails func(key string) bool
+	}{
+		{
+			name:  "a discovered team's enrollment fails",
+			fails: func(key string) bool { return key == "TEAM#4202/META" },
+		},
+		{
+			name:  "the last membership fails",
+			fails: func(key string) bool { return strings.HasSuffix(key, "#TEAM#0000004202#SEASON#0000000079") },
+		},
+	} {
+		t.Run(failure.name, func(t *testing.T) {
+			route := newPlayerHistoryRoute(t)
+			route.table.FailPut = func(key string) error {
+				if failure.fails(key) {
+					return fmt.Errorf("throttled writing %s", key)
+				}
+				return nil
+			}
+			owner := route.signedInOwner(t)
+
+			interrupted := route.disclosedImport(t, owner)
+
+			if interrupted.Code != http.StatusOK || !strings.Contains(interrupted.Body.String(), "Linked-player history could not be saved. Try the import again.") {
+				t.Fatalf("interrupted save outcome: status %d, body %q", interrupted.Code, interrupted.Body.String())
+			}
+			if findSessionCookie(t, interrupted.Result()) != nil {
+				t.Error("the import was kept although the history it disclosed was not saved in full")
+			}
+			route.assertEvidenceOnlyForEnrolledTeams(t)
+
+			route.table.FailPut = nil
+			retried := route.disclosedImport(t, owner)
+
+			if retried.Code != http.StatusOK || findSessionCookie(t, retried.Result()) == nil {
+				t.Fatalf("retried import did not keep the import: status %d, body %q", retried.Code, retried.Body.String())
+			}
+			byOwner := route.memberships(t)
+			if len(byOwner) != 1 || len(byOwner["stable-subject"]) != len(linkedPlayerMemberships) {
+				t.Fatalf("memberships after the retry = %v, want the four associations for stable-subject", byOwner)
+			}
+			for triple := range byOwner["stable-subject"] {
+				if !linkedPlayerMemberships[triple] {
+					t.Errorf("unexpected membership %+v after the retry", triple)
+				}
+			}
+			if players, links, teams := len(route.items(t, "player")), len(route.items(t, "player_owner")), len(route.items(t, "team")); players != 2 || links != 2 || teams != 4 {
+				t.Errorf("after the retry: %d players, %d owner links, %d enrolled teams; want 2, 2, 4", players, links, teams)
+			}
+			route.assertEvidenceOnlyForEnrolledTeams(t)
+		})
+	}
+}

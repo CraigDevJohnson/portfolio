@@ -22,9 +22,12 @@ const (
 	playerEnrollment = "player"
 )
 
-// SavePlayerDiscovery stores identities, exact owner-bound membership proof,
-// and known teams. Stable keys make a repeated import converge on the same
-// records. A failure can be retried without multiplying membership edges.
+// SavePlayerDiscovery enrolls the known teams, then stores player identities
+// and owner links, then exact owner-bound membership proof. The records are
+// written one at a time, so a failed save can leave some of them stored, but
+// never a membership whose team is not enrolled or whose player identity and
+// owner link are missing. Stable keys make a retry complete the set without
+// multiplying membership edges.
 func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error {
 	if discovery == nil || strings.TrimSpace(discovery.OwnerIssuer) == "" || strings.TrimSpace(discovery.OwnerSubject) == "" || discovery.ObservedAt.IsZero() || len(discovery.Players) == 0 {
 		return errors.New("player discovery requires owner, players, and observation time")
@@ -46,6 +49,14 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 	for _, membership := range discovery.Memberships {
 		if !playerIDs[membership.PlayerID] || !teamIDs[membership.Team.UTeamID] || membership.Team.Season <= 0 {
 			return errors.New("player discovery contains unproven team-season membership")
+		}
+	}
+
+	teams := slices.Clone(discovery.KnownTeams)
+	sort.Slice(teams, func(i, j int) bool { return teams[i].UTeamID < teams[j].UTeamID })
+	for i := range teams {
+		if err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt); err != nil {
+			return err
 		}
 	}
 
@@ -103,13 +114,6 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 		}
 	}
 
-	teams := slices.Clone(discovery.KnownTeams)
-	sort.Slice(teams, func(i, j int) bool { return teams[i].UTeamID < teams[j].UTeamID })
-	for i := range teams {
-		if err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
