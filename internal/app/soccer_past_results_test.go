@@ -131,18 +131,16 @@ func newPastResultsWorld(t *testing.T) *pastResultsWorld {
 	return world
 }
 
-// connectGoogle completes Google Calendar consent as the fake account.
-func (world *pastResultsWorld) connectGoogle(t *testing.T) {
-	t.Helper()
-	start := world.browser.get("/soccer/google/connect")
-	consent, err := url.Parse(start.Header().Get("Location"))
-	if start.Code != http.StatusSeeOther || err != nil {
-		t.Fatalf("Google connect did not start consent: %d %q", start.Code, start.Header().Get("Location"))
-	}
-	callback := world.browser.get("/soccer?code=granted&state=" + url.QueryEscape(consent.Query().Get("state")))
-	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/soccer?google=connected" {
-		t.Fatalf("Google consent callback = %d %q", callback.Code, callback.Header().Get("Location"))
-	}
+// pastResultsSource fetches the schedule for both teams from one schedule
+// source and returns the review the route rendered.
+type pastResultsSource struct {
+	name  string
+	fetch func(*testing.T) *html.Node
+}
+
+// sources lists both schedule sources, Team IDs first.
+func (world *pastResultsWorld) sources() []pastResultsSource {
+	return []pastResultsSource{{"Team IDs", world.fetchTeamIDs}, {"linked players", world.fetchLinkedPlayers}}
 }
 
 // fetchTeamIDs looks up both teams by Team ID, as the manual source does.
@@ -224,15 +222,13 @@ func assertScoredPastResultReview(t *testing.T, doc *html.Node, source string) {
 
 func TestGoogleModeReviewsScoredPastGamesFromTeamIDsAndLinkedPlayersWithoutCalendarRequests(t *testing.T) {
 	world := newPastResultsWorld(t)
-	world.connectGoogle(t)
+	completeGoogleConsent(t, world.browser)
 	before := world.google.callCount()
 
-	for source, fetch := range map[string]func(*testing.T) *html.Node{
-		"Team IDs":       world.fetchTeamIDs,
-		"linked players": world.fetchLinkedPlayers,
-	} {
+	for _, from := range world.sources() {
+		source := from.name
 		t.Run(source, func(t *testing.T) {
-			doc := fetch(t)
+			doc := from.fetch(t)
 			assertScoredPastResultReview(t, doc, source)
 			sync := plannerSingle(t, doc, source+" Sync action", func(node *html.Node) bool {
 				return plannerHasAttr(node, "data-game-action") && soccerHTMLAttribute(node, "data-game-group") == "past-results"
@@ -250,7 +246,7 @@ func TestGoogleModeReviewsScoredPastGamesFromTeamIDsAndLinkedPlayersWithoutCalen
 
 func TestResultSyncTakesNoPastGameWithoutAScore(t *testing.T) {
 	world := newPastResultsWorld(t)
-	world.connectGoogle(t)
+	completeGoogleConsent(t, world.browser)
 	doc := world.fetchTeamIDs(t)
 	before := world.google.callCount()
 
@@ -276,11 +272,9 @@ func TestResultSyncTakesNoPastGameWithoutAScore(t *testing.T) {
 func TestResultSyncWithoutAValidGoogleConnectionWritesNothing(t *testing.T) {
 	t.Run("never connected", func(t *testing.T) {
 		world := newPastResultsWorld(t)
-		for source, fetch := range map[string]func(*testing.T) *html.Node{
-			"Team IDs":       world.fetchTeamIDs,
-			"linked players": world.fetchLinkedPlayers,
-		} {
-			doc := fetch(t)
+		for _, from := range world.sources() {
+			source := from.name
+			doc := from.fetch(t)
 			assertScoredPastResultReview(t, doc, source)
 			if actions := plannerElements(doc, func(node *html.Node) bool {
 				return plannerHasAttr(node, "data-game-action") && soccerHTMLAttribute(node, "data-game-group") == "past-results"
@@ -306,7 +300,7 @@ func TestResultSyncWithoutAValidGoogleConnectionWritesNothing(t *testing.T) {
 
 	t.Run("access revoked at Google", func(t *testing.T) {
 		world := newPastResultsWorld(t)
-		world.connectGoogle(t)
+		completeGoogleConsent(t, world.browser)
 		doc := world.fetchTeamIDs(t)
 		world.google.setRevoked(true)
 		before := world.google.callCount()

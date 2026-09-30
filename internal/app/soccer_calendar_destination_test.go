@@ -346,16 +346,23 @@ func newCalendarDestinationWorld(t *testing.T) *calendarDestinationWorld {
 func (world *calendarDestinationWorld) connect(t *testing.T) string {
 	t.Helper()
 	world.browser.signIn("/soccer")
-	start := world.browser.get("/soccer/google/connect")
+	completeGoogleConsent(t, world.browser)
+	return world.page(t)
+}
+
+// completeGoogleConsent starts Google Calendar consent from the signed-in
+// browser and returns from the fake Google account's grant.
+func completeGoogleConsent(t *testing.T, browser *siteBrowser) {
+	t.Helper()
+	start := browser.get("/soccer/google/connect")
 	consent, err := url.Parse(start.Header().Get("Location"))
 	if start.Code != http.StatusSeeOther || err != nil {
 		t.Fatalf("Google connect did not start consent: %d %q", start.Code, start.Header().Get("Location"))
 	}
-	callback := world.browser.get("/soccer?code=granted&state=" + url.QueryEscape(consent.Query().Get("state")))
+	callback := browser.get("/soccer?code=granted&state=" + url.QueryEscape(consent.Query().Get("state")))
 	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/soccer?google=connected" {
 		t.Fatalf("Google consent callback = %d %q", callback.Code, callback.Header().Get("Location"))
 	}
-	return world.page(t)
 }
 
 // page returns the Soccer page as the visitor now sees it.
