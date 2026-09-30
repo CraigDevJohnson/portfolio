@@ -40,5 +40,5 @@ Each feature file uses the same four H2 sections: `Sub-features`, `How to get to
 - [Skills catalog](./skills-catalog.md) covers search, category and proficiency filters, URL-backed state, empty results, and HTMX skill details.
 - [Project showcase](./project-showcase.md) covers the Home Projects CTA, the three project dossiers, destinations, and responsive reading order.
 - [Soccer schedule](./soccer-schedule.md) covers the choice-first entry page, the public Team ID journey against the preview fake LPS, and safe fixture-backed selection and ICS download behavior.
-- [Site account](./site-account.md) covers public pages without an account, the Sign in entry and its return destination, the signed-in account in shared navigation, and public versus granted Soccer actions in one flow.
+- [Site account](./site-account.md) covers public pages without an account, the Sign in entry and its return destination, the signed-in account in shared navigation, and public versus granted Soccer actions in one flow. It does not complete sign-in, so sign-in return is proved only by route tests.
 - [Management portal preview](./management-portal-preview.md) covers the loopback-only dashboard, instance controls, metrics, logs, interruption states, and the management access denial without live AWS or Cognito.

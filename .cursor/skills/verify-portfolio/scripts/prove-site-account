@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
-# Proves the site identity journey a visitor sees in one browser session:
-# public pages through shared navigation, the Sign in entry and landing
-# keeping the page the visitor came from, the signed-in account in shared
+# Proves what a visitor sees of site identity in one browser session: public
+# pages through shared navigation, the Sign in entry carrying the page the
+# visitor came from to the sign-in landing, the signed-in account in shared
 # navigation, and the visible and enforced difference between public and
-# granted Soccer actions. Identities are preview fixtures and LPS is the
-# preview fake; the Cognito round trip back to that page is proved by the
-# route tests with fake Cognito, not here.
+# granted Soccer actions. Account states are preview fixtures and LPS is the
+# preview fake. The preview never initializes site Cognito, so this proof
+# never completes sign-in: it does not prove sign-in return or account state
+# from a session a sign-in produced. Only the internal/app route tests with
+# fake Cognito prove those.
 
 set -euo pipefail
 
@@ -76,10 +78,10 @@ capture 00-home-before
 step 'Public pages through shared navigation (no sign-in configured)' --filename "$STEPS/01-public-navigation.js"
 capture 01-public-navigation-home-after
 
-step 'Sign in entry keeps the return destination (preview identity)' --filename "$STEPS/02-sign-in-return.js"
+step 'Sign in entry carries the return destination (preview fixture; sign-in not completed)' --filename "$STEPS/02-sign-in-entry.js"
 capture 02-sign-in-landing
 
-step 'Signed-in account in shared navigation (preview identity)' --filename "$STEPS/03-signed-in-account.js"
+step 'Signed-in account in shared navigation (preview fixture, not a signed-in session)' --filename "$STEPS/03-signed-in-account.js"
 capture 03-signed-in-account
 
 for fixture in soccer-signed-out soccer-ungranted soccer-granted; do
@@ -105,4 +107,4 @@ run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/n
   done
 ) >"$EVIDENCE_DIR/manifest.sha256"
 
-printf 'site-account proof captured at %s (preview identities and fake LPS; live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"
+printf 'site-account proof captured at %s (preview account fixtures and fake LPS; sign-in was not completed, and live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"

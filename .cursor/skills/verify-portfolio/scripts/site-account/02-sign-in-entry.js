@@ -1,11 +1,13 @@
-// On the signed-out account preview of About, the shared navigation's Sign in
-// entry carries About as its return destination in both navigation regions.
-// Following it opens the sign-in landing with that destination. The preview
-// has no Cognito, so the landing reports that sign-in is unavailable instead
-// of offering Google, and navigation stops advertising sign-in.
+// On the signed-out account preview fixture of About, the shared navigation's
+// Sign in entry carries About as its return destination in both navigation
+// regions. Following it opens the sign-in landing with that destination in its
+// URL. The preview has no Cognito, so the landing reports that sign-in is
+// unavailable instead of offering Google, and navigation stops advertising
+// sign-in. This step does not prove sign-in return: the browser never submits
+// the landing form, follows the Cognito callback, or lands back on About.
 async page => {
   const fail = message => {
-    throw new Error(`site account proof (sign-in return): ${message}`)
+    throw new Error(`site account proof (sign-in entry): ${message}`)
   }
   const { origin } = new URL(page.url())
   const wantHref = '/sign-in?return_to=%2Fabout'
