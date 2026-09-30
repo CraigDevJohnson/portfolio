@@ -8,7 +8,10 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/config"
+	"portfolio/internal/portfolio"
 	"portfolio/internal/schedule"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -289,4 +292,22 @@ func soccerPreviewDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")
 	_, _ = io.WriteString(w, schedule.BuildICS(games))
+}
+
+// accountPreviewPageHandler renders a public page with preview-only account
+// navigation so local reviewers can inspect both states without Cognito.
+func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := siteidentity.WithSignInAvailable(r.Context(), true)
+	switch r.PathValue("fixture") {
+	case "signed-out":
+		ctx = siteidentity.WithRequestIdentity(ctx, nil, nil, "/about")
+	case "signed-in":
+		principal := &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: "invited.visitor@example.com"}
+		ctx = siteidentity.WithRequestIdentity(ctx, principal, nil, "/about")
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	portfolio.AboutHandler(w, r.WithContext(ctx), config.CareerStartYear)
 }

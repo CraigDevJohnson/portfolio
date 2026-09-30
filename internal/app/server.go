@@ -123,6 +123,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	// portal routes
 	if localPortalPreview {
 		mux.HandleFunc("GET /__preview/soccer/{fixture}", soccerPreviewPageHandler)
+		mux.HandleFunc("GET /__preview/account/{fixture}", accountPreviewPageHandler)
 		mux.HandleFunc("POST /__preview/soccer/download", soccerPreviewDownloadHandler)
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)

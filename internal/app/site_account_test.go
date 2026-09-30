@@ -275,6 +275,33 @@ func TestUninvitedIdentityGetsNoSessionOrPageGrant(t *testing.T) {
 	}
 }
 
+func TestAccountNavigationPreviewFixturesAreLocalOnly(t *testing.T) {
+	application := newTestApp(t)
+	preview, _ := buildMux(application, application.Logger, true)
+	serve := func(handler http.Handler, target string) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+		return response
+	}
+
+	signedIn := serve(preview, "/__preview/account/signed-in")
+	if signedIn.Code != http.StatusOK || !strings.Contains(signedIn.Body.String(), "invited.visitor@example.com") || !strings.Contains(signedIn.Body.String(), `action="/sign-out"`) {
+		t.Fatalf("signed-in preview did not render account state: %d", signedIn.Code)
+	}
+	signedOut := serve(preview, "/__preview/account/signed-out")
+	if signedOut.Code != http.StatusOK || !strings.Contains(signedOut.Body.String(), `href="/sign-in?return_to=%2Fabout"`) || strings.Contains(signedOut.Body.String(), `action="/sign-out"`) {
+		t.Fatalf("signed-out preview did not render the sign-in entry: %d", signedOut.Code)
+	}
+	if unknown := serve(preview, "/__preview/account/admin"); unknown.Code != http.StatusNotFound {
+		t.Fatalf("unknown account preview status = %d", unknown.Code)
+	}
+
+	live, _ := buildMux(application, application.Logger, false)
+	if exposed := serve(live, "/__preview/account/signed-in"); exposed.Code != http.StatusNotFound {
+		t.Fatalf("account preview outside local preview status = %d", exposed.Code)
+	}
+}
+
 func TestSignedInStaticAssetsRemainCacheable(t *testing.T) {
 	fixture := newFakeSiteCognito(t)
 	application := fixture.app(t)
