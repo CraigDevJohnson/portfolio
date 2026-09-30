@@ -76,7 +76,7 @@ func newPastResultsWorld(t *testing.T) *pastResultsWorld {
 
 	at := func(offset time.Duration) string { return testutil.MislabelledLPSZuluTime(time.Now().Add(offset)) }
 	day := 24 * time.Hour
-	game := func(id string, kickoff, result, home string, homeID int, away string, awayID int) string {
+	game := func(id, kickoff, result, home string, homeID int, away string, awayID int) string {
 		return fmt.Sprintf(`{"UGameID":%s,"SchedGameDateTime":%q,"field_name":"Field 1","result":%q,"UTeam1":%d,"UTeam2":%d,`+
 			`"home_team":{"UTeamID":%d,"team_name":%q},"visitor_team":{"UTeamID":%d,"team_name":%q}}`,
 			id, kickoff, result, homeID, awayID, homeID, home, awayID, away)
