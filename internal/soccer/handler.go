@@ -88,8 +88,13 @@ func (h *Handler) ArchiveStore() soccerarchive.Store {
 	return h.archiveStore
 }
 
-// SetArchiveStore enables offline manual-team archiving for this handler.
-// Production does not wire this until collection activation is approved.
+// SetArchiveStore wires the durable history archive, which enables manual
+// Team ID archiving for this handler. A store that also implements
+// soccerarchive.MembershipStore, as the DynamoDB store does, also makes the
+// import dialog disclose indefinite linked-player history and makes a
+// disclosed, granted import collect every linked player's team-season
+// memberships. Production must not wire it until the #80 activation review
+// approves collection.
 func (h *Handler) SetArchiveStore(store soccerarchive.Store) {
 	h.storeMu.Lock()
 	h.archiveStore = store

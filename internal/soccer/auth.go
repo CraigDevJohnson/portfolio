@@ -22,7 +22,10 @@ import (
 	"portfolio/types"
 )
 
-// ImportHandler validates an imported JWT, discovers linked players, and stores the session.
+// ImportHandler validates an imported JWT, discovers linked players, and stores
+// the session. When durable collection is wired and the visitor submitted the
+// disclosed import, it first records every linked player's team-season
+// memberships under the site owner and refuses the import if that fails.
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.Config.LoginEnabled() {
 		h.RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")

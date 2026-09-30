@@ -45,7 +45,8 @@ type PlayerDiscovery struct {
 }
 
 // MembershipStore persists owner-bound player evidence and known-team enrollment.
-// It is wired with Store only when offline history collection is enabled.
+// It is wired with Store only when durable history collection is enabled,
+// which stays off until activation.
 type MembershipStore interface {
 	SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error
 }
