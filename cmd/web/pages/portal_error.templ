@@ -1,31 +1,19 @@
 package pages
 
-import "fmt"
 import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
-import "net/http"
-import "strconv"
-
-type ErrorPageProps struct {
-	StatusCode int
-	Message    string
-}
 
 templ PortalError(props ErrorPageProps) {
-	@layouts.Base(layouts.BaseProps{Title: fmt.Sprintf("%d - Management portal", props.StatusCode), Page: "portal", Shell: layouts.ShellOperator}) {
+	@layouts.Base(layouts.BaseProps{Title: props.PageTitle(), Page: "portal", Shell: layouts.ShellOperator}) {
 		<div class="page-kit-page portal-error-page portal-console-error-page" data-layout="operator-interruption">
 			<section class="portal-error-card portal-console-error-card" aria-labelledby="portal-error-heading">
-				<div class="portal-error-code" aria-label={ "Status " + strconv.Itoa(props.StatusCode) }>{ strconv.Itoa(props.StatusCode) }</div>
+				<div class="portal-error-code" aria-label={ props.StatusLabel() }>{ props.StatusText() }</div>
 				<div class="portal-error-copy">
 					<p class="page-kit-eyebrow">Management portal</p>
-					if props.StatusCode == http.StatusForbidden {
-						<h1 id="portal-error-heading" class="page-section-title">Management access required</h1>
-					} else {
-						<h1 id="portal-error-heading" class="page-section-title">Something interrupted the connection</h1>
-					}
+					<h1 id="portal-error-heading" class="page-section-title">{ props.Heading() }</h1>
 					@partials.Feedback(partials.FeedbackProps{
 						Kind:       partials.FeedbackError,
-						Title:      portalErrorTitle(props.StatusCode),
+						Title:      props.FeedbackTitle(),
 						Message:    props.Message,
 						ExtraClass: "portal-error-feedback",
 					})
@@ -41,11 +29,4 @@ templ PortalError(props ErrorPageProps) {
 			</section>
 		</div>
 	}
-}
-
-func portalErrorTitle(status int) string {
-	if status == http.StatusForbidden {
-		return "Access denied"
-	}
-	return "Connection status"
 }
