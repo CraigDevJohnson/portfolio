@@ -587,6 +587,44 @@ func TestViewingThePageAfterTheDestinationIsLostPausesWritesBeforeAnyAdd(t *test
 	}
 }
 
+func TestAConnectionWithoutADestinationTakesPrimaryOnceTheAccountCanWriteIt(t *testing.T) {
+	for _, resume := range []string{"page view", "Add"} {
+		t.Run("resumed by "+resume, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.fetch(t)
+			// A connection saved without a destination, while the account can
+			// write no calendar at all.
+			for id, record := range world.store.records {
+				record.CalendarID, record.CalendarSummary = "", ""
+				world.store.records[id] = record
+			}
+			world.google.setAccess(primaryCalendarID, "reader")
+			world.google.setAccess(teamCalendarID, "reader")
+
+			mark := world.google.callCount()
+			if page := world.page(t); strings.Contains(page, calendarReady) {
+				t.Fatal("the page offered a ready destination while the account can write no calendar")
+			}
+			if added := world.add(t, nextGameID); !strings.Contains(added, calendarChoiceNeeded) || len(world.google.callsSince(mark)) != 0 {
+				t.Fatalf("Add while the account can write no calendar did not ask for one: %q", added)
+			}
+
+			// Nothing was chosen, so nothing was lost: primary becomes the
+			// destination without a choice once the account can write it.
+			world.google.setAccess(primaryCalendarID, "owner")
+			if resume == "page view" {
+				if page := world.page(t); !strings.Contains(page, calendarReady) || selectedCalendar(t, page) != primaryCalendarID {
+					t.Fatal("the page did not make primary the destination")
+				}
+			}
+			if added := world.add(t, nextGameID); !strings.Contains(added, "Added 1 selected game") || len(world.google.events(primaryCalendarID)) != 1 {
+				t.Fatalf("Add did not go to primary once the account could write it: %q", added)
+			}
+		})
+	}
+}
+
 func TestAddWritesOnlyExplicitlySelectedUpcomingGames(t *testing.T) {
 	world := newCalendarDestinationWorld(t)
 	mark := world.google.callCount()

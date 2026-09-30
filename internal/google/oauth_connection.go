@@ -26,44 +26,6 @@ func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Reques
 	h.Soccer.RenderLoginFeedback(w, r, "error", message)
 }
 
-// SyncCalendarSelection defaults an unset connection to primary and retains a
-// missing selected destination in a paused state until the user chooses again.
-func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
-	calendarID = strings.TrimSpace(record.CalendarID)
-	if record.CalendarSelectionRequired {
-		return calendarID, calendarSummary(calendars, calendarID)
-	}
-	if calendarID == "" {
-		calendarID, summary = preferredCalendar(calendars)
-		if calendarID == "" {
-			return "", ""
-		}
-		record.CalendarID = calendarID
-		record.CalendarSummary = summary
-		record.UpdatedAt = time.Now().UTC()
-		if err := h.Store().Put(ctx, record); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("google connection default calendar save failed", slog.Any("error", err))
-		}
-		return calendarID, summary
-	}
-	summary = calendarSummary(calendars, calendarID)
-	if summary == "" {
-		if err := h.pauseCalendarSelection(ctx, record); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("google unavailable calendar state save failed", slog.Any("error", err))
-		}
-		return calendarID, ""
-	}
-	if summary != "" && (record.CalendarID != calendarID || record.CalendarSummary != summary) {
-		record.CalendarID = calendarID
-		record.CalendarSummary = summary
-		record.UpdatedAt = time.Now().UTC()
-		if err := h.Store().Put(ctx, record); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("google connection calendar sync failed", slog.Any("error", err))
-		}
-	}
-	return calendarID, summary
-}
-
 // EncryptToken encrypts an OAuth token for storage.
 func (h *Handler) EncryptToken(token *oauth2.Token) (string, error) {
 	return h.encryptJSONValue(token)

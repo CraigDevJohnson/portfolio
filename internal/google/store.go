@@ -39,6 +39,26 @@ func (record *ConnectionRecord) accountVerified() bool {
 	return record.AccountSubject != "" && record.AccountEmail != ""
 }
 
+// selectCalendar makes a calendar the connection's destination and resumes
+// writes to it.
+func (record *ConnectionRecord) selectCalendar(id, summary string, now time.Time) {
+	record.CalendarID = id
+	record.CalendarSummary = summary
+	record.CalendarSelectionRequired = false
+	record.UpdatedAt = now
+}
+
+// pauseSelection makes writes wait for a new calendar choice. It reports
+// whether the connection was not already paused.
+func (record *ConnectionRecord) pauseSelection(now time.Time) bool {
+	if record.CalendarSelectionRequired {
+		return false
+	}
+	record.CalendarSelectionRequired = true
+	record.UpdatedAt = now
+	return true
+}
+
 // DynamoStore implements ConnectionStore using DynamoDB.
 type DynamoStore struct {
 	client    *dynamodb.Client

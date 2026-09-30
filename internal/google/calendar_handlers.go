@@ -153,52 +153,6 @@ func (h *Handler) pauseAndRenderCalendarChoice(ctx context.Context, w http.Respo
 	h.renderCalendarChoiceRequired(w, r, session)
 }
 
-// ensureWritableCalendar reports whether the connection's chosen calendar is
-// still among the calendars the account can write. An unset choice becomes
-// the primary calendar; a missing one pauses writes until the visitor
-// chooses again, and a paused choice stays paused.
-func (h *Handler) ensureWritableCalendar(ctx context.Context, record *ConnectionRecord, token *oauth2.Token) (bool, error) {
-	if record.CalendarSelectionRequired {
-		return false, nil
-	}
-	calendars, err := h.listCalendarsWithToken(h.httpContext(ctx), token)
-	if err != nil {
-		return false, err
-	}
-	if strings.TrimSpace(record.CalendarID) == "" {
-		calendarID, summary := preferredCalendar(calendars)
-		if calendarID == "" {
-			if err := h.pauseCalendarSelection(ctx, record); err != nil {
-				return false, err
-			}
-			return false, nil
-		}
-		record.CalendarID = calendarID
-		record.CalendarSummary = summary
-		record.UpdatedAt = time.Now().UTC()
-		if err := h.Store().Put(ctx, record); err != nil {
-			return false, err
-		}
-	}
-	if calendarSummary(calendars, record.CalendarID) == "" {
-		if err := h.pauseCalendarSelection(ctx, record); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-	return true, nil
-}
-
-// pauseCalendarSelection records that writes wait for a new calendar choice.
-func (h *Handler) pauseCalendarSelection(ctx context.Context, record *ConnectionRecord) error {
-	if record.CalendarSelectionRequired {
-		return nil
-	}
-	record.CalendarSelectionRequired = true
-	record.UpdatedAt = time.Now().UTC()
-	return h.Store().Put(ctx, record)
-}
-
 // SyncResultsHandler updates previously synced past games with result text.
 func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	timeout := h.CalendarMutationTimeout
@@ -361,10 +315,7 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
-	record.CalendarID = selectedCalendarID
-	record.CalendarSummary = selectedCalendarSummary
-	record.CalendarSelectionRequired = false
-	record.UpdatedAt = time.Now().UTC()
+	record.selectCalendar(selectedCalendarID, selectedCalendarSummary, time.Now().UTC())
 	if err := h.Store().Put(r.Context(), record); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("google calendar selection save failed", slog.Any("error", err))
 	}
