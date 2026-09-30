@@ -405,3 +405,42 @@ func TestDailyWorkerRefreshesEveryDueValidTeamAndCheckpointsDuplicateDelivery(t 
 		t.Fatalf("duplicate delivery repeated work: report %#v, err %v, requests %#v", second, err, requests)
 	}
 }
+
+func TestDailyRunsAttemptDormantAndEnteredTeamsEveryDay(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// Two teams entered by Team ID the day before the first scheduled run.
+	enteredAt := time.Date(2026, 9, 20, 11, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: enteredAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		// Dormant: LPS still accepts the team but returns no games.
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	clock := &fakeDailyClock{}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: 30 * time.Second,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The schedule fires at 12:00 UTC each day; pacing fetches the second
+	// team half a minute after the run starts.
+	for day := 1; day <= 3; day++ {
+		clock.now = time.Date(2026, 9, 20+day, 12, 0, 0, 0, time.UTC)
+		report, err := worker.Run(t.Context())
+		if err != nil || !report.Complete || len(report.Results) != 2 || requests[101] != day || requests[202] != day {
+			t.Fatalf("day %d run skipped a dormant entered team: report %#v, err %v, requests %v", day, report, err, requests)
+		}
+	}
+}

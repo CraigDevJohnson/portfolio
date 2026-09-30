@@ -135,6 +135,14 @@ type DailyReport struct {
 	Results        []RefreshResult `json:"results"`
 }
 
+// dailyDueLeeway lets a run attempt a ready team that becomes due shortly
+// after the run starts. A refresh makes a team due a day after its fetch,
+// which is a little after that day's run began; without the leeway the next
+// day's run would find it not yet due and skip it for a day. It is longer
+// than any run and far shorter than a day, so a repeated delivery of the same
+// day's event finds the teams it refreshed not due.
+const dailyDueLeeway = time.Hour
+
 // DailyWorker runs the indexed daily pass without an HTTP request runtime.
 type DailyWorker struct {
 	store   DailyStore
@@ -164,14 +172,14 @@ func NewDailyWorker(store DailyStore, baseURL string, client *http.Client, limit
 // Run invokes each due team once and leaves unattempted teams due for the next
 // delivery. Successful and failed team writes are the durable checkpoints.
 func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
-	cutoff := w.clock.Now().UTC()
+	start := w.clock.Now().UTC()
 	client := *w.client
 	transport := &pacedTransport{base: client.Transport, clock: w.clock, maxRequests: w.limits.MaxRequestsPerRun, interval: w.limits.MinRequestInterval}
 	client.Transport = transport
 	source := &retryingTeamSource{source: lps.NewScheduleResolver(w.baseURL, &client, ""), retries: w.limits.MaxRetriesPerTeam, clock: w.clock}
 	refresh := NewRefreshWorker(w.store, source, w.clock.Now)
 	report := DailyReport{Complete: true, Results: make([]RefreshResult, 0)}
-	dueIDs, more, err := w.store.QueryDueTeams(ctx, cutoff, w.limits.MaxEnrolledTeams)
+	dueIDs, more, err := w.store.QueryDueTeams(ctx, start.Add(dailyDueLeeway), w.limits.MaxEnrolledTeams)
 	if err != nil {
 		report.Complete = false
 		return report, fmt.Errorf("select due teams: %w", err)
@@ -186,7 +194,8 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 			report.Requests = transport.Used()
 			return report, fmt.Errorf("check due team %d: %w", teamID, err)
 		}
-		if state.Status == RefreshInvalid || state.NextDueAt.After(cutoff) {
+		if !dueInRun(state, start) {
+			// Another delivery or the on-demand worker refreshed it already.
 			continue
 		}
 		if transport.Used() >= w.limits.MaxRequestsPerRun {
@@ -207,6 +216,20 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	}
 	report.Requests = transport.Used()
 	return report, nil
+}
+
+// dueInRun reports whether an enrolled team is due in a run that started at
+// start: a ready team within the run's leeway, a team that failed temporarily
+// only once its backoff has passed, and an invalid team never.
+func dueInRun(state RefreshState, start time.Time) bool {
+	switch {
+	case state.NextDueAt.IsZero() || state.Status == RefreshInvalid:
+		return false
+	case state.Status == RefreshRetryable:
+		return !state.NextDueAt.After(start)
+	default:
+		return !state.NextDueAt.After(start.Add(dailyDueLeeway))
+	}
 }
 
 // retryingTeamSource retries a team whose fetch failed temporarily, backing
