@@ -210,13 +210,21 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		}
 		return applyScheduleFetchError(props, err), false
 	}
+	// Scored past games serve the Google-mode result review, which only a
+	// visitor with the soccer grant can reach, from either source. A public
+	// Team ID lookup stays upcoming-only, so a team without upcoming games
+	// gets the full empty state. The ICS UI hides past results, and downloads
+	// resolve upcoming games only.
+	reviewPast := siteidentity.SoccerPrivateAllowed(ctx)
 	if archiveStore := h.ArchiveStore(); archiveStore != nil && strings.TrimSpace(input.TeamCodes) != "" && len(input.PlayerIDs) == 0 {
-		return h.resolveArchivedManualSchedule(ctx, archiveStore, input.TeamCodes, props)
+		return h.resolveArchivedManualSchedule(ctx, archiveStore, input.TeamCodes, reviewPast, props)
 	}
 
-	// Both sources retain scored past games for Google mode. The ICS UI hides
-	// them, and downloads still resolve upcoming games only.
-	games, err := h.RequestedAllScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	requested := h.RequestedScheduleGames
+	if reviewPast {
+		requested = h.RequestedAllScheduleGames
+	}
+	games, err := requested(ctx, session, input.PlayerIDs, input.TeamCodes)
 	if err == nil {
 		setTableFragmentGames(props, games)
 		return false, true
@@ -228,9 +236,10 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	return applyScheduleFetchError(props, err), false
 }
 
-func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStore soccerarchive.Store, teamCodes string, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
+func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStore soccerarchive.Store, teamCodes string, reviewPast bool, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
 	// The visitor gets the same schedule as the ordinary manual lookup, which
-	// skips unusable entries; only an unambiguous entry list is enrolled.
+	// skips unusable entries and keeps past games only for the result review;
+	// only an unambiguous entry list is enrolled.
 	teamIDs := parseTeamIDs(teamCodes)
 	if len(teamIDs) == 0 {
 		props.Message = invalidTeamIDsMessage
@@ -241,7 +250,11 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 	if err != nil {
 		return applyScheduleFetchError(props, err), false
 	}
-	setTableFragmentGames(props, games)
+	shown := games
+	if !reviewPast {
+		shown = schedule.UpcomingScheduleGames(games)
+	}
+	setTableFragmentGames(props, shown)
 	if !allTeamIDEntriesValid(teamCodes) {
 		props.EnrollmentFeedback = &partials.FeedbackProps{
 			Kind: partials.FeedbackWarning, Title: "History collection",

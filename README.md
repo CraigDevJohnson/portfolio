@@ -361,7 +361,8 @@ With Google output selected, either schedule source also shows scored past
 games newest first, including older results returned by LPS. Unscored games
 stay out of that list. Review and selection make no Calendar changes; Sync
 requires a separate Google connection. ICS mode hides past results and exports
-selected upcoming games only.
+selected upcoming games only. Google output needs the `soccer` grant, so a
+public Team ID lookup stays upcoming-only.
 
 ## Source layout
 

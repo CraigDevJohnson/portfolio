@@ -244,6 +244,43 @@ func TestGoogleModeReviewsScoredPastGamesFromTeamIDsAndLinkedPlayersWithoutCalen
 	}
 }
 
+// South FC has no upcoming game, only scored past games. The granted visitor
+// still reaches their Google-mode review, while the .ics output says there is
+// nothing to download and leads back to the Team ID field.
+func TestGoogleModeReviewsPastResultsWhenNoUpcomingGamesRemain(t *testing.T) {
+	world := newPastResultsWorld(t)
+	fetched := world.browser.postForm("/soccer/fetch", url.Values{"team_codes": {"202"}})
+	if fetched.Code != http.StatusOK {
+		t.Fatalf("Team ID fetch status = %d", fetched.Code)
+	}
+	doc := parsePlannerHTML(t, fetched.Body.String())
+
+	if got, want := plannerRowIDs(plannerGameRows(doc, "past-results")), []string{pastResultsRecentID, pastResultsMiddleID}; !slices.Equal(got, want) {
+		t.Fatalf("South FC past results = %v, want %v newest first", got, want)
+	}
+	assertPastResultControlsGoogleOnly(t, doc)
+	if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 0 {
+		t.Fatalf("South FC offered upcoming rows %v", plannerRowIDs(rows))
+	}
+	if states := plannerElements(doc, func(node *html.Node) bool { return soccerHTMLClassContains(node, "no-results") }); len(states) != 0 {
+		t.Fatal("the schedule with past results also rendered the no-games state")
+	}
+
+	panels := map[string]*html.Node{}
+	for _, panel := range plannerElements(doc, func(node *html.Node) bool { return soccerHTMLClassContains(node, "games-empty-panel") }) {
+		panels[soccerHTMLAttribute(panel, "data-soccer-output-only")] = panel
+	}
+	ics := panels["ics"]
+	if ics == nil || plannerHasAttr(ics, "hidden") || !strings.Contains(plannerText(ics), "No upcoming games to download") {
+		t.Fatal("the .ics output lacks its visible no-upcoming-games panel")
+	}
+	assertReturnToManualTeamIDs(t, ics)
+	google := panels["google"]
+	if google == nil || !plannerHasAttr(google, "hidden") || !strings.Contains(plannerText(google), "Past results are still available below") {
+		t.Fatal("Google mode lacks its panel pointing to the past results")
+	}
+}
+
 func TestResultSyncTakesNoPastGameWithoutAScore(t *testing.T) {
 	world := newPastResultsWorld(t)
 	completeGoogleConsent(t, world.browser)

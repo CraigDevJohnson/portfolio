@@ -75,6 +75,14 @@ func TestPreviewLinkedAccountDrivesTheRealLinkedPlayerRoutes(t *testing.T) {
 	if events := icsEvents(testutil.UnfoldICS(ics.Body.String())); ics.Code != http.StatusOK || len(events) != 2 || events["7003"] == "" || events["7002"] == "" {
 		t.Fatalf("preview linked .ics: status %d, body %q", ics.Code, ics.Body.String())
 	}
+
+	// The granted preview account's Team ID lookup of the same teams reviews
+	// the same scored past games in Google mode.
+	teamIDs := parsePlannerHTML(t, browser.postForm("/soccer/fetch", url.Values{"team_codes": {"479691, 479147"}}).Body.String())
+	if past := plannerRowIDs(plannerGameRows(teamIDs, "past-results")); !slices.Equal(past, previewPastResultsNewestFirst) {
+		t.Fatalf("preview Team ID past rows = %v, want the scored past games newest first %v for Google mode", past, previewPastResultsNewestFirst)
+	}
+	assertPastResultControlsGoogleOnly(t, teamIDs)
 }
 
 func TestPreviewLinkedAccountIsOnlyForItsOwnBrowserInThePreview(t *testing.T) {

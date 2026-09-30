@@ -263,7 +263,7 @@ func TestManualTeamLookupWithArchiveKeepsTheUsualSchedule(t *testing.T) {
 	route.assertNotArchived(t, 888888)
 }
 
-func TestManualTeamLookupWithArchiveKeepsScoredPastResultsForGoogleReview(t *testing.T) {
+func TestManualTeamLookupWithArchiveKeepsScoredPastResultsForGrantedGoogleReview(t *testing.T) {
 	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-24 * time.Hour))
 	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
@@ -277,17 +277,28 @@ func TestManualTeamLookupWithArchiveKeepsScoredPastResultsForGoogleReview(t *tes
 			`{"UGameID":8002,"SchedGameDateTime":%q,"Season":169,"UTeam1":479691,"UTeam2":223,"home_team":{"UTeamID":479691,"team_name":"Boise FC"},"visitor_team":{"UTeamID":223,"team_name":"Last Week FC"},"result":"2-1"}]}`,
 			future, past)
 	})
+	granted := signedInSiteCookie(t, route.app, "soccer")
+	asGranted := func(req *http.Request) { req.AddCookie(granted) }
 	route.handler.SetArchiveStore(nil)
-	usual := route.lookup(t, "479691")
+	usual := route.lookup(t, "479691", asGranted)
 	if past := plannerRowIDs(plannerGameRows(parsePlannerHTML(t, usual), "past-results")); !slices.Equal(past, []string{"8002"}) {
-		t.Fatalf("usual manual lookup past results = %v, want the scored game 8002", past)
+		t.Fatalf("usual granted manual lookup past results = %v, want the scored game 8002", past)
 	}
 
 	route.handler.SetArchiveStore(route.store)
-	archived := route.lookup(t, "479691")
+	archived := route.lookup(t, "479691", asGranted)
 
 	if !strings.HasSuffix(archived, usual) {
-		t.Fatalf("archive changed the visitor's schedule\nusual:    %q\narchived: %q", usual, archived)
+		t.Fatalf("archive changed the granted visitor's schedule\nusual:    %q\narchived: %q", usual, archived)
+	}
+	// A public visitor has no Google mode, so the archived lookup keeps #89's
+	// upcoming-only schedule.
+	public := parsePlannerHTML(t, route.lookup(t, "479691"))
+	if past := plannerGameRows(public, "past-results"); len(past) != 0 {
+		t.Fatalf("public archived lookup rendered past rows %v", plannerRowIDs(past))
+	}
+	if upcoming := plannerRowIDs(plannerGameRows(public, "upcoming-games")); !slices.Equal(upcoming, []string{"8001"}) {
+		t.Fatalf("public archived lookup upcoming rows = %v, want 8001", upcoming)
 	}
 	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
 	if err != nil || len(history.Games) != 2 {

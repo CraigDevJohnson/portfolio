@@ -378,12 +378,11 @@ func TestPublicPlannerRouteFetchesOrdersSelectsAndDownloadsWithoutCredentials(t 
 					t.Errorf("upcoming game %s did not begin selected", row.ID)
 				}
 			}
-			// The scored past game waits behind the Google-only gate for the
-			// Google result review; the .ics path never shows it.
-			if past := plannerRowIDs(plannerGameRows(doc, "past-results")); !slices.Equal(past, []string{"900"}) {
-				t.Errorf("manual lookup past rows = %v, want the scored past game 900 for Google mode", past)
+			// Without the soccer grant there is no Google mode, so the public
+			// lookup keeps #89's upcoming-only schedule.
+			if past := plannerGameRows(doc, "past-results"); len(past) != 0 {
+				t.Errorf("public manual lookup rendered past rows %v", plannerRowIDs(past))
 			}
-			assertPastResultControlsGoogleOnly(t, doc)
 
 			count := plannerSingle(t, doc, "upcoming selected count", func(node *html.Node) bool {
 				return plannerHasAttr(node, "data-selected-count") && soccerHTMLAttribute(node, "data-game-group") == "upcoming-games"
@@ -505,8 +504,6 @@ func TestPublicPlannerRouteRefetchKeepsTeamSetScopeAndSelectsNewGames(t *testing
 func TestPublicPlannerRouteExplainsEmptyAndFailedLookups(t *testing.T) {
 	routes, _ := newPublicPlannerRoutes(t, func(path string) (int, string) {
 		switch path {
-		case "/teams/100":
-			return http.StatusOK, publicScheduleJSON()
 		case "/teams/101":
 			return http.StatusOK, publicScheduleJSON(publicPastGame)
 		case "/teams/404":
@@ -525,15 +522,11 @@ func TestPublicPlannerRouteExplainsEmptyAndFailedLookups(t *testing.T) {
 		forbiddenText []string
 	}{
 		{
-			name: "no games", teamID: "100",
+			// A public visitor has no Google result review, so a team whose
+			// only game is a scored past one has no upcoming games.
+			name: "no upcoming games", teamID: "101",
 			wantHeading: "No upcoming games found",
-			wantText:    []string{"There are no upcoming games for the selected teams."},
-		},
-		{
-			// The scored past game waits, hidden, for the Google result review.
-			name: "only past results", teamID: "101",
-			wantHeading: "No upcoming games to download",
-			wantText:    []string{"Try again later or fetch another team schedule."},
+			wantText:    []string{"There are no upcoming games for the selected teams.", "Check your Team IDs, then fetch their schedules again."},
 		},
 		{
 			name: "unknown team", teamID: "404",
@@ -556,12 +549,14 @@ func TestPublicPlannerRouteExplainsEmptyAndFailedLookups(t *testing.T) {
 			if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 0 {
 				t.Fatalf("state %q rendered game rows %v", tc.name, plannerRowIDs(rows))
 			}
-			heading := plannerSingle(t, doc, "visible result state heading", func(node *html.Node) bool {
-				return node.Data == "h4" && plannerHiddenAncestor(node) == nil
-			})
+			if past := plannerGameRows(doc, "past-results"); len(past) != 0 {
+				t.Fatalf("state %q rendered past rows %v", tc.name, plannerRowIDs(past))
+			}
+			heading := plannerSingle(t, doc, "result state heading", func(node *html.Node) bool { return node.Data == "h4" })
 			if got := plannerText(heading); got != tc.wantHeading {
 				t.Fatalf("heading = %q, want %q", got, tc.wantHeading)
 			}
+			assertReturnToManualTeamIDs(t, heading)
 			text := plannerText(doc)
 			for _, want := range tc.wantText {
 				if !strings.Contains(text, want) {
@@ -608,6 +603,7 @@ func TestPublicPlannerRouteRestoresPastOnlyScheduleAsEmptyICSOutput(t *testing.T
 	if got := plannerText(icsPanels[0]); !strings.Contains(got, "No upcoming games to download") {
 		t.Fatalf("ICS empty panel = %q", got)
 	}
+	assertReturnToManualTeamIDs(t, icsPanels[0])
 	if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 0 {
 		t.Fatalf("past-only schedule rendered downloadable rows %v", plannerRowIDs(rows))
 	}
@@ -637,6 +633,29 @@ func TestPublicPlannerKeepsResultSyncInGoogleModeOnly(t *testing.T) {
 		t.Fatal("connected schedule lacks a result Sync action")
 	}
 	assertPastResultControlsGoogleOnly(t, doc)
+}
+
+// assertReturnToManualTeamIDs requires the empty state around within to offer
+// the "Return to manual team IDs" recovery link, which leads to the Team ID
+// field, under the same calendar-output gate as the state itself.
+func assertReturnToManualTeamIDs(t *testing.T, within *html.Node) {
+	t.Helper()
+	state := within
+	for state != nil && !soccerHTMLClassContains(state, "no-results") && !soccerHTMLClassContains(state, "games-empty-panel") {
+		state = state.Parent
+	}
+	if state == nil {
+		t.Fatalf("%q is not inside an empty state", plannerText(within))
+	}
+	links := plannerElements(state, func(node *html.Node) bool {
+		return node.Data == "a" && plannerText(node) == "Return to manual team IDs"
+	})
+	if len(links) != 1 || soccerHTMLAttribute(links[0], "href") != "#team_codes" {
+		t.Fatalf("empty state %q lacks the recovery link to the Team ID field", plannerText(state))
+	}
+	if plannerOutputGate(links[0]) != plannerOutputGate(state) {
+		t.Errorf("recovery link sits under a different output gate than its empty state")
+	}
 }
 
 // assertPastResultControlsGoogleOnly requires every past-result control,
