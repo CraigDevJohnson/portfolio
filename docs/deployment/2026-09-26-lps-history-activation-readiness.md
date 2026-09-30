@@ -16,10 +16,11 @@ only; whether development collects is still open. Section 7 records the
 membership first-seen note for #81.
 
 **Recommendation: blocked.** Do not enable collection or the daily schedule in
-either environment. Gates 1, 2 and 7 to 11 are open; the
-[remaining gates](#remaining-gates) list what each needs. This packet is a
-review artifact only: it does not approve source use, spend, an AWS plan or an
-activation.
+either environment. Gates 1, 2, 5 and 7 to 11 are open. Gates 3 and 6 are
+closed except for development: whether it collects is undecided, and 6.1 item
+2 waits on that. The [remaining gates](#remaining-gates) list what each needs.
+This packet is a review artifact only: it does not approve source use, spend,
+an AWS plan or an activation.
 
 Nothing in this packet contacted LPS, AWS, Cognito or Google. No backend was
 initialized, no state lock was taken, and nothing was planned against AWS,
@@ -331,17 +332,25 @@ item 8 was decided; each is marked below. Nothing has been planned or applied
 against AWS. Each code change is an ordinary pull request with offline tests;
 each apply needs Craig's approval of that specific saved plan.
 
-### 6.1 Repository changes needed before any plan
+### 6.1 Repository changes before any plan
 
-1. **Wire the environment roots.** `environments/{dev,prod}` do not pass
+Each item opens with the state before the September 30 changes. A **Done**,
+**Open** or **Decided** note gives its state on this branch; an item without
+one is still open.
+
+1. **Wire the environment roots.** Before September 30,
+   `environments/{dev,prod}` did not pass
    `enable_soccer_history`, `soccer_history_limits`,
    `activate_soccer_history_collection`, `activate_soccer_history_schedule`
-   or `soccer_history_schedule_expression` to the module. Add the variables
-   and set them in each `*.auto.tfvars`, not with `-var`, so an apply of the
-   saved plan sees identical inputs. Update the environment contract tests,
-   which currently assert that no history table is planned.
+   or `soccer_history_schedule_expression` to the module, and the
+   environment contract tests asserted that no history table was
+   planned. The change: add the variables and set them in each
+   `*.auto.tfvars`, not with `-var`, so an apply of the saved plan sees
+   identical inputs, and update those contract tests.
    **Done.** Both roots declare the five inputs with no defaults and pass them
-   to the module; the values are in each `*.auto.tfvars` (3.3).
+   to the module; the values are in each `*.auto.tfvars` (3.3). The contract
+   tests now assert the values, that neither root plans a history table,
+   worker, schedule or alarm, and that every stage's inputs reach the module.
 2. **Choose a dev alert destination.** Collection requires a nonempty
    `alarm_action_arns`, and `dev.auto.tfvars` has `[]`. Either dev uses the
    workloads `alerts` topic (`arn:aws:sns:us-west-2:793680745829:alerts`), or
@@ -409,11 +418,12 @@ each apply needs Craig's approval of that specific saved plan.
    `task infrastructure-ci` fails first. The committed statements render at
    the sizes in the table above.
 4. **Grant the CI roles the reads and release writes** (`ci-roles/main.tf`).
-   The CI roles read only the existing tables, the service function, its
-   execution role, its log groups and the five alarms. Once history resources
-   are in an environment's state, every release plan refreshes them and fails
-   without the grants below. Each role gets its own environment's ARNs:
-   `{env}` is `dev` for the dev deployer `portfolio-development-deployer-ci`
+   Before September 30, the CI roles read only the existing tables, the
+   service function, its execution role, its log groups and the five alarms.
+   Once history resources are in an environment's state, every release plan
+   refreshes them and would fail without the grants below. Each role gets its
+   own environment's ARNs: `{env}` is `dev` for the dev deployer
+   `portfolio-development-deployer-ci`
    (policy `portfolio-development-runtime-release`) and `prod` for the prod
    planner `portfolio-production-planner-ci` (`portfolio-production-read-only-plan`)
    and the prod deployer `portfolio-production-deployer-ci`
@@ -447,13 +457,17 @@ each apply needs Craig's approval of that specific saved plan.
    resource types for these roles. The first release plan after each stage is
    the cross-check: a missing read fails its refresh with `AccessDenied`
    before anything changes.
-5. **Teach `scripts/check-lambda-plan.sh` the worker image.** It accepts only
-   `aws_lambda_function.app` `image_uri` and the `live` alias. A release plan
-   that also moves `module.service.aws_lambda_function.history_worker[0]` to
-   the release image is rejected today; `tests/release-scripts.sh` now holds
-   that case ("a history worker image update"). Allow exactly that attribute,
-   to the same image, turn that case into an accept case, and add reject
-   cases for a different worker image and another worker attribute. **Done.**
+5. **Teach `scripts/check-lambda-plan.sh` the worker image.** Before
+   September 30, it accepted only `aws_lambda_function.app` `image_uri` and
+   the `live` alias, so a release plan that also moved
+   `module.service.aws_lambda_function.history_worker[0]` to the release
+   image was rejected; `tests/release-scripts.sh` held that as a reject case
+   ("a history worker image update"). The change: allow exactly that
+   attribute, to the same image, turn that case into an accept case, and add
+   reject cases for a different worker image and another worker attribute.
+   **Done.** The checker accepts the worker's `image_uri` moving to the
+   release image only, and `tests/release-scripts.sh` holds that accept case
+   and the two reject cases.
 6. **Scope the admission alarm to player refusals** (recommended; section
    3.3). Change the `history_admission_rejected` metric filter pattern to
    `{ $.msg = "soccer_history_admission_rejected" && $.source = "player" }`
@@ -468,16 +482,38 @@ each apply needs Craig's approval of that specific saved plan.
    metric and no alarm on it; the service contract asserts both patterns and
    `LOG_ADD_SOURCE=false`.
 7. **Verify the history alarms on release** (recommended, after item 6).
-   `scripts/verify-lambda-release.sh` checks only the five named alarms and
-   fails a release when any is in ALARM. Add the history alarms only once the
-   admission alarm counts player refusals alone; until then leave
-   `-soccer-history-admission-rejected` out of release verification, or any
-   refused visitor lookup in the previous 5 minutes fails the release.
+   Before September 30, `scripts/verify-lambda-release.sh` checked only the
+   five named alarms and failed a release when any was in ALARM. The
+   recommendation was to add the history alarms only once the admission
+   alarm counted player refusals alone, because until then any refused
+   visitor lookup in the previous 5 minutes would fail the release.
    **Done.** Verification checks every alarm the environment's `alarm_names`
    output names: the five service alarms always, and the history alarms once
    a stage is applied. With history off it asks CloudWatch only for the five,
    so a release works before and after the account root grants the history
    alarm reads.
+
+   **The failure-queue alarm holds releases until the queue is drained.** The
+   admission, incomplete-run and worker-error alarms return to OK after 5
+   minutes without a new failure (`notBreaching`). The
+   `portfolio-lambda-{env}-soccer-history-dead-letter` alarm instead stays in
+   ALARM while any message is visible in
+   `portfolio-lambda-{env}-soccer-history-failures`
+   (`ApproximateNumberOfMessagesVisible` maximum of at least 1), and that
+   queue keeps a message for 14 days. A message lands there when a worker run
+   fails (an error, a timeout or a crash; an incomplete run is not a
+   failure), when a run's event waits more than an hour to start, or when
+   Scheduler cannot deliver the daily event. From then on, every release
+   in that environment applies its plan and then fails verification, for up
+   to 14 days, until an operator inspects the messages, records the cause,
+   and deletes them or purges the queue
+   ([DEPLOY-INSTRUCTIONS.md, Alarms](../../DEPLOY-INSTRUCTIONS.md#alarms)).
+   Once development runs the schedule, a failed development verification
+   also stops `production-plan`, which needs the development job. The branch
+   keeps this gate on purpose, so a failed daily run is looked at before the
+   next release ships; no CI role can receive or purge the queue. Releasing
+   past an undrained queue instead, by checking only that this alarm exists,
+   would need Craig's decision and a `tests/release-scripts.sh` case.
 8. **Decide the admission policy** (section 3.1: slots are never released).
    Accept the cap as a lifetime cap, or add a way to release slots of
    rejected or long-dormant teams. **Decided** (gate 4): a lifetime cap, so no
@@ -635,7 +671,10 @@ state, and `apply` changes AWS.
    the cross-check of the CI read grants in 6.1 item 4.
 7. **Stage 2 is a separate decision** with its own plan, hash, review against
    the stage 2 list, and approval that explicitly authorizes live LPS polling
-   at the reviewed time. Watch the first run's report line and the alarms.
+   at the reviewed time. Watch the first run's report line and the alarms. A
+   failed run leaves a message in the failure queue, and its alarm then fails
+   every release verification in that environment until the queue is drained
+   (6.1 item 7).
 
 ## 7. Note for #81: membership first-seen time
 
