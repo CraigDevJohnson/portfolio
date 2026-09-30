@@ -66,7 +66,10 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 		}
 		ctx := siteidentity.WithRequestIdentity(r.Context(), principal, grants, safeReturnTo(r.URL.RequestURI()))
 		ctx = siteidentity.WithSignInAvailable(ctx, h.OIDC != nil && h.Config != nil && h.Config.SiteEnabled())
-		next.ServeHTTP(w, r.WithContext(ctx))
+		identified := r.WithContext(ctx)
+		next.ServeHTTP(w, identified)
+		// ServeMux records the matched route on the copy it received; request logging reads the outer request.
+		r.Pattern = identified.Pattern
 	})
 }
 
