@@ -7,16 +7,17 @@ plus issues #83 and #85 to #103. A Codex draft of this packet from September
 26 predates the workloads move and the reworked #98 to #103; this version
 replaces it.
 
-**Decisions, September 30, 2026.** Craig decided gates 3 and 4: the candidate
-limits and daily time in 3.3 are accepted, the admission cap is a lifetime cap,
-and the admission alarm counts only refused player-linked teams. He will send
-LPS the section 2 questions himself (gate 1, [Appendix A](#appendix-a-message-to-lps)).
-The repository changes in 6.1 items 1 and 3 to 7 are made, with offline tests
+**Decisions, September 30, 2026.** Craig decided gates 3, 4 and 5: the
+candidate limits and daily time in 3.3 are accepted, the admission cap is a
+lifetime cap, the admission alarm counts only refused player-linked teams, and
+import latency is bounded in code (#100). He will send LPS the section 2
+questions himself (gate 1, [Appendix A](#appendix-a-message-to-lps)). The
+repository changes in 6.1 items 1, 3 to 7 and 9 are made, with offline tests
 only; whether development collects is still open. Section 7 records the
 membership first-seen note for #81.
 
 **Recommendation: blocked.** Do not enable collection or the daily schedule in
-either environment. Gates 1, 2, 5 and 7 to 11 are open. Gates 3 and 6 are
+either environment. Gates 1, 2 and 7 to 11 are open. Gates 3 and 6 are
 closed except for development: whether it collects is undecided, and 6.1 item
 2 waits on that. The [remaining gates](#remaining-gates) list what each needs.
 This packet is a review artifact only: it does not approve source use, spend,
@@ -53,7 +54,7 @@ Collection would call these LPS endpoints on `lps-api-prod.lps-test.com`:
 | Daily worker, per enrolled team | `GET /teams/{id}` | none | once per team per run, plus retries |
 | Daily worker, per team | `GET /facilities/{id}` | none | once per distinct facility the team's games use, per team; lookups are not shared between teams |
 | Visitor Team ID lookup (already public today) | `GET /teams/{id}`, `GET /facilities/{id}` | none | per lookup; with collection on, the lookup also enrolls the team |
-| Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one sequential call per linked player |
+| Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one call at a time, all within the import's 11 s lookup deadline (3.2) |
 | History read without stored proof | `GET /players/{id}/my_teams` | imported JWT | per read |
 | Verified player removal | `GET /users/check` | imported JWT | per removal |
 
@@ -157,7 +158,7 @@ or assumed, and the assumption is stated.
 | Retained bytes | Game item about 2.3 KB plus two edges of about 0.2 KB, and DynamoDB's 100 bytes of overhead per item; about 40 new games per team per year (five sessions of eight games); 40 teams give about 5 MB in year one and about 25 MB after five years | Item layout in `dynamo.go`, fixture sizes scaled to 2 KB games | Indefinite retention has no byte ceiling; dormant teams add no games |
 | Worker duration | About 80 to 120 s per run at 80 requests paced one a second; at most the 300 s timeout, after which the run stops starting teams and reports the rest | `pacedTransport`, the run deadline logic in `daily.go` | LPS and DynamoDB latency unmeasured |
 | Runs per day | One scheduled run. EventBridge Scheduler invokes Lambda asynchronously and retries only when that hand-off fails, so its two retries do not repeat a run that started. Delivery is at least once, so rare duplicates can run; a duplicate refreshes only teams still due, because a success keeps a team from being due for 4 hours and a temporary failure for 15 minutes | [Lambda with Scheduler](https://docs.aws.amazon.com/lambda/latest/dg/with-eventbridge-scheduler.html), [EventBridge FAQ](https://aws.amazon.com/eventbridge/faqs/), `refreshedTeamGuard` and `retryableFailureDelay` | No durable daily request counter exists; the bound is per run, so a duplicate after a budget-limited run can spend another 120 requests |
-| Import latency with collection on | `1 + P` sequential LPS calls for `P` linked players, each bounded only by the 15 s client timeout, plus up to 10 s of DynamoDB writes, against the 29 s Lambda timeout behind API Gateway | `collectLinkedPlayerHistory` in `internal/soccer/auth.go`, `lpsClientTimeout` | Two slow LPS calls exceed 29 s; the visitor then sees a gateway timeout |
+| Import latency with collection on | Bounded in code. The `1 + P` LPS calls for `P` linked players, one at a time, share one 11 s deadline counted from the request's arrival. A player whose `my_teams` lookup has not finished by then is skipped for that import: it keeps its identity and owner link without memberships, as a player LPS no longer finds does, its teams are not enrolled, and the import's notice names it. The players already listed keep their evidence and the import completes. At most 10 s of history writes and 3 s for the import record follow, so the handler's work ends within 24 s of API Gateway's 29 s, the budget the Google handlers keep. An account lookup that misses the deadline fails the import, as an unreachable LPS always has. Imports that collect no history keep only the 15 s client timeout | `DefaultHistoryImportLookupBudget` and `discoverImportedPlayerTeams` in `internal/soccer/auth.go`; `internal/app/soccer_import_deadline_test.go` | Real `my_teams` latency is unmeasured. A slow LPS now costs history, not the import: skipped players wait for a later import. Cold-start initialization (bounded at 8 s) runs before the deadline starts, so a cold start at its bound coinciding with a full lookup budget and 10 s of writes could still pass 29 s |
 
 Both environments would call the same LPS. If dev and prod both ran the
 schedule, the source traffic doubles; any source approval must cover the sum.
@@ -312,6 +313,14 @@ The grant matrix now includes `GET /soccer/history`
 (`internal/app/soccer_grant_matrix_test.go`), so signed-out, expired,
 ungranted and revoked visitors are shown to be refused there too.
 
+`internal/app/soccer_import_deadline_test.go` drives the same route
+assembly with a fake LPS that stalls, under a 200 ms stand-in for the lookup
+budget. When one player's `my_teams` lookup stalls, the import returns
+within the budget, names the skipped player, stores the other player's
+evidence, and enrolls none of the skipped player's teams. When `/users/check`
+stalls, the import fails within the budget with nothing stored. Imports that
+collect no history are not bound by the budget.
+
 **Unproven live, source:** permission (section 2); whether `/teams/{id}` and
 `/facilities/{id}` keep answering unauthenticated requests from the Lambda
 (the deployed public lookup makes the same calls today, not re-checked for
@@ -327,10 +336,11 @@ matching the deployed JSON logs; alarm delivery to `alerts`; the monthly bill.
 
 ## 6. Infrastructure actions
 
-On September 30, 2026, 6.1 items 1 and 3 to 7 were made in the repository and
-item 8 was decided; each is marked below. Nothing has been planned or applied
-against AWS. Each code change is an ordinary pull request with offline tests;
-each apply needs Craig's approval of that specific saved plan.
+On September 30, 2026, 6.1 items 1, 3 to 7 and 9 were made in the
+repository and item 8 was decided; each is marked below. Nothing has been
+planned or applied against AWS. Each code change is an ordinary pull request
+with offline tests; each apply needs Craig's approval of that specific saved
+plan.
 
 ### 6.1 Repository changes before any plan
 
@@ -518,9 +528,12 @@ one is still open.
    Accept the cap as a lifetime cap, or add a way to release slots of
    rejected or long-dormant teams. **Decided** (gate 4): a lifetime cap, so no
    code change.
-9. **Bound import latency with collection on** (section 3.2), for example
-   with one overall discovery deadline, or measure `my_teams` latency and
-   accept the risk.
+9. **Bound import latency with collection on** (section 3.2). Before
+   September 30, the options were one overall discovery deadline, or
+   measuring `my_teams` latency and accepting the risk. **Done** under #100
+   after Craig chose to bound it in code (gate 5): an import that collects
+   history gives its LPS lookups one 11 s deadline and skips players not
+   listed by then.
 
 ### 6.2 Prerequisites outside this repository
 
@@ -718,8 +731,9 @@ Owner in brackets.
    teams are enrolled. The admission alarm counts only refused player-linked
    teams (6.1 item 6, done); refused visitor lookups have a metric with no
    alarm.
-5. **Import latency** with collection on: bound it in code or accept the risk
-   from measured `my_teams` latency. [Craig; code if changed]
+5. **Import latency** with collection on: closed. Craig chose on September
+   30, 2026 to bound it in code, and the import's LPS lookups now share an
+   11 s deadline (3.2, 6.1 item 9). [done]
 6. **Repository changes** in 6.1 items 1 to 7. Done on September 30, 2026:
    items 1 (environment wiring), 3 (boundary grants within the IAM size
    limit), 4 (CI role grants), 5 (the plan checker), 6 (the admission alarm
