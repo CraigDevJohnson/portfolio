@@ -117,16 +117,12 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		}
 		soccerHandler.SoccerPage(w, r)
 	})
-	soccerMux.HandleFunc("POST /soccer/import", requireSoccerGrant(soccerHandler.ImportHandler))
-	soccerMux.HandleFunc("POST /soccer/logout", requireSoccerGrant(soccerHandler.LogoutHandler))
+	registerSoccerLPSRoutes(soccerMux, soccerHandler)
 	soccerMux.HandleFunc("POST /soccer/google/add", requireSoccerGrant(app.GoogleHandler.AddHandler))
 	soccerMux.HandleFunc("POST /soccer/google/sync-results", requireSoccerGrant(app.GoogleHandler.SyncResultsHandler))
 	soccerMux.HandleFunc("POST /soccer/google/calendar", requireSoccerGrant(app.GoogleHandler.CalendarHandler))
 	soccerMux.HandleFunc("GET /soccer/google/connect", requireSoccerGrant(app.GoogleHandler.ConnectHandler))
 	soccerMux.HandleFunc("POST /soccer/google/disconnect", requireSoccerGrant(app.GoogleHandler.DisconnectHandler))
-	soccerMux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(soccerHandler.FetchSchedulesHandler))
-	soccerMux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(soccerHandler.DiscoverTeamsHandler))
-	soccerMux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(soccerHandler.DownloadICSHandler))
 
 	var soccerRoutes http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -382,6 +378,17 @@ func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
 	}
 	internalsoccer.RefusePrivateAction(w, r)
 	return false
+}
+
+// registerSoccerLPSRoutes registers the Soccer import, schedule, and
+// download routes with their soccer-grant guards. The server and the linked
+// preview journey share it, so both serve one authorization shape.
+func registerSoccerLPSRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
+	mux.HandleFunc("POST /soccer/import", requireSoccerGrant(h.ImportHandler))
+	mux.HandleFunc("POST /soccer/logout", requireSoccerGrant(h.LogoutHandler))
+	mux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(h.DiscoverTeamsHandler))
+	mux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(h.FetchSchedulesHandler))
+	mux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(h.DownloadICSHandler))
 }
 
 func requireSoccerGrant(next http.HandlerFunc) http.HandlerFunc {

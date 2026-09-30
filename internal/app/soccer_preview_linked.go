@@ -50,11 +50,7 @@ func newPreviewLinkedSoccer(app *App, logger *slog.Logger) *previewLinkedSoccer 
 
 	routes := http.NewServeMux()
 	routes.HandleFunc("/soccer", handler.SoccerPage)
-	routes.HandleFunc("POST /soccer/import", requireSoccerGrant(handler.ImportHandler))
-	routes.HandleFunc("POST /soccer/logout", requireSoccerGrant(handler.LogoutHandler))
-	routes.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(handler.DiscoverTeamsHandler))
-	routes.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(handler.FetchSchedulesHandler))
-	routes.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(handler.DownloadICSHandler))
+	registerSoccerLPSRoutes(routes, handler)
 	return &previewLinkedSoccer{routes: routes}
 }
 
