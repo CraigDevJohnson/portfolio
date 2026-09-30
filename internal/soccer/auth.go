@@ -135,7 +135,12 @@ func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, player
 		Players: players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
 	})
 	if err != nil {
-		logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
+		var refused *soccerarchive.AdmissionError
+		if errors.As(err, &refused) {
+			h.logAdmissionRejected(r.Context(), refused)
+		} else {
+			logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
+		}
 		return historyImportFailureMessage(err), false
 	}
 	return "", true

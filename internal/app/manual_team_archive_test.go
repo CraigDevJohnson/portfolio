@@ -1,9 +1,7 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,6 +30,8 @@ type archiveRoute struct {
 	handler *internalsoccer.Handler
 	table   *archivetest.Table
 	store   *soccerarchive.DynamoStore
+	// logs receives the route's application log.
+	logs *runtimeLogs
 }
 
 // generousArchiveLimits are reviewed limits no route test reaches.
@@ -49,6 +49,8 @@ func newArchiveRouteWithLimits(t *testing.T, lps http.HandlerFunc, limits soccer
 	lpsServer := httptest.NewServer(lps)
 	t.Cleanup(lpsServer.Close)
 	app.Config.LPSAPIBaseURL = lpsServer.URL
+	logs := &runtimeLogs{}
+	app.Logger = logs.logger()
 	mux, handler := buildMux(app, app.Logger, false)
 	table := archivetest.NewTable()
 	store, err := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history", limits)
@@ -56,7 +58,7 @@ func newArchiveRouteWithLimits(t *testing.T, lps http.HandlerFunc, limits soccer
 		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
 	}
 	handler.SetArchiveStore(store)
-	return &archiveRoute{app: app, mux: mux, handler: handler, table: table, store: store}
+	return &archiveRoute{app: app, mux: mux, handler: handler, table: table, store: store, logs: logs}
 }
 
 func (r *archiveRoute) lookup(t *testing.T, teamCodes string, decorate ...func(*http.Request)) string {
@@ -180,32 +182,23 @@ func TestManualTeamLookupExplainsHistoryCapacityRejection(t *testing.T) {
 	if first := route.lookup(t, "479691"); !strings.Contains(first, "Team 479691 added to history collection.") {
 		t.Fatalf("first anonymous team was not enrolled: %q", first)
 	}
-	var logs bytes.Buffer
-	previousLogger := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
-	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	route.logs.includeDefaultLogger(t)
+	route.logs.take(t)
 	full := route.lookup(t, "479692")
 	if !strings.Contains(full, "History collection is full") || !strings.Contains(full, "Team 479692 was not added to history collection because its reviewed capacity is full.") ||
 		strings.Contains(full, "Team 479692 added to history collection.") || !strings.Contains(full, "Rivals") {
 		t.Fatalf("capacity rejection hid the schedule or claimed enrollment: %q", full)
 	}
 	route.assertNotArchived(t, 479692)
-	// The admission alarm counts this message in the HTTP runtime's log.
-	rejections := 0
-	for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
-		var record map[string]any
-		if err := json.Unmarshal(line, &record); err != nil {
-			t.Fatalf("log line %q is not JSON: %v", line, err)
-		}
-		if record["msg"] == "soccer_history_admission_rejected" {
-			rejections++
-			if record["team_id"] != float64(479692) || record["source"] != "manual" || record["limit"] != float64(1) {
-				t.Errorf("admission rejection record = %v", record)
-			}
-		}
+	// The admission alarm counts this message in the HTTP runtime's log: one
+	// warning for the refused team, and no error for an expected refusal.
+	records := route.logs.take(t)
+	rejections, errorRecords := admissionAlarmRecords(records)
+	if len(rejections) != 1 || len(errorRecords) != 0 {
+		t.Fatalf("capacity refusal logs = %v, want one admission warning and no error", records)
 	}
-	if rejections != 1 {
-		t.Fatalf("admission rejections logged = %d, want 1; logs %q", rejections, logs.String())
+	if rejection := rejections[0]; rejection["level"] != "WARN" || rejection["team_id"] != float64(479692) || rejection["source"] != "manual" || rejection["limit"] != float64(1) || rejection["component"] != "soccer" {
+		t.Errorf("admission rejection record = %v", rejection)
 	}
 	if again := route.lookup(t, "479691"); !strings.Contains(again, "Team 479691 added to history collection.") {
 		t.Fatalf("an enrolled team lost its place at capacity: %q", again)

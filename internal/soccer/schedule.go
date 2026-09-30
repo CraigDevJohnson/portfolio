@@ -281,12 +281,15 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 			FetchedAt:  source.FetchedAt,
 		}); err != nil {
 			// Keep going: one team's failed write must not hide the outcome of
-			// the others, which are saved independently.
-			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Int("team_id", source.TeamID), slog.Any("error", err))
-			if errors.Is(err, soccerarchive.ErrAdmissionFull) {
+			// the others, which are saved independently. A refusal at capacity
+			// is an expected outcome, recorded once for the admission alarm.
+			var refused *soccerarchive.AdmissionError
+			if errors.As(err, &refused) {
+				h.logAdmissionRejected(ctx, refused)
 				full = append(full, source.TeamID)
 				continue
 			}
+			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Int("team_id", source.TeamID), slog.Any("error", err))
 			notSaved = append(notSaved, source.TeamID)
 			continue
 		}
@@ -305,6 +308,15 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 		}
 	}
 	return false, true
+}
+
+// logAdmissionRejected records each team history collection refused at
+// capacity with the message the admission alarm counts.
+func (h *Handler) logAdmissionRejected(ctx context.Context, refused *soccerarchive.AdmissionError) {
+	logger := logging.WithContext(h.Logger, ctx)
+	for _, teamID := range refused.TeamIDs {
+		logger.Warn(soccerarchive.AdmissionRejectedLog, slog.Int("team_id", teamID), slog.String("source", refused.Source), slog.Int("limit", refused.Limit))
+	}
 }
 
 // enrollmentFeedback names each team's history outcome: enrolled, not

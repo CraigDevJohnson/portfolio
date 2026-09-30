@@ -20,7 +20,8 @@ type Snapshot struct {
 	FetchedAt  time.Time
 }
 
-// Store persists an accepted team response and its source coverage.
+// Store persists an accepted team response and its source coverage. A new
+// team refused at capacity is an *AdmissionError.
 type Store interface {
 	SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) error
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -17,9 +17,30 @@ import (
 // reviewed enrollment capacity for its source is used.
 var ErrAdmissionFull = errors.New("soccer history admission full")
 
-// AdmissionRejectedLog is the structured log message recorded, and alerted
-// on, whenever a new team is refused at capacity.
+// AdmissionRejectedLog is the structured log message a caller records, once
+// for each refused team, whenever a new team is refused at capacity. The
+// admission alarm counts it.
 const AdmissionRejectedLog = "soccer_history_admission_rejected"
+
+// AdmissionError names the new teams refused because the reviewed admission
+// capacity for their enrollment source is used. It wraps ErrAdmissionFull.
+// The store does not log the refusal; the caller that reports it to the
+// visitor records AdmissionRejectedLog with its request context.
+type AdmissionError struct {
+	Source  string
+	Limit   int
+	TeamIDs []int
+}
+
+func (e *AdmissionError) Error() string {
+	ids := make([]string, 0, len(e.TeamIDs))
+	for _, teamID := range e.TeamIDs {
+		ids = append(ids, strconv.Itoa(teamID))
+	}
+	return fmt.Sprintf("%v: %s teams %s exceed admission limit %d", ErrAdmissionFull, e.Source, strings.Join(ids, ", "), e.Limit)
+}
+
+func (e *AdmissionError) Unwrap() error { return ErrAdmissionFull }
 
 const (
 	// manualEnrollment marks a team a visitor entered by Team ID.
@@ -70,7 +91,7 @@ func (s *DynamoStore) checkAdmission(ctx context.Context, source string, teamIDs
 		return err
 	}
 	if limit := s.admissionLimit(source); count+len(newTeams) > limit {
-		return admissionRejected(newTeams[0], source, limit)
+		return admissionRejected(source, limit, newTeams...)
 	}
 	return nil
 }
@@ -91,7 +112,7 @@ func (s *DynamoStore) enrollNew(ctx context.Context, record *archiveItem, source
 		}
 		limit := s.admissionLimit(source)
 		if count >= limit {
-			return false, admissionRejected(record.TeamID, source, limit)
+			return false, admissionRejected(source, limit, record.TeamID)
 		}
 		next := archiveItem{PK: capacityPK, SK: capacitySK, Kind: "capacity", EnrolledCount: count + 1, Revision: 1}
 		counterPut := &types.Put{TableName: aws.String(s.tableName), ConditionExpression: aws.String("attribute_not_exists(pk)")}
@@ -130,7 +151,6 @@ func conditionFailed(canceled *types.TransactionCanceledException, index int) bo
 	return index < len(canceled.CancellationReasons) && aws.ToString(canceled.CancellationReasons[index].Code) == "ConditionalCheckFailed"
 }
 
-func admissionRejected(teamID int, source string, limit int) error {
-	slog.Warn(AdmissionRejectedLog, slog.Int("team_id", teamID), slog.String("source", source), slog.Int("limit", limit))
-	return fmt.Errorf("%w: %s team %d exceeds admission limit %d", ErrAdmissionFull, source, teamID, limit)
+func admissionRejected(source string, limit int, teamIDs ...int) error {
+	return &AdmissionError{Source: source, Limit: limit, TeamIDs: teamIDs}
 }
