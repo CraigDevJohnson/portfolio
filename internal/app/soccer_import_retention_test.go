@@ -64,6 +64,14 @@ func (b *siteBrowser) expireSiteSession() {
 // imports the fake LPS account's linked players through the real routes.
 func newRetainedImportBrowser(t *testing.T) (*soccerGrantWorld, *siteBrowser) {
 	t.Helper()
+	world, browser, _ := newRetainedImportBrowserWithCognito(t)
+	return world, browser
+}
+
+// newRetainedImportBrowserWithCognito is newRetainedImportBrowser that also
+// returns the fake Cognito, whose identity decides the next sign-in.
+func newRetainedImportBrowserWithCognito(t *testing.T) (*soccerGrantWorld, *siteBrowser, *fakeSiteCognito) {
+	t.Helper()
 	cognito := newFakeSiteCognito(t)
 	application := cognito.app(t)
 	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
@@ -78,7 +86,7 @@ func newRetainedImportBrowser(t *testing.T) (*soccerGrantWorld, *siteBrowser) {
 	if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), importedAccessShown) {
 		t.Fatal("owner page did not show the imported access")
 	}
-	return world, browser
+	return world, browser, cognito
 }
 
 func TestExplicitSiteSignOutClearsImportedLPSAccess(t *testing.T) {
@@ -180,5 +188,73 @@ func TestTeamIDLookupThatDiscardsAnExpiredImportSavesTheLookup(t *testing.T) {
 	}
 	if world.lpsCredentialCalls.Load() != 0 {
 		t.Error("the anonymous lookup used the expired LPS credential")
+	}
+}
+
+func TestExpiredImportIsClearedWhetherOrNotItsOwnerIsSignedIn(t *testing.T) {
+	for _, expiry := range []struct {
+		name       string
+		jwtExpiry  time.Time
+		importEnds time.Time
+	}{
+		{name: "JWT expired", jwtExpiry: time.Now().Add(-time.Minute), importEnds: time.Now().Add(-time.Minute)},
+		{name: "12-hour limit reached before a longer JWT", jwtExpiry: time.Now().Add(36 * time.Hour), importEnds: time.Now().Add(-time.Minute)},
+	} {
+		for _, visitor := range []struct {
+			name     string
+			signedIn bool
+		}{{name: "owner signed in", signedIn: true}, {name: "owner timed out"}} {
+			t.Run(expiry.name+"/"+visitor.name, func(t *testing.T) {
+				world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+				imported := ownedBySiteVisitor(&types.SessionData{
+					JWT:       testutil.TestJWT(t, expiry.jwtExpiry),
+					Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+					StartedAt: expiry.importEnds.Add(-12 * time.Hour),
+					ExpiresAt: expiry.importEnds,
+				})
+				cookies := []*http.Cookie{{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, world.app, imported)}}
+				if visitor.signedIn {
+					cookies = append(cookies, testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail))
+				}
+				page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, cookies...)
+				if strings.Contains(page.Body.String(), importedAccessShown) {
+					t.Error("the Soccer page presented an expired import as active")
+				}
+				assertClearedSessionCookie(t, page.Result())
+				if world.lpsCredentialCalls.Load() != 0 {
+					t.Error("the Soccer page used an expired LPS credential")
+				}
+			})
+		}
+	}
+}
+
+func TestAnotherSiteOwnerInTheSameBrowserCannotRecoverTheImport(t *testing.T) {
+	world, browser, cognito := newRetainedImportBrowserWithCognito(t)
+	world.app.Config.SiteInvitations[otherSiteEmail] = []string{"soccer"}
+
+	browser.expireSiteSession()
+	cognito.subject, cognito.email = otherSiteSubject, otherSiteEmail
+	browser.signIn("/soccer")
+	calls := world.lpsCredentialCalls.Load()
+	if page := browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
+		t.Error("another site owner saw the previous owner's imported access")
+	}
+	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Import a bearer JWT to discover teams.") {
+		t.Errorf("another owner's linked-player discovery: status %d, body %q", discovered.Code, discovered.Body.String())
+	}
+	if world.lpsCredentialCalls.Load() != calls {
+		t.Error("another site owner used the previous owner's LPS credential")
+	}
+	if browser.holdsCookie(config.LPSSessionCookieName, "/soccer") {
+		t.Error("the browser kept the previous owner's import after another owner signed in")
+	}
+
+	// The discarded import stays gone when its owner returns.
+	browser.expireSiteSession()
+	cognito.subject, cognito.email = "stable-subject", "owner@example.com"
+	browser.signIn("/soccer")
+	if page := browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
+		t.Error("the original owner recovered an import another owner's visit discarded")
 	}
 }
