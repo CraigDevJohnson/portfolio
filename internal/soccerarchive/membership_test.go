@@ -221,7 +221,7 @@ func TestRefreshWorkerRefreshesATeamAPlayerImportEnrolled(t *testing.T) {
 		t.Fatalf("refreshed history = %+v, %v", history, err)
 	}
 	state, err = store.ReadRefreshState(t.Context(), 4202)
-	if err != nil || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(24*time.Hour)) {
+	if err != nil || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(4*time.Hour)) {
 		t.Fatalf("refresh state after the first refresh = %+v, %v", state, err)
 	}
 	assertArchiveItem(t, backend, "TEAM#4202/META", map[string]any{"enrollment_source": "player", "team_name": "Taylor FC"})

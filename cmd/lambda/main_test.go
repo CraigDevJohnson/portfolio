@@ -112,12 +112,14 @@ func TestScheduledInvocationRefreshesDueTeamsAndReportsPartialWork(t *testing.T)
 	}
 
 	// A repeated delivery finds the refreshed team not due and the rate-limited
-	// team still backing off, so it makes no requests and reports completion.
+	// team still backing off, so it makes no requests and names the team it
+	// left for later rather than reporting completion.
 	repeated, err := handler(t.Context(), schedulerEvent)
-	if err != nil || !repeated.Complete || repeated.Requests != 0 || len(repeated.Results) != 0 {
+	if err != nil || repeated.Complete || !repeated.PendingDueWork || repeated.Requests != 0 || len(repeated.Results) != 1 ||
+		repeated.Results[0] != (soccerarchive.RefreshResult{TeamID: 202, Outcome: soccerarchive.RefreshBackingOff}) {
 		t.Fatalf("repeated delivery = %#v, err %v", repeated, err)
 	}
-	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_completed" {
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_incomplete" || records[0]["pending_due_work"] != true {
 		t.Fatalf("repeated delivery logs = %v", records)
 	}
 }

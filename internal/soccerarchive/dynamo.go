@@ -713,8 +713,9 @@ func (s *DynamoStore) saveSeasonTeamContext(ctx context.Context, teamID, seasonI
 
 // saveTeam writes the team's enrollment record: its latest team facts, which
 // keep a fact the response omits, and a successful refresh attempt that makes
-// the team due again a day after this fetch. A refresh failure recorded after
-// this fetch keeps its state.
+// the team due again once the refresh guard after this fetch ends, so the
+// next daily run attempts it. A refresh failure recorded after this fetch
+// keeps its state.
 func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedAt string) error {
 	for range maxRecordWriteAttempts {
 		previous, err := s.get(ctx, teamKey(snapshot.TeamID), "META")
@@ -737,7 +738,7 @@ func (s *DynamoStore) saveTeam(ctx context.Context, snapshot *Snapshot, fetchedA
 			RefreshStatus:    RefreshReady,
 			AttemptedAt:      fetchedAt,
 			DuePK:            dueTeamsPK,
-			DueSK:            dueKey(snapshot.FetchedAt.Add(24*time.Hour), snapshot.TeamID),
+			DueSK:            dueKey(snapshot.FetchedAt.Add(refreshedTeamGuard), snapshot.TeamID),
 		}
 		if previous != nil {
 			var priorTeam lps.TeamSummary

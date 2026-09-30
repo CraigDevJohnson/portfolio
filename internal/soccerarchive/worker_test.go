@@ -283,7 +283,7 @@ func TestRefreshWorkerAppliesCorrectionsWhenLPSNoLongerServesAFacility(t *testin
 				assertArchiveItem(t, backend, fmt.Sprintf("FACILITY#%d/META", id), map[string]any{"address": address})
 			}
 			state, err := store.ReadRefreshState(t.Context(), 101)
-			if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(24*time.Hour)) {
+			if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(4*time.Hour)) {
 				t.Fatalf("refresh state = %#v, err = %v", state, err)
 			}
 		})
@@ -472,7 +472,7 @@ func TestRefreshWorkerStoresAGameSharedByTwoEnrolledTeamsOnceAndRecordsEachFetch
 			t.Fatalf("team %d history = %#v, err = %v", id, history, err)
 		}
 		state, err := store.ReadRefreshState(t.Context(), id)
-		if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(24*time.Hour)) {
+		if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(4*time.Hour)) {
 			t.Fatalf("team %d refresh state = %#v, err = %v", id, state, err)
 		}
 		assertArchiveItem(t, backend, fmt.Sprintf("TEAM#%d/COVERAGE", id), map[string]any{
@@ -675,7 +675,7 @@ func TestRefreshStateFollowsTheLatestAttemptWhenWritesInterleave(t *testing.T) {
 					Games: []lps.TeamScheduleGame{{UGameID: 9001, UTeam1: 101, UTeam2: 202, Season: 169, Result: "5-5"}},
 				})
 			},
-			want:   RefreshState{TeamID: 101, Status: RefreshReady, LastAttemptAt: workerAttempt.Add(time.Hour), NextDueAt: workerAttempt.Add(25 * time.Hour)},
+			want:   RefreshState{TeamID: 101, Status: RefreshReady, LastAttemptAt: workerAttempt.Add(time.Hour), NextDueAt: workerAttempt.Add(5 * time.Hour)},
 			result: "5-5",
 		},
 		{

@@ -34,6 +34,9 @@ const (
 	RefreshStoreFailed      RefreshOutcome = "store_failure"
 	RefreshNotEnrolled      RefreshOutcome = "not_enrolled"
 	RefreshBudgetExhausted  RefreshOutcome = "request_budget_exhausted"
+	// RefreshBackingOff is a due team a scheduled run left alone because its
+	// backoff after a temporary failure had not ended when its turn came.
+	RefreshBackingOff RefreshOutcome = "backing_off"
 )
 
 // RefreshResult is one team's outcome in an on-demand or scheduled pass.

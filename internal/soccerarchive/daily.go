@@ -139,13 +139,16 @@ type DailyReport struct {
 	Results        []RefreshResult `json:"results"`
 }
 
-// dailyDueLeeway lets a run attempt a ready team that becomes due shortly
-// after the run starts. A refresh makes a team due a day after its fetch,
-// which is a little after that day's run began; without the leeway the next
-// day's run would find it not yet due and skip it for a day. It is longer
-// than any run and far shorter than a day, so a repeated delivery of the same
-// day's event finds the teams it refreshed not due.
-const dailyDueLeeway = time.Hour
+// refreshedTeamGuard is how long a successful fetch keeps a team from being
+// due again. A team fetched at any time of day, whether by a scheduled run,
+// a visitor's lookup, an entered Team ID, or an on-demand refresh, is due at
+// the first scheduled run that starts at least this long after the fetch.
+// It is longer than the span in which one day's schedule event can be
+// delivered again (an hour of Scheduler retries, an hour in Lambda's async
+// queue, and the run itself), so a repeated delivery finds the teams that
+// day's run refreshed not due. It is far shorter than a day less a run, so
+// a run's own fetches are due at the next day's run.
+const refreshedTeamGuard = 4 * time.Hour
 
 // DailyWorker runs the indexed daily pass without an HTTP request runtime.
 type DailyWorker struct {
@@ -186,7 +189,9 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	source := &retryingTeamSource{source: lps.NewScheduleResolver(w.baseURL, &client, ""), retries: w.limits.MaxRetriesPerTeam, clock: w.clock}
 	refresh := NewRefreshWorker(w.store, source, w.clock.Now)
 	report := DailyReport{Complete: true, Results: make([]RefreshResult, 0)}
-	dueIDs, more, err := w.store.QueryDueTeams(ctx, start.Add(dailyDueLeeway), w.limits.MaxEnrolledTeams)
+	// The query also finds teams whose backoff after a temporary failure ends
+	// during the run, so a team still backing off at its turn is reported.
+	dueIDs, more, err := w.store.QueryDueTeams(ctx, start.Add(retryableFailureDelay), w.limits.MaxEnrolledTeams)
 	if err != nil {
 		report.Complete = false
 		return report, fmt.Errorf("select due teams: %w", err)
@@ -201,8 +206,14 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 			report.Requests = transport.Used()
 			return report, fmt.Errorf("check due team %d: %w", teamID, err)
 		}
-		if !dueInRun(&state, start) {
-			// Another delivery or the on-demand worker refreshed it already.
+		switch dueInRun(&state, start, w.clock.Now()) {
+		case notDue:
+			// This day's work for it is done: it was refreshed shortly before
+			// or during this run, or it is invalid.
+			continue
+		case backingOff:
+			report.Results = append(report.Results, RefreshResult{TeamID: teamID, Outcome: RefreshBackingOff})
+			report.Complete, report.PendingDueWork = false, true
 			continue
 		}
 		if transport.Used() >= w.limits.MaxRequestsPerRun {
@@ -225,17 +236,31 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	return report, nil
 }
 
-// dueInRun reports whether an enrolled team is due in a run that started at
-// start: a ready team within the run's leeway, a team that failed temporarily
-// only once its backoff has passed, and an invalid team never.
-func dueInRun(state *RefreshState, start time.Time) bool {
+// runDecision is what a scheduled run does with a team the due query found.
+type runDecision int
+
+const (
+	attemptNow runDecision = iota
+	notDue
+	backingOff
+)
+
+// dueInRun decides a team's turn in a run that started at start. A ready
+// team is due once its refresh guard ended by the start; a team that failed
+// temporarily is due once its backoff has ended, and is backing off if that
+// happens later in the run; an invalid team is never due.
+func dueInRun(state *RefreshState, start, now time.Time) runDecision {
 	switch {
 	case state.NextDueAt.IsZero() || state.Status == RefreshInvalid:
-		return false
-	case state.Status == RefreshRetryable:
-		return !state.NextDueAt.After(start)
+		return notDue
+	case state.Status == RefreshRetryable && !state.NextDueAt.After(now):
+		return attemptNow
+	case state.Status == RefreshRetryable && !state.NextDueAt.After(start.Add(retryableFailureDelay)):
+		return backingOff
+	case state.Status != RefreshRetryable && !state.NextDueAt.After(start):
+		return attemptNow
 	default:
-		return !state.NextDueAt.After(start.Add(dailyDueLeeway))
+		return notDue
 	}
 }
 
