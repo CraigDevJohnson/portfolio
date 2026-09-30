@@ -422,6 +422,42 @@ func TestSyncSkipsAndReportsEventsItCannotSafelyClaim(t *testing.T) {
 	}
 }
 
+// Sync reports a game with two live copies of its event as ambiguous. Once
+// the visitor deletes the extra copy, the one left is the game's event, even
+// while Google still lists the deleted copy with its properties.
+func TestSyncUpdatesTheOneLiveEventLeftAfterTheVisitorDeletesACopy(t *testing.T) {
+	world := newResultSyncWorld(t)
+	world.add(t, syncNorthTeamID, syncDuplicatedGameID)
+	duplicate := world.google.events(primaryCalendarID)[syncDuplicatedGameID]
+	duplicate.ID = "copyof9107"
+	world.google.addEvent(primaryCalendarID, &duplicate)
+	world.lps.play(syncDuplicatedGameID, "2-1")
+	form := world.reviewForm(t, syncNorthTeamID)
+	if synced := world.sync(t, form, syncDuplicatedGameID); !strings.Contains(synced, "Skipped 1 game(s): 1 with more than one matching event.") {
+		t.Fatalf("Sync with two live copies answered %q", synced)
+	}
+
+	world.google.editEvent(primaryCalendarID, "copyof9107", func(event *internalgoogle.Event) { event.Status = googleDeletedStatus })
+	before := world.google.events(primaryCalendarID)
+	calls, patches := world.google.callCount(), world.google.patchCount()
+	if synced := world.sync(t, form, syncDuplicatedGameID); !strings.Contains(synced, "1 game result(s) updated in Google Calendar.") {
+		t.Fatalf("Sync after the copy was deleted answered %q", synced)
+	}
+	sent := world.google.patchesSince(patches)
+	if len(sent) != 1 || sent[0].eventID != syncDuplicatedGameID || sent[0].ifMatch != before[syncDuplicatedGameID].ETag {
+		t.Fatalf("Sync sent patches %+v; want one patch of the live event conditional on %s", sent, before[syncDuplicatedGameID].ETag)
+	}
+	after := world.google.events(primaryCalendarID)
+	if !reflect.DeepEqual(after["copyof9107"], before["copyof9107"]) {
+		t.Error("Sync changed or restored the deleted copy")
+	}
+	for _, call := range world.google.callsSince(calls) {
+		if strings.HasPrefix(call, http.MethodPost+" ") || strings.HasPrefix(call, http.MethodPut+" ") {
+			t.Errorf("Sync sent %q", call)
+		}
+	}
+}
+
 // Before events carried portfolio_app=soccer, the site wrote each one with
 // the game's ID as its event ID and private game_id, and itself as the
 // source. Sync claims such an event, since Add cannot re-add a past game to

@@ -29,9 +29,10 @@ const (
 	// resultUnmatched: the calendar holds no event this site added for the
 	// game, such as a game never added or one imported from an .ics file.
 	resultUnmatched
-	// resultDeleted: the site's event for the game was deleted.
+	// resultDeleted: the site's event for the game was deleted, and no live
+	// one is left.
 	resultDeleted
-	// resultAmbiguous: more than one site event names the game.
+	// resultAmbiguous: more than one live site event names the game.
 	resultAmbiguous
 	// resultChanged: the event changed in Google between Sync reading and
 	// updating it.
@@ -148,7 +149,8 @@ func (h *Handler) syncResultEvent(ctx context.Context, calendarID string, token 
 
 // findSiteEvent returns the one live event this site added for gameID in the
 // calendar, as one bounded search lists it with its current version. Without
-// one, it returns why: no such event, a deleted one, or more than one.
+// one, it returns why: no such event, only deleted ones, or more than one
+// live one.
 func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*Event, resultSyncOutcome, bool, error) {
 	response, err := h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
 	if err != nil {
@@ -165,25 +167,32 @@ func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *o
 	if page.NextPageToken != "" {
 		return nil, resultAmbiguous, false, nil
 	}
-	var siteEvents []*Event
+	// A deleted copy does not make the one live event ambiguous: the
+	// visitor may have deleted a duplicate to resolve just that.
+	var live []*Event
+	deleted := 0
 	for i := range page.Items {
-		if event := &page.Items[i]; siteEventMatchesGame(event, gameID) {
-			siteEvents = append(siteEvents, event)
+		switch event := &page.Items[i]; {
+		case !siteEventMatchesGame(event, gameID):
+		case isDeletedCalendarEvent(event.Status):
+			deleted++
+		default:
+			live = append(live, event)
 		}
 	}
 	switch {
-	case len(siteEvents) == 0:
-		return nil, resultUnmatched, false, nil
-	case len(siteEvents) > 1:
+	case len(live) > 1:
 		return nil, resultAmbiguous, false, nil
-	case isDeletedCalendarEvent(siteEvents[0].Status):
+	case len(live) == 0 && deleted > 0:
 		return nil, resultDeleted, false, nil
+	case len(live) == 0:
+		return nil, resultUnmatched, false, nil
 	}
-	if strings.TrimSpace(siteEvents[0].ETag) == "" {
+	if strings.TrimSpace(live[0].ETag) == "" {
 		// Without its version, a change could not be made conditional.
 		return nil, resultChanged, false, nil
 	}
-	return siteEvents[0], resultUnmatched, false, nil
+	return live[0], resultUnmatched, false, nil
 }
 
 // siteEventMatchesGame reports whether the event is one this site added for
