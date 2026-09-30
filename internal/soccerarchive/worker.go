@@ -36,7 +36,7 @@ const (
 	RefreshBudgetExhausted  RefreshOutcome = "request_budget_exhausted"
 )
 
-// RefreshResult is one team's outcome in an on-demand worker pass.
+// RefreshResult is one team's outcome in an on-demand or scheduled pass.
 type RefreshResult struct {
 	TeamID  int
 	Outcome RefreshOutcome
@@ -50,8 +50,9 @@ type RefreshReport struct {
 }
 
 // retryableFailureDelay is how long a temporary LPS failure keeps a team from
-// being due again. It is a fixed interval until scheduled refresh adds
-// backoff and retry budgets.
+// being due again. A scheduled run first retries the team within its retry
+// budget, backing off between attempts; a failure left after those waits
+// this delay, so a repeated delivery does not retry it at once.
 const retryableFailureDelay = 15 * time.Minute
 
 // RefreshWorker refreshes explicitly requested enrolled teams without scheduling.

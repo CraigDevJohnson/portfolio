@@ -36,15 +36,18 @@ Accounts, roots, approvals, the release workflow and rollback are described in
 | Certificate and domains | ACM certificate and regional API Gateway custom domains for the environment's hostnames |
 
 The service module can also plan the durable Soccer history table,
-`portfolio-lambda-<env>-soccer-history`, with `enable_soccer_history`. Both
-environments leave it off until the issue #80 activation review. Turning it on
-also needs the table added to `PortfolioLambdaExecutionBoundary`, with the
-runtime's `GetItem`, `PutItem`, `Query`, and `DeleteItem` actions (`DeleteItem`
-serves only verified player removal), and to the CI roles' table-read grant in
-`infra/lambda/ci-roles/`. Player removal deletes only from the history table:
-the `soccer-sessions` import baseline keeps each import's players until that
-record's TTL, and point-in-time recovery, where `enable_pitr` is on, keeps
-removed items restorable for up to 35 days.
+`portfolio-lambda-<env>-soccer-history`, with `enable_soccer_history`, then
+activate collection and the daily history worker with reviewed limits. Both
+environments leave every stage off until the issue #80 activation review.
+Turning any stage on also needs `PortfolioLambdaExecutionBoundary`, the CI
+roles in `infra/lambda/ci-roles/` and the release plan check to cover the new
+resources; see
+[infra/lambda/README.md](../../infra/lambda/README.md#soccer-history-collection-and-daily-refresh).
+The runtime's table grant is `GetItem`, `PutItem`, `Query`, and `DeleteItem`;
+`DeleteItem` serves only verified player removal. Player removal deletes only
+from the history table: the `soccer-sessions` import baseline keeps each
+import's players until that record's TTL, and point-in-time recovery, where
+`enable_pitr` is on, keeps removed items restorable for up to 35 days.
 
 Every resource carries the lowercase `project = portfolio` tag through provider
 `default_tags`.

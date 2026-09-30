@@ -66,6 +66,16 @@ completed removal clears the browser's import, so only a later disclosed
 import collects the player again; a failed delete keeps the import for a
 retry.
 
+Enrollment has a reviewed capacity. Teams already enrolled keep their daily
+refresh; a new team past capacity is refused, the visitor sees why, and the
+refusal is logged for an alarm. Some slots are reserved for teams a granted
+player import finds, so anonymous Team IDs cannot fill them. A separate
+scheduled worker refreshes every due enrolled team once a day, dormant and
+entered teams included, within a per-run request, retry and pacing budget,
+and reports teams it failed or left for the next run. Without every reviewed
+limit there is no collection and no worker; see
+[infra/lambda/README.md](infra/lambda/README.md#soccer-history-collection-and-daily-refresh).
+
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,
 request start, stop, and restart actions, and load CloudWatch metrics and logs.
@@ -406,7 +416,7 @@ portfolio/
 │   ├── siteauth/           Site Cognito sign-in and encrypted sessions
 │   ├── siteidentity/       Request principal and current page grants
 │   ├── soccer/             Soccer auth and schedule handlers
-│   └── soccerarchive/      Durable LPS team history and on-demand refresh worker
+│   └── soccerarchive/      Durable LPS team history, admission, and refresh workers
 └── types/                  Shared application models
 ```
 

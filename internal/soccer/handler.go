@@ -94,8 +94,9 @@ func (h *Handler) ArchiveStore() soccerarchive.Store {
 // import dialog disclose indefinite linked-player history and makes a
 // disclosed, granted import collect every linked player's team-season
 // memberships. A store that also implements soccerarchive.PlayerRemovalStore
-// lets an imported owner remove a confirmed player's kept data. Production
-// must not wire it until the #80 activation review approves collection.
+// lets an imported owner remove a confirmed player's kept data. The Lambda
+// assembly wires it only when collection is activated with every reviewed
+// limit, which the #80 activation review approves.
 func (h *Handler) SetArchiveStore(store soccerarchive.Store) {
 	h.storeMu.Lock()
 	h.archiveStore = store
