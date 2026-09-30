@@ -52,7 +52,8 @@ type fakeCalendar struct {
 
 // fakeGoogleCalendars is a Google OAuth, UserInfo, and Calendar API fake for
 // one Google account. It records every Calendar events request it receives,
-// and a test can refuse event writes the way Google does.
+// including one it refuses after the account revoked access, and a test can
+// refuse event writes the way Google does.
 type fakeGoogleCalendars struct {
 	t         *testing.T
 	mu        sync.Mutex
@@ -94,6 +95,12 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
+	calendarID, eventID, eventRequest := fakeGoogleEventPath(r.URL.Path)
+	if eventRequest {
+		// Record before any refusal, so an events request sent after the
+		// account revoked access is still seen.
+		fake.eventCalls = append(fake.eventCalls, strings.TrimSuffix(r.Method+" "+calendarID+"/"+eventID, "/"))
+	}
 	switch {
 	case r.URL.Path == "/oauth/token":
 		_, _ = w.Write([]byte(`{"access_token":"calendar-access","refresh_token":"calendar-refresh","token_type":"Bearer","expires_in":3600}`))
@@ -129,14 +136,11 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		_ = json.NewEncoder(w).Encode(page)
 		return
 	}
-	calendarID, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/"), "/")
-	if !strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/") || !ok || (rest != "events" && !strings.HasPrefix(rest, "events/")) {
+	if !eventRequest {
 		fake.t.Errorf("unexpected Google request %s %s", r.Method, r.URL.Path)
 		http.NotFound(w, r)
 		return
 	}
-	eventID := strings.TrimPrefix(strings.TrimPrefix(rest, "events"), "/")
-	fake.eventCalls = append(fake.eventCalls, strings.TrimSuffix(r.Method+" "+calendarID+"/"+eventID, "/"))
 	calendar := fake.calendar(calendarID)
 	if calendar == nil || calendar.access == "" {
 		writeGoogleError(w, googleRefusal{status: http.StatusNotFound, domain: "global", reason: "notFound"})
@@ -187,6 +191,17 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// fakeGoogleEventPath reads a Calendar events path, which names a calendar and
+// may name one event, and reports false for any other path.
+func fakeGoogleEventPath(path string) (calendarID, eventID string, ok bool) {
+	rest, isCalendar := strings.CutPrefix(path, "/calendar/v3/calendars/")
+	calendarID, rest, found := strings.Cut(rest, "/")
+	if !isCalendar || !found || (rest != "events" && !strings.HasPrefix(rest, "events/")) {
+		return "", "", false
+	}
+	return calendarID, strings.TrimPrefix(strings.TrimPrefix(rest, "events"), "/"), true
 }
 
 func (fake *fakeGoogleCalendars) calendar(id string) *fakeCalendar {
