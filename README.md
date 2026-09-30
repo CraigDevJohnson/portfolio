@@ -210,7 +210,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Shared ECR, DynamoDB, and IAM resources
+├── infra/lambda/           OpenTofu roots for the AWS deployment
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -230,7 +230,7 @@ The source-of-truth order is:
 1. `Taskfile.yaml` for commands
 2. `cmd/server/main.go` and `internal/app/` for application wiring
 3. this README for local usage and architecture
-4. `DEPLOY-INSTRUCTIONS.md` and `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` and `infra/lambda/` for deployment
 
 Edit `.templ` and `cmd/web/tailwind/` sources. Do not hand-edit generated
 `*_templ.go` files or `cmd/web/static/css/tailwind.css`.
@@ -296,9 +296,9 @@ The portfolio runs on AWS Lambda behind an API Gateway HTTP API in the
 workloads AWS account, us-west-2, with prod at `craigdevjohnson.com` and dev at
 `dev.craigdevjohnson.com`. The OpenTofu roots live under `infra/lambda/`. A
 merge to `main` builds one image, deploys it to dev, and plans prod; Craig
-approves the `production` GitHub Environment to apply it. The legacy `infra/`
-root is retired. Dated designs and plans under `docs/superpowers/` are
-historical records rather than operator instructions.
+approves the `production` GitHub Environment to apply it. Dated designs and
+plans under `docs/superpowers/` are historical records rather than operator
+instructions.
 
 The Lambda timeout is 29 seconds. The Google add and result-sync handlers
 reserve 24 seconds of that window, which leaves five seconds outside their

@@ -37,8 +37,8 @@ The inventory covered the repository, remote OpenTofu state, ECR metadata and po
 
 ### Legacy repository ownership and publisher remnants
 
-- [infra/main.tf](../../infra/main.tf#L27-L60) declares <code>aws_ecr_repository.app</code> from the default app name <code>portfolio</code>, with mutable tags, scan-on-push, and <code>force_delete = false</code>. It also declares the untagged-image lifecycle policy.
-- [infra/outputs.tf](../../infra/outputs.tf#L1-L4) exposes that repository URL specifically for tagging and pushing an image.
+- [infra/main.tf](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/infra/main.tf#L27-L60) declares <code>aws_ecr_repository.app</code> from the default app name <code>portfolio</code>, with mutable tags, scan-on-push, and <code>force_delete = false</code>. It also declares the untagged-image lifecycle policy.
+- [infra/outputs.tf](https://github.com/CraigDevJohnson/portfolio/blob/1b245fa4ddcb5de44700737c03a677c3c0650f5a/infra/outputs.tf#L1-L4) exposes that repository URL specifically for tagging and pushing an image.
 - [Taskfile.yaml](../../Taskfile.yaml#L337-L381) contains three legacy internal helpers:
   - <code>_check-aws</code>;
   - <code>_ecr-ensure-repo</code>, which can target-apply the legacy repository and lifecycle policy; and
