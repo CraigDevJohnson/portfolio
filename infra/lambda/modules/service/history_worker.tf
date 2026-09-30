@@ -32,7 +32,7 @@ resource "aws_iam_role" "history_worker" {
   count                = local.history_schedule_enabled ? 1 : 0
   name                 = "${local.function_name}-soccer-history-execution"
   assume_role_policy   = data.aws_iam_policy_document.history_worker_assume[0].json
-  permissions_boundary = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary"
+  permissions_boundary = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary"
 }
 
 data "aws_iam_policy_document" "history_worker" {
@@ -129,7 +129,7 @@ resource "aws_iam_role" "history_scheduler" {
   count                = local.history_schedule_enabled ? 1 : 0
   name                 = "${local.function_name}-soccer-history-scheduler"
   assume_role_policy   = data.aws_iam_policy_document.history_scheduler_assume[0].json
-  permissions_boundary = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary"
+  permissions_boundary = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary"
 }
 
 data "aws_iam_policy_document" "history_scheduler" {

@@ -1109,8 +1109,8 @@ run "history_worker_schedule_and_failure_contract" {
   }
   assert {
     condition = (
-      aws_iam_role.history_worker[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
-      aws_iam_role.history_scheduler[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      aws_iam_role.history_worker[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary" &&
+      aws_iam_role.history_scheduler[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary" &&
       length([for st in data.aws_iam_policy_document.history_scheduler[0].statement : st if
         toset(st.actions) == toset(["lambda:InvokeFunction"]) &&
       toset(st.resources) == toset([aws_lambda_function.history_worker[0].arn])]) == 1 &&
@@ -1125,7 +1125,7 @@ run "history_worker_schedule_and_failure_contract" {
       toset(st.resources) == toset([aws_sqs_queue.history_dead_letter[0].arn])]) == 1 &&
       one(data.aws_iam_policy_document.history_scheduler_assume[0].statement[0].condition).values == tolist(["arn:aws:scheduler:us-west-2:111122223333:schedule/default/portfolio-lambda-dev-soccer-history-daily"])
     )
-    error_message = "the worker and Scheduler roles must sit inside the execution boundary and reach only the worker, its log group, and the failure queue"
+    error_message = "the worker and Scheduler roles must sit inside the history execution boundary and reach only the worker, its log group, and the failure queue"
   }
   assert {
     condition = (

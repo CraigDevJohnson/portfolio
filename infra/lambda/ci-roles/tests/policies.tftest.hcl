@@ -452,11 +452,32 @@ run "execution_boundary_contract" {
     condition = toset([
       for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Sid
       ]) == toset([
-      "DevGoogleConnections", "DevSoccerSessions", "DevParameters", "DevParameterDecryption", "DevLambdaLogs",
-      "ProdGoogleConnections", "ProdSoccerSessions", "ProdParameters", "ProdParameterDecryption", "ProdLambdaLogs",
+      "DevGoogleConnections", "DevSoccerSessions", "DevSoccerHistory", "DevParameters", "DevParameterDecryption", "DevLambdaLogs",
+      "ProdGoogleConnections", "ProdSoccerSessions", "ProdSoccerHistory", "ProdParameters", "ProdParameterDecryption", "ProdLambdaLogs",
       "DevManagementRead",
     ])
     error_message = "the boundary holds exactly the reviewed runtime statements"
+  }
+
+  # Stage 1 of LPS history collection (readiness packet 6.1 item 3): the HTTP
+  # runtime enrolls, reads and removes history. The admission transaction's
+  # conditional puts are authorized as dynamodb:PutItem.
+  assert {
+    condition = alltrue([
+      for environment, sid in { dev = "Dev", prod = "Prod" } : (
+        one([
+          for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement
+          if statement.Sid == "${sid}SoccerHistory"
+          ]) == {
+          Sid       = "${sid}SoccerHistory"
+          Effect    = "Allow"
+          Action    = ["dynamodb:DeleteItem", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+          Resource  = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-${environment}-soccer-history"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-execution" } }
+        }
+      )
+    ])
+    error_message = "each HTTP execution role may read, enroll into and remove from only its own environment's history table"
   }
 
   assert {
@@ -509,6 +530,72 @@ run "execution_boundary_contract" {
       )
     ])
     error_message = "each environment's parameter reads and decryption are limited to its three SecureStrings; the retired MGMT_SESSION_KEY is not readable"
+  }
+}
+
+# Stage 2 of LPS history collection (readiness packet 6.1 item 3): the daily
+# worker and its Scheduler role attach a second boundary, because both stages in
+# one policy would exceed IAM's managed-policy limit.
+run "history_execution_boundary_contract" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_iam_policy.lambda_history_execution_boundary.name == "PortfolioLambdaHistoryExecutionBoundary" &&
+      aws_iam_policy.lambda_history_execution_boundary.path == "/portfolio/boundaries/"
+    )
+    error_message = "the history boundary keeps the name and path the service module attaches to the worker and Scheduler roles"
+  }
+
+  assert {
+    condition     = length(aws_iam_policy.lambda_history_execution_boundary.policy) <= 6144
+    error_message = "the history boundary must fit IAM's 6,144-character managed-policy limit"
+  }
+
+  assert {
+    condition = jsondecode(aws_iam_policy.lambda_history_execution_boundary.policy).Statement == flatten([
+      for environment, sid in { dev = "Dev", prod = "Prod" } : [
+        {
+          Sid       = "${sid}HistoryWorkerTable"
+          Effect    = "Allow"
+          Action    = ["dynamodb:GetItem", "dynamodb:PutItem"]
+          Resource  = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-${environment}-soccer-history"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-execution" } }
+        },
+        {
+          Sid       = "${sid}HistoryWorkerDueIndex"
+          Effect    = "Allow"
+          Action    = "dynamodb:Query"
+          Resource  = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-${environment}-soccer-history/index/due-teams"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-execution" } }
+        },
+        {
+          Sid       = "${sid}HistoryWorkerLogs"
+          Effect    = "Allow"
+          Action    = ["logs:CreateLogStream", "logs:PutLogEvents"]
+          Resource  = "arn:aws:logs:us-west-2:111122223333:log-group:/aws/lambda/portfolio-lambda-${environment}-soccer-history:*"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-execution" } }
+        },
+        {
+          Sid      = "${sid}HistoryFailures"
+          Effect   = "Allow"
+          Action   = "sqs:SendMessage"
+          Resource = "arn:aws:sqs:us-west-2:111122223333:portfolio-lambda-${environment}-soccer-history-failures"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = [
+            "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-execution",
+            "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-scheduler",
+          ] } }
+        },
+        {
+          Sid       = "${sid}HistoryInvoke"
+          Effect    = "Allow"
+          Action    = "lambda:InvokeFunction"
+          Resource  = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-${environment}-soccer-history"
+          Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::111122223333:role/portfolio-lambda-${environment}-soccer-history-scheduler" } }
+        },
+      ]
+    ])
+    error_message = "the history boundary lets each environment's worker reach only its table, due index, log group and failure queue, and its Scheduler role only invoke that worker and report to that queue"
   }
 }
 
