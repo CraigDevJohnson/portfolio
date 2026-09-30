@@ -147,33 +147,44 @@ func (h *Handler) syncResultEvent(ctx context.Context, calendarID string, token 
 	return h.patchResultDescription(ctx, calendarID, token, match, description)
 }
 
+// resultSearchMaxPages bounds how many pages one game's search reads. Each
+// page holds at most ten events, so a game still listing more after these
+// has far more candidate events than one Add wrote.
+const resultSearchMaxPages = 5
+
 // findSiteEvent returns the one live event this site added for gameID in the
-// calendar, as one bounded search lists it with its current version. Without
-// one, it returns why: no such event, only deleted ones, or more than one
-// live one. When the search finds no site event, one read by the site's
-// event ID tells a deleted event from a missing one.
+// calendar, as one bounded search lists it with its current version. Google
+// may answer with a page holding fewer events than asked for, or none, while
+// more follow, so it reads every page, up to resultSearchMaxPages, before it
+// judges the match. Without one live site event, it returns why: no such
+// event, only deleted ones, or more than one live one, or more pages than it
+// reads. When the search finds no site event, one read by the site's event ID
+// tells a deleted event from a missing one.
 func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*Event, resultSyncOutcome, bool, error) {
-	response, err := h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
-	if err != nil {
-		return nil, resultUnmatched, false, err
+	var found []Event
+	pageToken := ""
+	for range resultSearchMaxPages {
+		items, next, rejected, err := h.searchSiteEventPage(ctx, calendarID, token, gameID, pageToken)
+		if err != nil || rejected {
+			return nil, resultUnmatched, rejected, err
+		}
+		found = append(found, items...)
+		if pageToken = next; pageToken == "" {
+			return h.soleLiveSiteEvent(ctx, calendarID, token, gameID, found)
+		}
 	}
-	if response.StatusCode != http.StatusOK {
-		rejected, apiErr := apiResponseError(h.Logger, response)
-		return nil, resultUnmatched, rejected, apiErr
-	}
-	page, err := decodeEventList(response)
-	if err != nil {
-		return nil, resultUnmatched, false, err
-	}
-	if page.NextPageToken != "" {
-		return nil, resultAmbiguous, false, nil
-	}
+	return nil, resultAmbiguous, false, nil
+}
+
+// soleLiveSiteEvent picks the one live site event for gameID from every
+// event the search found, as findSiteEvent returns it.
+func (h *Handler) soleLiveSiteEvent(ctx context.Context, calendarID string, token *oauth2.Token, gameID string, found []Event) (*Event, resultSyncOutcome, bool, error) {
 	// A deleted copy does not make the one live event ambiguous: the
 	// visitor may have deleted a duplicate to resolve just that.
 	var live []*Event
 	deleted := 0
-	for i := range page.Items {
-		switch event := &page.Items[i]; {
+	for i := range found {
+		switch event := &found[i]; {
 		case !siteEventMatchesGame(event, gameID):
 		case isDeletedCalendarEvent(event.Status):
 			deleted++
@@ -195,6 +206,23 @@ func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *o
 		return nil, resultChanged, false, nil
 	}
 	return live[0], resultUnmatched, false, nil
+}
+
+// searchSiteEventPage reads one page of the search by private game ID.
+func (h *Handler) searchSiteEventPage(ctx context.Context, calendarID string, token *oauth2.Token, gameID, pageToken string) ([]Event, string, bool, error) {
+	response, err := h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID, pageToken)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if response.StatusCode != http.StatusOK {
+		rejected, apiErr := apiResponseError(h.Logger, response)
+		return nil, "", rejected, apiErr
+	}
+	page, err := decodeEventList(response)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return page.Items, page.NextPageToken, false, nil
 }
 
 // deletedSiteEventOutcome tells a deleted site event from a missing one when

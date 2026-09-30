@@ -176,7 +176,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 
 	// handleListEventsResponse owns and closes the replacement response body.
 	//nolint:bodyclose
-	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
+	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID, "")
 	if err != nil {
 		return nil, false, false, err
 	}

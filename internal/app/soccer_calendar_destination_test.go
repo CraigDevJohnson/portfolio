@@ -74,6 +74,10 @@ type fakeGoogleCalendars struct {
 	// listPageSize, when set, is how many calendars each calendar list page
 	// holds; Google may return fewer than the page size asked for.
 	listPageSize int
+	// eventSearchPages, when set, splits the events one search by private
+	// property finds into the pages Google answers with, which may hold
+	// fewer events than asked for, or none, while more follow.
+	eventSearchPages func([]internalgoogle.Event) [][]internalgoogle.Event
 	// beforeEventWrite, when set, runs as each event insert, update, or
 	// patch arrives, before Google answers it.
 	beforeEventWrite func()
@@ -189,7 +193,16 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 				matches = append(matches, event)
 			}
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": matches})
+		page := map[string]any{"items": matches}
+		if fake.eventSearchPages != nil {
+			pages := fake.eventSearchPages(matches)
+			index, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Query().Get("pageToken"), "p"))
+			page["items"] = append([]internalgoogle.Event{}, pages[index]...)
+			if index+1 < len(pages) {
+				page["nextPageToken"] = fmt.Sprintf("p%d", index+1)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(page)
 	case r.Method == http.MethodPatch:
 		fake.patchEvent(w, r, calendar, eventID)
 	case write:
@@ -318,6 +331,12 @@ func (fake *fakeGoogleCalendars) setListPageSize(size int) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.listPageSize = size
+}
+
+func (fake *fakeGoogleCalendars) splitEventSearches(pages func([]internalgoogle.Event) [][]internalgoogle.Event) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.eventSearchPages = pages
 }
 
 func (fake *fakeGoogleCalendars) setRevoked(revoked bool) {

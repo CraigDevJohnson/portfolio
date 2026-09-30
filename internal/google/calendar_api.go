@@ -88,12 +88,19 @@ func (h *Handler) updateCalendarEvent(ctx context.Context, calendarID, eventID s
 	return h.LPSClient.Do(req)
 }
 
-func (h *Handler) listCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*http.Response, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodGet, calendarEventsPath+url.PathEscape(calendarID)+"/events", url.Values{
+// listCalendarEventsByPrivateGameID lists one page of the calendar's events,
+// deleted ones included, whose private game ID is gameID: the first page when
+// pageToken is "", or the page a previous one named.
+func (h *Handler) listCalendarEventsByPrivateGameID(ctx context.Context, calendarID string, token *oauth2.Token, gameID, pageToken string) (*http.Response, error) {
+	query := url.Values{
 		"maxResults":              {"10"},
 		"privateExtendedProperty": {eventGameIDProperty + "=" + gameID},
 		"showDeleted":             {"true"},
-	}, token, nil)
+	}
+	if pageToken != "" {
+		query.Set("pageToken", pageToken)
+	}
+	req, err := h.newAPIRequest(ctx, http.MethodGet, calendarEventsPath+url.PathEscape(calendarID)+"/events", query, token, nil)
 	if err != nil {
 		return nil, err
 	}

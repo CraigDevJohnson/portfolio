@@ -461,6 +461,69 @@ func TestSyncUpdatesTheOneLiveEventLeftAfterTheVisitorDeletesACopy(t *testing.T)
 	}
 }
 
+// Google may answer a search with a page holding fewer events than asked
+// for, or none, while more follow. Sync reads on until the search ends, and
+// judges the match only by every event it found.
+func TestSyncReadsEverySearchPageBeforeJudgingTheMatch(t *testing.T) {
+	type pages = [][]internalgoogle.Event
+	for _, tc := range []struct {
+		name  string
+		split func([]internalgoogle.Event) pages
+		// wantPages is how many pages Sync reads; want, what it reports.
+		wantPages int
+		want      string
+	}{
+		{
+			name:      "the event on a first page that says more follow",
+			split:     func(events []internalgoogle.Event) pages { return pages{events, nil} },
+			wantPages: 2, want: "1 game result(s) updated in Google Calendar.",
+		},
+		{
+			name:      "the event after an empty first page",
+			split:     func(events []internalgoogle.Event) pages { return pages{nil, events} },
+			wantPages: 2, want: "1 game result(s) updated in Google Calendar.",
+		},
+		{
+			name:      "more pages than Sync reads",
+			split:     func(events []internalgoogle.Event) pages { return append(make(pages, 5), events) },
+			wantPages: 5, want: "0 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 with more than one matching event.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			world := newResultSyncWorld(t)
+			world.add(t, syncNorthTeamID, syncWonGameID)
+			added := world.google.events(primaryCalendarID)[syncWonGameID]
+			world.lps.play(syncWonGameID, "2-1")
+			form := world.reviewForm(t, syncNorthTeamID)
+			world.google.splitEventSearches(tc.split)
+
+			calls, patches := world.google.callCount(), world.google.patchCount()
+			if synced := world.sync(t, form, syncWonGameID); !strings.Contains(synced, tc.want) {
+				t.Fatalf("Sync answered %q, want %q", synced, tc.want)
+			}
+			var searched int
+			for _, call := range world.google.callsSince(calls) {
+				if call == http.MethodGet+" "+primaryCalendarID {
+					searched++
+				}
+			}
+			if searched != tc.wantPages {
+				t.Errorf("Sync read %d search pages, want %d", searched, tc.wantPages)
+			}
+			sent := world.google.patchesSince(patches)
+			if !strings.Contains(tc.want, "1 game result(s) updated") {
+				if len(sent) != 0 {
+					t.Fatalf("Sync patched %+v without reading the whole search", sent)
+				}
+				return
+			}
+			if len(sent) != 1 || sent[0].ifMatch != added.ETag {
+				t.Fatalf("Sync sent patches %+v; want one conditional on %s", sent, added.ETag)
+			}
+		})
+	}
+}
+
 // Before events carried portfolio_app=soccer, the site wrote each one with
 // the game's ID as its event ID and private game_id, and itself as the
 // source. Sync claims such an event, since Add cannot re-add a past game to
