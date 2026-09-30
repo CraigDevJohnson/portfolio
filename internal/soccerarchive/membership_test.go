@@ -2,6 +2,7 @@ package soccerarchive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"portfolio/internal/lps"
 	"portfolio/internal/soccerarchive/archivetest"
@@ -438,4 +441,139 @@ func TestPlayerRemovalReportsFailureWhileImportsKeepAddingEvidence(t *testing.T)
 	if api.imports == 0 {
 		t.Error("removal kept deleting without a bound on its rounds")
 	}
+}
+
+// recordingQueries is the archive table that records each base-table query
+// the store makes, and fails them all with failQuery when it is set.
+type recordingQueries struct {
+	*archivetest.Table
+
+	queries   []*dynamodb.QueryInput
+	failQuery error
+}
+
+func (api *recordingQueries) Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	api.queries = append(api.queries, input)
+	if api.failQuery != nil {
+		return nil, api.failQuery
+	}
+	return api.Table.Query(ctx, input, optFns...)
+}
+
+func TestDynamoArchiveListsOnlyOneOwnersProvenTeamSeasonsForAPlayer(t *testing.T) {
+	api := &recordingQueries{Table: archivetest.NewTable()}
+	store := newTestStore(t, api)
+	const issuer = "https://issuer.example.com/pool"
+	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	// The first owner's import proves Craig (1001) on Craig FC in season 77
+	// and Old FC in season 78, and Taylor (1002) on Craig FC in season 77.
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: issuer, OwnerSubject: "first-subject", ObservedAt: observedAt,
+		Players:    []types.LPSPlayer{{UPlayerID: 1001}, {UPlayerID: 1002}},
+		KnownTeams: []lps.TeamSummary{{UTeamID: 4101, Season: 77}, {UTeamID: 4102, Season: 78}},
+		Memberships: []PlayerMembership{
+			{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, TeamName: "Craig FC", DivisionName: "Open A", Season: 77}},
+			{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4102, TeamName: "Old FC", Color: "navy", FacilityID: 5, FacilityName: "North Field", Season: 78}},
+			{PlayerID: 1002, Team: lps.TeamSummary{UTeamID: 4101, TeamName: "Craig FC", DivisionName: "Open A", Season: 77}},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// A later import by the same owner proves Craig FC's next season.
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: issuer, OwnerSubject: "first-subject", ObservedAt: observedAt.Add(time.Hour),
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 4101, Season: 80}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, TeamName: "Craig FC", Season: 80}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Another site owner imports Craig with a team the first owner never proved.
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: issuer, OwnerSubject: "second-subject", ObservedAt: observedAt.Add(2 * time.Hour),
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 4103, Season: 81}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4103, TeamName: "Other FC", Season: 81}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listed := func(t *testing.T, subject string, playerID int) string {
+		t.Helper()
+		memberships, err := store.ListPlayerMemberships(t.Context(), issuer, subject, playerID)
+		if err != nil {
+			t.Fatalf("ListPlayerMemberships(%q, %d): %v", subject, playerID, err)
+		}
+		if memberships == nil {
+			t.Errorf("ListPlayerMemberships(%q, %d) = nil, want a list", subject, playerID)
+		}
+		got := make([]string, 0, len(memberships))
+		for i := range memberships {
+			membership := &memberships[i]
+			got = append(got, fmt.Sprintf("%d:%d/%d %s|%s%s", membership.PlayerID, membership.Team.UTeamID, membership.Team.Season, membership.Team.TeamName, membership.Team.DivisionName, teamColorAndFacility(&membership.Team)))
+		}
+		return strings.Join(got, ", ")
+	}
+
+	api.queries = nil
+	if got, want := listed(t, "first-subject", 1001), "1001:4101/77 Craig FC|Open A, 1001:4101/80 Craig FC|, 1001:4102/78 Old FC| navy 5 North Field"; got != want {
+		t.Errorf("first owner's seasons for Craig = %q, want %q", got, want)
+	}
+	if len(api.queries) != 1 {
+		t.Fatalf("listing made %d queries, want one", len(api.queries))
+	}
+	query := api.queries[0]
+	pk, _ := query.ExpressionAttributeValues[":pk"].(*ddbtypes.AttributeValueMemberS)
+	prefix, _ := query.ExpressionAttributeValues[":prefix"].(*ddbtypes.AttributeValueMemberS)
+	if aws.ToString(query.KeyConditionExpression) != "pk = :pk AND begins_with(sk, :prefix)" || aws.ToString(query.IndexName) != "" ||
+		pk == nil || pk.Value != "PLAYER#1001" || prefix == nil || prefix.Value != ownerEvidencePrefix(issuer, "first-subject")+"#TEAM#" {
+		t.Errorf("listing query = %q with %v, want the first owner's membership prefix in Craig's partition", aws.ToString(query.KeyConditionExpression), query.ExpressionAttributeValues)
+	}
+
+	if got, want := listed(t, "second-subject", 1001), "1001:4103/81 Other FC|"; got != want {
+		t.Errorf("second owner's seasons for Craig = %q, want %q", got, want)
+	}
+	if got, want := listed(t, "first-subject", 1002), "1002:4101/77 Craig FC|Open A"; got != want {
+		t.Errorf("first owner's seasons for Taylor = %q, want %q", got, want)
+	}
+	if got := listed(t, "second-subject", 1002); got != "" {
+		t.Errorf("second owner's seasons for Taylor = %q, want none", got)
+	}
+	if got := listed(t, "first-subject", 1003); got != "" {
+		t.Errorf("seasons for a player with no proof = %q, want none", got)
+	}
+
+	// The list follows every page of the partition.
+	api.PageSize = 1
+	if got, want := listed(t, "first-subject", 1001), "1001:4101/77 Craig FC|Open A, 1001:4101/80 Craig FC|, 1001:4102/78 Old FC| navy 5 North Field"; got != want {
+		t.Errorf("paged seasons for Craig = %q, want %q", got, want)
+	}
+	api.PageSize = 0
+
+	// A failed query is an error, never an empty list.
+	api.failQuery = errors.New("throttled")
+	if memberships, err := store.ListPlayerMemberships(t.Context(), issuer, "first-subject", 1001); err == nil || len(memberships) != 0 {
+		t.Errorf("failed listing = %v, %v; want an error", memberships, err)
+	}
+	api.failQuery = nil
+
+	// Removing Craig removes every owner's proof for him.
+	if err := store.DeletePlayerEvidence(t.Context(), 1001); err != nil {
+		t.Fatal(err)
+	}
+	for _, subject := range []string{"first-subject", "second-subject"} {
+		if got := listed(t, subject, 1001); got != "" {
+			t.Errorf("%s's seasons for removed Craig = %q, want none", subject, got)
+		}
+	}
+	if got, want := listed(t, "first-subject", 1002), "1002:4101/77 Craig FC|Open A"; got != want {
+		t.Errorf("Taylor's seasons after Craig's removal = %q, want %q", got, want)
+	}
+}
+
+// teamColorAndFacility describes a team's color and facility, when it has them.
+func teamColorAndFacility(team *lps.TeamSummary) string {
+	if team.Color == "" && team.FacilityID == 0 && team.FacilityName == "" {
+		return ""
+	}
+	return fmt.Sprintf(" %s %d %s", team.Color, team.FacilityID, team.FacilityName)
 }

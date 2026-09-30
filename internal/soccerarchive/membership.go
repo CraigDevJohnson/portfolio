@@ -37,8 +37,64 @@ func (s *DynamoStore) HasPlayerMembership(ctx context.Context, issuer, subject s
 	if err != nil {
 		return false, err
 	}
-	return record != nil && record.Kind == "membership" && record.Source == authenticatedPlayerLookup && record.ObservedAt != "" &&
-		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID && record.TeamID == teamID && record.SeasonID == seasonID, nil
+	return record != nil && isOwnerMembership(record, issuer, subject, playerID) && record.TeamID == teamID && record.SeasonID == seasonID, nil
+}
+
+// ListPlayerMemberships returns every team season one owner has recorded
+// authenticated proof for, for one player, in Team ID then LPS season order.
+// It queries only that owner's membership keys in the player's partition, so
+// another owner's proof is never read. No proof is an empty list, not an error.
+func (s *DynamoStore) ListPlayerMemberships(ctx context.Context, issuer, subject string, playerID int) ([]PlayerMembership, error) {
+	memberships := make([]PlayerMembership, 0)
+	if strings.TrimSpace(issuer) == "" || strings.TrimSpace(subject) == "" || playerID <= 0 {
+		return memberships, nil
+	}
+	var startKey map[string]types.AttributeValue
+	for {
+		page, err := s.api.Query(ctx, &dynamodb.QueryInput{
+			TableName:              aws.String(s.tableName),
+			KeyConditionExpression: aws.String("pk = :pk AND begins_with(sk, :prefix)"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":pk":     &types.AttributeValueMemberS{Value: "PLAYER#" + strconv.Itoa(playerID)},
+				":prefix": &types.AttributeValueMemberS{Value: ownerEvidencePrefix(issuer, subject) + "#TEAM#"},
+			},
+			ConsistentRead:    aws.Bool(true),
+			ExclusiveStartKey: startKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list player %d memberships: %w", playerID, err)
+		}
+		for _, item := range page.Items {
+			var record archiveItem
+			if err := attributevalue.UnmarshalMap(item, &record); err != nil {
+				return nil, fmt.Errorf("decode player %d membership: %w", playerID, err)
+			}
+			if !isOwnerMembership(&record, issuer, subject, playerID) || record.TeamID <= 0 || record.SeasonID <= 0 {
+				continue
+			}
+			// The record keeps the lookup's team as LPS returned it; its
+			// validated key fields decide which team season it proves.
+			team := lps.TeamSummary{TeamName: record.TeamName, DivisionName: record.DivisionName, FacilityID: record.FacilityID, FacilityName: record.FacilityName}
+			if record.RawSourceJSON != "" {
+				if err := json.Unmarshal([]byte(record.RawSourceJSON), &team); err != nil {
+					return nil, fmt.Errorf("decode player %d team %d season %d: %w", playerID, record.TeamID, record.SeasonID, err)
+				}
+			}
+			team.UTeamID, team.Season = record.TeamID, record.SeasonID
+			memberships = append(memberships, PlayerMembership{PlayerID: playerID, Team: team})
+		}
+		if len(page.LastEvaluatedKey) == 0 {
+			return memberships, nil
+		}
+		startKey = page.LastEvaluatedKey
+	}
+}
+
+// isOwnerMembership reports whether record is one owner's authenticated
+// membership observation for playerID.
+func isOwnerMembership(record *archiveItem, issuer, subject string, playerID int) bool {
+	return record.Kind == "membership" && record.Source == authenticatedPlayerLookup && record.ObservedAt != "" &&
+		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID
 }
 
 // playerRemovalRounds bounds how many times a removal lists and deletes the
