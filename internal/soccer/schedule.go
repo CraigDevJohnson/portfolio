@@ -32,7 +32,8 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 
 	input := parseScheduleFormInput(r.Form)
 	privateAllowed := siteidentity.SoccerPrivateAllowed(r.Context())
-	session, swapAuthState := h.LoadSession(w, r)
+	session, clearedBy := h.loadSession(w, r)
+	swapAuthState := clearedBy != nil
 
 	// When team_ids[] is submitted (from the discover-teams step), carry them
 	// forward in TeamCodes so ICS download and Google add forms work unchanged.
@@ -63,7 +64,11 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	h.setHTMLContentType(w)
 	if swapAuthState {
 		w.Header().Set("HX-Trigger", "soccer-workflow-reset")
-		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(r.Context(), w); err != nil {
+		loginState := h.LoginStateProps(w, r, nil, true)
+		if errors.Is(clearedBy, ErrSessionExpired) && loginState.LoginAvailable {
+			loginState.ImportNotice = importNoticeFor(expiredImportDetails)
+		}
+		if err := partials.SoccerLoginState(loginState).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

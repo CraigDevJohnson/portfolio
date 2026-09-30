@@ -324,7 +324,10 @@ func assertImportRecovery(t *testing.T, doc *html.Node, wantNotice string) {
 	}
 	// The site header names Craig Johnson, so Taylor and the player choices
 	// show whether a linked player remains.
-	if strings.Contains(plannerText(doc), "Taylor Johnson") || len(plannerElements(doc, plannerAttrIs("name", "player_ids"))) != 0 {
+	playerChoices := plannerElements(doc, func(node *html.Node) bool {
+		return soccerHTMLAttribute(node, "name") == "player_ids" && soccerHTMLAttribute(node, "type") == "checkbox"
+	})
+	if strings.Contains(plannerText(doc), "Taylor Johnson") || len(playerChoices) != 0 {
 		t.Error("recovery exposed the linked players")
 	}
 }
@@ -414,6 +417,29 @@ func TestExpiredImportExplainsRecoveryToItsOwner(t *testing.T) {
 		assertImportRecovery(t, parsePlannerHTML(t, expired.Body.String()), expiredImportNotice)
 		if world.bearerCalls.Load() != 0 {
 			t.Error("the expired import was sent to LPS")
+		}
+	})
+	t.Run("fetching chosen teams", func(t *testing.T) {
+		world := newLinkedPlannerWorld(t)
+		world.holdExpiredImport(t)
+
+		fetched := world.browser.postForm("/soccer/fetch", url.Values{"selection_mode": {"teams"}, "player_ids": {"1002"}, "team_ids": {"202"}})
+
+		if !strings.Contains(fetched.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
+			t.Errorf("expired import did not close the private workflow: HX-Trigger %q", fetched.Header().Get("HX-Trigger"))
+		}
+		// The fetch keeps its team choice, but not the expired import.
+		if world.browser.holdsCookie(config.LPSImportGuardCookieName, "/soccer") {
+			t.Error("the browser kept the expired import's guard")
+		}
+		if page := world.browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
+			t.Error("the next page presented the expired import as active")
+		}
+		doc := parsePlannerHTML(t, fetched.Body.String())
+		assertImportRecovery(t, doc, expiredImportNotice)
+		// The chosen teams' schedules are public, so they still load.
+		if got := plannerRowIDs(plannerGameRows(doc, "upcoming-games")); !slices.Equal(got, []string{"3030", "2020"}) {
+			t.Errorf("South FC rows after the import expired = %v, want [3030 2020]", got)
 		}
 	})
 }
