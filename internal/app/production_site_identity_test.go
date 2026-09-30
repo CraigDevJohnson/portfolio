@@ -363,6 +363,8 @@ func TestProductionSiteSignInMovesTheWWWAliasToTheCallbackHost(t *testing.T) {
 		{method: http.MethodPost, path: "/sign-in"},
 		{method: http.MethodGet, path: "/auth/callback?code=prod-invited&state=pending"},
 		{method: http.MethodPost, path: "/sign-out"},
+		// A path that looks like another host still stays on the apex.
+		{method: http.MethodGet, path: "//evil.example/steal"},
 	} {
 		body := strings.NewReader(url.Values{"return_to": {"/soccer"}}.Encode())
 		req := httptest.NewRequest(request.method, prodSiteWWWOrigin+request.path, body)

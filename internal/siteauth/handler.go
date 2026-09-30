@@ -96,7 +96,8 @@ func (h *Handler) WithCanonicalHost(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		http.Redirect(w, r, canonical.Scheme+"://"+canonical.Host+r.URL.RequestURI(), http.StatusPermanentRedirect)
+		// The scheme and host come from the reviewed callback URL; only the path and query are the request's.
+		http.Redirect(w, r, canonical.Scheme+"://"+canonical.Host+r.URL.RequestURI(), http.StatusPermanentRedirect) //nolint:gosec // Fixed canonical host, so the redirect cannot leave this site.
 	})
 }
 
