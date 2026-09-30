@@ -57,21 +57,6 @@ resource "aws_iam_role" "lambda" {
       condition     = !var.activate_soccer_history_schedule || local.history_schedule_enabled
       error_message = "soccer history scheduling requires reviewed limits, collection activation, and a schedule expression"
     }
-
-    precondition {
-      condition     = !var.activate_soccer_history_collection || var.soccer_history_limits != null
-      error_message = "soccer history collection requires reviewed numeric limits"
-    }
-
-    precondition {
-      condition     = !var.activate_soccer_history_collection || length(var.alarm_action_arns) > 0
-      error_message = "soccer history collection requires an alert destination for admission rejections"
-    }
-
-    precondition {
-      condition     = !var.activate_soccer_history_schedule || local.history_schedule_enabled
-      error_message = "soccer history scheduling requires reviewed limits, collection activation, and a schedule expression"
-    }
   }
 }
 
