@@ -22,6 +22,11 @@ type UserCheckResponse struct {
 }
 
 // TeamSummary is the subset of team metadata returned by the LPS team endpoints.
+//
+// Color is an unverified assumption: no recorded LPS payload yet shows the
+// team color's key or format. It is read as a color name under "Color" (any
+// letter case, via encoding/json) on the team and on nested game sides. If LPS
+// sends another key or hex values, every team gets its Team ID fallback.
 type TeamSummary struct {
 	UTeamID      int    `json:"UTeamID"`
 	TeamName     string `json:"team_name"`
