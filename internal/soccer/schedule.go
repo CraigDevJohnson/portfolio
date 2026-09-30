@@ -101,7 +101,29 @@ func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request
 	default:
 		return nil
 	}
+	bindWorkflowOwner(r.Context(), session)
 	return h.setSession(w, r, session)
+}
+
+// bindWorkflowOwner keeps a saved imported selection readable on the next
+// request. A selection saved without imported LPS access, such as a
+// discovered-team fetch after the import expired, is bound to the current
+// granted site owner; without the soccer grant only its teams are kept, as a
+// Team ID selection. Imported access itself is never rebound to a new owner.
+func bindWorkflowOwner(ctx context.Context, session *types.SessionData) {
+	if session.Workflow.Source != "imported" || siteidentity.SoccerOwnerAllowed(ctx, session.OwnerIssuer, session.OwnerSubject) {
+		return
+	}
+	principal, signedIn := siteidentity.PrincipalFromContext(ctx)
+	hasImportedAccess := session.JWT != "" || len(session.Players) > 0
+	if signedIn && !hasImportedAccess && siteidentity.SoccerPrivateAllowed(ctx) {
+		session.OwnerIssuer, session.OwnerSubject = principal.Issuer, principal.Subject
+		return
+	}
+	session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
+		Source:          "manual",
+		SelectedTeamIDs: session.Workflow.SelectedTeamIDs,
+	}, session.Players)
 }
 
 // DownloadICSHandler exports the selected schedule rows as an ICS download.

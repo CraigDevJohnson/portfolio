@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -316,4 +318,67 @@ func TestGrantedVisitorEntersLinkedPlayerFlowThroughSiteSession(t *testing.T) {
 	if world.lpsCredentialCalls.Load() == 0 {
 		t.Fatal("the linked-player flow never used the imported LPS access")
 	}
+}
+
+func TestDiscoveredTeamSelectionRestoresForTheGrantedOwnerWithoutImportedAccess(t *testing.T) {
+	selection := url.Values{"selection_mode": {"teams"}, "team_ids": {"4101"}, "player_ids": {"1001"}}
+	for _, start := range []struct {
+		name  string
+		saved func(t *testing.T, mux http.Handler, site *http.Cookie) []*http.Cookie
+	}{
+		{
+			name:  "no saved workflow",
+			saved: func(*testing.T, http.Handler, *http.Cookie) []*http.Cookie { return nil },
+		},
+		{
+			name: "a saved Team ID lookup",
+			saved: func(t *testing.T, mux http.Handler, site *http.Cookie) []*http.Cookie {
+				lookup := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"4101"}}, site)
+				if cookie := findSessionCookie(t, lookup.Result()); cookie != nil && cookie.Value != "" {
+					return []*http.Cookie{cookie}
+				}
+				t.Fatal("Team ID lookup did not save its workflow")
+				return nil
+			},
+		},
+	} {
+		t.Run(start.name, func(t *testing.T) {
+			world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+			var logs bytes.Buffer
+			mux, _ := buildMux(world.app, slog.New(slog.NewTextHandler(&logs, nil)), false)
+			site := testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail)
+
+			fetch := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", selection, append(start.saved(t, mux, site), site)...)
+			if fetch.Code != http.StatusOK || !strings.Contains(fetch.Body.String(), `value="7001"`) {
+				t.Fatalf("discovered-team schedule: status %d, body %q", fetch.Code, fetch.Body.String())
+			}
+			saved := findSessionCookie(t, fetch.Result())
+			if saved == nil || saved.Value == "" {
+				t.Fatal("discovered-team schedule did not save the team selection")
+			}
+
+			page := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, site, saved)
+			if cleared := findSessionCookie(t, page.Result()); cleared != nil {
+				t.Error("Soccer page discarded the owner's saved team selection")
+			}
+			if !strings.Contains(page.Body.String(), `value="7001"`) {
+				t.Error("Soccer page did not restore the selected team's schedule")
+			}
+			if strings.Contains(logs.String(), internalsoccer.ErrSessionOwnerMismatch.Error()) {
+				t.Errorf("the owner's own saved selection was logged as an owner mismatch: %s", logs.String())
+			}
+		})
+	}
+
+	t.Run("ungranted visitor", func(t *testing.T) {
+		world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}, otherSiteEmail: {}})
+		site := testSiteSessionCookie(t, world.app, otherSiteSubject, otherSiteEmail)
+		fetch := soccerGrantRequest(world.mux, http.MethodPost, "/soccer/fetch", selection, site)
+		if fetch.Code != http.StatusForbidden {
+			t.Errorf("ungranted discovered-team schedule status = %d, want 403", fetch.Code)
+		}
+		if cookie := findSessionCookie(t, fetch.Result()); cookie != nil {
+			t.Error("ungranted visitor received a saved discovered-team selection")
+		}
+	})
 }
