@@ -414,21 +414,29 @@ func TestGoogleRefusalOfAnEventWriteDecidesBetweenReconnectRetryAndANewChoice(t 
 	}
 }
 
-func TestRateLimitedCalendarCheckKeepsTheConnectionAndItsDestination(t *testing.T) {
-	world := newCalendarDestinationWorld(t)
-	world.connect(t)
-	world.fetch(t)
-	world.google.refuseCalendarList(&googleRefusal{http.StatusForbidden, "usageLimits", "userRateLimitExceeded"})
+func TestCalendarCheckRefusedForAnotherReasonThanTheConnectionKeepsItAndItsDestination(t *testing.T) {
+	for _, refusal := range []googleRefusal{
+		{http.StatusForbidden, "usageLimits", "userRateLimitExceeded"},
+		{http.StatusForbidden, "global", "forbidden"},
+		{http.StatusForbidden, "usageLimits", "accessNotConfigured"},
+	} {
+		t.Run(refusal.reason, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.fetch(t)
+			world.google.refuseCalendarList(&refusal)
 
-	if added := world.add(t, nextGameID); !strings.Contains(added, "try again later") {
-		t.Fatalf("rate-limited Add did not ask the visitor to retry: %q", added)
-	}
-	world.google.refuseCalendarList(nil)
-	if len(world.store.records) != 1 || !strings.Contains(world.page(t), calendarReady) {
-		t.Fatal("a Google usage limit removed the connection or paused its destination")
-	}
-	if added := world.add(t, nextGameID); !strings.Contains(added, "Added 1 selected game") || len(world.google.events(primaryCalendarID)) != 1 {
-		t.Fatalf("retry after the usage limit did not add the game to the same calendar: %q", added)
+			if added := world.add(t, nextGameID); !strings.Contains(added, "try again later") || strings.Contains(added, "Connect again") {
+				t.Fatalf("Add with the calendar check refused as %s did not ask the visitor to retry: %q", refusal.reason, added)
+			}
+			world.google.refuseCalendarList(nil)
+			if len(world.store.records) != 1 || !strings.Contains(world.page(t), calendarReady) {
+				t.Fatalf("a calendar check refused as %s removed the connection or paused its destination", refusal.reason)
+			}
+			if added := world.add(t, nextGameID); !strings.Contains(added, "Added 1 selected game") || len(world.google.events(primaryCalendarID)) != 1 {
+				t.Fatalf("retry after the refusal did not add the game to the same calendar: %q", added)
+			}
+		})
 	}
 }
 

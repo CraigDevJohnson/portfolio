@@ -260,8 +260,7 @@ func isGoogleAuthRejected(err error) bool {
 
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
-		// A usage limit refuses the request, not the connection.
-		return apiErr.StatusCode == http.StatusUnauthorized || (apiErr.StatusCode == http.StatusForbidden && !apiErr.usageLimited())
+		return apiErr.credentialsRejected()
 	}
 
 	var retrieveErr *oauth2.RetrieveError
