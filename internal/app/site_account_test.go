@@ -120,11 +120,16 @@ func (b *siteBrowser) do(request *http.Request) *httptest.ResponseRecorder {
 	}
 	response := httptest.NewRecorder()
 	b.handler.ServeHTTP(response, request)
-	b.jar.SetCookies(request.URL, response.Result().Cookies())
+	b.receive(request.URL, response)
+	return response
+}
+
+// receive applies a response's cookies as the browser does when it arrives.
+func (b *siteBrowser) receive(target *url.URL, response *httptest.ResponseRecorder) {
+	b.jar.SetCookies(target, response.Result().Cookies())
 	for _, cookie := range response.Result().Cookies() {
 		b.lastSet[cookie.Name+"\x00"+cookie.Path] = cookie
 	}
-	return response
 }
 
 func (b *siteBrowser) get(target string) *httptest.ResponseRecorder {

@@ -31,7 +31,10 @@ for at most 12 hours; a JWT without a valid expiry is rejected. It is bound to
 the importing site identity, and linked-player access requires that identity and
 the current `soccer` grant. A site-session timeout hides the import until that
 identity signs in again. Site sign-out, Clear import, and expiry remove it, as
-does a Soccer visit by another signed-in site account. An anonymous Team ID
+does a Soccer visit by another signed-in site account. The import also writes a
+guard cookie that its payload must match. Only an import writes the guard, so
+once sign-out or Clear import deletes both, a Soccer response still in flight
+cannot restore usable access. An anonymous Team ID
 lookup saves its choices only in a cookie that ends with the browser session,
 and never replaces a retained import.
 

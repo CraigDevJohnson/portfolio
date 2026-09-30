@@ -238,13 +238,14 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 			SelectedTeamIDs:   []int{4101},
 		},
 	}
-	encryptedSession := encryptTestSession(t, app, ownedBySiteVisitor(workflow))
-	lpsCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptedSession}
+	lpsCookies := importedAccessCookies(t, app, ownedBySiteVisitor(workflow))
 
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
 	connectReq = asGrantedSoccerOwner(connectReq)
 	connectReq.Host = "example.com"
-	connectReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		connectReq.AddCookie(cookie)
+	}
 	connectResp := httptest.NewRecorder()
 	app.GoogleHandler.ConnectHandler(connectResp, connectReq)
 	connectResult := connectResp.Result()
@@ -270,7 +271,9 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer/google/callback?code=auth-code&state="+url.QueryEscape(stateValue), nil)
 	callbackReq = asGrantedSoccerOwner(callbackReq)
 	callbackReq.Host = "example.com"
-	callbackReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		callbackReq.AddCookie(cookie)
+	}
 	callbackReq.AddCookie(stateCookie)
 	callbackResp := httptest.NewRecorder()
 	app.GoogleHandler.CallbackHandler(callbackResp, callbackReq)
@@ -294,7 +297,9 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	pageReq := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
 	pageReq = asGrantedSoccerOwner(pageReq)
 	pageReq.Host = "example.com"
-	pageReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		pageReq.AddCookie(cookie)
+	}
 	pageReq.AddCookie(connectionCookie)
 	pageResp := httptest.NewRecorder()
 	newTestSoccerHandler(app).SoccerPage(pageResp, pageReq)
@@ -571,8 +576,9 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	}
 
 	sessionCookie := findSessionCookie(t, importResp.Result())
-	if sessionCookie == nil {
-		t.Fatal("expected session cookie to be set")
+	guardCookie := findImportGuardCookie(importResp.Result())
+	if sessionCookie == nil || guardCookie == nil {
+		t.Fatal("expected session and import guard cookies to be set")
 	}
 
 	session := decryptTestSession(t, app, sessionCookie.Value)
@@ -595,6 +601,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	fetchReq = asGrantedSoccerOwner(fetchReq)
 	fetchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	fetchReq.AddCookie(sessionCookie)
+	fetchReq.AddCookie(guardCookie)
 	fetchResp := httptest.NewRecorder()
 
 	newTestSoccerHandler(app).FetchSchedulesHandler(fetchResp, fetchReq)

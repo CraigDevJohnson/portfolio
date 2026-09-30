@@ -158,11 +158,15 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 		t.Fatalf("granted import failed: status %d, body %q", imported.Code, imported.Body.String())
 	}
 	lpsCookie := findSessionCookie(t, imported.Result())
-	if lpsCookie == nil || store.record == nil {
-		t.Fatal("import did not persist the private session and baseline")
+	guardCookie := findImportGuardCookie(imported.Result())
+	if lpsCookie == nil || guardCookie == nil || store.record == nil {
+		t.Fatal("import did not persist the private session, its guard, and baseline")
 	}
 	if lpsCookie.MaxAge <= 0 || lpsCookie.MaxAge > int((30*time.Minute).Seconds()) || lpsCookie.Expires.IsZero() {
 		t.Fatalf("import cookie will not survive a browser restart within JWT expiry: max-age %d, expires %v", lpsCookie.MaxAge, lpsCookie.Expires)
+	}
+	if guardCookie.Value == "" || guardCookie.MaxAge <= 0 || guardCookie.MaxAge > lpsCookie.MaxAge || !guardCookie.Expires.Equal(lpsCookie.Expires) || guardCookie.Path != lpsCookie.Path {
+		t.Fatalf("import guard does not last exactly as long as the import: guard %#v, import %#v", guardCookie, lpsCookie)
 	}
 	session := decryptTestSession(t, application, lpsCookie.Value)
 	if session.ExpiresAt.After(tokenExpiry) || session.ExpiresAt.Before(tokenExpiry.Add(-time.Second)) || lpsCookie.Expires.After(session.ExpiresAt) {
@@ -171,26 +175,26 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	if session.OwnerIssuer != fixture.issuer || session.OwnerSubject != "stable-subject" || store.record.OwnerIssuer != fixture.issuer || store.record.OwnerSubject != "stable-subject" {
 		t.Fatalf("import ownership was not the validated issuer and subject: session %#v, record %#v", session, store.record)
 	}
-	ownerPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie, lpsCookie)
+	ownerPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie, lpsCookie, guardCookie)
 	if ownerPage.Code != http.StatusOK || !strings.Contains(ownerPage.Body.String(), "Imported in this browser") || !strings.Contains(ownerPage.Body.String(), "up to 12 hours") {
 		t.Fatalf("owner could not restore linked players: status %d", ownerPage.Code)
 	}
-	timedOutPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie)
+	timedOutPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie, guardCookie)
 	if timedOutPage.Code != http.StatusOK || strings.Contains(timedOutPage.Body.String(), "Imported in this browser") || findSessionCookie(t, timedOutPage.Result()) != nil {
 		t.Fatalf("site timeout exposed or discarded a still-valid imported credential: status %d", timedOutPage.Code)
 	}
-	publicFetch := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"4101"}}, lpsCookie)
+	publicFetch := soccerGrantRequest(mux, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"4101"}}, lpsCookie, guardCookie)
 	if publicFetch.Code != http.StatusOK || !strings.Contains(publicFetch.Body.String(), "Craig FC") || findSessionCookie(t, publicFetch.Result()) != nil {
 		t.Fatalf("public Team ID fetch after site timeout overwrote a retained import: status %d", publicFetch.Code)
 	}
 	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
 	ownerAgain := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	restoredPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie)
+	restoredPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie, guardCookie)
 	if restoredPage.Code != http.StatusOK || !strings.Contains(restoredPage.Body.String(), "Imported in this browser") {
 		t.Fatal("same-owner site sign-in did not restore a still-valid imported credential")
 	}
 	application.Config.SiteInvitations["owner@example.com"] = []string{}
-	revokedPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie)
+	revokedPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerAgain, lpsCookie, guardCookie)
 	if revokedPage.Code != http.StatusOK || strings.Contains(revokedPage.Body.String(), "Imported in this browser") || findSessionCookie(t, revokedPage.Result()) != nil {
 		t.Fatal("current Soccer grant was not required or revocation discarded the import")
 	}
@@ -205,8 +209,7 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	assertClearedSessionCookie(t, expiredPage.Result())
 
 	legacy := types.SessionData{JWT: token, Players: []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Legacy", LastName: "Player"}}, ExpiresAt: time.Now().Add(time.Hour)}
-	legacyCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, application, &legacy)}
-	legacyPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, ownerCookie, legacyCookie)
+	legacyPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, append([]*http.Cookie{ownerCookie}, importedAccessCookies(t, application, &legacy)...)...)
 	clearedLegacy := findSessionCookie(t, legacyPage.Result())
 	if strings.Contains(legacyPage.Body.String(), "Legacy Player") || clearedLegacy == nil || clearedLegacy.Value != "" || clearedLegacy.MaxAge >= 0 {
 		t.Fatal("ownerless legacy import was inherited instead of denied and cleared")
@@ -215,13 +218,13 @@ func TestSoccerImportBindsPrivateSessionToVerifiedSubject(t *testing.T) {
 	fixture.subject = "different-subject"
 	stateCookie, state = beginSiteSignIn(t, mux, "/soccer")
 	otherCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, lpsCookie)
+	otherPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, otherCookie, lpsCookie, guardCookie)
 	clearedOther := findSessionCookie(t, otherPage.Result())
 	if strings.Contains(otherPage.Body.String(), "Imported in this browser") || clearedOther == nil || clearedOther.Value != "" || clearedOther.MaxAge >= 0 {
 		t.Fatal("a different Cognito subject inherited an imported session")
 	}
 
-	signedOut := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie)
+	signedOut := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, lpsCookie, guardCookie)
 	if signedOut.Code != http.StatusOK || strings.Contains(signedOut.Body.String(), "Imported in this browser") {
 		t.Fatal("a browser without a site session used imported LPS access")
 	}

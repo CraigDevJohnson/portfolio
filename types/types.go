@@ -246,6 +246,9 @@ type SessionData struct {
 	SessionID    string              `json:"session_id,omitempty"`
 	StartedAt    time.Time           `json:"started_at,omitempty"`
 	Workflow     SoccerWorkflowState `json:"workflow,omitempty"`
+	// ImportGuard is a random value an import also writes to its own guard
+	// cookie. Imported access is usable only while the two match.
+	ImportGuard string `json:"import_guard,omitempty"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

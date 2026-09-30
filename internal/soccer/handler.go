@@ -28,6 +28,10 @@ var (
 	// errSessionWithheld reports the owner's retained imported access while the
 	// owner is signed out or lacks the current soccer grant. It is kept, not cleared.
 	errSessionWithheld = errors.New("imported LPS access is withheld until its owner signs in with the soccer grant")
+	// errImportGuardMismatch reports imported access whose guard cookie is
+	// missing or different: sign-out or Clear import removed it, and a
+	// response already in flight wrote the payload back.
+	errImportGuardMismatch = errors.New("imported LPS access does not match this browser's import guard")
 	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
 	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.

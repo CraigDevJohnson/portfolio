@@ -52,6 +52,24 @@ func (b *siteBrowser) restart() {
 	b.jar = jar
 }
 
+// sendForm posts a form with the cookies the browser holds now and returns a
+// function that delivers the response later, as a response still in flight
+// while the browser does something else.
+func (b *siteBrowser) sendForm(path string, form url.Values) (deliver func() *httptest.ResponseRecorder) {
+	b.t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "https://app.example.com"+path, strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range b.jar.Cookies(request.URL) {
+		request.AddCookie(cookie)
+	}
+	response := httptest.NewRecorder()
+	b.handler.ServeHTTP(response, request)
+	return func() *httptest.ResponseRecorder {
+		b.receive(request.URL, response)
+		return response
+	}
+}
+
 // expireSiteSession drops the site session as the browser does when its
 // Max-Age ends: an automatic timeout, not an explicit sign-out.
 func (b *siteBrowser) expireSiteSession() {
@@ -112,6 +130,50 @@ func TestExplicitSiteSignOutClearsImportedLPSAccess(t *testing.T) {
 	}
 	if world.lpsCredentialCalls.Load() != calls {
 		t.Error("linked-player discovery after sign-out used the cleared LPS credential")
+	}
+}
+
+func TestSoccerResponseInFlightWhenImportIsClearedCannotRestoreIt(t *testing.T) {
+	for _, clearing := range []struct {
+		name string
+		// clear removes the import; signedOut reports whether it also ended
+		// the site session, so the owner must sign in again.
+		clear     func(browser *siteBrowser) *httptest.ResponseRecorder
+		signedOut bool
+	}{
+		{name: "site sign-out", signedOut: true, clear: func(browser *siteBrowser) *httptest.ResponseRecorder {
+			return browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil))
+		}},
+		{name: "Clear import", clear: func(browser *siteBrowser) *httptest.ResponseRecorder {
+			return browser.postForm("/soccer/logout", url.Values{})
+		}},
+	} {
+		t.Run(clearing.name, func(t *testing.T) {
+			world, browser := newRetainedImportBrowser(t)
+
+			inFlight := browser.sendForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}})
+			if cleared := clearing.clear(browser); cleared.Code >= http.StatusBadRequest {
+				t.Fatalf("%s status = %d", clearing.name, cleared.Code)
+			}
+			if stale := inFlight(); !strings.Contains(stale.Body.String(), "Craig FC") || findSessionCookie(t, stale.Result()) == nil {
+				t.Fatalf("the discovery response in flight did not rewrite the import cookie: status %d", stale.Code)
+			}
+
+			browser.restart()
+			if clearing.signedOut {
+				browser.signIn("/soccer")
+			}
+			if page := browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
+				t.Error("a response in flight restored imported access that was cleared")
+			}
+			calls := world.lpsCredentialCalls.Load()
+			if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Import a bearer JWT to discover teams.") {
+				t.Errorf("linked-player discovery after the import was cleared: status %d", discovered.Code)
+			}
+			if world.lpsCredentialCalls.Load() != calls {
+				t.Error("linked-player discovery used the cleared LPS credential")
+			}
+		})
 	}
 }
 

@@ -143,10 +143,8 @@ func (world *soccerGrantWorld) ownerPrivateState(t *testing.T) []*http.Cookie {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return append(pending.Result().Cookies(),
-		&http.Cookie{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, world.app, ownedBySiteVisitor(imported))},
-		&http.Cookie{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID},
-	)
+	cookies := append(pending.Result().Cookies(), importedAccessCookies(t, world.app, ownedBySiteVisitor(imported))...)
+	return append(cookies, &http.Cookie{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID})
 }
 
 type soccerGrantRoute struct {

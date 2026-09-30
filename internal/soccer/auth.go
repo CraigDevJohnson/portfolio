@@ -3,6 +3,7 @@ package soccer
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -66,12 +67,13 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	sessionID := generateSessionID()
 	session := types.SessionData{
-		JWT:       jwt,
-		UserName:  discovery.UserName,
-		Players:   discovery.Players,
-		ExpiresAt: lps.ImportedSessionExpiry(jwt, now),
-		SessionID: sessionID,
-		StartedAt: now,
+		JWT:         jwt,
+		UserName:    discovery.UserName,
+		Players:     discovery.Players,
+		ExpiresAt:   lps.ImportedSessionExpiry(jwt, now),
+		SessionID:   sessionID,
+		StartedAt:   now,
+		ImportGuard: generateSessionID(),
 	}
 	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok {
 		session.OwnerIssuer = principal.Issuer
@@ -82,6 +84,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		h.RenderLoginFeedback(w, r, "error", "The import succeeded, but the session cookie could not be saved.")
 		return
 	}
+	h.setImportGuard(w, r, &session)
 
 	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancelPersist()
@@ -132,6 +135,9 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
+	if (session.JWT != "" || len(session.Players) > 0) && !importGuardMatches(r, session.ImportGuard) {
+		return nil, errImportGuardMismatch
+	}
 	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
 	if hasPrivateState && !siteidentity.SoccerOwnerAllowed(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
 		if siteidentity.ForeignOwner(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
@@ -149,7 +155,7 @@ func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.Se
 	if errors.Is(err, errSessionWithheld) {
 		return nil, false
 	}
-	if errors.Is(err, ErrSessionExpired) {
+	if errors.Is(err, ErrSessionExpired) || errors.Is(err, errImportGuardMismatch) {
 		h.clearSession(w, r)
 		return nil, true
 	}
@@ -181,10 +187,30 @@ func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *ty
 	return nil
 }
 
-func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
-	cookie := httpx.NewSecureCookie(r, config.LPSSessionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
-	cookie.Expires = time.Unix(0, 0)
+// setImportGuard writes the import's guard cookie, which lasts as long as the
+// import. Soccer responses rewrite lps_session with the whole payload, but
+// only an import writes this cookie, so a response still in flight when
+// sign-out clears both cannot bring back usable imported access.
+func (h *Handler) setImportGuard(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
+	cookie := httpx.NewSecureCookie(r, config.LPSImportGuardCookieName, session.ImportGuard, config.SoccerCookiePath, int(time.Until(session.ExpiresAt).Seconds()), http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
+	cookie.Expires = session.ExpiresAt
 	http.SetCookie(w, cookie)
+}
+
+// importGuardMatches reports whether the browser still holds the guard cookie
+// the import wrote with this payload.
+func importGuardMatches(r *http.Request, guard string) bool {
+	cookie, err := r.Cookie(config.LPSImportGuardCookieName)
+	return err == nil && guard != "" && subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(guard)) == 1
+}
+
+// clearSession removes the imported session and its guard from the browser.
+func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
+	for _, name := range []string{config.LPSSessionCookieName, config.LPSImportGuardCookieName} {
+		cookie := httpx.NewSecureCookie(r, name, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
+		cookie.Expires = time.Unix(0, 0)
+		http.SetCookie(w, cookie)
+	}
 }
 
 func generateSessionID() string {

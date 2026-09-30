@@ -5,8 +5,11 @@ import "time"
 const CareerStartYear = 2012
 
 const (
-	DefaultLPSAPIBaseURL       = "https://lps-api-prod.lps-test.com"
-	LPSSessionCookieName       = "lps_session"
+	DefaultLPSAPIBaseURL = "https://lps-api-prod.lps-test.com"
+	LPSSessionCookieName = "lps_session"
+	// LPSImportGuardCookieName holds the guard an import shares with its
+	// lps_session payload. Only an import writes it; sign-out deletes it.
+	LPSImportGuardCookieName   = "lps_import_guard"
 	GoogleConnectionCookieName = "google_connection"
 	GoogleOAuthStateCookieName = "google_oauth_state"
 	DefaultSessionTTL          = 12 * time.Hour

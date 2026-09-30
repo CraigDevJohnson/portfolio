@@ -150,18 +150,46 @@ func decryptTestSession(t *testing.T, app *App, value string) types.SessionData 
 	return session
 }
 
-// addSessionCookie attaches an encrypted soccer session cookie to the
-// request. A session without an owner is bound to the signed-in test
-// principal, as an import through that site session binds it; tests of legacy
-// ownerless state encrypt the session themselves.
+// addSessionCookie attaches an encrypted soccer session cookie and its import
+// guard to the request. A session without an owner is bound to the signed-in
+// test principal, as an import through that site session binds it; tests of
+// legacy ownerless state encrypt the session themselves.
 func addSessionCookie(t *testing.T, app *App, req *http.Request, session *types.SessionData) {
 	t.Helper()
 	owned := *session
 	if owned.OwnerIssuer == "" && owned.OwnerSubject == "" {
 		ownedBySiteVisitor(&owned)
 	}
-	encrypted := encryptTestSession(t, app, &owned)
-	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
+	for _, cookie := range importedAccessCookies(t, app, &owned) {
+		req.AddCookie(cookie)
+	}
+}
+
+// testImportGuard is the guard a test import shares with its guard cookie.
+const testImportGuard = "test-import-guard"
+
+// importedAccessCookies returns the cookies a browser holds after an import:
+// the encrypted session and the import guard cookie it must match.
+func importedAccessCookies(t *testing.T, app *App, session *types.SessionData) []*http.Cookie {
+	t.Helper()
+	guarded := *session
+	if guarded.ImportGuard == "" {
+		guarded.ImportGuard = testImportGuard
+	}
+	return []*http.Cookie{
+		{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, app, &guarded)},
+		{Name: config.LPSImportGuardCookieName, Value: guarded.ImportGuard},
+	}
+}
+
+// findImportGuardCookie returns the import guard cookie from an HTTP response.
+func findImportGuardCookie(resp *http.Response) *http.Cookie {
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == config.LPSImportGuardCookieName {
+			return cookie
+		}
+	}
+	return nil
 }
 
 // findSessionCookie returns the soccer session cookie from an HTTP response.
