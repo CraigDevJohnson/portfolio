@@ -664,3 +664,27 @@ func TestPublicPlannerRouteRejectedTeamDownloadKeepsImportedAccess(t *testing.T)
 	}
 	assertImportedAccessKept(t, resp)
 }
+
+func TestPlannerDiscoveryErrorsPointBackToImport(t *testing.T) {
+	routes, _ := newPublicPlannerRoutes(t, func(string) (int, string) { return 0, "" })
+
+	// The imported session expired between import and "Find teams".
+	resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}})
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("POST /soccer/discover-teams status = %d", resp.Code)
+	}
+	doc := parsePlannerHTML(t, resp.Body.String())
+	nextStep := plannerSingle(t, doc, "discovery next step", func(node *html.Node) bool {
+		return soccerHTMLClassContains(node, "no-results-next-step")
+	})
+	if got := plannerText(nextStep); strings.Contains(got, "Team IDs") || !strings.Contains(got, "Import fresh LPS access") {
+		t.Errorf("discovery next step = %q; it must point back to LPS import", got)
+	}
+	importAction := plannerSingle(t, doc, "import recovery action", func(node *html.Node) bool {
+		return node.Data == "button" && plannerHasAttr(node, "data-open-login-modal")
+	})
+	if plannerHasAttr(importAction, "hidden") {
+		t.Error("discovery error hides its Import fresh access recovery action")
+	}
+}

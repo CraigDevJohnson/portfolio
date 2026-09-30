@@ -530,6 +530,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:         invalidPlayersMessage,
 			Hint:            invalidPlayersHint,
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -543,6 +544,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:         "Import a bearer JWT to discover teams.",
 			Hint:            "Choose at least one player after importing.",
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -561,6 +563,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:         "Teams were discovered, but the selection could not be saved.",
 			Hint:            "Try choosing the players again before continuing.",
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); renderErr != nil {
 			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
 		}

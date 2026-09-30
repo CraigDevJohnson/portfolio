@@ -21,6 +21,9 @@ type SoccerTableFragmentProps struct {
 	// RetryLater marks a fetch that failed because Let's Play Soccer was
 	// unavailable, so repeating the same request later may succeed.
 	RetryLater      bool
+	// Discovery marks a linked-player team discovery result, whose recovery
+	// is a fresh LPS import rather than a Team ID correction.
+	Discovery       bool
 	GoogleAvailable bool
 	GoogleConnected bool
 	GoogleFeedback  *SoccerLoginFeedbackProps
@@ -180,7 +183,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			<div class="soccer-recovery-actions">
 				<a class="btn soccer-secondary-btn" href="#team_codes">Return to manual team IDs</a>
 				if empty.ShowImportAction {
-					<button type="button" class="btn soccer-secondary-btn" data-open-login-modal data-soccer-linked-source hidden>Import fresh access</button>
+					<button type="button" class="btn soccer-secondary-btn" data-open-login-modal>Import fresh access</button>
 				}
 			</div>
 		</div>
