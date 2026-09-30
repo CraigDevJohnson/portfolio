@@ -421,10 +421,15 @@ one is still open.
 
    | Policy | Characters |
    | --- | ---: |
-   | `PortfolioLambdaExecutionBoundary` today | 4,449 |
-   | With the stage 1 statements | 5,128 |
-   | With the stage 1 and stage 2 statements in the one policy | 8,430 |
+   | `PortfolioLambdaExecutionBoundary` without the stage 1 statements | 4,791 |
+   | With the stage 1 statements | 5,470 |
+   | With the stage 1 and stage 2 statements in the one policy | 8,772 |
    | `PortfolioLambdaHistoryExecutionBoundary` alone | 3,340 |
+
+   The first three rows include each environment's `SITE_SESSION_KEY` read
+   (#85), which adds 342 characters to each; before it they were 4,449,
+   5,128 and 8,430. The committed boundary leaves 674 characters of
+   headroom.
 
    So the worker and Scheduler grants need the second policy. Other
    statement shapes give other totals (one statement per role and action
@@ -614,7 +619,7 @@ next scheduled time;** there is no dormant-worker stage.
   3.3): a dev collection stage, a prod schedule stage, the 163 s floor, and
   the rejected 162 s timeout and 39-request budget.
 - `ci-roles/tests/policies.tftest.hcl` asserts every statement of both
-  boundaries and that each fits IAM's 6,144-character limit (5,128 and 3,340
+  boundaries and that each fits IAM's 6,144-character limit (5,470 and 3,340
   rendered), which a plan cannot check (6.1 item 3). It also asserts each CI
   role's history reads and worker release write, and that the three inline
   policies fit 10,240 characters (7,443, 6,385 and 7,483; 6.1 item 4). The
