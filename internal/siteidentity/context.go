@@ -39,6 +39,19 @@ func WithRequestIdentity(ctx context.Context, principal *Principal, grants []Gra
 	return context.WithValue(ctx, contextKey{}, identity)
 }
 
+type signInAvailabilityKey struct{}
+
+// WithSignInAvailable records whether this environment can start site sign-in.
+func WithSignInAvailable(ctx context.Context, available bool) context.Context {
+	return context.WithValue(ctx, signInAvailabilityKey{}, available)
+}
+
+// SignInAvailable reports whether shared navigation may offer site sign-in.
+func SignInAvailable(ctx context.Context) bool {
+	available, _ := ctx.Value(signInAvailabilityKey{}).(bool)
+	return available
+}
+
 // PrincipalFromContext returns the verified site principal, if any.
 func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 	identity, ok := ctx.Value(contextKey{}).(requestIdentity)

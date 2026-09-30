@@ -62,7 +62,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
 	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
 	mux.HandleFunc("POST /sign-in", siteHandler.LoginHandler)
-	mux.HandleFunc("GET /auth/callback", siteHandler.CallbackHandler)
+	mux.HandleFunc("GET "+siteauth.CallbackPath, siteHandler.CallbackHandler)
 	mux.HandleFunc("POST /sign-out", siteHandler.LogoutHandler)
 
 	soccerHandler := internalsoccer.NewHandler(

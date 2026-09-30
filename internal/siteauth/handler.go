@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -18,6 +19,9 @@ import (
 	"portfolio/internal/portal"
 	"portfolio/internal/siteidentity"
 )
+
+// CallbackPath is the registered Cognito redirect path for site sign-in.
+const CallbackPath = "/auth/callback"
 
 // Handler owns site sign-in independently of portal AWS client availability.
 type Handler struct {
@@ -56,14 +60,19 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 			if _, cookieErr := r.Cookie(config.SiteSessionCookieName); cookieErr == nil {
 				h.clearSession(w, r)
 			}
+		} else if !strings.HasPrefix(r.URL.Path, "/static/") {
+			// Responses for a signed-in principal can show account data; shared assets cannot.
+			preventStorage(w)
 		}
 		ctx := siteidentity.WithRequestIdentity(r.Context(), principal, grants, safeReturnTo(r.URL.RequestURI()))
+		ctx = siteidentity.WithSignInAvailable(ctx, h.OIDC != nil && h.Config != nil && h.Config.SiteEnabled())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // LoginHandler renders a signed-out landing on GET and starts Google sign-in on POST.
 func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	preventStorage(w)
 	returnTo := safeReturnTo(r.URL.Query().Get("return_to"))
 	if r.Method == http.MethodPost {
 		r.Body = http.MaxBytesReader(w, r.Body, 8192)
@@ -107,6 +116,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 // CallbackHandler accepts only a signed Cognito identity invited in current configuration.
 func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+	preventStorage(w)
 	pending, pendingErr := h.loadOAuthState(r)
 	h.clearOAuthState(w, r)
 	providedState := r.URL.Query().Get("state")
@@ -154,6 +164,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // LogoutHandler expires site identity and delegates the managed login journey to Cognito.
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	preventStorage(w)
 	h.clearSession(w, r)
 	h.clearOAuthState(w, r)
 	if h.OIDC != nil {
@@ -170,6 +181,11 @@ func (h *Handler) rejectSignIn(w http.ResponseWriter, r *http.Request, status in
 	h.Logger.Warn("site sign-in rejected", slog.String("reason", reason))
 	ctx := siteidentity.WithRequestIdentity(r.Context(), nil, nil, "/")
 	h.renderLogin(w, r.WithContext(ctx), status, "/", "Sign-in could not be completed.")
+}
+
+// preventStorage keeps account state and auth cookies out of browser and shared caches.
+func preventStorage(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
 }
 
 func redirectLocal(w http.ResponseWriter, returnTo string) {
@@ -212,6 +228,10 @@ func safeReturnTo(raw string) string {
 	}
 	decodedPath, err := url.PathUnescape(parsed.EscapedPath())
 	if err != nil || strings.HasPrefix(decodedPath, "//") || strings.ContainsAny(decodedPath, "\\\r\n\x00") {
+		return "/"
+	}
+	// Returning to the callback would replay it without state and end the new session.
+	if path.Clean(decodedPath) == CallbackPath {
 		return "/"
 	}
 	return parsed.RequestURI()
