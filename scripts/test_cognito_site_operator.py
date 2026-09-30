@@ -259,7 +259,7 @@ class WrapperTests(unittest.TestCase):
         self.plan = self.root / 'plan'
         self.use('dev')
         self.calls = []
-        self.fail = False
+        self.fail_every = False
         self.fail_at = None
         self.identity = dict(Account=c.ACCOUNT, Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsAdmin_123/test')
         self.runtime_output = None
@@ -295,7 +295,7 @@ class WrapperTests(unittest.TestCase):
             elif args[2] == 'show': data = json.dumps(fixture(self.site_env)).encode()
             elif args[2] == 'apply': self.applied.append(Path(args[-1]).read_bytes())
             elif args[2] == 'output': data = json.dumps(self.runtime_output).encode()
-        return subprocess.CompletedProcess(args, 1 if self.fail or (len(args) > 2 and args[2] == self.fail_at) else 0, data, SENTINEL.encode())
+        return subprocess.CompletedProcess(args, 1 if self.fail_every or (len(args) > 2 and args[2] == self.fail_at) else 0, data, SENTINEL.encode())
 
     def invoke(self, mode='plan', env=None):
         out, err = io.StringIO(), io.StringIO()
@@ -400,22 +400,39 @@ class WrapperTests(unittest.TestCase):
                 self.env = original
 
     def test_private_directory_checks_before_aws(self):
-        inside = w.REPO / 'scripts'
         link = self.root.parent / (self.root.name + '-link')
         link.symlink_to(self.root)
         self.addCleanup(link.unlink)
+        # A private checkout: a 0700 directory inside it passes every check
+        # except the one that keeps private files out of the checkout.
+        checkout = self.root / 'checkout'
+        inside, outside = checkout / 'private', self.root / 'elsewhere'
+        for directory in [checkout, inside, outside]:
+            directory.mkdir(mode=0o700)
+        self.runtime_output = reviewed_runtime()
         # init and export read no private file, so only the directory check
         # guards them.
         for operation in ['init', 'export', 'plan']:
             for label, value, mode in [('group-readable', str(self.root), 0o750), ('world-readable', str(self.root), 0o755), ('inside-checkout', str(inside), 0o700), ('symlink', str(link), 0o700), ('relative', 'private', 0o700), ('missing', str(self.root / 'missing'), 0o700)]:
-                with self.subTest(operation=operation, label=label):
+                with self.subTest(operation=operation, label=label), patch.object(w, 'REPO', checkout):
                     self.root.chmod(mode); self.env['COGNITO_PRIVATE_DIR'] = value; self.calls.clear()
                     out, err = self.invoke(operation)
                     self.assertFalse(out); self.assertTrue(err); self.assertFalse(self.calls)
                     self.root.chmod(0o700); self.env['COGNITO_PRIVATE_DIR'] = str(self.root)
-        # A plan path inside the checkout is refused too.
-        self.env['PLAN_FILE'] = str(w.REPO / 'site.tfplan'); self.calls.clear()
-        _, err = self.invoke(); self.assertTrue(err); self.assertFalse(self.calls)
+            # The same private directory outside the checkout is accepted.
+            with self.subTest(operation=operation, label='outside-checkout'), patch.object(w, 'REPO', checkout):
+                self.env['COGNITO_PRIVATE_DIR'] = str(outside); self.calls.clear()
+                out, err = self.invoke(operation)
+                self.assertTrue(out); self.assertFalse(err); self.assertTrue(self.calls)
+                self.env['COGNITO_PRIVATE_DIR'] = str(self.root)
+                self.plan.unlink(missing_ok=True); Path(str(self.plan) + '.provenance.json').unlink(missing_ok=True)
+        # A plan path inside the checkout is refused too, and the same path
+        # outside it is accepted.
+        for plan_file, accepted in [(checkout / 'site.tfplan', False), (outside / 'site.tfplan', True)]:
+            with self.subTest(plan_file=plan_file.parent.name), patch.object(w, 'REPO', checkout):
+                self.env['PLAN_FILE'] = str(plan_file); self.calls.clear()
+                out, err = self.invoke()
+                self.assertEqual((bool(out), bool(err), bool(self.calls), plan_file.exists()), (accepted, not accepted, accepted, accepted))
 
     def test_export_prints_only_the_reviewed_runtime_for_the_tfvars_handoff(self):
         expected = {
@@ -456,7 +473,7 @@ class WrapperTests(unittest.TestCase):
                 self.assertFalse(out); self.assertTrue(err)
 
     def test_provider_failure_is_private(self):
-        self.fail = True
+        self.fail_every = True
         out, err = self.invoke()
         self.assertFalse(out); self.assertTrue(err); self.assertFalse(self.plan.exists())
 
