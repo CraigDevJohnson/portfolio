@@ -233,6 +233,11 @@ the site's own events:
 - The event source is titled `Soccer Schedule` and links to the site's
   `/soccer` page.
 
+Events added before the `portfolio_app` marker existed carry the other three.
+Result sync recognizes such an event when its event ID and `game_id` both
+equal the game's ID and its source is the site's `Soccer Schedule` page, since
+Add cannot re-add a past game to mark it.
+
 Repeating Add in the same calendar finds the existing event by event ID or
 `game_id` and updates it instead of inserting another. When Google refuses a
 change to one existing event, such as an invitation copy another organizer
@@ -398,7 +403,8 @@ public Team ID lookup stays upcoming-only.
 **Sync selected results** is update-only: it never inserts a past game or
 restores a deleted event. For each selected scored game it makes one bounded
 search of the chosen calendar for events carrying the game's private `game_id`,
-and claims only a single live event that also carries `portfolio_app=soccer`.
+and claims only a single live event that also carries `portfolio_app=soccer`,
+or the full pre-marker provenance described above.
 It then patches that event's description alone, conditional on the ETag the
 search returned, and changes only the `Result:` line of the block Add wrote.
 The title, time, location, reminders, and any notes around the block stay as

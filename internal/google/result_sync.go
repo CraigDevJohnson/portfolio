@@ -187,10 +187,20 @@ func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *o
 }
 
 // siteEventMatchesGame reports whether the event is one this site added for
-// the game: it carries the game's ID and the site's private marker.
+// the game: it carries the game's ID and the site's private marker. An event
+// the site added before it wrote that marker is recognised by the rest of its
+// provenance, which it has always written: its event ID and private game ID
+// are both the game's ID, and its source is the site's Soccer page. An .ics
+// import carries neither the private game ID nor the source.
 func siteEventMatchesGame(event *Event, gameID string) bool {
-	return event != nil && strings.TrimSpace(event.ID) != "" &&
-		event.ExtendedProperties.Private[eventGameIDProperty] == gameID && event.ExtendedProperties.Private[eventOwnerProperty] == eventOwnerValue
+	if event == nil || strings.TrimSpace(event.ID) == "" || event.ExtendedProperties.Private[eventGameIDProperty] != gameID {
+		return false
+	}
+	if event.ExtendedProperties.Private[eventOwnerProperty] == eventOwnerValue {
+		return true
+	}
+	return event.ID == gameID && event.Source != nil && event.Source.Title == eventSourceTitle &&
+		strings.HasSuffix(event.Source.URL, "/soccer")
 }
 
 func isDeletedCalendarEvent(status string) bool {

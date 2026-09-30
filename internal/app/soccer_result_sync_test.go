@@ -422,6 +422,51 @@ func TestSyncSkipsAndReportsEventsItCannotSafelyClaim(t *testing.T) {
 	}
 }
 
+// Before events carried portfolio_app=soccer, the site wrote each one with
+// the game's ID as its event ID and private game_id, and itself as the
+// source. Sync claims such an event, since Add cannot re-add a past game to
+// mark it; the same shape without the site as its source stays unmatched.
+func TestSyncClaimsEventsTheSiteAddedBeforeItsOwnershipMarker(t *testing.T) {
+	world := newResultSyncWorld(t)
+	world.add(t, syncNorthTeamID, syncWonGameID, syncDrawnGameID)
+	for _, id := range []string{syncWonGameID, syncDrawnGameID} {
+		world.google.editEvent(primaryCalendarID, id, func(event *internalgoogle.Event) {
+			event.ExtendedProperties.Private = map[string]string{"game_id": id}
+			if id == syncDrawnGameID {
+				event.Source = nil
+			}
+		})
+	}
+	before := world.google.events(primaryCalendarID)
+	if source := before[syncWonGameID].Source; source == nil || source.Title != "Soccer Schedule" || !strings.HasSuffix(source.URL, "/soccer") {
+		t.Fatalf("the pre-marker event names source %+v", source)
+	}
+	world.lps.play(syncWonGameID, "2-1")
+	world.lps.play(syncDrawnGameID, "1-1")
+
+	calls, patches := world.google.callCount(), world.google.patchCount()
+	synced := world.sync(t, world.reviewForm(t, syncNorthTeamID), syncWonGameID, syncDrawnGameID)
+	if want := "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 unmatched (no event this site added)."; !strings.Contains(synced, want) {
+		t.Fatalf("Sync answered %q, want %q", synced, want)
+	}
+	after := world.google.events(primaryCalendarID)
+	if got, want := after[syncWonGameID].Description, withResult(t, before[syncWonGameID].Description, "Win (2-1)"); got != want {
+		t.Errorf("the pre-marker event reads %q, want %q", got, want)
+	}
+	if !reflect.DeepEqual(after[syncDrawnGameID], before[syncDrawnGameID]) {
+		t.Errorf("Sync changed the event without the site's source: %+v", after[syncDrawnGameID])
+	}
+	sent := world.google.patchesSince(patches)
+	if len(sent) != 1 || sent[0].eventID != syncWonGameID || sent[0].ifMatch != before[syncWonGameID].ETag || !slices.Equal(sent[0].fields, []string{"description"}) {
+		t.Errorf("Sync sent patches %+v; want one description-only patch of %s conditional on %s", sent, syncWonGameID, before[syncWonGameID].ETag)
+	}
+	for _, call := range world.google.callsSince(calls) {
+		if strings.HasPrefix(call, http.MethodPost+" ") || strings.HasPrefix(call, http.MethodPut+" ") {
+			t.Errorf("Sync sent %q", call)
+		}
+	}
+}
+
 // A game two followed teams play is one event, worded for the team whose
 // schedule Add used. Its result stays in that team's words when Sync reads
 // the game from the other team's schedule.
