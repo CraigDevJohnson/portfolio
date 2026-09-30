@@ -91,7 +91,7 @@ run "production_environment_contract" {
       var.image_digest == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" &&
       var.lambda_memory_mb == 512 &&
       var.lambda_timeout_seconds == 29 &&
-      var.reserved_concurrency == 10 &&
+      var.reserved_concurrency == -1 && # temporary until the Lambda quota is raised; see prod.auto.tfvars
       var.log_retention_days == 30 &&
       var.enable_pitr &&
       var.enable_deletion_protection &&
