@@ -24,7 +24,9 @@ run_task() {
   env=$1 action=$2
   shift 2
   real="tofu -chdir=\"infra/lambda/environments/$env\" $action "
-  command=$(task --dir "$root_dir" --dry --verbose "lambda-$env-$action" "$@" 2>&1 |
+  # --color=false: under CI (no TTY) Task colours its lines, and the escape
+  # codes would hide the "task: [...]" prefix from sed.
+  command=$(task --color=false --dir "$root_dir" --dry --verbose "lambda-$env-$action" "$@" 2>&1 |
     sed -n "s/^task: \[[^]]*\] //; /^tofu -chdir=\"[^\"]*\" $action /p")
   case "$command" in
     *"
