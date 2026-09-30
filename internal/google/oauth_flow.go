@@ -90,9 +90,9 @@ func RedirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, stat
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-// ChooseAccountParam is the connect request's account value that opens
+// chooseAccountParam is the connect request's account value that opens
 // Google's account chooser instead of suggesting the site sign-in account.
-const ChooseAccountParam = "choose"
+const chooseAccountParam = "choose"
 
 // ConnectHandler initiates the Google OAuth flow.
 func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +139,7 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Google suggests the site sign-in account unless the visitor asked to
 	// choose another; either way Google reports the account that consented.
-	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && principal.Email != "" && r.URL.Query().Get("account") != ChooseAccountParam {
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && principal.Email != "" && r.URL.Query().Get("account") != chooseAccountParam {
 		options = append(options, oauth2.SetAuthURLParam("login_hint", principal.Email), oauth2.SetAuthURLParam("prompt", "consent"))
 	} else {
 		options = append(options, oauth2.SetAuthURLParam("prompt", "select_account consent"))

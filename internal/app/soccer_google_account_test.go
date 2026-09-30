@@ -135,6 +135,13 @@ func TestGrantedVisitorConnectsGoogleWithTheSuggestedSiteAccountOrAnother(t *tes
 	}
 }
 
+// revocations returns the tokens the fake Google was asked to revoke.
+func (journey *googleAccountJourney) revocations() []string {
+	journey.mu.Lock()
+	defer journey.mu.Unlock()
+	return append([]string(nil), journey.revoked...)
+}
+
 // holdsGoogleConnectionCookie reports whether the browser would send a Google
 // connection cookie to the Soccer page.
 func (journey *googleAccountJourney) holdsGoogleConnectionCookie() bool {
@@ -164,8 +171,11 @@ func (journey *googleAccountJourney) connectedAccount(t *testing.T) string {
 		}
 		return ""
 	}
-	rest := body[start+len(marker):]
-	return rest[:strings.Index(rest, "</strong>")]
+	account, _, closed := strings.Cut(body[start+len(marker):], "</strong>")
+	if !closed {
+		t.Fatal("Soccer page left the connected Google account unclosed")
+	}
+	return account
 }
 
 func TestChosenGoogleAccountStaysWithItsSiteOwnerUntilChanged(t *testing.T) {
@@ -218,8 +228,8 @@ func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T)
 	if signOut := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
 		t.Fatalf("site sign-out status = %d", signOut.Code)
 	}
-	if len(journey.store.records) != 1 || len(journey.revoked) != 0 || !journey.holdsGoogleConnectionCookie() {
-		t.Fatalf("site sign-out removed the Google connection: %d stored, %d revoked", len(journey.store.records), len(journey.revoked))
+	if len(journey.store.records) != 1 || len(journey.revocations()) != 0 || !journey.holdsGoogleConnectionCookie() {
+		t.Fatalf("site sign-out removed the Google connection: %d stored, revoked %q", len(journey.store.records), journey.revocations())
 	}
 
 	journey.browser.signIn("/soccer")
@@ -233,8 +243,8 @@ func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T)
 	if journey.holdsGoogleConnectionCookie() {
 		t.Error("disconnect left the Google connection cookie in the browser")
 	}
-	if want := "refresh:" + journeySiteAccount; len(journey.revoked) != 1 || journey.revoked[0] != want {
-		t.Errorf("Google received revocations %q, want only the connection's refresh token %q", journey.revoked, want)
+	if got, want := journey.revocations(), "refresh:"+journeySiteAccount; len(got) != 1 || got[0] != want {
+		t.Errorf("Google received revocations %q, want only the connection's refresh token %q", got, want)
 	}
 	if got := journey.connectedAccount(t); got != "" {
 		t.Errorf("after disconnect the page still reports %q connected", got)
