@@ -105,9 +105,12 @@ Activation is a separate, reviewed change in each environment. It needs all of:
    the environment first with `task lambda-<env>-plan` and
    `task lambda-<env>-apply`.
 
-The previous `infra/lambda/auth/dev` root and `MGMT_*` runtime contract are
-legacy management-only configuration. They remain separate from these site
-roots while Issue #87 migrates the portal to the shared site session. Do not
-pass the old management client or `/callback` URL into the new `SITE_*` fields.
+The previous `infra/lambda/auth/dev` root is legacy management-only
+configuration. Issue #87 moved the portal to the shared site session, and the
+Lambda no longer receives the `MGMT_*` identity settings or the
+`MGMT_SESSION_KEY` path; the development `management` input now only grants
+the portal's read-only EC2 and metric access and sets `MGMT_AWS_REGION`. Do
+not pass the old management client or `/callback` URL into the new `SITE_*`
+fields.
 Production activation remains subject to the separate deployment decision and
 does not follow from a passing local test or mock plan.

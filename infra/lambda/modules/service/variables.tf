@@ -100,7 +100,7 @@ variable "site" {
 }
 
 variable "management" {
-  description = "Reviewed public development management settings; never provider or session credentials."
+  description = "Reviewed public development management settings; never provider or session credentials. Setting it grants the portal read-only EC2 inventory and metrics in us-west-2 and passes MGMT_AWS_REGION; Lambda receives none of the retired management-only identity fields."
   type = object({
     cognito_domain           = string
     cognito_issuer           = string

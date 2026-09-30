@@ -206,8 +206,15 @@ run "management_runtime_contract" {
     }
   }
   assert {
-    condition     = length(output.ssm_parameter_paths) == 4 && output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
-    error_message = "dev root must forward public management configuration into its existing runtime"
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      }) &&
+      output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
+    )
+    error_message = "dev root must forward management into its existing runtime without the retired MGMT_SESSION_KEY parameter"
   }
 }
 

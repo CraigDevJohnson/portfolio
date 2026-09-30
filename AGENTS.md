@@ -56,7 +56,10 @@
   `/login`, `/callback`, and `/logout` routes are retired in normal and preview
   modes. `MGMT_SESSION_KEY`, `MGMT_COGNITO_*`, `MGMT_ALLOWED_EMAILS`, and
   `MGMT_ALLOW_LOCAL_CALLBACK` are retired: config logs one warning and ignores
-  them. `MGMT_AWS_REGION` still defaults to `us-east-1`.
+  them, and infrastructure no longer passes them or grants the
+  `MGMT_SESSION_KEY` parameter. The development `management` input adds only
+  `MGMT_AWS_REGION` (the app defaults to `us-east-1`) and the portal's
+  read-only EC2 and metric grants.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`
 

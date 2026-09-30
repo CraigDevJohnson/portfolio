@@ -4,9 +4,8 @@
 locals {
   boundary_environments = {
     dev = {
-      sid = "Dev"
-      # MGMT_SESSION_KEY is read only when the optional portal is enabled.
-      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY", "MGMT_SESSION_KEY"]
+      sid        = "Dev"
+      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
     }
     prod = {
       sid        = "Prod"

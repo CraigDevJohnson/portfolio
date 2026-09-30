@@ -528,11 +528,6 @@ run "management_enabled_contract" {
     }
   }
   assert {
-    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 6
-    error_message = "management must add a session parameter reference and exactly one bounded read-only management IAM statement"
-  }
-
-  assert {
     condition = aws_lambda_function.app.environment[0].variables == tomap({
       CLIENT_ID_KEY                = "/portfolio/lambda/dev/CLIENT_ID_KEY"
       CLIENT_SECRET_KEY            = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
@@ -542,20 +537,13 @@ run "management_enabled_contract" {
       LOG_LEVEL                    = "info"
       LPS_SESSION_KEY              = "/portfolio/lambda/dev/LPS_SESSION_KEY"
       SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-dev-soccer-sessions"
-      MGMT_SESSION_KEY             = "/portfolio/lambda/dev/MGMT_SESSION_KEY"
-      MGMT_COGNITO_DOMAIN          = var.management.cognito_domain
-      MGMT_COGNITO_ISSUER          = var.management.cognito_issuer
-      MGMT_COGNITO_CLIENT_ID       = var.management.cognito_client_id
-      MGMT_COGNITO_REDIRECT_URI    = "https://dev.craigdevjohnson.com/callback"
-      MGMT_COGNITO_LOGOUT_URI      = "https://dev.craigdevjohnson.com/login"
-      MGMT_ALLOWED_EMAILS          = "craigdevjohnson@gmail.com"
-      MGMT_ALLOW_LOCAL_CALLBACK    = "false"
       MGMT_AWS_REGION              = "us-west-2"
     })
-    error_message = "enabled runtime environment must match the full public contract, with a path instead of the session value"
+    error_message = "management must pass the portal only its AWS region; the application no longer reads the retired management-only session, Cognito, allowlist or callback settings"
   }
   assert {
     condition = (
+      length(data.aws_iam_policy_document.lambda.statement) == 6 &&
       length([for st in data.aws_iam_policy_document.lambda.statement : st if
         toset(st.actions) == toset(["ec2:DescribeInstances", "cloudwatch:GetMetricStatistics"]) &&
         st.resources == toset(["*"]) && length(st.condition) == 1 &&
@@ -564,15 +552,32 @@ run "management_enabled_contract" {
         length(setintersection(toset(st.actions), toset(["ec2:StartInstances", "ec2:StopInstances", "logs:FilterLogEvents"]))) > 0
       ]) == 0
     )
-    error_message = "management permissions must be read-only and region-scoped, with no EC2 start/stop or instance log reads (D22)"
+    error_message = "management must add exactly one read-only, region-scoped statement, with no EC2 start/stop or instance log reads (D22)"
   }
   assert {
-    condition = (length([for st in data.aws_iam_policy_document.lambda.statement : st if
-      st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
-      alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
-      toset(c.values) == toset([for path in values(output.ssm_parameter_paths) : "arn:aws:ssm:us-west-2:111122223333:parameter${path}"])])]) == 1 &&
-    output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-    error_message = "enabled KMS context must exactly bind the four SSM parameters"
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      }) &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["ssm:GetParameters"]) &&
+        st.resources == toset([
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
+        alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
+          toset(c.values) == toset([
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ])])]) == 1
+    )
+    error_message = "management adds no SecureString: parameter reads and decryption stay on the three required parameters, without the retired MGMT_SESSION_KEY"
   }
 }
 

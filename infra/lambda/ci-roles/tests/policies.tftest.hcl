@@ -500,6 +500,28 @@ run "execution_boundary_contract" {
     )
     error_message = "production parameter reads and decryption are limited to its three SecureStrings"
   }
+
+  assert {
+    condition = (
+      one([
+        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Resource
+        if statement.Sid == "DevParameters"
+        ]) == [
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ] &&
+      one([
+        for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Condition.StringEquals["kms:EncryptionContext:PARAMETER_ARN"]
+        if statement.Sid == "DevParameterDecryption"
+        ]) == [
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+        "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ]
+    )
+    error_message = "development parameter reads and decryption are limited to its three SecureStrings; the retired MGMT_SESSION_KEY is not readable"
+  }
 }
 
 run "state_bucket_contract" {

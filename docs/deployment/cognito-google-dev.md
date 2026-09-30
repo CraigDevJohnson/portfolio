@@ -136,11 +136,15 @@ validates it and forwards it as `TF_VAR_management`. Omit it or use `null`
 while the portal is disabled. A CI release cannot enable the portal, because
 its plan may change only the Lambda image and `live` alias. Keep image and
 unrelated Lambda changes out of the auth plan.
-The Lambda no longer reads the `/portfolio/lambda/dev/MGMT_SESSION_KEY`
-SecureString; a path left in `MGMT_SESSION_KEY` only makes config log its
-retirement warning, so do not provision that value. The auth root does not
-create or read that secret. Do not add auth-state access or Google
-credentials to automatic release workflows.
+The object keeps its reviewed nine-field shape, but the development root now
+uses it only to grant the portal's read-only EC2 inventory and metrics and to
+pass `MGMT_AWS_REGION`. Lambda receives none of its Cognito, callback or
+allowlist fields and no `MGMT_SESSION_KEY` path, and neither the runtime
+policy nor the execution boundary permits reading
+`/portfolio/lambda/dev/MGMT_SESSION_KEY`, so do not provision that value. The
+auth root's `session_parameter_path` output only names that retired path; the
+root does not create or read that secret. Do not add auth-state access or
+Google credentials to automatic release workflows.
 
 ## Offline checks
 
@@ -153,8 +157,8 @@ for local audit; remove them only after the review/retention requirement ends.
 
 [The review-fix record](2026-09-07-cognito-pr71-review-fixes.md) covers optional
 session-key failure isolation, the signed-out landing page, exact callback
-validation and tag-aware instance controls. The management key must still be
-provisioned before portal activation; if it becomes unavailable during a cold
-start, only the portal is disabled. Untagged instances remain visible for reads
-with start/stop/restart disabled. These source fixes do not apply infrastructure
-or change the installed IAM documents.
+validation and tag-aware instance controls. Those session-key fixes are
+history: the management session key is retired and the portal follows site
+sign-in. Untagged instances remain visible for reads with start/stop/restart
+disabled. These source fixes do not apply infrastructure or change the
+installed IAM documents.
