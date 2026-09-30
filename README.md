@@ -161,8 +161,10 @@ connection and its cookie, so the site keeps no token for it. It does not
 revoke the grant at Google, because Google withdraws a grant for the whole
 Google account and OAuth client: that would also disconnect the same account's
 connections in other browsers, for other site owners, and in other
-environments. To withdraw the site's Calendar access entirely, remove the app
-from the Google Account's third-party access settings.
+environments. **Change Google account** and **Switch to site account** replace
+the stored connection the same way, leaving the previous account's grant at
+Google. To withdraw the site's Calendar access entirely, remove the app from
+the Google Account's third-party access settings.
 
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and
@@ -171,9 +173,10 @@ the consenting Google account identity. Connections saved before #93 sit
 behind the single browser-wide `google_connection` cookie and are never used:
 an old ownerless connection, or an owner's connection without a verified Google
 account. A granted visitor holding that cookie deletes an ownerless connection
-or their own by disconnecting or reconnecting; another owner's stays. When `SOCCER_SESSION_TABLE_NAME` is set, the application also
-writes an owner-bound import baseline containing the username and discovered
-players; it does not restore workflow state from that table.
+or their own by disconnecting or reconnecting; another owner's stays. When
+`SOCCER_SESSION_TABLE_NAME` is set, the application also writes an owner-bound
+import baseline containing the username and discovered players; it does not
+restore workflow state from that table.
 
 ### Site sign-in
 
