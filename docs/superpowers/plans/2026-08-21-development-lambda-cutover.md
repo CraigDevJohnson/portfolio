@@ -38,7 +38,7 @@
   `arn:aws:iam::<management-account-id>:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
   Replacement roots may reference it, but never create, edit, or remove it.
 - The reviewed initial development deployer and root-owned boundary inputs are
-  tracked under [`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md).
+  tracked under [`infra/lambda/bootstrap/`](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/README.md).
   A separately approved Identity Center permission set created from that
   development-only input may create or pass only deterministic
   boundary-constrained execution roles. It cannot create unbounded roles,

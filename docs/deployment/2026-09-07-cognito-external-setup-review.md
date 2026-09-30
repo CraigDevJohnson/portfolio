@@ -19,7 +19,7 @@ Private assignment and bootstrap evidence remains outside the repository.
 
 Final live checks on September 7, 2026 established:
 
-- All three [policy candidates](../../infra/lambda/bootstrap/candidates/README.md)
+- All three [policy candidates](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/candidates/README.md)
   passed Access Analyzer `IDENTITY_POLICY` validation with zero findings.
 - Both the deployer permission-set inline document and its effective role
   policy match the reviewed development management document below. The sole

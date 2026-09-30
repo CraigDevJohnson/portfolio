@@ -28,8 +28,9 @@ The Soccer tool supports:
 
 The management portal routes are disabled unless their Cognito and session
 settings are valid. A registered OAuth redirect URI is also required for sign-in.
-When enabled, the portal can list EC2 instances, request start, stop, and restart
-actions, and load CloudWatch metrics and logs.
+When enabled, the portal lists EC2 instances and loads their CloudWatch metrics.
+Its start, stop, restart and log views remain in the code, but the deployed
+runtime role does not allow them (D22).
 
 ## Requirements
 
@@ -164,17 +165,16 @@ the management session key resolves separately from required secrets; a missing
 or inaccessible key disables the portal while the rest of the site can start.
 `MGMT_AWS_REGION` defaults to `us-east-1`.
 
-The runtime AWS identity needs these actions:
+The deployed runtime role grants the portal only these actions (D22):
 
 - `ec2:DescribeInstances`
-- `ec2:StartInstances`
-- `ec2:StopInstances`
 - `cloudwatch:GetMetricStatistics`
-- `logs:FilterLogEvents`
 
-The development dashboard enables start, stop and restart only for instances
-tagged `PortfolioManagement=dev`, subject to their lifecycle state. Other
-instances remain visible with read-only metrics and logs; IAM enforces actions.
+It has no EC2 start/stop or CloudWatch Logs grants, so IAM denies the portal's
+start, stop and restart actions and its instance log reads. The planned Foundry
+backend replaces direct EC2 control. The dashboard offers start, stop and
+restart only for instances tagged `PortfolioManagement=dev`, subject to their
+lifecycle state; IAM stays authoritative.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 

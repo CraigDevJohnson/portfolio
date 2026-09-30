@@ -5,9 +5,9 @@ behind an API Gateway HTTP API in the **workloads** AWS account, us-west-2. The
 account ID is configured in one place per tool: `AWS_ACCOUNT_ID` in
 `Taskfile.yaml` and the `aws_account_id` input of each OpenTofu root. The state
 bucket name in each `backend.hcl` also contains it, because backends can't read
-variables. Every
-ARN is built from `data.aws_caller_identity`, and every provider refuses
-credentials for any other account.
+variables. Every ARN is built from `data.aws_caller_identity`, or from the
+configured account ID where no provider is available, and every provider
+refuses credentials for any other account.
 
 aws-setup owns the account itself, the GitHub OIDC provider and the `alerts`
 SNS topics. This repository owns everything in the table below.
