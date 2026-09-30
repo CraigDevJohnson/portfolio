@@ -122,6 +122,7 @@ func (route *playerHistoryRoute) signedInOwner(t *testing.T) *siteBrowser {
 // that dialog's form with the JWT as the owner's browser would.
 func (route *playerHistoryRoute) disclosedImport(t *testing.T, owner *siteBrowser) *httptest.ResponseRecorder {
 	t.Helper()
+	storedBefore := route.table.Len()
 	page := owner.get("/soccer")
 	if page.Code != http.StatusOK {
 		t.Fatalf("Soccer page status = %d", page.Code)
@@ -142,7 +143,7 @@ func (route *playerHistoryRoute) disclosedImport(t *testing.T, owner *siteBrowse
 	for _, input := range plannerElements(plannerSingle(t, dialog, "import form", plannerAttrIs("id", "soccer-login-form")), plannerAttrIs("type", "hidden")) {
 		form.Add(soccerHTMLAttribute(input, "name"), soccerHTMLAttribute(input, "value"))
 	}
-	if route.table.Len() != 0 {
+	if route.table.Len() != storedBefore {
 		t.Fatal("opening the Soccer page stored linked-player history")
 	}
 	return owner.postForm("/soccer/import", form)
@@ -345,5 +346,143 @@ func TestSoccerImportWithoutDurableCollectionMakesNoHistoryClaimAndCollectsNothi
 	}
 	if route.lpsRequests("/players/1001/my_teams") != 0 || route.lpsRequests("/players/1002/my_teams") != 0 {
 		t.Errorf("import without durable collection looked up linked players' teams: %v", route.requests)
+	}
+}
+
+func TestSoccerImportKeepsEachSiteOwnersPlayerEvidenceSeparate(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	first := route.signedInOwner(t)
+	if imported := route.disclosedImport(t, first); imported.Code != http.StatusOK {
+		t.Fatalf("first owner's import status = %d", imported.Code)
+	}
+	firstEvidence := route.memberships(t)["stable-subject"]
+
+	// Another invited site account imports the same LPS account.
+	route.cognito.subject, route.cognito.email = "second-subject", "second@example.com"
+	route.app.Config.SiteInvitations["second@example.com"] = []string{"soccer"}
+	second := route.signedInOwner(t)
+	if imported := route.disclosedImport(t, second); imported.Code != http.StatusOK {
+		t.Fatalf("second owner's import status = %d", imported.Code)
+	}
+
+	byOwner := route.memberships(t)
+	if len(byOwner) != 2 {
+		t.Fatalf("membership owners = %v, want the two site accounts", byOwner)
+	}
+	for _, subject := range []string{"stable-subject", "second-subject"} {
+		if len(byOwner[subject]) != len(linkedPlayerMemberships) {
+			t.Errorf("owner %s memberships = %d, want %d", subject, len(byOwner[subject]), len(linkedPlayerMemberships))
+		}
+		for triple, item := range byOwner[subject] {
+			if !linkedPlayerMemberships[triple] || item["owner_issuer"] != route.cognito.issuer {
+				t.Errorf("owner %s membership %+v = %v", subject, triple, item)
+			}
+		}
+	}
+	for triple, item := range firstEvidence {
+		if fmt.Sprint(byOwner["stable-subject"][triple]) != fmt.Sprint(item) {
+			t.Errorf("second owner's import changed the first owner's membership %+v:\nbefore %v\nafter  %v", triple, item, byOwner["stable-subject"][triple])
+		}
+	}
+	links := map[string]int{}
+	for _, link := range route.items(t, "player_owner") {
+		links[fmt.Sprint(link["owner_subject"])]++
+	}
+	if links["stable-subject"] != 2 || links["second-subject"] != 2 || len(links) != 2 {
+		t.Errorf("player owner links by subject = %v, want both players for each owner", links)
+	}
+}
+
+func TestSoccerImportCollectsOnlyForTheCurrentGrantedSiteSession(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	disclosed := url.Values{"jwt": {route.jwt}, "history_notice": {"indefinite"}}
+
+	anonymous := newSiteBrowser(t, route.mux).postForm("/soccer/import", disclosed)
+	if anonymous.Code != http.StatusUnauthorized {
+		t.Errorf("signed-out import status = %d, want 401", anonymous.Code)
+	}
+
+	owner := route.signedInOwner(t)
+	route.app.Config.SiteInvitations["owner@example.com"] = nil
+	revoked := owner.postForm("/soccer/import", disclosed)
+	if revoked.Code != http.StatusForbidden {
+		t.Errorf("import after the soccer grant was revoked: status %d, want 403", revoked.Code)
+	}
+
+	if total := route.lpsRequestTotal(); total != 0 {
+		t.Errorf("refused imports reached LPS %d times: %v", total, route.requests)
+	}
+	if stored := route.table.Len(); stored != 0 {
+		t.Errorf("refused imports stored %d durable items", stored)
+	}
+}
+
+func TestManualTeamIDLookupNeverCreatesPlayerMembership(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	owner := route.signedInOwner(t)
+
+	// Before any import, a Team ID lookup enrolls the team without any player.
+	body := owner.postForm("/soccer/fetch", url.Values{"team_codes": {"4202"}}).Body.String()
+	if !strings.Contains(body, "Team 4202 added to history collection.") {
+		t.Fatalf("manual lookup did not enroll team 4202: %q", body)
+	}
+	for _, kind := range []string{"player", "player_owner", "membership"} {
+		if found := route.items(t, kind); len(found) != 0 {
+			t.Errorf("manual lookup stored %s records: %v", kind, found)
+		}
+	}
+
+	if imported := route.disclosedImport(t, owner); imported.Code != http.StatusOK {
+		t.Fatalf("import status = %d", imported.Code)
+	}
+	before := route.memberships(t)
+	// After the import, the same owner's lookup of Taylor's team neither adds
+	// nor refreshes a membership: only the authenticated lookup proves one.
+	owner.postForm("/soccer/fetch", url.Values{"team_codes": {"4202"}})
+	after := route.memberships(t)
+	if fmt.Sprint(after) != fmt.Sprint(before) {
+		t.Errorf("manual lookup changed player memberships:\nbefore %v\nafter  %v", before, after)
+	}
+	if len(route.items(t, "player")) != 2 {
+		t.Errorf("manual lookup changed stored players: %v", route.items(t, "player"))
+	}
+}
+
+func TestSoccerImportStopsWhenLinkedPlayerHistoryIsIncomplete(t *testing.T) {
+	for _, failure := range []struct {
+		name    string
+		arrange func(route *playerHistoryRoute)
+		message string
+	}{
+		{
+			name:    "an unselected player's team lookup fails",
+			arrange: func(route *playerHistoryRoute) { route.failingPlayer = 1002 },
+			message: "Could not look up every linked player. No player history was saved; try the import again.",
+		},
+		{
+			name: "the durable table is unavailable",
+			arrange: func(route *playerHistoryRoute) {
+				route.table.FailPut = func(string) error { return fmt.Errorf("table unavailable") }
+			},
+			message: "Linked-player history could not be saved. Try the import again.",
+		},
+	} {
+		t.Run(failure.name, func(t *testing.T) {
+			route := newPlayerHistoryRoute(t)
+			failure.arrange(route)
+			owner := route.signedInOwner(t)
+
+			imported := route.disclosedImport(t, owner)
+
+			if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), failure.message) || strings.Contains(imported.Body.String(), "data-login-success") {
+				t.Fatalf("incomplete history outcome: status %d, body %q", imported.Code, imported.Body.String())
+			}
+			if findSessionCookie(t, imported.Result()) != nil {
+				t.Error("the import was kept although the history it disclosed was not collected")
+			}
+			if stored := route.table.Len(); stored != 0 {
+				t.Errorf("incomplete history left %d durable items", stored)
+			}
+		})
 	}
 }
