@@ -4,20 +4,20 @@ import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
 
 type SoccerProps struct {
-	GoogleMessage        string
-	GoogleMessageKind    string
-	PrivateAccessMessage string
-	ShowSiteSignIn       bool
+	GoogleMessage            string
+	GoogleMessageKind        string
+	PrivateAccessMessage     string
+	ShowSiteSignIn           bool
 	HistoryCollectionEnabled bool
-	AuthState            partials.SoccerLoginStateProps
-	Preview              bool
-	ModalOpen            bool
-	Loading              bool
-	ManualTeamCodes      string
-	InitialResults       *partials.SoccerTableFragmentProps
-	InitialTeamSelection *partials.SoccerTeamSelectProps
-	InitialFeedback      *partials.SoccerLoginFeedbackProps
-	ModalFeedback        *partials.SoccerLoginFeedbackProps
+	AuthState                partials.SoccerLoginStateProps
+	Preview                  bool
+	ModalOpen                bool
+	Loading                  bool
+	ManualTeamCodes          string
+	InitialResults           *partials.SoccerTableFragmentProps
+	InitialTeamSelection     *partials.SoccerTeamSelectProps
+	InitialFeedback          *partials.SoccerLoginFeedbackProps
+	ModalFeedback            *partials.SoccerLoginFeedbackProps
 }
 
 func soccerLoadingIndicatorClass(loading bool) string {

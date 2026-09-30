@@ -105,8 +105,8 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 
 	teams := slices.Clone(discovery.KnownTeams)
 	sort.Slice(teams, func(i, j int) bool { return teams[i].UTeamID < teams[j].UTeamID })
-	for _, team := range teams {
-		if err := s.enrollPlayerTeam(ctx, team, discovery.ObservedAt); err != nil {
+	for i := range teams {
+		if err := s.enrollPlayerTeam(ctx, &teams[i], discovery.ObservedAt); err != nil {
 			return err
 		}
 	}
@@ -118,7 +118,7 @@ func (s *DynamoStore) SavePlayerDiscovery(ctx context.Context, discovery *Player
 // keeps the lookup's team facts until a team response replaces them; it has no
 // fetch or attempt time. An enrolled team keeps its facts, refresh state, and
 // due time, and only records that a player import found it.
-func (s *DynamoStore) enrollPlayerTeam(ctx context.Context, team lps.TeamSummary, observedAt time.Time) error {
+func (s *DynamoStore) enrollPlayerTeam(ctx context.Context, team *lps.TeamSummary, observedAt time.Time) error {
 	for range maxRecordWriteAttempts {
 		previous, err := s.get(ctx, teamKey(team.UTeamID), "META")
 		if err != nil {
