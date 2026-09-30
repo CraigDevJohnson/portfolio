@@ -388,7 +388,9 @@ navigation account state; `/__preview/account/soccer-signed-out`,
 which render an inert Soccer page for each `soccer` grant state;
 `/__preview/account/soccer-linked`, which lets that browser use the Soccer
 page and its LPS routes as the granted preview account against an in-process
-fake LPS; and
+fake LPS; `/__preview/account/soccer-google`, the same account on a server
+that offers Google Calendar, whose Google output is a real choice while its
+Google routes answer `Preview only` without contacting Google; and
 `/__preview/portal/error?fixture=access-denied`, the denial a signed-in account
 without the `management` grant receives. Preview mode never enables real site
 sign-in.

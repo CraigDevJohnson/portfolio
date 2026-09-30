@@ -11,24 +11,72 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"portfolio/internal/config"
 	"portfolio/internal/testutil"
 )
 
 // newPreviewLinkedBrowser serves the loopback preview route assembly with
-// every configured external URL pointing at a fake that fails the test, so
-// the linked-player preview journey must stay in process.
+// every configured external URL, LPS and Google alike, pointing at a fake
+// that fails the test, so the preview account journeys must stay in process.
 func newPreviewLinkedBrowser(t *testing.T, preview bool) *siteBrowser {
 	t.Helper()
 	application := newTestApp(t)
 	offLimits := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("the preview linked journey reached the configured LPS at %s", r.URL.Path)
+		t.Errorf("the preview account journey reached a configured external service at %s", r.URL.Path)
 		http.NotFound(w, r)
 	}))
 	t.Cleanup(offLimits.Close)
 	application.Config.LPSAPIBaseURL = offLimits.URL
+	application.GoogleHandler.OAuthAuthURL = offLimits.URL + "/oauth/authorize"
+	application.GoogleHandler.OAuthTokenURL = offLimits.URL + "/oauth/token"
+	application.GoogleHandler.OAuthUserInfoURL = offLimits.URL + "/userinfo"
+	application.GoogleHandler.CalendarAPIBaseURL = offLimits.URL + "/calendar/v3"
 	mux, _ := buildMux(application, slog.New(slog.NewTextHandler(io.Discard, nil)), preview)
 	return newSiteBrowser(t, mux)
+}
+
+// googleOutputOption returns the Soccer page's Google Calendar output choice.
+func googleOutputOption(t *testing.T, doc *html.Node) *html.Node {
+	t.Helper()
+	return plannerSingle(t, doc, "Google output option", func(node *html.Node) bool {
+		return soccerHTMLAttribute(node, "name") == "calendar_output" && soccerHTMLAttribute(node, "value") == "google"
+	})
+}
+
+// The preview's Google account is the granted preview account on a server
+// that offers Google Calendar: its Google output is a real choice, so a
+// browser proof can switch to Google mode without editing the page.
+func TestPreviewGoogleAccountIsOfferedGoogleOutput(t *testing.T) {
+	browser := newPreviewLinkedBrowser(t, true)
+
+	entry := browser.get("/__preview/account/soccer-google")
+	if entry.Code != http.StatusSeeOther || entry.Header().Get("Location") != "/soccer" {
+		t.Fatalf("preview Google entry: status %d, Location %q", entry.Code, entry.Header().Get("Location"))
+	}
+	body := browser.get("/soccer").Body.String()
+	if !strings.Contains(body, "invited.visitor@example.com") || strings.Contains(body, "Private Soccer access") {
+		t.Fatal("the preview Google page is not the granted preview account")
+	}
+	if plannerHasAttr(googleOutputOption(t, parsePlannerHTML(t, body)), "disabled") {
+		t.Fatal("the preview Google account is not offered Google output")
+	}
+
+	// A Team ID lookup reviews the scored past games in Google mode beside
+	// the connect prompt a disconnected account sees.
+	results := parsePlannerHTML(t, browser.postForm("/soccer/fetch", url.Values{"team_codes": {"479691, 479147"}}).Body.String())
+	if past := plannerRowIDs(plannerGameRows(results, "past-results")); !slices.Equal(past, previewPastResultsNewestFirst) {
+		t.Fatalf("preview Google past rows = %v, want %v", past, previewPastResultsNewestFirst)
+	}
+	assertPastResultControlsGoogleOnly(t, results)
+	connect := plannerSingle(t, results, "Google connect prompt", plannerAttrIs("href", "/soccer/google/connect"))
+	if gate := plannerOutputGate(connect); gate == nil || soccerHTMLAttribute(gate, "data-soccer-output-only") != "google" {
+		t.Error("the Google connect prompt is not limited to Google mode")
+	}
+	if text := plannerText(results); strings.Contains(text, "unavailable in this environment") {
+		t.Errorf("the preview Google lookup says Google is unavailable: %q", text)
+	}
 }
 
 func TestPreviewLinkedAccountDrivesTheRealLinkedPlayerRoutes(t *testing.T) {
@@ -85,6 +133,35 @@ func TestPreviewLinkedAccountDrivesTheRealLinkedPlayerRoutes(t *testing.T) {
 	assertPastResultControlsGoogleOnly(t, teamIDs)
 }
 
+// The preview's Google account has no Google connection, so every Google
+// Calendar route it can reach, including the connect prompt its page offers,
+// answers in the preview and never reaches Google.
+func TestPreviewGoogleAccountNeverReachesGoogle(t *testing.T) {
+	browser := newPreviewLinkedBrowser(t, true)
+	browser.get("/__preview/account/soccer-google")
+
+	for _, request := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "https://app.example.com/soccer/google/connect", nil),
+		httptest.NewRequest(http.MethodGet, "https://app.example.com/soccer/google/connect?account=choose", nil),
+		browserForm(siteOrigin, "/soccer/google/add", url.Values{"team_codes": {"479691"}, "selected": {"7003"}}),
+		browserForm(siteOrigin, "/soccer/google/sync-results", url.Values{"team_codes": {"479691"}, "selected": {"7000"}}),
+		browserForm(siteOrigin, "/soccer/google/calendar", url.Values{"calendar_id": {"primary"}}),
+		browserForm(siteOrigin, "/soccer/google/disconnect", nil),
+	} {
+		target := request.Method + " " + request.URL.RequestURI()
+		answer := browser.do(request)
+		if answer.Code != http.StatusOK || !strings.Contains(answer.Body.String(), "Preview only") {
+			t.Errorf("%s: status %d, body %q; want the preview-only answer", target, answer.Code, answer.Body.String())
+		}
+		if location := answer.Header().Get("Location"); location != "" {
+			t.Errorf("%s sent the browser to %q", target, location)
+		}
+		if cache := answer.Header().Get("Cache-Control"); cache != "no-store" {
+			t.Errorf("%s: Cache-Control %q, want no-store", target, cache)
+		}
+	}
+}
+
 func TestPreviewLinkedAccountIsOnlyForItsOwnBrowserInThePreview(t *testing.T) {
 	discover := url.Values{"player_ids": {"1669080"}}
 	marked := &http.Cookie{Name: "preview_soccer_account", Value: "linked", Path: config.SoccerCookiePath}
@@ -107,6 +184,48 @@ func TestPreviewLinkedAccountIsOnlyForItsOwnBrowserInThePreview(t *testing.T) {
 		}
 		if refused := browser.postForm("/soccer/import", url.Values{"jwt": {testutil.TestJWT(t, time.Now().Add(time.Hour))}}); refused.Code != http.StatusUnauthorized {
 			t.Errorf("unmarked preview import: status %d, want 401", refused.Code)
+		}
+	})
+}
+
+// Google output is offered only to a preview browser that opened the Google
+// account: never outside the preview, never to another preview browser, and
+// not to the linked account, which keeps Google Calendar off.
+func TestPreviewGoogleAccountIsOnlyForItsOwnBrowserInThePreview(t *testing.T) {
+	soccer, _ := url.Parse("https://app.example.com/soccer")
+	marked := &http.Cookie{Name: "preview_soccer_account", Value: "google", Path: config.SoccerCookiePath}
+	googleOffered := func(t *testing.T, browser *siteBrowser) bool {
+		t.Helper()
+		return !plannerHasAttr(googleOutputOption(t, parsePlannerHTML(t, browser.get("/soccer").Body.String())), "disabled")
+	}
+
+	t.Run("outside the preview", func(t *testing.T) {
+		browser := newPreviewLinkedBrowser(t, false)
+		if entry := browser.get("/__preview/account/soccer-google"); entry.Code != http.StatusNotFound {
+			t.Errorf("preview Google entry outside the preview: status %d, want 404", entry.Code)
+		}
+		browser.jar.SetCookies(soccer, []*http.Cookie{marked})
+		if googleOffered(t, browser) {
+			t.Error("a marked browser outside the preview is offered Google output")
+		}
+		if refused := browser.get("/soccer/google/connect"); refused.Code != http.StatusUnauthorized {
+			t.Errorf("marked Google connect outside the preview: status %d, want 401", refused.Code)
+		}
+	})
+	t.Run("another preview browser", func(t *testing.T) {
+		browser := newPreviewLinkedBrowser(t, true)
+		if googleOffered(t, browser) {
+			t.Error("an unmarked preview browser is offered Google output")
+		}
+		if refused := browser.get("/soccer/google/connect"); refused.Code != http.StatusUnauthorized {
+			t.Errorf("unmarked preview Google connect: status %d, want 401", refused.Code)
+		}
+	})
+	t.Run("the linked account", func(t *testing.T) {
+		browser := newPreviewLinkedBrowser(t, true)
+		browser.get("/__preview/account/soccer-linked")
+		if googleOffered(t, browser) {
+			t.Error("the linked preview account is offered Google output")
 		}
 	})
 }

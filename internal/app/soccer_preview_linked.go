@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"io"
 	"log/slog"
@@ -9,14 +10,16 @@ import (
 	"strconv"
 	"strings"
 
+	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/httpx"
 	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 )
 
-// previewLinkedAccountCookie marks a loopback preview browser that opened the
-// linked-player journey at /__preview/account/soccer-linked.
+// previewLinkedAccountCookie marks a loopback preview browser that opened a
+// preview Soccer account: "linked" from /__preview/account/soccer-linked, or
+// "google" from /__preview/account/soccer-google.
 const previewLinkedAccountCookie = "preview_soccer_account"
 
 // previewLinkedLPSBaseURL names the linked journey's fake LPS. The .invalid
@@ -29,44 +32,49 @@ func previewAccountPrincipal() *siteidentity.Principal {
 	return &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: "invited.visitor@example.com"}
 }
 
-// previewLinkedSoccer serves the linked-player Soccer journey in the loopback
-// preview. A browser holding previewLinkedAccountCookie acts as the preview's
-// invited account with the soccer grant on the Soccer page and its LPS
-// routes. Those run the real Soccer handlers with their own session key
-// against an in-process fake LPS, so the journey replaces only site Cognito
-// and LPS and never reaches a live service. Google Calendar stays off.
+// previewLinkedSoccer serves one preview Soccer account in the loopback
+// preview. A browser holding previewLinkedAccountCookie with the account's
+// marker acts as the preview's invited account with the soccer grant on the
+// Soccer page and its LPS routes. Those run the real Soccer handlers with
+// their own session key against their own in-process fake LPS, so the journey
+// replaces only site Cognito and LPS and never reaches a live service.
+// Google Calendar stays off unless the account is given preview Google hooks.
 type previewLinkedSoccer struct {
+	marker string
 	routes *http.ServeMux
 }
 
-func newPreviewLinkedSoccer(app *App, logger *slog.Logger) *previewLinkedSoccer {
+func newPreviewLinkedSoccer(app *App, logger *slog.Logger, marker string, google internalsoccer.GoogleHooks) *previewLinkedSoccer {
 	cfg := app.Config
 	cfg.SessionKey = make([]byte, 32)
 	_, _ = rand.Read(cfg.SessionKey)
 	cfg.LPSAPIBaseURL = previewLinkedLPSBaseURL
 	cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleConnectionTableName = "", "", ""
 	lpsClient := &http.Client{Transport: inProcessTransport{handler: newSoccerPreviewLPS().linkedRoutes()}, Timeout: lpsClientTimeout}
-	handler := internalsoccer.NewHandler(&cfg, lpsClient, app.LoginLimiter, nil, internalsoccer.NoopSoccerStore{}, logger.With(slog.String("component", "soccer_preview_linked")))
+	handler := internalsoccer.NewHandler(&cfg, lpsClient, app.LoginLimiter, google, internalsoccer.NoopSoccerStore{}, logger.With(slog.String("component", "soccer_preview_"+marker)))
 
 	routes := http.NewServeMux()
 	routes.HandleFunc("/soccer", handler.SoccerPage)
 	registerSoccerLPSRoutes(routes, handler)
-	return &previewLinkedSoccer{routes: routes}
+	if google != nil {
+		routes.HandleFunc("/soccer/google/", previewGoogleNotContacted)
+	}
+	return &previewLinkedSoccer{marker: marker, routes: routes}
 }
 
-// enter marks this browser for the linked journey and opens the Soccer page.
+// enter marks this browser for the account and opens the Soccer page.
 func (p *previewLinkedSoccer) enter(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	http.SetCookie(w, httpx.NewSecureCookie(r, previewLinkedAccountCookie, "linked", config.SoccerCookiePath, 0, http.SameSiteLaxMode))
+	http.SetCookie(w, httpx.NewSecureCookie(r, previewLinkedAccountCookie, p.marker, config.SoccerCookiePath, 0, http.SameSiteLaxMode))
 	http.Redirect(w, r, "/soccer", http.StatusSeeOther)
 }
 
-// wrap sends a marked browser's linked-journey requests to the preview
-// handlers as the granted preview account; every other request reaches the
-// ordinary Soccer routes unchanged.
+// wrap sends a marked browser's requests for the account's routes to the
+// preview handlers as the granted preview account; every other request
+// reaches the ordinary Soccer routes unchanged.
 func (p *previewLinkedSoccer) wrap(soccerRoutes http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if cookie, err := r.Cookie(previewLinkedAccountCookie); err == nil && cookie.Value == "linked" {
+		if cookie, err := r.Cookie(previewLinkedAccountCookie); err == nil && cookie.Value == p.marker {
 			if _, pattern := p.routes.Handler(r); pattern != "" {
 				w.Header().Set("Cache-Control", "no-store")
 				ctx := siteidentity.WithRequestIdentity(r.Context(), previewAccountPrincipal(), []siteidentity.Grant{siteidentity.GrantSoccer}, r.URL.Path)
@@ -76,6 +84,29 @@ func (p *previewLinkedSoccer) wrap(soccerRoutes http.Handler) http.Handler {
 		}
 		soccerRoutes.ServeHTTP(w, r)
 	})
+}
+
+// previewGoogleCalendar stands in for a configured Google Calendar in the
+// preview's Google account: Google output is offered and the account has not
+// connected a calendar, so nothing is read from or written to Google.
+type previewGoogleCalendar struct{}
+
+func (previewGoogleCalendar) GoogleAvailable() bool { return true }
+
+func (previewGoogleCalendar) GoogleConnected(context.Context, http.ResponseWriter, *http.Request) bool {
+	return false
+}
+
+func (previewGoogleCalendar) PopulateLoginState(context.Context, http.ResponseWriter, *http.Request, *partials.SoccerLoginStateProps) {
+}
+
+// previewGoogleNotContacted answers every Google Calendar route of the
+// preview's Google account, such as the connect prompt its page offers. The
+// account has no Google connection, so no consent starts and no calendar is
+// read or written.
+func previewGoogleNotContacted(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = io.WriteString(w, "Preview only — Google Calendar was not contacted.\n")
 }
 
 // inProcessTransport answers HTTP client requests with an in-process handler.
