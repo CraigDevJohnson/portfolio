@@ -367,10 +367,6 @@
     }
   }
 
-  function clearSoccerSelection() {
-    pruneSoccerSelectionKeys()
-  }
-
   function setupSoccerSelectAll() {
 		document.querySelectorAll('[data-soccer-form][data-team-fingerprint]').forEach(form => {
 			if (form.dataset.selectionRestored === 'true') {
@@ -2029,8 +2025,10 @@
     setSoccerLoadingState(loadingControl, true)
   })
 
+	// Clearing or replacing imported access resets private request state only.
+	// Deselections belong to the team set, not the credential, so they stay;
+	// restore and persist already prune keys for other team sets.
 	function resetSoccerWorkflowState() {
-		clearSoccerSelection()
 		resetSoccerResults()
 	}
 

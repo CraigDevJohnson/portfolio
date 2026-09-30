@@ -69,7 +69,6 @@ func TestSoccerJavaScriptPersistsSelectionsByTeamFingerprint(t *testing.T) {
 		"deselected:",
 		"persistSoccerSelection",
 		"restoreSoccerSelection",
-		"clearSoccerSelection",
 		"soccer-workflow-reset",
 		"soccer-logout",
 	} {
