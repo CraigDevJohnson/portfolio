@@ -263,6 +263,7 @@ tasks:
     cmds:
       - task: lambda-infrastructure-ci
       - sh tests/repository-contract.sh
+      - sh tests/repository-contract-regressions.sh
 
   lambda-infrastructure-ci:
     desc: Run the authoritative offline Lambda infrastructure and release gate

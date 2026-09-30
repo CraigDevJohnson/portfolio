@@ -24,10 +24,19 @@ fi
 
 # The management-only development identity is retired (decision 8,
 # 2026-09-30): the portal signs in through site identity, and the site roots
-# have their own operator tasks.
-for path in infra/lambda/auth/dev scripts/create-cognito-dev-plan.py \
-	scripts/check-cognito-dev-plan.py scripts/test_cognito_dev_plan.py; do
-	test ! -e "$repo_root/$path" || fail "retired management-only identity is back: $path"
+# have their own operator tasks. Like the legacy root above, only authored
+# files count: a checkout that ran the retired cognito-dev-ci keeps the root's
+# ignored .terraform directory after Git deletes the tracked files.
+retired_root=infra/lambda/auth/dev
+for path in "$repo_root/$retired_root"/*.tf "$repo_root/$retired_root"/*.tf.json \
+	"$repo_root/$retired_root"/*.tofu "$repo_root/$retired_root"/*.tofu.json \
+	"$repo_root/$retired_root"/*.tfvars "$repo_root/$retired_root"/*.tfvars.json \
+	"$repo_root/$retired_root"/backend.hcl "$repo_root/$retired_root"/.terraform.lock.hcl \
+	"$repo_root/$retired_root"/tests/*.tftest.hcl "$repo_root/$retired_root"/tests/*.tftest.json \
+	"$repo_root/$retired_root"/tests/*.tofutest.hcl \
+	"$repo_root"/scripts/create-cognito-dev-plan.py "$repo_root"/scripts/check-cognito-dev-plan.py \
+	"$repo_root"/scripts/test_cognito_dev_plan.py; do
+	test ! -e "$path" || fail "retired management-only identity is back: ${path#"$repo_root"/}"
 done
 if grep -Eq '^  cognito-dev-[a-z-]+:' "$repo_root/Taskfile.yaml"; then
 	fail "Taskfile exposes a retired management-only cognito-dev task"
