@@ -228,9 +228,10 @@ func (h *Handler) signInAvailable() bool {
 
 func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, status int, props pages.SiteLoginProps) {
 	props.Available = h.signInAvailable()
+	ctx := siteidentity.WithNavigationReturnTo(r.Context(), props.ReturnTo)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	if err := pages.SiteLogin(props).Render(r.Context(), w); err != nil {
+	if err := pages.SiteLogin(props).Render(ctx, w); err != nil {
 		h.Logger.Error("site sign-in page render failed", slog.Any("error", err))
 	}
 }

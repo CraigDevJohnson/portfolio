@@ -73,6 +73,15 @@ func EmailForNavigation(ctx context.Context) string {
 	return principal.Email
 }
 
+// WithNavigationReturnTo replaces the page shared navigation returns to after
+// sign-in, keeping the request's principal and grants. The sign-in landing uses
+// its own destination so navigation never nests the landing inside itself.
+func WithNavigationReturnTo(ctx context.Context, returnTo string) context.Context {
+	identity, _ := ctx.Value(contextKey{}).(requestIdentity)
+	identity.returnTo = returnTo
+	return context.WithValue(ctx, contextKey{}, identity)
+}
+
 // ReturnToForNavigation returns the current local page path.
 func ReturnToForNavigation(ctx context.Context) string {
 	identity, ok := ctx.Value(contextKey{}).(requestIdentity)

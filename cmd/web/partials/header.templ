@@ -22,7 +22,7 @@ templ Header(page string, account AccountNavProps) {
 		</div>
 		<nav id="mobile-nav" class="mobile-nav site-chrome-mobile-nav site-dock-mobile-nav" aria-label="Mobile navigation" aria-hidden="true" tabindex="-1" data-mobile-nav>
 			@NavLinks(page)
-			@AccountNav(account)
+			@AccountNav(page, account)
 		</nav>
 	</header>
 }

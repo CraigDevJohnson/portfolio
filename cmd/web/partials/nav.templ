@@ -72,7 +72,18 @@ templ NavLinks(page string) {
 	}
 }
 
-templ AccountNav(account AccountNavProps) {
+// AccountPage is the layout page value for the site sign-in landing.
+const AccountPage = "account"
+
+func accountLinkClasses(active bool) string {
+	base := "site-chrome-nav-link site-account-link"
+	if active {
+		return base + " site-chrome-nav-link-active"
+	}
+	return base
+}
+
+templ AccountNav(page string, account AccountNavProps) {
 	if account.Email != "" {
 		<div class="site-account-state">
 			<span class="site-account-email" title={ account.Email }>{ account.Email }</span>
@@ -81,13 +92,19 @@ templ AccountNav(account AccountNavProps) {
 			</form>
 		</div>
 	} else if account.SignInAvailable {
-		<a href={ templ.SafeURL(signInHref(account.ReturnTo)) } class="site-chrome-nav-link site-account-link">Sign in</a>
+		<a
+			href={ templ.SafeURL(signInHref(account.ReturnTo)) }
+			class={ accountLinkClasses(page == AccountPage) }
+			if page == AccountPage {
+				aria-current="page"
+			}
+		>Sign in</a>
 	}
 }
 
 templ Nav(page string, account AccountNavProps) {
 	<nav class="main-nav site-dock-desktop-nav" aria-label="Main navigation">
 		@NavLinks(page)
-		@AccountNav(account)
+		@AccountNav(page, account)
 	</nav>
 }

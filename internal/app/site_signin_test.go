@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -355,6 +356,41 @@ func TestSiteSignInHeadRendersLandingWithoutStartingSignIn(t *testing.T) {
 	for _, cookie := range response.Result().Cookies() {
 		if cookie.Name == config.SiteOAuthStateCookieName {
 			t.Fatal("HEAD sign-in replaced pending OAuth state")
+		}
+	}
+}
+
+var navSignInLink = regexp.MustCompile(`<a [^>]*>Sign in</a>`)
+
+func TestSignInLandingMarksItsNavigationLinkCurrent(t *testing.T) {
+	application := newSiteSignInTestApp(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	serve := func(target string) string {
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s status = %d", target, response.Code)
+		}
+		return response.Body.String()
+	}
+
+	landing := serve("https://app.example.com/sign-in?return_to=%2Fabout")
+	if strings.Contains(landing, "return_to=%2Fsign-in") {
+		t.Fatal("sign-in landing linked to itself as a return destination")
+	}
+	links := navSignInLink.FindAllString(landing, -1)
+	if len(links) != 2 {
+		t.Fatalf("sign-in landing rendered %d navigation Sign in links, want desktop and mobile", len(links))
+	}
+	for _, link := range links {
+		if !strings.Contains(link, `href="/sign-in?return_to=%2Fabout"`) || !strings.Contains(link, `aria-current="page"`) {
+			t.Fatalf("sign-in landing navigation link is not the current page: %s", link)
+		}
+	}
+
+	for _, link := range navSignInLink.FindAllString(serve("https://app.example.com/about"), -1) {
+		if strings.Contains(link, "aria-current") {
+			t.Fatalf("About marked the Sign in link current: %s", link)
 		}
 	}
 }

@@ -13,7 +13,7 @@ type SiteLoginProps struct {
 }
 
 templ SiteLogin(props SiteLoginProps) {
-	@layouts.Base(layouts.BaseProps{Title: "Sign in - Craig Johnson", Page: "account"}) {
+	@layouts.Base(layouts.BaseProps{Title: "Sign in - Craig Johnson", Page: partials.AccountPage}) {
 		<div class="page-kit-page">
 			<section class="page-kit-panel-strong mx-auto flex max-w-xl flex-col gap-5 px-6 py-10 sm:px-10" aria-labelledby="site-login-heading">
 				<p class="page-kit-eyebrow">Site account</p>
