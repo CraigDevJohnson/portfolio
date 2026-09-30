@@ -65,7 +65,7 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 			preventStorage(w)
 		}
 		ctx := siteidentity.WithRequestIdentity(r.Context(), principal, grants, safeReturnTo(r.URL.RequestURI()))
-		ctx = siteidentity.WithSignInAvailable(ctx, h.OIDC != nil && h.Config != nil && h.Config.SiteEnabled())
+		ctx = siteidentity.WithSignInAvailable(ctx, h.signInAvailable())
 		identified := r.WithContext(ctx)
 		next.ServeHTTP(w, identified)
 		// ServeMux records the matched route on the copy it received; request logging reads the outer request.
@@ -89,7 +89,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		redirectLocal(w, returnTo)
 		return
 	}
-	if h.OIDC == nil || h.Config == nil || !h.Config.SiteEnabled() {
+	if !h.signInAvailable() {
 		h.renderLogin(w, r, http.StatusServiceUnavailable, returnTo, "Site sign-in is unavailable right now.")
 		return
 	}
@@ -135,7 +135,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := r.URL.Query().Get("code")
-	if code == "" || h.OIDC == nil || h.Config == nil || !h.Config.SiteEnabled() {
+	if code == "" || !h.signInAvailable() {
 		h.rejectSignIn(w, r, http.StatusBadRequest, "incomplete_response")
 		return
 	}
@@ -197,10 +197,15 @@ func redirectLocal(w http.ResponseWriter, returnTo string) {
 	w.WriteHeader(http.StatusSeeOther)
 }
 
+// signInAvailable reports whether this environment can start the Cognito journey.
+func (h *Handler) signInAvailable() bool {
+	return h.OIDC != nil && h.Config != nil && h.Config.SiteEnabled()
+}
+
 func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, status int, returnTo, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	if err := pages.SiteLogin(pages.SiteLoginProps{ReturnTo: returnTo, Message: message, Available: status == http.StatusOK}).Render(r.Context(), w); err != nil {
+	if err := pages.SiteLogin(pages.SiteLoginProps{ReturnTo: returnTo, Message: message, Available: h.signInAvailable()}).Render(r.Context(), w); err != nil {
 		h.Logger.Error("site sign-in page render failed", slog.Any("error", err))
 	}
 }

@@ -318,3 +318,19 @@ func TestSignedInStaticAssetsRemainCacheable(t *testing.T) {
 		t.Fatalf("signed-in static asset Cache-Control = %q, want the file server default", got)
 	}
 }
+
+func TestStaleSignInCallbackOffersRetryOnConfiguredSite(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	browser := newSiteBrowser(t, mux)
+
+	browser.do(signInStartRequest("/about"))
+	stale := browser.get("/auth/callback?code=test-code&state=stale")
+	if stale.Code != http.StatusBadRequest {
+		t.Fatalf("stale callback status = %d", stale.Code)
+	}
+	if body := stale.Body.String(); !strings.Contains(body, "Sign in with Google") || !strings.Contains(body, `action="/sign-in"`) {
+		t.Fatal("stale callback hid the sign-in retry although site sign-in is available")
+	}
+}
