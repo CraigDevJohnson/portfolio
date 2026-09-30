@@ -10,18 +10,18 @@ import (
 )
 
 type SoccerTableFragmentProps struct {
-	Games           []types.Game
-	UpcomingGames   []types.Game
-	PastGames       []types.Game
-	TeamCodes       string
-	PlayerIDs       []int
-	Message         string
+	Games              []types.Game
+	UpcomingGames      []types.Game
+	PastGames          []types.Game
+	TeamCodes          string
+	PlayerIDs          []int
+	Message            string
 	EnrollmentFeedback *FeedbackProps
-	Hint            string
-	FetchError      bool
+	Hint               string
+	FetchError         bool
 	// RetryLater marks a fetch that failed because Let's Play Soccer was
 	// unavailable, so repeating the same request later may succeed.
-	RetryLater      bool
+	RetryLater bool
 	// Discovery marks a linked-player team discovery result, whose recovery
 	// is a fresh LPS import rather than a Team ID correction.
 	Discovery       bool
