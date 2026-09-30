@@ -3,7 +3,8 @@ package google
 import "net/http"
 
 type calendarListResponse struct {
-	Items []calendar `json:"items"`
+	Items         []calendar `json:"items"`
+	NextPageToken string     `json:"nextPageToken"`
 }
 
 type eventListResponse struct {

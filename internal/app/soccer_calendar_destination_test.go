@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -42,7 +43,10 @@ type fakeCalendar struct {
 	id, summary string
 	primary     bool
 	access      string
-	events      map[string]internalgoogle.Event
+	// hidden is set when the account hid the calendar from its list; Google
+	// lists it only when asked to show hidden calendars.
+	hidden bool
+	events map[string]internalgoogle.Event
 }
 
 // fakeGoogleCalendars is a Google OAuth, UserInfo, and Calendar API fake for
@@ -62,6 +66,9 @@ type fakeGoogleCalendars struct {
 	// refuseEvents is Google's refusal of any insert or update of the event
 	// with that ID.
 	refuseEvents map[string]googleRefusal
+	// listPageSize, when set, is how many calendars each calendar list page
+	// holds; Google may return fewer than the page size asked for.
+	listPageSize int
 	eventCalls   []string
 }
 
@@ -102,11 +109,20 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		}
 		items := []map[string]any{}
 		for _, calendar := range fake.calendars {
-			if calendar.access == "owner" || calendar.access == "writer" {
+			if (calendar.access == "owner" || calendar.access == "writer") && (!calendar.hidden || r.URL.Query().Get("showHidden") == "true") {
 				items = append(items, map[string]any{"id": calendar.id, "summary": calendar.summary, "primary": calendar.primary, "accessRole": calendar.access})
 			}
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+		page := map[string]any{"items": items}
+		if fake.listPageSize > 0 {
+			start, _ := strconv.Atoi(r.URL.Query().Get("pageToken"))
+			end := min(start+fake.listPageSize, len(items))
+			page["items"] = items[start:end]
+			if end < len(items) {
+				page["nextPageToken"] = strconv.Itoa(end)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(page)
 		return
 	}
 	calendarID, rest, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/calendar/v3/calendars/"), "/")
@@ -181,6 +197,18 @@ func (fake *fakeGoogleCalendars) setAccess(id, access string) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.calendar(id).access = access
+}
+
+func (fake *fakeGoogleCalendars) setHidden(id string, hidden bool) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.calendar(id).hidden = hidden
+}
+
+func (fake *fakeGoogleCalendars) setListPageSize(size int) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.listPageSize = size
 }
 
 func (fake *fakeGoogleCalendars) setRevoked(revoked bool) {
@@ -543,6 +571,29 @@ func TestConsentLeavesThePrimaryCalendarReadyAndAnotherCanBeChosen(t *testing.T)
 	}
 	if page := world.page(t); selectedCalendar(t, page) != teamCalendarID || !strings.Contains(page, calendarReady) {
 		t.Error("the chosen destination did not stay chosen on the next page load")
+	}
+}
+
+func TestWritableCalendarsOnLaterListPagesOrHiddenFromTheListStayDestinations(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	// Google lists one calendar per page, so the team calendar is on the
+	// second page.
+	world.google.setListPageSize(1)
+	world.connect(t)
+	if card := world.choose(t, teamCalendarID); selectedCalendar(t, card) != teamCalendarID {
+		t.Fatal("a writable calendar on the second list page could not be chosen")
+	}
+
+	world.google.setHidden(teamCalendarID, true)
+	if page := world.page(t); !strings.Contains(page, calendarReady) || selectedCalendar(t, page) != teamCalendarID {
+		t.Fatal("hiding the chosen calendar from the Google list paused it")
+	}
+	world.fetch(t)
+	if added := world.add(t, nextGameID); !strings.Contains(added, "Added 1 selected game") {
+		t.Fatalf("Add to a hidden writable calendar answered %q", added)
+	}
+	if _, ok := world.google.events(teamCalendarID)[nextGameID]; !ok {
+		t.Fatal("Add did not write to the hidden writable calendar")
 	}
 }
 

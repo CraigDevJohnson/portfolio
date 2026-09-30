@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -124,8 +125,35 @@ func readAPIError(resp *http.Response) error {
 	}
 }
 
+// calendarListMaxPages bounds how many calendar list pages one check reads:
+// Google returns at most 250 calendars a page.
+const calendarListMaxPages = 20
+
+// listCalendarsWithToken lists every calendar the account can write,
+// including calendars it hid from its Google Calendar list, so a chosen
+// destination is never mistaken for a lost one.
 func (h *Handler) listCalendarsWithToken(ctx context.Context, token *oauth2.Token) ([]types.GoogleCalendarOption, error) {
-	req, err := h.newAPIRequest(ctx, http.MethodGet, "users/me/calendarList", url.Values{"minAccessRole": {"writer"}}, token, nil)
+	var items []calendar
+	pageToken := ""
+	for range calendarListMaxPages {
+		page, err := h.listCalendarPage(ctx, token, pageToken)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, page.Items...)
+		if pageToken = page.NextPageToken; pageToken == "" {
+			return calendarOptions(items), nil
+		}
+	}
+	return nil, errors.New("google calendar list has more pages than the site reads")
+}
+
+func (h *Handler) listCalendarPage(ctx context.Context, token *oauth2.Token, pageToken string) (*calendarListResponse, error) {
+	query := url.Values{"minAccessRole": {"writer"}, "showHidden": {"true"}, "maxResults": {"250"}}
+	if pageToken != "" {
+		query.Set("pageToken", pageToken)
+	}
+	req, err := h.newAPIRequest(ctx, http.MethodGet, "users/me/calendarList", query, token, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +169,14 @@ func (h *Handler) listCalendarsWithToken(ctx context.Context, token *oauth2.Toke
 	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&response); err != nil {
 		return nil, err
 	}
-	options := make([]types.GoogleCalendarOption, 0, len(response.Items))
-	for _, item := range response.Items {
+	return &response, nil
+}
+
+// calendarOptions turns listed calendars into destination choices, primary
+// first and the rest by name.
+func calendarOptions(items []calendar) []types.GoogleCalendarOption {
+	options := make([]types.GoogleCalendarOption, 0, len(items))
+	for _, item := range items {
 		if strings.TrimSpace(item.ID) == "" || strings.TrimSpace(item.Summary) == "" {
 			continue
 		}
@@ -158,5 +192,5 @@ func (h *Handler) listCalendarsWithToken(ctx context.Context, token *oauth2.Toke
 		}
 		return strings.ToLower(options[i].Summary) < strings.ToLower(options[j].Summary)
 	})
-	return options, nil
+	return options
 }
