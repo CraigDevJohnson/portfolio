@@ -35,6 +35,7 @@ type soccerGrantWorld struct {
 	lpsCredentialCalls atomic.Int32
 	googleCalls        atomic.Int32
 	googleTokenCalls   atomic.Int32
+	googleEventInserts atomic.Int32
 	store              *appTestGoogleConnectionStore
 	jwt                string
 }
@@ -86,6 +87,7 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 		case r.Method == http.MethodGet && r.URL.Path == "/calendar/v3/calendars/primary/events":
 			_, _ = w.Write([]byte(`{"items":[]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/calendar/v3/calendars/primary/events":
+			world.googleEventInserts.Add(1)
 			_, _ = w.Write([]byte(`{"id":"inserted-event"}`))
 		default:
 			http.NotFound(w, r)
@@ -143,23 +145,120 @@ type soccerGrantRoute struct {
 	method, path  string
 	form          url.Values
 	grantedStatus int
+	// grantedEffect checks what the admitted handler did with the owner's
+	// private state, since a status alone cannot tell an admitted action
+	// from one that silently lost the owner's connection or import.
+	grantedEffect func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder)
 }
 
 // soccerPrivateRoutes lists every imported-player and Google endpoint with the
-// status its handler returns once the grant gate admits the request.
+// status and effect its handler produces once the grant gate admits the
+// owner's request.
 var soccerPrivateRoutes = []soccerGrantRoute{
-	{"LPS import", http.MethodPost, "/soccer/import", url.Values{"jwt": {"not-a-jwt"}}, http.StatusOK},
-	{"clear LPS import", http.MethodPost, "/soccer/logout", url.Values{}, http.StatusOK},
-	{"linked-player team discovery", http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}}, http.StatusOK},
-	{"linked-player schedule", http.MethodPost, "/soccer/fetch", url.Values{"player_ids": {"1001"}}, http.StatusOK},
-	{"discovered-team schedule", http.MethodPost, "/soccer/fetch", url.Values{"selection_mode": {"teams"}, "player_ids": {"1001"}, "team_ids": {"4101"}}, http.StatusOK},
-	{"linked-player ICS", http.MethodPost, "/soccer/download", url.Values{"player_ids": {"1001"}, "selected": {"7001"}}, http.StatusOK},
-	{"Google connect", http.MethodGet, "/soccer/google/connect", nil, http.StatusSeeOther},
-	{"Google consent callback", http.MethodGet, "/soccer?code=auth-code&state=" + grantWorldPendingState, nil, http.StatusSeeOther},
-	{"Google add", http.MethodPost, "/soccer/google/add", url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, http.StatusOK},
-	{"Google result sync", http.MethodPost, "/soccer/google/sync-results", url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, http.StatusOK},
-	{"Google calendar choice", http.MethodPost, "/soccer/google/calendar", url.Values{"calendar_id": {"primary"}}, http.StatusOK},
-	{"Google disconnect", http.MethodPost, "/soccer/google/disconnect", url.Values{}, http.StatusOK},
+	{
+		name: "LPS import", method: http.MethodPost, path: "/soccer/import", form: url.Values{"jwt": {"not-a-jwt"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if !strings.Contains(resp.Body.String(), `role="alert"`) || strings.Contains(resp.Body.String(), "Private Soccer access") {
+				t.Errorf("LPS import did not reach JWT validation: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "clear LPS import", method: http.MethodPost, path: "/soccer/logout", form: url.Values{}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if cleared := findSessionCookie(t, resp.Result()); cleared == nil || cleared.MaxAge >= 0 {
+				t.Error("clearing the LPS import kept the owner's imported session")
+			}
+		},
+	},
+	{
+		name: "linked-player team discovery", method: http.MethodPost, path: "/soccer/discover-teams", form: url.Values{"player_ids": {"1001"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if !strings.Contains(resp.Body.String(), "Craig FC") || world.lpsCredentialCalls.Load() == 0 {
+				t.Errorf("team discovery did not use the owner's imported LPS access: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "linked-player schedule", method: http.MethodPost, path: "/soccer/fetch", form: url.Values{"player_ids": {"1001"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if !strings.Contains(resp.Body.String(), `value="7001"`) || world.lpsCredentialCalls.Load() == 0 {
+				t.Errorf("linked-player schedule did not use the owner's imported LPS access: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "discovered-team schedule", method: http.MethodPost, path: "/soccer/fetch", form: url.Values{"selection_mode": {"teams"}, "player_ids": {"1001"}, "team_ids": {"4101"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if !strings.Contains(resp.Body.String(), `value="7001"`) {
+				t.Errorf("discovered-team schedule did not list the team's game: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "linked-player ICS", method: http.MethodPost, path: "/soccer/download", form: url.Values{"player_ids": {"1001"}, "selected": {"7001"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if !strings.Contains(resp.Body.String(), "BEGIN:VEVENT") || world.lpsCredentialCalls.Load() == 0 {
+				t.Errorf("linked-player ICS did not use the owner's imported LPS access: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "Google connect", method: http.MethodGet, path: "/soccer/google/connect", grantedStatus: http.StatusSeeOther,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if location := resp.Header().Get("Location"); !strings.HasPrefix(location, world.app.GoogleHandler.OAuthAuthURL+"?") {
+				t.Errorf("Google connect redirected to %q instead of Google consent", location)
+			}
+		},
+	},
+	{
+		name: "Google consent callback", method: http.MethodGet, path: "/soccer?code=auth-code&state=" + grantWorldPendingState, grantedStatus: http.StatusSeeOther,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if location := resp.Header().Get("Location"); location != "/soccer?google=connected" {
+				t.Errorf("Google consent callback redirected to %q", location)
+			}
+			if connected := world.store.records["pending-connection"]; connected.OwnerIssuer != testSiteIssuer || connected.OwnerSubject != testSiteSubject {
+				t.Errorf("Google consent callback did not store the owner's connection: %#v", connected)
+			}
+		},
+	},
+	{
+		name: "Google add", method: http.MethodPost, path: "/soccer/google/add", form: url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if world.googleEventInserts.Load() == 0 || strings.Contains(resp.Body.String(), "Connect Google Calendar before") {
+				t.Errorf("Google add did not add the game to the owner's calendar: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "Google result sync", method: http.MethodPost, path: "/soccer/google/sync-results", form: url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, grantedStatus: http.StatusOK,
+		// The selected game is upcoming, so the sync ends at game selection,
+		// which it reaches only after loading the owner's connection.
+		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if body := resp.Body.String(); strings.Contains(body, "Connect Google Calendar before") || !strings.Contains(body, "No selected past results were found to sync.") {
+				t.Errorf("Google result sync did not reach the owner's connection: %q", body)
+			}
+		},
+	},
+	{
+		name: "Google calendar choice", method: http.MethodPost, path: "/soccer/google/calendar", form: url.Values{"calendar_id": {"primary"}}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if record := world.store.records[grantWorldConnectionID]; record.CalendarID != "primary" || record.CalendarSummary != "Primary Calendar" {
+				t.Errorf("Google calendar choice lost the owner's calendar: %#v", record)
+			}
+			if !strings.Contains(resp.Body.String(), "Calendar ready") || world.googleCalls.Load() == 0 {
+				t.Errorf("Google calendar choice did not show the owner's ready calendar: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		name: "Google disconnect", method: http.MethodPost, path: "/soccer/google/disconnect", form: url.Values{}, grantedStatus: http.StatusOK,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, _ *httptest.ResponseRecorder) {
+			if _, kept := world.store.records[grantWorldConnectionID]; kept {
+				t.Error("Google disconnect kept the owner's connection")
+			}
+		},
+	},
 }
 
 // privateSoccerPageMarkers are controls and states that only a visitor whose
@@ -268,6 +367,7 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 					if resp.Code != route.grantedStatus {
 						t.Errorf("%s: granted status = %d, want %d; body %q", route.name, resp.Code, route.grantedStatus, resp.Body.String())
 					}
+					route.grantedEffect(t, world, resp)
 					continue
 				}
 				if resp.Code != visitor.deniedStatus {
