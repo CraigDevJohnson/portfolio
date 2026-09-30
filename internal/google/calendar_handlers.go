@@ -297,6 +297,9 @@ func skippedGamesMessage(result calendarMutationResult) string {
 	if result.refused > 0 {
 		message += fmt.Sprintf(" Skipped %d game(s) whose existing event Google Calendar would not let this account change.", result.refused)
 	}
+	if result.undated > 0 {
+		message += fmt.Sprintf(" Skipped %d game(s) without a start time yet.", result.undated)
+	}
 	return message
 }
 

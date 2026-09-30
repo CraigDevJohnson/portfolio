@@ -48,7 +48,9 @@ type calendarMutationResult struct {
 	skipped int
 	// refused counts games whose existing event Google would not let this
 	// account read or change.
-	refused      int
+	refused int
+	// undated counts games without a start time to give an event.
+	undated      int
 	authRejected bool
 }
 
@@ -57,6 +59,7 @@ func (h *Handler) insertCalendarEvents(ctx context.Context, r *http.Request, rec
 	for i := range games {
 		event, ok := eventPayload(r, &games[i])
 		if !ok {
+			result.undated++
 			continue
 		}
 		action, authRejected, err := h.syncCalendarEvent(h.httpContext(ctx), record.CalendarID, token, &event)

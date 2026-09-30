@@ -16,13 +16,14 @@ import (
 	"portfolio/internal/testutil"
 )
 
-// The games the fake LPS schedules for destinationTeamID: two upcoming games
-// and one scored past game.
+// The games the fake LPS schedules for destinationTeamID: two upcoming games,
+// one scored past game, and one game LPS has not given a start time yet.
 const (
 	destinationTeamID = "4101"
 	nextGameID        = "70001"
 	laterGameID       = "70002"
 	scoredPastGameID  = "70003"
+	undatedGameID     = "70004"
 )
 
 // The Google account that consents in these tests and its calendars. Google
@@ -328,8 +329,9 @@ func newCalendarDestinationWorld(t *testing.T) *calendarDestinationWorld {
 		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":4101,"team_name":"Craig FC","Season":169},"games":[`+
 			`{"UGameID":%s,"UTeam1":4101,"UTeam2":4201,"Season":169,"SchedGameDateTime":%q,"field_name":"Field 1","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4201,"team_name":"Rivals"}},`+
 			`{"UGameID":%s,"UTeam1":4101,"UTeam2":4202,"Season":169,"SchedGameDateTime":%q,"field_name":"Field 2","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4202,"team_name":"Strikers"}},`+
-			`{"UGameID":%s,"UTeam1":4101,"UTeam2":4203,"Season":169,"SchedGameDateTime":%q,"field_name":"Field 3","result":"2-1","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4203,"team_name":"Old Boys"}}]}`,
-			nextGameID, next, laterGameID, later, scoredPastGameID, past)
+			`{"UGameID":%s,"UTeam1":4101,"UTeam2":4203,"Season":169,"SchedGameDateTime":%q,"field_name":"Field 3","result":"2-1","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4203,"team_name":"Old Boys"}},`+
+			`{"UGameID":%s,"UTeam1":4101,"UTeam2":4204,"Season":169,"field_name":"Field 4","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4204,"team_name":"Late Adds"}}]}`,
+			nextGameID, next, laterGameID, later, scoredPastGameID, past, undatedGameID)
 	}))
 	t.Cleanup(lps.Close)
 	world.app.Config.LPSAPIBaseURL = lps.URL
@@ -826,6 +828,28 @@ func TestAddWritesOnlyExplicitlySelectedUpcomingGames(t *testing.T) {
 	mark = world.google.callCount()
 	if added := world.add(t, scoredPastGameID); !strings.Contains(added, "No selected games were found to add") || len(world.google.callsSince(mark)) != 0 {
 		t.Fatalf("Add of only a past game reached Google: %q", added)
+	}
+}
+
+func TestAddReportsASelectedUpcomingGameWithoutAStartTimeAsSkipped(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	if fetched := world.fetch(t); !strings.Contains(fetched, fmt.Sprintf(`value=%q`, undatedGameID)) {
+		t.Fatal("the fetched schedule did not offer the upcoming game without a start time")
+	}
+
+	mark := world.google.callCount()
+	added := world.add(t, nextGameID, undatedGameID)
+	if !strings.Contains(added, "Added 1 selected game") || !strings.Contains(added, "Skipped 1 game(s) without a start time") {
+		t.Fatalf("Add of a dated and an undated upcoming game answered %q; want one added and one reported skipped", added)
+	}
+	for _, call := range world.google.callsSince(mark) {
+		if strings.Contains(call, undatedGameID) {
+			t.Errorf("Add sent %q for a game without a start time", call)
+		}
+	}
+	if events := world.google.events(primaryCalendarID); len(events) != 1 {
+		t.Errorf("Add wrote %d events; want only the dated game", len(events))
 	}
 }
 

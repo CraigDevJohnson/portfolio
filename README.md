@@ -180,9 +180,10 @@ refusal, such as a Google usage limit, keeps the connection: the card still
 names the connected account and asks the visitor to retry.
 
 Viewing the page and fetching schedules write no Google events. **Add selected
-to calendar** writes only the selected upcoming games. Each event it writes
-carries this provenance, which result sync relies on to recognize the site's
-own events:
+to calendar** writes only the selected upcoming games; one LPS has not given a
+start time yet is listed as upcoming, and Add skips and reports it. Each event
+it writes carries this provenance, which result sync relies on to recognize
+the site's own events:
 
 - The Google event ID is the game's canonical ID: the LPS game ID, or a hash
   of the game's schedule fields when LPS gives none.
