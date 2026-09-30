@@ -292,5 +292,7 @@ management-only `MGMT_*` identity settings, `mgmt_session` cookie and
 longer receives those settings or may read `MGMT_SESSION_KEY`.
 `MGMT_AWS_REGION` still selects the AWS region for portal operations. Its
 runtime role has only read-only EC2 and metric grants: no EC2 start/stop and
-no `/ec2/i-*` log reads (D22). The planned Foundry backend replaces direct EC2
+no `/ec2/i-*` log reads (D22). Production has no portal grants at all, so its
+invitations grant only `soccer`; the production root refuses a `management`
+grant (decision 6). The planned Foundry backend replaces direct EC2
 control. Local mock review uses `task portal-preview`.

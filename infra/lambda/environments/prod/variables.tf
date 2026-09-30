@@ -63,7 +63,7 @@ variable "live_version_override" {
 }
 
 variable "site" {
-  description = "Reviewed non-secret production site identity: the site auth root's site_runtime fields plus invitations, the only reviewed production grant map."
+  description = "Reviewed non-secret production site identity: the site auth root's site_runtime fields plus invitations, the only reviewed production grant map. Production grants only soccer."
   type = object({
     cognito_domain       = string
     cognito_issuer       = string
@@ -74,6 +74,13 @@ variable "site" {
     allow_local_callback = bool
   })
   default = null
+
+  # Decision 6 (2026-09-30): the production Lambda role has no EC2 or metric
+  # grants, so a management grant would only open a portal that fails.
+  validation {
+    condition     = var.site == null ? true : alltrue([for grants in values(var.site.invitations) : !contains(grants, "management")])
+    error_message = "Production site.invitations may grant only soccer: production has no management portal EC2 or metric grants, so a management grant is refused (decision 6)."
+  }
 }
 
 # LPS history sync (#80). Each is required, so its reviewed value lives in

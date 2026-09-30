@@ -285,9 +285,12 @@ cannot be created, sign-in still works and the portal routes stay unregistered. 
 registered HTTP loopback callback also needs `SITE_ALLOW_LOCAL_CALLBACK=true`.
 
 `SITE_INVITATIONS_JSON` is a reviewed JSON object mapping normalized, verified
-email addresses to page grants. The initial owner entry is
-`{"craigdevjohnson@gmail.com":["soccer","management"]}`. Each environment
-must supply its own map and Cognito user pool; the app has no default invite.
+email addresses to page grants. The initial development owner entry is
+`{"craigdevjohnson@gmail.com":["soccer","management"]}`; production's is
+`{"craigdevjohnson@gmail.com":["soccer"]}`, and the production root refuses a
+`management` grant because production has no portal EC2 grants. Each
+environment must supply its own map and Cognito user pool; the app has no
+default invite.
 An invited address may have an empty grant list. Supported grants are `soccer`
 and `management`. Changes require updated environment configuration and a
 deployment. The app reads that current map for every request; grants are never

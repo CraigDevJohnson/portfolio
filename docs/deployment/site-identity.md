@@ -38,10 +38,12 @@ in `infra/lambda/environments/<env>/<env>.auto.tfvars`. It is the only map
 Lambda enforces. The site auth roots hold no grant map, and their
 `site_runtime` output carries only Cognito settings. To add or revoke access,
 change `site.invitations` in that file, then review and apply that environment
-root. Both environments will initially invite Craig with `soccer` and
-`management`; identical grants do not share configuration or session
-authority. An uninvited Google-federated Cognito profile can exist but receives
-no site session. Production never registers an HTTP loopback callback;
+root. Development will initially invite Craig with `soccer` and `management`.
+Production invites him with `soccer` only (decision 6, 2026-09-30): its Lambda
+role has no EC2 or metric grants, so the portal could only show an error there,
+and the production root's `site` validation refuses any `management` grant.
+The two maps do not share configuration or session authority. An uninvited
+Google-federated Cognito profile can exist but receives no site session. Production never registers an HTTP loopback callback;
 development can explicitly opt in.
 
 ## Canonical production host

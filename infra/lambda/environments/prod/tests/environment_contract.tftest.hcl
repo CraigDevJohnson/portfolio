@@ -235,7 +235,7 @@ run "production_site_runtime_contract" {
       cognito_client_id    = "prodsiteclient"
       redirect_uri         = "https://craigdevjohnson.com/auth/callback"
       logout_uri           = "https://craigdevjohnson.com/sign-in"
-      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer"] }
       allow_local_callback = false
     }
   }
@@ -277,4 +277,25 @@ run "history_inputs_reach_the_service" {
     )
     error_message = "production must pass the history switches, limits and schedule to the service module"
   }
+}
+
+# Decision 6 (2026-09-30): production invites Craig with soccer only. Its
+# Lambda role has no EC2 or metric grants, so a management grant would only
+# open a portal that fails.
+run "production_site_rejects_management_grant" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer"], "second@example.com" = ["management"] }
+      allow_local_callback = false
+    }
+  }
+
+  expect_failures = [var.site]
 }

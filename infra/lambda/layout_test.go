@@ -227,19 +227,29 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"history_worker_schedule_and_failure_contract": true,
 		"candidate_schedule_stage_prod":                true,
 	})
-	for _, environment := range []string{"dev", "prod"} {
-		directory := "environments/" + environment
+	// Each root also plans its site runtime, every history stage from its own
+	// inputs, and the runs listed here, which skip the contract checks: input
+	// rejections, whose plans stop before them, and the history run, whose
+	// worker and Scheduler roles the service module's contract checks.
+	for _, root := range []struct {
+		environment        string
+		plans              int
+		skipContractChecks map[string]bool
+	}{
+		{"dev", 4, map[string]bool{
+			"history_inputs_reach_the_service": true,
+		}},
+		{"prod", 5, map[string]bool{
+			"reject_other_alarm_topic":                 true,
+			"production_site_rejects_management_grant": true,
+			"history_inputs_reach_the_service":         true,
+		}},
+	} {
+		directory := "environments/" + root.environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		// Each root also plans its site runtime and every history stage from
-		// its own inputs; dev also plans the management runtime and prod a
-		// rejected alarm topic. The history run adds the worker and Scheduler
-		// roles, which the service module's contract checks.
-		runOpenTofuTestWithSkippedRuns(t, directory, 4, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-			"reject_other_alarm_topic":         true,
-			"history_inputs_reach_the_service": true,
-		})
+		runOpenTofuTestWithSkippedRuns(t, directory, root.plans, serviceOutputTypes, serviceIAMResourceCounts, root.skipContractChecks)
 	}
 }
 
