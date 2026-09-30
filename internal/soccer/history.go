@@ -128,9 +128,15 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // currentTeamSeasonMembership reports whether the imported player's current
-// authenticated LPS team lookup lists the exact team and LPS season.
+// authenticated LPS team lookup lists the exact team and LPS season. A player
+// LPS rejects as invalid has no current team-seasons, as on import, so the
+// season stays unverified rather than a lookup to retry.
 func (h *Handler) currentTeamSeasonMembership(ctx context.Context, jwt string, playerID, teamID, seasonID int) (bool, error) {
 	teams, err := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt).FetchPlayerTeams(ctx, playerID)
+	var fetchErr *lps.FetchError
+	if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

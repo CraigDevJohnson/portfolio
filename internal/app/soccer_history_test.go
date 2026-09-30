@@ -578,6 +578,21 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 	readHistory(t, first, 1001, 4102, 78)
 }
 
+// A player LPS no longer finds has no current team-seasons, so only earlier
+// proof opens a season; any other season is unverified rather than a failed
+// lookup to retry.
+func TestSoccerHistoryReadTreatsAPlayerLPSNoLongerFindsAsHavingNoCurrentSeasons(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	route.mu.Lock()
+	delete(route.playerTeams, 1002)
+	route.mu.Unlock()
+
+	readHistory(t, owner, 1002, 4202, 79)
+	assertHistoryDenied(t, owner, http.StatusForbidden, 1002, 4202, 80)
+}
+
 // The production route assembly wires no durable archive until the #80
 // activation review, so a granted owner with a valid import gets no history.
 func TestSoccerHistoryReadIsUnavailableWithoutTheDurableArchive(t *testing.T) {
