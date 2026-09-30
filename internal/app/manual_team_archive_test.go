@@ -372,12 +372,93 @@ func TestManualTeamLookupNeverArchivesImportedPlayerAccess(t *testing.T) {
 
 func TestManualTeamLookupReportsUnsavedHistoryWithoutClaimingEnrollment(t *testing.T) {
 	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
-	route.table.PutErr = errors.New("table unavailable")
+	route.table.FailPut = func(string) error { return errors.New("table unavailable") }
 
 	body := route.lookup(t, "479691")
 
 	if !strings.Contains(body, "Away FC") || !strings.Contains(body, "History not saved") || strings.Contains(body, "added to history collection") {
 		t.Fatalf("unsaved history outcome: %q", body)
+	}
+}
+
+func TestPartlySavedManualTeamIsNotEnrolledForRefresh(t *testing.T) {
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+	route.table.FailPut = func(key string) error {
+		if key == "GAME#8001/META" {
+			return errors.New("throttled")
+		}
+		return nil
+	}
+
+	body := route.lookup(t, "479691")
+
+	if !strings.Contains(body, "Away FC") || !strings.Contains(body, "History not saved") ||
+		!strings.Contains(body, "History collection could not save team 479691. Try again later.") || strings.Contains(body, "added to history collection") {
+		t.Fatalf("partly saved history outcome: %q", body)
+	}
+	route.assertNotArchived(t, 479691)
+	route.assertNoDueTeams(t)
+}
+
+func TestMultiTeamLookupReportsEachTeamsHistoryOutcome(t *testing.T) {
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	lps := func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/479691":
+			_, _ = fmt.Fprint(w, boiseFCSchedule(future))
+		case "/teams/555555":
+			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":555555,"team_name":"Second FC","Season":169},"games":[{"UGameID":8002,"SchedGameDateTime":%q,"FacilityID":5,"Season":169,"UTeam1":555555,"UTeam2":333,"home_team":{"UTeamID":555555,"team_name":"Second FC"},"visitor_team":{"UTeamID":333,"team_name":"Other FC"}}]}`, future)
+		case "/facilities/5":
+			_, _ = fmt.Fprint(w, archiveFacilityResponse)
+		default:
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}
+	for _, tc := range []struct {
+		failingTeam, savedTeam int
+		failingGame            string
+	}{
+		{failingTeam: 479691, savedTeam: 555555, failingGame: "GAME#8001/META"},
+		{failingTeam: 555555, savedTeam: 479691, failingGame: "GAME#8002/META"},
+	} {
+		t.Run(fmt.Sprint("team ", tc.failingTeam, " fails"), func(t *testing.T) {
+			route := newArchiveRoute(t, lps)
+			route.table.FailPut = func(key string) error {
+				if key == tc.failingGame {
+					return errors.New("throttled")
+				}
+				return nil
+			}
+
+			body := route.lookup(t, "479691, 555555")
+
+			if !strings.Contains(body, "Away FC") || !strings.Contains(body, "Other FC") {
+				t.Fatalf("multi-team schedule missing: %q", body)
+			}
+			if !strings.Contains(body, fmt.Sprintf("Team %d added to history collection.", tc.savedTeam)) ||
+				!strings.Contains(body, fmt.Sprintf("History collection could not save team %d. Try again later.", tc.failingTeam)) ||
+				!strings.Contains(body, "History partly saved") || !strings.Contains(body, "ui-feedback-warning") {
+				t.Fatalf("multi-team outcome does not name each team's result: %q", body)
+			}
+			if _, err := route.store.ReadTeamSeason(context.Background(), tc.savedTeam, 169); err != nil {
+				t.Fatalf("saved team %d read-back: %v", tc.savedTeam, err)
+			}
+			route.assertNotArchived(t, tc.failingTeam)
+		})
+	}
+}
+
+func (r *archiveRoute) assertNoDueTeams(t *testing.T) {
+	t.Helper()
+	items, err := r.table.Items()
+	if err != nil {
+		t.Fatalf("decode stored items: %v", err)
+	}
+	for key, item := range items {
+		if _, due := item["due_pk"]; due {
+			t.Errorf("archive item %s is in the due-team index", key)
+		}
 	}
 }
 

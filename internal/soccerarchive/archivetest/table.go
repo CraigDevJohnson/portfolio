@@ -19,8 +19,9 @@ import (
 type Table struct {
 	mu    sync.Mutex
 	items map[string]map[string]types.AttributeValue
-	// PutErr, when set, fails every put as an unavailable table would.
-	PutErr error
+	// FailPut, when set, is called with each put's "pk/sk" key; a non-nil
+	// result fails that put as an unavailable or throttled table would.
+	FailPut func(key string) error
 }
 
 // NewTable returns an empty table.
@@ -37,12 +38,14 @@ type itemKey struct {
 func (t *Table) PutItem(_ context.Context, input *dynamodb.PutItemInput, _ ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.PutErr != nil {
-		return nil, t.PutErr
-	}
 	var key itemKey
 	if err := attributevalue.UnmarshalMap(input.Item, &key); err != nil {
 		return nil, err
+	}
+	if t.FailPut != nil {
+		if err := t.FailPut(key.PK + "/" + key.SK); err != nil {
+			return nil, err
+		}
 	}
 	if input.ConditionExpression == nil || *input.ConditionExpression == "" {
 		return nil, errors.New("archive writes must protect newer source facts")

@@ -220,7 +220,7 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 		}
 		return false, true
 	}
-	var enrolled, unconfirmed []int
+	var enrolled, unconfirmed, notSaved []int
 	for i := range sources {
 		source := &sources[i]
 		// A decodable 2xx payload that does not name the requested team is not
@@ -238,40 +238,52 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 			Facilities: source.Facilities,
 			FetchedAt:  source.FetchedAt,
 		}); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Any("error", err))
-			props.EnrollmentFeedback = &partials.FeedbackProps{
-				Kind: partials.FeedbackError, Title: "History not saved",
-				Message: "Schedule loaded, but history collection could not save this team. Try again later.",
-			}
-			return false, true
+			// Keep going: one team's failed write must not hide the outcome of
+			// the others, which are saved independently.
+			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Int("team_id", source.TeamID), slog.Any("error", err))
+			notSaved = append(notSaved, source.TeamID)
+			continue
 		}
 		enrolled = append(enrolled, source.TeamID)
 	}
-	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed)
+	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed, notSaved)
 	if len(games) == 0 && len(unconfirmed) == 0 {
 		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
 		props.Hint = "Its history is enrolled for collection; this response contains no games."
+		if len(notSaved) > 0 {
+			props.Hint = "This response contains no games, and its history could not be saved."
+		}
 	}
 	return false, true
 }
 
-func enrollmentFeedback(enrolled, unconfirmed []int) *partials.FeedbackProps {
-	messages := make([]string, 0, 1+len(unconfirmed))
-	switch len(enrolled) {
-	case 0:
-	case 1:
-		messages = append(messages, "Team "+strconv.Itoa(enrolled[0])+" added to history collection.")
-	default:
-		messages = append(messages, strconv.Itoa(len(enrolled))+" teams added to history collection.")
+// enrollmentFeedback names each team's history outcome: enrolled, not
+// confirmed by LPS, or not saved.
+func enrollmentFeedback(enrolled, unconfirmed, notSaved []int) *partials.FeedbackProps {
+	messages := make([]string, 0, len(enrolled)+len(unconfirmed)+len(notSaved)+1)
+	for _, teamID := range enrolled {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" added to history collection.")
 	}
 	for _, teamID := range unconfirmed {
 		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because Let's Play Soccer did not confirm the team.")
 	}
-	kind := partials.FeedbackSuccess
-	if len(unconfirmed) > 0 {
-		kind = partials.FeedbackWarning
+	for _, teamID := range notSaved {
+		messages = append(messages, "History collection could not save team "+strconv.Itoa(teamID)+".")
 	}
-	return &partials.FeedbackProps{Kind: kind, Title: "History collection", Message: strings.Join(messages, " ")}
+	feedback := &partials.FeedbackProps{Kind: partials.FeedbackSuccess, Title: "History collection"}
+	switch {
+	case len(notSaved) > 0 && len(enrolled) == 0:
+		feedback.Kind, feedback.Title = partials.FeedbackError, "History not saved"
+	case len(notSaved) > 0:
+		feedback.Kind, feedback.Title = partials.FeedbackWarning, "History partly saved"
+	case len(unconfirmed) > 0:
+		feedback.Kind = partials.FeedbackWarning
+	}
+	if len(notSaved) > 0 {
+		messages = append(messages, "Try again later.")
+	}
+	feedback.Message = strings.Join(messages, " ")
+	return feedback
 }
 
 func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {

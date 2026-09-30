@@ -87,8 +87,10 @@ type archiveItem struct {
 	DueSK             string         `dynamodbav:"due_sk,omitempty"`
 }
 
-// SaveTeamSnapshot upserts stable source IDs. Coverage is written last: a
-// failed mid-response write never reports that response as successfully stored.
+// SaveTeamSnapshot upserts stable source IDs. Coverage and then the team's
+// enrollment record, which carries the due-team marker, are written last: a
+// failed mid-response write never reports that response as stored and never
+// enrolls a team whose snapshot is incomplete.
 func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) error {
 	if snapshot == nil || snapshot.TeamID <= 0 || snapshot.Team.UTeamID != snapshot.TeamID || snapshot.FetchedAt.IsZero() {
 		return errors.New("archive snapshot requires a confirmed team ID and fetch time")
@@ -101,9 +103,6 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	}
 
 	fetchedAt := snapshot.FetchedAt.UTC().Format(sortableUTCFormat)
-	if err := s.saveTeam(ctx, snapshot, fetchedAt); err != nil {
-		return err
-	}
 	if err := s.saveFacilities(ctx, snapshot.Facilities, fetchedAt); err != nil {
 		return err
 	}
@@ -221,7 +220,7 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 			return fmt.Errorf("save season %d coverage: %w", seasonID, err)
 		}
 	}
-	return s.put(ctx, &archiveItem{
+	if err := s.put(ctx, &archiveItem{
 		PK:                teamKey(snapshot.TeamID),
 		SK:                "COVERAGE",
 		Kind:              "coverage",
@@ -230,7 +229,10 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		ReturnedGameCount: len(snapshot.Games),
 		SeasonIDs:         seasonIDs,
 		FetchedAt:         fetchedAt,
-	})
+	}); err != nil {
+		return fmt.Errorf("save team %d coverage: %w", snapshot.TeamID, err)
+	}
+	return s.saveTeam(ctx, snapshot, fetchedAt)
 }
 
 func mergeSourceObject(previous, incoming []byte) ([]byte, error) {
