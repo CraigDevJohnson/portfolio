@@ -1,7 +1,4 @@
 locals {
-  invitations = {
-    "craigdevjohnson@gmail.com" = toset(["soccer", "management"])
-  }
   session_parameter_path = "/portfolio/lambda/dev/SITE_SESSION_KEY"
   cognito_domain_prefix  = coalesce(var.cognito_domain_prefix, "portfolio-lambda-dev-site-${var.aws_account_id}")
 }

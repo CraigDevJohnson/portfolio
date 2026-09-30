@@ -55,7 +55,7 @@ variable "live_version_override" {
 }
 
 variable "site" {
-  description = "Reviewed non-secret development site_runtime from the separate site auth root."
+  description = "Reviewed non-secret development site identity: the site auth root's site_runtime fields plus invitations, the only reviewed development grant map."
   type = object({
     cognito_domain       = string
     cognito_issuer       = string

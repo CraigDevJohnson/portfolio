@@ -30,12 +30,11 @@ run "production_runtime_handoff" {
       output.site_runtime.cognito_client_id == "mockprodsiteclient" &&
       output.site_runtime.redirect_uri == "https://craigdevjohnson.com/auth/callback" &&
       output.site_runtime.logout_uri == "https://craigdevjohnson.com/sign-in" &&
-      length(output.site_runtime.invitations) == 1 &&
-      toset(output.site_runtime.invitations["craigdevjohnson@gmail.com"]) == toset(["soccer", "management"]) &&
+      !contains(keys(output.site_runtime), "invitations") &&
       !output.site_runtime.allow_local_callback &&
       !strcontains(jsonencode(output.site_runtime), "mock-prod-google-secret")
     )
-    error_message = "production runtime output must contain only its reviewed site identity and grants"
+    error_message = "production runtime output must contain only its own site identity; the environment root owns grants"
   }
 }
 

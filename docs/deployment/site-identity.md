@@ -16,6 +16,7 @@ Cloud by this change, and both environments keep site sign-in switched off.
 | Site callback | `https://dev.craigdevjohnson.com/auth/callback` | `https://craigdevjohnson.com/auth/callback` |
 | Sign-out return | `https://dev.craigdevjohnson.com/sign-in` | `https://craigdevjohnson.com/sign-in` |
 | Session SecureString path | `/portfolio/lambda/dev/SITE_SESSION_KEY` | `/portfolio/lambda/prod/SITE_SESSION_KEY` |
+| Invitations and grants | `site.invitations` in `infra/lambda/environments/dev/dev.auto.tfvars` | `site.invitations` in `infra/lambda/environments/prod/prod.auto.tfvars` |
 
 Both roots target the workloads account (`AWS_ACCOUNT_ID` in `Taskfile.yaml`,
 `aws_account_id` in each root) in `us-west-2`, and keep their state in
@@ -32,12 +33,16 @@ start with `portfolio-lambda-<env>-site-` and fit in 63 characters. Each root
 rejects any other prefix, because the environment root accepts only a
 `site.cognito_domain` with its own environment's prefix.
 
-The roots each own a reviewed invitation map. Both initially invite Craig with
-`soccer` and `management`; identical initial grants do not share configuration
-or session authority. Review and deploy a change in the relevant environment
-root to change invitations or grants. An uninvited Google-federated Cognito
-profile can exist but receives no site session. Production never registers an
-HTTP loopback callback; development can explicitly opt in.
+Each environment has exactly one reviewed invitation map: `site.invitations`
+in `infra/lambda/environments/<env>/<env>.auto.tfvars`. It is the only map
+Lambda enforces. The site auth roots hold no grant map, and their
+`site_runtime` output carries only Cognito settings. To add or revoke access,
+change `site.invitations` in that file, then review and apply that environment
+root. Both environments will initially invite Craig with `soccer` and
+`management`; identical grants do not share configuration or session
+authority. An uninvited Google-federated Cognito profile can exist but receives
+no site session. Production never registers an HTTP loopback callback;
+development can explicitly opt in.
 
 ## Canonical production host
 
@@ -68,8 +73,9 @@ pages, Team ID lookup, and ICS remain available.
 production sends `www` requests to the apex before any sign-in cookie is set.
 
 After separately approved provisioning, review each root's `site_runtime`
-output and supply the complete object as that environment root's optional
-`site` input. Do not mix fields between roots. The service module passes the
+output. Supply all of its fields, plus that environment's reviewed
+`invitations` map, as the environment root's optional `site` input. Do not mix
+fields between roots. The service module passes the
 non-secret fields as `SITE_COGNITO_*`, `SITE_INVITATIONS_JSON`, and
 `SITE_ALLOW_LOCAL_CALLBACK`; it passes only the environment-specific path for
 `SITE_SESSION_KEY`. Create independently random 64-character lowercase hex
@@ -92,8 +98,9 @@ Activation is a separate, reviewed change in each environment. It needs all of:
 4. `SITE_SESSION_KEY` added to that environment's parameters in the Lambda
    execution boundary (`infra/lambda/ci-roles/boundary.tf`), applied through the
    account root. Until then the boundary denies the read and sign-in stays off.
-5. The reviewed `site` object committed to that environment's `auto.tfvars`, so
-   Craig's infrastructure apply and later CI release plans carry the same input.
+5. The reviewed `site` object, including its `invitations` grant map,
+   committed to `infra/lambda/environments/<env>/<env>.auto.tfvars`, so Craig's
+   infrastructure apply and later CI release plans carry the same input.
    CI release plans reject any change other than the image, so Craig applies
    the environment first with `task lambda-<env>-plan` and
    `task lambda-<env>-apply`.
