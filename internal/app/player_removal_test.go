@@ -131,6 +131,14 @@ func TestVerifiedPlayerRemovalErasesThePlayerForEveryOwnerAndKeepsTeamHistory(t 
 		t.Fatalf("Craig's records before removal = %v, want %v", craigBefore, wantCraig)
 	}
 	taylorBefore := route.playerRecords(t, 1002)
+	// The control says what removal reaches before the owner uses it: the
+	// kept history, not the expiring import records or table backups.
+	disclosure := plannerText(plannerSingle(t, parsePlannerHTML(t, owner.get("/soccer").Body.String()), "player removal disclosure", plannerAttrIs("data-soccer-player-removal", "")))
+	for _, scope := range []string{"from the kept history", "including links recorded through other site accounts", "short-lived record", "within 12 hours", "backups"} {
+		if !strings.Contains(disclosure, scope) {
+			t.Errorf("removal disclosure %q does not say %q", disclosure, scope)
+		}
+	}
 	checksBefore := route.lpsRequests("/users/check")
 
 	removed := owner.do(route.removalRequest(t, owner, 1001))
@@ -158,7 +166,7 @@ func TestVerifiedPlayerRemovalErasesThePlayerForEveryOwnerAndKeepsTeamHistory(t 
 	}
 
 	outcome := removalFeedback(t, removed)
-	for _, reported := range []string{"Player data removed", "Craig Johnson", "1001", "every site account", "Team and game history stays", "importing again collects the player again"} {
+	for _, reported := range []string{"Player data removed", "Craig Johnson", "1001", "from the kept history for every site account", "Team and game history stays", "short-lived record", "within 12 hours", "backups", "importing again collects the player again"} {
 		if !strings.Contains(outcome, reported) {
 			t.Errorf("removal outcome %q does not say %q", outcome, reported)
 		}

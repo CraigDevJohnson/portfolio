@@ -465,6 +465,7 @@ templ SoccerPlayerRemoval(players []types.LPSPlayer) {
 		<summary>Remove retained player data</summary>
 		<div class="soccer-player-removal-body">
 			<p>Removal erases a player&apos;s identity and team-season links from the kept history, including links recorded through other site accounts. Team, game, and facility facts stay.</p>
+			<p>It does not reach each import&apos;s short-lived record, which keeps the player until it expires within 12 hours, or table backups, which keep removed history until they expire.</p>
 			<p>Your LPS access confirms the player first. This browser&apos;s import then ends, and importing again collects the player again.</p>
 			<ul class="soccer-player-removal-list" aria-label="Players whose data you can remove">
 				for _, player := range players {

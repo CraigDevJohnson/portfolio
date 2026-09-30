@@ -19,7 +19,8 @@ import (
 )
 
 // RemovePlayerHandler erases one linked player's retained history for every
-// site owner. The route already requires the current site session and soccer
+// site owner. The short-lived import records and table backups are outside
+// its reach and keep the player until they expire. The route already requires the current site session and soccer
 // grant; the handler also requires this owner's unexpired import and a fresh
 // LPS lookup through it that still links the requested player ID. Team,
 // season, game, and facility facts stay. A completed removal clears the
@@ -83,7 +84,7 @@ func (h *Handler) RemovePlayerHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Trigger", "soccer-logout")
 	h.renderRemovalOutcome(w, r, nil, http.StatusOK, &partials.FeedbackProps{
 		Kind: partials.FeedbackSuccess, Title: "Player data removed",
-		Message: fmt.Sprintf("Removed the kept identity, site account links, and team-season links of %s (LPS ID %d) for every site account. Team and game history stays. This browser's import was cleared, and importing again collects the player again.", playerDisplayName(player), playerID),
+		Message: fmt.Sprintf("Removed the identity, site account links, and team-season links of %s (LPS ID %d) from the kept history for every site account. Team and game history stays. Each import's short-lived record keeps the player until it expires, within 12 hours of that import, and table backups keep removed history until they expire. This browser's import was cleared, and importing again collects the player again.", playerDisplayName(player), playerID),
 	})
 }
 

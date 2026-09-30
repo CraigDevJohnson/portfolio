@@ -54,11 +54,17 @@ only this site's own pages, the current site session and `soccer` grant, and
 the same owner's unexpired import, and it confirms the player ID with a fresh
 LPS lookup through that import; a name, a stale player list, or another
 owner's import is refused. It deletes the player's identity, every owner link,
-and every current and past team-season membership, including those recorded
-through other site accounts, and keeps team, season, facility, and game facts.
-The reply names only the removed player. A completed removal clears the
-browser's import, so only a later disclosed import collects the player again;
-a failed delete keeps the import for a retry.
+and every current and past team-season membership from the history table,
+including those recorded through other site accounts, and keeps team, season,
+facility, and game facts. It does not reach the import baseline in
+`SOCCER_SESSION_TABLE_NAME`: each import's record keeps its players beside the
+importing owner until DynamoDB deletes it some time after its TTL, at most 12
+hours after that import. Nor does it reach point-in-time backups, which keep
+removed items restorable for up to 35 days wherever `enable_pitr` is on. The
+reply names only the removed player and says what removal does not reach. A
+completed removal clears the browser's import, so only a later disclosed
+import collects the player again; a failed delete keeps the import for a
+retry.
 
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,

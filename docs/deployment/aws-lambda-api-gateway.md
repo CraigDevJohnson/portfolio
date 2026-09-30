@@ -41,7 +41,10 @@ environments leave it off until the issue #80 activation review. Turning it on
 also needs the table added to `PortfolioLambdaExecutionBoundary`, with the
 runtime's `GetItem`, `PutItem`, `Query`, and `DeleteItem` actions (`DeleteItem`
 serves only verified player removal), and to the CI roles' table-read grant in
-`infra/lambda/ci-roles/`.
+`infra/lambda/ci-roles/`. Player removal deletes only from the history table:
+the `soccer-sessions` import baseline keeps each import's players until that
+record's TTL, and point-in-time recovery, where `enable_pitr` is on, keeps
+removed items restorable for up to 35 days.
 
 Every resource carries the lowercase `project = portfolio` tag through provider
 `default_tags`.
