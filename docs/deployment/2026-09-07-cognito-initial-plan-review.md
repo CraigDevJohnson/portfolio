@@ -1,5 +1,9 @@
 # Initial development Cognito plan review
 
+> [!IMPORTANT]
+> Historical record of the earlier management-account setup; those resources
+> are deleted. Follow [cognito-google-dev.md](cognito-google-dev.md) instead.
+
 Status: prerequisites verified; initialization and saved-plan execution await
 approval. No live auth plan has been created or applied.
 

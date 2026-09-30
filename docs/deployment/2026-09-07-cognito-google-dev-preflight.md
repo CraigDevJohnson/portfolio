@@ -1,5 +1,9 @@
 # Cognito Google development setup preflight
 
+> [!IMPORTANT]
+> Historical record of the earlier management-account setup; those resources
+> are deleted. Follow [cognito-google-dev.md](cognito-google-dev.md) instead.
+
 Date: 2026-09-07
 
 ## Design retrieval (resolved)

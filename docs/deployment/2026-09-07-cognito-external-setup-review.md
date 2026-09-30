@@ -1,5 +1,9 @@
 # Development authentication: external setup review
 
+> [!IMPORTANT]
+> Historical record of the earlier management-account setup; those resources
+> are deleted. Follow [cognito-google-dev.md](cognito-google-dev.md) instead.
+
 Status: AWS policy installation completed and verified on September 7, 2026.
 Temporary administrator installation access was removed. Google consent
 configuration and the dedicated OAuth client are created, with credentials
