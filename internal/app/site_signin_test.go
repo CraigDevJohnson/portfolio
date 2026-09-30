@@ -237,10 +237,14 @@ func TestInvitedSiteJourneyUsesCurrentGrantsAndSignsOut(t *testing.T) {
 	}
 	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer", "management"}
 
-	signOutRequest := httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)
-	signOutRequest.AddCookie(accountCookie)
-	signOut := httptest.NewRecorder()
-	mux.ServeHTTP(signOut, signOutRequest)
+	// The browser holds the session cookie and applies the sign-out response to it.
+	browser := newSiteBrowser(t, grantProbe)
+	browser.jar.SetCookies(browser.origin, []*http.Cookie{accountCookie})
+	if restored := browser.get("/private"); restored.Code != http.StatusNoContent {
+		t.Fatalf("browser lost restricted access before sign-out: %d", restored.Code)
+	}
+	browser.handler = mux
+	signOut := browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil))
 	target, err := url.Parse(signOut.Header().Get("Location"))
 	if err != nil || target.Host != strings.TrimPrefix(fixture.domain, "https://") || target.Path != "/logout" || target.Query().Get("logout_uri") != application.Config.SiteCognitoLogoutURI {
 		t.Fatalf("sign-out did not end managed login: %d %s", signOut.Code, target)
@@ -248,10 +252,9 @@ func TestInvitedSiteJourneyUsesCurrentGrantsAndSignsOut(t *testing.T) {
 	if cleared := siteCookie(t, signOut); cleared.Value != "" || cleared.MaxAge >= 0 {
 		t.Fatal("sign-out did not clear site session")
 	}
-	probe = httptest.NewRecorder()
-	grantProbe.ServeHTTP(probe, httptest.NewRequest(http.MethodGet, "https://app.example.com/private", nil))
-	if probe.Code != http.StatusUnauthorized {
-		t.Fatal("signed-out browser reached a restricted action")
+	browser.handler = grantProbe
+	if signedOut := browser.get("/private"); signedOut.Code != http.StatusUnauthorized {
+		t.Fatalf("signed-out browser reached a restricted action: %d", signedOut.Code)
 	}
 	landing := httptest.NewRecorder()
 	mux.ServeHTTP(landing, httptest.NewRequest(http.MethodGet, application.Config.SiteCognitoLogoutURI, nil))
@@ -392,5 +395,18 @@ func TestSignInLandingMarksItsNavigationLinkCurrent(t *testing.T) {
 		if strings.Contains(link, "aria-current") {
 			t.Fatalf("About marked the Sign in link current: %s", link)
 		}
+	}
+}
+
+func TestSiteSessionLastsAtMostOneHourWhateverTheTokenLifetime(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	fixture.expiry = time.Now().Add(24 * time.Hour)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+
+	stateCookie, state := beginSiteSignIn(t, mux, "/about")
+	accountCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
+	if accountCookie.MaxAge <= 0 || accountCookie.MaxAge > int(time.Hour.Seconds()) {
+		t.Fatalf("site session Max-Age = %ds, want at most one hour so a copied cookie outlives sign-out briefly", accountCookie.MaxAge)
 	}
 }

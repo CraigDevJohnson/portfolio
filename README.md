@@ -168,10 +168,12 @@ cache headers. The site auth routes and configuration are offline application
 support; Cognito resources, Lambda runtime variables, and live activation
 require separate review.
 
-The session is an encrypted bearer cookie. Browser sign-out clears that cookie,
-but a previously copied cookie can be replayed until its token-bounded expiry.
-Immediate invalidation of copied cookies would require shared server-side
-session or revocation state.
+The session is an encrypted bearer cookie that lasts at most one hour, or less
+when the Cognito ID token expires sooner. Sign-out clears that cookie and ends
+the Cognito managed login, so the browser loses restricted access. The server
+keeps no session state, so a previously copied cookie can still be replayed
+until that expiry. This falls short of invalidating the session everywhere at
+sign-out; that would require shared server-side session or revocation state.
 
 ### EC2 management portal
 

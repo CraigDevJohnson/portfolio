@@ -31,8 +31,10 @@ const (
 	SiteSessionCookieName    = "site_session"
 	SiteOAuthStateCookieName = "site_oauth_state"
 	SiteCookiePath           = "/"
-	SiteSessionTTL           = 12 * time.Hour
-	SiteOAuthStateTTL        = 10 * time.Minute
+	// SiteSessionTTL bounds how long a copied session cookie survives sign-out;
+	// the session carries no server-side revocation state.
+	SiteSessionTTL    = time.Hour
+	SiteOAuthStateTTL = 10 * time.Minute
 )
 
 const (
