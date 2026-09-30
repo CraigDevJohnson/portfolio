@@ -601,7 +601,7 @@ next scheduled time;** there is no dormant-worker stage.
 
 - `task infrastructure-ci` passes on this branch (offline: formatting,
   validation with `-backend=false`, the mocked `tofu test` suites including the
-  service module's 33 runs, fifteen of them history contracts, release script
+  service module's 29 runs, fifteen of them history contracts, release script
   tests and operator plan tests). It contacts no AWS account.
 - The service module's committed history contracts cover: nothing planned
   without limits; limits alone activate nothing; collection needs the table,
@@ -650,7 +650,13 @@ state, and `apply` changes AWS.
    `aws_iam_role_policy.environment["prod"]` and
    `aws_iam_role_policy.production_deployer`). Review it with the listing in step 5 (run with
    `-chdir=infra/lambda/ci-roles`), and apply with
-   `task lambda-ci-roles-apply` only after approval.
+   `task lambda-ci-roles-apply` only after approval. The site identity
+   release order ([DEPLOY-INSTRUCTIONS.md, Release order](../../DEPLOY-INSTRUCTIONS.md#release-order),
+   decision 1) applies the account root from the same branch before its
+   merge, to let development read `SITE_SESSION_KEY`. If that apply
+   already carried these grants, a new plan here shows no changes and this
+   step is done. If `SITE_SESSION_KEY` is on the branch but not yet applied,
+   the boundary update here also adds its read.
 3. **Release that merge to the target environment.** Let the Release
    workflow deploy the merge commit, with history still off. Its
    verification (`scripts/verify-lambda-release.sh`) checks that the `live`

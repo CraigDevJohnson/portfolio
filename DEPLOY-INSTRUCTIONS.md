@@ -290,7 +290,13 @@ Google Calendar in between; until then it keeps serving its current release.
    SecureString, and `SITE_SESSION_KEY` in the development boundary
    parameters (applied through the account root). Commit the exported `site`
    block with Craig's `soccer` and `management` invitations to
-   `dev.auto.tfvars` on the pull request branch.
+   `dev.auto.tfvars` on the pull request branch. That account-root plan also
+   carries the LPS history grants already on the branch
+   ([readiness packet 6.5, step 2](docs/deployment/2026-09-26-lps-history-activation-readiness.md#65-reviewing-a-saved-plan)):
+   more changes to `PortfolioLambdaExecutionBoundary`, a new
+   `PortfolioLambdaHistoryExecutionBoundary`, and updates to the three CI
+   role policies. Review them with the parameter change; applying them
+   turns nothing on, because every history switch stays off.
 2. **Apply the development root from that branch, with the portal switch
    on.** The `management` grant needs the development
    [portal switch](#ec2-management-portal); without it the portal only shows
