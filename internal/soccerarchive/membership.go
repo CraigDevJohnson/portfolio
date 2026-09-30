@@ -41,9 +41,13 @@ func (s *DynamoStore) HasPlayerMembership(ctx context.Context, issuer, subject s
 		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID && record.TeamID == teamID && record.SeasonID == seasonID, nil
 }
 
-// DeletePlayerEvidence removes the complete player partition, including
-// associations made by other owners. Team, season, game, and facility records
-// live under other partitions and are retained. A later import may recreate it.
+// DeletePlayerEvidence removes the complete player partition: the identity,
+// every owner link, and every team-season membership, whichever owner
+// recorded them. Team, season, game, and facility records live under other
+// partitions and are kept. It deletes in reverse key order, so each owner's
+// memberships go before that owner's link and the identity goes last; a
+// failed removal leaves no membership without its identity and owner link,
+// and a retry finishes it. A later import may recollect the player.
 func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) error {
 	if playerID <= 0 {
 		return errors.New("player removal requires a positive player ID")
@@ -81,6 +85,9 @@ func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) er
 		}
 		startKey = page.LastEvaluatedKey
 	}
+	// Query returns the partition in ascending key order: META, then each
+	// OWNER#<hash>#META before that owner's OWNER#<hash>#TEAM#... records.
+	slices.Reverse(keys)
 	for _, key := range keys {
 		if _, err := s.api.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: aws.String(s.tableName), Key: key}); err != nil {
 			return fmt.Errorf("remove player %d evidence: %w", playerID, err)

@@ -24,6 +24,9 @@ type Table struct {
 	// FailPut, when set, is called with each put's "pk/sk" key; a non-nil
 	// result fails that put as an unavailable or throttled table would.
 	FailPut func(key string) error
+	// FailDelete, when set, is called with each delete's "pk/sk" key; a
+	// non-nil result fails that delete.
+	FailDelete func(key string) error
 	// PageSize, when positive, limits each query page to that many items and
 	// returns a LastEvaluatedKey for the rest, as DynamoDB's 1 MB page does.
 	PageSize int
@@ -134,6 +137,11 @@ func (t *Table) DeleteItem(_ context.Context, input *dynamodb.DeleteItemInput, _
 	var key itemKey
 	if err := attributevalue.UnmarshalMap(input.Key, &key); err != nil {
 		return nil, err
+	}
+	if t.FailDelete != nil {
+		if err := t.FailDelete(key.PK + "/" + key.SK); err != nil {
+			return nil, err
+		}
 	}
 	delete(t.items, key.PK+"/"+key.SK)
 	return &dynamodb.DeleteItemOutput{}, nil

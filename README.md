@@ -48,6 +48,18 @@ identity with their source and observation time, never the JWT and without a
 session TTL. Their teams are enrolled for refresh without selecting any
 planner games. A Team ID lookup never records player membership.
 
+With history wired, the LPS card of an imported, granted owner also offers to
+remove each linked player's kept data. `POST /soccer/players/remove` accepts
+only this site's own pages, the current site session and `soccer` grant, and
+the same owner's unexpired import, and it confirms the player ID with a fresh
+LPS lookup through that import; a name, a stale player list, or another
+owner's import is refused. It deletes the player's identity, every owner link,
+and every current and past team-season membership, including those recorded
+through other site accounts, and keeps team, season, facility, and game facts.
+The reply names only the removed player. A completed removal clears the
+browser's import, so only a later disclosed import collects the player again;
+a failed delete keeps the import for a retry.
+
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,
 request start, stop, and restart actions, and load CloudWatch metrics and logs.
@@ -138,15 +150,6 @@ without an owner cannot be reused. Team ID lookup and ICS download remain
 available without sign-in. `LPS_API_BASE_URL` can override the upstream API
 for local testing. The application accepts HTTPS endpoints and loopback HTTP
 endpoints.
-
-When durable player history is enabled, an imported player can request removal
-from the Soccer connections panel. `POST /soccer/players/remove` requires the
-current site session and `soccer` grant, the same owner's unexpired import, and
-a fresh LPS lookup confirming the exact player ID. It erases that player's
-archive identity, owner links, and team-season membership proof across owners.
-Team, game, season, and facility facts remain. A successful request clears the
-current imported browser session; a later deliberate valid import can collect
-the player again.
 
 ### Google Calendar
 

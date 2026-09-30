@@ -9,7 +9,6 @@ type SoccerProps struct {
 	PrivateAccessMessage     string
 	ShowSiteSignIn           bool
 	HistoryCollectionEnabled bool
-	PlayerRemovalMessage     string
 	AuthState                partials.SoccerLoginStateProps
 	Preview                  bool
 	ModalOpen                bool
@@ -124,11 +123,6 @@ templ Soccer(props SoccerProps) {
 				if props.GoogleMessage != "" {
 					<div class="soccer-workspace-feedback">
 						@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
-					</div>
-				}
-				if props.PlayerRemovalMessage != "" {
-					<div class="soccer-workspace-feedback">
-						@partials.Feedback(partials.FeedbackProps{Kind: partials.FeedbackSuccess, Title: "Player data removed", Message: props.PlayerRemovalMessage})
 					</div>
 				}
 				@partials.SoccerConnections(props.AuthState)

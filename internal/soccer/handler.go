@@ -93,8 +93,9 @@ func (h *Handler) ArchiveStore() soccerarchive.Store {
 // soccerarchive.MembershipStore, as the DynamoDB store does, also makes the
 // import dialog disclose indefinite linked-player history and makes a
 // disclosed, granted import collect every linked player's team-season
-// memberships. Production must not wire it until the #80 activation review
-// approves collection.
+// memberships. A store that also implements soccerarchive.PlayerRemovalStore
+// lets an imported owner remove a confirmed player's kept data. Production
+// must not wire it until the #80 activation review approves collection.
 func (h *Handler) SetArchiveStore(store soccerarchive.Store) {
 	h.storeMu.Lock()
 	h.archiveStore = store

@@ -38,8 +38,10 @@ Accounts, roots, approvals, the release workflow and rollback are described in
 The service module can also plan the durable Soccer history table,
 `portfolio-lambda-<env>-soccer-history`, with `enable_soccer_history`. Both
 environments leave it off until the issue #80 activation review. Turning it on
-also needs the table added to `PortfolioLambdaExecutionBoundary` and to the CI
-roles' table-read grant in `infra/lambda/ci-roles/`.
+also needs the table added to `PortfolioLambdaExecutionBoundary`, with the
+runtime's `GetItem`, `PutItem`, `Query`, and `DeleteItem` actions (`DeleteItem`
+serves only verified player removal), and to the CI roles' table-read grant in
+`infra/lambda/ci-roles/`.
 
 Every resource carries the lowercase `project = portfolio` tag through provider
 `default_tags`.

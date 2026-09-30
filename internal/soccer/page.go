@@ -51,7 +51,6 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		PrivateAccessMessage:     privateAccessMessage,
 		ShowSiteSignIn:           showSiteSignIn,
 		HistoryCollectionEnabled: h.historyCollectionEnabled(),
-		PlayerRemovalMessage:     playerRemovalMessage(r.URL.Query().Get("player_removed")),
 		AuthState:                authState,
 		InitialTeamSelection:     teamSelection,
 		InitialResults:           initialResults,
@@ -64,20 +63,8 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func playerRemovalMessage(result string) string {
-	if result == "1" {
-		return "The retained player data was removed. Your current LPS import has been cleared. A later valid import may collect that player again."
-	}
-	return ""
-}
-
 func (h *Handler) historyCollectionEnabled() bool {
 	_, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
-	return enabled
-}
-
-func (h *Handler) playerRemovalEnabled() bool {
-	_, enabled := h.ArchiveStore().(soccerarchive.PlayerRemovalStore)
 	return enabled
 }
 

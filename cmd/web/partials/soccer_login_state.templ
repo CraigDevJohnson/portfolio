@@ -1,6 +1,7 @@
 package partials
 
 import "fmt"
+import "strings"
 import "portfolio/types"
 
 type SoccerLoginStateProps struct {
@@ -96,16 +97,7 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 					</button>
 				</div>
 				if props.HistoryRemovalAvailable && !props.Preview {
-					<details class="page-kit-panel mt-4 px-4 py-3">
-						<summary class="cursor-pointer font-medium">Remove retained player data</summary>
-						<p class="mt-2 text-sm text-copy-muted">Removal erases one player&apos;s identity and team-season links across the archive, including links recorded through other site accounts. Team, game, and facility facts remain. Your current import ends; a later valid import may collect the player again.</p>
-						for _, player := range props.Players {
-							<form method="POST" action="/soccer/players/remove" class="mt-3">
-								<input type="hidden" name="player_id" value={ fmt.Sprintf("%d", player.UPlayerID) }/>
-								<button type="submit" class="btn soccer-secondary-btn">Remove data for { player.FirstName + " " + player.LastName } (ID { fmt.Sprintf("%d", player.UPlayerID) })</button>
-							</form>
-						}
-					</details>
+					@SoccerPlayerRemoval(props.Players)
 				}
 			} else {
 				<div class="soccer-connection-copy">
@@ -463,4 +455,37 @@ templ SoccerResultsInvitation(google bool) {
 			}
 		</ul>
 	</div>
+}
+
+// SoccerPlayerRemoval offers each linked player's retained-history removal.
+// The request confirms the player with a fresh LPS lookup of this import and
+// replaces the LPS card with its outcome.
+templ SoccerPlayerRemoval(players []types.LPSPlayer) {
+	<details class="soccer-player-removal" data-soccer-player-removal>
+		<summary>Remove retained player data</summary>
+		<div class="soccer-player-removal-body">
+			<p>Removal erases a player&apos;s identity and team-season links from the kept history, including links recorded through other site accounts. Team, game, and facility facts stay.</p>
+			<p>Your LPS access confirms the player first. This browser&apos;s import then ends, and importing again collects the player again.</p>
+			<ul class="soccer-player-removal-list" aria-label="Players whose data you can remove">
+				for _, player := range players {
+					<li>
+						<form hx-post="/soccer/players/remove" hx-target="#soccer-lps-connection" hx-swap="outerHTML" hx-disabled-elt="find button[type='submit']">
+							<input type="hidden" name="player_id" value={ fmt.Sprint(player.UPlayerID) }/>
+							<button type="submit" class="btn soccer-secondary-btn btn-loading" data-loading-button>
+								<span class="btn-text">Remove data for { soccerPlayerName(player) } (LPS ID { fmt.Sprint(player.UPlayerID) })</span>
+								<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
+							</button>
+						</form>
+					</li>
+				}
+			</ul>
+		</div>
+	</details>
+}
+
+func soccerPlayerName(player types.LPSPlayer) string {
+	if name := strings.TrimSpace(player.FirstName + " " + player.LastName); name != "" {
+		return name
+	}
+	return "player"
 }

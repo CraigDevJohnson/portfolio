@@ -247,6 +247,63 @@
   margin-top: auto;
 }
 
+/* Verified removal of one player's kept history sits behind a disclosure so
+ * the destructive action needs a deliberate second step. */
+.soccer-player-removal {
+  padding-top: var(--space-xs);
+  border-top: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 14%, transparent);
+}
+
+.soccer-player-removal summary {
+  /* A list item keeps the native disclosure marker; the padding keeps a
+   * 44px target. */
+  display: list-item;
+  padding-block: 0.75rem;
+  cursor: pointer;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.soccer-player-removal summary:hover,
+.soccer-player-removal[open] summary {
+  color: var(--candle-oat);
+}
+
+.soccer-player-removal-body {
+  display: grid;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-xs);
+}
+
+.soccer-player-removal-body p {
+  margin: 0;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-player-removal-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soccer-player-removal-list .soccer-secondary-btn {
+  max-width: 100%;
+  border-color: color-mix(in srgb, var(--rosehip) 42%, transparent);
+  background: color-mix(in srgb, var(--rosehip) 8%, transparent);
+  text-align: start;
+  white-space: normal;
+}
+
+.soccer-player-removal-list .soccer-secondary-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--rosehip) 64%, transparent);
+  background: color-mix(in srgb, var(--rosehip) 14%, transparent);
+}
+
 .soccer-calendar-form {
   display: grid;
   gap: var(--space-xs);

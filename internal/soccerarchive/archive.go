@@ -60,7 +60,9 @@ type MembershipStore interface {
 	SavePlayerDiscovery(ctx context.Context, discovery *PlayerDiscovery) error
 }
 
-// PlayerRemovalStore erases all retained evidence under a verified player ID.
+// PlayerRemovalStore erases one player's identity, owner links, and
+// team-season memberships for every owner, keeping team, season, facility,
+// and game facts. Callers must first verify authority over the player.
 type PlayerRemovalStore interface {
 	DeletePlayerEvidence(ctx context.Context, playerID int) error
 }

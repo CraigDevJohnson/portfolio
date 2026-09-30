@@ -35,6 +35,11 @@ type playerHistoryRoute struct {
 	failingPlayer int
 	// missingPlayer, when set, is a linked player LPS no longer finds.
 	missingPlayer int
+	// account, when set, replaces the LPS account /users/check returns.
+	account string
+	// rejectJWT makes LPS refuse the imported JWT, as it does once the
+	// token is revoked.
+	rejectJWT bool
 }
 
 // The fake LPS account links Craig (the account's main player) and Taylor.
@@ -55,9 +60,12 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route.mu.Lock()
 		route.requests[r.URL.Path]++
-		failingPlayer, missingPlayer := route.failingPlayer, route.missingPlayer
+		failingPlayer, missingPlayer, account, rejectJWT := route.failingPlayer, route.missingPlayer, route.account, route.rejectJWT
 		route.mu.Unlock()
-		authorized := r.Header.Get("Authorization") == "Bearer "+route.jwt
+		if account == "" {
+			account = playerHistoryAccount
+		}
+		authorized := !rejectJWT && r.Header.Get("Authorization") == "Bearer "+route.jwt
 		switch r.URL.Path {
 		case "/users/check", "/players/1001/my_teams", "/players/1002/my_teams":
 			if !authorized {
@@ -67,7 +75,7 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 		}
 		switch r.URL.Path {
 		case "/users/check":
-			_, _ = fmt.Fprint(w, playerHistoryAccount)
+			_, _ = fmt.Fprint(w, account)
 		case fmt.Sprintf("/players/%d/my_teams", failingPlayer):
 			http.Error(w, "temporary failure", http.StatusBadGateway)
 		case fmt.Sprintf("/players/%d/my_teams", missingPlayer):
@@ -76,6 +84,9 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`)
 		case "/players/1002/my_teams":
 			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79},{"UTeamID":4300,"team_name":"Unknown Season"}]`)
+		case "/teams/4101":
+			// Craig's and Taylor's shared team played Taylor FC in season 77.
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},"games":[{"UGameID":7001,"Season":77,"UTeam1":4101,"UTeam2":4202,"home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4202,"team_name":"Taylor FC"},"result":"2-1"}]}`)
 		case "/teams/4202":
 			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4202,"team_name":"Taylor FC","Season":79},"games":[]}`)
 		default:
