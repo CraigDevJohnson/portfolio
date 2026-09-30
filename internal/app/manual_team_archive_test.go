@@ -193,9 +193,13 @@ func TestManualTeamLookupSeparatesEmptyScheduleFromInvalidAndFailedLookups(t *te
 	}
 	route.assertNotArchived(t, 888888)
 
-	malformed := route.lookup(t, "not-a-team")
-	if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
-		t.Fatalf("malformed team ID outcome: %q", malformed)
+	// A partly malformed entry is rejected whole rather than enrolling the
+	// numeric part of an ambiguous request.
+	for _, entry := range []string{"not-a-team", "479691,not-a-team"} {
+		malformed := route.lookup(t, entry)
+		if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
+			t.Fatalf("malformed team ID %q outcome: %q", entry, malformed)
+		}
 	}
 }
 
