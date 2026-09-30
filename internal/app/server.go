@@ -61,10 +61,14 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		app.SiteHandler = siteHandler
 	}
 	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
+	// Starting sign-in and signing out change which session this browser
+	// holds, and sign-out also ends the Soccer state that depends on it, so
+	// only this site's own pages may submit them.
+	sameOrigin := http.NewCrossOriginProtection()
 	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
-	mux.HandleFunc("POST /sign-in", siteHandler.LoginHandler)
+	mux.Handle("POST /sign-in", sameOrigin.Handler(http.HandlerFunc(siteHandler.LoginHandler)))
 	mux.HandleFunc("GET "+siteauth.CallbackPath, siteHandler.CallbackHandler)
-	mux.HandleFunc("POST /sign-out", siteHandler.LogoutHandler)
+	mux.Handle("POST /sign-out", sameOrigin.Handler(http.HandlerFunc(siteHandler.LogoutHandler)))
 
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,

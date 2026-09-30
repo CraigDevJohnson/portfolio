@@ -207,7 +207,9 @@ to the callback itself falls back to `/`. `POST /sign-out` clears the session
 and pending OAuth state before ending the Cognito managed-login journey. It
 also clears features' browser state that depends on the site session: imported
 LPS access and pending Google Calendar consent. The owner-bound Google
-connection stays, so it is available again when its owner signs back in. A
+connection stays, so it is available again when its owner signs back in. Only
+the site's own pages may submit `POST /sign-in` and `POST /sign-out`: a form
+another site submits receives `403` and changes no cookies. A
 denied, uninvited identity is offered **Use a different account**, which uses
 that sign-out path so the next attempt does not reuse the same managed login.
 A stale callback leaves an existing valid session in place. Public
