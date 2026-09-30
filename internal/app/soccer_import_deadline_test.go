@@ -53,7 +53,7 @@ func TestDisclosedImportSkipsALinkedPlayerLPSHasNotListedByTheLookupDeadline(t *
 		t.Errorf("import warning title = %q, want %q", title, want)
 	}
 	if want := "Let's Play Soccer did not list teams for Taylor Johnson in time, so their history was not collected. " +
-		"Import again later to collect it. Your import was saved."; message != want {
+		"A later import may collect it. Your import was saved."; message != want {
 		t.Errorf("import warning = %q, want %q", message, want)
 	}
 
@@ -190,7 +190,7 @@ func TestDisclosedImportNamesALatePlayerAndACapacityRefusalTogether(t *testing.T
 		t.Errorf("import warning title = %q, want %q", title, want)
 	}
 	if want := "Let's Play Soccer did not list teams for Taylor Johnson in time, so their history was not collected. " +
-		"Import again later to collect it. Team 4102 was not added to history collection because its reviewed capacity is full. " +
+		"A later import may collect it. Team 4102 was not added to history collection because its reviewed capacity is full. " +
 		"Your import was saved."; message != want {
 		t.Errorf("import warning = %q, want %q", message, want)
 	}

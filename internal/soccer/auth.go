@@ -238,7 +238,7 @@ func uncollectedHistoryNotice(late []types.LPSPlayer, refused *soccerarchive.Adm
 	for _, player := range late {
 		names = append(names, playerDisplayName(player))
 	}
-	message := "Let's Play Soccer did not list teams for " + listWords(names) + " in time, so their history was not collected. Import again later to collect it."
+	message := "Let's Play Soccer did not list teams for " + listWords(names) + " in time, so their history was not collected. A later import may collect it."
 	if refused != nil {
 		message += " " + teamsNotAdded(refused.TeamIDs)
 	}
@@ -283,13 +283,16 @@ type importedPlayerTeams struct {
 }
 
 // discoverImportedPlayerTeams looks up every linked player's teams, one
-// player at a time so LPS sees one request at a time from an import, until
-// ctx's deadline. A player LPS rejects as invalid (a 400 or 404) has no
-// team-seasons to observe, and a player whose lookup has not finished by the
-// deadline is skipped for this import and returned as late. Either keeps its
-// identity and owner link without memberships, and the lookup goes on; once
-// the deadline has passed, every remaining player is late. Any other
-// failure, such as an upstream error or a rejected JWT, stops the discovery.
+// player at a time in the order LPS lists them so LPS sees one request at a
+// time from an import, until ctx's deadline. A player LPS rejects as invalid
+// (a 400 or 404) has no team-seasons to observe, and a player whose lookup
+// has not finished by the deadline is skipped for this import and returned
+// as late. Either keeps its identity and owner link without memberships, and
+// the lookup goes on; once the deadline has passed, every remaining player
+// is late. The order is the same on every import, so an LPS that stays slow
+// rather than briefly slow can leave the same last players late each time.
+// Any other failure, such as an upstream error or a rejected JWT, stops the
+// discovery.
 func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) (importedPlayerTeams, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
 	knownTeams := make(map[int]lps.TeamSummary)
