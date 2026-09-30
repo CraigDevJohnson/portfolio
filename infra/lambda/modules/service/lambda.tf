@@ -19,7 +19,6 @@ resource "aws_lambda_function" "app" {
       LOG_LEVEL                    = "info"
       LPS_SESSION_KEY              = local.ssm_paths.LPS_SESSION_KEY
       SOCCER_SESSION_TABLE_NAME    = aws_dynamodb_table.soccer_sessions.name
-      SOCCER_ARCHIVE_TABLE_NAME    = aws_dynamodb_table.soccer_history.name
     }, local.management_environment)
   }
 

@@ -244,7 +244,6 @@ locals {
         Resource = [
           "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-google-connections",
           "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-soccer-sessions",
-          "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-soccer-history",
         ]
       },
       {

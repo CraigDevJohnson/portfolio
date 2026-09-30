@@ -75,11 +75,11 @@ output "soccer_session_table_arn" {
 }
 
 output "soccer_history_table_name" {
-  value = aws_dynamodb_table.soccer_history.name
+  value = tostring(one(aws_dynamodb_table.soccer_history[*].name))
 }
 
 output "soccer_history_table_arn" {
-  value = aws_dynamodb_table.soccer_history.arn
+  value = tostring(one(aws_dynamodb_table.soccer_history[*].arn))
 }
 
 output "ssm_parameter_paths" {

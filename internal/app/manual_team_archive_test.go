@@ -289,7 +289,6 @@ func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
 	for _, name := range []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "GOOGLE_CONNECTION_TABLE_NAME", "SOCCER_SESSION_TABLE_NAME", "MGMT_SESSION_KEY"} {
 		t.Setenv(name, "")
 	}
-	t.Setenv("SOCCER_ARCHIVE_TABLE_NAME", "portfolio-lambda-dev-soccer-history")
 	t.Setenv("LPS_API_BASE_URL", lpsServer.URL)
 	t.Setenv("LOG_LEVEL", "error")
 	previousLogger := slog.Default()

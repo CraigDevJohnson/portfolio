@@ -208,22 +208,16 @@ run "published_service_contract" {
 
   assert {
     condition = (
-      aws_dynamodb_table.soccer_history.name == "portfolio-lambda-dev-soccer-history" &&
-      aws_dynamodb_table.soccer_history.hash_key == "pk" &&
-      aws_dynamodb_table.soccer_history.range_key == "sk" &&
-      length(aws_dynamodb_table.soccer_history.ttl) == 0 &&
-      aws_dynamodb_table.soccer_history.server_side_encryption[0].enabled &&
-      length([
-        for index in aws_dynamodb_table.soccer_history.global_secondary_index : index
-        if index.name == "due-teams" && index.hash_key == "due_pk" && index.range_key == "due_sk"
-      ]) == 1
+      length(aws_dynamodb_table.soccer_history) == 0 &&
+      output.soccer_history_table_name == null &&
+      output.soccer_history_table_arn == null
     )
-    error_message = "durable Soccer history must have source-fact keys, a due-team index, encryption, and no session TTL"
+    error_message = "durable Soccer history must not be planned until its activation review enables it"
   }
 
   assert {
     condition = (
-      length(data.aws_iam_policy_document.lambda.statement) == 6 &&
+      length(data.aws_iam_policy_document.lambda.statement) == 5 &&
       alltrue([
         for statement in data.aws_iam_policy_document.lambda.statement :
         (statement.effect == null || statement.effect == "Allow") &&
@@ -246,13 +240,6 @@ run "published_service_contract" {
         toset(statement.actions) == toset(["dynamodb:PutItem"]) &&
         length(statement.resources) == 1 &&
         toset(statement.resources) == toset([aws_dynamodb_table.soccer_sessions.arn])
-      ]) == 1 &&
-      length([
-        for statement in data.aws_iam_policy_document.lambda.statement : statement
-        if length(statement.actions) == 3 &&
-        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]) &&
-        length(statement.resources) == 1 &&
-        toset(statement.resources) == toset([aws_dynamodb_table.soccer_history.arn])
       ]) == 1 &&
       length([
         for statement in data.aws_iam_policy_document.lambda.statement : statement
@@ -280,7 +267,7 @@ run "published_service_contract" {
         toset(statement.resources) == toset(["${aws_cloudwatch_log_group.lambda.arn}:*"])
       ]) == 1
     )
-    error_message = "runtime IAM must contain exactly the reviewed Google, Soccer, archive, SSM, KMS, and Lambda log statements"
+    error_message = "runtime IAM must contain exactly the reviewed Google, Soccer, SSM, KMS, and Lambda log statements"
   }
 
   assert {
@@ -446,6 +433,72 @@ run "staged_custom_domain_contract" {
   }
 }
 
+run "soccer_history_enabled_contract" {
+  command = plan
+
+  variables {
+    enable_soccer_history      = true
+    enable_pitr                = true
+    enable_deletion_protection = true
+  }
+
+  # Every mocked table shares one ARN; give this table its own so the IAM
+  # checks below can tell its grant apart from the other tables'.
+  override_resource {
+    target = aws_dynamodb_table.soccer_history
+    values = {
+      arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-dev-soccer-history"
+    }
+  }
+
+  assert {
+    condition = (
+      length(aws_dynamodb_table.soccer_history) == 1 &&
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-dev-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].billing_mode == "PAY_PER_REQUEST" &&
+      aws_dynamodb_table.soccer_history[0].hash_key == "pk" &&
+      aws_dynamodb_table.soccer_history[0].range_key == "sk" &&
+      length(aws_dynamodb_table.soccer_history[0].ttl) == 0 &&
+      aws_dynamodb_table.soccer_history[0].server_side_encryption[0].enabled &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled &&
+      length(aws_dynamodb_table.soccer_history[0].global_secondary_index) == 1 &&
+      length([
+        for index in aws_dynamodb_table.soccer_history[0].global_secondary_index : index
+        if index.name == "due-teams" && index.projection_type == "ALL" &&
+        join(",", [for key in index.key_schema : "${key.attribute_name}:${key.key_type}"]) == "due_pk:HASH,due_sk:RANGE"
+      ]) == 1 &&
+      output.soccer_history_table_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-dev-soccer-history"
+    )
+    error_message = "enabled Soccer history must be a protected, encrypted source-fact table with a due-team index and no session TTL"
+  }
+
+  assert {
+    condition = (
+      length(data.aws_iam_policy_document.lambda.statement) == 6 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 3 &&
+        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]) &&
+        length(statement.resources) == 1 &&
+        toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn]) &&
+        length(statement.condition) == 0
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if contains(statement.resources, aws_dynamodb_table.soccer_history[0].arn)
+      ]) == 1
+    )
+    error_message = "enabled Soccer history must add exactly one read, write, and base-table query statement for its table"
+  }
+
+  assert {
+    condition     = !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_ARCHIVE_TABLE_NAME")
+    error_message = "enabling the table must not hand the runtime an archive to enroll into before activation"
+  }
+}
+
 run "runtime_policy_attachment_contract" {
   command = apply
 
@@ -475,7 +528,7 @@ run "management_enabled_contract" {
     }
   }
   assert {
-    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 7
+    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 6
     error_message = "management must add a session parameter reference and exactly one bounded read-only management IAM statement"
   }
 
@@ -489,7 +542,6 @@ run "management_enabled_contract" {
       LOG_LEVEL                    = "info"
       LPS_SESSION_KEY              = "/portfolio/lambda/dev/LPS_SESSION_KEY"
       SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-dev-soccer-sessions"
-      SOCCER_ARCHIVE_TABLE_NAME    = "portfolio-lambda-dev-soccer-history"
       MGMT_SESSION_KEY             = "/portfolio/lambda/dev/MGMT_SESSION_KEY"
       MGMT_COGNITO_DOMAIN          = var.management.cognito_domain
       MGMT_COGNITO_ISSUER          = var.management.cognito_issuer

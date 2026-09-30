@@ -144,11 +144,17 @@ run "development_environment_contract" {
       output.google_connection_table_name == "portfolio-lambda-dev-google-connections" &&
       output.google_connection_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" &&
       output.soccer_session_table_name == "portfolio-lambda-dev-soccer-sessions" &&
-      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" &&
-      output.soccer_history_table_name == "portfolio-lambda-dev-soccer-history" &&
-      output.soccer_history_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
+      output.soccer_session_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
     )
     error_message = "development storage and log outputs must forward the evaluated service values"
+  }
+
+  assert {
+    condition = (
+      output.soccer_history_table_name == null &&
+      output.soccer_history_table_arn == null
+    )
+    error_message = "development must not plan the durable Soccer history table before its activation review"
   }
 
   assert {

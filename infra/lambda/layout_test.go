@@ -184,7 +184,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 12, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 13, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
 		"management_reject_prod":        true,
 		"management_reject_region":      true,
 		"management_reject_email":       true,

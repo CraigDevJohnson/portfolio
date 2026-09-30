@@ -48,6 +48,12 @@ variable "enable_pitr" { type = bool }
 
 variable "enable_deletion_protection" { type = bool }
 
+variable "enable_soccer_history" {
+  description = "Plan the durable Soccer history table and its runtime access. Keep false until the #80 activation review approves the AWS resources."
+  type        = bool
+  default     = false
+}
+
 variable "alarm_action_arns" { type = list(string) }
 
 variable "domain_names" { type = set(string) }

@@ -51,9 +51,12 @@ data "aws_iam_policy_document" "lambda" {
     resources = [aws_dynamodb_table.soccer_sessions.arn]
   }
 
-  statement {
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
-    resources = [aws_dynamodb_table.soccer_history.arn]
+  dynamic "statement" {
+    for_each = aws_dynamodb_table.soccer_history
+    content {
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+      resources = [statement.value.arn]
+    }
   }
 
   statement {
