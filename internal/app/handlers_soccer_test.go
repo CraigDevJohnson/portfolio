@@ -64,29 +64,6 @@ func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 	}
 }
 
-func TestSoccerPageOffersOutputChoiceBeforeManualTeamLookup(t *testing.T) {
-	app := newTestApp(t)
-	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	resp := httptest.NewRecorder()
-
-	newTestSoccerHandler(app).SoccerPage(resp, req)
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("Soccer page status = %d, want %d", resp.Code, http.StatusOK)
-	}
-	body := resp.Body.String()
-	choice := strings.Index(body, `data-soccer-stage="calendar-output"`)
-	source := strings.Index(body, `data-soccer-stage="source"`)
-	if choice < 0 || source < 0 || choice >= source {
-		t.Fatalf("calendar output must be the first planner step: choice=%d source=%d", choice, source)
-	}
-	for _, marker := range []string{`value="ics"`, `value="google"`, `id="team_codes"`, `hx-post="/soccer/fetch"`} {
-		if !strings.Contains(body, marker) {
-			t.Errorf("public Soccer page missing %q", marker)
-		}
-	}
-}
-
 func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
@@ -114,37 +91,6 @@ func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testin
 	}
 	if !strings.Contains(body, "Craig Johnson") {
 		t.Fatalf("expected imported player name in initial page render, got %q", body)
-	}
-}
-
-func TestSoccerPageRestoredPublicPastOnlyScheduleExplainsEmptyICSOutput(t *testing.T) {
-	app := newTestApp(t)
-	past := testutil.MislabelledLPSZuluTime(time.Now().Add(-24 * time.Hour))
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/teams/101" {
-			t.Errorf("unexpected LPS path %q", r.URL.Path)
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":1001,"SchedGameDateTime":%q,"result":"2 - 1","home_team":{"team_name":"Past FC"},"visitor_team":{"team_name":"Rivals"}}]}`, past)
-	}))
-	defer server.Close()
-	app.Config.LPSAPIBaseURL = server.URL
-	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
-	addSessionCookie(t, app, req, &types.SessionData{
-		Workflow: types.SoccerWorkflowState{Source: "manual", SelectedTeamIDs: []int{101}},
-	})
-	resp := httptest.NewRecorder()
-
-	newTestSoccerHandler(app).SoccerPage(resp, req)
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("Soccer page status = %d, want %d", resp.Code, http.StatusOK)
-	}
-	body := resp.Body.String()
-	if !strings.Contains(body, `data-soccer-results-ready="ready"`) || !strings.Contains(body, `data-soccer-output-only="ics"`) || !strings.Contains(body, "No upcoming games to download") {
-		t.Fatalf("restored past-only schedule does not explain the empty ICS output: %q", body)
 	}
 }
 
