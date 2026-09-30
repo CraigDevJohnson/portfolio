@@ -1011,7 +1011,7 @@ run "history_collection_has_capacity_alert_without_schedule" {
       aws_lambda_function.app.environment[0].variables.SOCCER_ARCHIVE_TABLE_NAME == "portfolio-lambda-dev-soccer-history" &&
       length([
         for statement in data.aws_iam_policy_document.lambda.statement : statement
-        if toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]) &&
+        if toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]) &&
         toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])
       ]) == 1 &&
       length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 1 &&
