@@ -46,9 +46,10 @@ func TestPreviewLPSServesPublicTeamLookupWithNewlyPublishedGame(t *testing.T) {
 			t.Errorf("preview game %s did not begin selected", row.ID)
 		}
 	}
-	if past := plannerGameRows(firstDoc, "past-results"); len(past) != 0 {
-		t.Errorf("manual preview lookup rendered past rows %v", plannerRowIDs(past))
+	if past := plannerRowIDs(plannerGameRows(firstDoc, "past-results")); !slices.Equal(past, []string{"7000"}) {
+		t.Errorf("manual preview lookup past rows = %v, want the scored past game 7000 for Google mode", past)
 	}
+	assertPastResultControlsGoogleOnly(t, firstDoc)
 
 	refetch := parsePlannerHTML(t, servePublicPlanner(t, routes, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"479147 479691"}}).Body.String())
 	if got, want := plannerRowIDs(plannerGameRows(refetch, "upcoming-games")), []string{"7003", "7001", "7002", "7004"}; !slices.Equal(got, want) {
