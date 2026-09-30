@@ -348,3 +348,52 @@ func TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes(t *
 		}
 	})
 }
+
+// Production also maps www.craigdevjohnson.com to the same API, but Cognito
+// returns only to the apex callback and site cookies are host-only.
+const prodSiteWWWOrigin = "https://www.craigdevjohnson.com"
+
+func TestProductionSiteSignInMovesTheWWWAliasToTheCallbackHost(t *testing.T) {
+	federation := newFakeSiteFederation(t)
+	prod := loadProductionLikeSite(t, federation.pools["prod"], prodSiteOrigin, prodSiteSessionKeyHex, publicTeamLPS(t).URL)
+
+	for _, request := range []struct{ method, path string }{
+		{method: http.MethodGet, path: "/soccer?team_codes=479691"},
+		{method: http.MethodGet, path: "/sign-in?return_to=%2Fsoccer"},
+		{method: http.MethodPost, path: "/sign-in"},
+		{method: http.MethodGet, path: "/auth/callback?code=prod-invited&state=pending"},
+		{method: http.MethodPost, path: "/sign-out"},
+	} {
+		body := strings.NewReader(url.Values{"return_to": {"/soccer"}}.Encode())
+		req := httptest.NewRequest(request.method, prodSiteWWWOrigin+request.path, body)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response := httptest.NewRecorder()
+		prod.mux.ServeHTTP(response, req)
+		// 308 keeps the method and form, so a www sign-in resumes on the apex.
+		if response.Code != http.StatusPermanentRedirect || response.Header().Get("Location") != prodSiteOrigin+request.path {
+			t.Fatalf("www %s %s = %d %q, want 308 to the apex", request.method, request.path, response.Code, response.Header().Get("Location"))
+		}
+		if cookies := response.Result().Cookies(); len(cookies) != 0 {
+			t.Fatalf("www %s %s set host-only cookies the apex callback cannot read: %v", request.method, request.path, cookies)
+		}
+	}
+
+	// Following the redirect completes the journey on the one callback host.
+	response := prod.callback(t, "prod-invited")
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/soccer" {
+		t.Fatalf("apex sign-in after the www redirect failed: %d %s", response.Code, response.Body.String())
+	}
+	if got := prod.restricted(t, siteCookie(t, response), siteidentity.GrantSoccer); got != http.StatusNoContent {
+		t.Fatalf("apex session after the www redirect = %d, want 204", got)
+	}
+}
+
+func TestWWWAliasKeepsServingWhileSiteSignInIsOff(t *testing.T) {
+	application := newTestApp(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, prodSiteWWWOrigin+"/", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("www home without site sign-in = %d, want 200", response.Code)
+	}
+}

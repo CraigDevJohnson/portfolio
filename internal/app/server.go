@@ -163,7 +163,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		http.ServeFile(w, r, "cmd/web/static/images/favicon.ico")
 	})
 
-	return siteHandler.WithIdentity(mux), soccerHandler
+	return siteHandler.WithCanonicalHost(siteHandler.WithIdentity(mux)), soccerHandler
 }
 
 func initializeGoogleStore(ctx context.Context, app *App) error {

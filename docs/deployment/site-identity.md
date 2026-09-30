@@ -36,6 +36,17 @@ root to change invitations or grants. An uninvited Google-federated Cognito
 profile can exist but receives no site session. Production never registers an
 HTTP loopback callback; development can explicitly opt in.
 
+## Canonical production host
+
+Production serves both `craigdevjohnson.com` and `www.craigdevjohnson.com`,
+but Cognito returns only to `https://craigdevjohnson.com/auth/callback`, and
+the pending sign-in and session cookies are host-only. The apex is therefore
+the one site identity host. While site sign-in is configured, the application
+answers every request for the `www.` alias of the `SITE_COGNITO_REDIRECT_URI`
+host with a `308` to the same path and query on that host, so a sign-in started
+on `www` resumes on the apex with its method and form intact. With `site =
+null`, `www` keeps serving pages directly.
+
 ## Offline proof and runtime handoff
 
 Run `task cognito-site-ci` to validate both roots and their shared module with
@@ -50,6 +61,8 @@ LPS endpoints. It proves that only an invited, verified identity signs in, that
 cross-environment tokens and sessions fail (even with a reused session key),
 that each environment checks its own current page grants, and that public
 pages, Team ID lookup, and ICS remain available.
+`TestProductionSiteSignInMovesTheWWWAliasToTheCallbackHost` proves that
+production sends `www` requests to the apex before any sign-in cookie is set.
 
 After separately approved provisioning, review each root's `site_runtime`
 output and supply the complete object as that environment root's optional

@@ -16,6 +16,7 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/internal/config"
+	"portfolio/internal/httpx"
 	"portfolio/internal/portal"
 	"portfolio/internal/siteidentity"
 )
@@ -73,6 +74,29 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 		next.ServeHTTP(w, identified)
 		// ServeMux records the matched route on the copy it received; request logging reads the outer request.
 		r.Pattern = identified.Pattern
+	})
+}
+
+// WithCanonicalHost sends requests for the www alias of the registered
+// callback host to that host with a 308, which keeps the method and form.
+// Site cookies are host-only and Cognito returns only to the registered
+// callback, so sign-in and sessions must stay on that one host.
+func (h *Handler) WithCanonicalHost(next http.Handler) http.Handler {
+	if !h.signInAvailable() {
+		return next
+	}
+	canonical, err := url.Parse(h.Config.SiteCognitoRedirectURI)
+	if err != nil || canonical.Host == "" {
+		return next
+	}
+	alias := "www." + canonical.Host
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestOrigin, err := url.Parse(httpx.RequestBaseURL(r))
+		if err != nil || !strings.EqualFold(requestOrigin.Host, alias) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, canonical.Scheme+"://"+canonical.Host+r.URL.RequestURI(), http.StatusPermanentRedirect)
 	})
 }
 

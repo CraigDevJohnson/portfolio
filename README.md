@@ -171,6 +171,9 @@ denied, uninvited identity is offered **Use a different account**, which uses
 that sign-out path so the next attempt does not reuse the same managed login.
 A stale callback leaves an existing valid session in place. Public
 pages stay available when site sign-in is disabled, rejected, or expired.
+Site cookies are host-only, so the callback URL's host is the canonical site
+host: while site sign-in is configured, every request for its `www.` alias
+receives a `308` to the same path and query on that host.
 Responses from the sign-in routes and pages rendered for a signed-in account
 send `Cache-Control: no-store`; anonymous portfolio pages keep their existing
 cache headers. The site auth routes and configuration are offline application
