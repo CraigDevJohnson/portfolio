@@ -54,9 +54,10 @@ The boundary is generated from the account ID. Each statement allows only its
 own environment's execution role (`aws:PrincipalArn`):
 
 - the environment's two DynamoDB tables;
-- `ssm:GetParameters` and SSM-mediated `kms:Decrypt` for
-  `/portfolio/lambda/<env>/*` (dev also allows `MGMT_SESSION_KEY` for the
-  optional portal);
+- `ssm:GetParameters` and SSM-mediated `kms:Decrypt` for the environment's
+  three SecureStrings under `/portfolio/lambda/<env>/`: `CLIENT_ID_KEY`,
+  `CLIENT_SECRET_KEY` and `LPS_SESSION_KEY`. The disabled portal's
+  `MGMT_SESSION_KEY` is not included; enabling the portal adds it first;
 - the environment's Lambda log group;
 - for dev only, the portal's read-only `ec2:DescribeInstances` and
   `cloudwatch:GetMetricStatistics` in us-west-2.

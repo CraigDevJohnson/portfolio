@@ -2,6 +2,13 @@
 
 <!-- markdownlint-disable MD013 MD010 -->
 
+> [!IMPORTANT]
+> Historical plan; do not execute it. Its unchecked steps are not pending work.
+> They target the earlier management-account setup: the `portfolio-deployer`
+> profile, the hand-installed bootstrap policies and the legacy `infra/` root,
+> all since deleted. Development now runs in the workloads account; follow
+> [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Provision an isolated, observable Lambda development environment, prove the complete application and OAuth workflow, and move `dev.craigdevjohnson.com` off App Runner with a tested rollback.
@@ -31,7 +38,7 @@
   `arn:aws:iam::<management-account-id>:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
   Replacement roots may reference it, but never create, edit, or remove it.
 - The reviewed initial development deployer and root-owned boundary inputs are
-  tracked under [`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md).
+  tracked under [`infra/lambda/bootstrap/`](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/README.md).
   A separately approved Identity Center permission set created from that
   development-only input may create or pass only deterministic
   boundary-constrained execution roles. It cannot create unbounded roles,

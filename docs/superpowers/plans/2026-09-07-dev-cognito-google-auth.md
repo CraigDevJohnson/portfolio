@@ -1,5 +1,13 @@
 # Development Cognito Google Authentication Implementation Plan
 
+> [!IMPORTANT]
+> Historical plan; do not execute its remaining steps. The checked steps ran
+> against the earlier management-account setup, which is deleted. The pool is
+> not provisioned in the workloads account, D22 removed the portal's EC2
+> start/stop and instance-log grants, and the dev execution boundary no longer
+> allows `MGMT_SESSION_KEY`. Follow the
+> [current runbook](../../deployment/cognito-google-dev.md) instead.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Enable Google-only sign-in to the development management portal, issuing a portal session only to Craig's verified, allowlisted Google email.

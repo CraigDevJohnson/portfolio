@@ -233,7 +233,7 @@ reviewed Identity Center deployer permission set may create or pass only roles
 that carry this boundary. It cannot create unbounded roles, attach managed
 policies, manage the boundary, or mutate any legacy resource. The reviewed
 non-secret initial deployer and boundary policy inputs are tracked under
-[`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md). Their
+[`infra/lambda/bootstrap/`](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/README.md). Their
 presence grants no access; exact live identity, assignment, and approval
 evidence remains private and every use is separately approved. The deployer
 input is development-only and temporary; never restore it after a removal and
