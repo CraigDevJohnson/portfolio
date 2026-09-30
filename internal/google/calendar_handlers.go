@@ -93,7 +93,11 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if calendarDestinationRejected(err) {
-			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record)
+			done := ""
+			if result.added+result.updated > 0 {
+				done = addMutationMessage(result) + " Those games stay in " + calendarNameOrDefault(record.CalendarSummary) + "; deselect them before adding to a new calendar."
+			}
+			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, done)
 			return
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not add the selected games to Google Calendar. Try again.")
@@ -131,23 +135,39 @@ func (h *Handler) destinationReady(ctx context.Context, w http.ResponseWriter, r
 		}
 		return false
 	case !writable:
-		h.renderCalendarChoiceRequired(w, r, session)
+		h.renderCalendarChoiceRequired(w, r, session, "")
 		return false
 	default:
 		return true
 	}
 }
 
-func (h *Handler) renderCalendarChoiceRequired(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
+// renderCalendarChoiceRequired asks the visitor to choose a writable
+// calendar. done, when set, first reports what the request already wrote.
+func (h *Handler) renderCalendarChoiceRequired(w http.ResponseWriter, r *http.Request, session *types.SessionData, done string) {
+	message := googleCalendarChoiceMessage
+	if done != "" {
+		message = done + " " + message
+	}
 	h.Soccer.RenderLoginStateOOB(w, r, session)
-	h.Soccer.RenderLoginFeedback(w, r, "error", googleCalendarChoiceMessage)
+	h.Soccer.RenderLoginFeedback(w, r, "error", message)
 }
 
-func (h *Handler) pauseAndRenderCalendarChoice(ctx context.Context, w http.ResponseWriter, r *http.Request, session *types.SessionData, record *ConnectionRecord) {
+// pauseAndRenderCalendarChoice pauses writes after the destination refused
+// one, reporting done as renderCalendarChoiceRequired does.
+func (h *Handler) pauseAndRenderCalendarChoice(ctx context.Context, w http.ResponseWriter, r *http.Request, session *types.SessionData, record *ConnectionRecord, done string) {
 	if err := h.pauseCalendarSelection(ctx, record); err != nil {
 		logging.WithContext(h.Logger, ctx).Error("google calendar pause save failed", slog.Any("error", err))
 	}
-	h.renderCalendarChoiceRequired(w, r, session)
+	h.renderCalendarChoiceRequired(w, r, session, done)
+}
+
+// calendarNameOrDefault names a destination calendar in a message.
+func calendarNameOrDefault(summary string) string {
+	if summary = strings.TrimSpace(summary); summary != "" {
+		return summary
+	}
+	return "the previous calendar"
 }
 
 // SyncResultsHandler updates previously synced past games with result text.
@@ -227,7 +247,11 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if calendarDestinationRejected(err) {
-			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record)
+			done := ""
+			if result.added+result.updated > 0 {
+				done = syncResultsMutationMessage(result)
+			}
+			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, done)
 			return
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not sync past game results to Google Calendar. Try again.")

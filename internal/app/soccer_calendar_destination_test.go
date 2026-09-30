@@ -458,6 +458,25 @@ func TestGoogleRefusingAnUpdateToOneEventSkipsThatGameAndKeepsTheDestination(t *
 	}
 }
 
+func TestADestinationLostPartwayThroughAnAddReportsTheGamesAlreadyAdded(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	world.choose(t, teamCalendarID)
+	world.fetch(t)
+	// The calendar stops accepting this account's writes after the first game.
+	world.google.refuseEventWrite(laterGameID, googleRefusal{http.StatusForbidden, "calendar", "requiredAccessLevel"})
+
+	added := world.add(t, nextGameID, laterGameID)
+	if _, ok := world.google.events(teamCalendarID)[nextGameID]; !ok {
+		t.Fatal("the first game was not added before the calendar refused writes")
+	}
+	for _, want := range []string{"Added 1 selected game", "stay in " + teamCalendarName, calendarChoiceNeeded} {
+		if !strings.Contains(added, want) {
+			t.Errorf("Add that lost its destination partway answered %q; want it to say %q", added, want)
+		}
+	}
+}
+
 func TestCalendarCheckRefusedForAnotherReasonThanTheConnectionKeepsItAndItsDestination(t *testing.T) {
 	for _, refusal := range []googleRefusal{
 		{http.StatusForbidden, "usageLimits", "userRateLimitExceeded"},
