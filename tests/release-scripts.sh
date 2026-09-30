@@ -218,6 +218,12 @@ reject_plan '.resource_changes += [{address: "module.service.aws_iam_role.x", mo
 reject_plan '.resource_changes[2].change.importing = {id: "t"}' 'an import'
 reject_plan '.resource_changes[2].previous_address = "module.service.aws_dynamodb_table.old"' 'a move'
 reject_plan 'del(.resource_changes[0])' 'a plan without the function'
+# The checker does not yet know the #80 history worker, whose image follows
+# the release. Until the LPS history readiness packet's 6.1 item 5 allows
+# exactly this attribute, such a release plan is refused.
+reject_plan ".resource_changes += [{address: \"module.service.aws_lambda_function.history_worker[0]\",
+  mode: \"managed\", change: {actions: [\"update\"], before: {image_uri: \"$old_image\"},
+  after: {image_uri: \"$image\"}, after_unknown: {}}}]" 'a history worker image update'
 
 # --- apply-ci-lambda-production.sh ----------------------------------------
 mkdir -p "$test_dir/workspace/evidence"
