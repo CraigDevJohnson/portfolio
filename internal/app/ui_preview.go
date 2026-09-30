@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"portfolio/internal/portfolio"
 	"portfolio/internal/schedule"
 	"portfolio/internal/siteidentity"
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
 
@@ -299,19 +301,46 @@ func soccerPreviewDownloadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // accountPreviewPageHandler renders a public page with preview-only account
-// navigation so local reviewers can inspect both states without Cognito.
+// navigation so local reviewers can inspect both states without Cognito. The
+// soccer-* fixtures render the Soccer page for a signed-out visitor, an
+// invited visitor without the soccer grant, and one holding it.
 func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := siteidentity.WithSignInAvailable(r.Context(), true)
+	principal := &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: "invited.visitor@example.com"}
+	w.Header().Set("Cache-Control", "no-store")
 	switch r.PathValue("fixture") {
 	case "signed-out":
 		ctx = siteidentity.WithRequestIdentity(ctx, nil, nil, "/about")
 	case "signed-in":
-		principal := &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: "invited.visitor@example.com"}
 		ctx = siteidentity.WithRequestIdentity(ctx, principal, nil, "/about")
+	case "soccer-signed-out":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, nil, nil, "/soccer"), w)
+		return
+	case "soccer-ungranted":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, nil, "/soccer"), w)
+		return
+	case "soccer-granted":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w)
+		return
 	default:
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Cache-Control", "no-store")
 	portfolio.AboutHandler(w, r.WithContext(ctx), config.CareerStartYear)
+}
+
+// renderSoccerAccessPreview renders the inert Soccer page as if LPS import and
+// Google Calendar were configured, withholding both without the soccer grant.
+func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter) {
+	page := soccerPreviewBasePage().Page
+	granted := siteidentity.HasGrant(ctx, siteidentity.GrantSoccer)
+	page.AuthState.LoginAvailable = granted
+	page.AuthState.GoogleAvailable = granted
+	page.AuthState.ImportNeedsGrant = !granted
+	page.AuthState.GoogleNeedsGrant = !granted
+	page.PrivateAccessMessage, page.ShowSiteSignIn = internalsoccer.PrivateAccessNotice(ctx, &page.AuthState)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := pages.Soccer(page).Render(ctx, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

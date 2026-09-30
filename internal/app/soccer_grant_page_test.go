@@ -82,3 +82,54 @@ func TestSoccerPageExplainsMissingAccessOnlyForPrivateActionsTheServerOffers(t *
 		t.Error("shared navigation stopped offering site sign-in")
 	}
 }
+
+func TestSoccerAccessPreviewFixturesShowEachGrantStateLocally(t *testing.T) {
+	application := newTestApp(t)
+	preview, _ := buildMux(application, application.Logger, true)
+	live, _ := buildMux(application, application.Logger, false)
+	for _, fixture := range []struct {
+		name          string
+		present, gone []string
+	}{
+		{
+			name:    "soccer-signed-out",
+			present: []string{"Sign in with an invited account", `<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>`, "Needs Soccer access", "Team IDs"},
+			gone:    []string{"Import access", "Connect Google Calendar", `action="/sign-out"`},
+		},
+		{
+			name:    "soccer-ungranted",
+			present: []string{"has not been granted", "invited.visitor@example.com", `action="/sign-out"`, "Needs Soccer access", "Team IDs"},
+			gone:    []string{"Import access", "Connect Google Calendar", "Sign in for Soccer access"},
+		},
+		{
+			name:    "soccer-granted",
+			present: []string{"invited.visitor@example.com", "Import access", "Connect Google Calendar", "Team IDs"},
+			gone:    []string{"Private Soccer access", "Needs Soccer access"},
+		},
+	} {
+		page := soccerGrantRequest(preview, http.MethodGet, "/__preview/account/"+fixture.name, nil)
+		if page.Code != http.StatusOK {
+			t.Errorf("%s preview status = %d", fixture.name, page.Code)
+			continue
+		}
+		body := page.Body.String()
+		for _, marker := range fixture.present {
+			if !strings.Contains(body, marker) {
+				t.Errorf("%s preview lacks %q", fixture.name, marker)
+			}
+		}
+		for _, marker := range fixture.gone {
+			if strings.Contains(body, marker) {
+				t.Errorf("%s preview shows %q", fixture.name, marker)
+			}
+		}
+		for _, actionable := range []string{`hx-post="/soccer/`, `action="/soccer/`, `href="/soccer/google/`} {
+			if strings.Contains(body, actionable) {
+				t.Errorf("%s preview contains live Soccer action %q", fixture.name, actionable)
+			}
+		}
+		if exposed := soccerGrantRequest(live, http.MethodGet, "/__preview/account/"+fixture.name, nil); exposed.Code != http.StatusNotFound {
+			t.Errorf("%s preview outside local preview status = %d", fixture.name, exposed.Code)
+		}
+	}
+}

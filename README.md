@@ -238,7 +238,10 @@ Then open the `/mgmt` URL printed at startup (port `8080` by default). Preview
 mode requires a loopback listener and is unavailable in the Lambda handler.
 It also serves `/__preview/account/signed-out` and
 `/__preview/account/signed-in`, which render the About page with each shared
-navigation account state; preview mode never enables real site sign-in.
+navigation account state, and `/__preview/account/soccer-signed-out`,
+`/__preview/account/soccer-ungranted`, and `/__preview/account/soccer-granted`,
+which render an inert Soccer page for each `soccer` grant state; preview mode
+never enables real site sign-in.
 
 ## Soccer import flow
 
@@ -354,6 +357,8 @@ current `soccer` grant. Fetch and download requests using linked-player IDs or
 the imported team-selection form also require that grant. The Google OAuth
 callback is served on `/soccer` and requires the same grant. Protected routes
 return `401` without a site session and `403` when the account lacks the grant.
+An environment without complete site sign-in configuration has no signed-in
+visitors, so its private Soccer actions stay unavailable and the page says so.
 
 Portal routes are registered only with valid runtime configuration or local
 preview mode. They include `/login`, `/callback`, `/logout`, `/mgmt`, and
