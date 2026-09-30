@@ -1,0 +1,451 @@
+data "aws_caller_identity" "current" {}
+
+# aws-setup owns the account's GitHub OIDC provider; this root only trusts it.
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "release_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:CraigDevJohnson/portfolio:ref:refs/heads/main"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "environment_trust" {
+  for_each = local.environment_configuration
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:CraigDevJohnson/portfolio:environment:${each.value.github_environment}"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "production_deployer_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:CraigDevJohnson/portfolio:environment:production"]
+    }
+  }
+}
+
+locals {
+  account_id         = data.aws_caller_identity.current.account_id
+  region             = "us-west-2"
+  state_bucket_name  = "portfolio-tofu-state-${var.aws_account_id}"
+  state_bucket_arn   = "arn:aws:s3:::${local.state_bucket_name}"
+  ecr_repository_arn = "arn:aws:ecr:${local.region}:${local.account_id}:repository/portfolio-lambda-releases"
+
+  # Tags that the environment roots put on every release resource.
+  required_tags = {
+    ManagedBy = "opentofu"
+    Platform  = "lambda-http-api"
+    project   = "portfolio"
+  }
+
+  environment_configuration = {
+    dev = {
+      environment        = "dev"
+      github_environment = "development"
+      role_name          = "portfolio-development-deployer-ci"
+      policy_name        = "portfolio-development-runtime-release"
+      state_key          = "portfolio-lambda-http-api/dev/terraform.tfstate"
+      function_name      = "portfolio-lambda-dev"
+      mutable            = true
+    }
+    prod = {
+      environment        = "prod"
+      github_environment = "production-plan"
+      role_name          = "portfolio-production-planner-ci"
+      policy_name        = "portfolio-production-read-only-plan"
+      state_key          = "portfolio-lambda-http-api/prod/terraform.tfstate"
+      function_name      = "portfolio-lambda-prod"
+      mutable            = false
+    }
+  }
+
+  roles = merge(
+    {
+      release = {
+        name  = "portfolio-release-builder-ci"
+        trust = data.aws_iam_policy_document.release_trust.json
+      }
+    },
+    {
+      for key, configuration in local.environment_configuration : key => {
+        name  = configuration.role_name
+        trust = data.aws_iam_policy_document.environment_trust[key].json
+      }
+    },
+  )
+
+  environment_read_statements = {
+    for key, configuration in local.environment_configuration : key => [
+      {
+        Sid      = "CallerIdentity"
+        Effect   = "Allow"
+        Action   = ["sts:GetCallerIdentity"]
+        Resource = "*"
+      },
+      {
+        Sid      = "StateBucketMetadata"
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation", "s3:GetBucketVersioning"]
+        Resource = local.state_bucket_arn
+      },
+      {
+        Sid      = "StatePrefix"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = local.state_bucket_arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["${configuration.state_key}*"]
+          }
+        }
+      },
+      {
+        Sid      = "StateRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${local.state_bucket_arn}/${configuration.state_key}"
+      },
+      {
+        Sid      = "StateLock"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${local.state_bucket_arn}/${configuration.state_key}.tflock"
+      },
+      {
+        Sid    = "ReleaseImageRead"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:DescribeImages",
+          "ecr:GetDownloadUrlForLayer",
+        ]
+        Resource = local.ecr_repository_arn
+      },
+      {
+        Sid    = "ExecutionRoleRead"
+        Effect = "Allow"
+        Action = [
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies",
+          "iam:ListRoleTags",
+        ]
+        Resource = "arn:aws:iam::${local.account_id}:role/${configuration.function_name}-execution"
+      },
+      {
+        Sid    = "LambdaRead"
+        Effect = "Allow"
+        Action = [
+          "lambda:GetAlias",
+          "lambda:GetFunction",
+          "lambda:GetFunctionCodeSigningConfig",
+          "lambda:GetFunctionConcurrency",
+          "lambda:GetFunctionConfiguration",
+          "lambda:GetPolicy",
+          "lambda:GetRuntimeManagementConfig",
+          "lambda:ListTags",
+          "lambda:ListVersionsByFunction",
+        ]
+        Resource = [
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}",
+          "arn:aws:lambda:${local.region}:${local.account_id}:function:${configuration.function_name}:*",
+        ]
+      },
+      {
+        Sid      = "ApiGatewayRead"
+        Effect   = "Allow"
+        Action   = ["apigateway:GET"]
+        Resource = ["arn:aws:apigateway:${local.region}::/apis*", "arn:aws:apigateway:${local.region}::/domainnames*"]
+      },
+      {
+        Sid    = "LogGroupRead"
+        Effect = "Allow"
+        Action = ["logs:ListTagsForResource"]
+        Resource = [
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/apigateway/${configuration.function_name}/access",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/apigateway/${configuration.function_name}/access:*",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}",
+          "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${configuration.function_name}:*",
+        ]
+      },
+      {
+        Sid      = "LogGroupList"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = local.region
+          }
+        }
+      },
+      {
+        Sid    = "TableRead"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeContinuousBackups",
+          "dynamodb:DescribeTable",
+          "dynamodb:DescribeTimeToLive",
+          "dynamodb:ListTagsOfResource",
+        ]
+        Resource = [
+          "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-google-connections",
+          "arn:aws:dynamodb:${local.region}:${local.account_id}:table/${configuration.function_name}-soccer-sessions",
+        ]
+      },
+      {
+        Sid      = "KmsAliasList"
+        Effect   = "Allow"
+        Action   = ["kms:ListAliases"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = local.region
+          }
+        }
+      },
+      {
+        Sid      = "KmsSsmKeyRead"
+        Effect   = "Allow"
+        Action   = ["kms:DescribeKey"]
+        Resource = "arn:aws:kms:${local.region}:${local.account_id}:key/*"
+        Condition = {
+          "ForAnyValue:StringEquals" = {
+            "kms:ResourceAliases" = "alias/aws/ssm"
+          }
+        }
+      },
+      {
+        Sid      = "CertificateRead"
+        Effect   = "Allow"
+        Action   = ["acm:DescribeCertificate", "acm:ListTagsForCertificate"]
+        Resource = "arn:aws:acm:${local.region}:${local.account_id}:certificate/*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion"         = local.region
+            "aws:ResourceTag/Environment" = configuration.environment
+            "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+            "aws:ResourceTag/Platform"    = local.required_tags.Platform
+            "aws:ResourceTag/project"     = local.required_tags.project
+          }
+        }
+      },
+      {
+        Sid    = "AlarmRead"
+        Effect = "Allow"
+        Action = ["cloudwatch:DescribeAlarms", "cloudwatch:ListTagsForResource"]
+        Resource = [
+          for suffix in ["api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles"] :
+          "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${configuration.function_name}-${suffix}"
+        ]
+      },
+    ]
+  }
+
+  development_mutation_statements = [
+    {
+      Sid      = "DevelopmentStateWrite"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:DeleteObject"]
+      Resource = "${local.state_bucket_arn}/${local.environment_configuration.dev.state_key}"
+    },
+    {
+      Sid    = "DevelopmentReleaseWrite"
+      Effect = "Allow"
+      Action = [
+        "lambda:PublishVersion",
+        "lambda:UpdateAlias",
+        "lambda:UpdateFunctionCode",
+      ]
+      Resource = [
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.dev.function_name}",
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.dev.function_name}:live",
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Environment" = "dev"
+          "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+          "aws:ResourceTag/Platform"    = local.required_tags.Platform
+          "aws:ResourceTag/project"     = local.required_tags.project
+        }
+      }
+    },
+  ]
+
+  production_mutation_statements = [
+    {
+      Sid      = "ProductionStateWrite"
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:DeleteObject"]
+      Resource = "${local.state_bucket_arn}/${local.environment_configuration.prod.state_key}"
+    },
+    {
+      Sid    = "ProductionReleaseWrite"
+      Effect = "Allow"
+      Action = [
+        "lambda:PublishVersion",
+        "lambda:UpdateAlias",
+        "lambda:UpdateFunctionCode",
+      ]
+      Resource = [
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}",
+        "arn:aws:lambda:${local.region}:${local.account_id}:function:${local.environment_configuration.prod.function_name}:live",
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:ResourceTag/Environment" = "prod"
+          "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
+          "aws:ResourceTag/Platform"    = local.required_tags.Platform
+          "aws:ResourceTag/project"     = local.required_tags.project
+        }
+      }
+    },
+  ]
+
+  environment_policies = {
+    for key, configuration in local.environment_configuration : key => jsonencode({
+      Version = "2012-10-17"
+      Statement = concat(
+        local.environment_read_statements[key],
+        [for statement in local.development_mutation_statements : statement if configuration.mutable],
+      )
+    })
+  }
+}
+
+resource "aws_iam_role" "ci" {
+  for_each = local.roles
+
+  name                 = each.value.name
+  assume_role_policy   = each.value.trust
+  max_session_duration = 3600
+
+  tags = {
+    Purpose = "github-release"
+  }
+}
+
+resource "aws_iam_role" "production_deployer" {
+  name                 = "portfolio-production-deployer-ci"
+  assume_role_policy   = data.aws_iam_policy_document.production_deployer_trust.json
+  max_session_duration = 3600
+
+  tags = {
+    Purpose = "github-release"
+  }
+}
+
+resource "aws_iam_role_policy" "release" {
+  # Keep the target plan-known; depends_on below preserves creation ordering.
+  name = "portfolio-release-builder"
+  role = local.roles.release.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = local.region
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:CompleteLayerUpload",
+          "ecr:DescribeImageScanFindings",
+          "ecr:DescribeImages",
+          "ecr:DescribeRepositories",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:InitiateLayerUpload",
+          "ecr:ListImages",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart",
+        ]
+        Resource = local.ecr_repository_arn
+      },
+    ]
+  })
+
+  depends_on = [aws_iam_role.ci]
+}
+
+resource "aws_iam_role_policy" "environment" {
+  for_each = local.environment_configuration
+
+  # Keep the target plan-known; depends_on below preserves creation ordering.
+  name   = each.value.policy_name
+  role   = each.value.role_name
+  policy = local.environment_policies[each.key]
+
+  depends_on = [aws_iam_role.ci]
+}
+
+resource "aws_iam_role_policy" "production_deployer" {
+  name = "portfolio-production-runtime-release"
+  role = aws_iam_role.production_deployer.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      local.environment_read_statements.prod,
+      local.production_mutation_statements,
+    )
+  })
+}

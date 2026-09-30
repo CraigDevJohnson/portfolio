@@ -131,7 +131,6 @@ a.skills-practice-card:focus-visible {
 }
 
 .skills-featured-icon,
-.skills-practice-icon,
 .skill-icon-frame,
 .skill-detail-icon {
   display: grid;
@@ -186,7 +185,7 @@ a.skills-practice-card:focus-visible {
 .skills-featured-copy h3 {
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
 }
 
@@ -250,14 +249,14 @@ a.skills-practice-card:focus-visible {
 }
 
 .skills-practice-icon {
+  display: grid;
   width: 3.35rem;
   height: 3.35rem;
+  place-items: center;
+  border: var(--line-hairline) solid color-mix(in srgb, var(--pond-mint) 32%, transparent);
   border-radius: var(--radius-md);
-}
-
-.skill-asset-practice {
-  width: 2.15rem;
-  height: 2.15rem;
+  background: color-mix(in srgb, var(--pond-mint) 10%, transparent);
+  color: var(--pond-mint);
 }
 
 .skills-practice-copy {
@@ -269,7 +268,7 @@ a.skills-practice-card:focus-visible {
 }
 
 .skills-practice-name {
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
 }
 
@@ -300,7 +299,7 @@ a.skills-practice-card:focus-visible {
   margin-block-start: var(--space-sm);
   font-family: var(--font-display);
   font-size: clamp(1.65rem, 4vw, var(--text-3xl));
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
 }
 
@@ -478,20 +477,6 @@ a.skills-practice-card:focus-visible {
   gap: var(--space-2xs);
 }
 
-.skills-workbench-caption {
-  position: relative;
-  z-index: 1;
-  display: block;
-  margin-block-end: calc(var(--space-sm) * -1);
-  color: var(--color-copy-muted);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: var(--font-semibold);
-  letter-spacing: 0.11em;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
-
 .skills-workbench-trail {
   --signal-trail-forced-block-border: 0;
   --signal-trail-forced-inline-border: var(--line-signal) solid CanvasText;
@@ -583,7 +568,7 @@ a.skills-practice-card:focus-visible {
   min-width: 0;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;
 }
@@ -644,7 +629,7 @@ a.skills-practice-card:focus-visible {
 }
 
 .skill-card-name {
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
 }
 
@@ -736,7 +721,7 @@ a.skills-practice-card:focus-visible {
 .skill-detail-name {
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
 }
 
@@ -790,7 +775,7 @@ a.skills-practice-card:focus-visible {
   gap: var(--space-sm);
   margin-block-start: var(--space-sm);
   color: var(--pond-mint);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
   text-decoration-thickness: var(--line-hairline);
   text-underline-offset: 0.25em;
 }
@@ -823,7 +808,7 @@ a.skills-practice-card:focus-visible {
 .skills-empty-state h3 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+  font-weight: var(--font-semibold);
 }
 
 .skills-empty-state p {
@@ -966,10 +951,6 @@ a.skills-practice-card:focus-visible {
 
   .skill-card-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .skills-workbench-caption {
-    max-width: 42rem;
   }
 
   .skills-workbench-trail {

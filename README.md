@@ -28,8 +28,9 @@ The Soccer tool supports:
 
 The management portal routes are disabled unless their Cognito and session
 settings are valid. A registered OAuth redirect URI is also required for sign-in.
-When enabled, the portal can list EC2 instances, request start, stop, and restart
-actions, and load CloudWatch metrics and logs.
+When enabled, the portal lists EC2 instances and loads their CloudWatch metrics.
+Its start, stop, restart and log views remain in the code, but the deployed
+runtime role does not allow them (D22).
 
 ## Requirements
 
@@ -88,7 +89,6 @@ The main repository commands are:
 | `task test-images` | Verify both local Linux amd64 image contracts |
 | `task portal-preview` | Run the mock portal on loopback |
 | `task compose` | Build and start the Compose service |
-| `task logs` | Follow logs for the legacy shared-stack App Runner service |
 
 `Taskfile.yaml` is the command source of truth. In particular, use `task fmt`
 instead of `go fmt ./...` for the repository formatting gate.
@@ -137,21 +137,44 @@ workflow state from that table.
 The portal requires:
 
 - `MGMT_SESSION_KEY`, generated with `openssl rand -hex 32`
-- `MGMT_COGNITO_DOMAIN`
-- `MGMT_COGNITO_CLIENT_ID`
+- `MGMT_COGNITO_DOMAIN`, the HTTPS hosted UI origin
+- `MGMT_COGNITO_ISSUER`, the HTTPS user-pool issuer, such as
+  `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_example`
+- `MGMT_COGNITO_CLIENT_ID`, a public authorization-code + PKCE app client
+- `MGMT_COGNITO_REDIRECT_URI`, a registered HTTPS callback at `/callback`
+- `MGMT_COGNITO_LOGOUT_URI`, a registered HTTPS post-logout return URL at `/login`
+- `MGMT_ALLOWED_EMAILS`, a nonempty comma-separated list of bare email addresses
 
-`MGMT_COGNITO_REDIRECT_URI` must be a callback registered with Cognito for
-sign-in to work. The optional
-`MGMT_COGNITO_LOGOUT_URI` sets the post-logout return URL.
+`GET /login` displays a signed-out page. Its sign-in button submits `POST /login`
+to start Google authentication through Cognito. Logout clears the portal session
+and pending OAuth state, then returns to the page without restarting sign-in.
+The application verifies the signed
+Cognito ID token using the configured user-pool issuer and its JWKS, then
+requires a boolean `email_verified: true` claim and an exact allowlist match.
+Addresses are trimmed and lowercased; dots and plus suffixes remain significant.
+The initial development allowlist is `craigdevjohnson@gmail.com`; each environment
+owns its allowlist, and the application has no default authorized address.
+
+For development, register `https://dev.craigdevjohnson.com/callback` and
+`https://dev.craigdevjohnson.com/login`. A registered HTTP loopback callback
+(such as `http://localhost:8080/callback`) also requires
+`MGMT_ALLOW_LOCAL_CALLBACK=true`; logout URLs remain HTTPS. This enables real
+Cognito sign-in locally and is separate from the mock preview below.
+Incomplete or invalid identity configuration disables portal routes. In Lambda,
+the management session key resolves separately from required secrets; a missing
+or inaccessible key disables the portal while the rest of the site can start.
 `MGMT_AWS_REGION` defaults to `us-east-1`.
 
-The runtime AWS identity needs these actions:
+The deployed runtime role grants the portal only these actions (D22):
 
 - `ec2:DescribeInstances`
-- `ec2:StartInstances`
-- `ec2:StopInstances`
 - `cloudwatch:GetMetricStatistics`
-- `logs:FilterLogEvents`
+
+It has no EC2 start/stop or CloudWatch Logs grants, so IAM denies the portal's
+start, stop and restart actions and its instance log reads. The planned Foundry
+backend replaces direct EC2 control. The dashboard offers start, stop and
+restart only for instances tagged `PortfolioManagement=dev`, subject to their
+lifecycle state; IAM stays authoritative.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 
@@ -187,7 +210,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Legacy shared-stack OpenTofu and rollback material
+├── infra/lambda/           OpenTofu roots for the AWS deployment
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -207,7 +230,7 @@ The source-of-truth order is:
 1. `Taskfile.yaml` for commands
 2. `cmd/server/main.go` and `internal/app/` for application wiring
 3. this README for local usage and architecture
-4. `DEPLOY-INSTRUCTIONS.md` and `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` and `infra/lambda/` for deployment
 
 Edit `.templ` and `cmd/web/tailwind/` sources. Do not hand-edit generated
 `*_templ.go` files or `cmd/web/static/css/tailwind.css`.
@@ -253,8 +276,8 @@ HTMX and form endpoints:
 | `POST` | `/soccer/google/add` |
 | `POST` | `/soccer/google/sync-results` |
 
-Portal routes are registered only in valid production configuration or local
-preview mode. They include `/login`, `/auth/callback`, `/logout`, `/mgmt`, and
+Portal routes are registered only with valid runtime configuration or local
+preview mode. They include `/login`, `/callback`, `/logout`, `/mgmt`, and
 the instance action, metrics, and logs paths under `/mgmt/instances/{id}/`.
 
 ## Chrome extension
@@ -269,19 +292,17 @@ Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The current release candidate prepares the application for a replacement AWS
-Lambda and API Gateway environment, but it does not create or deploy that
-environment. The replacement deployment contract is a 29-second Lambda timeout.
-The Google add and result-sync handlers reserve 24 seconds of that window, which
-leaves five seconds outside their application work budget. A later environment
-plan must implement the 29-second setting before release.
+The portfolio runs on AWS Lambda behind an API Gateway HTTP API in the
+workloads AWS account, us-west-2, with prod at `craigdevjohnson.com` and dev at
+`dev.craigdevjohnson.com`. The OpenTofu roots live under `infra/lambda/`. A
+merge to `main` builds one image, deploys it to dev, and plans prod; Craig
+approves the `production` GitHub Environment to apply it. Dated designs and
+plans under `docs/superpowers/` are historical records rather than operator
+instructions.
 
-The checked-in `infra/` directory still describes the legacy shared App Runner
-and Lambda stack. Its Lambda timeout defaults to 30 seconds. Treat `infra/`,
-`task deploy`, `task redeploy`, `task deploy-lambda`, `task redeploy-lambda`,
-`task logs`, and the App Runner custom-domain instructions as legacy
-shared-stack and rollback material. Do not use them to deploy this release, and
-do not deploy the new release to App Runner.
+The Lambda timeout is 29 seconds. The Google add and result-sync handlers
+reserve 24 seconds of that window, which leaves five seconds outside their
+application work budget.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;
@@ -299,13 +320,14 @@ update them instead of duplicating completed inserts.
 `task build-image` and `task build-lambda-image` build local Linux amd64 images.
 By default, they inject the current full Git SHA as the build revision; a
 supplied `BUILD_REVISION` overrides it. An exact `/healthz` comparison against
-that expected value proves the identity of those artifacts. Legacy deployment
-helpers and direct builds that omit `BUILD_REVISION` may report `development`,
+that expected value proves the identity of those artifacts. Direct builds that
+omit `BUILD_REVISION` may report `development`,
 which is not immutable provenance proof. `task test-images` verifies the image
 contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
-Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for the boundary
-between pending replacement work and preserved legacy rollback procedures.
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for accounts,
+approvals, the release workflow and rollback, and the
+[Cloudflare runbook](./docs/deployment/cloudflare-dns.md) for DNS records.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

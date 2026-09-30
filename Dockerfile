@@ -5,7 +5,7 @@ FROM --platform=$BUILDPLATFORM ghcr.io/a-h/templ:${TEMPL_VERSION} AS templ
 
 FROM --platform=$BUILDPLATFORM golang:1.27.0 AS builder
 
-# checkov:skip=CKV_DOCKER_2:HEALTHCHECK - managed by App Runner
+# checkov:skip=CKV_DOCKER_2:/healthz is exercised by the Docker runtime contract
 # checkov:skip=CKV_DOCKER_3:nonroot distroless runtime user defined below
 
 WORKDIR /src

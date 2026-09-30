@@ -83,24 +83,32 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	mux.HandleFunc("GET /education", portfolio.EducationHandler)
 	mux.HandleFunc("GET /contact", portfolio.ContactHandler)
 
-	// soccer routes
-	mux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
+	// Soccer responses contain account data or authentication state.
+	soccerMux := http.NewServeMux()
+	soccerMux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
 		if isGoogleCallbackRequest(r) {
 			app.GoogleHandler.CallbackHandler(w, r)
 			return
 		}
 		soccerHandler.SoccerPage(w, r)
 	})
-	mux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
-	mux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
-	mux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
-	mux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
-	mux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
-	mux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
-	mux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
-	mux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
-	mux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
-	mux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+	soccerMux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
+	soccerMux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
+	soccerMux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
+	soccerMux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
+	soccerMux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
+	soccerMux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
+	soccerMux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
+	soccerMux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
+	soccerMux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
+	soccerMux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+
+	soccerRoutes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		soccerMux.ServeHTTP(w, r)
+	})
+	mux.Handle("/soccer", soccerRoutes)
+	mux.Handle("/soccer/", soccerRoutes)
 
 	// portal routes
 	if localPortalPreview {
@@ -109,7 +117,8 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
 		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("GET /auth/callback", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("POST /login", ph.RedirectToDashboardHandler)
+		mux.HandleFunc("GET /callback", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.InstanceActionHandler)
@@ -120,7 +129,8 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
 		ph := app.PortalHandler
 		mux.HandleFunc("GET /login", ph.LoginPageHandler)
-		mux.HandleFunc("GET /auth/callback", ph.CallbackHandler)
+		mux.HandleFunc("POST /login", ph.LoginPageHandler)
+		mux.HandleFunc("GET /callback", ph.CallbackHandler)
 		mux.HandleFunc("POST /logout", ph.LogoutHandler)
 		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireAuth(ph.InstanceActionHandler))
@@ -235,6 +245,9 @@ func Run() error {
 		// dependencies, even when live portal variables are also present locally.
 		cfg.PortalSessionKey = nil
 		cfg.PortalCognitoDomain = ""
+		cfg.PortalCognitoIssuer = ""
+		cfg.PortalAllowedEmails = nil
+		cfg.PortalAllowLocalCallback = false
 		cfg.PortalCognitoClientID = ""
 		cfg.PortalCognitoRedirectURI = ""
 		cfg.PortalCognitoLogoutURI = ""
@@ -277,8 +290,8 @@ func Run() error {
 		}
 	}()
 
-	// Initialize the Google connection store in the background so App Runner
-	// health checks never wait on AWS SDK startup or credential resolution.
+	// Initialize the Google connection store in the background so server startup
+	// and health checks never wait on AWS SDK startup or credential resolution.
 	if !localPortalPreview && app.Config.GoogleEnabled() {
 		go func() {
 			initCtx, initCancel := context.WithTimeout(context.Background(), googleStoreInitTimeout)

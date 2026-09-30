@@ -13,17 +13,6 @@ type ActionResultProps struct {
 	Message string
 }
 
-func portalActionDisabled(state, action string) bool {
-	switch state {
-	case "stopped":
-		return action != "start"
-	case "running":
-		return action != "stop" && action != "restart"
-	default:
-		return true
-	}
-}
-
 func portalActionFeedbackKind(success bool) FeedbackKind {
 	if success {
 		return FeedbackSuccess
@@ -43,7 +32,7 @@ func portalActionButtonProps(instance types.InstanceSummary, action string) Acti
 		Type:       "button",
 		Label:      action,
 		Variant:    ActionSecondary,
-		Disabled:   portalActionDisabled(instance.State, action),
+		Disabled:   portalActionDisabled(instance.State, action, instance.ActionsAllowed),
 		ExtraClass: "portal-control portal-action-control",
 		Attributes: templ.Attributes{
 			"hx-post":             "/mgmt/instances/" + instance.ID + "/" + action,
@@ -104,6 +93,9 @@ templ InstanceRow(instance types.InstanceSummary) {
 		<td class="portal-instance-type" data-label="Type">{ instance.InstanceType }</td>
 		<td class="portal-instance-az" data-label="AZ">{ instance.AZ }</td>
 		<td class="portal-instance-actions" data-label="Actions">
+			if !instance.ActionsAllowed {
+				<p class="portal-operational-note">Read only — instance actions are unavailable.</p>
+			}
 			<div class="portal-action-controls">
 				for _, action := range []string{"start", "stop", "restart"} {
 					@ActionButton(portalActionButtonProps(instance, action))

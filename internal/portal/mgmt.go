@@ -53,12 +53,23 @@ func summarizeInstance(instance *ec2types.Instance) InstanceSummary {
 		state = string(instance.State.Name)
 	}
 	return InstanceSummary{
-		ID:           aws.ToString(instance.InstanceId),
-		Name:         name,
-		State:        state,
-		InstanceType: string(instance.InstanceType),
-		AZ:           availabilityZone(instance),
+		ID:             aws.ToString(instance.InstanceId),
+		Name:           name,
+		State:          state,
+		InstanceType:   string(instance.InstanceType),
+		AZ:             availabilityZone(instance),
+		ActionsAllowed: instanceActionsAllowed(instance.Tags),
 	}
+}
+
+func instanceActionsAllowed(tags []ec2types.Tag) bool {
+	// Match the fixed opt-in scope of the development runtime IAM policy.
+	for _, tag := range tags {
+		if aws.ToString(tag.Key) == "PortfolioManagement" && aws.ToString(tag.Value) == "dev" {
+			return true
+		}
+	}
+	return false
 }
 
 // InstanceActionHandler starts, stops, or restarts one validated instance.

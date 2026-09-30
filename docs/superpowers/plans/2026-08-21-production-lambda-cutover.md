@@ -2,6 +2,19 @@
 
 <!-- markdownlint-disable MD013 MD010 -->
 
+> [!IMPORTANT]
+> Historical plan; do not execute it. Its unchecked steps are not pending work.
+> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) superseded
+> its fallback-origin, mandatory rollback, management-portal, and seven-day
+> initial production acceptance requirements. Production now runs in the
+> workloads account and releases through the reviewed workflow in
+> [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md), with no observation
+> or acceptance windows. The launch-era
+> [promotion runbook](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/production-lambda-promotion.md)
+> and [readiness review](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/2026-09-25-production-launch-readiness.md)
+> are deleted; the links show their last versions.
+> This historical evidence is retained without rewriting its original steps.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Promote the development-tested Lambda image digest to an isolated production environment, move the apex and `www` behavior off Amplify, and retain a fully recorded rollback until production proves stable.
@@ -14,7 +27,7 @@
 
 ## Global Constraints
 
-- Start only after `dev.craigdevjohnson.com` has passed the development acceptance checks and observation window.
+- Start only after the accepted [2026-08-29 development App Runner retirement design](../specs/2026-08-29-development-app-runner-retirement-design.md) is reviewed, the preserved failed development evidence remains unchanged, and current public development health reports the same release SHA recorded for promotion.
 - Promote the accepted ECR digest; do not rebuild an image for production.
 - Keep Amplify, its `main` branch, apex association, certificate-validation record, and current Cloudflare rollback coordinates intact.
 - Use fresh production DynamoDB tables and a fresh production session key. Do not copy legacy encrypted Google rows in this plan.
@@ -45,7 +58,7 @@
 - Consumes: merged replacement PR, accepted development alias, image digest, and health revision
 - Produces: immutable production input record and verified non-root identity
 
-- [ ] **Step 1: Verify current main and development health**
+- [ ] **Step 1: Verify current main, accepted development retirement prerequisite, and health**
 
 ```bash
 git fetch origin
@@ -64,15 +77,20 @@ release_record="docs/deployment/evidence/releases/${release_sha}.json"
 test -f "$release_record"
 evidence_file=$(jq -er .development.observation_evidence "$release_record")
 test -f "$evidence_file"
+test "$(jq -er .source_sha "$release_record")" = "$release_sha"
+test "$(jq -er .development.healthz_revision "$release_record")" = "$release_sha"
+test "$(jq -er .development.observation_completed_at "$release_record")" = "null"
+test "$(git rev-parse HEAD:docs/deployment/evidence/development-observation.jsonl)" = \
+  "$(git rev-parse 927a11835dc217cc228361b383e54565af73c2cb:docs/deployment/evidence/development-observation.jsonl)"
+jq -e '.passed == false and .unresolved_blockers == ["rollback origin failed"]' "$evidence_file"
 git merge-base --is-ancestor "$release_sha" origin/main
-task lambda-dev-observation-gate \
-  RELEASE_RECORD="$release_record" \
-  EVIDENCE_FILE="$evidence_file"
 ```
 
-Expected: main is clean, the development revision is the accepted source
-revision, and the merged observation gate proves seven full days. Stop if the
-release JSON or JSONL evidence is absent, inconsistent, or incomplete.
+Expected: main is clean; the accepted retirement design is the governing
+development prerequisite; the failed evidence remains byte-for-byte unchanged
+with its recorded blocker; and current public health, the release record, and
+the promotion SHA agree. Stop if the release JSON or evidence is absent,
+inconsistent, or altered.
 
 - [ ] **Step 2: Read the live development alias and digest**
 
@@ -280,9 +298,9 @@ Require the exact production backend key, `portfolio-lambda-prod` name prefix,
 - [ ] **Step 3: Validate the merged root offline**
 
 ```bash
-export TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+export TF_VAR_ecr_repository_url=<management-account-id>.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
 export TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:<management-account-id>:portfolio-lambda-prod-alerts"]'
 
 tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
 tofu -chdir=infra/lambda/environments/prod fmt -check
@@ -495,7 +513,7 @@ jq -e \
   --argjson count "$SNS_CONFIRMED_COUNT" '
     .schema_version == 1 and
     .environment == "production" and
-    .account_id == "180294223248" and
+    .account_id == "<management-account-id>" and
     .region == "us-west-2" and
     .topic_arn == $topic and
     .confirmed_subscription_count == $count and $count >= 1 and
@@ -1156,7 +1174,7 @@ printf '%s' "$alarm_json" | jq -e --arg topic "$alarm_topic_arn" \
    all(.MetricAlarms[]; .AlarmActions == [$topic])' >/dev/null
 jq -e --arg topic "$alarm_topic_arn" '
   .schema_version == 1 and .environment == "production" and
-  .account_id == "180294223248" and .region == "us-west-2" and
+  .account_id == "<management-account-id>" and .region == "us-west-2" and
   .topic_arn == $topic and
   .confirmed_subscription_count >= 1 and
   (.message_id | length) > 0 and

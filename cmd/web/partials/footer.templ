@@ -2,27 +2,27 @@ package partials
 
 import "time"
 
-templ Footer() {
+templ Footer(page string) {
 	<footer class="site-footer site-chrome-footer">
 		<div class="footer-content site-footer-shell mx-auto max-w-[var(--container-max)] px-4 pb-5 pt-12 sm:px-6 md:pb-6">
 			<div class="footer-main site-chrome-footer-main">
 				<div class="footer-brand site-footer-brand flex flex-col gap-4">
-					<div class="flex items-center gap-3">
-						<span class="site-logo-mark" aria-hidden="true">CJ</span>
-						<div>
-							<span class="footer-logo block text-xl font-extrabold text-copy-primary">Craig Johnson</span>
-							<p class="footer-tagline text-sm text-copy-muted">Cloud Engineer Principal</p>
-						</div>
-					</div>
+					@SiteIdentity()
 					<p class="max-w-sm text-sm leading-6 text-copy-secondary">Building cloud platforms that are easier to change, understand, and trust.</p>
 				</div>
 				<nav class="footer-nav site-footer-links" aria-label="Footer navigation">
 					for _, group := range footerNavGroups() {
 						<div class="footer-nav-section">
 							<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">{ group.Label }</h3>
-							<div class={ footerNavListClasses(group.Label) }>
+							<div class="footer-nav-list">
 								for _, item := range group.Items {
-									<a class="site-chrome-footer-link focus-ring" href={ templ.SafeURL(item.Href) }>{ item.Label }</a>
+									<a
+										class="site-chrome-footer-link focus-ring"
+										href={ templ.SafeURL(item.Href) }
+										if page == item.Page {
+											aria-current="page"
+										}
+									>{ item.Label }</a>
 								}
 							</div>
 						</div>
@@ -30,31 +30,62 @@ templ Footer() {
 					<div class="footer-nav-section footer-nav-connect">
 						<h3 class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Connect</h3>
 						<div class="footer-nav-list">
-							<a class="site-chrome-footer-link focus-ring" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">GitHub<span class="sr-only">(opens in a new tab)</span></a>
+							<a class="site-chrome-footer-link focus-ring" href="https://github.com/CraigDevJohnson" target="_blank" rel="noopener noreferrer">
+								@UIIcon(UIIconGitHub)
+								<span>GitHub</span><span class="sr-only">{ " (opens in a new tab)" }</span>
+							</a>
 							<a
 								class="site-chrome-footer-link focus-ring"
 								href="https://linkedin.com/in/craigdevjohnson"
 								target="_blank"
 								rel="noopener noreferrer"
 							>
-								LinkedIn<span class="sr-only">(opens in a new tab)</span>
+								@UIIcon(UIIconLinkedIn)
+								<span>LinkedIn</span><span class="sr-only">{ " (opens in a new tab)" }</span>
 							</a>
-							<a class="site-chrome-footer-link focus-ring" href="mailto:opportunity@craigdevjohnson.com">Email</a>
+							<a class="site-chrome-footer-link focus-ring" href="mailto:opportunity@craigdevjohnson.com">
+								@UIIcon(UIIconMail)
+								<span>Email</span>
+							</a>
 						</div>
 					</div>
 				</nav>
+				<section class="footer-stack" aria-labelledby="footer-stack-heading">
+					<h3 id="footer-stack-heading" class="footer-heading mb-2 text-sm uppercase tracking-[0.05em] text-copy-muted">Built with</h3>
+					<dl class="footer-stack-grid">
+						<div class="footer-stack-group">
+							<dt>Backend</dt>
+							<dd>
+								<a class="footer-stack-link focus-ring" href="https://go.dev/" target="_blank" rel="noopener noreferrer">Go<span class="sr-only">{ " programming language (opens in a new tab)" }</span></a>
+								<a class="footer-stack-link focus-ring" href="https://templ.guide/" target="_blank" rel="noopener noreferrer">templ<span class="sr-only">{ " components (opens in a new tab)" }</span></a>
+							</dd>
+						</div>
+						<div class="footer-stack-group">
+							<dt>Frontend</dt>
+							<dd>
+								<a class="footer-stack-link focus-ring" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">htmx<span class="sr-only">{ " library (opens in a new tab)" }</span></a>
+								<a class="footer-stack-link focus-ring" href="https://tailwindcss.com/" target="_blank" rel="noopener noreferrer">Tailwind CSS<span class="sr-only">{ " framework (opens in a new tab)" }</span></a>
+							</dd>
+						</div>
+						<div class="footer-stack-group">
+							<dt>Infrastructure</dt>
+							<dd>
+								<a class="footer-stack-link focus-ring" href="https://aws.amazon.com/lambda/" target="_blank" rel="noopener noreferrer">AWS Lambda<span class="sr-only">{ " hosting (opens in a new tab)" }</span></a>
+								<a class="footer-stack-link focus-ring" href="https://opentofu.org/" target="_blank" rel="noopener noreferrer">OpenTofu<span class="sr-only">{ " infrastructure as code (opens in a new tab)" }</span></a>
+							</dd>
+						</div>
+						<div class="footer-stack-group">
+							<dt>Delivery</dt>
+							<dd>
+								<a class="footer-stack-link focus-ring" href="https://github.com/features/actions" target="_blank" rel="noopener noreferrer">GitHub Actions<span class="sr-only">{ " automation (opens in a new tab)" }</span></a>
+							</dd>
+						</div>
+					</dl>
+				</section>
 			</div>
-			<div class="footer-bottom site-footer-meta flex flex-col items-start justify-between gap-5 pt-6 text-left text-sm text-copy-muted md:flex-row">
+			<div class="footer-bottom site-footer-meta flex flex-col items-start justify-between gap-5 pt-6 text-left text-sm text-copy-muted md:flex-row md:items-center">
 				<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
-				<div class="tech-stack flex w-full max-w-full flex-col gap-3 md:w-auto md:items-end">
-					<span class="text-xs font-semibold uppercase tracking-[0.08em] text-copy-muted">Built with</span>
-					<div class="flex flex-wrap justify-start gap-2 md:justify-end">
-						<a class="tech-pill" href="https://golang.org/" target="_blank" rel="noopener noreferrer">Go<span class="sr-only">programming language (opens in a new tab)</span></a>
-						<a class="tech-pill" href="https://templ.dev/" target="_blank" rel="noopener noreferrer">Templ<span class="sr-only">framework (opens in a new tab)</span></a>
-						<a class="tech-pill" href="https://htmx.org/" target="_blank" rel="noopener noreferrer">HTMX<span class="sr-only">library (opens in a new tab)</span></a>
-						<a class="tech-pill" href="https://github.com/features/copilot" target="_blank" rel="noopener noreferrer">GitHub Copilot<span class="sr-only">assistant (opens in a new tab)</span></a>
-					</div>
-				</div>
+				<p class="footer-ai-credit">AI-assisted development</p>
 			</div>
 		</div>
 	</footer>
@@ -63,10 +94,7 @@ templ Footer() {
 templ OperatorFooter() {
 	<footer class="site-footer site-chrome-footer site-operator-footer">
 		<div class="site-operator-footer-shell mx-auto flex flex-col gap-4 px-4 py-6 text-sm text-copy-muted sm:px-6 md:flex-row md:items-center md:justify-between">
-			<a href="/" class="site-operator-identity site-chrome-footer-link focus-ring" aria-label="Craig Johnson, portfolio home">
-				<span class="site-logo-mark" aria-hidden="true">CJ</span>
-				<span>Craig Johnson</span>
-			</a>
+			@SiteIdentity()
 			<a href="/" class="site-chrome-footer-link focus-ring">Back to portfolio</a>
 			<p class="copyright">© { time.Now().Format("2006") } Craig Johnson. All rights reserved.</p>
 		</div>

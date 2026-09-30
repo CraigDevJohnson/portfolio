@@ -32,7 +32,7 @@ func portalStatePresentation(state string) PortalStateView {
 		return PortalStateView{
 			Class:       "portal-state-running",
 			Label:       "Running",
-			Description: "This instance is online and can be stopped or restarted.",
+			Description: "This instance is online.",
 		}
 	case PortalStateStopping:
 		return PortalStateView{
@@ -44,7 +44,7 @@ func portalStatePresentation(state string) PortalStateView {
 		return PortalStateView{
 			Class:       "portal-state-stopped",
 			Label:       "Stopped",
-			Description: "This instance is offline and can be started.",
+			Description: "This instance is offline.",
 		}
 	case PortalStateShuttingDown:
 		return PortalStateView{
@@ -64,5 +64,19 @@ func portalStatePresentation(state string) PortalStateView {
 			Label:       "Unknown",
 			Description: "This lifecycle state is not recognized, so instance actions remain unavailable.",
 		}
+	}
+}
+
+func portalActionDisabled(state, action string, actionsAllowed bool) bool {
+	if !actionsAllowed {
+		return true
+	}
+	switch state {
+	case "stopped":
+		return action != "start"
+	case "running":
+		return action != "stop" && action != "restart"
+	default:
+		return true
 	}
 }

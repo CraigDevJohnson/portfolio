@@ -75,6 +75,10 @@ func TestBuildSkillsGridPropsFiltersNameDescriptionAndCategoryCaseInsensitively(
 	if props.TotalCatalogCount != 3 {
 		t.Errorf("TotalCatalogCount = %d, want Concepts & Practices excluded", props.TotalCatalogCount)
 	}
+	cloud := findCatalogCategory(t, props.VisibleCategories, "Cloud Platforms")
+	if cloud.CountLabel != "2 skills" {
+		t.Errorf("Cloud Platforms count label = %q, want 2 skills", cloud.CountLabel)
+	}
 }
 
 func TestBuildSkillsGridPropsCombinesAllAxesAndKeepsValidEmptyProficiency(t *testing.T) {
@@ -85,6 +89,9 @@ func TestBuildSkillsGridPropsCombinesAllAxesAndKeepsValidEmptyProficiency(t *tes
 	})
 	if combined.VisibleCount != 1 || len(combined.VisibleCategories) != 1 || combined.VisibleCategories[0].Skills[0].Skill.Name != "Terraform" {
 		t.Fatalf("combined filters produced %#v, want only Terraform", combined.VisibleCategories)
+	}
+	if got := combined.VisibleCategories[0].CountLabel; got != "1 skill" {
+		t.Errorf("filtered category count label = %q, want 1 skill", got)
 	}
 
 	empty := BuildSkillsGridProps(skillViewModelFixture(), SkillFilters{Proficiency: "familiar"})

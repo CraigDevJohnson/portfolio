@@ -1,5 +1,5 @@
 // Package portal provides the EC2 management portal handlers, OIDC authentication,
-// and AWS client interfaces for the /login, /auth/callback, and /mgmt route families.
+// and AWS client interfaces for the /login, /callback, and /mgmt route families.
 package portal
 
 import (

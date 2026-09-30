@@ -623,7 +623,7 @@ func TestFetchSchedulesHandlerLoadsManualTeamSchedules(t *testing.T) {
 	if !strings.Contains(body, "Google Calendar add is unavailable in this environment.") {
 		t.Fatalf("expected rendered schedule to explain unavailable Google add state, got %q", body)
 	}
-	if !strings.Contains(body, "Download Selected (.ics)") {
+	if !strings.Contains(body, "Download selected (.ics)") {
 		t.Fatalf("expected rendered schedule to preserve ICS download action, got %q", body)
 	}
 }

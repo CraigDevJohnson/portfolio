@@ -92,7 +92,7 @@ func TestApprovedSkillsAndFooterTreatmentsAreConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse Skills CSS: %v", err)
 	}
-	for _, selector := range []string{".skills-featured-icon", ".skills-practice-icon", ".skill-icon-frame"} {
+	for _, selector := range []string{".skills-featured-icon", ".skill-icon-frame"} {
 		if !contactHasEffectiveRule(skillRules, selector, 0, false, map[string]string{
 			"overflow":   "hidden",
 			"background": "var(--candle-oat)",
@@ -100,17 +100,31 @@ func TestApprovedSkillsAndFooterTreatmentsAreConsistent(t *testing.T) {
 			t.Errorf("Skills icon owner %q does not use the shared framed treatment", selector)
 		}
 	}
+	if !contactHasEffectiveRule(skillRules, ".skills-practice-icon", 0, false, map[string]string{
+		"display":     "grid",
+		"place-items": "center",
+		"color":       "var(--pond-mint)",
+	}) {
+		t.Error("Skills concept icons must use the inherited color and centered frame of shared SVG icons")
+	}
 
 	componentsCSS := readTask2Artifact(t, "cmd", "web", "tailwind", "components.css")
 	componentRules, err := collectAboutCSSRules(componentsCSS, 0, false)
 	if err != nil {
 		t.Fatalf("parse component CSS: %v", err)
 	}
-	if !contactHasEffectiveRule(componentRules, ".footer-nav-list-portfolio", 48, false, map[string]string{
-		"display":               "grid",
-		"grid-template-columns": "repeat(2,minmax(0,1fr))",
-	}) {
-		t.Error("Footer Portfolio links are not compacted into two columns at wider widths")
+	for _, width := range []float64{0, 48, 70} {
+		if !contactHasEffectiveRule(componentRules, ".footer-nav-list", width, false, map[string]string{
+			"display":               "grid",
+			"grid-template-columns": "minmax(0,1fr)",
+		}) {
+			t.Errorf("Footer links must remain in one vertical list at width %grem", width)
+		}
+		if !contactHasEffectiveRule(componentRules, ".footer-nav-section:first-child", width, false, map[string]string{
+			"grid-row": "span 2",
+		}) {
+			t.Errorf("Footer must stack Tools and Connect beside Portfolio at width %grem", width)
+		}
 	}
 
 	baseCSS := readTask2Artifact(t, "cmd", "web", "tailwind", "base.css")

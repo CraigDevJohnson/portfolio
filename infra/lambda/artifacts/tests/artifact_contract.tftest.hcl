@@ -1,10 +1,18 @@
 mock_provider "aws" {
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "111122223333" }
+  }
+
   mock_resource "aws_ecr_repository" {
     defaults = {
-      arn            = "arn:aws:ecr:us-west-2:180294223248:repository/portfolio-lambda-releases"
-      repository_url = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
+      arn            = "arn:aws:ecr:us-west-2:111122223333:repository/portfolio-lambda-releases"
+      repository_url = "111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
     }
   }
+}
+
+variables {
+  aws_account_id = "111122223333"
 }
 
 run "artifact_ownership_contract" {
@@ -32,9 +40,9 @@ run "artifact_ownership_contract" {
     condition = (
       toset(keys(jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition)) == toset(["ArnLike", "StringEquals"]) &&
       toset(keys(jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.StringEquals)) == toset(["aws:SourceAccount"]) &&
-      jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.StringEquals["aws:SourceAccount"] == "180294223248" &&
+      jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.StringEquals["aws:SourceAccount"] == "111122223333" &&
       toset(keys(jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.ArnLike)) == toset(["aws:SourceArn"]) &&
-      jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"
+      jsondecode(aws_ecr_repository_policy.lambda_releases.policy).Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-*"
     )
     error_message = "the ECR pull policy must retain the reviewed source account and Lambda ARN conditions"
   }

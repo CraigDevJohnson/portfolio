@@ -77,6 +77,7 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 			ImagePosition: "center",
 			Caption:       "Systems, teams, and the work between",
 			Variant:       HeroTimeline,
+			Overview:      true,
 			ExtraClass:    "experience-hero",
 			ContentClass:  "experience-hero-content",
 		}) {
@@ -116,16 +117,24 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 						</ul>
 					</nav>
 				</section>
-				<section class="page-kit-panel-strong experience-technology-panel experience-technology-strip" data-experience-spotlight aria-labelledby="experience-technology-heading">
-					<div class="experience-technology-heading">
-						<p class="page-kit-eyebrow">Recurring technology</p>
-						<h2 id="experience-technology-heading" class="page-section-title">Tools that followed the work</h2>
-						<p class="experience-technology-description">These tools recur across roles, connecting systems operations, automation, and cloud delivery.</p>
+				<section class="page-kit-panel-strong experience-focus-panel" aria-labelledby="experience-focus-heading">
+					<div class="experience-focus-heading">
+						<p class="page-kit-eyebrow">Career priorities</p>
+						<h2 id="experience-focus-heading" class="page-section-title">Cloud engineering focus</h2>
 					</div>
-					<ul class="experience-technology-chips">
-						for _, technology := range overview.SpotlightTechnologies {
-							<li class="experience-technology-item" data-recurring-technology>
-								<span class="page-kit-chip">{ technology }</span>
+					<ul class="experience-focus-list">
+						for _, focus := range experienceFocusPoints() {
+							<li class="experience-focus-item" data-career-focus>
+								<span class="experience-focus-icon">@UIIcon(focus.Icon)</span>
+								<div class="experience-focus-content">
+									<h3 class="experience-focus-title">{ focus.Title }</h3>
+									<p class="experience-focus-description">{ focus.Description }</p>
+									<ul class="experience-focus-technologies" aria-label={ focus.Title + " tools" }>
+										for _, technology := range focus.Technologies {
+											<li>{ technology }</li>
+										}
+									</ul>
+								</div>
 							</li>
 						}
 					</ul>
@@ -137,60 +146,52 @@ templ ExperienceKitStages(props ExperienceKitStagesProps) {
 				<p class="page-kit-eyebrow">Career sequence</p>
 				<h2 id="experience-sequence-heading" class="page-section-title">Responsibility, widened over time</h2>
 			</div>
-			<div class="experience-era-track">
-				@SignalTrail(SignalTrailProps{Variant: TrailTimeline, ExtraClass: "experience-era-trail"})
-				<ol class="experience-era-list">
-					for _, stage := range stages {
-						<li class={ experienceEraItemClass(stage) } data-career-era={ stage.ID }>
-							<section id={ stage.ID } class={ experienceEraClass(stage) } data-era-status={ experienceStageStatusValue(stage) }>
-								<div class="experience-era-layout" data-era-layout>
-									<header class="experience-era-heading" data-era-heading>
-										<div class="experience-era-title-row">
-											<h3 class="experience-era-title">{ stage.Title }</h3>
-											<div class="experience-era-meta">
-												<p class="experience-era-range">{ stage.Range }</p>
-												<span class={ experienceStagePillClass(stage) }>
-													if stage.IsCurrent {
-														<span class="page-kit-status-dot" aria-hidden="true"></span>
-													}
-													{ experienceStageStatusLabel(stage) }
-												</span>
-											</div>
+			<ol class="experience-era-list">
+				for _, stage := range stages {
+					<li class={ experienceEraItemClass(stage) } data-career-era={ stage.ID }>
+						<section id={ stage.ID } class={ experienceEraClass(stage) } aria-labelledby={ stage.ID + "-heading" } data-era-status={ experienceStageStatusValue(stage) }>
+							<div class="experience-era-layout" data-era-layout>
+								<header class="experience-era-heading" data-era-heading>
+									<div class="experience-era-title-row">
+										<h3 id={ stage.ID + "-heading" } class="experience-era-title">{ stage.Title }</h3>
+										<div class="experience-era-meta">
+											<p class="experience-era-range">{ stage.Range }</p>
+											<span class={ experienceStagePillClass(stage) }>
+												if stage.IsCurrent {
+													<span class="page-kit-status-dot" aria-hidden="true"></span>
+												}
+												{ experienceStageStatusLabel(stage) }
+											</span>
 										</div>
-										<p class="experience-era-summary">{ stage.Summary }</p>
-										<ul class="experience-era-role-index" aria-label={ stage.Title + " roles" }>
-											for _, role := range stage.Experiences {
-												<li>{ role.Position }</li>
-											}
-										</ul>
-									</header>
-									<ol class="experience-role-list" data-role-list>
-										for _, role := range stage.Experiences {
-											<li class="experience-role-item">
-												<article class="page-kit-panel-strong experience-role-card" data-experience-role={ fmt.Sprintf("%d", role.ID) }>
-													<header class="experience-role-heading">
-														<div class="experience-role-title-row">
-															<h4 class="experience-role-title">{ role.Position }</h4>
-															<p class="experience-role-duration">{ role.Duration }</p>
-														</div>
-														<p class="experience-role-company">{ role.Company }</p>
-													</header>
-													<p class="experience-role-responsibilities">{ role.Responsibilities }</p>
-													<ul class="experience-role-technologies" aria-label={ role.Position + " technologies" }>
-														for _, technology := range role.Technologies {
-															<li><span class="page-kit-chip" data-role-technology>{ technology }</span></li>
-														}
-													</ul>
-												</article>
-											</li>
-										}
-									</ol>
-								</div>
-							</section>
-						</li>
-					}
-				</ol>
-			</div>
+									</div>
+									<p class="experience-era-summary">{ stage.Summary }</p>
+								</header>
+								<ol class="experience-role-list" data-role-list>
+									for _, role := range stage.Experiences {
+										<li class="experience-role-item">
+											<article class="page-kit-panel-strong experience-role-card" data-experience-role={ fmt.Sprintf("%d", role.ID) }>
+												<header class="experience-role-heading">
+													<div class="experience-role-title-row">
+														<h4 class="experience-role-title">{ role.Position }</h4>
+														<p class="experience-role-duration">{ role.Duration }</p>
+													</div>
+													<p class="experience-role-company">{ role.Company }</p>
+												</header>
+												<p class="experience-role-responsibilities">{ role.Responsibilities }</p>
+												<ul class="experience-role-technologies" aria-label={ role.Position + " technologies" }>
+													for _, technology := range role.Technologies {
+														<li><span class="page-kit-chip" data-role-technology>{ technology }</span></li>
+													}
+												</ul>
+											</article>
+										</li>
+									}
+								</ol>
+							</div>
+						</section>
+					</li>
+				}
+			</ol>
 		</section>
 		@ExperienceKitFooterActions(ExperienceKitFooterActionsProps{
 			Heading:     "Want to see the work that sits behind these stages?",

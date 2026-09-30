@@ -53,6 +53,9 @@ func TestPreviewInstancesCoverEveryLifecycleExactlyOnce(t *testing.T) {
 	seenIDs := make(map[string]bool)
 	for _, instance := range instances {
 		gotStates[instance.State]++
+		if !instance.ActionsAllowed {
+			t.Errorf("preview instance %q no longer exposes the lifecycle control demonstration", instance.ID)
+		}
 		if !validInstanceID(instance.ID) {
 			t.Errorf("preview instance ID %q is invalid", instance.ID)
 		}

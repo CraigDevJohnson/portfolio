@@ -6,7 +6,7 @@
 1. `Taskfile.yaml` for all commands
 2. `cmd/server/main.go` + `internal/app/` for app wiring
 3. `README.md` for architecture / usage
-4. `DEPLOY-INSTRUCTIONS.md` + `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` + `infra/lambda/` for deployment
 
 ## Commands
 
@@ -21,18 +21,25 @@
 - `task fmt` — `golangci-lint fmt` (NOT `go fmt ./...`)
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
-- `task deploy` — build+push App Runner and Lambda images + `tofu apply`
-- `task redeploy` — push image + `aws apprunner start-deployment`
-- `task deploy-lambda` / `task redeploy-lambda` — Lambda variant
+- `task infrastructure-ci` — offline OpenTofu fmt/validate/tests and release-script tests (no AWS access)
+- `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
+- Account root (CI roles, execution boundary, state bucket): `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, and `task lambda-ci-roles-apply`
+- Release artifacts: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`
+- Development: `task lambda-dev-init`, `task lambda-dev-plan`, and `task lambda-dev-apply`
+- Production: `task lambda-prod-init`, `task lambda-prod-plan`, and `task lambda-prod-apply`
+- Deploy tasks run as the `workloads-admin` SSO profile in the workloads account; see `DEPLOY-INSTRUCTIONS.md` before any deployment operation
 
 ## Architecture
 
 - `cmd/server/main.go` is ~10 lines; all wiring in `internal/app/`
 - `.templ` files in `cmd/web/{layouts,pages,partials}` are source; `*_templ.go` is generated and gitignored
 - Tailwind source: `cmd/web/tailwind/*.css` and `cmd/web/tailwind/pages/*.css`; generated output: `cmd/web/static/css/tailwind.css` (gitignored)
-- Docker image built from `Dockerfile` (App Runner) or `Dockerfile.lambda`
+- `Dockerfile` builds the local/Compose server image; `Dockerfile.lambda` builds
+  the managed Lambda image.
 - `internal/portal` contains the optional Cognito-authenticated EC2 management
   portal, including instance actions, CloudWatch metrics, and CloudWatch Logs.
+  It is disabled in both environments, and its Lambda role has no EC2 start/stop
+  or instance log grants (D22).
 - See `.github/instructions/templ.instructions.md` and `.github/instructions/tailwind.instructions.md` for detailed authoring rules
 
 ## Gotchas
@@ -40,12 +47,19 @@
 - `task dev` (air) watches only `.go` files — run `task generate` manually after `.templ` edits
 - `LPS_SESSION_KEY` must be a 64-char hex string; without it, soccer auth is disabled
 - Google Calendar also needs `CLIENT_ID_KEY`, `CLIENT_SECRET_KEY`, and `GOOGLE_CONNECTION_TABLE_NAME`
-- The EC2 portal requires `MGMT_SESSION_KEY`, `MGMT_COGNITO_DOMAIN`, and
-  `MGMT_COGNITO_CLIENT_ID`; an invalid or incomplete configuration disables it
-  without affecting portfolio or soccer routes.
-- `MGMT_COGNITO_REDIRECT_URI` must be a registered OAuth callback URI for sign-in;
-  `MGMT_COGNITO_LOGOUT_URI` is optional and `MGMT_AWS_REGION` defaults to
-  `us-east-1`.
+- The EC2 portal requires `MGMT_SESSION_KEY`, `MGMT_COGNITO_DOMAIN`,
+  `MGMT_COGNITO_ISSUER`, `MGMT_COGNITO_CLIENT_ID`, `MGMT_COGNITO_REDIRECT_URI`,
+  `MGMT_COGNITO_LOGOUT_URI`, and nonempty `MGMT_ALLOWED_EMAILS`; invalid or
+  incomplete configuration disables it without affecting portfolio or soccer.
+- Cognito hosted UI domain and user-pool issuer are separate: OAuth endpoints
+  use the domain, while signed ID-token validation and JWKS use the issuer.
+  Only verified, exact allowlisted emails receive portal sessions.
+- `GET /login` renders a signed-out page; `POST /login` starts Google sign-in.
+  Logout returns to that page and clears both session and pending OAuth cookies.
+- The registered callback is exactly `/callback` and the logout return path is
+  exactly `/login`; both URLs require HTTPS. An HTTP loopback callback requires
+  `MGMT_ALLOW_LOCAL_CALLBACK=true`; logout still requires HTTPS.
+  `MGMT_AWS_REGION` defaults to `us-east-1`.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`
 
@@ -63,3 +77,31 @@
 - `task test` after changes to verify tests pass
 - `task fmt` after editing Go code to maintain consistent formatting
 - `task lint` after changes to catch lint issues
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in this repository's GitHub Issues using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use their default, same-named GitHub labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses a single-context layout with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## AWS changes
+
+- The portfolio runs in the workloads account. `AWS_ACCOUNT_ID` in `Taskfile.yaml`
+  and `aws_account_id` in each OpenTofu root configure the account. The state
+  bucket name in each `backend.hcl` (and the test that checks it) also contains
+  the ID, because backends can't read variables. Build ARNs from
+  `data.aws_caller_identity`, or from the configured account ID where no
+  provider is available.
+- Agents may run `tofu init`, `validate`, `fmt`, `test` and `plan`. Applies,
+  imports, state commands and the Taskfile apply and push wrappers need Craig's
+  approval of that specific change; `.claude/settings.json` asks before them.
+- Releases need no time windows or observation periods: CI deploys dev, plans
+  prod, and Craig approves the `production` environment to apply (G11).

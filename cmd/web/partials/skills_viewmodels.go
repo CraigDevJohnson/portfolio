@@ -52,6 +52,7 @@ type SkillCatalogCategory struct {
 	ID           string
 	Name         string
 	DetailSlotID string
+	CountLabel   string
 	Skills       []SkillCatalogItem
 }
 
@@ -159,6 +160,10 @@ func BuildSkillsGridProps(categories []types.SkillCategory, filters SkillFilters
 			})
 		}
 		if len(visible.Skills) > 0 {
+			visible.CountLabel = strconv.Itoa(len(visible.Skills)) + " skills"
+			if len(visible.Skills) == 1 {
+				visible.CountLabel = "1 skill"
+			}
 			props.VisibleCategories = append(props.VisibleCategories, visible)
 			props.VisibleCount += len(visible.Skills)
 		}

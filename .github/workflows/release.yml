@@ -1,0 +1,319 @@
+name: Release
+
+# CI on main -> build -> development deploy -> production plan ->
+# production reviewer approval -> production apply (D24).
+# Changes to release tooling or infrastructure, and every manual run, first
+# wait for approval in the release-review environment (D23).
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  authorize:
+    if: >-
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main'
+      ) ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Reads the last successful development deployment to classify the release.
+      deployments: read
+    outputs:
+      classification: ${{ steps.authorize.outputs.classification }}
+      source_sha: ${{ steps.authorize.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - id: authorize
+        env:
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: task lambda-ci-authorize-release
+
+  # D23: approval in this environment is the release-review gate. The job gets
+  # no AWS credentials.
+  release-review:
+    needs: authorize
+    if: needs.authorize.outputs.classification == 'review'
+    environment: release-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - name: Recheck that the reviewed source is still current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
+
+  build:
+    needs: [authorize, release-review]
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      (
+        (
+          needs.authorize.outputs.classification == 'release' &&
+          needs.release-review.result == 'skipped'
+        ) ||
+        (
+          needs.authorize.outputs.classification == 'review' &&
+          needs.release-review.result == 'success'
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_RELEASE_BUILDER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify release builder identity
+        env:
+          EXPECTED_ROLE_ARN: ${{ vars.AWS_RELEASE_BUILDER_ROLE_ARN }}
+        run: task lambda-ci-check-aws-identity
+      - uses: docker/setup-buildx-action@v4
+      - id: image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-build-release-image
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.authorize.outputs.source_sha }}
+          path: scan.json
+          retention-days: 90
+          if-no-files-found: error
+
+  development:
+    needs: [authorize, build]
+    # Explicit guard: release-review is skipped for app-only releases, and the
+    # implicit success() check would then skip this job too.
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success'
+    environment: development
+    concurrency:
+      group: lambda-development
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+          tofu_wrapper: false
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify development deployer identity
+        env:
+          EXPECTED_ROLE_ARN: ${{ vars.AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN }}
+        run: task lambda-ci-check-aws-identity
+      - name: Plan, apply and verify the development release
+        env:
+          EXPECTED_MANAGEMENT_JSON: ${{ vars.MANAGEMENT_RUNTIME_JSON || 'null' }}
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-deploy-development
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: development-${{ needs.authorize.outputs.source_sha }}
+          path: evidence/
+          retention-days: 90
+          if-no-files-found: warn
+
+  production-plan:
+    needs: [authorize, build, development]
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.development.result == 'success'
+    environment: production-plan
+    concurrency:
+      group: lambda-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+          tofu_wrapper: false
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify production planner identity
+        env:
+          EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_PLANNER_ROLE_ARN }}
+        run: task lambda-ci-check-aws-identity
+      - name: Save the production plan for review
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-plan-production
+      - id: artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-plan-${{ needs.authorize.outputs.source_sha }}
+          path: evidence/
+          retention-days: 90
+          if-no-files-found: error
+
+  # D24: Craig reviews the plan in the production-plan job summary, then
+  # approves this environment. The job applies exactly that saved plan.
+  production:
+    needs: [authorize, build, production-plan]
+    if: >-
+      !cancelled() &&
+      needs.authorize.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.production-plan.result == 'success'
+    environment: production
+    concurrency:
+      group: lambda-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+      - uses: go-task/setup-task@v2.2.0
+        with:
+          version: 3.53.1
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+          tofu_wrapper: false
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.production-plan.outputs.artifact_id }}
+          path: evidence
+          merge-multiple: true
+      - name: Check source authority before requesting AWS credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-check-current-main
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Verify production deployer identity
+        env:
+          EXPECTED_ROLE_ARN: ${{ vars.AWS_PRODUCTION_DEPLOYER_ROLE_ARN }}
+        run: task lambda-ci-check-aws-identity
+      - name: Apply the approved plan and verify production
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          PLANNED_PLAN_SHA256: ${{ needs.production-plan.outputs.plan_sha256 }}
+          SOURCE_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: task lambda-ci-apply-production
+      # A record of each production apply: outputs, route probes, alias and alarms.
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-${{ needs.authorize.outputs.source_sha }}
+          path: evidence/verify-prod/
+          retention-days: 90
+          if-no-files-found: warn

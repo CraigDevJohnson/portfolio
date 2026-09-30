@@ -165,7 +165,9 @@ templ SoccerGamesList(sectionID string, games []types.Game) {
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
 	if visibleGamesCount(props) == 0 {
 		<div class="no-results">
-			<div class="no-results-icon" aria-hidden="true">🗓️</div>
+			<div class="no-results-icon" aria-hidden="true">
+				@UIIcon(UIIconCalendar)
+			</div>
 			<h4>No games found yet</h4>
 			if props.Message != "" {
 				<p>{ props.Message }</p>
@@ -228,7 +230,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										</div>
 										<div class="games-section-cta-group">
 											if props.GoogleConnected && props.Preview {
-												<button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="upcoming-games" data-selection-locked><span class="btn-text">Add Selected to Calendar</span></button>
+												<button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="upcoming-games" data-selection-locked><span class="btn-text">Add selected to calendar</span></button>
 											} else if props.GoogleConnected {
 												<button
 													type="button"
@@ -244,12 +246,12 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 													data-game-group="upcoming-games"
 													data-loading-text="Adding {count} games…"
 												>
-													<span class="btn-text">Add Selected to Calendar</span>
+													<span class="btn-text">Add selected to calendar</span>
 													<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
 												</button>
 											}
 											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn" data-game-action data-game-group="upcoming-games">
-												<span class="btn-text">Download Selected (.ics)</span>
+												<span class="btn-text">Download selected (.ics)</span>
 											</button>
 										</div>
 									</div>
@@ -305,7 +307,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 											<span class="games-section-count" data-selected-count data-game-group="past-results" aria-live="polite">{ selectedGamesCountLabel(len(props.PastGames)) }</span>
 										</div>
 										if props.GoogleConnected && props.Preview {
-											<div class="games-section-cta-group"><button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="past-results" data-selection-locked><span class="btn-text">Sync Selected Results</span></button></div>
+											<div class="games-section-cta-group"><button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="past-results" data-selection-locked><span class="btn-text">Sync selected results</span></button></div>
 										} else if props.GoogleConnected {
 											<div class="games-section-cta-group">
 												<button
@@ -322,7 +324,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 													data-game-group="past-results"
 													data-loading-text="Syncing {count} results…"
 												>
-													<span class="btn-text">Sync Selected Results</span>
+													<span class="btn-text">Sync selected results</span>
 													<span class="btn-loading-indicator soccer-google-sync-indicator htmx-indicator" aria-hidden="true"></span>
 												</button>
 											</div>

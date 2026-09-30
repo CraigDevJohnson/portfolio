@@ -1,3 +1,14 @@
+variable "aws_account_id" {
+  description = "Workloads account that owns the portfolio. The provider refuses credentials for any other account."
+  type        = string
+  default     = "793680745829"
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must be a 12-digit AWS account ID."
+  }
+}
+
 variable "environment" { type = string }
 
 variable "name_prefix" { type = string }
@@ -28,13 +39,12 @@ variable "enable_pitr" { type = bool }
 variable "enable_deletion_protection" { type = bool }
 
 variable "alarm_action_arns" {
-  type = list(string)
+  description = "Production alarms notify only the workloads us-west-2 alerts topic that aws-setup owns."
+  type        = list(string)
 
   validation {
-    condition = length(var.alarm_action_arns) > 0 && alltrue([
-      for arn in var.alarm_action_arns : can(regex("^arn:[^:]+:[^:]+:[^:]*:[^:]*:.+$", arn))
-    ])
-    error_message = "alarm_action_arns must contain at least one ARN"
+    condition     = var.alarm_action_arns == tolist(["arn:aws:sns:us-west-2:${var.aws_account_id}:alerts"])
+    error_message = "alarm_action_arns must be exactly the workloads us-west-2 alerts topic ARN."
   }
 }
 
@@ -42,7 +52,10 @@ variable "domain_names" { type = set(string) }
 
 variable "request_custom_domain" { type = bool }
 
-variable "activate_custom_domain" { type = bool }
+variable "activate_custom_domain" {
+  description = "Create the API Gateway custom domains. Pass false to plan the environment on its execute-api endpoint while the hostname still belongs to another account."
+  type        = bool
+}
 
 variable "live_version_override" {
   type    = number

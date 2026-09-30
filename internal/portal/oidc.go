@@ -70,12 +70,13 @@ type TokenResponse struct {
 
 // Claims holds the subset of JWT claims the portal cares about.
 type Claims struct {
-	Sub      string `json:"sub"`
-	Email    string `json:"email"`
-	Username string `json:"cognito:username"`
-	Issuer   string `json:"iss"`
-	Audience string `json:"aud"`
-	Expiry   int64  `json:"exp"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Username      string `json:"cognito:username"`
+	Issuer        string `json:"iss"`
+	Audience      string `json:"aud"`
+	Expiry        int64  `json:"exp"`
 }
 
 // ──────────────────────────────────────────────
@@ -207,6 +208,7 @@ func parseRSAPublicKey(k *jwk) (*rsa.PublicKey, error) {
 // OIDCClient handles Cognito OAuth 2.0 / OIDC operations.
 type OIDCClient struct {
 	CognitoDomain string
+	CognitoIssuer string
 	ClientID      string
 	RedirectURI   string
 	LogoutURI     string
@@ -214,11 +216,12 @@ type OIDCClient struct {
 }
 
 // NewOIDCClient constructs an OIDCClient for the given Cognito configuration.
-// The JWKS cache is pre-wired to fetch from {domain}/.well-known/jwks.json.
-func NewOIDCClient(domain, clientID, redirectURI, logoutURI string) *OIDCClient {
-	jwksURL := strings.TrimRight(domain, "/") + "/.well-known/jwks.json"
+// Browser and token endpoints use domain; issuer supplies JWT identity and JWKS.
+func NewOIDCClient(domain, issuer, clientID, redirectURI, logoutURI string) *OIDCClient {
+	jwksURL := strings.TrimRight(issuer, "/") + "/.well-known/jwks.json"
 	return &OIDCClient{
 		CognitoDomain: domain,
+		CognitoIssuer: issuer,
 		ClientID:      clientID,
 		RedirectURI:   redirectURI,
 		LogoutURI:     logoutURI,
@@ -236,6 +239,7 @@ func (c *OIDCClient) AuthorizationURL(state, challenge string) string {
 	base := strings.TrimRight(c.CognitoDomain, "/") + "/oauth2/authorize"
 	params := url.Values{}
 	params.Set("response_type", "code")
+	params.Set("identity_provider", "Google")
 	params.Set("client_id", c.ClientID)
 	params.Set("redirect_uri", c.RedirectURI)
 	params.Set("scope", "openid email profile")
@@ -276,7 +280,7 @@ func (c *OIDCClient) ExchangeCode(ctx context.Context, code, codeVerifier string
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token endpoint returned HTTP %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("token endpoint returned HTTP %d", resp.StatusCode)
 	}
 
 	var tokenResp TokenResponse
@@ -290,7 +294,7 @@ func (c *OIDCClient) ExchangeCode(ctx context.Context, code, codeVerifier string
 //   - Fetches the JWKS from the cache (refreshing if needed)
 //   - Parses the JWT and looks up the signing key by kid
 //   - Verifies the RS256 signature
-//   - Verifies iss == CognitoDomain
+//   - Verifies iss == CognitoIssuer
 //   - Verifies aud == ClientID
 //   - Verifies exp > time.Now().Unix()
 //
@@ -319,6 +323,7 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 	mapClaims := jwt.MapClaims{}
 	parsed, err := jwt.ParseWithClaims(rawIDToken, mapClaims, keyFunc,
 		jwt.WithValidMethods([]string{"RS256"}),
+		jwt.WithJSONNumber(),
 		jwt.WithoutClaimsValidation(), // we do manual validation below
 	)
 	if err != nil {
@@ -336,8 +341,8 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 
 	// Validate iss.
 	iss, _ := mc["iss"].(string)
-	if iss != c.CognitoDomain {
-		return nil, fmt.Errorf("invalid issuer: got %q, want %q", iss, c.CognitoDomain)
+	if iss != c.CognitoIssuer {
+		return nil, fmt.Errorf("invalid issuer: got %q, want %q", iss, c.CognitoIssuer)
 	}
 
 	// Validate aud — Cognito puts aud as a string.
@@ -346,31 +351,36 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 		return nil, fmt.Errorf("invalid audience: got %q, want %q", aud, c.ClientID)
 	}
 
-	// Validate exp.
-	var expUnix int64
-	switch v := mc["exp"].(type) {
-	case float64:
-		expUnix = int64(v)
-	case json.Number:
-		expUnix, _ = v.Int64()
-	default:
+	// Cognito ID tokens require a numeric expiry, ID-token use, and subject.
+	exp, ok := mc["exp"].(json.Number)
+	if !ok {
 		return nil, errors.New("missing or invalid exp claim")
+	}
+	expUnix, expErr := exp.Int64()
+	if expErr != nil {
+		return nil, errors.New("invalid exp claim")
 	}
 	if expUnix <= time.Now().Unix() {
 		return nil, errors.New("ID token has expired")
 	}
+	if use, _ := mc["token_use"].(string); use != "id" {
+		return nil, errors.New("invalid token use")
+	}
+	sub, _ := mc["sub"].(string)
+	if strings.TrimSpace(sub) == "" {
+		return nil, errors.New("missing subject")
+	}
 
 	claims := &Claims{
+		Sub:      sub,
 		Issuer:   iss,
 		Audience: aud,
 		Expiry:   expUnix,
 	}
-	if sub, ok := mc["sub"].(string); ok {
-		claims.Sub = sub
-	}
 	if email, ok := mc["email"].(string); ok {
 		claims.Email = email
 	}
+	claims.EmailVerified, _ = mc["email_verified"].(bool)
 	if username, ok := mc["cognito:username"].(string); ok {
 		claims.Username = username
 	}
