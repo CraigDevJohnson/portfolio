@@ -197,7 +197,7 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 			report.Requests = transport.Used()
 			return report, fmt.Errorf("check due team %d: %w", teamID, err)
 		}
-		if !dueInRun(state, start) {
+		if !dueInRun(&state, start) {
 			// Another delivery or the on-demand worker refreshed it already.
 			continue
 		}
@@ -224,7 +224,7 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 // dueInRun reports whether an enrolled team is due in a run that started at
 // start: a ready team within the run's leeway, a team that failed temporarily
 // only once its backoff has passed, and an invalid team never.
-func dueInRun(state RefreshState, start time.Time) bool {
+func dueInRun(state *RefreshState, start time.Time) bool {
 	switch {
 	case state.NextDueAt.IsZero() || state.Status == RefreshInvalid:
 		return false

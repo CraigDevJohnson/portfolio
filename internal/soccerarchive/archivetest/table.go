@@ -83,47 +83,12 @@ func (t *Table) TransactWriteItems(_ context.Context, input *dynamodb.TransactWr
 		keys[i] = key
 	}
 	if canceled {
-		return nil, &types.TransactionCanceledException{Message: aws.String("Transaction cancelled"), CancellationReasons: reasons}
+		return nil, &types.TransactionCanceledException{Message: aws.String("Transaction canceled"), CancellationReasons: reasons}
 	}
 	for i, write := range input.TransactItems {
 		t.items[keys[i]] = write.Put.Item
 	}
 	return &dynamodb.TransactWriteItemsOutput{}, nil
-}
-
-// checkPut evaluates a put's condition against the stored item as DynamoDB
-// would and returns the item's "pk/sk" key. Every put must carry one of the
-// archive's conditions; a failed one is ConditionalCheckFailedException.
-func (t *Table) checkPut(item map[string]types.AttributeValue, condition *string, names map[string]string, values map[string]types.AttributeValue) (string, error) {
-	var key itemKey
-	if err := attributevalue.UnmarshalMap(item, &key); err != nil {
-		return "", err
-	}
-	id := key.PK + "/" + key.SK
-	if t.FailPut != nil {
-		if err := t.FailPut(id); err != nil {
-			return "", err
-		}
-	}
-	if condition == nil || *condition == "" {
-		return "", errors.New("archive writes must protect newer source facts")
-	}
-	previous := t.items[id]
-	var holds bool
-	switch *condition {
-	case "attribute_not_exists(fetched_at) OR fetched_at <= :fetched_at":
-		holds = previous == nil || fetchedAt(previous) <= stringValue(values[":fetched_at"])
-	case "attribute_not_exists(pk)":
-		holds = previous == nil
-	case "#revision = :read_revision":
-		holds = previous != nil && numberValue(previous[names["#revision"]]) == numberValue(values[":read_revision"])
-	default:
-		return "", fmt.Errorf("archivetest does not evaluate condition %q", *condition)
-	}
-	if !holds {
-		return "", &types.ConditionalCheckFailedException{}
-	}
-	return id, nil
 }
 
 // GetItem implements the DynamoDB GetItem subset used by the archive.
@@ -200,41 +165,6 @@ func (t *Table) DeleteItem(_ context.Context, input *dynamodb.DeleteItemInput, _
 	return &dynamodb.DeleteItemOutput{}, nil
 }
 
-func (t *Table) queryDueTeams(input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
-	if aws.ToString(input.IndexName) != "due-teams" || aws.ToString(input.KeyConditionExpression) != "due_pk = :due_pk AND due_sk <= :cutoff" {
-		return nil, fmt.Errorf("archivetest does not evaluate index query %q on %q", aws.ToString(input.KeyConditionExpression), aws.ToString(input.IndexName))
-	}
-	t.indexQueries++
-	duePK := stringValue(input.ExpressionAttributeValues[":due_pk"])
-	cutoff := stringValue(input.ExpressionAttributeValues[":cutoff"])
-	type indexed struct{ sortKey, id string }
-	matches := make([]indexed, 0)
-	for id, item := range t.items {
-		if stringValue(item["due_pk"]) == duePK && stringValue(item["due_sk"]) != "" && stringValue(item["due_sk"]) <= cutoff {
-			matches = append(matches, indexed{sortKey: stringValue(item["due_sk"]) + "\x00" + id, id: id})
-		}
-	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].sortKey < matches[j].sortKey })
-	start := 0
-	if len(input.ExclusiveStartKey) > 0 {
-		after := stringValue(input.ExclusiveStartKey["due_sk"]) + "\x00" + stringValue(input.ExclusiveStartKey["pk"]) + "/" + stringValue(input.ExclusiveStartKey["sk"])
-		start = sort.Search(len(matches), func(i int) bool { return matches[i].sortKey > after })
-	}
-	end := len(matches)
-	if t.PageSize > 0 && start+t.PageSize < end {
-		end = start + t.PageSize
-	}
-	output := &dynamodb.QueryOutput{Items: make([]map[string]types.AttributeValue, 0, end-start)}
-	for _, match := range matches[start:end] {
-		output.Items = append(output.Items, t.items[match.id])
-	}
-	if end < len(matches) {
-		last := t.items[matches[end-1].id]
-		output.LastEvaluatedKey = map[string]types.AttributeValue{"pk": last["pk"], "sk": last["sk"], "due_pk": last["due_pk"], "due_sk": last["due_sk"]}
-	}
-	return output, nil
-}
-
 // IndexQueries reports how many index queries the table has answered.
 func (t *Table) IndexQueries() int {
 	t.mu.Lock()
@@ -269,6 +199,76 @@ func (t *Table) Len() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return len(t.items)
+}
+
+// checkPut evaluates a put's condition against the stored item as DynamoDB
+// would and returns the item's "pk/sk" key. Every put must carry one of the
+// archive's conditions; a failed one is ConditionalCheckFailedException.
+func (t *Table) checkPut(item map[string]types.AttributeValue, condition *string, names map[string]string, values map[string]types.AttributeValue) (string, error) {
+	var key itemKey
+	if err := attributevalue.UnmarshalMap(item, &key); err != nil {
+		return "", err
+	}
+	id := key.PK + "/" + key.SK
+	if t.FailPut != nil {
+		if err := t.FailPut(id); err != nil {
+			return "", err
+		}
+	}
+	if condition == nil || *condition == "" {
+		return "", errors.New("archive writes must protect newer source facts")
+	}
+	previous := t.items[id]
+	var holds bool
+	switch *condition {
+	case "attribute_not_exists(fetched_at) OR fetched_at <= :fetched_at":
+		holds = previous == nil || fetchedAt(previous) <= stringValue(values[":fetched_at"])
+	case "attribute_not_exists(pk)":
+		holds = previous == nil
+	case "#revision = :read_revision":
+		holds = previous != nil && numberValue(previous[names["#revision"]]) == numberValue(values[":read_revision"])
+	default:
+		return "", fmt.Errorf("archivetest does not evaluate condition %q", *condition)
+	}
+	if !holds {
+		return "", &types.ConditionalCheckFailedException{}
+	}
+	return id, nil
+}
+
+func (t *Table) queryDueTeams(input *dynamodb.QueryInput) (*dynamodb.QueryOutput, error) {
+	if aws.ToString(input.IndexName) != "due-teams" || aws.ToString(input.KeyConditionExpression) != "due_pk = :due_pk AND due_sk <= :cutoff" {
+		return nil, fmt.Errorf("archivetest does not evaluate index query %q on %q", aws.ToString(input.KeyConditionExpression), aws.ToString(input.IndexName))
+	}
+	t.indexQueries++
+	duePK := stringValue(input.ExpressionAttributeValues[":due_pk"])
+	cutoff := stringValue(input.ExpressionAttributeValues[":cutoff"])
+	type indexed struct{ sortKey, id string }
+	matches := make([]indexed, 0)
+	for id, item := range t.items {
+		if stringValue(item["due_pk"]) == duePK && stringValue(item["due_sk"]) != "" && stringValue(item["due_sk"]) <= cutoff {
+			matches = append(matches, indexed{sortKey: stringValue(item["due_sk"]) + "\x00" + id, id: id})
+		}
+	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].sortKey < matches[j].sortKey })
+	start := 0
+	if len(input.ExclusiveStartKey) > 0 {
+		after := stringValue(input.ExclusiveStartKey["due_sk"]) + "\x00" + stringValue(input.ExclusiveStartKey["pk"]) + "/" + stringValue(input.ExclusiveStartKey["sk"])
+		start = sort.Search(len(matches), func(i int) bool { return matches[i].sortKey > after })
+	}
+	end := len(matches)
+	if t.PageSize > 0 && start+t.PageSize < end {
+		end = start + t.PageSize
+	}
+	output := &dynamodb.QueryOutput{Items: make([]map[string]types.AttributeValue, 0, end-start)}
+	for _, match := range matches[start:end] {
+		output.Items = append(output.Items, t.items[match.id])
+	}
+	if end < len(matches) {
+		last := t.items[matches[end-1].id]
+		output.LastEvaluatedKey = map[string]types.AttributeValue{"pk": last["pk"], "sk": last["sk"], "due_pk": last["due_pk"], "due_sk": last["due_sk"]}
+	}
+	return output, nil
 }
 
 func fetchedAt(item map[string]types.AttributeValue) string {

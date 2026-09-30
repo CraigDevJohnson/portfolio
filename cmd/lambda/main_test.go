@@ -45,8 +45,9 @@ func scheduledLogs(t *testing.T) func() []map[string]any {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buffer, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 	return func() []map[string]any {
-		records := make([]map[string]any, 0)
-		for _, line := range bytes.Split(bytes.TrimSpace(buffer.Bytes()), []byte("\n")) {
+		lines := bytes.Split(bytes.TrimSpace(buffer.Bytes()), []byte("\n"))
+		records := make([]map[string]any, 0, len(lines))
+		for _, line := range lines {
 			var record map[string]any
 			if err := json.Unmarshal(line, &record); err != nil {
 				t.Fatalf("log line %q is not JSON: %v", line, err)
