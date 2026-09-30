@@ -66,10 +66,12 @@ own environment's execution role (`aws:PrincipalArn`):
 - the environment's two DynamoDB tables, and get, put, query and delete on its
   LPS history table;
 - `ssm:GetParameters` and SSM-mediated `kms:Decrypt` for the environment's
-  three SecureStrings under `/portfolio/lambda/<env>/`: `CLIENT_ID_KEY`,
-  `CLIENT_SECRET_KEY` and `LPS_SESSION_KEY`. The retired `MGMT_SESSION_KEY`
-  is not readable; `SITE_SESSION_KEY` is added when that environment's site
-  sign-in is activated;
+  four SecureStrings under `/portfolio/lambda/<env>/`: `CLIENT_ID_KEY`,
+  `CLIENT_SECRET_KEY`, `LPS_SESSION_KEY` and `SITE_SESSION_KEY`. The
+  boundary allows `SITE_SESSION_KEY` ahead of site sign-in; the role's own
+  policy reads it only once that environment's `site` input is set, so
+  activating sign-in needs no boundary edit. The retired `MGMT_SESSION_KEY`
+  is not readable;
 - the environment's Lambda log group;
 - for dev only, the portal's read-only `ec2:DescribeInstances` and
   `cloudwatch:GetMetricStatistics` in us-west-2.

@@ -102,6 +102,11 @@ Changing it makes users reconnect Google once. The SecureStrings must exist
 before the first environment plan, because the `alias/aws/ssm` key appears only
 after the first SecureString.
 
+Once an environment's `site` input is set, it also reads
+`/portfolio/lambda/<env>/SITE_SESSION_KEY`: 64 lowercase hexadecimal
+characters from a separate `openssl rand -hex 32`. See
+[site identity](docs/deployment/site-identity.md#activation-prerequisites).
+
 ## Release workflow
 
 `.github/workflows/release.yml` runs after a successful `CI` push to `main`, or
@@ -287,15 +292,18 @@ Google Calendar in between; until then it keeps serving its current release.
    [activation prerequisites](docs/deployment/site-identity.md#activation-prerequisites):
    its Google OAuth client, the reviewed `task cognito-site-dev-plan` and
    `task cognito-site-dev-apply`, the `/portfolio/lambda/dev/SITE_SESSION_KEY`
-   SecureString, and `SITE_SESSION_KEY` in the development boundary
-   parameters (applied through the account root). Commit the exported `site`
-   block with Craig's `soccer` and `management` invitations to
-   `dev.auto.tfvars` on the pull request branch. That account-root plan also
-   carries the LPS history grants already on the branch
+   SecureString, and the account root planned and applied from the pull
+   request branch (`task lambda-ci-roles-plan`, then
+   `task lambda-ci-roles-apply` of that reviewed plan). The branch's
+   `boundary.tf` already lets both environments read `SITE_SESSION_KEY`, so
+   no boundary edit is needed and that one apply also covers production.
+   Commit the exported `site` block with Craig's `soccer` and `management`
+   invitations to `dev.auto.tfvars` on the pull request branch. That
+   account-root plan also carries the LPS history grants already on the branch
    ([readiness packet 6.5, step 2](docs/deployment/2026-09-26-lps-history-activation-readiness.md#65-reviewing-a-saved-plan)):
    more changes to `PortfolioLambdaExecutionBoundary`, a new
    `PortfolioLambdaHistoryExecutionBoundary`, and updates to the three CI
-   role policies. Review them with the parameter change; applying them
+   role policies. Review them with the `SITE_SESSION_KEY` reads; applying them
    turns nothing on, because every history switch stays off.
 2. **Apply the development root from that branch, with the portal switch
    on.** The `management` grant needs the development
@@ -325,7 +333,8 @@ Google Calendar in between; until then it keeps serving its current release.
 5. **Provision production site identity before approving production.**
    Complete the same prerequisites for production with the
    `cognito-site-prod-*` tasks, `/portfolio/lambda/prod/SITE_SESSION_KEY` and
-   invitations granting only `soccer`. Commit its `site` block to
+   invitations granting only `soccer`. The account-root apply in step 1
+   already lets production read that SecureString. Commit its `site` block to
    `prod.auto.tfvars` in a pull request, apply the production root from that
    branch with `task lambda-prod-plan` (with the image production runs now,
    found the same way; production has no portal switch) and

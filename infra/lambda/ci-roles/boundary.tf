@@ -1,15 +1,17 @@
 # Permissions boundary for the portfolio Lambda execution roles. The service
 # roots attach it by ARN, so it must exist before dev or prod is applied. It is
 # a ceiling: each statement allows only its own environment's execution role.
+# SITE_SESSION_KEY is in each ceiling ahead of site sign-in; the role's own
+# policy reads it only once that environment's `site` input is set.
 locals {
   boundary_environments = {
     dev = {
       sid        = "Dev"
-      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
+      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY", "SITE_SESSION_KEY"]
     }
     prod = {
       sid        = "Prod"
-      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"]
+      parameters = ["CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY", "SITE_SESSION_KEY"]
     }
   }
 

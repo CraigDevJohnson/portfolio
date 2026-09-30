@@ -665,6 +665,7 @@ run "execution_boundary_contract" {
           "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_ID_KEY",
           "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_SECRET_KEY",
           "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/LPS_SESSION_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/SITE_SESSION_KEY",
         ] &&
         one([
           for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Condition.StringEquals
@@ -676,11 +677,12 @@ run "execution_boundary_contract" {
             "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_ID_KEY",
             "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/CLIENT_SECRET_KEY",
             "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/LPS_SESSION_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/${environment}/SITE_SESSION_KEY",
           ]
         }
       )
     ])
-    error_message = "each environment's parameter reads and decryption are limited to its three SecureStrings; the retired MGMT_SESSION_KEY is not readable"
+    error_message = "each environment's parameter reads and decryption are limited to its four SecureStrings, including its own SITE_SESSION_KEY; the retired MGMT_SESSION_KEY is not readable"
   }
 }
 

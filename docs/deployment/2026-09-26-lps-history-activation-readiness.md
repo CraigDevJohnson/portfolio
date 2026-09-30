@@ -655,10 +655,10 @@ state, and `apply` changes AWS.
    `task lambda-ci-roles-apply` only after approval. The site identity
    release order ([DEPLOY-INSTRUCTIONS.md, Release order](../../DEPLOY-INSTRUCTIONS.md#release-order),
    decision 1) applies the account root from the same branch before its
-   merge, to let development read `SITE_SESSION_KEY`. If that apply
+   merge, to let both environments read `SITE_SESSION_KEY`. If that apply
    already carried these grants, a new plan here shows no changes and this
-   step is done. If `SITE_SESSION_KEY` is on the branch but not yet applied,
-   the boundary update here also adds its read.
+   step is done. Otherwise the boundary update here also adds those
+   `SITE_SESSION_KEY` reads, which `boundary.tf` already carries.
 3. **Release that merge to the target environment.** Let the Release
    workflow deploy the merge commit, with history still off. Its
    verification (`scripts/verify-lambda-release.sh`) checks that the `live`

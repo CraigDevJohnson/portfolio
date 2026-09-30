@@ -195,9 +195,12 @@ Activation is a separate, reviewed change in each environment. It needs all of:
    private operator path above (`task cognito-site-<env>-plan`, then
    `task cognito-site-<env>-apply` of exactly that plan).
 3. The environment's `SITE_SESSION_KEY` SecureString.
-4. `SITE_SESSION_KEY` added to that environment's parameters in the Lambda
-   execution boundary (`infra/lambda/ci-roles/boundary.tf`), applied through the
-   account root. Until then the boundary denies the read and sign-in stays off.
+4. The account root applied from a commit whose Lambda execution boundary
+   (`infra/lambda/ci-roles/boundary.tf`) already allows both environments'
+   `SITE_SESSION_KEY`: the reviewed `task lambda-ci-roles-plan` and
+   `task lambda-ci-roles-apply` carry it, with no hand edit. One apply covers
+   development and production. Until it is applied the boundary denies the
+   read and sign-in stays off.
 5. The reviewed `site` object from `task cognito-site-<env>-export`, with its
    `invitations` grant map added, committed to
    `infra/lambda/environments/<env>/<env>.auto.tfvars`, so Craig's
