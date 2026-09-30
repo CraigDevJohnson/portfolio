@@ -200,6 +200,33 @@ not provision or activate a site Cognito pool. Register `/auth/callback` and
 settings to a deployment; do not assume the existing management-only callback
 registration supports the site flow.
 
+### Releasing the Soccer page grant
+
+The Soccer page grant (#86) turns off private Soccer features in every
+deployed environment until that environment has site sign-in:
+
+- Until an environment supplies complete `SITE_*` settings and a
+  `SITE_INVITATIONS_JSON` that gives Craig the `soccer` grant, Soccer offers
+  only Team ID lookup and .ics file downloads. LPS import, linked-player
+  discovery and every Google Calendar route return `401`, even though the
+  environment still supplies `LPS_SESSION_KEY` and the Google client settings.
+  The page says site sign-in is not available there.
+- Private state saved before the release is rejected, not migrated. An LPS
+  import cookie without an owner is cleared on the next Soccer request. A
+  Google connection row without an owner is never used; a granted visitor who
+  still holds its cookie deletes it by disconnecting or reconnecting. Rows whose
+  cookie is gone keep their encrypted tokens in `GOOGLE_CONNECTION_TABLE_NAME`,
+  which has no TTL. Plan a one-time cleanup that revokes each token with Google
+  and then deletes the rows with an empty `owner_subject`. That cleanup deletes
+  live data and needs Craig's approval.
+- Team ID lookup and .ics file downloads stay public throughout.
+
+Record the release order as an explicit decision before approving the next
+`production` apply that contains #86. Either accept that production LPS import
+and Google Calendar stay unavailable until production site identity (#88) is
+provisioned and configured, or hold the approval until then. Check that order
+against the first-launch criteria in #75 first.
+
 ## EC2 management portal
 
 The portal routes are disabled unless the session key, Cognito domain, and
