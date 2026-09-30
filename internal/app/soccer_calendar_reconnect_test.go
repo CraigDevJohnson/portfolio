@@ -34,6 +34,29 @@ func TestReconnectingTheSameGoogleAccountKeepsTheChosenCalendar(t *testing.T) {
 	}
 }
 
+func TestReconnectingTheSameGoogleAccountResumesAPausedChoiceItCanWriteAgain(t *testing.T) {
+	world := newCalendarDestinationWorld(t)
+	world.connect(t)
+	world.choose(t, teamCalendarID)
+	world.google.setAccess(teamCalendarID, "reader")
+	if page := world.page(t); !strings.Contains(page, calendarChoiceNeeded) {
+		t.Fatal("the page did not pause writes to the read-only calendar")
+	}
+	world.google.setAccess(teamCalendarID, "writer")
+
+	page := world.reconnect(t)
+	if !strings.Contains(page, calendarReady) || selectedCalendar(t, page) != teamCalendarID || !strings.Contains(page, "Connected to "+teamCalendarName) {
+		t.Fatal("reconnecting the same Google account did not resume the paused choice it can write again")
+	}
+	world.fetch(t)
+	if added := world.add(t, nextGameID); !strings.Contains(added, "Added 1 selected game") {
+		t.Fatalf("Add after reconnecting answered %q", added)
+	}
+	if _, ok := world.google.events(teamCalendarID)[nextGameID]; !ok || len(world.google.events(primaryCalendarID)) != 0 {
+		t.Fatal("the first Add after reconnecting did not go to the chosen calendar")
+	}
+}
+
 func TestReconnectingStartsAtPrimaryWhenTheChosenCalendarCannotBeKept(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -57,13 +80,11 @@ func TestReconnectingStartsAtPrimaryWhenTheChosenCalendarCannotBeKept(t *testing
 		{name: "chosen calendar now read-only", before: func(_ *testing.T, world *calendarDestinationWorld) {
 			world.google.setAccess(teamCalendarID, "reader")
 		}},
-		{name: "writes paused after the chosen calendar was lost", before: func(t *testing.T, world *calendarDestinationWorld) {
+		{name: "writes paused and the chosen calendar still gone", before: func(t *testing.T, world *calendarDestinationWorld) {
 			world.google.setAccess(teamCalendarID, "")
 			if page := world.page(t); !strings.Contains(page, calendarChoiceNeeded) {
 				t.Fatal("the page did not pause writes to the lost calendar")
 			}
-			// The calendar returning does not resume the paused choice.
-			world.google.setAccess(teamCalendarID, "writer")
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

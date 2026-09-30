@@ -215,13 +215,14 @@ the stored connection the same way, leaving the previous account's grant at
 Google. To withdraw the site's Calendar access entirely, remove the app from
 the Google Account's third-party access settings.
 
-The primary calendar is the destination as soon as consent completes, with
-no separate confirmation. A visitor can save another calendar the connected
-account can write; events already added stay in their original calendar, and
-later Adds go to the new one. If the chosen calendar disappears or stops
-accepting this account's events, Add and result sync pause and the card asks
-for a new choice; they never fall back to primary, and the calendar returning
-does not resume them without that choice. An Add that loses its destination
+A new connection starts with the primary calendar as its destination, with no
+separate confirmation; a same-account reconnect keeps the chosen calendar (see
+below). A visitor can save another calendar the connected account can write;
+events already added stay in their original calendar, and later Adds go to the
+new one. If the chosen calendar disappears or stops accepting this account's
+events, Add and result sync pause and the card asks for a new choice; they
+never fall back to primary, and the calendar returning does not resume them on
+its own. An Add that loses its destination
 partway reports the games it already added, which stay in that calendar. When Google rejects the connection
 itself, the site removes it and asks the visitor to connect again. Any other
 refusal, such as a Google usage limit, keeps the connection: the card still
@@ -229,13 +230,11 @@ names the connected account and asks the visitor to retry.
 
 Consenting again as the same Google account while the owner's connection is
 still stored, for example through **Change Google account**, keeps the chosen
-calendar as the destination if that account can still write it. Every other
-new consent starts at primary: a different Google account, a chosen calendar
-that is gone or read-only, or writes paused for a new choice. Connecting after
-**Disconnect**, or after Google rejected the connection, also starts at
-primary, because the site no longer holds the earlier connection. Each site
-owner's choice stays with that owner's connection and is never carried over
-to another owner.
+calendar as the destination if that account can write it, and resumes writes
+that were paused for it. A consent starts at primary when it uses a different
+Google account or when the chosen calendar is gone or read-only. Connecting
+after **Disconnect**, or after Google rejected the connection, also starts at
+primary, because the site no longer holds the earlier connection.
 
 Viewing the page and fetching schedules write no Google events. **Add selected
 to calendar** writes only the selected upcoming games; one LPS has not given a
