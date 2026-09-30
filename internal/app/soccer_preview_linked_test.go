@@ -120,3 +120,22 @@ func TestPreviewLinkedLPSCanWithdrawAnImportedToken(t *testing.T) {
 		t.Error("the preview kept the withdrawn import")
 	}
 }
+
+// The linked preview shares the production Soccer route table, so its import
+// refuses a page on another origin just as production does, and only the
+// Soccer page itself can replace the preview account's imported access.
+func TestPreviewLinkedImportRefusesOtherOrigins(t *testing.T) {
+	browser := newPreviewLinkedBrowser(t, true)
+	browser.get("/__preview/account/soccer-linked")
+	form := url.Values{"jwt": {testutil.TestJWT(t, time.Now().Add(time.Hour))}}
+
+	if refused := browser.do(browserForm(anotherOrigin, "/soccer/import", form)); refused.Code != http.StatusForbidden {
+		t.Errorf("cross-site preview import: status %d, want 403", refused.Code)
+	}
+	if browser.holdsCookie(config.LPSSessionCookieName, "/soccer") {
+		t.Fatal("a cross-site preview import stored imported access")
+	}
+	if accepted := browser.do(browserForm(siteOrigin, "/soccer/import", form)); accepted.Code != http.StatusOK || !strings.Contains(accepted.Body.String(), `name="player_ids"`) {
+		t.Fatalf("same-origin preview import: status %d, body %q", accepted.Code, accepted.Body.String())
+	}
+}
