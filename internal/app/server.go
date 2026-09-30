@@ -377,7 +377,7 @@ func isGoogleCallbackRequest(r *http.Request) bool {
 }
 
 func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
-	if siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) {
+	if siteidentity.SoccerPrivateAllowed(r.Context()) {
 		return true
 	}
 	if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {

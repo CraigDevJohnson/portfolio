@@ -43,6 +43,7 @@ func (s *appTestGoogleConnectionStore) Put(_ context.Context, record *internalgo
 func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	resp := httptest.NewRecorder()
 
 	newTestSoccerHandler(app).SoccerPage(resp, req)
@@ -67,6 +68,7 @@ func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Craig Johnson",
@@ -105,6 +107,7 @@ func TestSoccerLoginStateCountsUniqueConfirmedTeams(t *testing.T) {
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	resp := httptest.NewRecorder()
 
 	props := newTestSoccerHandler(app).LoginStateProps(resp, req, session, false)
@@ -145,6 +148,7 @@ func TestSoccerPageRestoresWorkflowAndReportsMissingGoogleConnection(t *testing.
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}, {UPlayerID: 1002, FirstName: "Taylor", LastName: "Johnson"}},
@@ -234,10 +238,11 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 			SelectedTeamIDs:   []int{4101},
 		},
 	}
-	encryptedSession := encryptTestSession(t, app, workflow)
+	encryptedSession := encryptTestSession(t, app, ownedBySiteVisitor(workflow))
 	lpsCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptedSession}
 
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
+	connectReq = asGrantedSoccerOwner(connectReq)
 	connectReq.Host = "example.com"
 	connectReq.AddCookie(lpsCookie)
 	connectResp := httptest.NewRecorder()
@@ -263,6 +268,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 
 	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer/google/callback?code=auth-code&state="+url.QueryEscape(stateValue), nil)
+	callbackReq = asGrantedSoccerOwner(callbackReq)
 	callbackReq.Host = "example.com"
 	callbackReq.AddCookie(lpsCookie)
 	callbackReq.AddCookie(stateCookie)
@@ -286,6 +292,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 
 	pageReq := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	pageReq = asGrantedSoccerOwner(pageReq)
 	pageReq.Host = "example.com"
 	pageReq.AddCookie(lpsCookie)
 	pageReq.AddCookie(connectionCookie)
@@ -323,6 +330,7 @@ func TestSoccerPageKeepsRestoredChoicesWhenScheduleRefreshFails(t *testing.T) {
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
@@ -549,6 +557,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	importReq := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 		"jwt": {"Bearer " + token},
 	}.Encode()))
+	importReq = asGrantedSoccerOwner(importReq)
 	importReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	importResp := httptest.NewRecorder()
 
@@ -583,6 +592,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	fetchReq := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"1669080", "1669081"},
 	}.Encode()))
+	fetchReq = asGrantedSoccerOwner(fetchReq)
 	fetchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	fetchReq.AddCookie(sessionCookie)
 	fetchResp := httptest.NewRecorder()
@@ -748,6 +758,7 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Current browser session",
@@ -818,6 +829,7 @@ func TestSoccerPageClearsExpiredOrInvalidSessionAndRendersUnauthenticatedState(t
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+			req = asGrantedSoccerOwner(req)
 			tc.addCookie(t, req)
 			resp := httptest.NewRecorder()
 

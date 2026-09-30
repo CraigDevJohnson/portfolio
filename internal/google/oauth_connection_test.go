@@ -27,6 +27,8 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -47,6 +49,7 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 	h.OAuthTokenURL = tokenServer.URL + "/oauth/token"
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()

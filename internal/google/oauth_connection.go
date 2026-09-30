@@ -74,10 +74,10 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 		return nil, nil
 	}
 	record, err := h.Store().Get(ctx, connectionID)
-	if err != nil || record == nil || !siteidentity.Evaluated(r.Context()) {
-		return record, err
+	if err != nil || record == nil {
+		return nil, err
 	}
-	if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, record.OwnerIssuer, record.OwnerSubject) {
+	if !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
 		return nil, nil
 	}
 	return record, nil

@@ -31,7 +31,7 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	input := parseScheduleFormInput(r.Form)
-	privateAllowed := !siteidentity.Evaluated(r.Context()) || siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer)
+	privateAllowed := siteidentity.SoccerPrivateAllowed(r.Context())
 	session, swapAuthState := h.LoadSession(w, r)
 
 	// When team_ids[] is submitted (from the discover-teams step), carry them

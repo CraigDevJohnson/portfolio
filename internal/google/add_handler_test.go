@@ -107,6 +107,8 @@ func newDeadlineMutationTestHandler(t *testing.T, blockedGameID string) (*Handle
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -147,6 +149,7 @@ func newMutationRequest(t *testing.T, requestPath string, selected []string) *ht
 		"team_codes": {"479691"},
 		"selected":   selected,
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
@@ -293,6 +296,8 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -396,6 +401,7 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 		"team_codes": {"479691"},
 		"selected":   {"7001", "7002", "7003", "7004", "7005"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
@@ -484,6 +490,8 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -549,6 +557,7 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader(url.Values{
 		"team_codes": {"479691"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
@@ -589,6 +598,8 @@ func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -599,6 +610,7 @@ func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
 	bridge.syncResultsGames = []types.Game{}
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader("team_codes=479691"))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
 	resp := httptest.NewRecorder()

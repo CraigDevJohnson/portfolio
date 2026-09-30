@@ -110,7 +110,7 @@ func PrivateAccessNotice(ctx context.Context, state *partials.SoccerLoginStatePr
 
 // LoginStateProps builds the shared login-state fragment props.
 func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, session *types.SessionData, swapOOB bool) partials.SoccerLoginStateProps {
-	privateAllowed := !siteidentity.Evaluated(r.Context()) || siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer)
+	privateAllowed := siteidentity.SoccerPrivateAllowed(r.Context())
 	if !privateAllowed {
 		session = nil
 	}

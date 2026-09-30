@@ -40,6 +40,7 @@ func TestFetchSchedulesHandlerShowsActionable401Message(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"1001"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
@@ -131,6 +132,7 @@ func TestDiscoverTeamsHandlerKeepsRenderedTeamCatalogOutOfCookieBudget(t *testin
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/discover-teams", strings.NewReader(url.Values{"player_ids": {"1001"}}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
@@ -174,6 +176,7 @@ func TestFetchSchedulesHandlerPersistsConfirmedImportedTeams(t *testing.T) {
 		"player_ids":     {"1001"},
 		"team_ids":       {"4101"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
@@ -271,6 +274,7 @@ func TestDownloadICSHandlerExportsAuthenticatedSchedules(t *testing.T) {
 		"selected":   {"888"},
 		"player_ids": {"1001"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      token,
@@ -524,6 +528,7 @@ func TestDownloadICSHandlerClearsSessionOnAuthFailure(t *testing.T) {
 				"selected":   {"game-1"},
 				"player_ids": {"1001"},
 			}.Encode()))
+			req = asGrantedSoccerOwner(req)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			addSessionCookie(t, app, req, &types.SessionData{
 				JWT:      token,
@@ -713,6 +718,7 @@ func TestFetchSchedulesHandlerSplitsUpcomingGamesAndPastResults(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"1001"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),

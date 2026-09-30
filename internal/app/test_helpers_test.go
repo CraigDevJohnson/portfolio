@@ -66,6 +66,15 @@ func ownedBySiteVisitor(session *types.SessionData) *types.SessionData {
 	return session
 }
 
+// asGrantedSoccerOwner gives a request that reaches a Soccer or Google
+// handler directly the site identity the route assembly attaches for the
+// signed-in test principal holding the soccer grant.
+func asGrantedSoccerOwner(req *http.Request) *http.Request {
+	principal := &siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail}
+	ctx := siteidentity.WithRequestIdentity(req.Context(), principal, []siteidentity.Grant{siteidentity.GrantSoccer}, req.URL.Path)
+	return req.WithContext(ctx)
+}
+
 // grantedSoccerRoutes serves the real route assembly to a browser holding a
 // current site session with the soccer grant.
 func grantedSoccerRoutes(t *testing.T, app *App) http.Handler {
@@ -141,10 +150,17 @@ func decryptTestSession(t *testing.T, app *App, value string) types.SessionData 
 	return session
 }
 
-// addSessionCookie attaches an encrypted soccer session cookie to the request.
+// addSessionCookie attaches an encrypted soccer session cookie to the
+// request. A session without an owner is bound to the signed-in test
+// principal, as an import through that site session binds it; tests of legacy
+// ownerless state encrypt the session themselves.
 func addSessionCookie(t *testing.T, app *App, req *http.Request, session *types.SessionData) {
 	t.Helper()
-	encrypted := encryptTestSession(t, app, session)
+	owned := *session
+	if owned.OwnerIssuer == "" && owned.OwnerSubject == "" {
+		ownedBySiteVisitor(&owned)
+	}
+	encrypted := encryptTestSession(t, app, &owned)
 	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
 }
 

@@ -333,7 +333,7 @@ func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 // Google Calendar were configured, withholding both without the soccer grant.
 func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter) {
 	page := soccerPreviewBasePage().Page
-	granted := siteidentity.HasGrant(ctx, siteidentity.GrantSoccer)
+	granted := siteidentity.SoccerPrivateAllowed(ctx)
 	page.AuthState.LoginAvailable = granted
 	page.AuthState.GoogleAvailable = granted
 	page.AuthState.ImportNeedsGrant = !granted

@@ -9,8 +9,25 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
+
+// The verified site owner these tests act as. Owner-bound connections carry
+// these coordinates, and the route assembly attaches this identity to every
+// request it serves.
+const (
+	testOwnerIssuer  = "https://issuer.example.com/pool"
+	testOwnerSubject = "owner-subject"
+)
+
+// asGrantedSoccerOwner gives a request that reaches a Google handler directly
+// the site identity of the test owner holding the soccer grant.
+func asGrantedSoccerOwner(req *http.Request) *http.Request {
+	principal := &siteidentity.Principal{Issuer: testOwnerIssuer, Subject: testOwnerSubject}
+	ctx := siteidentity.WithRequestIdentity(req.Context(), principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer")
+	return req.WithContext(ctx)
+}
 
 func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	t.Helper()

@@ -93,7 +93,7 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	connectionID := GetConnectionID(r)
-	if connectionID != "" && siteidentity.Evaluated(r.Context()) {
+	if connectionID != "" {
 		record, err := h.LoadConnectionRecord(r.Context(), r)
 		if err != nil {
 			h.failOAuthf(w, r, false, "google connection read before connect failed: %v", err)
@@ -155,12 +155,10 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		RedirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
-	if siteidentity.Evaluated(r.Context()) {
-		if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, state.OwnerIssuer, state.OwnerSubject) {
-			ClearOAuthStateCookie(w, r)
-			RedirectSoccerWithGoogleStatus(w, r, "failed")
-			return
-		}
+	if !siteidentity.SoccerOwnerAllowed(r.Context(), state.OwnerIssuer, state.OwnerSubject) {
+		ClearOAuthStateCookie(w, r)
+		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		return
 	}
 	ctx := h.httpContext(r.Context())
 	token, err := h.oauthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
@@ -184,7 +182,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, true, "google connection read before save failed: %v", getErr)
 		return
 	} else if existing != nil {
-		if siteidentity.Evaluated(r.Context()) && !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, existing.OwnerIssuer, existing.OwnerSubject) {
+		if !siteidentity.SoccerOwnerAllowed(r.Context(), existing.OwnerIssuer, existing.OwnerSubject) {
 			ClearOAuthStateCookie(w, r)
 			RedirectSoccerWithGoogleStatus(w, r, "failed")
 			return

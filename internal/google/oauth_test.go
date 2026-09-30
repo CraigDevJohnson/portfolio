@@ -116,6 +116,7 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 
 	// Step 1: Initiate connect to get state cookie
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
+	connectReq = asGrantedSoccerOwner(connectReq)
 	connectReq.Host = "example.com"
 	connectResp := httptest.NewRecorder()
 	h.ConnectHandler(connectResp, connectReq)
@@ -143,6 +144,7 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 
 	// Step 2: Simulate the callback
 	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer?code=auth-code&state="+url.QueryEscape(stateValue), nil)
+	callbackReq = asGrantedSoccerOwner(callbackReq)
 	callbackReq.Host = "example.com"
 	callbackReq.AddCookie(stateCookie)
 	callbackResp := httptest.NewRecorder()
@@ -174,6 +176,9 @@ func TestCallbackHandlerPersistsConnection(t *testing.T) {
 	}
 	if record.CalendarID != "primary" || record.CalendarSummary != "Primary Calendar" {
 		t.Fatalf("unexpected stored calendar selection: %#v", record)
+	}
+	if record.OwnerIssuer != testOwnerIssuer || record.OwnerSubject != testOwnerSubject {
+		t.Fatalf("stored connection was not bound to the consenting site owner: %#v", record)
 	}
 	token, err := h.DecryptToken(record.TokenCiphertext)
 	if err != nil {
@@ -217,6 +222,8 @@ func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -238,6 +245,7 @@ func TestCalendarHandlerUpdatesSelection(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/calendar", strings.NewReader(url.Values{
 		"calendar_id": {"team"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})

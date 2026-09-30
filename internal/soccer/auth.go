@@ -121,10 +121,9 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
-	if siteidentity.Evaluated(r.Context()) && (session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported") {
-		if !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, session.OwnerIssuer, session.OwnerSubject) {
-			return nil, ErrSessionOwnerMismatch
-		}
+	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
+	if hasPrivateState && !siteidentity.SoccerOwnerAllowed(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
+		return nil, ErrSessionOwnerMismatch
 	}
 	session.Workflow = normalizeWorkflowState(&session.Workflow, session.Players)
 	return &session, nil

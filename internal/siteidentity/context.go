@@ -73,10 +73,19 @@ func HasGrantForOwner(ctx context.Context, grant Grant, issuer, subject string) 
 	return ok && principal.Issuer == issuer && principal.Subject == subject
 }
 
-// Evaluated reports whether site identity middleware populated this request.
-func Evaluated(ctx context.Context) bool {
-	_, ok := ctx.Value(contextKey{}).(requestIdentity)
-	return ok
+// SoccerPrivateAllowed reports whether this request may use private Soccer
+// actions: it carries a verified principal holding the current soccer grant.
+// A request without site identity is refused.
+func SoccerPrivateAllowed(ctx context.Context) bool {
+	return HasGrant(ctx, GrantSoccer)
+}
+
+// SoccerOwnerAllowed reports whether owner-bound private Soccer state, such as
+// imported LPS access, a Google connection, or pending Google consent, belongs
+// to this request's principal and that principal holds the current soccer
+// grant. Ownerless state and requests without site identity are refused.
+func SoccerOwnerAllowed(ctx context.Context, issuer, subject string) bool {
+	return HasGrantForOwner(ctx, GrantSoccer, issuer, subject)
 }
 
 // EmailForNavigation returns the current account label for shared navigation.
