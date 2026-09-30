@@ -282,7 +282,10 @@ It also serves `/__preview/account/signed-out` and
 `/__preview/account/signed-in`, which render the About page with each shared
 navigation account state; `/__preview/account/soccer-signed-out`,
 `/__preview/account/soccer-ungranted`, and `/__preview/account/soccer-granted`,
-which render an inert Soccer page for each `soccer` grant state; and
+which render an inert Soccer page for each `soccer` grant state;
+`/__preview/account/soccer-linked`, which lets that browser use the Soccer
+page and its LPS routes as the granted preview account against an in-process
+fake LPS; and
 `/__preview/portal/error?fixture=access-denied`, the denial a signed-in account
 without the `management` grant receives. Preview mode never enables real site
 sign-in.

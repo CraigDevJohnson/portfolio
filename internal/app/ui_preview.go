@@ -308,7 +308,7 @@ func soccerPreviewDownloadHandler(w http.ResponseWriter, r *http.Request) {
 // invited visitor without the soccer grant, and one holding it.
 func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := siteidentity.WithSignInAvailable(r.Context(), true)
-	principal := &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: "invited.visitor@example.com"}
+	principal := previewAccountPrincipal()
 	w.Header().Set("Cache-Control", "no-store")
 	switch r.PathValue("fixture") {
 	case "signed-out":

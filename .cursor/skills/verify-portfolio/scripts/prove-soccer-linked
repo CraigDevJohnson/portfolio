@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+STEPS="$SCRIPT_DIR/soccer-linked"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+fail() {
+  printf 'prove-soccer-linked: %s\n' "$*" >&2
+  exit 1
+}
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'invalid VERIFY_RUN_ID'
+command -v npx >/dev/null 2>&1 || fail 'npx is required by the Playwright CLI wrapper'
+[[ -x "$PWCLI" ]] || fail "Playwright CLI wrapper is not executable: $PWCLI"
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/soccer-linked"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+ASSERTIONS="$EVIDENCE_DIR/assertions.txt"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+: >"$ASSERTIONS"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+# Run one journey step; its assertions throw, which fails the CLI and this proof.
+step() {
+  local name="$1"
+  shift
+  printf '\n## %s\n' "$name" >>"$ASSERTIONS"
+  run_pw run-code "$@" | tee -a "$ASSERTIONS"
+}
+
+capture() {
+  run_pw snapshot --filename "$EVIDENCE_DIR/$1.md" >/dev/null
+  run_pw screenshot --filename "$EVIDENCE_DIR/$1.png" --full-page >/dev/null
+}
+
+# download saves the .ics file the Download selected button returns and
+# requires exactly the expected game UIDs.
+download() {
+  local name="$1"
+  shift
+  local file="$EVIDENCE_DIR/$name.ics"
+  rm -f "$file"
+  step "Download: $name" "async (page) => { const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#download-button').click()]); if (download.suggestedFilename() !== 'soccer_schedule.ics') throw new Error('unexpected download ' + download.suggestedFilename()); await download.saveAs('$file'); return download.suggestedFilename(); }"
+  [[ -s "$file" ]] || fail "the $name .ics download was not saved"
+  {
+    printf '\n## %s .ics content\n' "$name"
+    rg -n 'BEGIN:VCALENDAR|BEGIN:VEVENT|UID:|SUMMARY:|DTSTART' "$file"
+  } | tee -a "$ASSERTIONS"
+  [[ "$(rg -c '^BEGIN:VEVENT' "$file")" == "$#" ]] || fail "the $name .ics file does not hold exactly $# selected games"
+  for uid in "$@"; do
+    rg -q "^UID:$uid\r?$" "$file" || fail "the $name .ics file lacks selected game $uid"
+  done
+  printf '%s: %s events, UIDs %s\n' "$name" "$#" "$*" | tee -a "$ASSERTIONS"
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+
+run_pw open "$VERIFY_URL/"
+run_pw resize 1440 1000
+run_pw run-code "async (page) => { if (await page.evaluate(() => typeof window.htmx) === 'undefined') throw new Error('HTMX did not load'); }"
+
+step 'Enter as the granted preview account and choose .ics' --filename "$STEPS/01-enter-and-choose.js"
+capture 01-ics-chosen
+
+step 'Import LPS access through the dialog' --filename "$STEPS/02-import.js"
+capture 02-imported
+
+step 'Choose players and confirm their teams' --filename "$STEPS/03-players-and-teams.js"
+capture 03-teams
+
+step 'Fetch the linked teams' --filename "$STEPS/04-fetch.js"
+capture 04-fetched
+
+step 'Deselect the shared game and refetch' --filename "$STEPS/05-deselect-refetch.js"
+capture 05-refetched
+
+download both-teams 7003 7002 7004
+if rg -q '^UID:(7001|7000)\r?$' "$EVIDENCE_DIR/both-teams.ics"; then
+  fail 'the both-teams .ics file contains the deselected or past game'
+fi
+
+step 'Change the team set' --filename "$STEPS/06-team-change.js"
+capture 06-team-changed
+
+download campfire-only 7001
+
+step 'Narrow layout' --filename "$STEPS/07-narrow.js"
+capture 07-narrow
+
+step 'LPS withdraws access after an import' --filename "$STEPS/08-lost-access.js"
+capture 08-lost-access
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
+
+# End the preview account in this browser session so later proofs start signed out.
+run_pw run-code "async (page) => { await page.context().clearCookies(); await page.evaluate(() => window.sessionStorage.clear()); }"
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'soccer-linked proof captured at %s (preview account and in-process fake LPS; live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"

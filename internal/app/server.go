@@ -128,10 +128,15 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	soccerMux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(soccerHandler.DiscoverTeamsHandler))
 	soccerMux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(soccerHandler.DownloadICSHandler))
 
-	soccerRoutes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var soccerRoutes http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		soccerMux.ServeHTTP(w, r)
 	})
+	if localPortalPreview {
+		linked := newPreviewLinkedSoccer(app, rootLogger)
+		soccerRoutes = linked.wrap(soccerRoutes)
+		mux.HandleFunc("GET /__preview/account/soccer-linked", linked.enter)
+	}
 	mux.Handle("/soccer", soccerRoutes)
 	mux.Handle("/soccer/", soccerRoutes)
 
