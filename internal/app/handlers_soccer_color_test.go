@@ -1,9 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -201,6 +203,53 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 	}
 	if home := htmlAttr(shared, "data-home-color"); home != "blue" {
 		t.Errorf("team 100 shared-match color = %q, want blue", home)
+	}
+}
+
+func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
+	app := newTestApp(t)
+	// Each team plays one home game, so both halves of its row show its color.
+	// Values whose last word is not a known hue keep the Team ID fallback.
+	cases := []struct {
+		teamID int
+		color  string
+		want   string
+	}{
+		{teamID: 1200, color: "Kelly Green", want: "green"},
+		{teamID: 1201, color: " dark   GREEN ", want: "green"},
+		{teamID: 1202, color: "Sky Blue", want: "blue"},
+		{teamID: 1203, color: "Neon Yellow", want: "yellow"},
+		{teamID: 1204, color: "Hot Pink", want: "pink"},
+		{teamID: 1205, color: "Dark Blue", want: "navy"},
+		{teamID: 1206, color: "Light Blue", want: "blue"},
+		{teamID: 1207, color: "Crimson", want: "red"},
+		{teamID: 1208, color: "Cardinal", want: "red"},
+		{teamID: 1209, color: "Charcoal", want: "gray"},
+		{teamID: 1210, color: "Dark Crimson", want: "red"},
+		{teamID: 1211, color: "Magenta", want: "purple"},    // 1211 % 8 == 3
+		{teamID: 1212, color: "#ff0000", want: "orange"},    // 1212 % 8 == 4
+		{teamID: 1213, color: "Blue Magenta", want: "teal"}, // 1213 % 8 == 5
+		{teamID: 1214, color: "url(blue)", want: "pink"},    // 1214 % 8 == 6
+	}
+	payloads := make(map[string]string, len(cases))
+	teamIDs := make([]string, 0, len(cases))
+	for _, tc := range cases {
+		payloads[fmt.Sprintf("/teams/%d", tc.teamID)] = fmt.Sprintf(
+			`{"team":{"UTeamID":%d,"team_name":"Team %d","Color":%q},"games":[{"UGameID":%d,"SchedGameDateTime":"{future}","UTeam1":%d,"UTeam2":%d,"home_team":{"UTeamID":%d,"team_name":"Team %d"},"visitor_team":{"UTeamID":%d,"team_name":"Opponent %d"}}]}`,
+			tc.teamID, tc.teamID, tc.color, tc.teamID+10000, tc.teamID, tc.teamID+50000, tc.teamID, tc.teamID, tc.teamID+50000, tc.teamID,
+		)
+		teamIDs = append(teamIDs, strconv.Itoa(tc.teamID))
+	}
+	server := newFakeLPSTeams(t, payloads)
+	app.Config.LPSAPIBaseURL = server.URL
+	mux, _ := buildMux(app, app.Logger, false)
+
+	rows, _ := fetchSoccerMatchRows(t, mux, teamIDs...)
+	for _, tc := range cases {
+		row := onlySoccerRow(t, rows, strconv.Itoa(tc.teamID+10000))
+		if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != tc.want || away != tc.want {
+			t.Errorf("LPS color %q for team %d painted %q/%q, want %q", tc.color, tc.teamID, home, away, tc.want)
+		}
 	}
 }
 

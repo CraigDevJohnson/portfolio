@@ -109,10 +109,12 @@ func soccerEmittedTeamColors(t *testing.T) map[string]bool {
 		)
 		teamIDs = append(teamIDs, strconv.Itoa(teamID))
 	}
-	for i, color := range []string{
+	recognized := []string{
 		"Red", "BLUE", "navy blue", "Forest Green", "yellow", "Gold", "orange", "Purple", "pink", "Teal",
-		"maroon", "black", "white", "Grey", "silver", "Royal Blue", "Sky Blue", "Magenta", "#ff0000", "rgb(1, 2, 3)",
-	} {
+		"maroon", "black", "white", "Grey", "silver", "Royal Blue", "Sky Blue", "Kelly Green",
+	}
+	unrecognized := []string{"Magenta", "#ff0000", "rgb(1, 2, 3)"}
+	for i, color := range append(recognized, unrecognized...) {
 		addTeam(1000+i, 5000+i, color)
 	}
 	for i := range 16 {

@@ -4,9 +4,25 @@ import "strings"
 
 // approvedTeamColor maps LPS names to the closed set of colors with authored
 // browser styles. Unrecognized upstream text never becomes a CSS value.
+//
+// Whole phrases are matched first, so a modifier that changes the hue (such as
+// "dark blue" to navy) stays explicit. Otherwise a modified name such as
+// "Kelly Green" or "Sky Blue" is recognized by its final word, which must
+// itself be a known color name.
 func approvedTeamColor(raw string) string {
-	switch strings.ToLower(strings.Join(strings.Fields(raw), " ")) {
-	case "red", "scarlet":
+	words := strings.Fields(strings.ToLower(raw))
+	if len(words) == 0 {
+		return ""
+	}
+	if color := approvedTeamColorPhrase(strings.Join(words, " ")); color != "" {
+		return color
+	}
+	return approvedTeamColorPhrase(words[len(words)-1])
+}
+
+func approvedTeamColorPhrase(phrase string) string {
+	switch phrase {
+	case "red", "scarlet", "crimson", "cardinal":
 		return "red"
 	case "blue", "royal blue", "light blue":
 		return "blue"
@@ -32,7 +48,7 @@ func approvedTeamColor(raw string) string {
 		return "black"
 	case "white":
 		return "white"
-	case "gray", "grey", "silver":
+	case "gray", "grey", "silver", "charcoal":
 		return "gray"
 	default:
 		return ""
