@@ -10,12 +10,14 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"portfolio/internal/testutil"
 )
 
 var soccerPreviewFixtureNamesForTest = []string{
 	"manual", "import", "token-invalid", "token-expired", "token-rejected", "token-upstream-error",
-	"players", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
+	"players", "player-removal", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
 	"google-disconnected", "google-connected", "google-calendar-paused", "google-add-success", "google-add-error",
 	"google-sync-success", "google-sync-error", "expired-session-reset", "loading",
 }
@@ -34,10 +36,10 @@ func TestLocalPreviewSkipsLiveStoreInitialization(t *testing.T) {
 
 func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 	if !reflect.DeepEqual(soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest) {
-		t.Fatalf("preview fixture names = %#v, want exact closed 22-name set %#v", soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest)
+		t.Fatalf("preview fixture names = %#v, want exact closed 23-name set %#v", soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest)
 	}
-	if got := len(soccerPreviewFixtureNames); got != 22 {
-		t.Fatalf("preview fixture count = %d, want 22", got)
+	if got := len(soccerPreviewFixtureNames); got != 23 {
+		t.Fatalf("preview fixture count = %d, want 23", got)
 	}
 	type fixtureState struct {
 		authenticated, loginAvailable bool
@@ -50,6 +52,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 		calendarPaused                bool
 		feedback                      string
 		loading                       bool
+		historyRemoval                bool
 	}
 	wantStates := map[string]fixtureState{
 		"manual":                 {},
@@ -59,6 +62,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 		"token-rejected":         {loginAvailable: true, modalOpen: true, feedback: "modal:rejected:Token rejected"},
 		"token-upstream-error":   {loginAvailable: true, modalOpen: true, feedback: "modal:upstream:Player lookup unavailable"},
 		"players":                {authenticated: true, loginAvailable: true, players: 2},
+		"player-removal":         {authenticated: true, loginAvailable: true, players: 2, historyRemoval: true},
 		"no-players":             {authenticated: true, loginAvailable: true},
 		"team-selection":         {authenticated: true, loginAvailable: true, players: 2, teamGroups: 2},
 		"no-games":               {loginAvailable: true},
@@ -94,6 +98,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 			calendars:       len(fixture.Page.AuthState.GoogleCalendars),
 			calendarPaused:  fixture.Page.AuthState.GoogleCalendarNeedsSelection,
 			loading:         fixture.Loading,
+			historyRemoval:  fixture.Page.AuthState.HistoryRemovalAvailable,
 		}
 		if fixture.TeamSelection != nil {
 			got.teamGroups = len(fixture.TeamSelection.PlayerGroups)
@@ -116,7 +121,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 		}
 	}
 	if _, ok := soccerPreviewFixture("production"); ok {
-		t.Fatal("production unexpectedly resolves as a 23rd preview fixture")
+		t.Fatal("production unexpectedly resolves as a 24th preview fixture")
 	}
 	if _, ok := soccerPreviewFixture("unknown"); ok {
 		t.Fatal("unknown preview fixture did not fail closed")
@@ -177,6 +182,34 @@ func TestSoccerPreviewActionsAreInert(t *testing.T) {
 		if strings.Contains(body, `action="/__preview/soccer/download"`) && !strings.Contains(body, `data-native-download`) {
 			t.Errorf("fixture %q preview download is not the native ICS form", name)
 		}
+	}
+}
+
+func TestSoccerPreviewShowsInertPlayerRemoval(t *testing.T) {
+	app := newTestApp(t)
+	mux, _ := buildMux(app, app.Logger, true)
+	resp := soccerGrantRequest(mux, http.MethodGet, "/__preview/soccer/player-removal", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("player-removal preview status = %d", resp.Code)
+	}
+	doc := parsePlannerHTML(t, resp.Body.String())
+	disclosure := plannerSingle(t, doc, "player removal disclosure", plannerAttrIs("data-soccer-player-removal", ""))
+	buttons := plannerElements(disclosure, plannerAttrIs("type", "submit"))
+	if len(buttons) != 2 {
+		t.Fatalf("player removal disclosure offers %d players, want both preview players", len(buttons))
+	}
+	for _, button := range buttons {
+		if !plannerHasAttr(button, "disabled") || soccerHTMLAttribute(button, "aria-disabled") != "true" {
+			t.Errorf("preview removal control %q is not disabled", plannerText(button))
+		}
+	}
+	for _, player := range []string{"Craig Johnson (LPS ID 1669080)", "Taylor Alexandra Johnson-Summit (LPS ID 1669081)"} {
+		if !strings.Contains(plannerText(disclosure), "Remove data for "+player) {
+			t.Errorf("player removal disclosure does not name %s", player)
+		}
+	}
+	if len(plannerElements(disclosure, func(node *html.Node) bool { return plannerHasAttr(node, "hx-post") })) != 0 {
+		t.Error("preview removal control can send a request")
 	}
 }
 

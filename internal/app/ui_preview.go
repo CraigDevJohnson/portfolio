@@ -19,7 +19,7 @@ import (
 
 var soccerPreviewFixtureNames = []string{
 	"manual", "import", "token-invalid", "token-expired", "token-rejected", "token-upstream-error",
-	"players", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
+	"players", "player-removal", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
 	"google-disconnected", "google-connected", "google-calendar-paused", "google-add-success", "google-add-error",
 	"google-sync-success", "google-sync-error", "expired-session-reset", "loading",
 }
@@ -66,6 +66,12 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 		return page, true
 	case "players":
 		page.Page.AuthState = soccerPreviewAuthenticatedState(players, false)
+		return page, true
+	case "player-removal":
+		// The linked players as they read once durable history is wired: the
+		// LPS card offers each player's inert data removal.
+		page.Page.AuthState = soccerPreviewAuthenticatedState(players, false)
+		page.Page.AuthState.HistoryRemovalAvailable = true
 		return page, true
 	case "no-players":
 		page.Page.AuthState = soccerPreviewAuthenticatedState(nil, false)

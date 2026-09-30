@@ -96,8 +96,8 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 						<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 					</button>
 				</div>
-				if props.HistoryRemovalAvailable && !props.Preview {
-					@SoccerPlayerRemoval(props.Players)
+				if props.HistoryRemovalAvailable {
+					@SoccerPlayerRemoval(props.Players, props.Preview)
 				}
 			} else {
 				<div class="soccer-connection-copy">
@@ -459,8 +459,9 @@ templ SoccerResultsInvitation(google bool) {
 
 // SoccerPlayerRemoval offers each linked player's retained-history removal.
 // The request confirms the player with a fresh LPS lookup of this import and
-// replaces the LPS card with its outcome.
-templ SoccerPlayerRemoval(players []types.LPSPlayer) {
+// replaces the LPS card with its outcome. A preview renders the controls
+// disabled and sends nothing.
+templ SoccerPlayerRemoval(players []types.LPSPlayer, preview bool) {
 	<details class="soccer-player-removal" data-soccer-player-removal>
 		<summary>Remove retained player data</summary>
 		<div class="soccer-player-removal-body">
@@ -470,9 +471,24 @@ templ SoccerPlayerRemoval(players []types.LPSPlayer) {
 			<ul class="soccer-player-removal-list" aria-label="Players whose data you can remove">
 				for _, player := range players {
 					<li>
-						<form hx-post="/soccer/players/remove" hx-target="#soccer-lps-connection" hx-swap="outerHTML" hx-disabled-elt="find button[type='submit']">
+						<form
+							if !preview {
+								hx-post="/soccer/players/remove"
+								hx-target="#soccer-lps-connection"
+								hx-swap="outerHTML"
+								hx-disabled-elt="find button[type='submit']"
+							}
+						>
 							<input type="hidden" name="player_id" value={ fmt.Sprint(player.UPlayerID) }/>
-							<button type="submit" class="btn soccer-secondary-btn btn-loading" data-loading-button>
+							<button
+								type="submit"
+								class="btn soccer-secondary-btn btn-loading"
+								data-loading-button
+								if preview {
+									disabled
+									aria-disabled="true"
+								}
+							>
 								<span class="btn-text">Remove data for { soccerPlayerName(player) } (LPS ID { fmt.Sprint(player.UPlayerID) })</span>
 								<span class="btn-loading-indicator htmx-indicator" aria-hidden="true"></span>
 							</button>
