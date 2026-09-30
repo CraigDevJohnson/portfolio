@@ -440,6 +440,14 @@ run "execution_boundary_contract" {
     error_message = "the boundary keeps the name and path the service roots attach"
   }
 
+  # IAM enforces the managed-policy size only when an apply calls
+  # CreatePolicyVersion; a plan never submits the document, so check it here.
+  # The mocked account ID has the same length as the real one.
+  assert {
+    condition     = length(aws_iam_policy.lambda_execution_boundary.policy) <= 6144
+    error_message = "the boundary must fit IAM's 6,144-character managed-policy limit"
+  }
+
   assert {
     condition = toset([
       for statement in jsondecode(aws_iam_policy.lambda_execution_boundary.policy).Statement : statement.Sid
