@@ -54,7 +54,7 @@ Collection would call these LPS endpoints on `lps-api-prod.lps-test.com`:
 | Daily worker, per enrolled team | `GET /teams/{id}` | none | once per team per run, plus retries |
 | Daily worker, per team | `GET /facilities/{id}` | none | once per distinct facility the team's games use, per team; lookups are not shared between teams |
 | Visitor Team ID lookup (already public today) | `GET /teams/{id}`, `GET /facilities/{id}` | none | per lookup; with collection on, the lookup also enrolls the team |
-| Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one call at a time, all within the import's 11 s lookup deadline (3.2) |
+| Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one call at a time in the order LPS lists the players, all within the import's 11 s lookup deadline (3.2) |
 | History read without stored proof | `GET /players/{id}/my_teams` | imported JWT | per read |
 | Verified player removal | `GET /users/check` | imported JWT | per removal |
 
@@ -158,7 +158,7 @@ or assumed, and the assumption is stated.
 | Retained bytes | Game item about 2.3 KB plus two edges of about 0.2 KB, and DynamoDB's 100 bytes of overhead per item; about 40 new games per team per year (five sessions of eight games); 40 teams give about 5 MB in year one and about 25 MB after five years | Item layout in `dynamo.go`, fixture sizes scaled to 2 KB games | Indefinite retention has no byte ceiling; dormant teams add no games |
 | Worker duration | About 80 to 120 s per run at 80 requests paced one a second; at most the 300 s timeout, after which the run stops starting teams and reports the rest | `pacedTransport`, the run deadline logic in `daily.go` | LPS and DynamoDB latency unmeasured |
 | Runs per day | One scheduled run. EventBridge Scheduler invokes Lambda asynchronously and retries only when that hand-off fails, so its two retries do not repeat a run that started. Delivery is at least once, so rare duplicates can run; a duplicate refreshes only teams still due, because a success keeps a team from being due for 4 hours and a temporary failure for 15 minutes | [Lambda with Scheduler](https://docs.aws.amazon.com/lambda/latest/dg/with-eventbridge-scheduler.html), [EventBridge FAQ](https://aws.amazon.com/eventbridge/faqs/), `refreshedTeamGuard` and `retryableFailureDelay` | No durable daily request counter exists; the bound is per run, so a duplicate after a budget-limited run can spend another 120 requests |
-| Import latency with collection on | Bounded in code. The `1 + P` LPS calls for `P` linked players, one at a time, share one 11 s deadline counted from the request's arrival. A player whose `my_teams` lookup has not finished by then is skipped for that import: it keeps its identity and owner link without memberships, as a player LPS no longer finds does, its teams are not enrolled, and the import's notice names it. The players already listed keep their evidence and the import completes. At most 10 s of history writes and 3 s for the import record follow, so the handler's work ends within 24 s of API Gateway's 29 s, the budget the Google handlers keep. An account lookup that misses the deadline fails the import, as an unreachable LPS always has. Imports that collect no history keep only the 15 s client timeout | `DefaultHistoryImportLookupBudget` and `discoverImportedPlayerTeams` in `internal/soccer/auth.go`; `internal/app/soccer_import_deadline_test.go` | Real `my_teams` latency is unmeasured. A slow LPS now costs history, not the import: skipped players wait for a later import. Cold-start initialization (bounded at 8 s) runs before the deadline starts, so a cold start at its bound coinciding with a full lookup budget and 10 s of writes could still pass 29 s |
+| Import latency with collection on | Bounded in code. The `1 + P` LPS calls for `P` linked players, one at a time in the order LPS lists them, share one 11 s deadline counted from the request's arrival. A player whose `my_teams` lookup has not finished by then is skipped for that import: it keeps its identity and owner link without memberships, as a player LPS no longer finds does, its teams are not enrolled, and the import's notice names it. The players already listed keep their evidence and the import completes. At most 10 s of history writes (run under their own timeout, not the spent lookup deadline) and 3 s for the import record follow. Rendering the response then checks the owner's Google connection (a DynamoDB read, a possible token refresh and write, a calendar list and a selection save); that check shares the import's 24 s deadline, also counted from arrival, and one cut short keeps the connection. The handler's work therefore ends within 24 s of API Gateway's 29 s, the budget the Google handlers keep. An account lookup that misses the deadline fails the import, as an unreachable LPS always has. Imports that collect no history keep only the 15 s client timeouts | `DefaultHistoryImportLookupBudget`, `DefaultHistoryImportBudget` and `discoverImportedPlayerTeams` in `internal/soccer/auth.go`; `internal/app/soccer_import_deadline_test.go` | Real `my_teams` latency is unmeasured. A slow LPS now costs history, not the import: skipped players wait for a later import. Lookups keep LPS's order on every import, so an LPS that stays slow, rather than briefly slow, can skip the same last players each time, and the notice says only that a later import may collect them. Cold-start initialization (bounded at 8 s) runs before the deadline starts, so a cold start at its bound coinciding with a full 24 s import could still pass 29 s |
 
 Both environments would call the same LPS. If dev and prod both ran the
 schedule, the source traffic doubles; any source approval must cover the sum.
@@ -315,11 +315,17 @@ ungranted and revoked visitors are shown to be refused there too.
 
 `internal/app/soccer_import_deadline_test.go` drives the same route
 assembly with a fake LPS that stalls, under a 200 ms stand-in for the lookup
-budget. When one player's `my_teams` lookup stalls, the import returns
-within the budget, names the skipped player, stores the other player's
-evidence, and enrolls none of the skipped player's teams. When `/users/check`
-stalls, the import fails within the budget with nothing stored. Imports that
-collect no history are not bound by the budget.
+budget, over an in-memory table that fails any call whose context has ended,
+as DynamoDB does. When one player's `my_teams` lookup stalls, the import
+returns within twice the budget, names the skipped player, stores the other
+player's evidence, and enrolls none of the skipped player's teams. When the
+first player stalls, LPS is never asked for the second, so the lookups share
+one deadline rather than each having its own. When `/users/check` stalls,
+the import fails within twice the budget with nothing stored. When the
+owner's fake Google calendar list stalls, the import still completes within
+its 400 ms stand-in budget with every player's history saved, and the
+Google connection is kept. Imports that collect no history are not bound by
+the lookup budget.
 
 **Unproven live, source:** permission (section 2); whether `/teams/{id}` and
 `/facilities/{id}` keep answering unauthenticated requests from the Lambda
@@ -533,7 +539,8 @@ one is still open.
    measuring `my_teams` latency and accepting the risk. **Done** under #100
    after Craig chose to bound it in code (gate 5): an import that collects
    history gives its LPS lookups one 11 s deadline and skips players not
-   listed by then.
+   listed by then, and its response's Google check ends by the import's 24 s
+   deadline.
 
 ### 6.2 Prerequisites outside this repository
 
@@ -732,8 +739,9 @@ Owner in brackets.
    teams (6.1 item 6, done); refused visitor lookups have a metric with no
    alarm.
 5. **Import latency** with collection on: closed. Craig chose on September
-   30, 2026 to bound it in code, and the import's LPS lookups now share an
-   11 s deadline (3.2, 6.1 item 9). [done]
+   30, 2026 to bound it in code. The import's LPS lookups now share an 11 s
+   deadline, and its response's Google check ends by the import's 24 s
+   deadline (3.2, 6.1 item 9). [done]
 6. **Repository changes** in 6.1 items 1 to 7. Done on September 30, 2026:
    items 1 (environment wiring), 3 (boundary grants within the IAM size
    limit), 4 (CI role grants), 5 (the plan checker), 6 (the admission alarm
