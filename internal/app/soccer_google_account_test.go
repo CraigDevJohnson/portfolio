@@ -240,3 +240,37 @@ func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T)
 		t.Errorf("after disconnect the page still reports %q connected", got)
 	}
 }
+
+func TestOwnerConnectionWithoutAVerifiedGoogleAccountNeedsReconnection(t *testing.T) {
+	for _, action := range []struct {
+		name, method, path string
+	}{
+		{name: "disconnect", method: http.MethodPost, path: "/soccer/google/disconnect"},
+		{name: "reconnect", method: http.MethodGet, path: "/soccer/google/connect"},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+			// A connection saved before consent recorded the Google account.
+			unverified := world.store.records[grantWorldConnectionID]
+			unverified.AccountSubject, unverified.AccountEmail = "", ""
+			world.store.records[grantWorldConnectionID] = unverified
+			cookies := []*http.Cookie{
+				testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail),
+				{Name: config.GoogleConnectionCookieName, Value: grantWorldConnectionID},
+			}
+
+			page := soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil, cookies...)
+			if body := page.Body.String(); strings.Contains(body, "Calendar ready") || !strings.Contains(body, "Connect Google Calendar") {
+				t.Error("page presented a connection whose Google account was never verified")
+			}
+			if calls := world.googleCalls.Load(); calls != 0 {
+				t.Errorf("page used the unverified connection's token %d time(s)", calls)
+			}
+
+			soccerGrantRequest(world.mux, action.method, action.path, nil, cookies...)
+			if _, kept := world.store.records[grantWorldConnectionID]; kept {
+				t.Errorf("%s left the owner's unverified connection and its token stored", action.name)
+			}
+		})
+	}
+}
