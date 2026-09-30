@@ -108,6 +108,7 @@ type Game struct {
 	Away             string         `json:"away"`
 	HomeTeam         TeamAppearance `json:"home_team,omitempty"`
 	AwayTeam         TeamAppearance `json:"away_team,omitempty"`
+	ScheduleTeam     TeamAppearance `json:"schedule_team,omitempty"`
 	Season           string         `json:"season"`
 	PlayerTeamName   string         `json:"player_team_name,omitempty"`
 	OpponentTeamName string         `json:"opponent_team_name,omitempty"`
@@ -119,6 +120,11 @@ type Game struct {
 // TeamAppearance carries only approved display color names and selected-team
 // identity through schedule deduplication. Color is empty when LPS has no
 // recognizable value; the view supplies a stable Team ID fallback then.
+//
+// On a Game, HomeTeam and AwayTeam describe the two sides, and Selected marks
+// a side identified as a selected team. ScheduleTeam is the selected team whose
+// LPS schedule listed the game; the view paints it alone when neither side
+// could be identified as that team.
 type TeamAppearance struct {
 	ID       int    `json:"id,omitempty"`
 	Color    string `json:"color,omitempty"`

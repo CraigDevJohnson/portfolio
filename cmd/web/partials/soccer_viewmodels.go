@@ -19,34 +19,51 @@ type soccerMatchRowView struct {
 	ResultClass string
 }
 
+// soccerMatchRow paints a row from the sides the LPS resolver identified. A
+// shared match shows both selected teams' colors with a neutral home-away
+// score. Any other row shows one team's color, and a result is read from that
+// team's side, or neutrally when LPS listed the game for a selected team that
+// matches neither side.
 func soccerMatchRow(game *types.Game) soccerMatchRowView {
-	homeColor := soccerTeamColor(game.HomeTeam)
-	awayColor := soccerTeamColor(game.AwayTeam)
-	shared := game.HomeTeam.Selected && game.AwayTeam.Selected
-	if !shared {
-		switch {
-		case game.HomeTeam.Selected:
-			awayColor = homeColor
-		case game.AwayTeam.Selected:
-			homeColor = awayColor
-		}
+	result := strings.TrimSpace(game.Result)
+	home, away := game.HomeTeam, game.AwayTeam
+	view := soccerMatchRowView{HasResult: result != ""}
+
+	var outcome schedule.GameOutcome
+	neutral := false
+	switch {
+	case home.Selected && away.Selected:
+		view.Shared = true
+		view.HomeColor, view.AwayColor = soccerTeamColor(home), soccerTeamColor(away)
+		neutral = true
+	case home.Selected:
+		view.HomeColor = soccerTeamColor(home)
+		outcome = schedule.ParseGameResultForSide(result, true)
+	case away.Selected:
+		view.HomeColor = soccerTeamColor(away)
+		outcome = schedule.ParseGameResultForSide(result, false)
+	case game.ScheduleTeam.ID > 0 || game.ScheduleTeam.Color != "":
+		view.HomeColor = soccerTeamColor(game.ScheduleTeam)
+		neutral = true
+	default:
+		// Games without side identity keep the player team's perspective.
+		view.HomeColor = soccerTeamColor(home)
+		outcome = schedule.ParseGameResult(result, game.PlayerTeamName, strings.TrimSpace(game.Home))
+	}
+	if !view.Shared {
+		view.AwayColor = view.HomeColor
 	}
 
-	outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home))
-	resultText := schedule.FormatResultLine(outcome)
-	resultClass := resultBadgeClass(outcome.Outcome)
-	if shared && outcome.Parsed && (outcome.Outcome == schedule.OutcomeWin || outcome.Outcome == schedule.OutcomeLoss || outcome.Outcome == schedule.OutcomeDraw) {
-		resultText = fmt.Sprintf("Home %d – Away %d", outcome.HomeScore, outcome.AwayScore)
-		resultClass = resultBadgeClass("")
+	if neutral {
+		outcome = schedule.ParseGameResultForSide(result, true)
 	}
-	return soccerMatchRowView{
-		HomeColor:   homeColor,
-		AwayColor:   awayColor,
-		Shared:      shared,
-		HasResult:   strings.TrimSpace(game.Result) != "",
-		ResultText:  resultText,
-		ResultClass: resultClass,
+	view.ResultText = schedule.FormatResultLine(outcome)
+	view.ResultClass = resultBadgeClass(outcome.Outcome)
+	if neutral && outcome.Parsed && (outcome.Outcome == schedule.OutcomeWin || outcome.Outcome == schedule.OutcomeLoss || outcome.Outcome == schedule.OutcomeDraw) {
+		view.ResultText = fmt.Sprintf("Home %d – Away %d", outcome.HomeScore, outcome.AwayScore)
+		view.ResultClass = resultBadgeClass("")
 	}
+	return view
 }
 
 func soccerTeamColor(team types.TeamAppearance) string {

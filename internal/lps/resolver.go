@@ -255,19 +255,25 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	homeTeamID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
 	awayTeamID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
 	selectedTeamID := firstPositiveInt(selected.UTeamID, responseTeam.UTeamID)
-	selectedTeamName := firstNonEmptyString(selected.TeamName, responseTeam.TeamName)
+	if selectedTeamID <= 0 && rawGame.TeamIDSelected != nil {
+		selectedTeamID = *rawGame.TeamIDSelected
+	}
+	selectedTeamName := strings.TrimSpace(firstNonEmptyString(selected.TeamName, responseTeam.TeamName))
+	selectedColor := firstApprovedTeamColor(selected.Color, responseTeam.Color)
+	// Identify the selected team's side once; colors and the result perspective
+	// both follow this answer.
 	homeSelected, awaySelected := selectedMatchSides(selectedTeamID, selectedTeamName, homeTeamID, awayTeamID, homeName, visitorName)
 	homeColor := firstNonEmptyString(teamColors[homeTeamID], approvedTeamColor(rawGame.HomeTeam.Color))
 	awayColor := firstNonEmptyString(teamColors[awayTeamID], approvedTeamColor(rawGame.VisitorTeam.Color))
 	if homeSelected {
 		homeTeamID = firstPositiveInt(homeTeamID, selectedTeamID)
-		homeColor = firstApprovedTeamColor(selected.Color, responseTeam.Color)
+		homeColor = selectedColor
 	}
 	if awaySelected {
 		awayTeamID = firstPositiveInt(awayTeamID, selectedTeamID)
-		awayColor = firstApprovedTeamColor(selected.Color, responseTeam.Color)
+		awayColor = selectedColor
 	}
-	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected)
+	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected, homeSelected, awaySelected)
 	if playerTeamName == "" {
 		playerTeamName = homeName
 	}
@@ -289,6 +295,7 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		Away:             visitorName,
 		HomeTeam:         types.TeamAppearance{ID: homeTeamID, Color: homeColor, Selected: homeSelected},
 		AwayTeam:         types.TeamAppearance{ID: awayTeamID, Color: awayColor, Selected: awaySelected},
+		ScheduleTeam:     types.TeamAppearance{ID: selectedTeamID, Color: selectedColor},
 		Season:           firstNonEmptyString(intString(selected.Season), intString(responseTeam.Season), intString(rawGame.Season), intString(rawGame.HomeTeam.Season), intString(rawGame.VisitorTeam.Season)),
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
@@ -425,24 +432,18 @@ func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamID
 	return games, nil
 }
 
-func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary) (string, string, string) {
-	// Prefer an explicit selected team ID match first. If the upstream payload does
-	// not identify the selected team clearly, fall back to the response team name
-	// and treat the other side as the opponent.
-	selectedTeamID := responseTeam.UTeamID
+// resolveSelectedTeamMatchup names the selected team, its opponent, and its
+// division from the sides selectedMatchSides identified. When neither side was
+// identified, the selected team's name stands in for calendar labels and the
+// other side is treated as the opponent.
+func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary, homeSelected, awaySelected bool) (string, string, string) {
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)
 	if selectedTeam != nil {
-		selectedTeamID = firstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
 		selectedTeamName = firstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
 		divisionName = firstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
 	}
-	if selectedTeamID == 0 && rawGame.TeamIDSelected != nil {
-		selectedTeamID = *rawGame.TeamIDSelected
-	}
 
-	homeID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
-	visitorID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
 	homeDivision := strings.TrimSpace(rawGame.HomeTeam.DivisionName)
@@ -451,9 +452,9 @@ func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam, selecte
 	visitorTeamDivision := firstNonEmptyString(divisionName, visitorDivision, homeDivision)
 
 	switch {
-	case selectedTeamID > 0 && homeID == selectedTeamID:
+	case homeSelected:
 		return firstNonEmptyString(selectedTeamName, homeName), visitorName, homeTeamDivision
-	case selectedTeamID > 0 && visitorID == selectedTeamID:
+	case awaySelected:
 		return firstNonEmptyString(selectedTeamName, visitorName), homeName, visitorTeamDivision
 	}
 

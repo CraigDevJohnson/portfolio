@@ -85,7 +85,7 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 		"/teams/100": `{"team":{"UTeamID":100,"team_name":"Blue FC","Color":"  BlUe  "},"games":[{"UGameID":700,"SchedGameDateTime":"{past}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"},"result":"2 - 1"}]}`,
 		"/teams/200": `{"team":{"UTeamID":200,"team_name":"Gold FC","Color":" GoLd "},"games":[{"UGameID":700,"SchedGameDateTime":"{past}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"},"result":"2 - 1"}]}`,
 		"/teams/300": `{"team":{"UTeamID":300,"team_name":"Fallback FC","Color":"url(javascript:alert(1))"},"games":[{"UGameID":701,"SchedGameDateTime":"{future}","UTeam1":300,"UTeam2":400,"home_team":{"UTeamID":300,"team_name":"Fallback FC"},"visitor_team":{"UTeamID":400,"team_name":"Visitor One"}},{"UGameID":702,"SchedGameDateTime":"{future}","UTeam1":401,"UTeam2":300,"home_team":{"UTeamID":401,"team_name":"Visitor Two"},"visitor_team":{"UTeamID":300,"team_name":"Fallback FC"}}]}`,
-		"/teams/500": `{"team":{"UTeamID":500,"team_name":"Blue FC","Color":"red"},"games":[{"UGameID":703,"SchedGameDateTime":"{future}","UTeam1":600,"UTeam2":700,"home_team":{"UTeamID":600,"team_name":"Blue FC","Color":"green"},"visitor_team":{"UTeamID":700,"team_name":"Other FC","Color":"yellow"}}]}`,
+		"/teams/500": `{"team":{"UTeamID":500,"team_name":"Blue FC","Color":"red"},"games":[{"UGameID":703,"SchedGameDateTime":"{future}","UTeam1":600,"UTeam2":700,"home_team":{"UTeamID":600,"team_name":"Blue FC","Color":"green"},"visitor_team":{"UTeamID":700,"team_name":"Other FC","Color":"yellow"}},{"UGameID":704,"SchedGameDateTime":"{past}","UTeam1":600,"UTeam2":700,"home_team":{"UTeamID":600,"team_name":"Blue FC","Color":"green"},"visitor_team":{"UTeamID":700,"team_name":"Other FC","Color":"yellow"},"result":"3 - 1"}]}`,
 		"/teams/901": `{"team":{"UTeamID":901,"team_name":"Plain FC"},"games":[{"UGameID":951,"SchedGameDateTime":"{future}","UTeam1":901,"UTeam2":910,"home_team":{"UTeamID":901,"team_name":"Plain FC"},"visitor_team":{"UTeamID":910,"team_name":"Visitor Three"}},{"UGameID":952,"SchedGameDateTime":"{future}","UTeam1":911,"UTeam2":901,"home_team":{"UTeamID":911,"team_name":"Visitor Four"},"visitor_team":{"UTeamID":901,"team_name":"Plain FC"}}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
@@ -97,8 +97,8 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 		if strings.Contains(body, "url(javascript:") || strings.Contains(body, "BlUe") || strings.Contains(body, "GoLd") {
 			t.Fatal("raw upstream color reached the rendered fragment")
 		}
-		if len(rows) != 6 {
-			t.Fatalf("refetch %d rendered rows for %d games, want one shared, four fallback, and one name-collision game", attempt, len(rows))
+		if len(rows) != 7 {
+			t.Fatalf("refetch %d rendered rows for %d games, want one shared, four fallback, and two name-collision games", attempt, len(rows))
 		}
 		for id, nodes := range rows {
 			for _, row := range nodes {
@@ -148,9 +148,18 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 			fallbackAcrossRefetch[team.id] = fallback
 		}
 
-		collision := onlySoccerRow(t, rows, "703")
-		if htmlAttr(collision, "data-home-color") != "green" || htmlAttr(collision, "data-away-color") != "yellow" || htmlAttr(collision, "data-shared-match") != "" {
-			t.Fatalf("explicit team IDs were overridden by a matching name: %v", collision.Attr)
+		// Team 500's schedule lists games 703 and 704 between teams 600 and 700.
+		// Team IDs outrank the colliding "Blue FC" name, so neither side is team
+		// 500: each row shows team 500's red alone, never a shared-looking pair of
+		// the other teams' colors, and a result takes neither side's perspective.
+		for _, game := range []string{"703", "704"} {
+			collision := onlySoccerRow(t, rows, game)
+			if home, away := htmlAttr(collision, "data-home-color"), htmlAttr(collision, "data-away-color"); home != "red" || away != "red" || htmlAttr(collision, "data-shared-match") != "" {
+				t.Fatalf("game %s with no side matching team 500 = %q/%q shared=%q, want team 500's red on both halves", game, home, away, htmlAttr(collision, "data-shared-match"))
+			}
+		}
+		if text := htmlText(onlySoccerRow(t, rows, "704")); !strings.Contains(text, "Home 3 – Away 1") || strings.Contains(text, "Win (") || strings.Contains(text, "Loss (") {
+			t.Fatalf("game 704 result guessed a side for team 500: %q", text)
 		}
 	}
 }
@@ -221,8 +230,8 @@ func TestFetchSchedulesDoesNotGuessTheSelectedSideOfAGameWithoutTeamIDs(t *testi
 	// Game 3 carries no team IDs. Gold FC's schedule names it as the home side;
 	// Blue FC's name matches neither side, so its schedule must not claim one.
 	server := newFakeLPSTeams(t, map[string]string{
-		"/teams/300": `{"team":{"UTeamID":300,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":3,"SchedGameDateTime":"{future}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"}}]}`,
-		"/teams/301": `{"team":{"UTeamID":301,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":3,"SchedGameDateTime":"{future}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"}}]}`,
+		"/teams/300": `{"team":{"UTeamID":300,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":3,"SchedGameDateTime":"{past}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"},"result":"2 - 0"}]}`,
+		"/teams/301": `{"team":{"UTeamID":301,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":3,"SchedGameDateTime":"{past}","home_team":{"team_name":"Gold FC"},"visitor_team":{"team_name":"Blue FC U10"},"result":"2 - 0"}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
 	mux, _ := buildMux(app, app.Logger, false)
@@ -234,6 +243,10 @@ func TestFetchSchedulesDoesNotGuessTheSelectedSideOfAGameWithoutTeamIDs(t *testi
 	}
 	if htmlAttr(row, "data-shared-match") != "" {
 		t.Error("game 3 was marked shared although Blue FC matched neither side")
+	}
+	// The result is read from the side the row is painted for.
+	if text := htmlText(row); !strings.Contains(text, "Win (2-0)") {
+		t.Errorf("game 3 result = %q, want Gold FC's home Win (2-0)", text)
 	}
 }
 

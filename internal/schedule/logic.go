@@ -75,6 +75,9 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	merged.Away = mergeStringValue(merged.Away, incoming.Away)
 	merged.HomeTeam = mergeTeamAppearance(merged.HomeTeam, incoming.HomeTeam)
 	merged.AwayTeam = mergeTeamAppearance(merged.AwayTeam, incoming.AwayTeam)
+	if merged.ScheduleTeam.ID <= 0 && merged.ScheduleTeam.Color == "" {
+		merged.ScheduleTeam = incoming.ScheduleTeam
+	}
 	merged.Season = mergeStringValue(merged.Season, incoming.Season)
 	merged.PlayerTeamName = mergeStringValue(merged.PlayerTeamName, incoming.PlayerTeamName)
 	merged.OpponentTeamName = mergeStringValue(merged.OpponentTeamName, incoming.OpponentTeamName)

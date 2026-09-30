@@ -18,7 +18,21 @@ type GameOutcome struct {
 	Parsed        bool
 }
 
+// ParseGameResult reads a result from the player team's perspective, taking
+// that team as the home side unless its name differs from the home team's.
 func ParseGameResult(result, playerTeamName, homeTeamName string) GameOutcome {
+	isHomeTeam := true
+	playerTeamName = strings.TrimSpace(playerTeamName)
+	homeTeamName = strings.TrimSpace(homeTeamName)
+	if playerTeamName != "" && homeTeamName != "" {
+		isHomeTeam = strings.EqualFold(playerTeamName, homeTeamName)
+	}
+	return ParseGameResultForSide(result, isHomeTeam)
+}
+
+// ParseGameResultForSide reads a result from the perspective of the home side
+// when isHomeTeam is true, or the away side otherwise.
+func ParseGameResultForSide(result string, isHomeTeam bool) GameOutcome {
 	raw := strings.TrimSpace(result)
 	if raw == "" {
 		return GameOutcome{}
@@ -43,13 +57,6 @@ func ParseGameResult(result, playerTeamName, homeTeamName string) GameOutcome {
 	awayScore, err := strconv.Atoi(matches[2])
 	if err != nil {
 		return GameOutcome{Outcome: raw, Raw: raw, Parsed: false}
-	}
-
-	isHomeTeam := true
-	playerTeamName = strings.TrimSpace(playerTeamName)
-	homeTeamName = strings.TrimSpace(homeTeamName)
-	if playerTeamName != "" && homeTeamName != "" {
-		isHomeTeam = strings.EqualFold(playerTeamName, homeTeamName)
 	}
 
 	playerScore := homeScore
