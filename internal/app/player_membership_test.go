@@ -564,12 +564,13 @@ func TestSoccerImportAtHistoryCapacityKeepsTheImportAndEnrollsWhatFits(t *testin
 	route.assertEvidenceOnlyForEnrolledTeams(t)
 
 	records := route.logs.take(t)
-	rejections, errorRecords := admissionAlarmRecords(records)
-	if len(rejections) != 2 || len(errorRecords) != 0 {
-		t.Fatalf("capacity refusal logs = %v, want one admission warning per refused team and no error", records)
+	// Refused player-linked teams are what the admission alarm counts.
+	alarmed, manual, errorRecords := admissionRefusalRecords(records)
+	if len(alarmed) != 2 || len(manual) != 0 || len(errorRecords) != 0 {
+		t.Fatalf("capacity refusal logs = %v, want one alarmed admission warning per refused team and no error", records)
 	}
 	for i, teamID := range []int{4202, 4300} {
-		if rejection := rejections[i]; rejection["level"] != "WARN" || rejection["team_id"] != float64(teamID) || rejection["source"] != "player" || rejection["limit"] != float64(2) {
+		if rejection := alarmed[i]; rejection["level"] != "WARN" || rejection["team_id"] != float64(teamID) || rejection["source"] != "player" || rejection["limit"] != float64(2) {
 			t.Errorf("admission rejection record %d = %v", i, rejection)
 		}
 	}

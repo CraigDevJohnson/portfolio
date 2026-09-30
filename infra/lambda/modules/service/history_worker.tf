@@ -195,14 +195,34 @@ resource "aws_cloudwatch_log_metric_filter" "history_incomplete" {
   }
 }
 
+# The admission alarm counts only refused player-linked teams (gate 4 of the
+# #104 readiness packet). Refused visitor Team ID lookups have their own
+# metric and no alarm: once the manual share of the cap is used, any visitor
+# could otherwise hold the alarm in ALARM. Both patterns match the refusal
+# line's top-level "source" attribute, which is unambiguous only while the
+# HTTP runtime keeps LOG_ADD_SOURCE=false (lambda.tf); slog would otherwise
+# also write its code-location "source" key.
 resource "aws_cloudwatch_log_metric_filter" "history_admission_rejected" {
   count          = local.history_collection_enabled ? 1 : 0
   name           = "${local.function_name}-soccer-history-admission-rejected"
-  pattern        = "{ $.msg = \"soccer_history_admission_rejected\" }"
+  pattern        = "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"player\" }"
   log_group_name = aws_cloudwatch_log_group.lambda.name
 
   metric_transformation {
     name      = "AdmissionRejected"
+    namespace = "Portfolio/SoccerHistory"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "history_manual_admission_rejected" {
+  count          = local.history_collection_enabled ? 1 : 0
+  name           = "${local.function_name}-soccer-history-manual-admission-rejected"
+  pattern        = "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"manual\" }"
+  log_group_name = aws_cloudwatch_log_group.lambda.name
+
+  metric_transformation {
+    name      = "ManualAdmissionRejected"
     namespace = "Portfolio/SoccerHistory"
     value     = "1"
   }

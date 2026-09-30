@@ -878,6 +878,8 @@ run "history_disabled_without_reviewed_limits" {
       length(aws_scheduler_schedule.history_daily) == 0 &&
       length(aws_sqs_queue.history_dead_letter) == 0 &&
       length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 0 &&
+      length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 0 &&
+      length(aws_cloudwatch_log_metric_filter.history_manual_admission_rejected) == 0 &&
       !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
     )
     error_message = "unset reviewed limits must leave collection and daily scheduling disabled"
@@ -1015,12 +1017,42 @@ run "history_collection_has_capacity_alert_without_schedule" {
         toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])
       ]) == 1 &&
       length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 1 &&
-      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" }" &&
       length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 1 &&
       length(aws_lambda_function.history_worker) == 0 &&
       length(aws_scheduler_schedule.history_daily) == 0
     )
     error_message = "collection must have a capacity alarm without implicitly starting a schedule"
+  }
+  # Gate 4 (September 30, 2026): the alarm counts only refused player-linked
+  # teams. Refused visitor Team ID lookups are counted by a metric with no
+  # alarm, so a visitor cannot hold the alarm in ALARM once the manual share of
+  # the cap is used. Both patterns match the top-level "source" attribute the
+  # refusal line carries, which only holds while the HTTP runtime keeps
+  # LOG_ADD_SOURCE=false: slog would otherwise also write its code-location
+  # "source" key.
+  assert {
+    condition = (
+      aws_lambda_function.app.environment[0].variables.LOG_ADD_SOURCE == "false" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"player\" }" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].metric_transformation[0].name == "AdmissionRejected" &&
+      aws_cloudwatch_metric_alarm.history_admission_rejected[0].metric_name == "AdmissionRejected" &&
+      length(aws_cloudwatch_log_metric_filter.history_manual_admission_rejected) == 1 &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].name == "portfolio-lambda-dev-soccer-history-manual-admission-rejected" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"manual\" }" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].metric_transformation[0].name == "ManualAdmissionRejected" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].metric_transformation[0].namespace == "Portfolio/SoccerHistory" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-dev-api-5xx",
+        "portfolio-lambda-dev-api-latency",
+        "portfolio-lambda-dev-lambda-duration",
+        "portfolio-lambda-dev-lambda-errors",
+        "portfolio-lambda-dev-lambda-throttles",
+        "portfolio-lambda-dev-soccer-history-admission-rejected",
+      ])
+    )
+    error_message = "the admission alarm must count only player refusals, and refused visitor lookups only a metric with no alarm"
   }
 }
 
@@ -1102,7 +1134,8 @@ run "history_worker_schedule_and_failure_contract" {
       aws_lambda_function_event_invoke_config.history_worker[0].maximum_retry_attempts == 0 &&
       aws_cloudwatch_log_metric_filter.history_incomplete[0].log_group_name == "/aws/lambda/portfolio-lambda-dev-soccer-history" &&
       aws_cloudwatch_log_metric_filter.history_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
-      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" }" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"player\" }" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
       aws_cloudwatch_metric_alarm.history_worker_errors[0].dimensions == tomap({ FunctionName = "portfolio-lambda-dev-soccer-history" }) &&
       alltrue([
         for alarm in [
@@ -1113,7 +1146,7 @@ run "history_worker_schedule_and_failure_contract" {
         ] : alarm.threshold == 1 && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"])
       ])
     )
-    error_message = "the daily schedule must fire at a fixed UTC time, retry delivery without re-running work, and alert on every rejected enrollment, incomplete run, worker error, and failed delivery"
+    error_message = "the daily schedule must fire at a fixed UTC time, retry delivery without re-running work, and alert on every refused player-linked team, incomplete run, worker error, and failed delivery"
   }
 }
 

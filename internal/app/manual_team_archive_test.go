@@ -190,14 +190,15 @@ func TestManualTeamLookupExplainsHistoryCapacityRejection(t *testing.T) {
 		t.Fatalf("capacity rejection hid the schedule or claimed enrollment: %q", full)
 	}
 	route.assertNotArchived(t, 479692)
-	// The admission alarm counts this message in the HTTP runtime's log: one
-	// warning for the refused team, and no error for an expected refusal.
+	// The HTTP runtime's log records one warning for the refused team, and no
+	// error for an expected refusal. A refused visitor lookup is counted by
+	// the manual-refusal metric only; it never reaches the admission alarm.
 	records := route.logs.take(t)
-	rejections, errorRecords := admissionAlarmRecords(records)
-	if len(rejections) != 1 || len(errorRecords) != 0 {
-		t.Fatalf("capacity refusal logs = %v, want one admission warning and no error", records)
+	alarmed, manual, errorRecords := admissionRefusalRecords(records)
+	if len(alarmed) != 0 || len(manual) != 1 || len(errorRecords) != 0 {
+		t.Fatalf("capacity refusal logs = %v, want one manual admission warning, none for the alarm, and no error", records)
 	}
-	if rejection := rejections[0]; rejection["level"] != "WARN" || rejection["team_id"] != float64(479692) || rejection["source"] != "manual" || rejection["limit"] != float64(1) || rejection["component"] != "soccer" {
+	if rejection := manual[0]; rejection["level"] != "WARN" || rejection["team_id"] != float64(479692) || rejection["source"] != "manual" || rejection["limit"] != float64(1) || rejection["component"] != "soccer" {
 		t.Errorf("admission rejection record = %v", rejection)
 	}
 	if again := route.lookup(t, "479691"); !strings.Contains(again, "Team 479691 added to history collection.") {

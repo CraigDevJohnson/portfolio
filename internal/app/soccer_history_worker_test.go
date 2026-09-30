@@ -55,18 +55,26 @@ func (logs *runtimeLogs) take(t *testing.T) []map[string]any {
 	return records
 }
 
-// admissionAlarmRecords returns the records the admission alarm counts and
-// any ERROR records among records.
-func admissionAlarmRecords(records []map[string]any) (rejections, errorRecords []map[string]any) {
+// admissionRefusalRecords sorts records as the HTTP log group's metric
+// filters do (modules/service/history_worker.tf): a refused player-linked team
+// feeds the admission alarm, a refused visitor Team ID lookup only the
+// ManualAdmissionRejected metric, which has no alarm. It also returns any
+// ERROR records.
+func admissionRefusalRecords(records []map[string]any) (alarmed, manual, errorRecords []map[string]any) {
 	for _, record := range records {
 		if record["msg"] == "soccer_history_admission_rejected" {
-			rejections = append(rejections, record)
+			switch record["source"] {
+			case "player":
+				alarmed = append(alarmed, record)
+			case "manual":
+				manual = append(manual, record)
+			}
 		}
 		if record["level"] == "ERROR" {
 			errorRecords = append(errorRecords, record)
 		}
 	}
-	return rejections, errorRecords
+	return alarmed, manual, errorRecords
 }
 
 // reviewedHistoryLimits is a complete reviewed history configuration: the
