@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,107 +12,257 @@ import (
 	"testing"
 	"time"
 
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
+	"portfolio/types"
 )
 
-type recordingTeamArchive struct {
-	snapshots []soccerarchive.Snapshot
+// archiveRoute serves the public Soccer routes with the durable archive wired
+// to an in-memory DynamoDB table, as an approved activation would wire it.
+type archiveRoute struct {
+	app     *App
+	mux     *http.ServeMux
+	handler *internalsoccer.Handler
+	table   *archivetest.Table
+	store   *soccerarchive.DynamoStore
 }
 
-func (a *recordingTeamArchive) SaveTeamSnapshot(_ context.Context, snapshot *soccerarchive.Snapshot) error {
-	a.snapshots = append(a.snapshots, *snapshot)
-	return nil
-}
-
-func TestManualTeamLookupArchivesSourceFactsAndReportsEnrollment(t *testing.T) {
+func newArchiveRoute(t *testing.T, lps http.HandlerFunc) *archiveRoute {
+	t.Helper()
 	app := newTestApp(t)
-	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	lpsServer := httptest.NewServer(lps)
+	t.Cleanup(lpsServer.Close)
+	app.Config.LPSAPIBaseURL = lpsServer.URL
+	mux, handler := buildMux(app, app.Logger, false)
+	table := archivetest.NewTable()
+	store := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history")
+	handler.SetArchiveStore(store)
+	return &archiveRoute{app: app, mux: mux, handler: handler, table: table, store: store}
+}
+
+func (r *archiveRoute) lookup(t *testing.T, teamCodes string, decorate ...func(*http.Request)) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {teamCodes}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, apply := range decorate {
+		apply(req)
+	}
+	resp := httptest.NewRecorder()
+	r.mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("team %q HTTP status = %d, want 200; body %q", teamCodes, resp.Code, resp.Body.String())
+	}
+	return resp.Body.String()
+}
+
+func (r *archiveRoute) assertNotArchived(t *testing.T, teamID int) {
+	t.Helper()
+	if _, err := r.store.ReadTeamSeason(context.Background(), teamID, 169); !errors.Is(err, soccerarchive.ErrNoArchive) {
+		t.Fatalf("team %d read-back error = %v, want ErrNoArchive", teamID, err)
+	}
+}
+
+const archiveFacilityResponse = `{"FacilityID":5,"FacilityName":"Downtown","Address":"123 Field St","City":"Boise","State":"ID","ZIP":"83702"}`
+
+func boiseFCSchedule(kickoff string) string {
+	return fmt.Sprintf(`{"team":{"UTeamID":479691,"team_name":"Boise FC","division_name":"Open A","FacilityID":5,"facility_name":"Downtown","Season":169},"games":[{"UGameID":8001,"SchedGameDateTime":%q,"FacilityID":5,"Field":2,"Season":169,"UTeam1":479691,"UTeam2":222,"home_team":{"UTeamID":479691,"team_name":"Boise FC"},"visitor_team":{"UTeamID":222,"team_name":"Away FC"},"result":""}]}`, kickoff)
+}
+
+func boiseFCLPS(t *testing.T, kickoff string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/teams/479691":
-			_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":479691,"team_name":"Boise FC","division_name":"Open A","FacilityID":5,"facility_name":"Downtown","Season":169},"games":[{"UGameID":8001,"SchedGameDateTime":%q,"FacilityID":5,"Field":2,"Season":169,"UTeam1":479691,"UTeam2":222,"home_team":{"UTeamID":479691,"team_name":"Boise FC"},"visitor_team":{"UTeamID":222,"team_name":"Away FC"},"result":"2-1"}]}`, future)
+			_, _ = fmt.Fprint(w, boiseFCSchedule(kickoff))
 		case "/facilities/5":
-			_, _ = fmt.Fprint(w, `{"FacilityID":5,"FacilityName":"Downtown","Address":"123 Field St","City":"Boise","State":"ID","ZIP":"83702"}`)
+			_, _ = fmt.Fprint(w, archiveFacilityResponse)
 		default:
 			t.Errorf("unexpected LPS request: %s", r.URL.Path)
 			http.NotFound(w, r)
 		}
-	}))
-	defer lpsServer.Close()
-	app.Config.LPSAPIBaseURL = lpsServer.URL
-	archive := &recordingTeamArchive{}
-	mux, handler := buildMux(app, app.Logger, false)
-	handler.SetArchiveStore(archive)
-
-	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {"479691"}}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp := httptest.NewRecorder()
-	mux.ServeHTTP(resp, req)
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("HTTP status = %d, want 200", resp.Code)
-	}
-	if !strings.Contains(resp.Body.String(), "Boise FC") || !strings.Contains(resp.Body.String(), "Team 479691 added to history collection") || !strings.Contains(resp.Body.String(), "ui-feedback") {
-		t.Fatalf("schedule and enrollment outcome missing: %q", resp.Body.String())
-	}
-	if len(archive.snapshots) != 1 {
-		t.Fatalf("stored snapshots = %d, want 1", len(archive.snapshots))
-	}
-	got := archive.snapshots[0]
-	if got.TeamID != 479691 || got.Team.Season != 169 || got.Team.DivisionName != "Open A" || len(got.Games) != 1 || got.Games[0].UGameID != 8001 || got.Games[0].UTeam1 != 479691 || got.Games[0].UTeam2 != 222 || len(got.Facilities) != 1 || got.Facilities[0].Address != "123 Field St" || got.FetchedAt.IsZero() {
-		t.Fatalf("stored source facts = %#v", got)
 	}
 }
 
-func TestManualTeamLookupDistinguishesAcceptedEmptyScheduleFromInvalidID(t *testing.T) {
-	app := newTestApp(t)
-	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestManualTeamLookupArchivesReadableTeamSeasonFacts(t *testing.T) {
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+
+	before := time.Now()
+	body := route.lookup(t, "479691")
+	after := time.Now()
+
+	if !strings.Contains(body, "Away FC") || !strings.Contains(body, "Team 479691 added to history collection.") || !strings.Contains(body, "ui-feedback-success") {
+		t.Fatalf("schedule or enrollment outcome missing: %q", body)
+	}
+	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	if history.Team.UTeamID != 479691 || history.Team.TeamName != "Boise FC" || history.Team.DivisionName != "Open A" || history.Team.Season != 169 || history.Team.FacilityID != 5 {
+		t.Fatalf("stored team-season context = %#v", history.Team)
+	}
+	if history.Coverage.Status != soccerarchive.CoverageFetched || history.Coverage.ReturnedGameCount != 1 ||
+		history.Coverage.FetchedAt.Before(before.Add(-time.Millisecond)) || history.Coverage.FetchedAt.After(after) {
+		t.Fatalf("stored coverage = %#v, want fetched with one game between %s and %s", history.Coverage, before, after)
+	}
+	if len(history.Games) != 1 || history.Games[0].UGameID != 8001 || history.Games[0].UTeam1 != 479691 || history.Games[0].UTeam2 != 222 || history.Games[0].FacilityID != 5 || history.Games[0].Season != 169 {
+		t.Fatalf("stored games = %#v", history.Games)
+	}
+	if len(history.Facilities) != 1 || history.Facilities[0].FacilityName != "Downtown" || history.Facilities[0].Address != "123 Field St" || history.Facilities[0].ZIP != "83702" {
+		t.Fatalf("stored facilities = %#v", history.Facilities)
+	}
+	items, err := route.table.Items()
+	if err != nil {
+		t.Fatalf("decode stored items: %v", err)
+	}
+	for key, item := range items {
+		for _, sessionAttribute := range []string{"ttl", "expires_at"} {
+			if _, found := item[sessionAttribute]; found {
+				t.Errorf("archive item %s carries the import session attribute %q", key, sessionAttribute)
+			}
+		}
+	}
+}
+
+func TestRepeatedManualTeamLookupKeepsOneArchivedGame(t *testing.T) {
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+
+	route.lookup(t, "479691")
+	storedAfterFirst := route.table.Len()
+	body := route.lookup(t, "479691")
+
+	if !strings.Contains(body, "Team 479691 added to history collection.") {
+		t.Fatalf("repeated lookup lost the enrollment outcome: %q", body)
+	}
+	if got := route.table.Len(); got != storedAfterFirst {
+		t.Fatalf("stored items after a repeated lookup = %d, want %d", got, storedAfterFirst)
+	}
+	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	if len(history.Games) != 1 || history.Games[0].UGameID != 8001 {
+		t.Fatalf("games after a repeated lookup = %#v, want only game 8001", history.Games)
+	}
+}
+
+func TestManualTeamLookupSeparatesEmptyScheduleFromInvalidAndFailedLookups(t *testing.T) {
+	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/teams/479691":
 			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":479691,"team_name":"Dormant FC","Season":169},"games":[]}`)
 		case "/teams/999999":
 			http.NotFound(w, r)
-		case "/teams/888888":
-			_, _ = fmt.Fprint(w, `{}`)
+		case "/teams/777777":
+			http.Error(w, "upstream unavailable", http.StatusInternalServerError)
 		default:
 			t.Errorf("unexpected LPS request: %s", r.URL.Path)
 			http.NotFound(w, r)
 		}
-	}))
-	defer lpsServer.Close()
-	app.Config.LPSAPIBaseURL = lpsServer.URL
-	archive := &recordingTeamArchive{}
-	mux, handler := buildMux(app, app.Logger, false)
-	handler.SetArchiveStore(archive)
+	})
 
-	lookup := func(teamID string) string {
-		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {teamID}}.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		resp := httptest.NewRecorder()
-		mux.ServeHTTP(resp, req)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("team %s HTTP status = %d, want 200", teamID, resp.Code)
-		}
-		return resp.Body.String()
+	empty := route.lookup(t, "479691")
+	if !strings.Contains(empty, "Let&#39;s Play Soccer accepted the team ID but returned no games.") || !strings.Contains(empty, "Team 479691 added to history collection.") {
+		t.Fatalf("accepted empty schedule outcome missing: %q", empty)
+	}
+	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason for the empty schedule: %v", err)
+	}
+	if history.Coverage.Status != soccerarchive.CoverageFetched || history.Coverage.ReturnedGameCount != 0 || len(history.Games) != 0 || history.Team.TeamName != "Dormant FC" {
+		t.Fatalf("empty schedule was not archived as a fetched season with no games: %#v", history)
 	}
 
-	accepted := lookup("479691")
-	if !strings.Contains(accepted, "accepted the team ID but returned no games") || !strings.Contains(accepted, "added to history collection") {
-		t.Fatalf("accepted empty schedule outcome missing: %q", accepted)
+	invalid := route.lookup(t, "999999")
+	if !strings.Contains(invalid, "Team ID 999999 was not accepted by Let&#39;s Play Soccer.") || strings.Contains(invalid, "history collection") {
+		t.Fatalf("invalid team outcome: %q", invalid)
 	}
-	for _, id := range []string{"999999", "479691,bad"} {
-		invalid := lookup(id)
-		if !(strings.Contains(invalid, "was not accepted") || strings.Contains(invalid, "were invalid")) || strings.Contains(invalid, "added to history collection") {
-			t.Fatalf("invalid team %s outcome: %q", id, invalid)
+	route.assertNotArchived(t, 999999)
+
+	failed := route.lookup(t, "777777")
+	if !strings.Contains(failed, "Could not load schedules from Let&#39;s Play Soccer right now.") || strings.Contains(failed, "was not accepted") || strings.Contains(failed, "history collection") {
+		t.Fatalf("failed fetch outcome: %q", failed)
+	}
+	route.assertNotArchived(t, 777777)
+
+	malformed := route.lookup(t, "not-a-team")
+	if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
+		t.Fatalf("malformed team ID outcome: %q", malformed)
+	}
+}
+
+func TestManualTeamLookupNeverArchivesImportedPlayerAccess(t *testing.T) {
+	const playerID = 7654321
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+	jwt := testutil.TestJWT(t, time.Now().Add(time.Hour))
+	session := &types.SessionData{
+		JWT:       jwt,
+		UserName:  "Casey Keeper",
+		Players:   []types.LPSPlayer{{UPlayerID: playerID, FirstName: "Casey", LastName: "Keeper", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+
+	body := route.lookup(t, "479691", func(req *http.Request) { addSessionCookie(t, route.app, req, session) })
+
+	if !strings.Contains(body, "Team 479691 added to history collection.") {
+		t.Fatalf("manual lookup with an imported session was not enrolled: %q", body)
+	}
+	items, err := route.table.Items()
+	if err != nil {
+		t.Fatalf("decode stored items: %v", err)
+	}
+	for key, item := range items {
+		for attribute, value := range item {
+			if strings.Contains(strings.ToLower(attribute), "player") {
+				t.Errorf("archive item %s has player attribute %q", key, attribute)
+			}
+			stored := fmt.Sprint(value)
+			if strings.Contains(stored, jwt) || strings.Contains(stored, fmt.Sprint(playerID)) || strings.Contains(stored, "Keeper") {
+				t.Errorf("archive item %s attribute %q retains imported player access: %q", key, attribute, stored)
+			}
+		}
+		if strings.Contains(key, fmt.Sprint(playerID)) {
+			t.Errorf("archive key %s references the imported player", key)
 		}
 	}
-	unconfirmed := lookup("888888")
-	if !strings.Contains(unconfirmed, "Could not load schedules") || strings.Contains(unconfirmed, "was not accepted") || strings.Contains(unconfirmed, "added to history collection") {
-		t.Fatalf("unconfirmed team response was treated as an invalid ID or enrolled: %q", unconfirmed)
+}
+
+func TestManualTeamLookupReportsUnsavedHistoryWithoutClaimingEnrollment(t *testing.T) {
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+	route.table.PutErr = errors.New("table unavailable")
+
+	body := route.lookup(t, "479691")
+
+	if !strings.Contains(body, "Away FC") || !strings.Contains(body, "History not saved") || strings.Contains(body, "added to history collection") {
+		t.Fatalf("unsaved history outcome: %q", body)
 	}
-	if len(archive.snapshots) != 1 || len(archive.snapshots[0].Games) != 0 {
-		t.Fatalf("stored snapshots = %#v, want only the accepted empty schedule", archive.snapshots)
+}
+
+func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
+	lpsServer := httptest.NewServer(boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+	t.Cleanup(lpsServer.Close)
+	for _, name := range []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "GOOGLE_CONNECTION_TABLE_NAME", "SOCCER_SESSION_TABLE_NAME", "MGMT_SESSION_KEY"} {
+		t.Setenv(name, "")
+	}
+	t.Setenv("SOCCER_ARCHIVE_TABLE_NAME", "portfolio-lambda-dev-soccer-history")
+	t.Setenv("LPS_API_BASE_URL", lpsServer.URL)
+	t.Setenv("LOG_LEVEL", "error")
+	previousLogger := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	handler, err := NewLambdaHandler(context.Background())
+	if err != nil {
+		t.Fatalf("NewLambdaHandler: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {"479691"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "Away FC") {
+		t.Fatalf("live manual lookup lost the usual schedule: status %d, body %q", resp.Code, resp.Body.String())
+	}
+	if strings.Contains(resp.Body.String(), "history collection") || strings.Contains(resp.Body.String(), "History not saved") {
+		t.Fatalf("live assembly reported durable enrollment before activation: %q", resp.Body.String())
 	}
 }

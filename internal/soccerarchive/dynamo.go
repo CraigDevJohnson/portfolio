@@ -22,7 +22,8 @@ import (
 
 const sortableUTCFormat = "2006-01-02T15:04:05.000000000Z"
 
-type dynamoAPI interface {
+// DynamoAPI is the DynamoDB client subset the archive adapter uses.
+type DynamoAPI interface {
 	PutItem(ctx context.Context, input *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 	GetItem(ctx context.Context, input *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error)
@@ -30,7 +31,7 @@ type dynamoAPI interface {
 
 // DynamoStore stores source facts in a dedicated, non-TTL DynamoDB table.
 type DynamoStore struct {
-	api       dynamoAPI
+	api       DynamoAPI
 	tableName string
 }
 
@@ -44,10 +45,11 @@ func NewDynamoStore(ctx context.Context, tableName string) (*DynamoStore, error)
 	if err != nil {
 		return nil, err
 	}
-	return newDynamoStore(dynamodb.NewFromConfig(cfg), tableName), nil
+	return NewDynamoStoreWithAPI(dynamodb.NewFromConfig(cfg), tableName), nil
 }
 
-func newDynamoStore(api dynamoAPI, tableName string) *DynamoStore {
+// NewDynamoStoreWithAPI prepares the adapter over an existing DynamoDB client.
+func NewDynamoStoreWithAPI(api DynamoAPI, tableName string) *DynamoStore {
 	return &DynamoStore{api: api, tableName: tableName}
 }
 
