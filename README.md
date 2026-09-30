@@ -28,8 +28,9 @@ The Soccer tool supports:
 
 The management portal routes are disabled unless their Cognito and session
 settings are valid. A registered OAuth redirect URI is also required for sign-in.
-When enabled, the portal can list EC2 instances, request start, stop, and restart
-actions, and load CloudWatch metrics and logs.
+When enabled, the portal lists EC2 instances and loads their CloudWatch metrics.
+Its start, stop, restart and log views remain in the code, but the deployed
+runtime role does not allow them (D22).
 
 ## Requirements
 
@@ -164,17 +165,16 @@ the management session key resolves separately from required secrets; a missing
 or inaccessible key disables the portal while the rest of the site can start.
 `MGMT_AWS_REGION` defaults to `us-east-1`.
 
-The runtime AWS identity needs these actions:
+The deployed runtime role grants the portal only these actions (D22):
 
 - `ec2:DescribeInstances`
-- `ec2:StartInstances`
-- `ec2:StopInstances`
 - `cloudwatch:GetMetricStatistics`
-- `logs:FilterLogEvents`
 
-The development dashboard enables start, stop and restart only for instances
-tagged `PortfolioManagement=dev`, subject to their lifecycle state. Other
-instances remain visible with read-only metrics and logs; IAM enforces actions.
+It has no EC2 start/stop or CloudWatch Logs grants, so IAM denies the portal's
+start, stop and restart actions and its instance log reads. The planned Foundry
+backend replaces direct EC2 control. The dashboard offers start, stop and
+restart only for instances tagged `PortfolioManagement=dev`, subject to their
+lifecycle state; IAM stays authoritative.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 
@@ -210,7 +210,7 @@ portfolio/
 │   ├── server/             HTTP server entry point
 │   └── web/                Templ, Tailwind, JavaScript, and static assets
 ├── docs/deployment/        Runtime-specific deployment notes
-├── infra/                  Shared ECR, DynamoDB, and IAM resources
+├── infra/lambda/           OpenTofu roots for the AWS deployment
 ├── internal/
 │   ├── app/                Startup, dependency injection, and routes
 │   ├── config/             Environment parsing and feature flags
@@ -230,7 +230,7 @@ The source-of-truth order is:
 1. `Taskfile.yaml` for commands
 2. `cmd/server/main.go` and `internal/app/` for application wiring
 3. this README for local usage and architecture
-4. `DEPLOY-INSTRUCTIONS.md` and `infra/*.tf` for deployment
+4. `DEPLOY-INSTRUCTIONS.md` and `infra/lambda/` for deployment
 
 Edit `.templ` and `cmd/web/tailwind/` sources. Do not hand-edit generated
 `*_templ.go` files or `cmd/web/static/css/tailwind.css`.
@@ -292,19 +292,17 @@ Select the `chrome-extension/` directory.
 
 ## Deployment
 
-The managed replacement Lambda/API Gateway environment contract uses a
-29-second Lambda timeout.
-The Google add and result-sync handlers reserve 24 seconds of that window, which
-leaves five seconds outside their application work budget.
-
-The checked-in `infra/` directory retains the shared legacy ECR repository,
-DynamoDB tables, IAM policies, and SSM configuration. It does not declare or
-operate App Runner or the formerly declared legacy Lambda/API Gateway stack.
-Replacement deployment commands use only the independent roots under
-`infra/lambda/`; App Runner is not a deployment or rollback path. Dated
-retirement designs, plans, and evidence remain under `docs/superpowers/` and
-`docs/deployment/evidence/` as historical records rather than operator
+The portfolio runs on AWS Lambda behind an API Gateway HTTP API in the
+workloads AWS account, us-west-2, with prod at `craigdevjohnson.com` and dev at
+`dev.craigdevjohnson.com`. The OpenTofu roots live under `infra/lambda/`. A
+merge to `main` builds one image, deploys it to dev, and plans prod; Craig
+approves the `production` GitHub Environment to apply it. Dated designs and
+plans under `docs/superpowers/` are historical records rather than operator
 instructions.
+
+The Lambda timeout is 29 seconds. The Google add and result-sync handlers
+reserve 24 seconds of that window, which leaves five seconds outside their
+application work budget.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;
@@ -328,7 +326,8 @@ which is not immutable provenance proof. `task test-images` verifies the image
 contracts. These tasks do not push an image, apply infrastructure, or deploy a
 service.
 
-Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for current Lambda
-deployment and retained shared-resource guidance.
+Read [`DEPLOY-INSTRUCTIONS.md`](./DEPLOY-INSTRUCTIONS.md) for accounts,
+approvals, the release workflow and rollback, and the
+[Cloudflare runbook](./docs/deployment/cloudflare-dns.md) for DNS records.
 Lambda runtime details are in
 [`docs/deployment/aws-lambda-api-gateway.md`](./docs/deployment/aws-lambda-api-gateway.md).

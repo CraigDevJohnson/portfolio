@@ -24,8 +24,8 @@ resource "aws_iam_role" "lambda" {
 
   lifecycle {
     precondition {
-      condition     = var.management == null ? true : (var.environment == "dev" && var.name_prefix == "portfolio-lambda-dev" && var.aws_region == "us-west-2" && data.aws_caller_identity.current.account_id == "180294223248" && data.aws_partition.current.partition == "aws")
-      error_message = "management is restricted to the reviewed development AWS account and region."
+      condition     = var.management == null ? true : (var.environment == "dev" && var.name_prefix == "portfolio-lambda-dev" && var.aws_region == "us-west-2" && data.aws_partition.current.partition == "aws")
+      error_message = "management is restricted to the development environment in us-west-2."
     }
 
     precondition {
@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "lambda" {
       content {
         test     = "StringEquals"
         variable = "kms:EncryptionContext:PARAMETER_ARN"
-        values   = [for path in values(local.ssm_paths) : "arn:aws:ssm:us-west-2:180294223248:parameter${path}"]
+        values   = [for path in values(local.ssm_paths) : "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${path}"]
       }
     }
   }
@@ -85,26 +85,8 @@ data "aws_iam_policy_document" "lambda" {
       }
     }
   }
-  dynamic "statement" {
-    for_each = var.management == null ? [] : [1]
-    content {
-      actions   = ["logs:FilterLogEvents"]
-      resources = ["arn:aws:logs:us-west-2:180294223248:log-group:/ec2/i-*:*"]
-    }
-  }
-  dynamic "statement" {
-    for_each = var.management == null ? [] : [1]
-    content {
-      actions   = ["ec2:StartInstances", "ec2:StopInstances"]
-      resources = ["arn:aws:ec2:us-west-2:180294223248:instance/*"]
-      condition {
-        test     = "StringEquals"
-        variable = "ec2:ResourceTag/PortfolioManagement"
-        values   = ["dev"]
-      }
-    }
-  }
-
+  # D22: the disabled portal no longer gets EC2 start/stop or /ec2/i-* log
+  # reads. The planned Foundry backend replaces direct EC2 control.
 }
 
 resource "aws_iam_role_policy" "lambda" {

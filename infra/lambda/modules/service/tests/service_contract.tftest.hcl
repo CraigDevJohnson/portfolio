@@ -1,7 +1,7 @@
 mock_provider "aws" {
   mock_data "aws_caller_identity" {
     defaults = {
-      account_id = "180294223248"
+      account_id = "111122223333"
     }
   }
 
@@ -13,7 +13,7 @@ mock_provider "aws" {
 
   mock_data "aws_kms_alias" {
     defaults = {
-      target_key_arn = "arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000"
+      target_key_arn = "arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000000"
     }
   }
 
@@ -25,7 +25,7 @@ mock_provider "aws" {
 
   mock_resource "aws_acm_certificate" {
     defaults = {
-      arn = "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000"
+      arn = "arn:aws:acm:us-west-2:111122223333:certificate/00000000-0000-0000-0000-000000000000"
       domain_validation_options = [
         {
           domain_name           = "api.example.com"
@@ -45,25 +45,25 @@ mock_provider "aws" {
 
   mock_resource "aws_cloudwatch_log_group" {
     defaults = {
-      arn = "arn:aws:logs:us-west-2:180294223248:log-group:portfolio-test"
+      arn = "arn:aws:logs:us-west-2:111122223333:log-group:portfolio-test"
     }
   }
 
   mock_resource "aws_cloudwatch_metric_alarm" {
     defaults = {
-      arn = "arn:aws:cloudwatch:us-west-2:180294223248:alarm:portfolio-test"
+      arn = "arn:aws:cloudwatch:us-west-2:111122223333:alarm:portfolio-test"
     }
   }
 
   mock_resource "aws_dynamodb_table" {
     defaults = {
-      arn = "arn:aws:dynamodb:us-west-2:180294223248:table/portfolio-test"
+      arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test"
     }
   }
 
   mock_resource "aws_iam_role" {
     defaults = {
-      arn = "arn:aws:iam::180294223248:role/portfolio-lambda-test"
+      arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test"
     }
   }
 
@@ -78,23 +78,23 @@ mock_provider "aws" {
   mock_resource "aws_apigatewayv2_api" {
     defaults = {
       api_endpoint  = "https://test.execute-api.us-west-2.amazonaws.com"
-      execution_arn = "arn:aws:execute-api:us-west-2:180294223248:test-api"
+      execution_arn = "arn:aws:execute-api:us-west-2:111122223333:test-api"
       id            = "test-api"
     }
   }
 
   mock_resource "aws_lambda_function" {
     defaults = {
-      arn        = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev"
-      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev/invocations"
+      arn        = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev"
+      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev/invocations"
       version    = "1"
     }
   }
 
   mock_resource "aws_lambda_alias" {
     defaults = {
-      arn        = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live"
-      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-dev:live/invocations"
+      arn        = "arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev:live"
+      invoke_arn = "arn:aws:apigateway:us-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-west-2:111122223333:function:portfolio-lambda-dev:live/invocations"
     }
   }
 }
@@ -103,7 +103,7 @@ variables {
   environment                = "dev"
   name_prefix                = "portfolio-lambda-dev"
   aws_region                 = "us-west-2"
-  ecr_repository_url         = "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
+  ecr_repository_url         = "111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases"
   image_digest               = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   lambda_memory_mb           = 512
   lambda_timeout_seconds     = 29
@@ -111,7 +111,7 @@ variables {
   log_retention_days         = 14
   enable_pitr                = false
   enable_deletion_protection = false
-  alarm_action_arns          = ["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-alerts"]
+  alarm_action_arns          = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
   domain_names               = ["www.example.com", "api.example.com"]
   request_custom_domain      = false
   activate_custom_domain     = false
@@ -121,7 +121,7 @@ run "published_service_contract" {
   command = plan
 
   assert {
-    condition     = aws_lambda_function.app.image_uri == "180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    condition     = aws_lambda_function.app.image_uri == "111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     error_message = "the Lambda image must use the supplied immutable digest"
   }
 
@@ -164,7 +164,7 @@ run "published_service_contract" {
   assert {
     condition = (
       aws_iam_role.lambda.name == "portfolio-lambda-dev-execution" &&
-      aws_iam_role.lambda.permissions_boundary == "arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      aws_iam_role.lambda.permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
       aws_iam_role_policy.lambda.name == "portfolio-lambda-dev-runtime"
     )
     error_message = "runtime IAM must use the deterministic names and root-owned execution boundary"
@@ -238,9 +238,9 @@ run "published_service_contract" {
         toset(statement.actions) == toset(["ssm:GetParameters"]) &&
         length(statement.resources) == 3 &&
         toset(statement.resources) == toset([
-          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
-          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
-          "arn:aws:ssm:us-west-2:180294223248:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
         ])
       ]) == 1 &&
       length([
@@ -248,7 +248,7 @@ run "published_service_contract" {
         if length(statement.actions) == 1 &&
         toset(statement.actions) == toset(["kms:Decrypt"]) &&
         length(statement.resources) == 1 &&
-        toset(statement.resources) == toset(["arn:aws:kms:us-west-2:180294223248:key/00000000-0000-0000-0000-000000000000"])
+        toset(statement.resources) == toset(["arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000000"])
       ]) == 1 &&
       length([
         for statement in data.aws_iam_policy_document.lambda.statement : statement
@@ -323,7 +323,7 @@ run "published_service_contract" {
           aws_cloudwatch_metric_alarm.lambda_duration,
           aws_cloudwatch_metric_alarm.api_5xx,
           aws_cloudwatch_metric_alarm.api_latency,
-        ] : alarm.treat_missing_data == "notBreaching" && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-alerts"])
+        ] : alarm.treat_missing_data == "notBreaching" && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"])
       ])
     )
     error_message = "the service must define the five required Lambda and API alarms"
@@ -387,7 +387,7 @@ run "certificate_request_only_contract" {
 
   assert {
     condition = (
-      output.certificate_arn == "arn:aws:acm:us-west-2:180294223248:certificate/00000000-0000-0000-0000-000000000000" &&
+      output.certificate_arn == "arn:aws:acm:us-west-2:111122223333:certificate/00000000-0000-0000-0000-000000000000" &&
       [for record in output.acm_validation_records : record.domain_name] == ["api.example.com", "www.example.com"] &&
       length(output.api_gateway_domain_targets) == 0
     )
@@ -416,6 +416,11 @@ run "staged_custom_domain_contract" {
   assert {
     condition     = toset(keys(output.api_gateway_domain_targets)) == toset(["api.example.com", "www.example.com"])
     error_message = "activated custom domains must expose one Regional API target per hostname"
+  }
+
+  assert {
+    condition     = alltrue([for domain in aws_apigatewayv2_domain_name.custom : domain.routing_mode == "API_MAPPING_ONLY"])
+    error_message = "custom domains must route through the declared API mappings"
   }
 }
 
@@ -448,8 +453,8 @@ run "management_enabled_contract" {
     }
   }
   assert {
-    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 8
-    error_message = "management must add a session parameter reference and exactly three bounded management IAM statements"
+    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 6
+    error_message = "management must add a session parameter reference and exactly one bounded read-only management IAM statement"
   }
 
   assert {
@@ -477,25 +482,20 @@ run "management_enabled_contract" {
   assert {
     condition = (
       length([for st in data.aws_iam_policy_document.lambda.statement : st if
-        toset(st.actions) == toset(["ec2:StartInstances", "ec2:StopInstances"]) &&
-        st.resources == toset(["arn:aws:ec2:us-west-2:180294223248:instance/*"]) &&
-        length(st.condition) == 1 && alltrue([for c in st.condition :
-      c.test == "StringEquals" && c.variable == "ec2:ResourceTag/PortfolioManagement" && toset(c.values) == toset(["dev"])])]) == 1 &&
-      length([for st in data.aws_iam_policy_document.lambda.statement : st if
         toset(st.actions) == toset(["ec2:DescribeInstances", "cloudwatch:GetMetricStatistics"]) &&
         st.resources == toset(["*"]) && length(st.condition) == 1 &&
       alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "aws:RequestedRegion" && toset(c.values) == toset(["us-west-2"])])]) == 1 &&
       length([for st in data.aws_iam_policy_document.lambda.statement : st if
-        st.actions == toset(["logs:FilterLogEvents"]) &&
-      st.resources == toset(["arn:aws:logs:us-west-2:180294223248:log-group:/ec2/i-*:*"]) && length(st.condition) == 0]) == 1
+        length(setintersection(toset(st.actions), toset(["ec2:StartInstances", "ec2:StopInstances", "logs:FilterLogEvents"]))) > 0
+      ]) == 0
     )
-    error_message = "management permissions must have exact actions, tag, region and log-group scope"
+    error_message = "management permissions must be read-only and region-scoped, with no EC2 start/stop or instance log reads (D22)"
   }
   assert {
     condition = (length([for st in data.aws_iam_policy_document.lambda.statement : st if
       st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
       alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
-      toset(c.values) == toset([for path in values(output.ssm_parameter_paths) : "arn:aws:ssm:us-west-2:180294223248:parameter${path}"])])]) == 1 &&
+      toset(c.values) == toset([for path in values(output.ssm_parameter_paths) : "arn:aws:ssm:us-west-2:111122223333:parameter${path}"])])]) == 1 &&
     output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY")
     error_message = "enabled KMS context must exactly bind the four SSM parameters"
   }
@@ -535,29 +535,6 @@ run "management_reject_region" {
       ec2_management_tag_key   = "PortfolioManagement"
       ec2_management_tag_value = "dev"
     }
-  }
-  expect_failures = [aws_iam_role.lambda]
-}
-
-run "management_reject_account" {
-  command = plan
-  variables {
-
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
-    }
-  }
-  override_data {
-    target = data.aws_caller_identity.current
-    values = { account_id = "999999999999" }
   }
   expect_failures = [aws_iam_role.lambda]
 }

@@ -1,20 +1,8 @@
-terraform {
-  required_version = "= 1.12.6"
+data "aws_caller_identity" "current" {}
 
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.38.0"
-    }
-  }
-
-  backend "s3" {}
-}
-
-provider "aws" {
-  region              = local.region
-  profile             = "portfolio-ci-roles-administrator"
-  allowed_account_ids = ["180294223248"]
+# aws-setup owns the account's GitHub OIDC provider; this root only trusts it.
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 data "aws_iam_policy_document" "release_trust" {
@@ -23,7 +11,7 @@ data "aws_iam_policy_document" "release_trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [local.github_oidc_provider_arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
     condition {
@@ -48,7 +36,7 @@ data "aws_iam_policy_document" "environment_trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [local.github_oidc_provider_arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
     condition {
@@ -71,7 +59,7 @@ data "aws_iam_policy_document" "production_deployer_trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [local.github_oidc_provider_arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
 
     condition {
@@ -89,17 +77,17 @@ data "aws_iam_policy_document" "production_deployer_trust" {
 }
 
 locals {
-  account_id               = "180294223248"
-  region                   = "us-west-2"
-  state_bucket_name        = "portfolio-tofu-state-${local.account_id}"
-  state_bucket_arn         = "arn:aws:s3:::${local.state_bucket_name}"
-  ecr_repository_arn       = "arn:aws:ecr:${local.region}:${local.account_id}:repository/portfolio-lambda-releases"
-  github_oidc_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"
+  account_id         = data.aws_caller_identity.current.account_id
+  region             = "us-west-2"
+  state_bucket_name  = "portfolio-tofu-state-${var.aws_account_id}"
+  state_bucket_arn   = "arn:aws:s3:::${local.state_bucket_name}"
+  ecr_repository_arn = "arn:aws:ecr:${local.region}:${local.account_id}:repository/portfolio-lambda-releases"
 
+  # Tags that the environment roots put on every release resource.
   required_tags = {
     ManagedBy = "opentofu"
     Platform  = "lambda-http-api"
-    Project   = "portfolio"
+    project   = "portfolio"
   }
 
   environment_configuration = {
@@ -139,7 +127,7 @@ locals {
   )
 
   environment_read_statements = {
-    for key, configuration in local.environment_configuration : key => concat([
+    for key, configuration in local.environment_configuration : key => [
       {
         Sid      = "CallerIdentity"
         Effect   = "Allow"
@@ -291,7 +279,7 @@ locals {
             "aws:ResourceTag/Environment" = configuration.environment
             "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
             "aws:ResourceTag/Platform"    = local.required_tags.Platform
-            "aws:ResourceTag/Project"     = local.required_tags.Project
+            "aws:ResourceTag/project"     = local.required_tags.project
           }
         }
       },
@@ -304,15 +292,7 @@ locals {
           "arn:aws:cloudwatch:${local.region}:${local.account_id}:alarm:${configuration.function_name}-${suffix}"
         ]
       },
-      ], key == "prod" ? [{
-        Sid      = "FoundationAlarmRouteRead"
-        Effect   = "Allow"
-        Action   = ["events:DescribeRule", "events:ListTargetsByRule"]
-        Resource = "arn:aws:events:${local.region}:${local.account_id}:rule/foundation-notifications-services"
-        Condition = {
-          StringEquals = { "aws:RequestedRegion" = local.region }
-        }
-    }] : [])
+    ]
   }
 
   development_mutation_statements = [
@@ -339,7 +319,7 @@ locals {
           "aws:ResourceTag/Environment" = "dev"
           "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
           "aws:ResourceTag/Platform"    = local.required_tags.Platform
-          "aws:ResourceTag/Project"     = local.required_tags.Project
+          "aws:ResourceTag/project"     = local.required_tags.project
         }
       }
     },
@@ -369,7 +349,7 @@ locals {
           "aws:ResourceTag/Environment" = "prod"
           "aws:ResourceTag/ManagedBy"   = local.required_tags.ManagedBy
           "aws:ResourceTag/Platform"    = local.required_tags.Platform
-          "aws:ResourceTag/Project"     = local.required_tags.Project
+          "aws:ResourceTag/project"     = local.required_tags.project
         }
       }
     },
@@ -394,9 +374,7 @@ resource "aws_iam_role" "ci" {
   max_session_duration = 3600
 
   tags = {
-    ManagedBy = "opentofu"
-    Project   = "portfolio"
-    Purpose   = "github-release"
+    Purpose = "github-release"
   }
 }
 
@@ -406,9 +384,7 @@ resource "aws_iam_role" "production_deployer" {
   max_session_duration = 3600
 
   tags = {
-    ManagedBy = "opentofu"
-    Project   = "portfolio"
-    Purpose   = "github-release"
+    Purpose = "github-release"
   }
 }
 
@@ -470,17 +446,6 @@ resource "aws_iam_role_policy" "production_deployer" {
     Statement = concat(
       local.environment_read_statements.prod,
       local.production_mutation_statements,
-      [{
-        Sid      = "ProductionMetricRead"
-        Effect   = "Allow"
-        Action   = ["cloudwatch:GetMetricStatistics"]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:RequestedRegion" = local.region
-          }
-        }
-      }],
     )
   })
 }

@@ -17,6 +17,7 @@ spec = importlib.util.spec_from_file_location('auth_contract', REPO / 'scripts/c
 contract = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(contract)
 require = contract.require
+PROFILE = 'workloads-admin'
 
 
 def private_path(raw, existing=True):
@@ -48,7 +49,8 @@ def digest(data):
 
 
 def environment():
-    require(os.environ.get('AWS_PROFILE') == 'portfolio-deployer')
+    require(re.fullmatch(r'[0-9]{12}', contract.ACCOUNT) is not None)
+    require(os.environ.get('AWS_PROFILE') == PROFILE)
     require(os.environ.get('AWS_REGION') == contract.REGION)
     # Refuse all alternate credential, endpoint, CLI, variable and log channels.
     for key in os.environ:
@@ -113,9 +115,9 @@ def main():
         write_private(run_dir / f'{count}.stderr', result.stderr)
         require(result.returncode == 0)
         return result.stdout
-    identity = json.loads(run(['aws', '--profile', 'portfolio-deployer', '--region', contract.REGION, 'sts', 'get-caller-identity', '--output', 'json']))
+    identity = json.loads(run(['aws', '--profile', PROFILE, '--region', contract.REGION, 'sts', 'get-caller-identity', '--output', 'json']))
     require(identity['Account'] == contract.ACCOUNT)
-    require(re.fullmatch(r'arn:aws:sts::180294223248:assumed-role/AWSReservedSSO_PortfolioDeployer_[A-Za-z0-9]+/[^/]+', identity['Arn']) is not None)
+    require(re.fullmatch(rf'arn:aws:sts::{contract.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsAdmin_[A-Za-z0-9]+/[^/]+', identity['Arn']) is not None)
     tofu = ['tofu', f'-chdir={ROOT}']
     run(tofu + ['init', '-backend-config=backend.hcl', '-reconfigure', '-lockfile=readonly', '-input=false'])
     require(run(tofu + ['workspace', 'show']).strip() == b'default')

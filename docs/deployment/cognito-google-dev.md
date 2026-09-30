@@ -7,25 +7,18 @@ Auth provisioning is an operator task, separate from Lambda release jobs.
 
 ## Live prerequisites and approvals
 
-Use account `180294223248`, region `us-west-2`, and the `portfolio-deployer`
-SSO profile (role `AWSReservedSSO_PortfolioDeployer_*`). Refresh that SSO session
-before a live operation. The separate `portfolio-auth-policy-admin` SSO profile
-now provides policy inspection/validation and prerequisite metadata reads with
-one-hour sessions. It has no installation or provisioning authority. Its live
-checks passed on September 7, 2026. The three reviewed policies are now installed;
-all documents and effective deployer permissions matched their reviewed inputs,
-and temporary administrator installation access was removed. See the
-[external setup record](2026-09-07-cognito-external-setup-review.md) for exact
-documents, versions and verification. Auth planning/applying still uses only
-`portfolio-deployer`; do not substitute administrator or root credentials.
+The pool is **not provisioned** in the workloads account. The dated records
+below describe the earlier management-account setup; they are history.
 
-Verify encrypted, access-controlled backend bucket
-`portfolio-tofu-state-180294223248`, versioning, public-access protection, effective
-auth-prefix state read/write/lock permissions and required Cognito permissions.
-Review domain availability for `portfolio-lambda-dev-mgmt-180294223248` before
-planning. The wrappers enforce backend encryption and locking configuration;
-they do not establish that the bucket's live security controls or permissions
-are sufficient.
+Use the workloads account (`AWS_ACCOUNT_ID` in `Taskfile.yaml`), region
+`us-west-2`, and Craig's `workloads-admin` SSO profile (role
+`AWSReservedSSO_WorkloadsAdmin_*`). The cognito tasks set that profile, and the
+wrapper refuses any other identity or account. Never use root credentials.
+
+The backend is `portfolio-tofu-state-<AWS_ACCOUNT_ID>`, which the account root
+manages. The managed-login domain prefix defaults to
+`portfolio-lambda-dev-mgmt-<AWS_ACCOUNT_ID>`; review its availability before
+planning. The wrappers enforce backend encryption and locking configuration.
 
 Craig selected Google Cloud project `portoflio-dev-508000` (spelling intentional).
 The project and signed-in account are verified, and the user completed consent
@@ -34,9 +27,10 @@ is created, with its credentials delivered to the private operator input. The
 sole test-user entry is `craigdevjohnson@gmail.com`; only the three basic identity
 scopes are saved, with no sensitive or restricted scopes. External/Testing and
 the application/support/contact fields were verified. No JavaScript origins
-are registered. The client uses only this Google redirect URI:
-
-`https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`
+are registered. The client's Google redirect URI is the `google_redirect_uri`
+output, `https://portfolio-lambda-dev-mgmt-<AWS_ACCOUNT_ID>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`.
+The redirect URI registered for the earlier management-account pool must be
+replaced with the workloads one before a workloads apply.
 
 Google exempts basic identity scopes from the Testing test-user allowlist, so
 application access must still be enforced by the verified-email allowlist.
@@ -52,11 +46,10 @@ an updated reviewed checker contract.
 
 ## Private inputs and plan review
 
-The private `google.json` input has been delivered and validated; its raw download
-is retained privately. Initialization, planning and the exact state-lock write
-await separate approval of the
-[initial plan review](2026-09-07-cognito-initial-plan-review.md). No auth-state
-write, Cognito apply, session-key injection or runtime activation has occurred.
+The private `google.json` input was delivered and validated for the earlier
+management-account review ([initial plan review](2026-09-07-cognito-initial-plan-review.md)).
+No auth-state write, Cognito apply, session-key injection or runtime activation
+has occurred in either account.
 
 Create an operator-owned directory outside the checkout with mode `0700`. Set
 `COGNITO_PRIVATE_DIR` to its absolute path. Have the credential delivery channel
@@ -71,12 +64,10 @@ Run tasks from this checkout using environment variables (not Task CLI variable
 assignments):
 
 ```sh
-export AWS_PROFILE=portfolio-deployer
-export AWS_REGION=us-west-2
 export COGNITO_PRIVATE_DIR=/absolute/private/operator-directory
 export GOOGLE_OAUTH_CREDENTIALS_FILE=/absolute/private/operator-directory/google.json
 export PLAN_FILE=/absolute/private/operator-directory/auth.tfplan
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/auth/dev/terraform.tfstate.tflock
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<AWS_ACCOUNT_ID>/portfolio-lambda-http-api/auth/dev/terraform.tfstate.tflock
 task cognito-dev-init
 task cognito-dev-plan
 ```
@@ -129,23 +120,22 @@ success before using the file; a failed redirected command may leave an empty
 file. Treat the allowlisted email as personal data when sharing this public
 configuration.
 
-Runtime deployment remains a separate reviewed Lambda plan. Supply the exported
-`management` object as the development root's variable and as
-`EXPECTED_MANAGEMENT_JSON` to its checker, using Task4's runtime integration
-instructions. For those tasks, set `EXPECTED_MANAGEMENT_JSON` to
-`$(jq -c .management /absolute/path/management-runtime.tfvars.json)` in the
-operator shell. The runtime wrappers forward this reviewed public value to
-`TF_VAR_management`; use the same reviewed value for rollout and rollback.
-Automatic workflow configuration must explicitly supply the public object;
-its default remains `null`. After separately reviewing and applying runtime
-enablement, set the GitHub **development** environment public variable
-`MANAGEMENT_RUNTIME_JSON` to the bare `.management` object. The development
-release step forwards this value as `EXPECTED_MANAGEMENT_JSON`; omit it or
-use `null` while the portal is disabled. Ordinary rollouts cannot enable the
-portal because their runtime environment diff remains restricted. Keep image and unrelated Lambda changes out of the auth plan.
+Runtime deployment remains a separate reviewed Lambda plan. Export the object
+for the development plan with
+`export TF_VAR_management="$(jq -c .management /absolute/path/management-runtime.tfvars.json)"`,
+then run `task lambda-dev-plan` and `task lambda-dev-apply`. After that apply,
+set the GitHub **development** environment variable `MANAGEMENT_RUNTIME_JSON`
+to the same bare `.management` object so CI releases keep it; the release job
+validates it and forwards it as `TF_VAR_management`. Omit it or use `null`
+while the portal is disabled. A CI release cannot enable the portal, because
+its plan may change only the Lambda image and `live` alias. Keep image and
+unrelated Lambda changes out of the auth plan.
 Provision the `/portfolio/lambda/dev/MGMT_SESSION_KEY` SecureString value through
-the separately approved secret channel before enabling the runtime. The auth
-root does not create or read that secret. Do not add auth-state access or Google
+the separately approved secret channel before enabling the runtime. The dev
+execution boundary does not allow that parameter yet, so also add
+`MGMT_SESSION_KEY` to the dev parameters in `infra/lambda/ci-roles/boundary.tf`
+and apply the account root before the runtime plan. The auth root does not
+create or read that secret. Do not add auth-state access or Google
 credentials to automatic release workflows.
 
 ## Offline checks

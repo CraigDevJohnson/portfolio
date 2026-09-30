@@ -1,5 +1,9 @@
 # Cognito Google development setup preflight
 
+> [!IMPORTANT]
+> Historical record of the earlier management-account setup; those resources
+> are deleted. Follow [cognito-google-dev.md](cognito-google-dev.md) instead.
+
 Date: 2026-09-07
 
 ## Design retrieval (resolved)
@@ -81,7 +85,7 @@ preflight on 2026-09-07 found:
 - `origin/main` remains `59fffc8905ac19cc8c029465dc1556d6791bf279`; the
   implementation worktree is current with that base and the original dirty
   checkout is preserved.
-- The `portfolio-deployer` SSO session now succeeds in account `180294223248`
+- The `portfolio-deployer` SSO session now succeeds in account `<management-account-id>`
   as the expected `AWSReservedSSO_PortfolioDeployer_` role. No SSO refresh or
   alternate principal was needed.
 - State-bucket versioning reports `Enabled`. The current role denies encryption
@@ -96,7 +100,7 @@ preflight on 2026-09-07 found:
 - The live function has no `MGMT_*` environment variables. Its existing role is
   `portfolio-lambda-dev-execution`, with inline policy
   `portfolio-lambda-dev-runtime` and boundary
-  `arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+  `arn:aws:iam::<management-account-id>:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
 - The Google project selection is pending. Existing Calendar OAuth credentials
   were not accessed or reused.
 - Reading the boundary policy document and live IAM Access Analyzer validation
@@ -119,7 +123,7 @@ Task 4 and the offline part of Task 5 are implemented through `a18869ae`:
 - Private credential/plan/apply/export tools enforce exact identity/backend,
   private files, guarded reads, saved-plan/provenance checksums, five-resource
   contracts and public-only output. The local private directory is ready.
-- Three separately named [policy candidates](../../infra/lambda/bootstrap/candidates/README.md)
+- Three separately named [policy candidates](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/infra/lambda/bootstrap/candidates/README.md)
   include reviewed hashes, scope and remaining live-validation requirements.
   Previously approved artifacts and their hashes are unchanged.
 
@@ -190,7 +194,7 @@ The earlier September 7 profile-creation continuation created the dedicated
 `PortfolioAuthPolicyAdministrator` SSO permission set and local profile
 `portfolio-auth-policy-admin`, using one-hour sessions. Provisioning and the
 installed read-only policy were verified; after SSO refresh, STS returned the
-expected non-root role in account `180294223248`. Existing local profiles were
+expected non-root role in account `<management-account-id>`. Existing local profiles were
 preserved. Private bootstrap/assignment records and configuration backup remain
 outside the repository. No access key was created.
 

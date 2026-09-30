@@ -15,7 +15,7 @@ func TestCognitoAuthBackendIsIsolatedAndEncrypted(t *testing.T) {
 	backend := readAuthFile(t, "backend.hcl")
 
 	for _, setting := range []string{
-		`bucket       = "portfolio-tofu-state-180294223248"`,
+		`bucket       = "portfolio-tofu-state-793680745829"`,
 		`key          = "portfolio-lambda-http-api/auth/dev/terraform.tfstate"`,
 		`region       = "us-west-2"`,
 		`encrypt      = true`,
@@ -109,11 +109,11 @@ func TestCognitoAuthRootContainsOnlyApprovedResourcesAndOutputs(t *testing.T) {
 	}
 }
 
-func TestCognitoAuthProviderIsPinnedToDevelopmentAccountAndRegion(t *testing.T) {
+func TestCognitoAuthProviderIsPinnedToConfiguredAccountAndRegion(t *testing.T) {
 	provider := readAuthFile(t, "providers.tf")
 	for _, contract := range []string{
 		`region              = "us-west-2"`,
-		`allowed_account_ids = ["180294223248"]`,
+		`allowed_account_ids = [var.aws_account_id]`,
 	} {
 		if !strings.Contains(provider, contract) {
 			t.Errorf("auth provider is missing %q", contract)

@@ -3,14 +3,16 @@
 <!-- markdownlint-disable MD013 MD010 -->
 
 > [!IMPORTANT]
-> Historical plan; do not execute it as the current launch procedure.
-> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) supersedes
+> Historical plan; do not execute it. Its unchecked steps are not pending work.
+> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) superseded
 > its fallback-origin, mandatory rollback, management-portal, and seven-day
-> initial production acceptance requirements. The accepted launch uses the
-> current account, protected self-approval, portfolio/Soccer/Google Calendar,
-> canonical apex with permanent `www` redirect, and 30 uninterrupted healthy
-> minutes. Follow the [current runbook](../../deployment/production-lambda-promotion.md)
-> and [readiness review](../../deployment/2026-09-25-production-launch-readiness.md).
+> initial production acceptance requirements. Production now runs in the
+> workloads account and releases through the reviewed workflow in
+> [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md), with no observation
+> or acceptance windows. The launch-era
+> [promotion runbook](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/production-lambda-promotion.md)
+> and [readiness review](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/2026-09-25-production-launch-readiness.md)
+> are deleted; the links show their last versions.
 > This historical evidence is retained without rewriting its original steps.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -296,9 +298,9 @@ Require the exact production backend key, `portfolio-lambda-prod` name prefix,
 - [ ] **Step 3: Validate the merged root offline**
 
 ```bash
-export TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+export TF_VAR_ecr_repository_url=<management-account-id>.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
 export TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:<management-account-id>:portfolio-lambda-prod-alerts"]'
 
 tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
 tofu -chdir=infra/lambda/environments/prod fmt -check
@@ -511,7 +513,7 @@ jq -e \
   --argjson count "$SNS_CONFIRMED_COUNT" '
     .schema_version == 1 and
     .environment == "production" and
-    .account_id == "180294223248" and
+    .account_id == "<management-account-id>" and
     .region == "us-west-2" and
     .topic_arn == $topic and
     .confirmed_subscription_count == $count and $count >= 1 and
@@ -1172,7 +1174,7 @@ printf '%s' "$alarm_json" | jq -e --arg topic "$alarm_topic_arn" \
    all(.MetricAlarms[]; .AlarmActions == [$topic])' >/dev/null
 jq -e --arg topic "$alarm_topic_arn" '
   .schema_version == 1 and .environment == "production" and
-  .account_id == "180294223248" and .region == "us-west-2" and
+  .account_id == "<management-account-id>" and .region == "us-west-2" and
   .topic_arn == $topic and
   .confirmed_subscription_count >= 1 and
   (.message_id | length) > 0 and

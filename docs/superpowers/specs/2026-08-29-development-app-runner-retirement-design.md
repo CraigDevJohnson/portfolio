@@ -85,7 +85,7 @@ Retirement plan creation and apply must:
 - use `AWS_PROFILE=portfolio-deployer` and `AWS_REGION=us-west-2`;
 - reject root, ambient static credentials, and the wrong account or SSO role;
 - require explicit acknowledgement of
-  `s3://portfolio-tofu-state-180294223248/portfolio/terraform.tfstate.tflock`;
+  `s3://portfolio-tofu-state-<management-account-id>/portfolio/terraform.tfstate.tflock`;
 - initialize the legacy root using its checked-in backend block with
   `tofu -chdir=infra init -reconfigure -lockfile=readonly -input=false`, its
   reviewed AWS provider 5.100.0 lock, and never a nonexistent `backend.hcl`

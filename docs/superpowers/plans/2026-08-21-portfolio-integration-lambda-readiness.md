@@ -2,6 +2,12 @@
 
 <!-- markdownlint-disable MD013 MD010 -->
 
+> [!IMPORTANT]
+> Historical plan; do not execute it. The integration it describes has merged,
+> and its unchecked steps are not pending work. `Taskfile.yaml` holds the
+> current commands and [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md)
+> the current deployment.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Consolidate the audited application tree onto current `main`, make the Go application correct behind API Gateway, and open one replacement PR with reproducible CI and container proof.

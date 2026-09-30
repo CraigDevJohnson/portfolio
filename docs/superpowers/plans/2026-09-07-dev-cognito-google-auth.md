@@ -1,5 +1,13 @@
 # Development Cognito Google Authentication Implementation Plan
 
+> [!IMPORTANT]
+> Historical plan; do not execute its remaining steps. The checked steps ran
+> against the earlier management-account setup, which is deleted. The pool is
+> not provisioned in the workloads account, D22 removed the portal's EC2
+> start/stop and instance-log grants, and the dev execution boundary no longer
+> allows `MGMT_SESSION_KEY`. Follow the
+> [current runbook](../../deployment/cognito-google-dev.md) instead.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Enable Google-only sign-in to the development management portal, issuing a portal session only to Craig's verified, allowlisted Google email.
@@ -22,7 +30,7 @@
 - "Cognito token signature, issuer, audience, and expiry validation stays mandatory before the allowlist decision."
 - "The session key is a SecureString Parameter Store value. Its path is managed in OpenTofu; the plaintext value is injected separately."
 - "The live apply and the Google Cloud OAuth-client creation remain separate, explicit external actions."
-- Account `180294223248`, region `us-west-2`, callback `https://dev.craigdevjohnson.com/callback`, logout `https://dev.craigdevjohnson.com/login`.
+- Account `<management-account-id>`, region `us-west-2`, callback `https://dev.craigdevjohnson.com/callback`, logout `https://dev.craigdevjohnson.com/login`.
 - Sole initial allowlist entry: `craigdevjohnson@gmail.com`, supplied by Craig on 2026-09-07. Do not infer aliases or treat a configured address as token identity.
 - Preserve unrelated checkout changes, Calendar OAuth credentials/scopes/routes, public page design, and the existing production infrastructure and release controls.
 
@@ -42,7 +50,7 @@ Proposed, reviewable development infrastructure values:
 | --- | --- |
 | User pool | `portfolio-lambda-dev-mgmt` |
 | Public app client | `portfolio-lambda-dev-mgmt-web` |
-| Cognito domain prefix | `portfolio-lambda-dev-mgmt-180294223248` (availability must be checked live) |
+| Cognito domain prefix | `portfolio-lambda-dev-mgmt-<management-account-id>` (availability must be checked live) |
 | Google provider | `Google` |
 | Session parameter | `/portfolio/lambda/dev/MGMT_SESSION_KEY` |
 | Opt-in EC2 tag | `PortfolioManagement=dev` (no target is tagged by this work) |
@@ -121,7 +129,7 @@ if os.Getenv("MGMT_SESSION_KEY") != strings.Repeat("ab", 32) {
 - New offline task: `cognito-dev-ci`, included by `lambda-infrastructure-ci`.
 
 - [x] Add mock-provider tests that assert Google-only code flow, public client, no password/SRP/custom auth defaults, verified-email mapping, exact callback/logout, default absence of localhost, explicit local opt-in, required provider credentials, deterministic account/region, and only public output names. Include a sentinel provider credential in mocks and prove it is absent from all declared outputs.
-- [x] Configure the S3 backend with `bucket = "portfolio-tofu-state-180294223248"`, the dedicated auth/dev key, `region = "us-west-2"`, `encrypt = true`, and `use_lockfile = true`. Pin the existing OpenTofu/provider versions and lockfile; constrain provider account with `allowed_account_ids = ["180294223248"]`.
+- [x] Configure the S3 backend with `bucket = "portfolio-tofu-state-<management-account-id>"`, the dedicated auth/dev key, `region = "us-west-2"`, `encrypt = true`, and `use_lockfile = true`. Pin the existing OpenTofu/provider versions and lockfile; constrain provider account with `allowed_account_ids = ["<management-account-id>"]`.
 - [x] Define exactly the user pool, Google identity provider, public app client, managed-login domain and branding. No IAM, SSM plaintext/dummy value, Lambda, production, or remote-state resources belong in this root.
 
 ```hcl
@@ -176,7 +184,7 @@ default = null
 
 - [x] Test disabled dev and prod plans against the existing exact environment/IAM/output contracts before adding an enabled-dev mock plan. Reject non-null management for prod, missing/changed email, wrong HTTPS callbacks, wrong region/account, broadened action/tag/log scope and credentials in runtime variables.
 - [x] When non-null, derive `MGMT_SESSION_KEY` from `/portfolio/lambda/dev/MGMT_SESSION_KEY`; add the issuer/domain/client/callback/logout/allowlist/local-opt-in/region variables. Add the exact parameter ARN to SSM and KMS encryption-context permissions. Do not create a second runtime role/policy or put Cognito resources in the shared module.
-- [x] Add only `ec2:DescribeInstances`, `cloudwatch:GetMetricStatistics`, `logs:FilterLogEvents`, `ec2:StartInstances`, and `ec2:StopInstances`. Start/stop use `arn:aws:ec2:us-west-2:180294223248:instance/*` with `ec2:ResourceTag/PortfolioManagement = dev`. No tagging permission. Restrict log reads to `/ec2/i-*` log-group ARNs and unavoidable wildcard read actions by region. Existing restart uses stop/start; do not add reboot permission.
+- [x] Add only `ec2:DescribeInstances`, `cloudwatch:GetMetricStatistics`, `logs:FilterLogEvents`, `ec2:StartInstances`, and `ec2:StopInstances`. Start/stop use `arn:aws:ec2:us-west-2:<management-account-id>:instance/*` with `ec2:ResourceTag/PortfolioManagement = dev`. No tagging permission. Restrict log reads to `/ec2/i-*` log-group ARNs and unavoidable wildcard read actions by region. Existing restart uses stop/start; do not add reboot permission.
 - [x] Prepare separately named, unapproved bootstrap/boundary candidates. Preserve each existing `Prod*` statement exactly. Add dev-only management statements and matching KMS context; separately scope human setup-role access to the auth state and Cognito resources. Do not change the tracked hashes or approval status of previously approved bootstrap artifacts.
 - [x] Extend the runtime plan checker to validate only the new exact dev env/IAM shape against reviewed public inputs. Keep secret rejection, sensitive-marker rejection, resource topology, image/alias-only automatic rollout, alias-only rollback, and production checks. Auth configuration/allowlist/IAM changes must require review, never flow through an ordinary image-only release.
 - [x] Test enabled and disabled paths and mutations with `task lambda-infrastructure-ci`. Keep Google credentials and auth backend reads out of release/rollback workflows and CI roles. Commit `feat(infra): gate development portal runtime permissions` only when both existing and new contract cases pass.
@@ -192,7 +200,7 @@ default = null
 - [x] Implement guarded `cognito-dev-init`, `cognito-dev-plan`, and checksum-protected `cognito-dev-apply` tasks using the repository's exact identity, state-lock and saved-plan conventions. Keep these out of automatic release jobs. Add a public-output export that selects only `management_runtime`, never all outputs or raw state.
 - [x] Refresh `portfolio-deployer` SSO; verify STS account/role, encrypted backend controls and no conflicting Cognito domain. Install the three separately approved policies and verify permission-set documents, effective role policies and restored read-only administrator access. Regular deployer identity, bucket controls, auth-prefix listing and domain reads passed September 7; see the [external setup record](../../deployment/2026-09-07-cognito-external-setup-review.md).
 - [ ] Verify effective backend write/lock and Cognito provisioning permissions during the separately approved live plan/apply; successful prerequisite reads and document checks do not prove those operations.
-- [x] Select and verify project `portoflio-dev-508000`; complete the separately approved Google consent, dedicated `portfolio-lambda-dev-mgmt-google` web client, sole test-user entry and private credential delivery. The client has only `https://portfolio-lambda-dev-mgmt-180294223248.auth.us-west-2.amazoncognito.com/oauth2/idpresponse` and no JavaScript origins. External/Testing, app name and support/developer email were verified. Saved scopes are `openid`, `https://www.googleapis.com/auth/userinfo.email` and `https://www.googleapis.com/auth/userinfo.profile`; sensitive/restricted lists are empty. Private `google.json` is a regular mode `0600` file with exactly `client_id` and `client_secret`; the raw download is private. Google's [basic-identity Testing exemption](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview) means the application verified-email gate remains authoritative.
+- [x] Select and verify project `portoflio-dev-508000`; complete the separately approved Google consent, dedicated `portfolio-lambda-dev-mgmt-google` web client, sole test-user entry and private credential delivery. The client has only `https://portfolio-lambda-dev-mgmt-<management-account-id>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse` and no JavaScript origins. External/Testing, app name and support/developer email were verified. Saved scopes are `openid`, `https://www.googleapis.com/auth/userinfo.email` and `https://www.googleapis.com/auth/userinfo.profile`; sensitive/restricted lists are empty. Private `google.json` is a regular mode `0600` file with exactly `client_id` and `client_secret`; the raw download is private. Google's [basic-identity Testing exemption](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview) means the application verified-email gate remains authoritative.
 - [ ] Obtain separate initialization, saved-plan and exact state-lock approval from the [initial plan review](../../deployment/2026-09-07-cognito-initial-plan-review.md). No auth-state write or Cognito apply has occurred.
 - [ ] Create the private auth plan and review its resource actions, exact names, Google configuration, backend, state sensitivity, and checksum. Stop for the separate live-apply approval required by the design. Apply that exact saved plan after approval, then verify resources and a converged plan without printing provider details/secrets.
 
