@@ -226,16 +226,8 @@ func TestPublicPlannerRouteOffersOutputChoiceFirstWithoutSession(t *testing.T) {
 		t.Error("only ICS may be chosen when Google Calendar is not configured")
 	}
 
-	for _, stage := range stages[1:] {
-		if !plannerHasAttr(stage, "hidden") {
-			t.Errorf("stage %q is visible before an output is chosen", soccerHTMLAttribute(stage, "data-soccer-stage"))
-		}
-	}
-	connections := plannerSingle(t, doc, "Connections panel", plannerAttrIs("id", "soccer-connections"))
-	if !plannerHasAttr(connections, "hidden") {
-		t.Error("Connections panel is visible before an output is chosen")
-	}
-
+	// The server renders a usable baseline. main.js hides the later steps
+	// until an output is chosen, so the planner still works without it.
 	fetchForm := plannerSingle(t, doc, "manual Team ID form", plannerAttrIs("id", "fetch-form"))
 	if got := soccerHTMLAttribute(fetchForm, "hx-post"); got != "/soccer/fetch" {
 		t.Fatalf("manual Team ID form posts to %q, want /soccer/fetch", got)
@@ -243,12 +235,103 @@ func TestPublicPlannerRouteOffersOutputChoiceFirstWithoutSession(t *testing.T) {
 	if len(plannerElements(fetchForm, plannerAttrIs("name", "team_codes"))) != 1 {
 		t.Fatal("manual Team ID form lacks the team_codes field")
 	}
-	linkedSource := plannerSingle(t, doc, "linked-player source option", func(node *html.Node) bool {
-		return plannerHasAttr(node, "data-soccer-linked-source") && soccerHTMLClassContains(node, "soccer-source-option")
-	})
-	if !plannerHasAttr(linkedSource, "hidden") {
-		t.Error("linked-player source is visible on the public path")
+	for description, node := range map[string]*html.Node{
+		"manual Team ID form":        fetchForm,
+		"Connections panel":          plannerSingle(t, doc, "Connections panel", plannerAttrIs("id", "soccer-connections")),
+		"schedule loading status":    plannerSingle(t, doc, "loading status", plannerAttrIs("id", "loading-indicator")),
+		"schedule results announcer": plannerSingle(t, doc, "results announcer", plannerAttrIs("id", "soccer-results-announcer")),
+		"linked-player source option": plannerSingle(t, doc, "linked-player source option", func(node *html.Node) bool {
+			return plannerHasAttr(node, "data-soccer-linked-source") && soccerHTMLClassContains(node, "soccer-source-option")
+		}),
+	} {
+		if hidden := plannerHiddenAncestor(node); hidden != nil {
+			t.Errorf("%s is server-rendered hidden inside <%s %v>; it must work without JavaScript", description, hidden.Data, hidden.Attr)
+		}
 	}
+
+	// Without imported LPS access the private stages and an empty review stay
+	// out of the way, and the review is step 3.
+	for _, stage := range plannerElements(doc, func(node *html.Node) bool { return plannerHasAttr(node, "data-soccer-private-stage") }) {
+		if !plannerHasAttr(stage, "hidden") {
+			t.Errorf("private stage %q is visible without imported LPS access", plannerText(stage))
+		}
+	}
+	review := plannerSingle(t, doc, "review stage", plannerAttrIs("data-soccer-stage", "review"))
+	if !plannerHasAttr(review, "hidden") {
+		t.Error("the empty review stage is visible before any schedule was requested")
+	}
+	for _, number := range plannerElements(doc, func(node *html.Node) bool { return plannerHasAttr(node, "data-soccer-review-number") }) {
+		if got := plannerText(number); got != "3" {
+			t.Errorf("public review step number = %q, want 3", got)
+		}
+	}
+}
+
+func TestPlannerRouteRendersRestoredScheduleDownloadWithoutJavaScript(t *testing.T) {
+	routes, app := newPublicPlannerRoutes(t, func(path string) (int, string) {
+		if path == "/teams/101" {
+			return http.StatusOK, publicScheduleJSON(publicSoonGame, publicLateGame)
+		}
+		return 0, ""
+	})
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	addSessionCookie(t, app, req, &types.SessionData{
+		Workflow: types.SoccerWorkflowState{Source: "manual", SelectedTeamIDs: []int{101}},
+	})
+
+	resp := servePublicPlanner(t, routes, http.MethodGet, "/soccer", nil, req.Cookies()...)
+
+	doc := parsePlannerHTML(t, resp.Body.String())
+	review := plannerSingle(t, doc, "review stage", plannerAttrIs("data-soccer-stage", "review"))
+	if hidden := plannerHiddenAncestor(review); hidden != nil {
+		t.Fatalf("restored schedule review is server-rendered hidden inside <%s %v>", hidden.Data, hidden.Attr)
+	}
+	download := plannerSingle(t, doc, "native download form", func(node *html.Node) bool {
+		return node.Data == "form" && soccerHTMLAttribute(node, "action") == "/soccer/download"
+	})
+	if soccerHTMLAttribute(download, "method") != "post" {
+		t.Errorf("native download form method = %q, want post", soccerHTMLAttribute(download, "method"))
+	}
+	button := plannerSingle(t, download, "download button", plannerAttrIs("id", "download-button"))
+	if hidden := plannerHiddenAncestor(button); hidden != nil {
+		t.Fatalf("native download is unreachable without JavaScript: hidden by <%s %v>", hidden.Data, hidden.Attr)
+	}
+	if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 2 {
+		t.Fatalf("restored schedule rows = %v, want both upcoming games", plannerRowIDs(rows))
+	}
+}
+
+func TestPlannerRouteShowsPrivateStagesForImportedAccess(t *testing.T) {
+	routes, app := newPublicPlannerRoutes(t, func(string) (int, string) { return 0, "" })
+
+	resp := servePublicPlanner(t, routes, http.MethodGet, "/soccer", nil, importedLPSCookies(t, app)...)
+
+	doc := parsePlannerHTML(t, resp.Body.String())
+	private := plannerElements(doc, func(node *html.Node) bool { return plannerHasAttr(node, "data-soccer-private-stage") })
+	if len(private) != 4 {
+		t.Fatalf("private stage elements = %d, want two legend steps and two stages", len(private))
+	}
+	for _, stage := range private {
+		if plannerHasAttr(stage, "hidden") {
+			t.Errorf("private stage %q is hidden although LPS access is imported", plannerText(stage))
+		}
+	}
+	for _, number := range plannerElements(doc, func(node *html.Node) bool { return plannerHasAttr(node, "data-soccer-review-number") }) {
+		if got := plannerText(number); got != "5" {
+			t.Errorf("imported review step number = %q, want 5", got)
+		}
+	}
+}
+
+// plannerHiddenAncestor returns the nearest ancestor-or-self that carries the
+// hidden attribute, or nil when node renders without JavaScript.
+func plannerHiddenAncestor(node *html.Node) *html.Node {
+	for current := node; current != nil; current = current.Parent {
+		if current.Type == html.ElementNode && plannerHasAttr(current, "hidden") {
+			return current
+		}
+	}
+	return nil
 }
 
 func TestPublicPlannerRouteFetchesOrdersSelectsAndDownloadsWithoutCredentials(t *testing.T) {

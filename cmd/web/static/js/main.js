@@ -214,21 +214,28 @@
 	const SOCCER_SELECTION_STORAGE_PREFIX = 'portfolio:soccer:selection:'
 	const SOCCER_OUTPUT_STORAGE_KEY = 'portfolio:soccer:output'
 
+  // The server renders every step the visitor can use without JavaScript.
+  // Once the script runs, later steps wait for a calendar output choice.
   function refreshSoccerOutputChoice() {
-    const output = document.querySelector('[data-soccer-output-option]:checked')?.value || ''
+    if (!document.querySelector('[data-soccer-output-option]')) {
+      return
+    }
+    const output = document.querySelector('[data-soccer-output-option]:checked:not(:disabled)')?.value || ''
     const imported = document.getElementById('soccer-lps-connection')?.dataset.connectionState === 'connected'
     const connections = document.getElementById('soccer-connections')
     const source = document.querySelector('[data-soccer-stage="source"]')
     const review = document.querySelector('[data-soccer-stage="review"]')
 
     if (connections) {
-      connections.hidden = !output || (output === 'ics' && !imported)
+      connections.hidden = !output
     }
     if (source) {
       source.hidden = !output
     }
+    // The schedule source stays independent of the output: linked players can
+    // feed an .ics file as well as Google Calendar.
     document.querySelectorAll('[data-soccer-linked-source]').forEach(element => {
-      element.hidden = !output || (output === 'ics' && !imported)
+      element.hidden = !output
     })
     document.querySelectorAll('[data-soccer-private-stage]').forEach(element => {
       element.hidden = !output || !imported
@@ -277,6 +284,14 @@
         refreshSoccerOutputChoice()
       })
     })
+    refreshSoccerOutputChoice()
+  }
+
+  function revealSoccerReview() {
+    const review = document.querySelector('[data-soccer-stage="review"]')
+    if (review) {
+      review.dataset.soccerResultsReady = 'ready'
+    }
     refreshSoccerOutputChoice()
   }
 
@@ -1433,6 +1448,11 @@
     bindSoccerResponseGate(requestElement, xhr)
     soccerTarget.dataset.soccerRequestId = String(context.id)
     soccerTarget.setAttribute('aria-busy', 'true')
+    if (soccerTarget.id === 'games-container') {
+      // Show the review stage as soon as a schedule is requested so its
+      // loading and error states are visible on the first fetch.
+      revealSoccerReview()
+    }
     if (loadingControl) {
       loadingControl.dataset.soccerLoadingRequestId = String(context.id)
       setSoccerLoadingState(loadingControl, true)
@@ -1480,6 +1500,32 @@
     if (xhr) {
       soccerRequestContexts.delete(xhr)
     }
+  }
+
+  // htmx swaps nothing when a request fails in transit or returns an HTTP
+  // error, so say so where the schedule results would have appeared.
+  // htmx fires afterRequest, which settles the request context, before
+  // sendError and timeout, so match the latest request by its xhr ID instead.
+  function showSoccerRequestFailure(evt) {
+    const xhr = evt.detail?.xhr
+    const results = getSoccerRequestTarget(evt)
+    if (!xhr || results?.id !== 'games-container' || latestSoccerRequestIDs.get(results.id) !== xhr.__soccerRequestID) {
+      return
+    }
+    results.querySelector('[data-soccer-request-failure]')?.remove()
+    const failure = document.createElement('div')
+    failure.className = 'ui-feedback ui-feedback-error soccer-stage-feedback'
+    failure.setAttribute('role', 'alert')
+    failure.dataset.soccerRequestFailure = ''
+    const title = document.createElement('p')
+    title.className = 'ui-feedback-title'
+    title.textContent = 'Could not fetch games'
+    const message = document.createElement('p')
+    message.className = 'ui-feedback-message'
+    message.textContent = 'The schedule request did not complete. Check your connection, then fetch again.'
+    failure.append(title, message)
+    results.prepend(failure)
+    revealSoccerReview()
   }
 
   function suppressStaleSoccerResponse(evt) {
@@ -1682,12 +1728,9 @@
       setupSoccerSelectAll()
     }
     if (evt.target.id === 'games-container') {
-      const review = document.querySelector('[data-soccer-stage="review"]')
-      if (review) {
-        review.dataset.soccerResultsReady = 'ready'
-      }
-    }
-    if (evt.target.id === 'games-container' || evt.target.id === 'soccer-lps-connection') {
+      revealSoccerReview()
+    } else {
+      // Connection cards and stage fragments can change which steps apply.
       refreshSoccerOutputChoice()
     }
 
@@ -1822,6 +1865,7 @@
   ;['htmx:responseError', 'htmx:sendError', 'htmx:timeout'].forEach(eventName => {
     document.body.addEventListener(eventName, function (evt) {
       settlePortalDetailRequest(evt)
+      showSoccerRequestFailure(evt)
       settleSoccerRequest(evt)
       clearSoccerProcessingContext(evt)
       settleSkillsFilterRequest(evt, true)
@@ -1873,6 +1917,7 @@
 
     delete soccerTarget.dataset.soccerRequestId
     soccerTarget.removeAttribute('aria-busy')
+    refreshSoccerOutputChoice()
   })
 
   document.body.addEventListener('htmx:afterProcessNode', function (evt) {

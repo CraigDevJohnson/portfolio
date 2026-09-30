@@ -52,10 +52,32 @@ func TestSoccerPageRendersMatchdayPlannerContract(t *testing.T) {
 	if connections <= strings.Index(html, `data-soccer-stage="calendar-output"`) || connections >= strings.Index(html, `data-soccer-stage="source"`) {
 		t.Fatal("Soccer Connections panel must sit between output choice and schedule source")
 	}
-	workspaceEnd := strings.Index(html, `</div></div><section class="soccer-stage soccer-stage-review`)
-	if workspaceEnd < 0 {
-		t.Fatal("Review & Output is not rendered as a full-width section after the planner workspace")
+	assertReviewFollowsPlannerWorkspace(t, html)
+}
+
+// assertReviewFollowsPlannerWorkspace requires Review & Output to be a
+// full-width planner section after the workspace, not nested inside it.
+func assertReviewFollowsPlannerWorkspace(t *testing.T, page string) {
+	t.Helper()
+	doc := parsePlannerHTML(t, page)
+	review := plannerSingle(t, doc, "review stage", plannerAttrIs("data-soccer-stage", "review"))
+	if review.Parent == nil || !soccerHTMLClassContains(review.Parent, "soccer-workflow-section") {
+		t.Fatal("Review & Output is not rendered as a full-width section of the planner")
 	}
+	layout := plannerSingle(t, doc, "planner layout", func(node *html.Node) bool { return soccerHTMLClassContains(node, "soccer-planner-layout") })
+	if layout.Parent != review.Parent || !plannerNodePrecedes(layout, review) {
+		t.Fatal("Review & Output does not follow the planner workspace")
+	}
+}
+
+// plannerNodePrecedes reports whether first is an earlier sibling of second.
+func plannerNodePrecedes(first, second *html.Node) bool {
+	for sibling := first.NextSibling; sibling != nil; sibling = sibling.NextSibling {
+		if sibling == second {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSoccerPrimaryPlayerOwnsWholeRowAndSubClassificationIsRemoved(t *testing.T) {

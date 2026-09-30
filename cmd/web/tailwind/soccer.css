@@ -1131,8 +1131,12 @@ body.soccer-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* One row of equal columns for however many steps apply: three on the
+     public path, five with imported LPS access. Hidden steps take no column. */
   .soccer-stage-legend {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: none;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
   }
 
   .soccer-stage-legend li {
@@ -1150,10 +1154,6 @@ body.soccer-modal-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
     gap: var(--space-lg);
-  }
-
-  .soccer-source-grid:has(.soccer-source-option[hidden]) {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .games-section-toolbar {
@@ -1207,10 +1207,6 @@ body.soccer-modal-open {
 
   .soccer-stage-source {
     grid-column: 1/-1;
-  }
-
-  .soccer-stage-legend {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
