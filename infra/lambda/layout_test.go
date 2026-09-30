@@ -200,15 +200,17 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 15, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-		"management_reject_prod":                  true,
-		"management_reject_region":                true,
-		"management_reject_email":                 true,
-		"management_reject_empty_email":           true,
-		"management_reject_callback":              true,
-		"management_reject_tag":                   true,
-		"management_reject_issuer":                true,
-		"site_rejects_wrong_environment_callback": true,
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 18, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":                          true,
+		"management_reject_region":                        true,
+		"management_reject_email":                         true,
+		"management_reject_empty_email":                   true,
+		"management_reject_callback":                      true,
+		"management_reject_tag":                           true,
+		"management_reject_issuer":                        true,
+		"site_rejects_wrong_environment_callback":         true,
+		"site_rejects_development_identity_in_production": true,
+		"site_rejects_production_loopback_callback":       true,
 	})
 	for _, environment := range []string{"dev", "prod"} {
 		directory := "environments/" + environment

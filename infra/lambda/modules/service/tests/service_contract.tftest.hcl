@@ -756,3 +756,104 @@ run "site_rejects_wrong_environment_callback" {
 
   expect_failures = [var.site]
 }
+
+run "production_site_runtime_contract" {
+  command = plan
+
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition = aws_lambda_function.app.environment[0].variables == tomap({
+      CLIENT_ID_KEY                = "/portfolio/lambda/prod/CLIENT_ID_KEY"
+      CLIENT_SECRET_KEY            = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
+      GOOGLE_CONNECTION_TABLE_NAME = "portfolio-lambda-prod-google-connections"
+      LOG_ADD_SOURCE               = "false"
+      LOG_FORMAT                   = "json"
+      LOG_LEVEL                    = "info"
+      LPS_SESSION_KEY              = "/portfolio/lambda/prod/LPS_SESSION_KEY"
+      SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-prod-soccer-sessions"
+      SITE_SESSION_KEY             = "/portfolio/lambda/prod/SITE_SESSION_KEY"
+      SITE_COGNITO_DOMAIN          = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      SITE_COGNITO_ISSUER          = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      SITE_COGNITO_CLIENT_ID       = "prodsiteclient"
+      SITE_COGNITO_REDIRECT_URI    = "https://craigdevjohnson.com/auth/callback"
+      SITE_COGNITO_LOGOUT_URI      = "https://craigdevjohnson.com/sign-in"
+      SITE_INVITATIONS_JSON        = "{\"craigdevjohnson@gmail.com\":[\"management\",\"soccer\"]}"
+      SITE_ALLOW_LOCAL_CALLBACK    = "false"
+    })
+    error_message = "production site identity must reach Lambda as its own public settings and a session parameter path, without management settings"
+  }
+
+  assert {
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/prod/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/prod/LPS_SESSION_KEY"
+        SITE_SESSION_KEY  = "/portfolio/lambda/prod/SITE_SESSION_KEY"
+      }) &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
+        alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
+          toset(c.values) == toset([
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/LPS_SESSION_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/SITE_SESSION_KEY",
+      ])])]) == 1
+    )
+    error_message = "production may read and decrypt only its own four SecureStrings once site identity is enabled"
+  }
+}
+
+run "site_rejects_development_identity_in_production" {
+  command = plan
+
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  expect_failures = [var.site]
+}
+
+run "site_rejects_production_loopback_callback" {
+  command = plan
+
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = true
+    }
+  }
+
+  expect_failures = [var.site]
+}
