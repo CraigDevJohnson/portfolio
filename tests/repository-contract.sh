@@ -12,6 +12,7 @@ fail() {
 # under infra/lambda/. A configuration or lock file directly under infra/
 # would bring it back.
 for path in "$repo_root"/infra/*.tf "$repo_root"/infra/*.tf.json \
+	"$repo_root"/infra/*.tofu "$repo_root"/infra/*.tofu.json \
 	"$repo_root"/infra/*.tfvars "$repo_root"/infra/.terraform.lock.hcl; do
 	test ! -e "$path" || fail "retired legacy root file is back: ${path#"$repo_root"/}"
 done
