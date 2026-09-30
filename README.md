@@ -203,9 +203,11 @@ When site sign-in is configured, shared navigation links to `GET /sign-in`
 with a local return path; without complete configuration it shows no sign-in
 entry. The landing page starts Google sign-in only on `POST /sign-in`; Cognito
 returns to `GET /auth/callback`. Return paths must be local, and a return path
-to the callback itself falls back to `/`. `POST /sign-out` clears the session,
-pending OAuth state, and imported LPS access before ending the Cognito
-managed-login journey. A
+to the callback itself falls back to `/`. `POST /sign-out` clears the session
+and pending OAuth state before ending the Cognito managed-login journey. It
+also clears features' browser state that depends on the site session: imported
+LPS access and pending Google Calendar consent. The owner-bound Google
+connection stays, so it is available again when its owner signs back in. A
 denied, uninvited identity is offered **Use a different account**, which uses
 that sign-out path so the next attempt does not reuse the same managed login.
 A stale callback leaves an existing valid session in place. Public
@@ -372,7 +374,7 @@ configured; the landing page then reports that sign-in is unavailable:
 | `GET` | `/sign-in` | Signed-out landing and local return destination |
 | `POST` | `/sign-in` | Start Google-federated Cognito sign-in |
 | `GET` | `/auth/callback` | Complete site sign-in |
-| `POST` | `/sign-out` | Clear site session and imported LPS access; end managed login |
+| `POST` | `/sign-out` | Clear site session, imported LPS access, and pending Google consent; end managed login |
 
 HTMX and form endpoints:
 

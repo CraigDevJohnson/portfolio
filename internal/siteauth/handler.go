@@ -32,6 +32,9 @@ type Handler struct {
 	Config *config.Config
 	OIDC   *portal.OIDCClient
 	Logger *slog.Logger
+	// SignOutHooks let features that keep browser state for the signed-in
+	// visitor, such as imported LPS access, end it when the visitor signs out.
+	SignOutHooks []func(http.ResponseWriter, *http.Request)
 }
 
 // NewHandler constructs the shared site sign-in handler.
@@ -205,6 +208,9 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	preventStorage(w)
 	h.clearSession(w, r)
 	h.clearOAuthState(w, r)
+	for _, endFeatureState := range h.SignOutHooks {
+		endFeatureState(w, r)
+	}
 	if h.OIDC != nil {
 		if target := h.OIDC.LogoutURL(); target != "" {
 			http.Redirect(w, r, target, http.StatusSeeOther)
