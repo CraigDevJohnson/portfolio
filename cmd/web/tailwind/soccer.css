@@ -211,6 +211,11 @@
   line-height: var(--leading-relaxed);
 }
 
+.soccer-connection-copy strong {
+  color: var(--color-copy-primary);
+  font-weight: var(--font-semibold);
+}
+
 .soccer-connection-copy .soccer-connection-status {
   color: var(--candle-oat);
 }
