@@ -7,9 +7,11 @@ import (
 	"testing"
 )
 
-// A raw length is a number with a rem, em or px unit written into a rule
-// instead of a design token. Identifiers such as --space-2xl never match.
-var designTokenRawLengthPattern = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_.-])([0-9]*\.?[0-9]+(?:rem|em|px))\b`)
+// A raw length is a number, signed or not, with a rem, em or px unit written
+// into a rule instead of a design token: -0.125rem, 0 -2px, mt-[-0.5rem] and
+// calc(100%-2px) all match. The number or its sign must not continue an
+// identifier, so tokens such as --space-2xl and classes such as px-5 never do.
+var designTokenRawLengthPattern = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_.-])(-?[0-9]*\.?[0-9]+(?:rem|em|px))\b`)
 
 // The Soccer output choice, player removal and history notice, and the
 // account navigation, are sized only with design tokens
@@ -32,6 +34,7 @@ func TestDesignTokenSizeValidatorRejectsRawLengths(t *testing.T) {
 		`.fixture-notice { padding: var(--space-sm) calc(var(--space-md) + var(--space-xs)) 0; max-width: calc(var(--space-3xl) * 2.5); gap: 0; width: 100%; }`,
 		`.fixture-notice { padding-block: clamp(var(--space-xl), 5vw, var(--space-2xl)); letter-spacing: var(--tracking-widest); }`,
 		`.fixture-notice { @apply overflow-hidden px-5 text-2xl; }`,
+		`.fixture-notice { margin-top: calc(-1 * var(--space-xs)); @apply -mt-2 w-2px; }`,
 		`/* keeps a 44px target */ .fixture-notice { padding-block: var(--space-md); }`,
 		`.unrelated { padding: 0.75rem; }`,
 	} {
@@ -49,6 +52,10 @@ func TestDesignTokenSizeValidatorRejectsRawLengths(t *testing.T) {
 		`.fixture-notice { @apply tracking-[0.12em]; }`,
 		`@media (max-width: 69.999rem) { .fixture-notice { padding-inline: 1.25rem; } }`,
 		`@media (forced-colors: active) { .other, .fixture-notice { outline: 1px solid CanvasText; } }`,
+		`.fixture-notice { margin-top: -0.125rem; }`,
+		`.fixture-notice { translate: 0 -2px; }`,
+		`.fixture-notice { @apply mt-[-0.5rem]; }`,
+		`.fixture-notice { @apply w-[calc(100%-2px)]; }`,
 	} {
 		if err := validateDesignTokenSizes(invalid, classes); err == nil {
 			t.Errorf("validator accepted raw length in %q", invalid)
