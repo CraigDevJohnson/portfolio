@@ -284,6 +284,7 @@ tasks:
       - go test ./infra/lambda -count=1
       - sh tests/management-input.sh
       - sh tests/release-scripts.sh
+      - sh tests/operator-plan-apply.sh
 
   cognito-dev-ci:
     desc: Validate the isolated development Cognito root without backend or AWS access
@@ -387,6 +388,13 @@ tasks:
   # and prints it; an apply task applies only that saved plan. See
   # DEPLOY-INSTRUCTIONS.md. The lambda-ci-* tasks run inside the Release
   # workflow with GitHub OIDC roles.
+  #
+  # Applying a saved plan, OpenTofu re-reads *.auto.tfvars and -var flags and
+  # refuses any input whose raw value differs from the plan's. A -var value
+  # never matches the same value from a file (the plan keeps "true", the file
+  # gives true). So the environment tasks pass -var only for inputs no tfvars
+  # file sets, and turn ACTIVATE_CUSTOM_DOMAIN into a flag only when it is
+  # given, through one definition (DOMAIN_VAR) that plan and apply share.
 
   _admin-identity-check:
     internal: true
@@ -458,7 +466,7 @@ tasks:
       vars: [ROOT, PLAN_FILE]
     cmds:
       - task: _admin-identity-check
-      - tofu -chdir="{{.ROOT}}" apply -lock-timeout=5m -input=false "{{.PLAN_FILE}}"
+      - tofu -chdir="{{.ROOT}}" apply -lock-timeout=5m -input=false {{.APPLY_ARGS}} "{{.PLAN_FILE}}"
 
   lambda-ci-roles-init:
     desc: Initialize the account root (CI roles, execution boundary, state bucket)
@@ -514,6 +522,8 @@ tasks:
     desc: Save a development plan for IMAGE_DIGEST to PLAN_FILE (ACTIVATE_CUSTOM_DOMAIN=false plans without the hostname)
     requires:
       vars: [IMAGE_DIGEST, PLAN_FILE]
+    vars: &domain-var
+      DOMAIN_VAR: "{{if .ACTIVATE_CUSTOM_DOMAIN}}-var activate_custom_domain={{.ACTIVATE_CUSTOM_DOMAIN}}{{end}}"
     cmds:
       - task: _lambda-root-plan
         vars:
@@ -522,15 +532,19 @@ tasks:
           PLAN_ARGS: >-
             -var ecr_repository_url={{.ECR_URL}}
             -var image_digest={{.IMAGE_DIGEST}}
-            -var activate_custom_domain={{.ACTIVATE_CUSTOM_DOMAIN | default "true"}}
+            {{.DOMAIN_VAR}}
 
   lambda-dev-apply:
-    desc: Apply a reviewed development plan from PLAN_FILE
+    desc: Apply a reviewed development plan from PLAN_FILE (with the plan's ACTIVATE_CUSTOM_DOMAIN, if any)
     requires:
       vars: [PLAN_FILE]
+    vars: *domain-var
     cmds:
       - task: _lambda-root-apply
-        vars: { ROOT: infra/lambda/environments/dev, PLAN_FILE: "{{.PLAN_FILE}}" }
+        vars:
+          ROOT: infra/lambda/environments/dev
+          PLAN_FILE: "{{.PLAN_FILE}}"
+          APPLY_ARGS: "{{.DOMAIN_VAR}}"
 
   lambda-prod-init:
     desc: Initialize the production root
@@ -542,6 +556,7 @@ tasks:
     desc: Save a production plan for IMAGE_DIGEST to PLAN_FILE (ACTIVATE_CUSTOM_DOMAIN=false plans without the hostnames)
     requires:
       vars: [IMAGE_DIGEST, PLAN_FILE]
+    vars: *domain-var
     cmds:
       - task: _lambda-root-plan
         vars:
@@ -550,16 +565,20 @@ tasks:
           PLAN_ARGS: >-
             -var ecr_repository_url={{.ECR_URL}}
             -var image_digest={{.IMAGE_DIGEST}}
-            -var activate_custom_domain={{.ACTIVATE_CUSTOM_DOMAIN | default "true"}}
             -var 'alarm_action_arns=["arn:aws:sns:{{.AWS_REGION}}:{{.AWS_ACCOUNT_ID}}:alerts"]'
+            {{.DOMAIN_VAR}}
 
   lambda-prod-apply:
-    desc: Apply a reviewed production plan from PLAN_FILE
+    desc: Apply a reviewed production plan from PLAN_FILE (with the plan's ACTIVATE_CUSTOM_DOMAIN, if any)
     requires:
       vars: [PLAN_FILE]
+    vars: *domain-var
     cmds:
       - task: _lambda-root-apply
-        vars: { ROOT: infra/lambda/environments/prod, PLAN_FILE: "{{.PLAN_FILE}}" }
+        vars:
+          ROOT: infra/lambda/environments/prod
+          PLAN_FILE: "{{.PLAN_FILE}}"
+          APPLY_ARGS: "{{.DOMAIN_VAR}}"
 
   lambda-release-push:
     desc: Build and push one immutable full-SHA Lambda release image

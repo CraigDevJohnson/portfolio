@@ -56,10 +56,26 @@ task lambda-dev-apply PLAN_FILE=/absolute/path/dev.tfplan
 
 The same `-init`, `-plan` and `-apply` tasks exist for `lambda-ci-roles`,
 `lambda-artifacts` and `lambda-prod`. The dev and prod plans take
-`IMAGE_DIGEST` from `portfolio-lambda-releases`. Pass
-`ACTIVATE_CUSTOM_DOMAIN=false` to plan an environment on its `execute-api`
-endpoint while its hostname still belongs to another account. The prod plan
-always sets `alarm_action_arns` to the workloads us-west-2 `alerts` topic.
+`IMAGE_DIGEST` from `portfolio-lambda-releases`. The prod plan always sets
+`alarm_action_arns` to the workloads us-west-2 `alerts` topic.
+
+Pass `ACTIVATE_CUSTOM_DOMAIN=false` to plan an environment on its
+`execute-api` endpoint while its hostname still belongs to another account,
+and pass it to the apply task too:
+
+```sh
+task lambda-dev-plan IMAGE_DIGEST=sha256:<digest> ACTIVATE_CUSTOM_DOMAIN=false PLAN_FILE=/absolute/path/dev.tfplan
+task lambda-dev-apply ACTIVATE_CUSTOM_DOMAIN=false PLAN_FILE=/absolute/path/dev.tfplan
+```
+
+When OpenTofu applies a saved plan it re-reads `*.auto.tfvars` and any `-var`
+flags, and refuses with `Mismatch between input and plan variable value` if an
+input differs from the plan. A `-var` value never matches the same value read
+from a file. Without `ACTIVATE_CUSTOM_DOMAIN`, both tasks take
+`activate_custom_domain = true` from the environment's `auto.tfvars`; with it,
+both pass the same `-var` flag. If you see that error, nothing changed: rerun
+the apply task with the `ACTIVATE_CUSTOM_DOMAIN` the plan used, or none if the
+plan used none. The apply tasks don't need `IMAGE_DIGEST`.
 
 `task lambda-release-push` builds the current clean commit as
 `portfolio-lambda-releases:git-<sha>`, pushes it, waits for the scan, and
@@ -151,8 +167,9 @@ DNS-only ACM validation records and the proxied traffic records.
 
 An API Gateway custom domain name is unique within a Region across all
 accounts, so a hostname can exist in only one account at a time. Moving one
-means: delete it in the old account, apply the new environment with
-`activate_custom_domain=true`, then repoint Cloudflare.
+means: delete it in the old account, plan and apply the new environment
+without `ACTIVATE_CUSTOM_DOMAIN` (so `activate_custom_domain=true` from its
+`auto.tfvars`), then repoint Cloudflare.
 
 ## Alarms
 

@@ -47,12 +47,15 @@ tofu -chdir=infra/lambda/environments/dev output -json acm_validation_records
 An API Gateway custom domain name is unique within a Region across all AWS
 accounts, so each hostname moves with a short outage:
 
-1. Apply the environment in the new account with `activate_custom_domain=false`,
+1. Apply the environment in the new account with `activate_custom_domain=false`
+   (`ACTIVATE_CUSTOM_DOMAIN=false` on both the plan and the apply task; see
+   [DEPLOY-INSTRUCTIONS.md](../../DEPLOY-INSTRUCTIONS.md#operator-workflow)),
    and add the new certificate's validation CNAMEs above as DNS only. Wait until
    the certificate is `ISSUED` (ACM gives up after 72 hours).
 2. Verify the new stack on its `execute-api` endpoint.
 3. Delete the custom domain and its API mapping in the old account.
-4. Apply the new environment with `activate_custom_domain=true`.
+4. Apply the new environment with `activate_custom_domain=true` (plan and apply
+   without `ACTIVATE_CUSTOM_DOMAIN`).
 5. Repoint the proxied CNAME to the new `d-*.execute-api.us-west-2.amazonaws.com`
    target.
 6. After the move is verified, delete the old account's validation CNAMEs. Keep
