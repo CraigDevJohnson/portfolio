@@ -167,13 +167,28 @@ This is a proposal for review, not an approved or configured limit.
 - **40 teams.** Player-linked demand is assumed to be 2 to 4 linked players
   on 1 or 2 teams in about five sessions a year. If LPS issues new Team IDs
   each session, that is 10 to 40 new IDs a year. Because slots are never
-  released, 40 lasts roughly one to four years; the admission alarm fires on
-  the first refusal and is the trigger to review the cap.
+  released, 40 lasts roughly one to four years. A player-linked team refused
+  at 40 is the trigger to review the cap, but the admission alarm as built
+  cannot single that out (next point).
 - **30 reserved for player-linked teams.** Any visitor can enter a Team ID
   without signing in, and an entered ID is admitted only while fewer than 10
   teams of any source are enrolled. At most 10 IDs are ever enrolled that way,
   each polled for good, and once 10 teams of any kind are enrolled, entered
   IDs are refused permanently.
+- **The admission alarm fires on routine lookups under this tuple.** Every
+  refusal logs `soccer_history_admission_rejected` with its `source`
+  (`internal/soccer/schedule.go`), and the stage 1 metric filter counts every
+  such line on the HTTP log group, whatever the source
+  (`history_worker.tf`). The manual limit is 40 − 30 = 10
+  (`admissionLimit`), so once 10 teams of any source are enrolled, every
+  visitor lookup of an unenrolled Team ID logs a `manual` refusal and puts
+  `portfolio-lambda-{env}-soccer-history-admission-rejected` into ALARM,
+  notifying `alerts`. It returns to OK after 5 minutes without a refusal, and
+  one anonymous lookup every 5 minutes keeps it there. The first refusal will
+  almost certainly be a manual one at 10, not a player one at 40, and the
+  manual noise hides the player refusals the alarm exists for. 6.1 item 6
+  proposes scoping the alarm to player refusals; gate 4 records the
+  decision.
 - **120 requests a run.** This is 40 teams × 3: every team with its team
   request and two facility lookups, or with one facility and spare budget to
   retry 20 teams. The application requires at least one request per team.
@@ -188,19 +203,25 @@ Offline checks of the tuple:
 
 - The journey test builds the store and the daily worker with it, so
   `Limits.Validate` accepts it.
-- A scratch copy of `modules/service` with a mocked-provider test file (not
-  committed) planned the tuple as a dev collection-only stage and a prod
-  schedule stage, and confirmed that 39 requests a run or a 162 s timeout is
-  rejected. All four runs passed:
+- The service module's committed contract
+  (`infra/lambda/modules/service/tests/service_contract.tftest.hcl`) plans
+  the tuple with its mocked provider as a dev collection-only stage and a prod
+  schedule stage, accepts the 163 s floor, and rejects 39 requests a run and a
+  162 s timeout. `go test ./infra/lambda` runs it as part of
+  `task infrastructure-ci`; to run it alone:
 
   ```text
-  tofu init -backend=false -input=false
-  tofu test
+  tofu -chdir=infra/lambda/modules/service init -backend=false -input=false
+  tofu -chdir=infra/lambda/modules/service test
   ... candidate_collection_stage_dev ... pass
   ... candidate_schedule_stage_prod ... pass
-  ... candidate_rejects_a_budget_below_one_request_per_team ... pass
+  ... candidate_accepts_the_shortest_covering_timeout ... pass
   ... candidate_rejects_a_timeout_below_pacing ... pass
+  ... candidate_rejects_a_budget_below_one_request_per_team ... pass
   ```
+
+  Changing 163 to 162, or either rejected value to an accepted one, fails the
+  matching run.
 
 ## 4. Itemized AWS cost
 
@@ -222,11 +243,11 @@ noted.
 | Worker Lambda | 512 MB × 120 s × 30 = 1,800 GB-s (bound: 300 s, 4,500 GB-s) at $0.0000166667 per GB-s, plus 30 requests | $0.03 (bound $0.08) |
 | EventBridge Scheduler | 30 invocations at $1 per million, inside the 14 million free | $0.00 |
 | CloudWatch Logs | About 5 KB a run (one report line with up to 40 team results plus Lambda platform lines), 0.15 MB a month at $0.50 per GB ingested and $0.03 per GB stored | < $0.01 |
-| Log-derived metrics | `AdmissionRejected` and `DailyIncomplete` publish only when a line matches (no default value), so a quiet month costs nothing; each is at most $0.30 per metric-month | $0.00 (bound $0.60) |
+| Log-derived metrics | Each publishes only when a line matches (no default value) and costs at most $0.30 per metric-month. `AdmissionRejected` counts manual refusals too, so it publishes in any month a visitor looks up an unenrolled Team ID once 10 teams are enrolled (3.3); `DailyIncomplete` is quiet in a good month | $0.30 (bound $0.60) |
 | Alarms | 4 standard alarms (admission rejected, incomplete run, worker errors, failure queue) at $0.10; the 10 existing environment alarms already use the account's 10 free alarms | $0.40 |
 | Failure handling | SQS standard queue with SQS-managed encryption: a message only per failed run or delivery, well inside 1 million free requests; alarm notifications go to aws-setup's `alerts` topic (email: first 1,000 free) | $0.00 |
 | Data transfer | LPS responses are inbound; requests are small | $0.00 |
-| **Total per environment** | Typical: quiet metrics, 120 s runs | **about $0.56** |
+| **Total per environment** | Typical: `AdmissionRejected` active, `DailyIncomplete` quiet, 120 s runs | **about $0.86** |
 | **Bound per environment** | Both metrics active all month, 300 s runs | **about $1.22** |
 
 Sensitivity: 100 games of 4 KB per team response raises writes to about 711
@@ -296,58 +317,131 @@ plan.
    `alarm_action_arns`, and `dev.auto.tfvars` has `[]`. Either dev uses the
    workloads `alerts` topic (`arn:aws:sns:us-west-2:793680745829:alerts`), or
    dev does not collect.
-3. **Grant the history table in `PortfolioLambdaExecutionBoundary`**
-   (`ci-roles/boundary.tf`), which has no history grants. The HTTP role
-   `portfolio-lambda-{env}-execution` needs `dynamodb:GetItem`, `PutItem`,
-   `Query` and `DeleteItem` on `table/portfolio-lambda-{env}-soccer-history`
-   (collection, read and removal). The admission transaction is two
+3. **Grant the history runtime in the execution boundaries**
+   (`ci-roles/boundary.tf`), which has no history grants today. Every
+   statement below has `Effect = "Allow"` and the same condition shape as
+   `boundary.tf`: `ArnEquals` on `aws:PrincipalArn` naming the role, with
+   `{Env}` as `Dev` or `Prod` and `{env}` as `dev` or `prod`. ARNs are in
+   account 793680745829, region us-west-2.
+
+   **Stage 1, in `PortfolioLambdaExecutionBoundary`**
+   (`/portfolio/boundaries/`), one statement per environment:
+
+   | Sid | Actions | Resource | Principal |
+   | --- | --- | --- | --- |
+   | `{Env}SoccerHistory` | `dynamodb:DeleteItem`, `GetItem`, `PutItem`, `Query` | `arn:aws:dynamodb:us-west-2:793680745829:table/portfolio-lambda-{env}-soccer-history` | `role/portfolio-lambda-{env}-execution` |
+
+   That covers collection, read and removal. The admission transaction is two
    conditional puts, which IAM authorizes as `dynamodb:PutItem`; there is no
    separate `TransactWriteItems` action
    ([DynamoDB transactions and IAM](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis-iam.html)).
-   The worker and Scheduler roles also attach this boundary, and need:
-   worker `portfolio-lambda-{env}-soccer-history-execution`: `GetItem` and
-   `PutItem` on the table, `Query` on `…/index/due-teams`, `CreateLogStream`
-   and `PutLogEvents` on `/aws/lambda/portfolio-lambda-{env}-soccer-history:*`,
-   `sqs:SendMessage` on `portfolio-lambda-{env}-soccer-history-failures`;
-   Scheduler `portfolio-lambda-{env}-soccer-history-scheduler`:
-   `lambda:InvokeFunction` on `function:portfolio-lambda-{env}-soccer-history`
-   and `sqs:SendMessage` on the queue. **Size limit:** the boundary is about
-   4,449 characters today; adding those grants per role for both
-   environments makes it about 8,088, over IAM's 6,144-character limit for a
-   managed policy, and one merged statement per environment is still about
-   6,358. Adding only the HTTP-role statements gives about 5,128. Put the
-   worker and Scheduler grants in a second boundary policy (about 2,998
-   characters) and point the two roles in `history_worker.tf` at it.
-   (Estimated offline by rendering the statements as compact JSON with
-   `boundary.tf`'s conditions; the account root's plan is the real check.)
-4. **Grant the CI roles the reads and release writes.** The dev deployer,
-   prod planner and prod deployer read only the existing tables, the service
-   function, its execution role, its log groups and the five alarms. Once
-   history resources are in an environment's state, every release plan
-   refreshes them and fails without: `dynamodb:Describe*`/`ListTagsOfResource`
-   on the history table; `lambda:Get*`, `ListTags`, `ListVersionsByFunction`
-   and `GetFunctionEventInvokeConfig` on the worker; `iam:GetRole`,
-   `GetRolePolicy`, `ListRolePolicies`, `ListAttachedRolePolicies` and
-   `ListRoleTags` on the worker and Scheduler roles; `scheduler:GetSchedule`;
-   `sqs:GetQueueAttributes` and `ListQueueTags`; `logs:ListTagsForResource`
-   on the worker log group and `logs:DescribeMetricFilters`;
-   `cloudwatch:DescribeAlarms` and `ListTagsForResource` on the four history
-   alarms. The deployers also need `lambda:UpdateFunctionCode` and
-   `PublishVersion` on the worker, whose image follows every release. Confirm
-   the exact list when the first saved plan is reviewed.
+
+   **Stage 2, in a new `PortfolioLambdaHistoryExecutionBoundary`**
+   (`/portfolio/boundaries/`), five statements per environment. The worker
+   role is `portfolio-lambda-{env}-soccer-history-execution` and the
+   Scheduler role `portfolio-lambda-{env}-soccer-history-scheduler`:
+
+   | Sid | Actions | Resource | Principal |
+   | --- | --- | --- | --- |
+   | `{Env}HistoryWorkerTable` | `dynamodb:GetItem`, `PutItem` | `arn:aws:dynamodb:us-west-2:793680745829:table/portfolio-lambda-{env}-soccer-history` | worker |
+   | `{Env}HistoryWorkerDueIndex` | `dynamodb:Query` | `arn:aws:dynamodb:us-west-2:793680745829:table/portfolio-lambda-{env}-soccer-history/index/due-teams` | worker |
+   | `{Env}HistoryWorkerLogs` | `logs:CreateLogStream`, `PutLogEvents` | `arn:aws:logs:us-west-2:793680745829:log-group:/aws/lambda/portfolio-lambda-{env}-soccer-history:*` | worker |
+   | `{Env}HistoryFailures` | `sqs:SendMessage` | `arn:aws:sqs:us-west-2:793680745829:portfolio-lambda-{env}-soccer-history-failures` | worker and Scheduler (a two-value `ArnEquals` list) |
+   | `{Env}HistoryInvoke` | `lambda:InvokeFunction` | `arn:aws:lambda:us-west-2:793680745829:function:portfolio-lambda-{env}-soccer-history` | Scheduler |
+
+   These mirror the worker and Scheduler role policies in
+   `history_worker.tf`. The same change points both roles'
+   `permissions_boundary` at
+   `arn:aws:iam::793680745829:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary`
+   and updates the service contract's boundary assertion.
+
+   **Size limit.** IAM's managed-policy limit is 6,144 characters. Rendered
+   with `jsonencode` (compact JSON, the form `aws_iam_policy.policy` takes)
+   in a scratch copy of `ci-roles` under its mocked provider, whose account
+   ID has the same length as the real one:
+
+   | Policy | Characters |
+   | --- | ---: |
+   | `PortfolioLambdaExecutionBoundary` today | 4,449 |
+   | With the stage 1 statements | 5,128 |
+   | With the stage 1 and stage 2 statements in the one policy | 8,430 |
+   | `PortfolioLambdaHistoryExecutionBoundary` alone | 3,340 |
+
+   So the worker and Scheduler grants need the second policy. Other
+   statement shapes give other totals (one statement per role and action
+   group renders larger), so the PR must render its own statements the same
+   way. IAM enforces the limit only when an apply calls
+   `CreatePolicy` or `CreatePolicyVersion`; `tofu plan` never submits the
+   document, so no plan catches an overflow. `ci-roles/tests/policies.tftest.hcl`
+   now asserts `length(aws_iam_policy.lambda_execution_boundary.policy) <=
+   6144`, so `task infrastructure-ci` fails first. The PR that adds the second
+   boundary must add the same assertion for it.
+4. **Grant the CI roles the reads and release writes** (`ci-roles/main.tf`).
+   The CI roles read only the existing tables, the service function, its
+   execution role, its log groups and the five alarms. Once history resources
+   are in an environment's state, every release plan refreshes them and fails
+   without the grants below. Each role gets its own environment's ARNs:
+   `{env}` is `dev` for the dev deployer `portfolio-development-deployer-ci`
+   (policy `portfolio-development-runtime-release`) and `prod` for the prod
+   planner `portfolio-production-planner-ci` (`portfolio-production-read-only-plan`)
+   and the prod deployer `portfolio-production-deployer-ci`
+   (`portfolio-production-runtime-release`). In the table `…` stands for
+   `us-west-2:793680745829` and `F` for `portfolio-lambda-{env}`.
+
+   | Stage | Statement | Actions | Resources to add |
+   | --- | --- | --- | --- |
+   | 1 | `TableRead` (existing) | unchanged: `dynamodb:DescribeContinuousBackups`, `DescribeTable`, `DescribeTimeToLive`, `ListTagsOfResource` | `arn:aws:dynamodb:…:table/F-soccer-history` |
+   | 1 | `MetricFilterRead` (new) | `logs:DescribeMetricFilters` | `arn:aws:logs:…:log-group:/aws/lambda/F`, and the same ARN with `:*` |
+   | 1 | `AlarmRead` (existing) | unchanged: `cloudwatch:DescribeAlarms`, `ListTagsForResource` | `arn:aws:cloudwatch:…:alarm:F-soccer-history-admission-rejected` |
+   | 2 | `MetricFilterRead` | as above | `arn:aws:logs:…:log-group:/aws/lambda/F-soccer-history`, and the same ARN with `:*` |
+   | 2 | `AlarmRead` | as above | `arn:aws:cloudwatch:…:alarm:F-soccer-history-incomplete`, and the same with `-errors` and `-dead-letter` in place of `-incomplete` |
+   | 2 | `ExecutionRoleRead` (existing) | unchanged: `iam:GetRole`, `GetRolePolicy`, `ListAttachedRolePolicies`, `ListRolePolicies`, `ListRoleTags` | `arn:aws:iam::793680745829:role/F-soccer-history-execution`, `arn:aws:iam::793680745829:role/F-soccer-history-scheduler` |
+   | 2 | `LambdaRead` (existing) | unchanged: `lambda:GetAlias`, `GetFunction`, `GetFunctionCodeSigningConfig`, `GetFunctionConcurrency`, `GetFunctionConfiguration`, `GetPolicy`, `GetRuntimeManagementConfig`, `ListTags`, `ListVersionsByFunction` | `arn:aws:lambda:…:function:F-soccer-history`, and the same ARN with `:*` |
+   | 2 | `LogGroupRead` (existing) | unchanged: `logs:ListTagsForResource` | `arn:aws:logs:…:log-group:/aws/lambda/F-soccer-history`, and the same ARN with `:*` |
+   | 2 | `HistoryWorkerInvokeConfigRead` (new) | `lambda:GetFunctionEventInvokeConfig` | `arn:aws:lambda:…:function:F-soccer-history`, and the same ARN with `:*` |
+   | 2 | `HistoryQueueRead` (new) | `sqs:GetQueueAttributes`, `sqs:ListQueueTags` | `arn:aws:sqs:…:F-soccer-history-failures` |
+   | 2 | `HistoryScheduleRead` (new) | `scheduler:GetSchedule` | `arn:aws:scheduler:…:schedule/default/F-soccer-history-daily` |
+   | 2 | `DevelopmentHistoryWorkerReleaseWrite` / `ProductionHistoryWorkerReleaseWrite` (new, deployers only) | `lambda:PublishVersion`, `lambda:UpdateFunctionCode` | `arn:aws:lambda:…:function:F-soccer-history`, with the same four `aws:ResourceTag` conditions as the existing release write |
+
+   The prod planner gets every read row and no write. Stage 2 rows can land
+   with stage 1: they name resources that do not exist yet. Rendered the same
+   way as item 3, the three inline policies grow from 4,894, 4,229 and 4,914
+   characters to 7,443, 6,385 and 7,483 (dev deployer, prod planner, prod
+   deployer), inside IAM's 10,240-character limit that
+   `policies.tftest.hcl` already asserts. For the table, function, roles, log
+   group and alarms the actions are the ones the existing grants already
+   prove; the metric filter, event invoke config, queue and schedule are new
+   resource types for these roles. The first release plan after each stage is
+   the cross-check: a missing read fails its refresh with `AccessDenied`
+   before anything changes.
 5. **Teach `scripts/check-lambda-plan.sh` the worker image.** It accepts only
    `aws_lambda_function.app` `image_uri` and the `live` alias. A release plan
    that also moves `module.service.aws_lambda_function.history_worker[0]` to
-   the release image is rejected today (checked offline with a fixture plan:
-   "plan must change only the Lambda image and live alias"). Allow exactly
-   that attribute, to the same image, and add accept and reject cases to
-   `tests/release-scripts.sh`.
-6. **Verify the history alarms on release** (recommended).
-   `scripts/verify-lambda-release.sh` checks only the five named alarms.
-7. **Decide the admission policy** (section 3.1: slots are never released).
+   the release image is rejected today; `tests/release-scripts.sh` now holds
+   that case ("a history worker image update"). Allow exactly that attribute,
+   to the same image, turn that case into an accept case, and add reject
+   cases for a different worker image and another worker attribute.
+6. **Scope the admission alarm to player refusals** (recommended; section
+   3.3). Change the `history_admission_rejected` metric filter pattern to
+   `{ $.msg = "soccer_history_admission_rejected" && $.source = "player" }`
+   and update the service contract's two pattern assertions. Optionally add
+   a second metric filter for `source = "manual"` with no alarm, to count
+   refused lookups. The pattern relies on the HTTP function keeping
+   `LOG_ADD_SOURCE=false`, since slog would otherwise also write its
+   code-location `source` key. The alternative is to accept an alarm that any
+   visitor can hold in ALARM once 10 teams are enrolled. This is a change to
+   the #80 rule "reject and alert on new enrollment at capacity", so it needs
+   Craig's decision (gate 4).
+7. **Verify the history alarms on release** (recommended, after item 6).
+   `scripts/verify-lambda-release.sh` checks only the five named alarms and
+   fails a release when any is in ALARM. Add the history alarms only once the
+   admission alarm counts player refusals alone; until then leave
+   `-soccer-history-admission-rejected` out of release verification, or any
+   refused visitor lookup in the previous 5 minutes fails the release.
+8. **Decide the admission policy** (section 3.1: slots are never released).
    Accept the cap as a lifetime cap, or add a way to release slots of
    rejected or long-dormant teams.
-8. **Bound import latency with collection on** (section 3.2), for example
+9. **Bound import latency with collection on** (section 3.2), for example
    with one overall discovery deadline, or measure `my_teams` latency and
    accept the risk.
 
@@ -381,7 +475,7 @@ both in `portfolio-tofu-state-793680745829`.
 | `module.service.aws_iam_role_policy.lambda` | update | adds `dynamodb:GetItem`, `PutItem`, `Query`, `DeleteItem` on the table |
 | `module.service.aws_lambda_function.app` | update | adds `SOCCER_HISTORY_COLLECTION_ENABLED=true`, `SOCCER_ARCHIVE_TABLE_NAME` and the five `SOCCER_HISTORY_*` limits; publishes a new version |
 | `module.service.aws_lambda_alias.live` | update | `live` moves to that version |
-| `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` | create | `AdmissionRejected` in `Portfolio/SoccerHistory` on `/aws/lambda/portfolio-lambda-{env}` |
+| `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` | create | `AdmissionRejected` in `Portfolio/SoccerHistory` on `/aws/lambda/portfolio-lambda-{env}`, counting manual and player refusals alike unless 6.1 item 6 lands first |
 | `module.service.aws_cloudwatch_metric_alarm.history_admission_rejected[0]` | create | `portfolio-lambda-{env}-soccer-history-admission-rejected`, ≥ 1 in 5 minutes, to `alarm_action_arns` |
 
 Stage 1 starts enrollment through visitor Team ID lookups and granted imports.
@@ -409,53 +503,83 @@ next scheduled time;** there is no dormant-worker stage.
 
 - `task infrastructure-ci` passes on this branch (offline: formatting,
   validation with `-backend=false`, the mocked `tofu test` suites including the
-  service module's 28 runs, ten of them history contracts, release script
+  service module's 33 runs, fifteen of them history contracts, release script
   tests and operator plan tests). It contacts no AWS account.
 - The service module's committed history contracts cover: nothing planned
   without limits; limits alone activate nothing; collection needs the table,
   limits and an alert destination; collection adds only the admission alarm;
   the schedule needs collection and an expression; the worker is bounded,
   reserved to one, and monitored; the worker and Scheduler roles are scoped
-  and inside the boundary.
-- The candidate tuple's scratch plan (section 3.3), the plan checker fixture
-  (6.1 item 5) and the boundary size estimate (6.1 item 3) were run offline for
-  this packet.
+  and inside the boundary. Five of them plan the candidate tuple (section
+  3.3): a dev collection stage, a prod schedule stage, the 163 s floor, and
+  the rejected 162 s timeout and 39-request budget.
+- `ci-roles/tests/policies.tftest.hcl` asserts that
+  `PortfolioLambdaExecutionBoundary` fits IAM's 6,144-character limit (it is
+  4,449 today), which a plan cannot check (6.1 item 3).
+- `tests/release-scripts.sh` shows that the plan checker rejects a release
+  plan that also moves the history worker to the release image (6.1 item 5).
+- The rendered sizes of the proposed boundary and CI policies (6.1 items 3
+  and 4) come from a scratch copy of `ci-roles`, not a committed test; the PRs
+  that make those changes carry the size assertions.
 
 ### 6.5 Reviewing a saved plan
 
-Each step needs its own approval from Craig before it runs, because `plan`
-against a real backend takes the S3 state lock and reads live state, and
-`apply` changes AWS.
+Each step that touches AWS needs its own approval from Craig before it runs,
+because `plan` against a real backend takes the S3 state lock and reads live
+state, and `apply` changes AWS.
 
-1. Merge the repository changes in 6.1 after review, with
-   `task infrastructure-ci` green.
-2. **Account root first.** `aws sso login`, `task lambda-ci-roles-init`,
+1. **Merge the #80 runtime.** Merge the #80 loop branch and the 6.1 changes
+   to main after review, with `task infrastructure-ci` green and history
+   still off in both `*.auto.tfvars`. Main does not have the history runtime
+   today: `cmd/lambda` has no `SOCCER_HISTORY_MODE` entry point and
+   `modules/service` has no history resources. A stage 1 plan against an
+   image built without it would set `SOCCER_HISTORY_*` variables that nothing
+   reads, and stage 2 would create a worker with no scheduled mode.
+2. **Account root.** `aws sso login`, `task lambda-ci-roles-init`,
    `task lambda-ci-roles-plan PLAN_FILE=/absolute/path/ci-roles.tfplan`.
    Expect only updates to `aws_iam_policy.lambda_execution_boundary`, a create
-   of the second boundary policy, and updates to the CI role policies. Apply
-   with `task lambda-ci-roles-apply` only after approval.
-3. **Stage 1 in one environment.** With the stage 1 values in its
-   `*.auto.tfvars`, plan with the image digest the environment already runs, so
-   the plan shows only history changes:
-   `task lambda-dev-plan IMAGE_DIGEST=sha256:<live digest> PLAN_FILE=/absolute/path/dev-history-collection.tfplan`
+   of `PortfolioLambdaHistoryExecutionBoundary`, and updates to the three CI
+   role policies. Review it with the listing in step 5 (run with
+   `-chdir=infra/lambda/ci-roles`), and apply with
+   `task lambda-ci-roles-apply` only after approval.
+3. **Release that merge to the target environment.** Let the Release
+   workflow deploy the merge commit, with history still off. Its
+   verification (`scripts/verify-lambda-release.sh`) checks that the `live`
+   alias runs the released digest. Before planning, confirm that the
+   environment's `live` alias still runs that digest: the image URI of the
+   alias's version ends in `@sha256:<release digest>`. This is the same
+   read-only `aws lambda get-alias` and `get-function` check the script
+   makes. If the release plan also changed infrastructure, the checker stops
+   the release and Craig applies that first, as for any release.
+4. **Stage 1 in one environment.** With the stage 1 values in its
+   `*.auto.tfvars`, plan with the digest confirmed in step 3, so the plan
+   shows only history changes:
+   `task lambda-dev-plan IMAGE_DIGEST=sha256:<release digest from step 3> PLAN_FILE=/absolute/path/dev-history-collection.tfplan`
    (production: `task lambda-prod-plan`, which also sets the `alerts` topic).
-4. Review the saved plan without printing secrets:
+5. Review the saved plan without printing secrets:
 
    ```sh
    shasum -a 256 /absolute/path/dev-history-collection.tfplan
    tofu -chdir=infra/lambda/environments/dev show -json /absolute/path/dev-history-collection.tfplan |
-     jq -r '.resource_changes[] | select(.change.actions != ["no-op"]) |
-       "\(.change.actions | join(",")) \(.address)"'
+     jq -r '.resource_changes[] |
+       select(.change.actions != ["no-op"] or .previous_address != null or
+         .change.importing != null or .deposed != null) |
+       "\(.change.actions | join(",")) \(.address) from=\(.previous_address // "-") importing=\(.change.importing != null) deposed=\(.deposed // "-")"'
    ```
 
-   Accept only the stage 1 rows in 6.3. Reject any delete, replace, import,
-   move, or IAM change beyond the table grant. Check the limits in the
-   function's planned environment.
-5. Apply exactly that file with `task lambda-dev-apply PLAN_FILE=…` after
-   approval of that plan hash. The CI plan checker rejects such plans by
-   design; infrastructure changes are applied by Craig, then the Release
-   workflow resumes.
-6. **Stage 2 is a separate decision** with its own plan, hash, review against
+   The filter keeps pure moves and imports, which `show -json` records as
+   `no-op` with `previous_address` or `change.importing` set. It matches
+   the checks in `scripts/check-lambda-plan.sh`. Reject the plan if any row
+   has `from`, `importing` or `deposed` set, or any delete or replace, or any
+   IAM change beyond the table grant. Accept only the stage 1 rows in 6.3.
+   Check the limits in the function's planned environment.
+6. Apply exactly that file with `task lambda-dev-apply PLAN_FILE=…` after
+   approval of that plan hash. Right before applying, run
+   `shasum -a 256` on the file again and compare it with the approved hash.
+   The CI plan checker rejects such plans by design; infrastructure changes
+   are applied by Craig, then the Release workflow resumes. Its next plan is
+   the cross-check of the CI read grants in 6.1 item 4.
+7. **Stage 2 is a separate decision** with its own plan, hash, review against
    the stage 2 list, and approval that explicitly authorizes live LPS polling
    at the reviewed time. Watch the first run's report line and the alarms.
 
@@ -474,18 +598,27 @@ Owner in brackets.
    3.3, including whether dev runs the schedule at all. [Craig]
 4. **Admission policy**: accept a lifetime cap on distinct Team IDs, with
    entered IDs refused once 10 teams are enrolled, or change the code to
-   release slots. [Craig; code if changed]
+   release slots. Decide also whether the admission alarm counts only
+   player refusals (recommended, 6.1 item 6) or every refusal, which under
+   the candidate tuple lets any visitor hold it in ALARM (3.3).
+   [Craig; code if changed]
 5. **Import latency** with collection on: bound it in code or accept the risk
    from measured `my_teams` latency. [Craig; code if changed]
-6. **Repository changes** in 6.1 items 1 to 6: environment wiring, dev alert
+6. **Repository changes** in 6.1 items 1 to 7: environment wiring, dev alert
    destination, boundary grants within the IAM size limit, CI role grants,
-   the plan checker, and release verification. [agent, reviewed by Craig]
-7. **Lambda concurrency** limit of at least 111 (112 if both environments run
+   the plan checker, the admission alarm scope, and release verification.
+   [agent, reviewed by Craig]
+7. **The #80 runtime merged and released**: the #80 loop branch and the 6.1
+   changes merged to main, and the target environment's `live` alias running
+   a release image built from that merge, confirmed by digest, before that
+   environment's stage 1 plan (6.5 steps 1 and 3). Main has no history
+   runtime today. [Craig]
+8. **Lambda concurrency** limit of at least 111 (112 if both environments run
    the worker) before stage 2 (aws-setup #30). [aws-setup]
-8. **Site identity** in the environment before player-linked collection
+9. **Site identity** in the environment before player-linked collection
    (#88 for production). [Craig]
-9. **Cost acceptance** from a us-west-2 quote of the reviewed plan. [Craig]
-10. **Separate approvals** for the account root plan and apply, each
+10. **Cost acceptance** from a us-west-2 quote of the reviewed plan. [Craig]
+11. **Separate approvals** for the account root plan and apply, each
     environment's stage 1 plan and apply, and each stage 2 plan and apply,
     each for an exact saved-plan hash. [Craig]
 
