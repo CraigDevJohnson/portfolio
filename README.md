@@ -224,9 +224,12 @@ events, Add and result sync pause and the card asks for a new choice; they
 never fall back to primary, and the calendar returning does not resume them on
 its own. An Add that loses its destination
 partway reports the games it already added, which stay in that calendar. When Google rejects the connection
-itself, the site removes it and asks the visitor to connect again. Any other
-refusal, such as a Google usage limit, keeps the connection: the card still
-names the connected account and asks the visitor to retry.
+itself, including refusing to renew its access, the site removes it and asks
+the visitor to connect again. Any other refusal or failure keeps the connection
+and its chosen calendar, such as a Google usage limit or outage, a network
+error, or a failed save of renewed access: the card still names the connected
+account and asks the visitor to retry. An Add or result sync that could not
+renew access writes nothing.
 
 Consenting again as the same Google account while the owner's connection is
 still stored, for example through **Change Google account**, keeps the chosen

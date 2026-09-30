@@ -22,6 +22,8 @@ const (
 	googleExpiredConnectionMessage   = "Your Google Calendar connection has expired. Connect again and retry."
 	googleInvalidConnectionMessage   = "Your Google Calendar connection is no longer valid. Connect again and retry."
 	googleCalendarChoiceMessage      = "Choose a writable calendar before continuing. Writes are paused until you save a destination."
+	googleAddRenewalFailedMessage    = "Could not renew access to Google Calendar. No games were added; try again later."
+	googleSyncRenewalFailedMessage   = "Could not renew access to Google Calendar. No results were synced; try again later."
 	safeCalendarMutationRetryMessage = "The request reached its time limit. Retry to finish; existing games will be matched instead of duplicated."
 	safeResultSyncRetryMessage       = "The request reached its time limit. Retry to finish; results already current will be left unchanged."
 	safeResultSyncFailureMessage     = "Could not finish result sync. Retry later; results already current will be left unchanged."
@@ -74,7 +76,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 			h.renderAddMutationDeadline(w, r, calendarMutationResult{})
 			return
 		}
-		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
+		h.renderRenewalFailure(w, r, session, err, googleAddRenewalFailedMessage)
 		return
 	}
 	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No games were added; try again later.") {
@@ -110,6 +112,20 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Soccer.RenderLoginFeedback(w, r, "success", addMutationMessage(result))
+}
+
+// renderRenewalFailure answers a write whose access token could not be
+// renewed. Only Google rejecting the grant itself removes the connection and
+// asks the visitor to reconnect. Any other failure, such as Google being
+// unavailable or rate limiting, a network error, or a failed save of the
+// renewed token, keeps the connection and its destination and asks the
+// visitor to retry with retryMessage.
+func (h *Handler) renderRenewalFailure(w http.ResponseWriter, r *http.Request, session *types.SessionData, err error, retryMessage string) {
+	if isGoogleAuthRejected(err) {
+		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
+		return
+	}
+	h.Soccer.RenderLoginFeedback(w, r, "error", retryMessage)
 }
 
 // calendarDestinationRejected reports whether the chosen calendar refused an
@@ -231,7 +247,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 			h.renderSyncResultsDeadline(w, r, resultSyncReport{})
 			return
 		}
-		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
+		h.renderRenewalFailure(w, r, session, err, googleSyncRenewalFailedMessage)
 		return
 	}
 	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No results were synced; try again later.") {

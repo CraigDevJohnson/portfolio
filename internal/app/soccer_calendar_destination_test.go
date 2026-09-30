@@ -66,6 +66,13 @@ type fakeGoogleCalendars struct {
 	// revoked answers every Calendar request with 401, as Google does once
 	// the account withdraws the grant.
 	revoked bool
+	// shortLivedTokens makes every access token Google issues due for
+	// renewal at its next use.
+	shortLivedTokens bool
+	// refuseRenewal, when set, answers every access token renewal in place
+	// of Google's new token; renewals counts the renewals received.
+	refuseRenewal func(w http.ResponseWriter)
+	renewals      int
 	// refuseWrites, when set, is Google's status and error reason for every
 	// event insert or update; refuseList, for every calendar list request.
 	refuseWrites *googleRefusal
@@ -147,7 +154,19 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	switch {
 	case r.URL.Path == "/oauth/token":
-		_, _ = w.Write([]byte(`{"access_token":"calendar-access","refresh_token":"calendar-refresh","token_type":"Bearer","expires_in":3600}`))
+		if r.FormValue("grant_type") == "refresh_token" {
+			fake.renewals++
+			if fake.refuseRenewal != nil {
+				fake.refuseRenewal(w)
+				return
+			}
+		}
+		// The client treats a token that expires within seconds as due.
+		lifetime := 3600
+		if fake.shortLivedTokens {
+			lifetime = 1
+		}
+		_, _ = fmt.Fprintf(w, `{"access_token":"calendar-access","refresh_token":"calendar-refresh","token_type":"Bearer","expires_in":%d}`, lifetime)
 		return
 	case r.URL.Path == "/userinfo":
 		_, _ = fmt.Fprintf(w, `{"sub":%q,"email":%q,"email_verified":true}`, fake.accountSubject, fake.accountEmail)
@@ -366,6 +385,28 @@ func (fake *fakeGoogleCalendars) splitEventSearches(pages func([]internalgoogle.
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	fake.eventSearchPages = pages
+}
+
+// issueShortLivedTokens makes every access token Google issues from now on
+// due for renewal at its next use.
+func (fake *fakeGoogleCalendars) issueShortLivedTokens() {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.shortLivedTokens = true
+}
+
+// answerRenewals answers every access token renewal with answer in place of
+// Google's new token; nil lets Google renew again.
+func (fake *fakeGoogleCalendars) answerRenewals(answer func(w http.ResponseWriter)) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.refuseRenewal = answer
+}
+
+func (fake *fakeGoogleCalendars) renewalCount() int {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return fake.renewals
 }
 
 func (fake *fakeGoogleCalendars) setRevoked(revoked bool) {
