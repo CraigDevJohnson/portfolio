@@ -26,8 +26,9 @@ func teamSeasonsPath(playerID int) string {
 
 // provenTeamSeasons is the list contract as a stats view would decode it.
 type provenTeamSeasons struct {
-	PlayerID    int `json:"player_id"`
-	TeamSeasons []struct {
+	PlayerID        int  `json:"player_id"`
+	CurrentVerified bool `json:"current_verified"`
+	TeamSeasons     []struct {
 		TeamID      int `json:"team_id"`
 		LPSSeasonID int `json:"lps_season_id"`
 		Team        struct {
@@ -96,6 +97,9 @@ func TestSoccerHistoryTeamSeasonsListCurrentAndFormerSeasonsThatTheSeasonReadOpe
 
 	if got, want := craig.summary(), "4101/80 Craig FC current, 4102/78 Old FC former, 4101/77 Craig FC former"; got != want {
 		t.Fatalf("Craig's team seasons = %q, want %q", got, want)
+	}
+	if !craig.CurrentVerified {
+		t.Error("Craig's list after LPS answered his current team lookup is not current_verified")
 	}
 	for _, listed := range craig.TeamSeasons {
 		if listed.Team.UTeamID != listed.TeamID || listed.Team.Season != listed.LPSSeasonID {
@@ -233,10 +237,59 @@ func TestSoccerHistoryTeamSeasonsNeedTheSameAuthorityAsTheSeasonRead(t *testing.
 	assertTeamSeasonsDenied(t, owner, http.StatusUnauthorized, 1001)
 }
 
-// The list always asks LPS for the player's current teams, and judges a
-// refused lookup as the per-season read does: a rejected token ends the
-// import, a player LPS denies is not confirmed, and an unavailable LPS is an
-// error that keeps the import, never an empty or partial list.
+// When LPS denies the player's current team lookup or cannot answer it, the
+// list still finds every season the per-season read opens from stored proof,
+// each marked former and the list marked unverified, and keeps the import. A
+// current season only LPS could prove is neither listed nor opened.
+func TestSoccerHistoryTeamSeasonsListStoredProofWhenLPSCannotConfirmCurrentTeams(t *testing.T) {
+	for _, refusal := range []struct {
+		name            string
+		lpsStatus       int
+		seasonReadCode  int
+		seasonReadError string
+	}{
+		{"a denied player", http.StatusForbidden, http.StatusForbidden, "Player is not confirmed by this import"},
+		{"an unavailable LPS", http.StatusInternalServerError, http.StatusBadGateway, "Current team membership could not be verified"},
+	} {
+		t.Run(refusal.name, func(t *testing.T) {
+			route := newTeamHistoryRoute(t)
+			route.setTeam(4102, oldFCSeason78)
+			owner := route.signedIn(t)
+			route.importLinkedPlayers(t, owner)
+			if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+				t.Fatalf("refresh: %+v", report)
+			}
+			// LPS would list Craig FC's season 80 now, if it answered.
+			route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+			route.failPlayerTeams(1001, refusal.lpsStatus)
+
+			response := owner.get(teamSeasonsPath(1001))
+			if rewritten := findSessionCookie(t, response.Result()); rewritten != nil {
+				t.Errorf("list after LPS answered %d rewrote the import: %#v", refusal.lpsStatus, rewritten)
+			}
+			stored := listTeamSeasons(t, owner, 1001)
+			if got, want := stored.summary(), "4102/78 Old FC former, 4101/77 Craig FC former"; got != want {
+				t.Fatalf("list after LPS answered %d = %q, want %q", refusal.lpsStatus, got, want)
+			}
+			if stored.CurrentVerified {
+				t.Errorf("list after LPS answered %d is current_verified", refusal.lpsStatus)
+			}
+			for _, listed := range stored.TeamSeasons {
+				readHistory(t, owner, 1001, listed.TeamID, listed.LPSSeasonID)
+			}
+			if former := readHistory(t, owner, 1001, 4102, 78); former.Record.Wins != 1 || len(former.Games) != 1 {
+				t.Errorf("listed former Old FC season after LPS answered %d = %+v", refusal.lpsStatus, former)
+			}
+			assertHistoryDenied(t, owner, refusal.seasonReadCode, 1001, 4101, 80)
+			if body := owner.get(historyPath(1001, 4101, 80)).Body.String(); !strings.Contains(body, refusal.seasonReadError) {
+				t.Errorf("season read LPS alone could prove after LPS answered %d = %q, want %q", refusal.lpsStatus, body, refusal.seasonReadError)
+			}
+		})
+	}
+}
+
+// A token LPS rejects ends the import, as on the per-season read, so the
+// proof it stored lists nothing more.
 func TestSoccerHistoryTeamSeasonsJudgeARefusedCurrentLookupAsTheSeasonReadDoes(t *testing.T) {
 	for _, refusal := range []struct {
 		name       string
@@ -246,8 +299,6 @@ func TestSoccerHistoryTeamSeasonsJudgeARefusedCurrentLookupAsTheSeasonReadDoes(t
 		importEnds bool
 	}{
 		{"a rejected token ends the import", http.StatusUnauthorized, http.StatusUnauthorized, "import a fresh bearer JWT", true},
-		{"a denied player is not confirmed", http.StatusForbidden, http.StatusForbidden, "Player is not confirmed by this import", false},
-		{"an unavailable LPS keeps the import", http.StatusInternalServerError, http.StatusBadGateway, "Current team membership could not be verified", false},
 	} {
 		t.Run(refusal.name, func(t *testing.T) {
 			route := newTeamHistoryRoute(t)
@@ -362,7 +413,7 @@ func TestSoccerHistoryTeamSeasonsListNothingForARemovedPlayerWithoutCurrentTeams
 
 	route.importLinkedPlayers(t, owner)
 	empty := owner.get(teamSeasonsPath(1001))
-	if empty.Code != http.StatusOK || strings.TrimSpace(empty.Body.String()) != `{"player_id":1001,"team_seasons":[]}` {
+	if empty.Code != http.StatusOK || strings.TrimSpace(empty.Body.String()) != `{"player_id":1001,"current_verified":true,"team_seasons":[]}` {
 		t.Errorf("removed Craig's team seasons: status %d, body %q; want an empty list", empty.Code, empty.Body.String())
 	}
 	// A player LPS no longer finds has no current seasons either.

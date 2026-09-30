@@ -591,14 +591,17 @@ positive `player_id`. It lists the signed-in owner's stored authenticated
 membership proof, read with one DynamoDB query of that owner's membership keys
 in the player's partition, so proof another site owner recorded is never
 listed. It adds the seasons the player's current LPS team lookup lists; a team
-LPS returns without a season proves none. Because it always asks LPS, a token
-LPS rejects ends the import (`401`, import cookies cleared), a player LPS
-denies returns `403`, and an unavailable LPS returns `502` and keeps the
-import rather than returning a partial list:
+LPS returns without a season proves none. It always asks LPS, and a token LPS
+rejects ends the import (`401`, import cookies cleared), as on the per-season
+read. When LPS denies the player's team lookup or cannot answer it, the list
+still returns `200` with the stored proof alone and `current_verified: false`,
+and keeps the import, because the per-season read opens those seasons without
+asking LPS:
 
 ```json
 {
   "player_id": 1001,
+  "current_verified": true,
   "team_seasons": [
     {"team_id": 4101, "lps_season_id": 80, "team": {"UTeamID": 4101, "team_name": "Craig FC", "Color": "", "division_name": "Open A", "FacilityID": 0, "facility_name": "", "Season": 80}, "current": true},
     {"team_id": 4102, "lps_season_id": 78, "team": {"UTeamID": 4102, "team_name": "Old FC", "Color": "", "division_name": "", "FacilityID": 0, "facility_name": "", "Season": 78}, "current": false}
@@ -608,12 +611,15 @@ import rather than returning a partial list:
 
 Entries are ordered newest LPS season first, then by Team ID. `team` is the
 LPS team as the current lookup or the stored proof's lookup returned it.
-`current` is `true` when LPS lists the season now and `false` for a former
-season only stored proof holds. Each entry opens with
+`current` is `true` when LPS lists the season now and `false` for a season
+only stored proof holds. `current_verified` is `true` when LPS answered the
+current team lookup; when it is `false`, every entry is `current: false`
+because LPS confirmed none, and a season only LPS could prove is missing from
+the list and refused by the per-season read. Each entry opens with
 `GET /soccer/history?player_id=<player_id>&team_id=<team_id>&season_id=<lps_season_id>`.
 A player with no proof, including a removed player whom LPS lists on no team,
 gets `200` with an empty `team_seasons` array, which is distinct from every
-refusal and error. Both history responses are `Cache-Control: private, no-store`.
+refusal and error; a membership query that fails returns `503`. Both history responses are `Cache-Control: private, no-store`.
 Until the separate collection activation, both history routes return `503`
 because no durable archive is wired into the production server.
 

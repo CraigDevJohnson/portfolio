@@ -68,8 +68,11 @@ type provenTeamSeason struct {
 }
 
 type teamSeasonsResponse struct {
-	PlayerID    int                `json:"player_id"`
-	TeamSeasons []provenTeamSeason `json:"team_seasons"`
+	PlayerID int `json:"player_id"`
+	// CurrentVerified is false when LPS denied or could not answer the
+	// player's current team lookup, so the list holds stored proof alone.
+	CurrentVerified bool               `json:"current_verified"`
+	TeamSeasons     []provenTeamSeason `json:"team_seasons"`
 }
 
 // historyReader is the site owner, import, and archive a private history
@@ -110,7 +113,10 @@ func (h *Handler) authorizeHistoryPlayer(w http.ResponseWriter, r *http.Request,
 // proven for, under the same authority as the per-season read: this owner's
 // stored authenticated proof, including former seasons LPS no longer lists,
 // and the seasons the player's current LPS team lookup lists. Each entry
-// opens with HistoryHandler. No proof is an empty list.
+// opens with HistoryHandler. No proof is an empty list. A token LPS rejects
+// ends the import, as on the per-season read; a lookup LPS otherwise denies
+// or cannot serve leaves the stored proof, which the per-season read opens
+// without asking LPS, listed as unverified.
 func (h *Handler) HistoryTeamSeasonsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	playerID, playerOK := positiveHistoryID(r.URL.Query().Get("player_id"))
@@ -129,11 +135,14 @@ func (h *Handler) HistoryTeamSeasonsHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	current, err := h.currentTeamSeasons(r.Context(), reader.session.JWT, playerID)
-	if err != nil {
+	if err != nil && lps.ScheduleErrorDetailsFor(err).ClearSession {
 		h.refuseUnverifiedCurrentMembership(w, r, err)
 		return
 	}
-	response := teamSeasonsResponse{PlayerID: playerID, TeamSeasons: provenTeamSeasons(stored, current)}
+	if err != nil {
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed; listing stored proof only", slog.Any("error", err))
+	}
+	response := teamSeasonsResponse{PlayerID: playerID, CurrentVerified: err == nil, TeamSeasons: provenTeamSeasons(stored, current)}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(&response); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer team-season list write failed", slog.Any("error", err))
