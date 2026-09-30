@@ -276,11 +276,34 @@ deployed environment until that environment has site sign-in:
   offers Disconnect. Connections made on #93 or later are kept in a cookie per
   site owner instead of the browser-wide `google_connection` cookie.
 
-Record the release order as an explicit decision before approving the next
-`production` apply that contains #86. Either accept that production LPS import
-and Google Calendar stay unavailable until production site identity (#88) is
-provisioned and configured, or hold the approval until then. Check that order
-against the first-launch criteria in #75 first.
+#### Release order
+
+Decided 2026-09-30 (decision 1): hold the release of private Soccer (#86)
+until site identity (#88) is live. Each environment gets its site identity
+before a release carrying #86 reaches it, so neither loses LPS import or
+Google Calendar in between; until then it keeps serving its current release.
+
+1. **Provision development site identity.** Complete the development
+   [activation prerequisites](docs/deployment/site-identity.md#activation-prerequisites):
+   its Google OAuth client, the reviewed `task cognito-site-dev-plan` and
+   `task cognito-site-dev-apply`, the `/portfolio/lambda/dev/SITE_SESSION_KEY`
+   SecureString, `SITE_SESSION_KEY` in the development boundary parameters
+   (applied through the account root), and the exported `site` block with
+   Craig's `soccer` and `management` invitations committed to
+   `dev.auto.tfvars` on the pull request branch and applied from it with
+   `task lambda-dev-plan` and `task lambda-dev-apply`.
+2. **Only then merge.** Do not merge the pull request that carries #86 until
+   development site identity is ready. The merge releases it to development.
+3. **Provision production site identity before approving production.**
+   Complete the same prerequisites for production with the
+   `cognito-site-prod-*` tasks, `/portfolio/lambda/prod/SITE_SESSION_KEY` and
+   invitations granting only `soccer`. Commit its `site` block to
+   `prod.auto.tfvars` in a pull request, apply the production root from that
+   branch with `task lambda-prod-plan` and `task lambda-prod-apply`, then
+   merge it. Do not approve the `production` environment apply of a release
+   carrying #86 until then. A Release run whose commit is no longer the tip of
+   `main` stops before production, so approve the production step of the run
+   for that merge, or a later one.
 
 ## EC2 management portal
 
