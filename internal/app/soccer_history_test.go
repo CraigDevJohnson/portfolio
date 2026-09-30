@@ -209,18 +209,21 @@ func historyPath(playerID, teamID, seasonID int) string {
 	return fmt.Sprintf("/soccer/history?player_id=%d&team_id=%d&season_id=%d", playerID, teamID, seasonID)
 }
 
+// historyTeam is an LPS team as both private history reads return it.
+type historyTeam struct {
+	UTeamID      int    `json:"UTeamID"`
+	TeamName     string `json:"team_name"`
+	DivisionName string `json:"division_name"`
+	Season       int    `json:"Season"`
+}
+
 // teamSeasonHistory is the read contract as a stats view would decode it.
 type teamSeasonHistory struct {
-	PlayerID    int `json:"player_id"`
-	TeamID      int `json:"team_id"`
-	LPSSeasonID int `json:"lps_season_id"`
-	Team        struct {
-		UTeamID      int    `json:"UTeamID"`
-		TeamName     string `json:"team_name"`
-		DivisionName string `json:"division_name"`
-		Season       int    `json:"Season"`
-	} `json:"team"`
-	Coverage struct {
+	PlayerID    int         `json:"player_id"`
+	TeamID      int         `json:"team_id"`
+	LPSSeasonID int         `json:"lps_season_id"`
+	Team        historyTeam `json:"team"`
+	Coverage    struct {
 		Status            string     `json:"status"`
 		FetchedAt         *time.Time `json:"fetched_at"`
 		ReturnedGameCount int        `json:"returned_game_count"`
@@ -536,10 +539,84 @@ func TestSoccerHistoryReadTellsAPartlyCollectedSeasonFromACurrentFetch(t *testin
 // disclose no stored game.
 func assertHistoryDenied(t *testing.T, browser *siteBrowser, status, playerID, teamID, seasonID int) {
 	t.Helper()
-	response := browser.get(historyPath(playerID, teamID, seasonID))
-	if response.Code != status || strings.Contains(response.Body.String(), "UGameID") {
-		t.Errorf("read for player %d team %d season %d: status %d, body %q; want %d without history", playerID, teamID, seasonID, response.Code, response.Body.String(), status)
+	assertPrivateHistoryDenied(t, browser, status, historyPath(playerID, teamID, seasonID))
+}
+
+// assertPrivateHistoryDenied requires a private history request to be refused
+// with status, uncached, and to disclose no stored game or team season.
+func assertPrivateHistoryDenied(t *testing.T, browser *siteBrowser, status int, path string) {
+	t.Helper()
+	response := browser.get(path)
+	body := response.Body.String()
+	if response.Code != status || strings.Contains(body, "UGameID") || strings.Contains(body, "UTeamID") || strings.Contains(body, "team_seasons") {
+		t.Errorf("%s: status %d, body %q; want %d without history", path, response.Code, body, status)
 	}
+	if got := response.Header().Get("Cache-Control"); !strings.Contains(got, "no-store") {
+		t.Errorf("refused %s Cache-Control = %q, want no-store", path, got)
+	}
+}
+
+// privateHistoryRead is one of the two private history reads, which share one
+// authority: the per-season read of a season the player's import stored proof
+// for, and the list of the player's team seasons.
+type privateHistoryRead struct {
+	name string
+	// path reads playerID's stored season, or lists the player's seasons.
+	path func(playerID int) string
+	// lpsLookup is a request for Craig that asks LPS for his current teams.
+	lpsLookup string
+	// opened requires an authorized answer for playerID.
+	opened func(t *testing.T, browser *siteBrowser, playerID int)
+}
+
+// storedSeason is the team season whose proof each fixture player's import
+// stores: Craig's former Old FC season 78 and Taylor's Taylor FC season 79.
+func storedSeason(playerID int) (teamID, seasonID int) {
+	if playerID == 1002 {
+		return 4202, 79
+	}
+	return 4102, 78
+}
+
+func privateHistoryReads() []privateHistoryRead {
+	return []privateHistoryRead{
+		{
+			name: "per-season read",
+			path: func(playerID int) string {
+				teamID, seasonID := storedSeason(playerID)
+				return historyPath(playerID, teamID, seasonID)
+			},
+			// No stored proof covers Craig FC's season 80, so LPS is asked.
+			lpsLookup: historyPath(1001, 4101, 80),
+			opened: func(t *testing.T, browser *siteBrowser, playerID int) {
+				t.Helper()
+				teamID, seasonID := storedSeason(playerID)
+				readHistory(t, browser, playerID, teamID, seasonID)
+			},
+		},
+		{
+			name: "team-season list", path: teamSeasonsPath, lpsLookup: teamSeasonsPath(1001),
+			opened: func(t *testing.T, browser *siteBrowser, playerID int) {
+				t.Helper()
+				listTeamSeasons(t, browser, playerID)
+			},
+		},
+	}
+}
+
+// denied requires the read for playerID to be refused with status.
+func (read *privateHistoryRead) denied(t *testing.T, browser *siteBrowser, status, playerID int) {
+	t.Helper()
+	assertPrivateHistoryDenied(t, browser, status, read.path(playerID))
+}
+
+// expireImportJWT replaces the browser's imported LPS JWT with an expired one.
+func (route *teamHistoryRoute) expireImportJWT(t *testing.T, browser *siteBrowser) {
+	t.Helper()
+	session := decryptTestSession(t, route.app, browser.cookieValue(config.LPSSessionCookieName, config.SoccerCookiePath))
+	session.JWT = testutil.TestJWT(t, time.Now().Add(-time.Minute))
+	soccerURL, _ := url.Parse(siteOrigin + config.SoccerCookiePath)
+	browser.jar.SetCookies(soccerURL, []*http.Cookie{{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, route.app, &session), Path: config.SoccerCookiePath}})
 }
 
 // storedMembershipSeasons lists the seasons of the stored membership proof
@@ -643,54 +720,63 @@ func TestSoccerHistoryReadNeedsTheCurrentImportToLinkThePlayer(t *testing.T) {
 	}
 }
 
-func TestSoccerHistoryReadNeedsTheGrantedSiteSessionAndAValidImport(t *testing.T) {
-	route := newTeamHistoryRoute(t)
-	route.setTeam(4102, oldFCSeason78)
-	owner := route.signedIn(t)
-	route.importLinkedPlayers(t, owner)
-	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
-		t.Fatalf("refresh: %+v", report)
+// Both private history reads are refused alike: without a site session,
+// without the current soccer grant, without a valid same-owner import, and
+// for a player the import does not confirm.
+func TestSoccerHistoryReadsNeedTheGrantedSiteSessionAndAValidImport(t *testing.T) {
+	for _, read := range privateHistoryReads() {
+		t.Run(read.name, func(t *testing.T) {
+			route := newTeamHistoryRoute(t)
+			route.setTeam(4102, oldFCSeason78)
+			owner := route.signedIn(t)
+			route.importLinkedPlayers(t, owner)
+			if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+				t.Fatalf("refresh: %+v", report)
+			}
+			route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+			read.opened(t, owner, 1001)
+
+			read.denied(t, newSiteBrowser(t, route.mux), http.StatusUnauthorized, 1001)
+
+			// A site-session timeout withholds the retained import until its
+			// owner signs in again.
+			owner.expireSiteSession()
+			read.denied(t, owner, http.StatusUnauthorized, 1001)
+			owner.signIn("/soccer")
+			read.opened(t, owner, 1001)
+
+			route.app.Config.SiteInvitations[testSiteEmail] = nil
+			read.denied(t, owner, http.StatusForbidden, 1001)
+			route.app.Config.SiteInvitations[testSiteEmail] = []string{"soccer"}
+			read.opened(t, owner, 1001)
+
+			// A player this import does not link.
+			read.denied(t, owner, http.StatusForbidden, 1003)
+			if body := owner.get(read.path(1003)).Body.String(); !strings.Contains(body, "Player is not confirmed by this import") {
+				t.Errorf("unconfirmed player's %s = %q", read.name, body)
+			}
+
+			route.expireImportJWT(t, owner)
+			read.denied(t, owner, http.StatusUnauthorized, 1001)
+
+			// Site sign-out ends the import, so signing in again is not enough.
+			route.importLinkedPlayers(t, owner)
+			read.opened(t, owner, 1001)
+			if signOut := owner.do(browserForm(siteOrigin, "/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+				t.Fatalf("sign-out status = %d", signOut.Code)
+			}
+			read.denied(t, owner, http.StatusUnauthorized, 1001)
+			owner.signIn("/soccer")
+			read.denied(t, owner, http.StatusUnauthorized, 1001)
+		})
 	}
-	route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
-	readHistory(t, owner, 1001, 4102, 78)
-
-	assertHistoryDenied(t, newSiteBrowser(t, route.mux), http.StatusUnauthorized, 1001, 4102, 78)
-
-	// A site-session timeout withholds the retained import until its owner
-	// signs in again.
-	owner.expireSiteSession()
-	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
-	owner.signIn("/soccer")
-	readHistory(t, owner, 1001, 4102, 78)
-
-	route.app.Config.SiteInvitations[testSiteEmail] = nil
-	assertHistoryDenied(t, owner, http.StatusForbidden, 1001, 4102, 78)
-	route.app.Config.SiteInvitations[testSiteEmail] = []string{"soccer"}
-	readHistory(t, owner, 1001, 4102, 78)
-
-	// The import's JWT expires.
-	session := decryptTestSession(t, route.app, owner.cookieValue(config.LPSSessionCookieName, config.SoccerCookiePath))
-	session.JWT = testutil.TestJWT(t, time.Now().Add(-time.Minute))
-	soccerURL, _ := url.Parse(siteOrigin + config.SoccerCookiePath)
-	owner.jar.SetCookies(soccerURL, []*http.Cookie{{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, route.app, &session), Path: config.SoccerCookiePath}})
-	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
-
-	// Site sign-out ends the import, so signing in again is not enough.
-	route.importLinkedPlayers(t, owner)
-	readHistory(t, owner, 1001, 4102, 78)
-	if signOut := owner.do(browserForm(siteOrigin, "/sign-out", nil)); signOut.Code != http.StatusSeeOther {
-		t.Fatalf("sign-out status = %d", signOut.Code)
-	}
-	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
-	owner.signIn("/soccer")
-	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
 }
 
 // The site owner is the Cognito issuer and subject, never the email. Neither
 // another invited account nor a new identity signing in with the first
 // owner's email, as a recreated or reassigned account would, gets that
-// owner's import or saved proof.
-func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) {
+// owner's import or saved proof, from either private history read.
+func TestSoccerHistoryReadsNeverUseAnotherSiteOwnersImportOrProof(t *testing.T) {
 	for _, successor := range []struct {
 		name           string
 		subject, email string
@@ -707,10 +793,15 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 			if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
 				t.Fatalf("refresh: %+v", report)
 			}
-			// Craig has left Old FC, so only the first owner's saved proof
-			// opens season 78.
+			// Craig has left Old FC and Craig FC's season 77, so only the
+			// first owner's saved proof opens and lists them.
 			route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+			const firstOwnersSeasons = "4101/80 Craig FC current, 4102/78 Old FC former, 4101/77 Craig FC former"
 			readHistory(t, owner, 1001, 4102, 78)
+			firstList := listTeamSeasons(t, owner, 1001)
+			if got := firstList.summary(); got != firstOwnersSeasons {
+				t.Fatalf("first owner's team seasons = %q, want %q", got, firstOwnersSeasons)
+			}
 
 			// The successor imports the same LPS account.
 			route.cognito.subject, route.cognito.email = successor.subject, successor.email
@@ -721,6 +812,10 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 				t.Errorf("successor's read of the former season = %q, want it unverified", body)
 			}
 			readHistory(t, other, 1001, 4101, 80)
+			successorList := listTeamSeasons(t, other, 1001)
+			if got, want := successorList.summary(), "4101/80 Craig FC current"; got != want {
+				t.Errorf("successor's team seasons = %q, want only the season LPS lists now", got)
+			}
 
 			// The successor signs in to the first owner's browser, which
 			// drops the first owner's import.
@@ -729,6 +824,7 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 				t.Fatalf("successor's sign-in to the first owner's browser: status %d", landing.Code)
 			}
 			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+			assertTeamSeasonsDenied(t, owner, http.StatusUnauthorized, 1001)
 			if owner.holdsCookie(config.LPSSessionCookieName, config.SoccerCookiePath) {
 				t.Error("the browser kept the first owner's import for the successor")
 			}
@@ -737,6 +833,10 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 			first := route.signedIn(t)
 			route.importLinkedPlayers(t, first)
 			readHistory(t, first, 1001, 4102, 78)
+			again := listTeamSeasons(t, first, 1001)
+			if got := again.summary(); got != firstOwnersSeasons {
+				t.Errorf("first owner's team seasons after signing in again = %q, want %q", got, firstOwnersSeasons)
+			}
 		})
 	}
 }
@@ -756,21 +856,49 @@ func TestSoccerHistoryReadTreatsAPlayerLPSNoLongerFindsAsHavingNoCurrentSeasons(
 	assertHistoryDenied(t, owner, http.StatusForbidden, 1002, 4202, 80)
 }
 
-// A current lookup LPS refuses is judged as every other Soccer route judges
-// it: a rejected token ends the import, so the proof it stored opens nothing
-// more; a player LPS denies is not confirmed by the import; and an
-// unavailable LPS says nothing about the import, which stays usable.
-func TestSoccerHistoryReadJudgesARefusedCurrentLookupAsOtherSoccerRoutesDo(t *testing.T) {
+// A current lookup LPS refuses because it rejects the imported token ends the
+// import on both private history reads, as on every other Soccer route, so
+// the proof the import stored opens and lists nothing more.
+func TestSoccerHistoryReadsEndTheImportWhenLPSRejectsItsToken(t *testing.T) {
+	for _, read := range privateHistoryReads() {
+		t.Run(read.name, func(t *testing.T) {
+			route := newTeamHistoryRoute(t)
+			owner := route.signedIn(t)
+			route.importLinkedPlayers(t, owner)
+			route.failPlayerTeams(1001, http.StatusUnauthorized)
+
+			refused := owner.get(read.lpsLookup)
+			if body := refused.Body.String(); refused.Code != http.StatusUnauthorized || !strings.Contains(body, "import a fresh bearer JWT") || strings.Contains(body, "team_seasons") {
+				t.Fatalf("%s after LPS rejected the token: status %d, body %q; want 401 asking for a fresh JWT", read.name, refused.Code, body)
+			}
+			if got := refused.Header().Get("Cache-Control"); got != "private, no-store" {
+				t.Errorf("refused %s Cache-Control = %q, want private, no-store", read.name, got)
+			}
+			assertClearedSessionCookie(t, refused.Result())
+			if guard := findImportGuardCookie(refused.Result()); guard == nil || guard.Value != "" || guard.MaxAge >= 0 {
+				t.Errorf("rejected import's guard cookie = %#v, want it cleared", guard)
+			}
+			// The import is gone, so its stored proof opens nothing more.
+			read.denied(t, owner, http.StatusUnauthorized, 1001)
+			read.denied(t, owner, http.StatusUnauthorized, 1002)
+		})
+	}
+}
+
+// A current lookup LPS denies or cannot serve confirms no current season but
+// says nothing about the import, which stays usable. The per-season read
+// refuses a season only LPS could prove, as every other Soccer route judges
+// the refusal, while stored proof still opens; the list finds exactly those
+// stored seasons, each former and the list unverified.
+func TestSoccerHistoryReadsKeepStoredProofWhenLPSCannotConfirmCurrentTeams(t *testing.T) {
 	for _, refusal := range []struct {
 		name       string
 		lpsStatus  int
 		wantStatus int
 		wantBody   string
-		importEnds bool
 	}{
-		{"a rejected token ends the import", http.StatusUnauthorized, http.StatusUnauthorized, "import a fresh bearer JWT", true},
-		{"a denied player is not confirmed", http.StatusForbidden, http.StatusForbidden, "Player is not confirmed by this import", false},
-		{"an unavailable LPS keeps the import", http.StatusInternalServerError, http.StatusBadGateway, "Current team membership could not be verified", false},
+		{"a denied player is not confirmed", http.StatusForbidden, http.StatusForbidden, "Player is not confirmed by this import"},
+		{"an unavailable LPS keeps the import", http.StatusInternalServerError, http.StatusBadGateway, "Current team membership could not be verified"},
 	} {
 		t.Run(refusal.name, func(t *testing.T) {
 			route := newTeamHistoryRoute(t)
@@ -780,6 +908,8 @@ func TestSoccerHistoryReadJudgesARefusedCurrentLookupAsOtherSoccerRoutesDo(t *te
 			if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
 				t.Fatalf("refresh: %+v", report)
 			}
+			// LPS would list Craig FC's season 80 now, if it answered.
+			route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
 			route.failPlayerTeams(1001, refusal.lpsStatus)
 
 			// No stored proof covers Craig FC's season 80, so LPS is asked.
@@ -790,23 +920,26 @@ func TestSoccerHistoryReadJudgesARefusedCurrentLookupAsOtherSoccerRoutesDo(t *te
 			if got := refused.Header().Get("Cache-Control"); got != "private, no-store" {
 				t.Errorf("refused read Cache-Control = %q, want private, no-store", got)
 			}
-			if !refusal.importEnds {
-				if cleared := findSessionCookie(t, refused.Result()); cleared != nil {
-					t.Errorf("read after LPS answered %d rewrote the import: %#v", refusal.lpsStatus, cleared)
+			listed := owner.get(teamSeasonsPath(1001))
+			for _, response := range []*httptest.ResponseRecorder{refused, listed} {
+				if rewritten := findSessionCookie(t, response.Result()); rewritten != nil {
+					t.Errorf("history request after LPS answered %d rewrote the import: %#v", refusal.lpsStatus, rewritten)
 				}
-				// Stored proof of Old FC's season still opens it.
-				if former := readHistory(t, owner, 1001, 4102, 78); former.Record.Wins != 1 || len(former.Games) != 1 {
-					t.Errorf("former Old FC season after LPS answered %d = %+v", refusal.lpsStatus, former)
-				}
-				return
 			}
-			assertClearedSessionCookie(t, refused.Result())
-			if guard := findImportGuardCookie(refused.Result()); guard == nil || guard.Value != "" || guard.MaxAge >= 0 {
-				t.Errorf("rejected import's guard cookie = %#v, want it cleared", guard)
+
+			stored := listTeamSeasons(t, owner, 1001)
+			if got, want := stored.summary(), "4102/78 Old FC former, 4101/77 Craig FC former"; got != want {
+				t.Fatalf("list after LPS answered %d = %q, want %q", refusal.lpsStatus, got, want)
 			}
-			// The import is gone, so its stored proof opens nothing more.
-			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
-			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1002, 4202, 79)
+			if stored.CurrentVerified {
+				t.Errorf("list after LPS answered %d is current_verified", refusal.lpsStatus)
+			}
+			for _, listed := range stored.TeamSeasons {
+				readHistory(t, owner, 1001, listed.TeamID, listed.LPSSeasonID)
+			}
+			if former := readHistory(t, owner, 1001, 4102, 78); former.Record.Wins != 1 || len(former.Games) != 1 {
+				t.Errorf("former Old FC season after LPS answered %d = %+v", refusal.lpsStatus, former)
+			}
 		})
 	}
 }
