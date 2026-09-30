@@ -37,6 +37,7 @@ Preconditions:
 - **Interruption state.** Open `/__preview/portal/error`; expect HTTP `503` and the full operator interruption page headed `Something interrupted the connection`. Capture this with an HTTP response body/status alongside browser evidence because a successful-looking screenshot cannot prove the status code.
 - **Access denied.** Open `/__preview/portal/error?fixture=access-denied`; expect HTTP `403`, the H1 `Management access required`, the feedback `Your account does not have management access.`, a `Back to portfolio` link to `/`, and `local.preview@portfolio.test` with a `Sign out` button in `nav[aria-label='Main navigation']`. Record the status the same way as the interruption state. Any other `fixture` value returns `404`.
 - **Exit.** Return to `/mgmt`, click `"a.portal-session-action[href='/']"`, and require the Home title and `data-layout="systems-overlook"`.
+- **Scripted access proof.** `.cursor/skills/verify-portfolio/scripts/prove-portal-access` runs the dashboard, retired-route, and access-denied steps, follows `Back to portfolio`, and writes its evidence to `evidence/management-portal-preview/`.
 - **Proof.** Retain the dashboard before-action evidence, inline action result, metrics/log result snapshots, browser requests, response status for the interruption route, server log, and launch metadata under `evidence/management-portal-preview/`.
 
 ## Gotchas
