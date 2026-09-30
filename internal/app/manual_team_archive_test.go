@@ -634,16 +634,8 @@ func lambdaAssemblyEnvironment(t *testing.T) {
 // assembly and requires the usual schedule without any enrollment outcome.
 func assertLambdaLookupClaimsNoHistory(t *testing.T, handler http.Handler) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {"479691"}}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp := httptest.NewRecorder()
-	handler.ServeHTTP(resp, req)
-
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "Away FC") {
-		t.Fatalf("live manual lookup lost the usual schedule: status %d, body %q", resp.Code, resp.Body.String())
-	}
-	if strings.Contains(resp.Body.String(), "history collection") || strings.Contains(resp.Body.String(), "History not saved") {
-		t.Fatalf("live assembly reported durable enrollment before activation: %q", resp.Body.String())
+	if body := lambdaLookup(t, handler); strings.Contains(body, "history collection") || strings.Contains(body, "History not saved") {
+		t.Fatalf("live assembly reported durable enrollment before activation: %q", body)
 	}
 }
 
@@ -657,25 +649,46 @@ func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
 	assertLambdaLookupClaimsNoHistory(t, handler)
 }
 
-func TestLambdaAssemblyLeavesEnrollmentOffWithoutEveryReviewedLimit(t *testing.T) {
-	activated := map[string]string{
-		"SOCCER_HISTORY_COLLECTION_ENABLED": "true",
-		"SOCCER_ARCHIVE_TABLE_NAME":         "portfolio-lambda-dev-soccer-history",
-		"SOCCER_HISTORY_MAX_TEAMS":          "4",
-		"SOCCER_HISTORY_PLAYER_RESERVED":    "2",
-		"SOCCER_HISTORY_MAX_REQUESTS":       "8",
-		"SOCCER_HISTORY_MAX_RETRIES":        "1",
-		"SOCCER_HISTORY_MIN_INTERVAL_MS":    "250",
+// lambdaLookup looks up Team ID 479691 through the Lambda assembly and
+// requires the usual schedule.
+func lambdaLookup(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {"479691"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "Away FC") {
+		t.Fatalf("live manual lookup lost the usual schedule: status %d, body %q", resp.Code, resp.Body.String())
 	}
-	for unset := range activated {
-		if unset == "SOCCER_HISTORY_COLLECTION_ENABLED" {
-			continue
-		}
+	return resp.Body.String()
+}
+
+func TestLambdaAssemblyEnrollsEnteredTeamsOnceCollectionIsActivated(t *testing.T) {
+	lambdaAssemblyEnvironment(t)
+	for name, value := range reviewedHistoryLimits {
+		t.Setenv(name, value)
+	}
+	t.Setenv("SOCCER_HISTORY_COLLECTION_ENABLED", "true")
+
+	handler, err := NewLambdaHandler(context.Background())
+	if err != nil {
+		t.Fatalf("NewLambdaHandler: %v", err)
+	}
+	// Collection is on, so the lookup tries to enroll the team. DynamoDB is
+	// a closed loopback port, so the enrollment outcome is a failed save.
+	if body := lambdaLookup(t, handler); !strings.Contains(body, "History not saved") || !strings.Contains(body, "History collection could not save team 479691.") {
+		t.Fatalf("activated assembly did not try to enroll the entered team: %q", body)
+	}
+}
+
+func TestLambdaAssemblyLeavesEnrollmentOffWithoutEveryReviewedLimit(t *testing.T) {
+	for unset := range reviewedHistoryLimits {
 		t.Run(unset, func(t *testing.T) {
 			lambdaAssemblyEnvironment(t)
-			for name, value := range activated {
+			for name, value := range reviewedHistoryLimits {
 				t.Setenv(name, value)
 			}
+			t.Setenv("SOCCER_HISTORY_COLLECTION_ENABLED", "true")
 			t.Setenv(unset, "")
 
 			handler, err := NewLambdaHandler(context.Background())
