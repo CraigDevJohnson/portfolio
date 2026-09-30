@@ -1,8 +1,10 @@
 package soccer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -101,18 +103,11 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !proven {
-		resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
-		teams, lookupErr := resolver.FetchPlayerTeams(r.Context(), playerID)
-		if lookupErr != nil {
-			logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", lookupErr))
+		proven, err = h.currentTeamSeasonMembership(r.Context(), session.JWT, playerID, teamID, seasonID)
+		if err != nil {
+			logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", err))
 			http.Error(w, "Current team membership could not be verified", http.StatusBadGateway)
 			return
-		}
-		for _, team := range teams {
-			if team.UTeamID == teamID && team.Season == seasonID {
-				proven = true
-				break
-			}
 		}
 	}
 	if !proven {
@@ -120,33 +115,54 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	history, err := store.ReadTeamSeason(r.Context(), teamID, seasonID)
-	if errors.Is(err, soccerarchive.ErrNoArchive) {
-		history = soccerarchive.TeamSeason{Team: lps.TeamSummary{UTeamID: teamID, Season: seasonID}, Coverage: soccerarchive.Coverage{Status: soccerarchive.CoverageNotFetched}}
-	} else if err != nil {
+	response, err := readTeamSeasonHistory(r.Context(), store, playerID, teamID, seasonID)
+	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer team history read failed", slog.Any("error", err))
 		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
 		return
-	}
-	if history.Team.UTeamID != teamID || history.Team.Season != seasonID {
-		logging.WithContext(h.Logger, r.Context()).Error("soccer team history identity mismatch", slog.Int("team_id", teamID), slog.Int("season_id", seasonID))
-		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	refresh, err := store.ReadRefreshState(r.Context(), teamID)
-	if err != nil && !errors.Is(err, soccerarchive.ErrNotEnrolled) {
-		logging.WithContext(h.Logger, r.Context()).Error("soccer team refresh state read failed", slog.Any("error", err))
-		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	response := buildHistoryResponse(&history, playerID, teamID, seasonID, time.Now())
-	if err == nil {
-		response.Refresh = buildHistoryRefresh(&refresh)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(&response); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer history response write failed", slog.Any("error", err))
 	}
+}
+
+// currentTeamSeasonMembership reports whether the imported player's current
+// authenticated LPS team lookup lists the exact team and LPS season.
+func (h *Handler) currentTeamSeasonMembership(ctx context.Context, jwt string, playerID, teamID, seasonID int) (bool, error) {
+	teams, err := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt).FetchPlayerTeams(ctx, playerID)
+	if err != nil {
+		return false, err
+	}
+	for _, team := range teams {
+		if team.UTeamID == teamID && team.Season == seasonID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// readTeamSeasonHistory builds an authorized team season's response from the
+// archive. A team no response has archived yet reads as not fetched.
+func readTeamSeasonHistory(ctx context.Context, store soccerarchive.HistoryStore, playerID, teamID, seasonID int) (historyResponse, error) {
+	history, err := store.ReadTeamSeason(ctx, teamID, seasonID)
+	if errors.Is(err, soccerarchive.ErrNoArchive) {
+		history = soccerarchive.TeamSeason{Team: lps.TeamSummary{UTeamID: teamID, Season: seasonID}, Coverage: soccerarchive.Coverage{Status: soccerarchive.CoverageNotFetched}}
+	} else if err != nil {
+		return historyResponse{}, err
+	}
+	if history.Team.UTeamID != teamID || history.Team.Season != seasonID {
+		return historyResponse{}, fmt.Errorf("archive returned team %d season %d for team %d season %d", history.Team.UTeamID, history.Team.Season, teamID, seasonID)
+	}
+	refresh, err := store.ReadRefreshState(ctx, teamID)
+	if err != nil && !errors.Is(err, soccerarchive.ErrNotEnrolled) {
+		return historyResponse{}, fmt.Errorf("read team %d refresh state: %w", teamID, err)
+	}
+	response := buildHistoryResponse(&history, playerID, teamID, seasonID, time.Now())
+	if err == nil {
+		response.Refresh = buildHistoryRefresh(&refresh)
+	}
+	return response, nil
 }
 
 func buildHistoryRefresh(state *soccerarchive.RefreshState) *historyRefresh {
