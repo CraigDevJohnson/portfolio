@@ -56,6 +56,7 @@ Collection would call these LPS endpoints on `lps-api-prod.lps-test.com`:
 | Visitor Team ID lookup (already public today) | `GET /teams/{id}`, `GET /facilities/{id}` | none | per lookup; with collection on, the lookup also enrolls the team |
 | Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one call at a time in the order LPS lists the players, all within the import's 11 s lookup deadline (3.2) |
 | History read without stored proof | `GET /players/{id}/my_teams` | imported JWT | per read |
+| History team-season list | `GET /players/{id}/my_teams` | imported JWT | per list |
 | Verified player removal | `GET /users/check` | imported JWT | per removal |
 
 I reviewed these public pages (read only, September 30, 2026):
@@ -309,7 +310,8 @@ over one table:
    fresh LPS check, keeps team, game and facility facts and the other player,
    and ends the import, so the next read is refused with `401`.
 
-The grant matrix now includes `GET /soccer/history`
+The grant matrix now includes `GET /soccer/history` and
+`GET /soccer/history/team-seasons`
 (`internal/app/soccer_grant_matrix_test.go`), so signed-out, expired,
 ungranted and revoked visitors are shown to be refused there too.
 

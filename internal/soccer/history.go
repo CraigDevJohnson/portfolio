@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"portfolio/internal/schedule"
 	"portfolio/internal/siteidentity"
 	"portfolio/internal/soccerarchive"
+	"portfolio/types"
 )
 
 const scoredRecordLabel = "Calculated from numeric game scores; not official standings"
@@ -58,6 +60,112 @@ type historyResponse struct {
 	Games       []historyGame   `json:"games"`
 }
 
+type provenTeamSeason struct {
+	TeamID      int             `json:"team_id"`
+	LPSSeasonID int             `json:"lps_season_id"`
+	Team        lps.TeamSummary `json:"team"`
+	Current     bool            `json:"current"`
+}
+
+type teamSeasonsResponse struct {
+	PlayerID    int                `json:"player_id"`
+	TeamSeasons []provenTeamSeason `json:"team_seasons"`
+}
+
+// historyReader is the site owner, import, and archive a private history
+// read has been authorized with.
+type historyReader struct {
+	principal siteidentity.Principal
+	session   *types.SessionData
+	store     soccerarchive.HistoryStore
+}
+
+// authorizeHistoryPlayer admits a private history read of playerID for a
+// current Soccer grantee whose unexpired, same-owner import confirms the
+// player, and answers every other request with its refusal.
+func (h *Handler) authorizeHistoryPlayer(w http.ResponseWriter, r *http.Request, playerID int) (historyReader, bool) {
+	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
+	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
+		http.Error(w, "Soccer access is required", http.StatusForbidden)
+		return historyReader{}, false
+	}
+	session, _ := h.LoadSession(w, r)
+	if session == nil || session.JWT == "" || session.OwnerIssuer != principal.Issuer || session.OwnerSubject != principal.Subject {
+		http.Error(w, "A valid same-owner LPS import is required", http.StatusUnauthorized)
+		return historyReader{}, false
+	}
+	if _, linked := linkedPlayer(session.Players, playerID); !linked {
+		http.Error(w, "Player is not confirmed by this import", http.StatusForbidden)
+		return historyReader{}, false
+	}
+	store, enabled := h.ArchiveStore().(soccerarchive.HistoryStore)
+	if !enabled {
+		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
+		return historyReader{}, false
+	}
+	return historyReader{principal: principal, session: session, store: store}, true
+}
+
+// HistoryTeamSeasonsHandler lists every team season one imported player is
+// proven for, under the same authority as the per-season read: this owner's
+// stored authenticated proof, including former seasons LPS no longer lists,
+// and the seasons the player's current LPS team lookup lists. Each entry
+// opens with HistoryHandler. No proof is an empty list.
+func (h *Handler) HistoryTeamSeasonsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	playerID, playerOK := positiveHistoryID(r.URL.Query().Get("player_id"))
+	if !playerOK {
+		http.Error(w, "a positive player_id is required", http.StatusBadRequest)
+		return
+	}
+	reader, admitted := h.authorizeHistoryPlayer(w, r, playerID)
+	if !admitted {
+		return
+	}
+	stored, err := reader.store.ListPlayerMemberships(r.Context(), reader.principal.Issuer, reader.principal.Subject, playerID)
+	if err != nil {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer membership list failed", slog.Any("error", err))
+		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	current, err := h.currentTeamSeasons(r.Context(), reader.session.JWT, playerID)
+	if err != nil {
+		h.refuseUnverifiedCurrentMembership(w, r, err)
+		return
+	}
+	response := teamSeasonsResponse{PlayerID: playerID, TeamSeasons: provenTeamSeasons(stored, current)}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(&response); err != nil {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer team-season list write failed", slog.Any("error", err))
+	}
+}
+
+// provenTeamSeasons merges stored proof with the current lookup's seasons,
+// newest LPS season first. A season LPS lists now is current and takes the
+// lookup's team facts.
+func provenTeamSeasons(stored []soccerarchive.PlayerMembership, current []lps.TeamSummary) []provenTeamSeason {
+	type teamSeasonKey struct{ teamID, seasonID int }
+	byKey := make(map[teamSeasonKey]provenTeamSeason, len(stored)+len(current))
+	for i := range stored {
+		team := stored[i].Team
+		byKey[teamSeasonKey{team.UTeamID, team.Season}] = provenTeamSeason{TeamID: team.UTeamID, LPSSeasonID: team.Season, Team: team}
+	}
+	for _, team := range current {
+		byKey[teamSeasonKey{team.UTeamID, team.Season}] = provenTeamSeason{TeamID: team.UTeamID, LPSSeasonID: team.Season, Team: team, Current: true}
+	}
+	seasons := make([]provenTeamSeason, 0, len(byKey))
+	for _, season := range byKey {
+		seasons = append(seasons, season)
+	}
+	sort.Slice(seasons, func(i, j int) bool {
+		if seasons[i].LPSSeasonID != seasons[j].LPSSeasonID {
+			return seasons[i].LPSSeasonID > seasons[j].LPSSeasonID
+		}
+		return seasons[i].TeamID < seasons[j].TeamID
+	})
+	return seasons
+}
+
 // HistoryHandler serves one proven player-team-LPS-season read for a current
 // Soccer grantee with an unexpired, same-owner imported LPS credential.
 func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -69,32 +177,11 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "positive player_id, team_id, and season_id are required", http.StatusBadRequest)
 		return
 	}
-	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
-	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
-		http.Error(w, "Soccer access is required", http.StatusForbidden)
+	reader, admitted := h.authorizeHistoryPlayer(w, r, playerID)
+	if !admitted {
 		return
 	}
-	session, _ := h.LoadSession(w, r)
-	if session == nil || session.JWT == "" || session.OwnerIssuer != principal.Issuer || session.OwnerSubject != principal.Subject {
-		http.Error(w, "A valid same-owner LPS import is required", http.StatusUnauthorized)
-		return
-	}
-	linkedPlayer := false
-	for _, player := range session.Players {
-		if player.UPlayerID == playerID {
-			linkedPlayer = true
-			break
-		}
-	}
-	if !linkedPlayer {
-		http.Error(w, "Player is not confirmed by this import", http.StatusForbidden)
-		return
-	}
-	store, enabled := h.ArchiveStore().(soccerarchive.HistoryStore)
-	if !enabled {
-		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
-		return
-	}
+	principal, session, store := reader.principal, reader.session, reader.store
 	proven, err := store.HasPlayerMembership(r.Context(), principal.Issuer, principal.Subject, playerID, teamID, seasonID)
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer membership read failed", slog.Any("error", err))
@@ -126,15 +213,9 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // currentTeamSeasonMembership reports whether the imported player's current
-// authenticated LPS team lookup lists the exact team and LPS season. A player
-// LPS rejects as invalid has no current team-seasons, as on import, so the
-// season stays unverified rather than a lookup to retry.
+// authenticated LPS team lookup lists the exact team and LPS season.
 func (h *Handler) currentTeamSeasonMembership(ctx context.Context, jwt string, playerID, teamID, seasonID int) (bool, error) {
-	teams, err := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt).FetchPlayerTeams(ctx, playerID)
-	var fetchErr *lps.FetchError
-	if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer {
-		return false, nil
-	}
+	teams, err := h.currentTeamSeasons(ctx, jwt, playerID)
 	if err != nil {
 		return false, err
 	}
@@ -144,6 +225,28 @@ func (h *Handler) currentTeamSeasonMembership(ctx context.Context, jwt string, p
 		}
 	}
 	return false, nil
+}
+
+// currentTeamSeasons returns the team seasons the imported player's current
+// authenticated LPS team lookup lists. A team without an LPS season proves no
+// season. A player LPS rejects as invalid has no current team-seasons, as on
+// import, rather than a lookup to retry.
+func (h *Handler) currentTeamSeasons(ctx context.Context, jwt string, playerID int) ([]lps.TeamSummary, error) {
+	teams, err := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt).FetchPlayerTeams(ctx, playerID)
+	var fetchErr *lps.FetchError
+	if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	seasons := make([]lps.TeamSummary, 0, len(teams))
+	for _, team := range teams {
+		if team.UTeamID > 0 && team.Season > 0 {
+			seasons = append(seasons, team)
+		}
+	}
+	return seasons, nil
 }
 
 // refuseUnverifiedCurrentMembership answers a current team lookup LPS

@@ -248,6 +248,28 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 		},
 	},
 	{
+		// The owner's stored proof and LPS's current team lookup both hold
+		// player 1001 on team 4101 in LPS season 169.
+		name: "proven team-season list", method: http.MethodGet, path: "/soccer/history/team-seasons?player_id=1001", grantedStatus: http.StatusOK, keepsHistory: true,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			var list struct {
+				PlayerID    int `json:"player_id"`
+				TeamSeasons []struct {
+					TeamID      int  `json:"team_id"`
+					LPSSeasonID int  `json:"lps_season_id"`
+					Current     bool `json:"current"`
+				} `json:"team_seasons"`
+			}
+			if err := json.Unmarshal(resp.Body.Bytes(), &list); err != nil || list.PlayerID != 1001 || len(list.TeamSeasons) != 1 ||
+				list.TeamSeasons[0].TeamID != 4101 || list.TeamSeasons[0].LPSSeasonID != 169 || !list.TeamSeasons[0].Current {
+				t.Errorf("team-season list did not list the owner's proven current season: %+v, %v; body %q", list, err, resp.Body.String())
+			}
+			if world.lpsCredentialCalls.Load() == 0 {
+				t.Error("team-season list did not check current seasons with the owner's imported LPS access")
+			}
+		},
+	},
+	{
 		name: "linked-player team discovery", method: http.MethodPost, path: "/soccer/discover-teams", form: url.Values{"player_ids": {"1001"}}, grantedStatus: http.StatusOK,
 		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
 			if !strings.Contains(resp.Body.String(), "Craig FC") || world.lpsCredentialCalls.Load() == 0 {

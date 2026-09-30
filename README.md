@@ -539,6 +539,7 @@ HTMX and form endpoints:
 | `POST` | `/soccer/players/remove` |
 | `POST` | `/soccer/logout` |
 | `GET` | `/soccer/history` |
+| `GET` | `/soccer/history/team-seasons` |
 | `POST` | `/soccer/discover-teams` |
 | `POST` | `/soccer/fetch` |
 | `POST` | `/soccer/download` |
@@ -579,8 +580,42 @@ places each side by its LPS team ID; canceled, unscored, and unparseable
 results of completed games are listed as unclassified and do not change the
 totals. `not_fetched` coverage and a retryable refresh failure remain distinct
 from a fetched season with zero games.
-Until the separate collection activation, the route returns `503` because no
-durable archive is wired into the production server.
+
+`GET /soccer/history/team-seasons?player_id=1001` lists every team season the
+per-season read opens for that player, so a caller can find former seasons LPS
+no longer lists without already knowing their IDs. It has the same
+authorization and refusals as the per-season read: `401` without a site
+session or a valid same-owner LPS import, `403` without the current `soccer`
+grant or for a player the import does not confirm, and `400` without a
+positive `player_id`. It lists the signed-in owner's stored authenticated
+membership proof, read with one DynamoDB query of that owner's membership keys
+in the player's partition, so proof another site owner recorded is never
+listed. It adds the seasons the player's current LPS team lookup lists; a team
+LPS returns without a season proves none. Because it always asks LPS, a token
+LPS rejects ends the import (`401`, import cookies cleared), a player LPS
+denies returns `403`, and an unavailable LPS returns `502` and keeps the
+import rather than returning a partial list:
+
+```json
+{
+  "player_id": 1001,
+  "team_seasons": [
+    {"team_id": 4101, "lps_season_id": 80, "team": {"UTeamID": 4101, "team_name": "Craig FC", "Color": "", "division_name": "Open A", "FacilityID": 0, "facility_name": "", "Season": 80}, "current": true},
+    {"team_id": 4102, "lps_season_id": 78, "team": {"UTeamID": 4102, "team_name": "Old FC", "Color": "", "division_name": "", "FacilityID": 0, "facility_name": "", "Season": 78}, "current": false}
+  ]
+}
+```
+
+Entries are ordered newest LPS season first, then by Team ID. `team` is the
+LPS team as the current lookup or the stored proof's lookup returned it.
+`current` is `true` when LPS lists the season now and `false` for a former
+season only stored proof holds. Each entry opens with
+`GET /soccer/history?player_id=<player_id>&team_id=<team_id>&season_id=<lps_season_id>`.
+A player with no proof, including a removed player whom LPS lists on no team,
+gets `200` with an empty `team_seasons` array, which is distinct from every
+refusal and error. Both history responses are `Cache-Control: private, no-store`.
+Until the separate collection activation, both history routes return `503`
+because no durable archive is wired into the production server.
 
 Portal routes are registered with valid `SITE_*` identity configuration or
 local preview mode. They include `/mgmt` and the instance action, metrics, and
