@@ -565,7 +565,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
   }
   .site-account-email {
     max-width: 100%;
-    padding: var(--space-sm) 1.25rem 0;
+    padding: var(--space-sm) calc(var(--space-md) + var(--space-xs)) 0;
   }
 }
 
