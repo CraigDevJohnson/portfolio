@@ -77,8 +77,13 @@ templ Soccer(props SoccerProps) {
 						<span><strong>Download ICS</strong><small>Use any calendar app. Team ID lookup and download are public.</small></span>
 					</label>
 					<label class="soccer-output-option">
-						<input type="radio" name="calendar_output" value="google" data-soccer-output-option/>
-						<span><strong>Google Calendar</strong><small>Connect a calendar to add selected matches.</small></span>
+						if props.AuthState.SupportsGoogle() {
+							<input type="radio" name="calendar_output" value="google" data-soccer-output-option/>
+							<span><strong>Google Calendar</strong><small>Connect a calendar to add selected matches.</small></span>
+						} else {
+							<input type="radio" name="calendar_output" value="google" data-soccer-output-option disabled/>
+							<span><strong>Google Calendar</strong><small>Not enabled on this server.</small></span>
+						}
 					</label>
 				</fieldset>
 				<p id="soccer-output-hint" class="form-hint">You can change this choice after fetching; your matches and selections stay in place.</p>

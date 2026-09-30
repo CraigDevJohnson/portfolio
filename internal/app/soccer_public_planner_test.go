@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/testutil"
 	"portfolio/types"
@@ -216,6 +217,10 @@ func TestPublicPlannerRouteOffersOutputChoiceFirstWithoutSession(t *testing.T) {
 	}
 	if !slices.Equal(values, []string{"ics", "google"}) {
 		t.Fatalf("calendar output options = %v, want [ics google]", values)
+	}
+	// This runtime has no Google Calendar configuration.
+	if plannerHasAttr(options[0], "disabled") || !plannerHasAttr(options[1], "disabled") {
+		t.Error("only ICS may be chosen when Google Calendar is not configured")
 	}
 
 	for _, stage := range stages[1:] {
@@ -686,5 +691,16 @@ func TestPlannerDiscoveryErrorsPointBackToImport(t *testing.T) {
 	})
 	if plannerHasAttr(importAction, "hidden") {
 		t.Error("discovery error hides its Import fresh access recovery action")
+	}
+}
+
+func TestPlannerOffersGoogleOutputOnlyWhenGoogleIsConfigured(t *testing.T) {
+	props := soccerPresentationTestPageProps()
+	doc := parsePlannerHTML(t, renderSoccerTestComponent(t, pages.Soccer(props)))
+	google := plannerSingle(t, doc, "Google output option", func(node *html.Node) bool {
+		return soccerHTMLAttribute(node, "name") == "calendar_output" && soccerHTMLAttribute(node, "value") == "google"
+	})
+	if plannerHasAttr(google, "disabled") {
+		t.Error("Google output is disabled although Google Calendar is configured")
 	}
 }

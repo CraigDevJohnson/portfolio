@@ -256,10 +256,11 @@
     } catch (_error) {
       // The public planner still works when browser storage is unavailable.
     }
-    if (!savedOutput && document.querySelector('[data-soccer-results-ready="ready"]')) {
-      savedOutput = 'ics'
+    const choosable = options.filter(option => !option.disabled)
+    let savedOption = choosable.find(option => option.value === savedOutput)
+    if (!savedOption && document.querySelector('[data-soccer-results-ready="ready"]')) {
+      savedOption = choosable.find(option => option.value === 'ics')
     }
-    const savedOption = options.find(option => option.value === savedOutput)
     if (savedOption) {
       savedOption.checked = true
     }

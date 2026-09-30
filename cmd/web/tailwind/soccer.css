@@ -72,6 +72,11 @@
   box-shadow: var(--shadow-panel);
 }
 
+.soccer-output-option:has(input:disabled) {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
 .soccer-output-option:focus-within {
   outline: var(--line-hairline) solid var(--pond-mint);
   outline-offset: var(--space-xs);
