@@ -194,6 +194,52 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 	}
 }
 
+// The combined preview fixture is the browser-rendered check for team colors:
+// it must show a recognized color, a fallback, and shared matches with labels.
+func TestSoccerPreviewFixtureRendersTeamColorStates(t *testing.T) {
+	app := newTestApp(t)
+	mux, _ := buildMux(app, app.Logger, true)
+	req := httptest.NewRequest(http.MethodGet, "/__preview/soccer/combined", nil)
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("preview status = %d, want 200", resp.Code)
+	}
+	doc, err := html.Parse(strings.NewReader(resp.Body.String()))
+	if err != nil {
+		t.Fatalf("parse preview page: %v", err)
+	}
+	rows := soccerMatchRows(doc)
+
+	for _, game := range []struct {
+		id, home, away, text string
+		shared               bool
+	}{
+		{id: "preview-upcoming-1", home: "green", away: "orange", shared: true, text: "Pond Mint United vs Campfire Rovers"},
+		{id: "preview-past-2", home: "green", away: "orange", shared: true, text: "Home 4 – Away 2"},
+		{id: "preview-past-1", home: "green", away: "green", text: "Candle Oat Wanderers vs Pond Mint United"},
+	} {
+		row := onlySoccerRow(t, rows, game.id)
+		if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != game.home || away != game.away {
+			t.Errorf("%s colors = %q/%q, want %q/%q", game.id, home, away, game.home, game.away)
+		}
+		if shared := htmlAttr(row, "data-shared-match") != ""; shared != game.shared {
+			t.Errorf("%s shared = %t, want %t", game.id, shared, game.shared)
+		}
+		if text := htmlText(row); !strings.Contains(text, game.text) {
+			t.Errorf("%s text = %q, want readable %q", game.id, text, game.text)
+		}
+	}
+	if text := htmlText(onlySoccerRow(t, rows, "preview-past-2")); strings.Contains(text, "Win (") || strings.Contains(text, "Loss (") {
+		t.Errorf("shared preview result takes one team's perspective: %q", text)
+	}
+
+	fallback := onlySoccerRow(t, rows, "preview-upcoming-2")
+	if home, away := htmlAttr(fallback, "data-home-color"), htmlAttr(fallback, "data-away-color"); home == "" || home != away || htmlAttr(fallback, "data-shared-match") != "" {
+		t.Errorf("colorless preview team colors = %q/%q shared=%q, want one fallback on both halves", home, away, htmlAttr(fallback, "data-shared-match"))
+	}
+}
+
 func htmlAttr(node *html.Node, name string) string {
 	for _, attr := range node.Attr {
 		if attr.Key == name {
