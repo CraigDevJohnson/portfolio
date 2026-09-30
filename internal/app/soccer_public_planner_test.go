@@ -492,8 +492,10 @@ func TestPublicPlannerRouteRefetchKeepsTeamSetScopeAndSelectsNewGames(t *testing
 	if got := plannerRowIDs(rows); !slices.Equal(got, []string{"3030", "2020", "4040"}) {
 		t.Fatalf("refetch rows = %v, want the newly discovered game after the known ones", got)
 	}
+	// Every server-rendered row starts checked; remembering deselections on
+	// refetch happens in main.js and is proven by prove-soccer-planner.
 	if !rows[2].Checked {
-		t.Fatal("newly discovered upcoming game did not begin selected")
+		t.Fatal("newly discovered upcoming game did not render selected")
 	}
 }
 
