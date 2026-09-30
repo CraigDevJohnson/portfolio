@@ -37,6 +37,9 @@ const (
 	// RefreshBackingOff is a due team a scheduled run left alone because its
 	// backoff after a temporary failure had not ended when its turn came.
 	RefreshBackingOff RefreshOutcome = "backing_off"
+	// RefreshRunTimeExhausted is a due team a scheduled run left, or stopped
+	// fetching, because too little of the run's time remained.
+	RefreshRunTimeExhausted RefreshOutcome = "run_time_exhausted"
 )
 
 // RefreshResult is one team's outcome in an on-demand or scheduled pass.
@@ -104,13 +107,15 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 }
 
 // refreshTeam fetches one enrolled team and stores a response that confirms
-// it. A fetch the request budget stopped before it reached LPS is neither a
-// success nor an LPS failure: the team keeps its state and stays due.
+// it. A fetch the request budget or a scheduled run's time stopped is neither
+// a success nor an LPS failure: the team keeps its state and stays due.
 func (w *RefreshWorker) refreshTeam(ctx context.Context, teamID int) RefreshResult {
 	source, fetchErr := w.source.FetchTeamSource(ctx, teamID)
 	switch {
 	case errors.Is(fetchErr, ErrRequestBudget):
 		return RefreshResult{TeamID: teamID, Outcome: RefreshBudgetExhausted}
+	case errors.Is(fetchErr, ErrRunTimeExhausted):
+		return RefreshResult{TeamID: teamID, Outcome: RefreshRunTimeExhausted}
 	case fetchErr != nil:
 		return w.recordFailure(ctx, teamID, fetchErr)
 	case source.Response.Team.UTeamID != teamID:

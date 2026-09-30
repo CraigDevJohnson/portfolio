@@ -695,3 +695,89 @@ func TestBudgetLimitedRunNamesEveryDueTeamItLeft(t *testing.T) {
 		t.Fatalf("budget-limited run = %#v, err %v, requests %v; want results %v and one unselected due team", report, err, requests, want)
 	}
 }
+
+func TestDailyRunStopsStartingTeamsBeforeItsDeadline(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// The fake clock starts at the real time, so the run's real deadline
+	// lies in its future.
+	start := time.Now().UTC()
+	for i, teamID := range []int{101, 202, 303, 404, 505} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: start.Add(-25*time.Hour + time.Duration(i)*time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server, requests := dailyTeamsLPS(t)
+	clock := &fakeDailyClock{now: start}
+	// A team may take its 30-second pacing wait and 15-second request
+	// timeout. With 100 seconds left, the run starts a team only while 45
+	// seconds remain before the last 10, which it keeps to store its work.
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 15 * time.Second}, Limits{MaxEnrolledTeams: 5, MaxRequestsPerRun: 5, MinRequestInterval: 30 * time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithDeadline(t.Context(), start.Add(100*time.Second))
+	defer cancel()
+
+	report, err := worker.Run(ctx)
+
+	want := []RefreshResult{
+		{TeamID: 101, Outcome: RefreshSucceeded},
+		{TeamID: 202, Outcome: RefreshSucceeded},
+		{TeamID: 303, Outcome: RefreshSucceeded},
+		{TeamID: 404, Outcome: RefreshRunTimeExhausted},
+		{TeamID: 505, Outcome: RefreshRunTimeExhausted},
+	}
+	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 3 || !slices.Equal(report.Results, want) || requests(404) != 0 || requests(505) != 0 {
+		t.Fatalf("run near its deadline = %#v, err %v; want results %v", report, err, want)
+	}
+	for _, teamID := range []int{404, 505} {
+		if state, err := store.ReadRefreshState(t.Context(), teamID); err != nil || state.Status != RefreshReady || state.NextDueAt.After(start) {
+			t.Errorf("team %d left for the next run is no longer due: %#v, err %v", teamID, state, err)
+		}
+	}
+}
+
+func TestDailyRunCutsOffATeamWhoseFetchOutrunsTheDeadline(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/teams/101":
+			// Three facilities, each answered within the request timeout but
+			// together slower than the time the run has left.
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":1,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":5},{"UGameID":2,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":6},{"UGameID":3,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":7}]}`)
+		case strings.HasPrefix(r.URL.Path, "/facilities/"):
+			select {
+			case <-time.After(250 * time.Millisecond):
+				_, _ = fmt.Fprintf(w, `{"FacilityID":%s}`, strings.TrimPrefix(r.URL.Path, "/facilities/"))
+			case <-r.Context().Done():
+			}
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 400 * time.Millisecond}, Limits{MaxEnrolledTeams: 2, MaxRequestsPerRun: 8, MinRequestInterval: time.Millisecond}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 600ms remain for requests once the run keeps its last 10 seconds.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second+600*time.Millisecond)
+	defer cancel()
+
+	report, err := worker.Run(ctx)
+
+	want := []RefreshResult{{TeamID: 101, Outcome: RefreshRunTimeExhausted}, {TeamID: 202, Outcome: RefreshRunTimeExhausted}}
+	if err != nil || report.Complete || !report.PendingDueWork || !slices.Equal(report.Results, want) {
+		t.Fatalf("run whose fetch outran its deadline = %#v, err %v; want results %v", report, err, want)
+	}
+	// Running out of time is not an LPS failure: team 101 stays ready and due.
+	if state, err := store.ReadRefreshState(t.Context(), 101); err != nil || state.Status != RefreshReady || state.NextDueAt.After(time.Now()) {
+		t.Fatalf("team 101 was recorded as failed: %#v, err %v", state, err)
+	}
+}

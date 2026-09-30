@@ -179,6 +179,14 @@ func indexedDue(team DueTeam, start time.Time) bool {
 // a run's own fetches are due at the next day's run.
 const refreshedTeamGuard = 4 * time.Hour
 
+// dailyWrapUpAllowance is the end of a run's time it keeps for storing the
+// last team's work and reporting, after it stops fetching.
+const dailyWrapUpAllowance = 10 * time.Second
+
+// defaultDailyRequestAllowance is how long a run expects one LPS request can
+// take when its client sets no timeout.
+const defaultDailyRequestAllowance = 15 * time.Second
+
 // DailyWorker runs the indexed daily pass without an HTTP request runtime.
 type DailyWorker struct {
 	store   DailyStore
@@ -207,6 +215,10 @@ func NewDailyWorker(store DailyStore, baseURL string, client *http.Client, limit
 
 // Run invokes each due team once and leaves unattempted teams due for the next
 // delivery. Successful and failed team writes are the durable checkpoints.
+// When ctx has a deadline, as a Lambda invocation does, the run stops
+// fetching dailyWrapUpAllowance before it and starts a team only while the
+// longest that team's fetch can take still fits, so it can report the teams
+// it did and did not refresh before the invocation ends.
 func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	start := w.clock.Now().UTC()
 	client := *w.client
@@ -214,8 +226,13 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 	// the transport applies it after the pacing wait instead of letting that
 	// wait spend it.
 	transport := &pacedTransport{base: client.Transport, clock: w.clock, maxRequests: w.limits.MaxRequestsPerRun, interval: w.limits.MinRequestInterval, timeout: client.Timeout}
+	teamAllowance := w.limits.teamFetchAllowance(client.Timeout)
 	client.Transport, client.Timeout = transport, 0
-	source := &retryingTeamSource{source: lps.NewScheduleResolver(w.baseURL, &client, ""), retries: w.limits.MaxRetriesPerTeam, clock: w.clock}
+	var stopFetchingAt time.Time
+	if deadline, ok := ctx.Deadline(); ok {
+		stopFetchingAt = deadline.Add(-dailyWrapUpAllowance)
+	}
+	source := &retryingTeamSource{source: lps.NewScheduleResolver(w.baseURL, &client, ""), retries: w.limits.MaxRetriesPerTeam, clock: w.clock, stopAt: stopFetchingAt}
 	refresh := NewRefreshWorker(w.store, source, w.clock.Now)
 	report := DailyReport{Complete: true, Results: make([]RefreshResult, 0)}
 	// The query also finds teams whose backoff after a temporary failure ends
@@ -258,13 +275,18 @@ func (w *DailyWorker) Run(ctx context.Context) (DailyReport, error) {
 			report.Requests = transport.Used()
 			return report, nil
 		}
+		if !stopFetchingAt.IsZero() && w.clock.Now().Add(teamAllowance).After(stopFetchingAt) {
+			report.leaveDue(due[i:], start, RefreshRunTimeExhausted)
+			report.Requests = transport.Used()
+			return report, nil
+		}
 		result := refresh.refreshTeam(ctx, team.TeamID)
 		report.Results = append(report.Results, result)
 		if result.Outcome != RefreshSucceeded {
 			report.Complete = false
 		}
-		if result.Outcome == RefreshBudgetExhausted {
-			report.leaveDue(due[i+1:], start, RefreshBudgetExhausted)
+		if result.Outcome == RefreshBudgetExhausted || result.Outcome == RefreshRunTimeExhausted {
+			report.leaveDue(due[i+1:], start, result.Outcome)
 			report.Requests = transport.Used()
 			return report, nil
 		}
@@ -301,21 +323,62 @@ func dueInRun(state *RefreshState, start, now time.Time) runDecision {
 	}
 }
 
+// teamFetchAllowance is the longest one team's fetch can take when every
+// allowed attempt waits out its pacing interval and then its whole request
+// timeout, with the backoffs between attempts. Facility lookups add to it;
+// the run's fetch deadline, not this allowance, bounds those.
+func (limits Limits) teamFetchAllowance(requestTimeout time.Duration) time.Duration {
+	if requestTimeout <= 0 {
+		requestTimeout = defaultDailyRequestAllowance
+	}
+	allowance := time.Duration(1+limits.MaxRetriesPerTeam) * (requestTimeout + limits.MinRequestInterval)
+	for retry := range limits.MaxRetriesPerTeam {
+		allowance += retryBackoff(retry)
+	}
+	return allowance
+}
+
+// retryBackoff is the wait before a team's retry after its retry-th attempt.
+func retryBackoff(retry int) time.Duration {
+	return time.Second << retry
+}
+
+// ErrRunTimeExhausted means a scheduled run stopped a team's fetch because
+// the run's time for fetching ended. It is not an LPS failure.
+var ErrRunTimeExhausted = errors.New("daily run time for LPS requests exhausted")
+
 // retryingTeamSource retries a team whose fetch failed temporarily, backing
-// off exponentially, within the per-team retry budget.
+// off exponentially, within the per-team retry budget. It stops the fetch at
+// stopAt, when set.
 type retryingTeamSource struct {
 	source  TeamSource
 	retries int
 	clock   DailyClock
+	stopAt  time.Time
 }
 
 func (source *retryingTeamSource) FetchTeamSource(ctx context.Context, teamID int) (lps.TeamScheduleSource, error) {
+	fetchCtx := ctx
+	if !source.stopAt.IsZero() {
+		var cancel context.CancelFunc
+		fetchCtx, cancel = context.WithDeadline(ctx, source.stopAt)
+		defer cancel()
+	}
+	// outOfTime reports a fetch the run's fetch deadline, not the caller,
+	// stopped.
+	outOfTime := func() bool { return fetchCtx.Err() != nil && ctx.Err() == nil }
 	for retry := 0; ; retry++ {
-		result, err := source.source.FetchTeamSource(ctx, teamID)
-		if err == nil || retry >= source.retries || !retryableSourceFailure(ctx, err) {
+		result, err := source.source.FetchTeamSource(fetchCtx, teamID)
+		if err != nil && outOfTime() {
+			return lps.TeamScheduleSource{}, fmt.Errorf("%w: %w", ErrRunTimeExhausted, err)
+		}
+		if err == nil || retry >= source.retries || !retryableSourceFailure(fetchCtx, err) {
 			return result, err
 		}
-		if err := source.clock.Sleep(ctx, time.Second<<retry); err != nil {
+		if err := source.clock.Sleep(fetchCtx, retryBackoff(retry)); err != nil {
+			if outOfTime() {
+				return lps.TeamScheduleSource{}, fmt.Errorf("%w: %w", ErrRunTimeExhausted, err)
+			}
 			return lps.TeamScheduleSource{}, err
 		}
 	}
