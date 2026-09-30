@@ -131,8 +131,11 @@ while the portal is disabled. A CI release cannot enable the portal, because
 its plan may change only the Lambda image and `live` alias. Keep image and
 unrelated Lambda changes out of the auth plan.
 Provision the `/portfolio/lambda/dev/MGMT_SESSION_KEY` SecureString value through
-the separately approved secret channel before enabling the runtime. The auth
-root does not create or read that secret. Do not add auth-state access or Google
+the separately approved secret channel before enabling the runtime. The dev
+execution boundary does not allow that parameter yet, so also add
+`MGMT_SESSION_KEY` to the dev parameters in `infra/lambda/ci-roles/boundary.tf`
+and apply the account root before the runtime plan. The auth root does not
+create or read that secret. Do not add auth-state access or Google
 credentials to automatic release workflows.
 
 ## Offline checks
