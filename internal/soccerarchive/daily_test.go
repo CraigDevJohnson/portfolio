@@ -144,17 +144,19 @@ func TestDailyWorkerLeavesBudgetLimitedTeamsDueForNextInvocation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
-		MaxEnrolledTeams: 3, ReservedPlayerSlots: 1, MaxRequestsPerRun: 2, MaxRetriesPerTeam: 1, MinRequestInterval: time.Second,
+		MaxEnrolledTeams: 3, ReservedPlayerSlots: 1, MaxRequestsPerRun: 3, MaxRetriesPerTeam: 1, MinRequestInterval: time.Second,
 	}, clock)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Team 101's retry spends the request team 303 would have used.
 	first, err := worker.Run(t.Context())
-	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 2 || len(first.Results) != 1 || first.Results[0].Outcome != RefreshSucceeded || requests[202] != 0 {
+	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 3 || len(first.Results) != 2 ||
+		first.Results[0].Outcome != RefreshSucceeded || first.Results[1].Outcome != RefreshSucceeded || requests[303] != 0 {
 		t.Fatalf("first budget-limited pass = %#v, err %v, requests %#v", first, err, requests)
 	}
 	second, err := worker.Run(t.Context())
-	if err != nil || !second.Complete || second.PendingDueWork || second.Requests != 2 || len(second.Results) != 2 || requests[101] != 2 || requests[202] != 1 || requests[303] != 1 {
+	if err != nil || !second.Complete || second.PendingDueWork || second.Requests != 1 || len(second.Results) != 1 || requests[101] != 2 || requests[202] != 1 || requests[303] != 1 {
 		t.Fatalf("continuation missed work or repeated checkpoint: %#v, err %v, requests %#v", second, err, requests)
 	}
 }
@@ -183,6 +185,11 @@ func TestDailyRuntimeRequiresEveryReviewedNumericLimit(t *testing.T) {
 	values["SOCCER_HISTORY_MAX_REQUESTS"] = "0"
 	if _, err := LimitsFromEnvironment(lookup); err == nil {
 		t.Fatal("zero request ceiling enabled the worker")
+	}
+	// Four enrolled teams cannot each get a daily attempt from three requests.
+	values["SOCCER_HISTORY_MAX_REQUESTS"] = "3"
+	if _, err := LimitsFromEnvironment(lookup); err == nil {
+		t.Fatal("a request ceiling below the enrollment ceiling enabled the worker")
 	}
 }
 

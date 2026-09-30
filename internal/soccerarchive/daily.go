@@ -31,10 +31,13 @@ type Limits struct {
 // maxRetriesPerTeam caps the reviewed retry budget for one team's attempt.
 const maxRetriesPerTeam = 5
 
-// Validate rejects missing or internally inconsistent limits.
+// Validate rejects missing or internally inconsistent limits. A run's request
+// ceiling must allow at least one attempt for every team the enrollment
+// ceiling admits, so a full archive still gives each enrolled team a daily
+// attempt.
 func (limits Limits) Validate() error {
 	if limits.MaxEnrolledTeams <= 0 || limits.ReservedPlayerSlots < 0 || limits.ReservedPlayerSlots >= limits.MaxEnrolledTeams ||
-		limits.MaxRequestsPerRun <= 0 || limits.MaxRetriesPerTeam < 0 || limits.MaxRetriesPerTeam > maxRetriesPerTeam ||
+		limits.MaxRequestsPerRun < limits.MaxEnrolledTeams || limits.MaxRetriesPerTeam < 0 || limits.MaxRetriesPerTeam > maxRetriesPerTeam ||
 		limits.MinRequestInterval <= 0 {
 		return errors.New("reviewed soccer history enrollment, reservation, request, retry, and pacing limits are required")
 	}
