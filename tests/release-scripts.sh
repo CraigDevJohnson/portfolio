@@ -218,12 +218,23 @@ reject_plan '.resource_changes += [{address: "module.service.aws_iam_role.x", mo
 reject_plan '.resource_changes[2].change.importing = {id: "t"}' 'an import'
 reject_plan '.resource_changes[2].previous_address = "module.service.aws_dynamodb_table.old"' 'a move'
 reject_plan 'del(.resource_changes[0])' 'a plan without the function'
-# The checker does not yet know the #80 history worker, whose image follows
-# the release. Until the LPS history readiness packet's 6.1 item 5 allows
-# exactly this attribute, such a release plan is refused.
-reject_plan ".resource_changes += [{address: \"module.service.aws_lambda_function.history_worker[0]\",
-  mode: \"managed\", change: {actions: [\"update\"], before: {image_uri: \"$old_image\"},
-  after: {image_uri: \"$image\"}, after_unknown: {}}}]" 'a history worker image update'
+# Once the #80 history worker exists, its image follows every release (LPS
+# history readiness packet 6.1 item 5): only that attribute, only to the
+# release image.
+worker_update=$(jq -n --arg image "$image" --arg old "$old_image" '{
+  address: "module.service.aws_lambda_function.history_worker[0]", mode: "managed",
+  change: {actions: ["update"],
+    before: {image_uri: $old, memory_size: 512, timeout: 300, version: "2"},
+    after: {image_uri: $image, memory_size: 512, timeout: 300},
+    after_unknown: {version: true}}}')
+worker_plan=$(printf '%s\n' "$release_plan" | jq --argjson worker "$worker_update" '.resource_changes += [$worker]')
+check_plan "$worker_plan" || fail 'a release that also moves the history worker to the release image must be accepted'
+if check_plan "$(printf '%s\n' "$worker_plan" | jq --arg old "$old_image" '.resource_changes[-1].change.after.image_uri = $old | .resource_changes[-1].change.before.image_uri = "other"')"; then
+  fail 'plan checker accepted: a history worker image other than the release image'
+fi
+if check_plan "$(printf '%s\n' "$worker_plan" | jq '.resource_changes[-1].change.after.timeout = 900')"; then
+  fail 'plan checker accepted: another history worker attribute'
+fi
 
 # --- apply-ci-lambda-production.sh ----------------------------------------
 mkdir -p "$test_dir/workspace/evidence"
