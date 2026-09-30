@@ -37,7 +37,7 @@ func (e *AdmissionError) Error() string {
 	for _, teamID := range e.TeamIDs {
 		ids = append(ids, strconv.Itoa(teamID))
 	}
-	return fmt.Sprintf("%v: %s teams %s exceed admission limit %d", ErrAdmissionFull, e.Source, strings.Join(ids, ", "), e.Limit)
+	return fmt.Sprintf("%v: %s team %s over admission limit %d", ErrAdmissionFull, e.Source, strings.Join(ids, ", "), e.Limit)
 }
 
 func (e *AdmissionError) Unwrap() error { return ErrAdmissionFull }
@@ -72,6 +72,9 @@ func (s *DynamoStore) enrolledCount(ctx context.Context) (count int, counter *ar
 
 // checkAdmission refuses, before anything is written, new teams that would
 // not fit the capacity left for source. Teams already enrolled need no slot.
+// It is a read, not a reservation: a concurrent enrollment can still take
+// the last slot before the caller's own enrollment, which enrollNew then
+// refuses.
 func (s *DynamoStore) checkAdmission(ctx context.Context, source string, teamIDs ...int) error {
 	newTeams := make([]int, 0, len(teamIDs))
 	for _, teamID := range teamIDs {
@@ -99,7 +102,9 @@ func (s *DynamoStore) checkAdmission(ctx context.Context, source string, teamIDs
 // enrollNew writes a new team's enrollment record and takes one admission
 // slot in a single transaction, so capacity can never be exceeded and no
 // slot is counted without its team. It reports false when another writer
-// created the team first; the caller then merges into that record instead.
+// created the team first, even if that writer took the last slot; the caller
+// then merges into that record instead. A transaction DynamoDB cancels over
+// a concurrent one on the same items is retried.
 func (s *DynamoStore) enrollNew(ctx context.Context, record *archiveItem, source string) (bool, error) {
 	teamItem, err := attributevalue.MarshalMap(record)
 	if err != nil {
@@ -112,6 +117,15 @@ func (s *DynamoStore) enrollNew(ctx context.Context, record *archiveItem, source
 		}
 		limit := s.admissionLimit(source)
 		if count >= limit {
+			// The slot that filled capacity may be this very team's, taken by
+			// another writer after the caller read the team as new.
+			existing, err := s.get(ctx, record.PK, record.SK)
+			if err != nil {
+				return false, err
+			}
+			if existing != nil {
+				return false, nil
+			}
 			return false, admissionRejected(source, limit, record.TeamID)
 		}
 		next := archiveItem{PK: capacityPK, SK: capacitySK, Kind: "capacity", EnrolledCount: count + 1, Revision: 1}
@@ -137,18 +151,30 @@ func (s *DynamoStore) enrollNew(ctx context.Context, record *archiveItem, source
 			return true, nil
 		case !errors.As(err, &canceled):
 			return false, fmt.Errorf("enroll team %d: %w", record.TeamID, err)
-		case conditionFailed(canceled, 0):
+		case cancellationCode(canceled, 0) == "ConditionalCheckFailed":
 			return false, nil
-		case !conditionFailed(canceled, 1):
+		case cancellationCode(canceled, 1) != "ConditionalCheckFailed" && !transactionConflict(canceled):
 			return false, fmt.Errorf("enroll team %d: %w", record.TeamID, err)
 		}
-		// Another team took a slot first; re-read the counter and try again.
+		// Another team took a slot first, or DynamoDB canceled this
+		// transaction over a concurrent one; re-read the counter and retry.
 	}
 	return false, fmt.Errorf("enroll team %d: capacity changed by concurrent enrollments %d times", record.TeamID, maxRecordWriteAttempts)
 }
 
-func conditionFailed(canceled *types.TransactionCanceledException, index int) bool {
-	return index < len(canceled.CancellationReasons) && aws.ToString(canceled.CancellationReasons[index].Code) == "ConditionalCheckFailed"
+// cancellationCode is the reason DynamoDB gave for canceling the
+// transaction's item at index, or "" when it gave none.
+func cancellationCode(canceled *types.TransactionCanceledException, index int) string {
+	if index >= len(canceled.CancellationReasons) {
+		return ""
+	}
+	return aws.ToString(canceled.CancellationReasons[index].Code)
+}
+
+// transactionConflict reports a transaction canceled because another
+// transaction was writing the team or counter item at the same time.
+func transactionConflict(canceled *types.TransactionCanceledException) bool {
+	return cancellationCode(canceled, 0) == "TransactionConflict" || cancellationCode(canceled, 1) == "TransactionConflict"
 }
 
 func admissionRejected(source string, limit int, teamIDs ...int) error {

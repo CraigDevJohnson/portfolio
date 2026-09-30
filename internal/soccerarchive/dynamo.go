@@ -181,7 +181,12 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 		}
 	}
 	// A team that is not enrolled yet is refused at capacity before any of
-	// its facts are written.
+	// its facts are written. The check is not a reservation: when a
+	// concurrent enrollment of another team takes the last slot after it,
+	// this team is refused only at its enrollment, after its game, facility,
+	// and coverage facts are written. Those stay unreachable through the
+	// team's reads, which need its enrollment record, until the team is
+	// admitted and a later snapshot merges over them.
 	if err := s.checkAdmission(ctx, manualEnrollment, snapshot.TeamID); err != nil {
 		return err
 	}
