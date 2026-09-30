@@ -93,6 +93,10 @@ func (w *RefreshWorker) Run(ctx context.Context, teamIDs []int) RefreshReport {
 				result = w.recordFailure(ctx, teamID, fetchErr)
 			} else if source.Response.Team.UTeamID != teamID {
 				result = w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team response did not confirm Team ID %d", teamID))
+			} else if !everyGameHasStableID(source.Response.Games) {
+				// A game the archive cannot key is an LPS contract problem, found
+				// before any write so no part of the response is stored.
+				result = w.recordFailure(ctx, teamID, lps.NewFetchError(lps.ErrorUpstream, teamID, http.StatusBadGateway, "team %d response contains a game without a stable ID", teamID))
 			} else {
 				fetchedAt := w.now().UTC()
 				if err := w.store.SaveTeamSnapshot(ctx, &Snapshot{TeamID: teamID, Team: source.Response.Team, Games: source.Response.Games, Facilities: source.Facilities, FetchedAt: fetchedAt}); err != nil {
@@ -129,4 +133,15 @@ func (w *RefreshWorker) recordFailure(ctx context.Context, teamID int, fetchErr 
 		result.Error += "; recording failure: " + err.Error()
 	}
 	return result
+}
+
+// everyGameHasStableID reports whether each game carries the LPS game ID the
+// archive stores it under.
+func everyGameHasStableID(games []lps.TeamScheduleGame) bool {
+	for i := range games {
+		if games[i].UGameID <= 0 {
+			return false
+		}
+	}
+	return true
 }

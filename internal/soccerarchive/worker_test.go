@@ -374,6 +374,46 @@ func TestRefreshWorkerKeepsHistoryRetryableAfterTemporaryOrUnconfirmedResponses(
 	}
 }
 
+func TestRefreshWorkerRecordsAResponseWithAGameWithoutAStableIDAsAnLPSFailure(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+		TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
+		Games: []lps.TeamScheduleGame{{UGameID: 9001, UTeam1: 101, UTeam2: 202, Season: 169, Result: "1-0"}}, FetchedAt: seededAt,
+	}); err != nil {
+		t.Fatalf("enroll team: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[`+
+			`{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"result":"7-0"},`+
+			`{"UTeam1":101,"UTeam2":303,"Season":169,"result":"2-2"}]}`)
+	}))
+	defer server.Close()
+	attemptedAt := seededAt.Add(24 * time.Hour)
+	worker := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return attemptedAt })
+
+	report := worker.Run(t.Context(), []int{101})
+
+	if report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshRetryableFailure ||
+		!strings.Contains(report.Results[0].Error, "without a stable ID") {
+		t.Fatalf("worker result = %#v", report)
+	}
+	state, err := store.ReadRefreshState(t.Context(), 101)
+	want := RefreshState{
+		TeamID: 101, Status: RefreshRetryable, LastAttemptAt: attemptedAt, NextDueAt: attemptedAt.Add(15 * time.Minute),
+		LastErrorKind: lps.ErrorUpstream, LastErrorStatusCode: http.StatusBadGateway,
+	}
+	if err != nil || fmt.Sprint(state) != fmt.Sprint(want) {
+		t.Fatalf("refresh state = %+v, err = %v\nwant %+v", state, err, want)
+	}
+	// Nothing from the rejected response is stored.
+	history, err := store.ReadTeamSeason(t.Context(), 101, 169)
+	if err != nil || len(history.Games) != 1 || history.Games[0].Result != "1-0" || !history.Coverage.FetchedAt.Equal(seededAt) {
+		t.Fatalf("history after rejected response = %#v, err = %v", history, err)
+	}
+}
+
 func TestRefreshWorkerStoresAGameSharedByTwoEnrolledTeamsOnceAndRecordsEachFetch(t *testing.T) {
 	backend := archivetest.NewTable()
 	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
