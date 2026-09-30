@@ -200,8 +200,10 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 }
 
 func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStore soccerarchive.Store, teamCodes string, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
-	teamIDs, valid := parseArchiveTeamIDs(teamCodes)
-	if !valid {
+	// The visitor gets the same schedule as the ordinary manual lookup, which
+	// skips unusable entries; only an unambiguous entry list is enrolled.
+	teamIDs := parseTeamIDs(teamCodes)
+	if len(teamIDs) == 0 {
 		props.Message = invalidTeamIDsMessage
 		props.Hint = invalidTeamIDsHint
 		return false, false
@@ -211,6 +213,13 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 		return applyScheduleFetchError(props, err), false
 	}
 	setTableFragmentGames(props, schedule.UpcomingScheduleGames(games))
+	if !allTeamIDEntriesValid(teamCodes) {
+		props.EnrollmentFeedback = &partials.FeedbackProps{
+			Kind: partials.FeedbackWarning, Title: "History collection",
+			Message: "Teams were not added to history collection because some entries were not valid team IDs.",
+		}
+		return false, true
+	}
 	var enrolled, unconfirmed []int
 	for i := range sources {
 		source := &sources[i]
@@ -445,18 +454,20 @@ func parseTeamIDs(raw string) []int {
 	return parsePositiveUniqueIDs(splitDelimitedValues(raw))
 }
 
-func parseArchiveTeamIDs(raw string) ([]int, bool) {
+// allTeamIDEntriesValid reports whether every entered value is a positive
+// numeric Team ID, so a partly malformed request is never enrolled.
+func allTeamIDEntriesValid(raw string) bool {
 	values := splitDelimitedValues(raw)
 	if len(values) == 0 {
-		return nil, false
+		return false
 	}
 	for _, value := range values {
 		id, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil || id <= 0 {
-			return nil, false
+			return false
 		}
 	}
-	return parsePositiveUniqueIDs(values), true
+	return true
 }
 
 func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {

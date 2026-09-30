@@ -193,13 +193,33 @@ func TestManualTeamLookupSeparatesEmptyScheduleFromInvalidAndFailedLookups(t *te
 	}
 	route.assertNotArchived(t, 888888)
 
-	// A partly malformed entry is rejected whole rather than enrolling the
-	// numeric part of an ambiguous request.
-	for _, entry := range []string{"not-a-team", "479691,not-a-team"} {
-		malformed := route.lookup(t, entry)
-		if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
-			t.Fatalf("malformed team ID %q outcome: %q", entry, malformed)
+	malformed := route.lookup(t, "not-a-team")
+	if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
+		t.Fatalf("malformed team ID outcome: %q", malformed)
+	}
+}
+
+func TestPartlyMalformedManualTeamLookupKeepsTheScheduleWithoutEnrollment(t *testing.T) {
+	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
+
+	for _, entry := range []string{"479691, not-a-team", "479691, 0"} {
+		route.handler.SetArchiveStore(nil)
+		usual := route.lookup(t, entry)
+		if !strings.Contains(usual, "Away FC") {
+			t.Fatalf("usual lookup for %q did not render team 479691: %q", entry, usual)
 		}
+
+		route.handler.SetArchiveStore(route.store)
+		archived := route.lookup(t, entry)
+
+		if !strings.HasSuffix(archived, usual) {
+			t.Fatalf("archive changed the schedule for %q\nusual:    %q\narchived: %q", entry, usual, archived)
+		}
+		if !strings.Contains(archived, "Teams were not added to history collection because some entries were not valid team IDs.") ||
+			!strings.Contains(archived, "ui-feedback-warning") || strings.Contains(archived, "added to history collection.") {
+			t.Fatalf("partly malformed lookup %q enrollment outcome: %q", entry, archived)
+		}
+		route.assertNotArchived(t, 479691)
 	}
 }
 
