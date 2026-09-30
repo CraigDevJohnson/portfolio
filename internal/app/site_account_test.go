@@ -334,3 +334,27 @@ func TestStaleSignInCallbackOffersRetryOnConfiguredSite(t *testing.T) {
 		t.Fatal("stale callback hid the sign-in retry although site sign-in is available")
 	}
 }
+
+func TestStaleSignInCallbackKeepsExistingSiteSession(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	browser := newSiteBrowser(t, mux)
+	if signedIn := browser.signIn("/about"); signedIn.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in status = %d", signedIn.Code)
+	}
+
+	// A second tab's callback arrives after this tab's sign-in replaced its state.
+	stale := browser.get("/auth/callback?code=x&state=stale")
+	if stale.Code != http.StatusSeeOther || stale.Header().Get("Location") != "/" {
+		t.Fatalf("stale callback for a signed-in browser: %d %q", stale.Code, stale.Header().Get("Location"))
+	}
+	for _, cookie := range stale.Result().Cookies() {
+		if cookie.Name == config.SiteSessionCookieName {
+			t.Fatal("stale callback expired the existing site session")
+		}
+	}
+	if page := browser.get("/about"); !strings.Contains(page.Body.String(), "owner@example.com") {
+		t.Fatal("stale callback ended the signed-in account")
+	}
+}

@@ -127,16 +127,22 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if pendingErr != nil || pending == nil || pending.State == "" || providedState == "" ||
 		!time.Now().Before(pending.ExpiresAt) ||
 		subtle.ConstantTimeCompare([]byte(pending.State), []byte(providedState)) != 1 {
-		h.rejectSignIn(w, r, http.StatusBadRequest, "invalid_state")
+		if !h.keepExistingSession(w, r, "invalid_state", "/") {
+			h.rejectSignIn(w, r, http.StatusBadRequest, "invalid_state")
+		}
 		return
 	}
 	if r.URL.Query().Get("error") != "" {
-		h.rejectSignIn(w, r, http.StatusUnauthorized, "provider_rejected")
+		if !h.keepExistingSession(w, r, "provider_rejected", pending.ReturnTo) {
+			h.rejectSignIn(w, r, http.StatusUnauthorized, "provider_rejected")
+		}
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" || !h.signInAvailable() {
-		h.rejectSignIn(w, r, http.StatusBadRequest, "incomplete_response")
+		if !h.keepExistingSession(w, r, "incomplete_response", pending.ReturnTo) {
+			h.rejectSignIn(w, r, http.StatusBadRequest, "incomplete_response")
+		}
 		return
 	}
 	tokens, err := h.OIDC.ExchangeCode(r.Context(), code, pending.CodeVerifier)
@@ -178,6 +184,17 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(w, r, "/sign-in", http.StatusSeeOther)
+}
+
+// keepExistingSession ends a callback that never reached Cognito's token
+// exchange without discarding a valid site session, such as one another tab created.
+func (h *Handler) keepExistingSession(w http.ResponseWriter, r *http.Request, reason, returnTo string) bool {
+	if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); !signedIn {
+		return false
+	}
+	h.Logger.Warn("site sign-in callback ignored for existing session", slog.String("reason", reason))
+	redirectLocal(w, returnTo)
+	return true
 }
 
 func (h *Handler) rejectSignIn(w http.ResponseWriter, r *http.Request, status int, reason string) {
