@@ -165,10 +165,7 @@ set by hand (D19) and listed in the
 DNS-only ACM validation records and the proxied traffic records.
 
 An API Gateway custom domain name is unique within a Region across all
-accounts, so a hostname can exist in only one account at a time. Moving one
-means: delete it in the old account, plan and apply the new environment
-without `ACTIVATE_CUSTOM_DOMAIN` (so `activate_custom_domain=true` from its
-`auto.tfvars`), then repoint Cloudflare.
+accounts, so a hostname can exist in only one account at a time.
 
 ## Alarms
 

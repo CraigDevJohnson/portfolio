@@ -3,14 +3,16 @@
 <!-- markdownlint-disable MD013 MD010 -->
 
 > [!IMPORTANT]
-> Historical plan; do not execute it as the current launch procedure.
-> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) supersedes
+> Historical plan; do not execute it. Its unchecked steps are not pending work.
+> [Issue #75](https://github.com/CraigDevJohnson/portfolio/issues/75) superseded
 > its fallback-origin, mandatory rollback, management-portal, and seven-day
-> initial production acceptance requirements. The accepted launch uses the
-> current account, protected self-approval, portfolio/Soccer/Google Calendar,
-> canonical apex with permanent `www` redirect, and 30 uninterrupted healthy
-> minutes. Follow the [current runbook](../../deployment/production-lambda-promotion.md)
-> and [readiness review](../../deployment/2026-09-25-production-launch-readiness.md).
+> initial production acceptance requirements. Production now runs in the
+> workloads account and releases through the reviewed workflow in
+> [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md), with no observation
+> or acceptance windows. The launch-era
+> [promotion runbook](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/production-lambda-promotion.md)
+> and [readiness review](https://github.com/CraigDevJohnson/portfolio/blob/9000eac4bb35964108b74a9e8e442b4cfa6063eb/docs/deployment/2026-09-25-production-launch-readiness.md)
+> are deleted; the links show their last versions.
 > This historical evidence is retained without rewriting its original steps.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

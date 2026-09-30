@@ -2,6 +2,12 @@
 
 <!-- markdownlint-disable MD013 -->
 
+> [!IMPORTANT]
+> Historical plan; do not execute it. App Runner is retired, the legacy `infra/`
+> root this plan edits is deleted, and its unchecked steps are not pending work.
+> Follow [DEPLOY-INSTRUCTIONS.md](../../../DEPLOY-INSTRUCTIONS.md) for current
+> operations.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make App Runner retirement reviewable and reproducible without the
