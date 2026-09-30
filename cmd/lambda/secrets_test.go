@@ -116,6 +116,25 @@ func TestResolveSSMMissingSiteSessionKeyLeavesPublicRuntimeAvailable(t *testing.
 	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
 }
 
+// A production runtime whose only SSM path is the optional site key must still
+// start when AWS configuration cannot load, with site sign-in off rather than
+// configured from a parameter path.
+func TestResolveSSMAWSConfigFailureLeavesSiteSignInOffAndPublicRuntimeUp(t *testing.T) {
+	t.Setenv("AWS_MAX_ATTEMPTS", "invalid")
+	t.Setenv("CLIENT_ID_KEY", "")
+	t.Setenv("CLIENT_SECRET_KEY", "")
+	t.Setenv("LPS_SESSION_KEY", "")
+	t.Setenv("MGMT_SESSION_KEY", "")
+	t.Setenv("SITE_SESSION_KEY", "/portfolio/lambda/prod/SITE_SESSION_KEY")
+
+	if err := resolveSSMSecrets(t.Context()); err != nil {
+		t.Fatalf("optional site key AWS config failure prevented startup: %v", err)
+	}
+	if value, ok := os.LookupEnv("SITE_SESSION_KEY"); ok {
+		t.Fatalf("SITE_SESSION_KEY = %q after AWS config failure, want unset", value)
+	}
+}
+
 func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession, wantManagement string) {
 	t.Helper()
 	for name, want := range map[string]string{
