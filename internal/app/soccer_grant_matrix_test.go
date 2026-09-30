@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -224,6 +225,25 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 			}
 			if world.history.Item("PLAYER#1001/META") != nil || world.history.Item("TEAM#4101/META") == nil {
 				t.Errorf("player removal did not erase the player and keep the team: %q", resp.Body.String())
+			}
+		},
+	},
+	{
+		// The owner's earlier import proved player 1001 on team 4101 in LPS
+		// season 169, and no refresh has fetched the team yet.
+		name: "team-season history read", method: http.MethodGet, path: "/soccer/history?player_id=1001&team_id=4101&season_id=169", grantedStatus: http.StatusOK, keepsHistory: true,
+		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			var history struct {
+				PlayerID    int `json:"player_id"`
+				TeamID      int `json:"team_id"`
+				LPSSeasonID int `json:"lps_season_id"`
+				Coverage    struct {
+					Status string `json:"status"`
+				} `json:"coverage"`
+			}
+			if err := json.Unmarshal(resp.Body.Bytes(), &history); err != nil ||
+				history.PlayerID != 1001 || history.TeamID != 4101 || history.LPSSeasonID != 169 || history.Coverage.Status != "not_fetched" {
+				t.Errorf("history read did not serve the owner's proven team season awaiting collection: %+v, %v; body %q", history, err, resp.Body.String())
 			}
 		},
 	},
