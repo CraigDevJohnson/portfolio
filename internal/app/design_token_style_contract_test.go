@@ -28,6 +28,48 @@ func TestSoccerAndAccountNavigationStylesUseDesignTokens(t *testing.T) {
 	}
 }
 
+// The Import Let's Play Soccer access dialog shows two uppercase mono
+// eyebrows: "Kept indefinitely" on the history notice and "Sensitive access"
+// on the security notice. They are styled as a pair, so both resolve to the
+// same type.
+func TestSoccerImportDialogEyebrowsMatch(t *testing.T) {
+	rules, err := collectExperienceCSSRules(readTask2Artifact(t, "cmd", "web", "tailwind", "soccer.css"), 0, false, false)
+	if err != nil {
+		t.Fatalf("parse Soccer CSS: %v", err)
+	}
+	tokens := soccerThemeTokens(readTask2Artifact(t, "cmd", "web", "tailwind", "shared.css"))
+	sensitive := soccerEffectiveDeclarations(rules, ".soccer-security-notice::before", 0, false)
+	history := soccerEffectiveDeclarations(rules, ".soccer-history-notice .soccer-history-notice-title", 0, false)
+	for _, property := range []string{"font-family", "font-size", "font-weight", "letter-spacing", "text-transform"} {
+		want := designTokenResolve(tokens, sensitive[property])
+		if want == "" {
+			t.Errorf(".soccer-security-notice::before sets no %s", property)
+			continue
+		}
+		if got := designTokenResolve(tokens, history[property]); !task2CSSValueEqual(got, want) {
+			t.Errorf("history notice title %s is %q (%s), want the Sensitive access label's %q (%s)", property, history[property], got, sensitive[property], want)
+		}
+	}
+}
+
+// designTokenResolve replaces each var() reference to a known token with its
+// value, following tokens that refer to other tokens.
+func designTokenResolve(tokens map[string]string, value string) string {
+	for range 8 {
+		resolved := soccerVarRefPattern.ReplaceAllStringFunc(value, func(ref string) string {
+			if token, ok := tokens[soccerVarRefPattern.FindStringSubmatch(ref)[1]]; ok {
+				return token
+			}
+			return ref
+		})
+		if resolved == value {
+			break
+		}
+		value = resolved
+	}
+	return value
+}
+
 func TestDesignTokenSizeValidatorRejectsRawLengths(t *testing.T) {
 	classes := []string{"fixture-notice"}
 	for _, valid := range []string{

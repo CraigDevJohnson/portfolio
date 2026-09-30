@@ -21,6 +21,8 @@
   --line-focus: 0.25rem;
 
   --font-mono: 'IBM Plex Mono', 'SF Mono', consolas, monospace;
+  /* Uppercase mono eyebrow labels, such as a notice's title. */
+  --text-2xs: 0.68rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -34,6 +36,8 @@
   --leading-tight: 1.25;
   --leading-normal: 1.5;
   --leading-relaxed: 1.75;
+
+  --tracking-eyebrow: 0.12em;
 
   --font-normal: 400;
   --font-medium: 500;
