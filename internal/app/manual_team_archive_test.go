@@ -312,7 +312,7 @@ func TestEmptyManualTeamLookupEnrollsWhenTheTeamFacilityFails(t *testing.T) {
 				}
 			})
 			route.handler.SetArchiveStore(nil)
-			if usual := route.lookup(t, "479691"); !strings.Contains(usual, "No games found for the provided request.") {
+			if usual := route.lookup(t, "479691"); !strings.Contains(usual, "There are no upcoming games for the selected teams.") {
 				t.Fatalf("usual empty lookup: %q", usual)
 			}
 
