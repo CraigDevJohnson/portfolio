@@ -98,6 +98,9 @@ type siteBrowser struct {
 	handler http.Handler
 	jar     *cookiejar.Jar
 	origin  *url.URL
+	// lastSet holds the latest Set-Cookie for each cookie name and path, so
+	// a restart can keep only the cookies a browser persists to disk.
+	lastSet map[string]*http.Cookie
 }
 
 func newSiteBrowser(t *testing.T, handler http.Handler) *siteBrowser {
@@ -107,7 +110,7 @@ func newSiteBrowser(t *testing.T, handler http.Handler) *siteBrowser {
 		t.Fatal(err)
 	}
 	origin, _ := url.Parse("https://app.example.com/")
-	return &siteBrowser{t: t, handler: handler, jar: jar, origin: origin}
+	return &siteBrowser{t: t, handler: handler, jar: jar, origin: origin, lastSet: map[string]*http.Cookie{}}
 }
 
 func (b *siteBrowser) do(request *http.Request) *httptest.ResponseRecorder {
@@ -118,6 +121,9 @@ func (b *siteBrowser) do(request *http.Request) *httptest.ResponseRecorder {
 	response := httptest.NewRecorder()
 	b.handler.ServeHTTP(response, request)
 	b.jar.SetCookies(request.URL, response.Result().Cookies())
+	for _, cookie := range response.Result().Cookies() {
+		b.lastSet[cookie.Name+"\x00"+cookie.Path] = cookie
+	}
 	return response
 }
 
