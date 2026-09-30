@@ -351,6 +351,28 @@ func (api *interleavingAPI) GetItem(ctx context.Context, input *dynamodb.GetItem
 	return output, err
 }
 
+func TestDynamoArchiveStoresTheScheduleHomeAndAwayTeams(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	// The flat UTeam1/UTeam2 fields disagree with the nested sides; the
+	// visitor's schedule treats the nested home_team/visitor_team IDs as the
+	// matchup, so the archive must too.
+	snapshot := teamLookup(t, 3, time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC),
+		`{"UGameID":8001,"Season":169,"UTeam1":1,"UTeam2":2,"home_team":{"UTeamID":3,"team_name":"Home FC"},"visitor_team":{"UTeamID":4,"team_name":"Away FC"}}`)
+	if err := store.SaveTeamSnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("SaveTeamSnapshot: %v", err)
+	}
+
+	assertArchiveItem(t, backend, "GAME#8001/META", map[string]any{"home_team_id": 3, "away_team_id": 4})
+	history, err := store.ReadTeamSeason(context.Background(), 3, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	if len(history.Games) != 1 {
+		t.Fatalf("team 3 games = %#v, want its home game", history.Games)
+	}
+}
+
 func TestDynamoArchiveReadsSeasonSpecificTeamAndFacilityContext(t *testing.T) {
 	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
 	first := Snapshot{

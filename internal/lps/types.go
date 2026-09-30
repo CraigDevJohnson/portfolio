@@ -60,6 +60,22 @@ type TeamScheduleGame struct {
 	SourceJSON        json.RawMessage `json:"-"`
 }
 
+// HomeTeamID returns the game's home team: the nested home_team ID, else UTeam1.
+func (game *TeamScheduleGame) HomeTeamID() int {
+	return firstPositiveInt(game.HomeTeam.UTeamID, game.UTeam1)
+}
+
+// AwayTeamID returns the game's away team: the nested visitor_team ID, else UTeam2.
+func (game *TeamScheduleGame) AwayTeamID() int {
+	return firstPositiveInt(game.VisitorTeam.UTeamID, game.UTeam2)
+}
+
+// SeasonID returns the game's LPS season: its own Season, else the season of
+// the response team that listed it, else either side's season.
+func (game *TeamScheduleGame) SeasonID(responseTeamSeason int) int {
+	return firstPositiveInt(game.Season, responseTeamSeason, game.HomeTeam.Season, game.VisitorTeam.Season)
+}
+
 // UnmarshalJSON retains the source fields so durable refresh can distinguish
 // omitted fields from explicit updates to an existing game.
 func (game *TeamScheduleGame) UnmarshalJSON(payload []byte) error {

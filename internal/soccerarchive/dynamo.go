@@ -230,7 +230,7 @@ func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamSchedule
 		if err := json.Unmarshal(gameJSON, &game); err != nil {
 			return lps.TeamScheduleGame{}, 0, fmt.Errorf("decode game %d source fields: %w", sourceGame.UGameID, err)
 		}
-		seasonID := firstPositive(game.Season, responseSeason, game.HomeTeam.Season, game.VisitorTeam.Season)
+		seasonID := game.SeasonID(responseSeason)
 		endAt := ""
 		if game.SchedGameEndTime != nil {
 			endAt = *game.SchedGameEndTime
@@ -241,8 +241,8 @@ func (s *DynamoStore) saveGame(ctx context.Context, sourceGame *lps.TeamSchedule
 			Kind:           "game",
 			GameID:         game.UGameID,
 			SeasonID:       seasonID,
-			HomeTeamID:     firstPositive(game.UTeam1, game.HomeTeam.UTeamID),
-			AwayTeamID:     firstPositive(game.UTeam2, game.VisitorTeam.UTeamID),
+			HomeTeamID:     game.HomeTeamID(),
+			AwayTeamID:     game.AwayTeamID(),
 			HomeTeamName:   game.HomeTeam.TeamName,
 			AwayTeamName:   game.VisitorTeam.TeamName,
 			FacilityID:     game.FacilityID,
@@ -677,13 +677,4 @@ func retainMissingTeamFacts(current, previous lps.TeamSummary) lps.TeamSummary {
 		current.FacilityName = previous.FacilityName
 	}
 	return current
-}
-
-func firstPositive(ids ...int) int {
-	for _, id := range ids {
-		if id > 0 {
-			return id
-		}
-	}
-	return 0
 }

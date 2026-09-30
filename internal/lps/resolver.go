@@ -261,8 +261,8 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
-	homeTeamID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
-	awayTeamID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
+	homeTeamID := rawGame.HomeTeamID()
+	awayTeamID := rawGame.AwayTeamID()
 	selectedTeamID := firstPositiveInt(selected.UTeamID, responseTeam.UTeamID)
 	if selectedTeamID <= 0 && rawGame.TeamIDSelected != nil {
 		selectedTeamID = *rawGame.TeamIDSelected
@@ -356,10 +356,10 @@ func nestedTeamColors(teamID int, response *TeamScheduleResponse) []string {
 	var colors []string
 	for i := range response.Games {
 		game := &response.Games[i]
-		if firstPositiveInt(game.HomeTeam.UTeamID, game.UTeam1) == teamID {
+		if game.HomeTeamID() == teamID {
 			colors = append(colors, game.HomeTeam.Color)
 		}
-		if firstPositiveInt(game.VisitorTeam.UTeamID, game.UTeam2) == teamID {
+		if game.AwayTeamID() == teamID {
 			colors = append(colors, game.VisitorTeam.Color)
 		}
 	}
