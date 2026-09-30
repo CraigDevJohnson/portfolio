@@ -42,7 +42,7 @@ func normalizeScheduleGame(game *types.Game) {
 		case gameFacilityName(game) != "":
 			game.Location = gameFacilityName(game)
 		case game.Field != "":
-			game.Location = fieldLocationPrefix + game.Field
+			game.Location = fieldLocation(game.Field)
 		}
 	}
 	if game.Field == "" && game.Location != "" {
@@ -126,6 +126,15 @@ func GameKey(game *types.Game) string {
 		return game.ID
 	}
 	return stableGameFields(game)
+}
+
+// fieldLocation labels a bare field name as a field without repeating a
+// label LPS already supplied, so "3" and "Field 3" both become "Field 3".
+func fieldLocation(field string) string {
+	if strings.HasPrefix(strings.ToLower(field), strings.ToLower(fieldLocationPrefix)) {
+		return field
+	}
+	return fieldLocationPrefix + field
 }
 
 // GameStartTime returns the best available parsed start time for a game.
