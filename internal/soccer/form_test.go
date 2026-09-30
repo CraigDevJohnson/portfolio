@@ -126,3 +126,30 @@ func TestNormalizeWorkflowStateKeepsManualTeamsAndRejectsUnknownSource(t *testin
 		t.Fatalf("unknown workflow source normalized to %#v, want zero value", unknown)
 	}
 }
+
+func TestScheduleFormNeedsGrantAgreesWithTheHandlersPrivateView(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		form          url.Values
+		needsGrant    bool
+		teamSelection bool
+	}{
+		{name: "Team ID lookup", form: url.Values{"team_codes": {"4101"}}},
+		{name: "Team ID ICS download", form: url.Values{"team_codes": {"4101"}, "selected": {"7001"}}},
+		{name: "linked players", form: url.Values{"player_ids": {"1001"}}, needsGrant: true},
+		{name: "empty linked-player field", form: url.Values{"player_ids": {""}, "team_codes": {"4101"}}, needsGrant: true},
+		{name: "discovered teams", form: url.Values{"team_ids": {"4101"}}, needsGrant: true},
+		{name: "team selection mode", form: url.Values{"selection_mode": {teamSelectionMode}}, needsGrant: true, teamSelection: true},
+		{name: "padded team selection mode", form: url.Values{"selection_mode": {" teams "}, "team_codes": {"4101"}}, needsGrant: true, teamSelection: true},
+		{name: "unknown selection mode", form: url.Values{"selection_mode": {"manual"}, "team_codes": {"4101"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ScheduleFormNeedsGrant(tc.form); got != tc.needsGrant {
+				t.Errorf("ScheduleFormNeedsGrant = %t, want %t", got, tc.needsGrant)
+			}
+			if got := parseScheduleFormInput(tc.form).TeamSelection; got != tc.teamSelection {
+				t.Errorf("handler team selection = %t, want %t", got, tc.teamSelection)
+			}
+		})
+	}
+}

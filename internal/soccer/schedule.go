@@ -26,7 +26,7 @@ const teamSelectionMode = "teams"
 
 // FetchSchedulesHandler renders the schedule results fragment for the current selection.
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 
@@ -106,7 +106,7 @@ func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request
 
 // DownloadICSHandler exports the selected schedule rows as an ICS download.
 func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 
@@ -451,7 +451,9 @@ func parseSelectedIDs(form url.Values) map[string]struct{} {
 	return selectedIDs
 }
 
-func parseScheduleRequest(w http.ResponseWriter, r *http.Request) bool {
+// ParseScheduleRequest limits and parses a schedule fetch or ICS download
+// form, answering 400 when it cannot be read.
+func ParseScheduleRequest(w http.ResponseWriter, r *http.Request) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -497,19 +499,38 @@ type scheduleFormInput struct {
 	TeamCodes     string
 	RawPlayerIDs  []string
 	PlayerIDs     []int
+	RawTeamIDs    []string
 	TeamIDs       []int
 	TeamSelection bool
 }
 
 func parseScheduleFormInput(form url.Values) scheduleFormInput {
 	rawPlayerIDs := form["player_ids"]
+	rawTeamIDs := form["team_ids"]
 	return scheduleFormInput{
 		TeamCodes:     form.Get("team_codes"),
 		RawPlayerIDs:  rawPlayerIDs,
 		PlayerIDs:     parsePlayerIDs(rawPlayerIDs),
-		TeamIDs:       parsePlayerIDs(form["team_ids"]),
-		TeamSelection: form.Get("selection_mode") == teamSelectionMode,
+		RawTeamIDs:    rawTeamIDs,
+		TeamIDs:       parsePlayerIDs(rawTeamIDs),
+		TeamSelection: strings.TrimSpace(form.Get("selection_mode")) == teamSelectionMode,
 	}
+}
+
+// needsGrant reports whether the form names linked players, discovered teams,
+// or the discovered-team selection step. Any of these, even empty, asks for
+// private Soccer data.
+func (input *scheduleFormInput) needsGrant() bool {
+	return len(input.RawPlayerIDs) > 0 || len(input.RawTeamIDs) > 0 || input.TeamSelection
+}
+
+// ScheduleFormNeedsGrant reports whether a parsed schedule fetch or ICS
+// download form asks for linked-player or discovered-team data, which needs
+// the soccer grant. Team ID lookups and their downloads stay public. It reads
+// the form exactly as the schedule handlers do.
+func ScheduleFormNeedsGrant(form url.Values) bool {
+	input := parseScheduleFormInput(form)
+	return input.needsGrant()
 }
 
 func parsePositiveUniqueIDs(values []string) []int {
@@ -627,7 +648,7 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 // returns the team-selection fragment so users can include/exclude teams before
 // fetching schedules.
 func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 

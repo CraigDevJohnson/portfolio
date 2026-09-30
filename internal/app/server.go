@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -396,19 +395,16 @@ func requireSoccerGrant(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireSoccerGrantForPlayers keeps Team ID schedules and their ICS
+// downloads public while applying the soccer grant to any schedule form the
+// Soccer handlers would read as linked-player or discovered-team data.
 func requireSoccerGrantForPlayers(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "invalid request", http.StatusBadRequest)
+		if !internalsoccer.ParseScheduleRequest(w, r) {
 			return
 		}
-		_, hasPlayers := r.Form["player_ids"]
-		_, hasSelectedTeams := r.Form["team_ids"]
-		if hasPlayers || hasSelectedTeams || strings.TrimSpace(r.Form.Get("selection_mode")) == "teams" {
-			if !soccerGrantAllowed(w, r) {
-				return
-			}
+		if internalsoccer.ScheduleFormNeedsGrant(r.Form) && !soccerGrantAllowed(w, r) {
+			return
 		}
 		next(w, r)
 	}
