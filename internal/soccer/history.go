@@ -105,8 +105,7 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 	if !proven {
 		proven, err = h.currentTeamSeasonMembership(r.Context(), session.JWT, playerID, teamID, seasonID)
 		if err != nil {
-			logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", err))
-			http.Error(w, "Current team membership could not be verified", http.StatusBadGateway)
+			h.refuseUnverifiedCurrentMembership(w, r, err)
 			return
 		}
 	}
@@ -146,6 +145,26 @@ func (h *Handler) currentTeamSeasonMembership(ctx context.Context, jwt string, p
 		}
 	}
 	return false, nil
+}
+
+// refuseUnverifiedCurrentMembership answers a current team lookup LPS
+// refused or could not serve, as every other Soccer route judges it. A token
+// LPS rejects ends the import, so the proof it stored opens nothing more; a
+// player LPS denies is not confirmed by the import; and an unavailable LPS
+// says nothing about the import, which stays usable.
+func (h *Handler) refuseUnverifiedCurrentMembership(w http.ResponseWriter, r *http.Request, err error) {
+	detail := lps.ScheduleErrorDetailsFor(err)
+	var fetchErr *lps.FetchError
+	switch {
+	case detail.ClearSession:
+		h.clearSession(w, r)
+		http.Error(w, detail.DownloadMessage, detail.DownloadStatus)
+	case errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorForbidden:
+		http.Error(w, "Player is not confirmed by this import", http.StatusForbidden)
+	default:
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", err))
+		http.Error(w, "Current team membership could not be verified", http.StatusBadGateway)
+	}
 }
 
 // readTeamSeasonHistory builds an authorized team season's response from the

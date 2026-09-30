@@ -39,8 +39,11 @@ type teamHistoryRoute struct {
 	mu sync.Mutex
 	// account is the /users/check response for the imported JWT.
 	account string
-	// playerTeams is each linked player's /players/{id}/my_teams response.
-	playerTeams map[int]string
+	// playerTeams is each linked player's /players/{id}/my_teams response;
+	// playerTeamFailures answers a player's lookup with that HTTP status
+	// instead.
+	playerTeams        map[int]string
+	playerTeamFailures map[int]int
 	// teams is each team's /teams/{id} response; teamFailures answers a
 	// team's lookup with that HTTP status instead.
 	teams        map[int]string
@@ -62,8 +65,9 @@ func newTeamHistoryRoute(t *testing.T) *teamHistoryRoute {
 			1001: `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`,
 			1002: `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79}]`,
 		},
-		teams:        map[int]string{},
-		teamFailures: map[int]int{},
+		playerTeamFailures: map[int]int{},
+		teams:              map[int]string{},
+		teamFailures:       map[int]int{},
 	}
 	lpsRoutes := http.NewServeMux()
 	lpsRoutes.HandleFunc("GET /users/check", func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +82,12 @@ func newTeamHistoryRoute(t *testing.T) *teamHistoryRoute {
 		playerID, _ := strconv.Atoi(r.PathValue("id"))
 		route.mu.Lock()
 		teams, found := route.playerTeams[playerID]
+		failure := route.playerTeamFailures[playerID]
 		route.mu.Unlock()
+		if failure != 0 {
+			http.Error(w, "player teams lookup failed", failure)
+			return
+		}
 		if !found {
 			http.Error(w, "player not found", http.StatusNotFound)
 			return
@@ -135,6 +144,13 @@ func (route *teamHistoryRoute) setPlayerTeams(playerID int, teams string) {
 	route.mu.Lock()
 	defer route.mu.Unlock()
 	route.playerTeams[playerID] = teams
+}
+
+// failPlayerTeams makes LPS answer a player's current team lookup with status.
+func (route *teamHistoryRoute) failPlayerTeams(playerID, status int) {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	route.playerTeamFailures[playerID] = status
 }
 
 // setTeam changes what LPS returns for a team's schedule lookup.
@@ -591,6 +607,61 @@ func TestSoccerHistoryReadTreatsAPlayerLPSNoLongerFindsAsHavingNoCurrentSeasons(
 
 	readHistory(t, owner, 1002, 4202, 79)
 	assertHistoryDenied(t, owner, http.StatusForbidden, 1002, 4202, 80)
+}
+
+// A current lookup LPS refuses is judged as every other Soccer route judges
+// it: a rejected token ends the import, so the proof it stored opens nothing
+// more; a player LPS denies is not confirmed by the import; and an
+// unavailable LPS says nothing about the import, which stays usable.
+func TestSoccerHistoryReadJudgesARefusedCurrentLookupAsOtherSoccerRoutesDo(t *testing.T) {
+	for _, refusal := range []struct {
+		name       string
+		lpsStatus  int
+		wantStatus int
+		wantBody   string
+		importEnds bool
+	}{
+		{"a rejected token ends the import", http.StatusUnauthorized, http.StatusUnauthorized, "import a fresh bearer JWT", true},
+		{"a denied player is not confirmed", http.StatusForbidden, http.StatusForbidden, "Player is not confirmed by this import", false},
+		{"an unavailable LPS keeps the import", http.StatusInternalServerError, http.StatusBadGateway, "Current team membership could not be verified", false},
+	} {
+		t.Run(refusal.name, func(t *testing.T) {
+			route := newTeamHistoryRoute(t)
+			route.setTeam(4102, oldFCSeason78)
+			owner := route.signedIn(t)
+			route.importLinkedPlayers(t, owner)
+			if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+				t.Fatalf("refresh: %+v", report)
+			}
+			route.failPlayerTeams(1001, refusal.lpsStatus)
+
+			// No stored proof covers Craig FC's season 80, so LPS is asked.
+			refused := owner.get(historyPath(1001, 4101, 80))
+			if refused.Code != refusal.wantStatus || !strings.Contains(refused.Body.String(), refusal.wantBody) {
+				t.Fatalf("read after LPS answered %d: status %d, body %q; want %d with %q", refusal.lpsStatus, refused.Code, refused.Body.String(), refusal.wantStatus, refusal.wantBody)
+			}
+			if got := refused.Header().Get("Cache-Control"); got != "private, no-store" {
+				t.Errorf("refused read Cache-Control = %q, want private, no-store", got)
+			}
+			if !refusal.importEnds {
+				if cleared := findSessionCookie(t, refused.Result()); cleared != nil {
+					t.Errorf("read after LPS answered %d rewrote the import: %#v", refusal.lpsStatus, cleared)
+				}
+				// Stored proof of Old FC's season still opens it.
+				if former := readHistory(t, owner, 1001, 4102, 78); former.Record.Wins != 1 || len(former.Games) != 1 {
+					t.Errorf("former Old FC season after LPS answered %d = %+v", refusal.lpsStatus, former)
+				}
+				return
+			}
+			assertClearedSessionCookie(t, refused.Result())
+			if guard := findImportGuardCookie(refused.Result()); guard == nil || guard.Value != "" || guard.MaxAge >= 0 {
+				t.Errorf("rejected import's guard cookie = %#v, want it cleared", guard)
+			}
+			// The import is gone, so its stored proof opens nothing more.
+			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1002, 4202, 79)
+		})
+	}
 }
 
 // The production route assembly wires no durable archive until the #80

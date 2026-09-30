@@ -472,13 +472,17 @@ It requires the current site `soccer` grant, a valid same-owner LPS import that
 confirms the player ID, and exact current or stored authenticated membership for
 the requested team and LPS season. A name match, game date, or entered Team ID
 never proves membership; an unproven season returns `403` as unverified while
-its stored games remain. The response includes completed games, a
-team-relative record labeled as calculated from numeric scores rather than
-official standings, season coverage with its fetch time, and the latest team
-refresh status or failure. The record places each side by its LPS team ID;
-canceled, unscored, and unparseable results are listed as unclassified and do
-not change the totals. `not_fetched` coverage and a retryable refresh failure
-remain distinct from a fetched season with zero games.
+its stored games remain. When no stored proof covers the season, the read asks
+LPS for the player's current teams: a token LPS rejects ends the import like
+every other Soccer route (`401`, import cookies cleared), a player LPS denies
+returns `403`, and an unavailable LPS returns `502` and keeps the import. The
+response includes completed games, a team-relative record labeled as
+calculated from numeric scores rather than official standings, season coverage
+with its fetch time, and the latest team refresh status or failure. The record
+places each side by its LPS team ID; canceled, unscored, and unparseable
+results are listed as unclassified and do not change the totals. `not_fetched`
+coverage and a retryable refresh failure remain distinct from a fetched season
+with zero games.
 Until the separate collection activation, the route returns `503` because no
 durable archive is wired into the production server.
 
