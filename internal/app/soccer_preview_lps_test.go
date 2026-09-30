@@ -29,6 +29,12 @@ func newPreviewPlannerRoutes(t *testing.T) http.Handler {
 	return mux
 }
 
+// previewPastResultsNewestFirst are the preview's scored past games, newest
+// first: Pond Mint United's 7000 from five days ago, and Campfire Rovers' 6998
+// from 19 days ago and 6990 from over a year ago. Campfire Rovers' postponed
+// 6995 has no score and stays out.
+var previewPastResultsNewestFirst = []string{"7000", "6998", "6990"}
+
 func TestPreviewLPSServesPublicTeamLookupWithNewlyPublishedGame(t *testing.T) {
 	routes := newPreviewPlannerRoutes(t)
 
@@ -46,8 +52,8 @@ func TestPreviewLPSServesPublicTeamLookupWithNewlyPublishedGame(t *testing.T) {
 			t.Errorf("preview game %s did not begin selected", row.ID)
 		}
 	}
-	if past := plannerRowIDs(plannerGameRows(firstDoc, "past-results")); !slices.Equal(past, []string{"7000"}) {
-		t.Errorf("manual preview lookup past rows = %v, want the scored past game 7000 for Google mode", past)
+	if past := plannerRowIDs(plannerGameRows(firstDoc, "past-results")); !slices.Equal(past, previewPastResultsNewestFirst) {
+		t.Errorf("manual preview lookup past rows = %v, want the scored past games newest first %v for Google mode", past, previewPastResultsNewestFirst)
 	}
 	assertPastResultControlsGoogleOnly(t, firstDoc)
 

@@ -27,6 +27,9 @@ func previewLPSBaseURL(listenAddress string) string {
 // the loopback preview. Pond Mint United publishes one more upcoming game
 // after its first schedule request, so a proof can refetch the same team set
 // and find a newly discovered game. Relaunch the preview to start over.
+// Scored past games from both teams, one from over a year ago, and a
+// postponed game without a score let a proof review past results in Google
+// mode.
 type soccerPreviewLPS struct {
 	mu       sync.Mutex
 	requests map[int]int
@@ -73,6 +76,9 @@ func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http
 	case previewLPSCampfireTeamID:
 		response.Team = campfire
 		response.Games = []lps.TeamScheduleGame{
+			fake.game(6990, -400, "Field 2", &campfire, &rosehip, "1 - 3"),
+			fake.game(6995, -12, "Field 3", &campfire, &wanderers, "postponed"),
+			fake.game(6998, -19, "Field 4", &mulberry, &campfire, "2 - 2"),
 			fake.game(7003, 2, "Field 3", &campfire, &wanderers, ""),
 			shared,
 		}

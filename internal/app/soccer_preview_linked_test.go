@@ -65,6 +65,10 @@ func TestPreviewLinkedAccountDrivesTheRealLinkedPlayerRoutes(t *testing.T) {
 	if got := plannerRowIDs(plannerGameRows(results, "upcoming-games")); !slices.Equal(got, []string{"7003", "7001", "7002"}) {
 		t.Fatalf("preview linked rows = %v, want [7003 7001 7002]", got)
 	}
+	if past := plannerRowIDs(plannerGameRows(results, "past-results")); !slices.Equal(past, previewPastResultsNewestFirst) {
+		t.Fatalf("preview linked past rows = %v, want the scored past games newest first %v for Google mode", past, previewPastResultsNewestFirst)
+	}
+	assertPastResultControlsGoogleOnly(t, results)
 	download := linkedFormValues(t, results, "upcoming-games-form")
 	download["selected"] = []string{"7003", "7002"}
 	ics := browser.postForm("/soccer/download", download)
