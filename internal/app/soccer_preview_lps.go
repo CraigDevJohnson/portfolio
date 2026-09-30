@@ -29,7 +29,9 @@ func previewLPSBaseURL(listenAddress string) string {
 // and find a newly discovered game. Relaunch the preview to start over.
 // Scored past games from both teams, one from over a year ago, and a
 // postponed game without a score let a proof review past results in Google
-// mode.
+// mode. Pond Mint United names its color as LPS might, in mixed case with
+// padding, while Campfire Rovers names none, so their shared game shows a
+// recognized LPS color beside a Team ID fallback.
 type soccerPreviewLPS struct {
 	mu       sync.Mutex
 	requests map[int]int
@@ -54,7 +56,7 @@ func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http
 	published := fake.requests[teamID] > 1
 	fake.mu.Unlock()
 
-	pondMint := lps.TeamSummary{UTeamID: previewLPSPondMintTeamID, TeamName: "Pond Mint United"}
+	pondMint := lps.TeamSummary{UTeamID: previewLPSPondMintTeamID, TeamName: "Pond Mint United", Color: "  kelly GREEN "}
 	campfire := lps.TeamSummary{UTeamID: previewLPSCampfireTeamID, TeamName: "Campfire Rovers"}
 	rosehip := lps.TeamSummary{UTeamID: 479800, TeamName: "Rosehip Athletic"}
 	wanderers := lps.TeamSummary{UTeamID: 479801, TeamName: "Candle Oat Wanderers"}

@@ -79,6 +79,46 @@ func TestPreviewLPSServesPublicTeamLookupWithNewlyPublishedGame(t *testing.T) {
 	}
 }
 
+// The team-color browser proof drives the public Team ID lookup against the
+// preview fake LPS, so the fake must give it a recognized LPS color, a team
+// without one, and a shared match between them.
+func TestPreviewLPSPaintsRowsWithAnLPSColorAndATeamIDFallback(t *testing.T) {
+	routes := newPreviewPlannerRoutes(t)
+
+	for attempt := range 2 {
+		resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"479691, 479147"}})
+		if resp.Code != http.StatusOK {
+			t.Fatalf("POST /soccer/fetch status = %d", resp.Code)
+		}
+		if body := resp.Body.String(); strings.Contains(body, "kelly") || strings.Contains(body, "GREEN") {
+			t.Fatal("the raw LPS color text reached the rendered schedule")
+		}
+		rows := soccerMatchRows(parsePlannerHTML(t, resp.Body.String()))
+		for _, want := range []struct {
+			game, home, away string
+			shared           bool
+		}{
+			// Pond Mint United's LPS color is "  kelly GREEN ", which
+			// normalizes to green. Campfire Rovers has no LPS color, so its
+			// Team ID selects the fallback: 479147 % 8 == 3, purple.
+			{game: "7001", home: "green", away: "purple", shared: true},
+			{game: "7002", home: "green", away: "green"},
+			{game: "7003", home: "purple", away: "purple"},
+		} {
+			row := onlySoccerRow(t, rows, want.game)
+			if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != want.home || away != want.away {
+				t.Errorf("fetch %d game %s colors = %q/%q, want %q/%q", attempt+1, want.game, home, away, want.home, want.away)
+			}
+			if shared := htmlAttr(row, "data-shared-match") != ""; shared != want.shared {
+				t.Errorf("fetch %d game %s shared = %t, want %t", attempt+1, want.game, shared, want.shared)
+			}
+		}
+		if text := htmlText(onlySoccerRow(t, rows, "7001")); !strings.Contains(text, "Pond Mint United vs Campfire Rovers") {
+			t.Errorf("shared game text = %q, want both team names", text)
+		}
+	}
+}
+
 func TestPreviewLPSIsNotRegisteredOutsidePreview(t *testing.T) {
 	app := newTestApp(t)
 	mux, _ := buildMux(app, slog.New(slog.NewTextHandler(io.Discard, nil)), false)
