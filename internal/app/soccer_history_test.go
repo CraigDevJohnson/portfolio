@@ -309,9 +309,11 @@ func TestSoccerHistoryReadCountsOnlyNumericScoresFromTheTeamsSide(t *testing.T) 
 	if history.Coverage.Status != "fetched" || history.Coverage.FetchedAt == nil || !history.Coverage.FetchedAt.Equal(fetchedAt) || history.Coverage.ReturnedGameCount != 10 {
 		t.Errorf("coverage = %+v, want season 77's ten games fetched at %s", history.Coverage, fetchedAt)
 	}
+	// A successful fetch keeps the team from being due for the archive's
+	// four-hour refresh guard, so the next daily run attempts it (#103).
 	if history.Refresh == nil || history.Refresh.Status != "ready" || history.Refresh.LastAttemptAt == nil || !history.Refresh.LastAttemptAt.Equal(fetchedAt) ||
-		history.Refresh.NextDueAt == nil || !history.Refresh.NextDueAt.Equal(fetchedAt.Add(24*time.Hour)) || history.Refresh.LastErrorKind != "" {
-		t.Errorf("refresh = %+v, want a ready team attempted at %s", history.Refresh, fetchedAt)
+		history.Refresh.NextDueAt == nil || !history.Refresh.NextDueAt.Equal(fetchedAt.Add(4*time.Hour)) || history.Refresh.LastErrorKind != "" {
+		t.Errorf("refresh = %+v, want a ready team attempted at %s and due again four hours later", history.Refresh, fetchedAt)
 	}
 	record := history.Record
 	if record.Label != "Calculated from numeric game scores; not official standings" ||
