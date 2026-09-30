@@ -1055,4 +1055,46 @@ run "history_worker_schedule_and_failure_contract" {
     )
     error_message = "worker and Scheduler roles must have only scoped table, due-index, invoke, DLQ, and log rights"
   }
+  assert {
+    condition = (
+      aws_iam_role.history_worker[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      aws_iam_role.history_scheduler[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary" &&
+      length([for st in data.aws_iam_policy_document.history_scheduler[0].statement : st if
+        toset(st.actions) == toset(["lambda:InvokeFunction"]) &&
+      toset(st.resources) == toset([aws_lambda_function.history_worker[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_scheduler[0].statement : st if
+        toset(st.actions) == toset(["sqs:SendMessage"]) &&
+      toset(st.resources) == toset([aws_sqs_queue.history_dead_letter[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
+      toset(st.resources) == toset(["${aws_cloudwatch_log_group.history_worker[0].arn}:*"])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["sqs:SendMessage"]) &&
+      toset(st.resources) == toset([aws_sqs_queue.history_dead_letter[0].arn])]) == 1 &&
+      one(data.aws_iam_policy_document.history_scheduler_assume[0].statement[0].condition).values == tolist(["arn:aws:scheduler:us-west-2:111122223333:schedule/default/portfolio-lambda-dev-soccer-history-daily"])
+    )
+    error_message = "the worker and Scheduler roles must sit inside the execution boundary and reach only the worker, its log group, and the failure queue"
+  }
+  assert {
+    condition = (
+      aws_scheduler_schedule.history_daily[0].schedule_expression_timezone == "UTC" &&
+      aws_scheduler_schedule.history_daily[0].state == "ENABLED" &&
+      aws_scheduler_schedule.history_daily[0].flexible_time_window[0].mode == "OFF" &&
+      aws_scheduler_schedule.history_daily[0].target[0].retry_policy[0].maximum_retry_attempts == 2 &&
+      aws_lambda_function_event_invoke_config.history_worker[0].maximum_retry_attempts == 0 &&
+      aws_cloudwatch_log_metric_filter.history_incomplete[0].log_group_name == "/aws/lambda/portfolio-lambda-dev-soccer-history" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" }" &&
+      aws_cloudwatch_metric_alarm.history_worker_errors[0].dimensions == tomap({ FunctionName = "portfolio-lambda-dev-soccer-history" }) &&
+      alltrue([
+        for alarm in [
+          aws_cloudwatch_metric_alarm.history_admission_rejected[0],
+          aws_cloudwatch_metric_alarm.history_incomplete[0],
+          aws_cloudwatch_metric_alarm.history_worker_errors[0],
+          aws_cloudwatch_metric_alarm.history_dead_letter[0],
+        ] : alarm.threshold == 1 && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"])
+      ])
+    )
+    error_message = "the daily schedule must fire at a fixed UTC time, retry delivery without re-running work, and alert on every rejected enrollment, incomplete run, worker error, and failed delivery"
+  }
 }
