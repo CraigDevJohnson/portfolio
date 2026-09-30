@@ -101,16 +101,23 @@ func TestSoccerAccessPreviewFixturesShowEachGrantStateLocally(t *testing.T) {
 		{
 			name:    "soccer-signed-out",
 			present: []string{"Sign in with an invited account", `<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>`, "Needs Soccer access", "Team IDs", publicSoccerAccessSentence},
-			gone:    []string{"Import access", "Connect Google Calendar", `action="/sign-out"`},
+			gone:    []string{"Import access", "Connect Google Calendar", `action="/sign-out"`, "soccer-history-notice"},
 		},
 		{
 			name:    "soccer-ungranted",
 			present: []string{"has not been granted", "invited.visitor@example.com", `action="/sign-out"`, "Needs Soccer access", "Team IDs", publicSoccerAccessSentence},
-			gone:    []string{"Import access", "Connect Google Calendar", "Sign in for Soccer access"},
+			gone:    []string{"Import access", "Connect Google Calendar", "Sign in for Soccer access", "soccer-history-notice"},
 		},
 		{
 			name:    "soccer-granted",
 			present: []string{"invited.visitor@example.com", "Import access", "Connect Google Calendar", "Team IDs", "Google will suggest <strong data-google-suggested-account>invited.visitor@example.com</strong>", "Use another Google account"},
+			gone:    []string{"Private Soccer access", "Needs Soccer access", "soccer-history-notice"},
+		},
+		{
+			// The granted page as it will read once durable history collection
+			// is activated: the import dialog discloses indefinite collection.
+			name:    "soccer-granted-history",
+			present: []string{"invited.visitor@example.com", "Import access", "Team IDs", `id="soccer-history-notice"`, "Kept indefinitely", `name="history_notice" value="indefinite"`},
 			gone:    []string{"Private Soccer access", "Needs Soccer access"},
 		},
 	} {

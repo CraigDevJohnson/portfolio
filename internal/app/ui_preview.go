@@ -314,7 +314,9 @@ func soccerPreviewDownloadHandler(w http.ResponseWriter, r *http.Request) {
 // accountPreviewPageHandler renders a public page with preview-only account
 // navigation so local reviewers can inspect both states without Cognito. The
 // soccer-* fixtures render the Soccer page for a signed-out visitor, an
-// invited visitor without the soccer grant, and one holding it.
+// invited visitor without the soccer grant, and one holding it;
+// soccer-granted-history renders the granted page as it reads once durable
+// history collection is activated.
 func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := siteidentity.WithSignInAvailable(r.Context(), true)
 	principal := previewAccountPrincipal()
@@ -325,13 +327,16 @@ func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 	case "signed-in":
 		ctx = siteidentity.WithRequestIdentity(ctx, principal, nil, "/about")
 	case "soccer-signed-out":
-		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, nil, nil, "/soccer"), w)
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, nil, nil, "/soccer"), w, false)
 		return
 	case "soccer-ungranted":
-		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, nil, "/soccer"), w)
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, nil, "/soccer"), w, false)
 		return
 	case "soccer-granted":
-		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w)
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w, false)
+		return
+	case "soccer-granted-history":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w, true)
 		return
 	default:
 		http.NotFound(w, r)
@@ -342,8 +347,10 @@ func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
 
 // renderSoccerAccessPreview renders the inert Soccer page as if LPS import and
 // Google Calendar were configured, withholding both without the soccer grant.
-func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter) {
+// historyCollection renders the import dialog as durable collection shows it.
+func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter, historyCollection bool) {
 	page := soccerPreviewBasePage().Page
+	page.HistoryCollectionEnabled = historyCollection
 	granted := siteidentity.SoccerPrivateAllowed(ctx)
 	page.AuthState.LoginAvailable = granted
 	page.AuthState.GoogleAvailable = granted
