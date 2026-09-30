@@ -1,5 +1,5 @@
 // Refetching the same team set in another order keeps every team's color:
-// the LPS color, the Team ID fallback, and the shared game's two halves.
+// each team's Team ID fallback and the shared game's two halves.
 async page => {
   const fail = message => {
     throw new Error(`soccer team colors proof (refetch): ${message}`)

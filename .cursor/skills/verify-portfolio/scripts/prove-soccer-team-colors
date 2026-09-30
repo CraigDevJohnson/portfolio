@@ -61,7 +61,7 @@ run_pw run-code "async (page) => { await page.context().clearCookies(); await pa
 run_pw click "nav[aria-label='Main navigation'] a[data-nav-page='soccer']"
 capture 01-before-output-choice
 
-step 'Choose .ics and fetch both teams from the fake LPS' --filename "$STEPS/01-fetch-colors.js"
+step 'Choose .ics and fetch the colorless example teams from the fake LPS' --filename "$STEPS/01-fetch-colors.js"
 capture 02-colored-rows
 
 step 'Operate the shared game with the keyboard' --filename "$STEPS/02-keyboard.js"
@@ -73,12 +73,15 @@ capture 04-refetched
 step 'Narrow layout' --filename "$STEPS/04-narrow.js"
 capture 05-narrow
 
-step 'Shared past result in Google mode (preview fixture)' --filename "$STEPS/05-shared-result.js"
-capture 06-shared-result-narrow
+step 'An LPS color beside the example teams' --filename "$STEPS/05-lps-color.js"
+capture 06-lps-color
 
-step 'Forced colors (preview fixture)' --filename "$STEPS/06-forced-colors.js"
+step 'Shared past result in Google mode (preview fixture)' --filename "$STEPS/06-shared-result.js"
+capture 07-shared-result-narrow
+
+step 'Forced colors (preview fixture)' --filename "$STEPS/07-forced-colors.js"
 run_pw run-code "async (page) => { await page.emulateMedia({ forcedColors: 'active' }) }" >/dev/null
-capture 07-forced-colors
+capture 08-forced-colors
 run_pw run-code "async (page) => { await page.emulateMedia({ forcedColors: 'none' }) }" >/dev/null
 
 run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null

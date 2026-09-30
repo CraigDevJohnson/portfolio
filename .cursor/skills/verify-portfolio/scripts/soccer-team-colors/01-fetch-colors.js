@@ -1,9 +1,10 @@
 // From the production /soccer entry, choose .ics with the keyboard and fetch
-// both preview teams from the fake LPS. Pond Mint United's LPS color
-// ("  kelly GREEN ") must reach its rows as green, Campfire Rovers (no LPS
-// color) must keep its Team ID fallback, and their shared game must be one row
-// painted half in each, with every label keeping WCAG AA text contrast over
-// both painted halves.
+// the page's example Team IDs from the fake LPS. Like every recorded live
+// payload, LPS names no color for Pond Mint United or Campfire Rovers, and
+// both Team IDs select purple (479691 % 8 == 479147 % 8 == 3). In Team ID
+// order Campfire Rovers keeps purple and Pond Mint United takes the next
+// unused fallback, orange, so their shared game must be one row painted half
+// in each, with every label keeping WCAG AA text contrast over both halves.
 async page => {
   const fail = message => {
     throw new Error(`soccer team colors proof (fetch): ${message}`)
@@ -111,11 +112,11 @@ async page => {
   const pondMintOnly = row('7002')
   const campfireOnly = row('7003')
   if (rendered.filter(candidate => candidate.id === '7001').length !== 1) fail('the shared game is not one row')
-  if (!shared.shared || shared.homeColor !== 'green' || shared.awayColor !== 'purple') {
-    fail(`shared game 7001 is ${shared.homeColor}/${shared.awayColor} shared=${shared.shared}, want green/purple shared`)
+  if (!shared.shared || shared.homeColor !== 'orange' || shared.awayColor !== 'purple') {
+    fail(`shared game 7001 is ${shared.homeColor}/${shared.awayColor} shared=${shared.shared}, want orange/purple shared`)
   }
   if (shared.stops < 2 || shared.homePaint === shared.awayPaint) fail(`shared game halves are not two colors: ${shared.homePaint} / ${shared.awayPaint}`)
-  if (pondMintOnly.homeColor !== 'green' || pondMintOnly.shared || pondMintOnly.homePaint !== pondMintOnly.awayPaint) {
+  if (pondMintOnly.homeColor !== 'orange' || pondMintOnly.shared || pondMintOnly.homePaint !== pondMintOnly.awayPaint) {
     fail(`Pond Mint United game 7002 is ${pondMintOnly.homeColor} shared=${pondMintOnly.shared}`)
   }
   if (campfireOnly.homeColor !== 'purple' || campfireOnly.shared || campfireOnly.homePaint !== campfireOnly.awayPaint) {
@@ -129,6 +130,8 @@ async page => {
     if (candidate.inlineStyle) fail(`game ${candidate.id} carries an inline style ${candidate.inlineStyle}`)
     if (candidate.weakestContrast < 4.5) fail(`game ${candidate.id} ${candidate.weakestLabel} has ${candidate.weakestContrast}:1 contrast over a team half`)
   }
+  // Pond Mint United's schedule nests its unselected opponent Rosehip
+  // Athletic's raw LPS color, which must never reach the page.
   const body = await page.locator('#games-container').innerHTML()
   if (/kelly|GREEN/.test(body)) fail('the raw LPS color text reached the page')
   return rendered.map(({ text, inlineStyle, ...rest }) => rest)

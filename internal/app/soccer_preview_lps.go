@@ -15,6 +15,7 @@ import (
 const (
 	previewLPSPondMintTeamID = 479691
 	previewLPSCampfireTeamID = 479147
+	previewLPSRosehipTeamID  = 479800
 )
 
 // previewLPSBaseURL is the LPS API base URL the loopback preview uses, so a
@@ -29,9 +30,11 @@ func previewLPSBaseURL(listenAddress string) string {
 // and find a newly discovered game. Relaunch the preview to start over.
 // Scored past games from both teams, one from over a year ago, and a
 // postponed game without a score let a proof review past results in Google
-// mode. Pond Mint United names its color as LPS might, in mixed case with
-// padding, while Campfire Rovers names none, so their shared game shows a
-// recognized LPS color beside a Team ID fallback.
+// mode. Like every recorded live payload, Pond Mint United and Campfire
+// Rovers, the page's example Team IDs, name no color, and both IDs select the
+// same fallback. Rosehip Athletic, their opponent, names its color as LPS
+// might, in mixed case with padding, and serves its own schedule, so adding it
+// to the example teams shows a recognized LPS color beside their fallbacks.
 type soccerPreviewLPS struct {
 	mu       sync.Mutex
 	requests map[int]int
@@ -44,7 +47,7 @@ func newSoccerPreviewLPS() *soccerPreviewLPS {
 
 func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http.Request) {
 	teamID, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil || (teamID != previewLPSPondMintTeamID && teamID != previewLPSCampfireTeamID) {
+	if err != nil || (teamID != previewLPSPondMintTeamID && teamID != previewLPSCampfireTeamID && teamID != previewLPSRosehipTeamID) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"message":"team not found"}`))
@@ -56,13 +59,15 @@ func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http
 	published := fake.requests[teamID] > 1
 	fake.mu.Unlock()
 
-	pondMint := lps.TeamSummary{UTeamID: previewLPSPondMintTeamID, TeamName: "Pond Mint United", Color: "  kelly GREEN "}
+	pondMint := lps.TeamSummary{UTeamID: previewLPSPondMintTeamID, TeamName: "Pond Mint United"}
 	campfire := lps.TeamSummary{UTeamID: previewLPSCampfireTeamID, TeamName: "Campfire Rovers"}
-	rosehip := lps.TeamSummary{UTeamID: 479800, TeamName: "Rosehip Athletic"}
+	rosehip := lps.TeamSummary{UTeamID: previewLPSRosehipTeamID, TeamName: "Rosehip Athletic", Color: "  kelly GREEN "}
 	wanderers := lps.TeamSummary{UTeamID: 479801, TeamName: "Candle Oat Wanderers"}
 	mulberry := lps.TeamSummary{UTeamID: 479802, TeamName: "Night Mulberry FC"}
 
 	shared := fake.game(7001, 9, "Field 1", &pondMint, &campfire, "")
+	rosehipHome := fake.game(7002, 16, "Field 2", &rosehip, &pondMint, "")
+	rosehipAway := fake.game(6990, -400, "Field 2", &campfire, &rosehip, "1 - 3")
 	response := lps.TeamScheduleResponse{}
 	switch teamID {
 	case previewLPSPondMintTeamID:
@@ -70,7 +75,7 @@ func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http
 		response.Games = []lps.TeamScheduleGame{
 			fake.game(7000, -5, "Field 1", &pondMint, &mulberry, "4 - 2"),
 			shared,
-			fake.game(7002, 16, "Field 2", &rosehip, &pondMint, ""),
+			rosehipHome,
 		}
 		if published {
 			response.Games = append(response.Games, fake.game(7004, 23, "Field 4", &pondMint, &wanderers, ""))
@@ -78,12 +83,15 @@ func (fake *soccerPreviewLPS) teamScheduleHandler(w http.ResponseWriter, r *http
 	case previewLPSCampfireTeamID:
 		response.Team = campfire
 		response.Games = []lps.TeamScheduleGame{
-			fake.game(6990, -400, "Field 2", &campfire, &rosehip, "1 - 3"),
+			rosehipAway,
 			fake.game(6995, -12, "Field 3", &campfire, &wanderers, "postponed"),
 			fake.game(6998, -19, "Field 4", &mulberry, &campfire, "2 - 2"),
 			fake.game(7003, 2, "Field 3", &campfire, &wanderers, ""),
 			shared,
 		}
+	case previewLPSRosehipTeamID:
+		response.Team = rosehip
+		response.Games = []lps.TeamScheduleGame{rosehipAway, rosehipHome}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
