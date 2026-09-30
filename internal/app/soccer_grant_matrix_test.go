@@ -14,7 +14,11 @@ import (
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
+	"portfolio/internal/lps"
 	"portfolio/internal/siteidentity"
+	internalsoccer "portfolio/internal/soccer"
+	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
@@ -36,10 +40,12 @@ const (
 // soccerGrantWorld is the real route assembly with site identity read from a
 // reviewed invitation map, a fake LPS API and fake Google APIs that count the
 // calls they receive, and an in-memory Google connection store holding the
-// owner's connection.
+// owner's connection. keepHistory adds durable Soccer history.
 type soccerGrantWorld struct {
 	app                *App
 	mux                http.Handler
+	soccer             *internalsoccer.Handler
+	history            *archivetest.Table
 	lpsCredentialCalls atomic.Int32
 	googleCalls        atomic.Int32
 	googleTokenCalls   atomic.Int32
@@ -63,7 +69,7 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 	world := &soccerGrantWorld{app: application, jwt: testutil.TestJWT(t, time.Now().Add(time.Hour))}
 
 	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "" {
 			world.lpsCredentialCalls.Add(1)
 		}
@@ -85,8 +91,8 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Cleanup(lps.Close)
-	world.app.Config.LPSAPIBaseURL = lps.URL
+	t.Cleanup(lpsServer.Close)
+	world.app.Config.LPSAPIBaseURL = lpsServer.URL
 
 	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		world.googleCalls.Add(1)
@@ -129,8 +135,26 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 		},
 	}}
 	world.app.GoogleHandler.SetStore(world.store)
-	world.mux, _ = buildMux(world.app, world.app.Logger, false)
+	world.mux, world.soccer = buildMux(world.app, world.app.Logger, false)
 	return world
+}
+
+// keepHistory wires durable Soccer history holding the owner's earlier import
+// of linked player 1001 and that player's team 4101.
+func (world *soccerGrantWorld) keepHistory(t *testing.T) {
+	t.Helper()
+	world.history = archivetest.NewTable()
+	store := soccerarchive.NewDynamoStoreWithAPI(world.history, "soccer-history")
+	team := lps.TeamSummary{UTeamID: 4101, TeamName: "Craig FC", Season: 169}
+	if err := store.SavePlayerDiscovery(t.Context(), &soccerarchive.PlayerDiscovery{
+		OwnerIssuer: testSiteIssuer, OwnerSubject: testSiteSubject, ObservedAt: time.Now().Add(-time.Hour),
+		Players:     []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+		KnownTeams:  []lps.TeamSummary{team},
+		Memberships: []soccerarchive.PlayerMembership{{PlayerID: 1001, Team: team}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	world.soccer.SetArchiveStore(store)
 }
 
 // ownerPrivateState returns the owner's imported LPS access, Google
@@ -164,6 +188,9 @@ type soccerGrantRoute struct {
 	// private state, since a status alone cannot tell an admitted action
 	// from one that silently lost the owner's connection or import.
 	grantedEffect func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder)
+	// keepsHistory runs the route with durable history holding the owner's
+	// linked player, for a route that acts on that history.
+	keepsHistory bool
 }
 
 // soccerPrivateRoutes lists every imported-player and Google endpoint with the
@@ -183,6 +210,17 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 		grantedEffect: func(t *testing.T, _ *soccerGrantWorld, resp *httptest.ResponseRecorder) {
 			if cleared := findSessionCookie(t, resp.Result()); cleared == nil || cleared.MaxAge >= 0 {
 				t.Error("clearing the LPS import kept the owner's imported session")
+			}
+		},
+	},
+	{
+		name: "linked-player data removal", method: http.MethodPost, path: "/soccer/players/remove", form: url.Values{"player_id": {"1001"}}, grantedStatus: http.StatusOK, keepsHistory: true,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if world.lpsCredentialCalls.Load() == 0 {
+				t.Error("player removal did not confirm the player with the owner's imported LPS access")
+			}
+			if world.history.Item("PLAYER#1001/META") != nil || world.history.Item("TEAM#4101/META") == nil {
+				t.Errorf("player removal did not erase the player and keep the team: %q", resp.Body.String())
 			}
 		},
 	},
@@ -386,6 +424,9 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 				// Each private action gets a fresh world so one action's side
 				// effects, such as disconnect, cannot decide another's outcome.
 				world := newSoccerGrantWorld(t, visitor.invitations)
+				if route.keepsHistory {
+					world.keepHistory(t)
+				}
 				resp := soccerGrantRequest(world.mux, route.method, route.path, route.form, cookiesFor(world)...)
 				if admitted {
 					if resp.Code != route.grantedStatus {
@@ -402,6 +443,9 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 				}
 				if _, kept := world.store.records[grantWorldConnectionID]; !kept {
 					t.Errorf("%s: refused request deleted the owner's Google connection", route.name)
+				}
+				if world.history != nil && world.history.Item("PLAYER#1001/META") == nil {
+					t.Errorf("%s: refused request removed the owner's linked player from history", route.name)
 				}
 			}
 		})
