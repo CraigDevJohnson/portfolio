@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"golang.org/x/net/html"
 )
 
 func TestSoccerPageOffersSiteSignInForPrivateActionsOnlyWhereSignInWorks(t *testing.T) {
@@ -30,5 +32,37 @@ func TestSoccerPageOffersSiteSignInForPrivateActionsOnlyWhereSignInWorks(t *test
 	}
 	if strings.Contains(body, "site sign-in is not available here") {
 		t.Error("Soccer page called available site sign-in unavailable")
+	}
+}
+
+func TestSoccerPageNamesTheMissingGrantInsteadOfAnUnavailableServer(t *testing.T) {
+	world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+	doc := parsePlannerHTML(t, soccerGrantRequest(world.mux, http.MethodGet, "/soccer", nil).Body.String())
+	lpsCard := plannerSingle(t, doc, "LPS connection card", plannerAttrIs("id", "soccer-lps-connection"))
+	googleCard := plannerSingle(t, doc, "Google connection card", plannerAttrIs("id", "soccer-google-connection"))
+	googleOption := plannerSingle(t, doc, "Google output option", func(node *html.Node) bool {
+		return node.Data == "label" && strings.Contains(plannerText(node), "Google Calendar") && strings.Contains(soccerHTMLAttribute(node, "class"), "soccer-output-option")
+	})
+	linkedSource := plannerSingle(t, doc, "linked-player source", func(node *html.Node) bool { return plannerHasAttr(node, "data-soccer-linked-source") })
+	for name, node := range map[string]*html.Node{"LPS card": lpsCard, "Google card": googleCard, "Google output option": googleOption, "linked-player source": linkedSource} {
+		text := plannerText(node)
+		if strings.Contains(text, "Not enabled on this server") || strings.Contains(text, "not enabled in this runtime") {
+			t.Errorf("%s calls a configured capability unavailable to a signed-out visitor: %q", name, text)
+		}
+		if !strings.Contains(text, "Soccer access") {
+			t.Errorf("%s does not name the missing Soccer access: %q", name, text)
+		}
+	}
+
+	unconfigured := newTestApp(t)
+	unconfigured.Config.SessionKey = nil
+	enableTestSiteIdentity(unconfigured, map[string][]string{testSiteEmail: {"soccer"}})
+	mux, _ := buildMux(unconfigured, unconfigured.Logger, false)
+	doc = parsePlannerHTML(t, soccerGrantRequest(mux, http.MethodGet, "/soccer", nil).Body.String())
+	for _, id := range []string{"soccer-lps-connection", "soccer-google-connection"} {
+		card := plannerText(plannerSingle(t, doc, id, plannerAttrIs("id", id)))
+		if !strings.Contains(card, "Not enabled on this server") || strings.Contains(card, "Soccer access") {
+			t.Errorf("%s on a server without that capability = %q, want Not enabled on this server", id, card)
+		}
 	}
 }

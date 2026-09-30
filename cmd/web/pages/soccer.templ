@@ -99,7 +99,11 @@ templ Soccer(props SoccerProps) {
 							<span><strong>Google Calendar</strong><small>Connect a calendar to add selected matches.</small></span>
 						} else {
 							<input type="radio" name="calendar_output" value="google" data-soccer-output-option disabled/>
-							<span><strong>Google Calendar</strong><small>Not enabled on this server.</small></span>
+							if props.AuthState.GoogleNeedsGrant {
+								<span><strong>Google Calendar</strong><small>Needs Soccer access.</small></span>
+							} else {
+								<span><strong>Google Calendar</strong><small>Not enabled on this server.</small></span>
+							}
 						}
 					</label>
 				</fieldset>
@@ -161,6 +165,9 @@ templ Soccer(props SoccerProps) {
 									} else if props.AuthState.SupportsDiscovery() {
 										<p>Set up LPS access in Connections above, then return here to choose linked players.</p>
 										<a class="soccer-inline-link" href="#soccer-connections">Go to Connections</a>
+									} else if props.AuthState.ImportNeedsGrant {
+										<p>Linked players need a site account with Soccer access.</p>
+										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
 									} else {
 										<p>Linked-player discovery is not enabled in this runtime.</p>
 										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>

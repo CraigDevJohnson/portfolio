@@ -4,13 +4,17 @@ import "fmt"
 import "portfolio/types"
 
 type SoccerLoginStateProps struct {
-	Authenticated            bool
-	Players                  []types.LPSPlayer
-	SelectedPlayerIDs        []int
-	SelectedTeamIDs          []int
-	ConfirmedTeamCount       int
-	LoginAvailable           bool
-	GoogleAvailable          bool
+	Authenticated      bool
+	Players            []types.LPSPlayer
+	SelectedPlayerIDs  []int
+	SelectedTeamIDs    []int
+	ConfirmedTeamCount int
+	LoginAvailable     bool
+	GoogleAvailable    bool
+	// ImportNeedsGrant and GoogleNeedsGrant mark a capability this server
+	// offers but the current visitor lacks the soccer page grant to use.
+	ImportNeedsGrant         bool
+	GoogleNeedsGrant         bool
 	GoogleConnected          bool
 	GoogleCalendarSummary    string
 	SelectedGoogleCalendarID string
@@ -91,8 +95,13 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 				</span>
 				<div>
 					<p class="soccer-stage-kicker">Player discovery</p>
-					<h4>Not enabled on this server</h4>
-					<p>Use manual team IDs below to fetch schedules directly.</p>
+					if props.ImportNeedsGrant {
+						<h4>Needs Soccer access</h4>
+						<p>Importing linked players needs a site account with Soccer access. Use manual team IDs below to fetch schedules directly.</p>
+					} else {
+						<h4>Not enabled on this server</h4>
+						<p>Use manual team IDs below to fetch schedules directly.</p>
+					}
 				</div>
 			</div>
 		}
@@ -293,7 +302,11 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 			<span class="soccer-connection-mark" aria-hidden="true">
 				@UIIcon(UIIconUnavailable)
 			</span>
-			<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>You can download an .ics file without connecting Google Calendar.</p></div>
+			if props.GoogleNeedsGrant {
+				<div><p class="soccer-stage-kicker">Calendar output</p><h4>Needs Soccer access</h4><p>Google Calendar needs a site account with Soccer access. You can download an .ics file without it.</p></div>
+			} else {
+				<div><p class="soccer-stage-kicker">Calendar output</p><h4>Not enabled on this server</h4><p>You can download an .ics file without connecting Google Calendar.</p></div>
+			}
 		</div>
 	}
 }

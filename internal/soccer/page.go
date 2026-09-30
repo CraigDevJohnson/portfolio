@@ -110,11 +110,13 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 		session = nil
 	}
 	props := partials.SoccerLoginStateProps{
-		Authenticated:   session != nil && strings.TrimSpace(session.JWT) != "",
-		GoogleAvailable: privateAllowed && h.googleAvailable(),
-		LoginAvailable:  privateAllowed && h.Config.LoginEnabled(),
-		SwapOOB:         swapOOB,
-		ResetWorkflow:   swapOOB,
+		Authenticated:    session != nil && strings.TrimSpace(session.JWT) != "",
+		GoogleAvailable:  privateAllowed && h.googleAvailable(),
+		LoginAvailable:   privateAllowed && h.Config.LoginEnabled(),
+		GoogleNeedsGrant: !privateAllowed && h.googleAvailable(),
+		ImportNeedsGrant: !privateAllowed && h.Config.LoginEnabled(),
+		SwapOOB:          swapOOB,
+		ResetWorkflow:    swapOOB,
 	}
 	if session != nil {
 		props.Players = session.Players
