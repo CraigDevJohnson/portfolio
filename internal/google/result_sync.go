@@ -262,7 +262,7 @@ func (h *Handler) deletedSiteEventOutcome(ctx context.Context, calendarID string
 
 // siteEventMatchesGame reports whether the event is one this site added for
 // the game: it carries the game's ID and the site's private marker. An event
-// the site added before it wrote that marker is recognised by the rest of its
+// the site added before it wrote that marker is recognized by the rest of its
 // provenance, which it has always written: its event ID and private game ID
 // are both the game's ID, and its source is the site's Soccer page. An .ics
 // import carries neither the private game ID nor the source.

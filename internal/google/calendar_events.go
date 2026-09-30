@@ -29,7 +29,7 @@ import (
 //   - The private extended property eventOwnerProperty set to eventOwnerValue
 //     marks the event as added by this site rather than imported from an .ics
 //     file or created by hand. Events added before this marker existed carry
-//     the other three; siteEventMatchesGame recognises them by all three.
+//     the other three; siteEventMatchesGame recognizes them by all three.
 //   - The event source names the site's Soccer page.
 const (
 	eventGameIDProperty = "game_id"
