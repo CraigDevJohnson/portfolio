@@ -54,17 +54,17 @@ func gamesCountLabel(count int) string {
 func resultBadgeClass(outcome string) string {
 	switch outcome {
 	case schedule.OutcomeWin:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-primary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-primary-100"
 	case schedule.OutcomeLoss:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeDraw:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeCanceled:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	case schedule.OutcomeFinal:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	default:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	}
 }
 
