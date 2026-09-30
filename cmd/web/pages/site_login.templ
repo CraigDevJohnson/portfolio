@@ -7,6 +7,9 @@ type SiteLoginProps struct {
 	ReturnTo  string
 	Message   string
 	Available bool
+	// OfferAccountSwitch replaces the retry after Cognito authenticated an
+	// uninvited identity, whose managed login would otherwise be reused.
+	OfferAccountSwitch bool
 }
 
 templ SiteLogin(props SiteLoginProps) {
@@ -19,7 +22,15 @@ templ SiteLogin(props SiteLoginProps) {
 				if props.Message != "" {
 					<p class="page-kit-copy" role="status">{ props.Message }</p>
 				}
-				if props.Available {
+				if props.OfferAccountSwitch {
+					<form method="POST" action="/sign-out">
+						@partials.ActionButton(partials.ActionButtonProps{
+							Type: "submit",
+							Label: "Use a different account",
+							Variant: partials.ActionPrimary,
+						})
+					</form>
+				} else if props.Available {
 					<form method="POST" action="/sign-in">
 						<input type="hidden" name="return_to" value={ props.ReturnTo }/>
 						@partials.ActionButton(partials.ActionButtonProps{

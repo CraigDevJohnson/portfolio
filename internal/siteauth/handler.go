@@ -23,6 +23,9 @@ import (
 // CallbackPath is the registered Cognito redirect path for site sign-in.
 const CallbackPath = "/auth/callback"
 
+// reasonNotInvited marks a Cognito identity outside the current invitation map.
+const reasonNotInvited = "identity_not_invited"
+
 // Handler owns site sign-in independently of portal AWS client availability.
 type Handler struct {
 	Config *config.Config
@@ -80,7 +83,7 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		r.Body = http.MaxBytesReader(w, r.Body, 8192)
 		if err := r.ParseForm(); err != nil {
-			h.renderLogin(w, r, http.StatusBadRequest, "/", "Sign-in could not be started.")
+			h.renderLogin(w, r, http.StatusBadRequest, pages.SiteLoginProps{ReturnTo: "/", Message: "Sign-in could not be started."})
 			return
 		}
 		returnTo = safeReturnTo(r.PostForm.Get("return_to"))
@@ -90,27 +93,27 @@ func (h *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.signInAvailable() {
-		h.renderLogin(w, r, http.StatusServiceUnavailable, returnTo, "Site sign-in is unavailable right now.")
+		h.renderLogin(w, r, http.StatusServiceUnavailable, pages.SiteLoginProps{ReturnTo: returnTo, Message: "Site sign-in is unavailable right now."})
 		return
 	}
 	// Only POST starts sign-in; the GET route also serves HEAD, which must stay side-effect free.
 	if r.Method != http.MethodPost {
-		h.renderLogin(w, r, http.StatusOK, returnTo, "")
+		h.renderLogin(w, r, http.StatusOK, pages.SiteLoginProps{ReturnTo: returnTo})
 		return
 	}
 	verifier, err := randomURLSafe(32)
 	if err != nil {
-		h.renderLogin(w, r, http.StatusInternalServerError, returnTo, "Sign-in could not be started.")
+		h.renderLogin(w, r, http.StatusInternalServerError, pages.SiteLoginProps{ReturnTo: returnTo, Message: "Sign-in could not be started."})
 		return
 	}
 	state, err := randomHex(16)
 	if err != nil {
-		h.renderLogin(w, r, http.StatusInternalServerError, returnTo, "Sign-in could not be started.")
+		h.renderLogin(w, r, http.StatusInternalServerError, pages.SiteLoginProps{ReturnTo: returnTo, Message: "Sign-in could not be started."})
 		return
 	}
 	pending := &oauthState{State: state, CodeVerifier: verifier, ReturnTo: returnTo, ExpiresAt: time.Now().Add(config.SiteOAuthStateTTL)}
 	if err := h.setOAuthState(w, r, pending); err != nil {
-		h.renderLogin(w, r, http.StatusInternalServerError, returnTo, "Sign-in could not be started.")
+		h.renderLogin(w, r, http.StatusInternalServerError, pages.SiteLoginProps{ReturnTo: returnTo, Message: "Sign-in could not be started."})
 		return
 	}
 	hash := sha256.Sum256([]byte(verifier))
@@ -157,7 +160,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	email, err := config.NormalizePortalEmail(claims.Email)
 	if err != nil || !claims.EmailVerified || !h.Config.SiteEmailInvited(email) {
-		h.rejectSignIn(w, r, http.StatusUnauthorized, "identity_not_invited")
+		h.rejectSignIn(w, r, http.StatusUnauthorized, reasonNotInvited)
 		return
 	}
 	expiresAt := time.Now().Add(config.SiteSessionTTL)
@@ -201,7 +204,11 @@ func (h *Handler) rejectSignIn(w http.ResponseWriter, r *http.Request, status in
 	h.clearSession(w, r)
 	h.Logger.Warn("site sign-in rejected", slog.String("reason", reason))
 	ctx := siteidentity.WithRequestIdentity(r.Context(), nil, nil, "/")
-	h.renderLogin(w, r.WithContext(ctx), status, "/", "Sign-in could not be completed.")
+	h.renderLogin(w, r.WithContext(ctx), status, pages.SiteLoginProps{
+		ReturnTo:           "/",
+		Message:            "Sign-in could not be completed.",
+		OfferAccountSwitch: reason == reasonNotInvited,
+	})
 }
 
 // preventStorage keeps account state and auth cookies out of browser and shared caches.
@@ -219,10 +226,11 @@ func (h *Handler) signInAvailable() bool {
 	return h.OIDC != nil && h.Config != nil && h.Config.SiteEnabled()
 }
 
-func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, status int, returnTo, message string) {
+func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, status int, props pages.SiteLoginProps) {
+	props.Available = h.signInAvailable()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	if err := pages.SiteLogin(pages.SiteLoginProps{ReturnTo: returnTo, Message: message, Available: h.signInAvailable()}).Render(r.Context(), w); err != nil {
+	if err := pages.SiteLogin(props).Render(r.Context(), w); err != nil {
 		h.Logger.Error("site sign-in page render failed", slog.Any("error", err))
 	}
 }

@@ -157,7 +157,10 @@ with a local return path; without complete configuration it shows no sign-in
 entry. The landing page starts Google sign-in only on `POST /sign-in`; Cognito
 returns to `GET /auth/callback`. Return paths must be local, and a return path
 to the callback itself falls back to `/`. `POST /sign-out` clears the session
-and pending OAuth state before ending the Cognito managed-login journey. Public
+and pending OAuth state before ending the Cognito managed-login journey. A
+denied, uninvited identity is offered **Use a different account**, which uses
+that sign-out path so the next attempt does not reuse the same managed login.
+A stale callback leaves an existing valid session in place. Public
 pages stay available when site sign-in is disabled, rejected, or expired.
 Responses from the sign-in routes and pages rendered for a signed-in account
 send `Cache-Control: no-store`; anonymous portfolio pages keep their existing

@@ -358,3 +358,25 @@ func TestStaleSignInCallbackKeepsExistingSiteSession(t *testing.T) {
 		t.Fatal("stale callback ended the signed-in account")
 	}
 }
+
+func TestUninvitedIdentityCanEndManagedLoginToSwitchAccount(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	browser := newSiteBrowser(t, mux)
+
+	fixture.email = "uninvited@example.com"
+	denied := browser.signIn("/about")
+	if denied.Code != http.StatusUnauthorized {
+		t.Fatalf("uninvited sign-in status = %d", denied.Code)
+	}
+	if body := denied.Body.String(); !strings.Contains(body, `action="/sign-out"`) || !strings.Contains(body, "Use a different account") {
+		t.Fatal("uninvited denial offered no way to end the managed login and switch accounts")
+	}
+
+	switchAccount := browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil))
+	target, err := url.Parse(switchAccount.Header().Get("Location"))
+	if switchAccount.Code != http.StatusSeeOther || err != nil || target.Host != strings.TrimPrefix(fixture.domain, "https://") || target.Path != "/logout" {
+		t.Fatalf("account switch did not reach Cognito logout: %d %q", switchAccount.Code, switchAccount.Header().Get("Location"))
+	}
+}
