@@ -166,6 +166,7 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 		@SoccerGoogleConnection(props)
 	}
 	if props.ResetWorkflow {
+		@SoccerLinkedSource(props, true)
 		<div id="soccer-player-stage-content" hx-swap-oob="innerHTML">
 			@SoccerPlayerStageContent(props)
 		</div>
@@ -176,6 +177,43 @@ templ SoccerLoginState(props SoccerLoginStateProps) {
 			@SoccerResultsInvitation(props.SupportsGoogle())
 		</div>
 	}
+}
+
+func soccerLinkedSourceState(imported bool) string {
+	if imported {
+		return "ready"
+	}
+	return "locked"
+}
+
+// SoccerLinkedSource is the linked-player schedule source option. Imports and
+// ended imports replace it out of band so it matches the LPS card.
+templ SoccerLinkedSource(props SoccerLoginStateProps, swapOOB bool) {
+	<div
+		id="soccer-linked-source"
+		class="soccer-source-option"
+		data-source-state={ soccerLinkedSourceState(props.Authenticated) }
+		data-soccer-linked-source
+		if swapOOB {
+			hx-swap-oob="outerHTML"
+		}
+	>
+		<p class="soccer-stage-kicker">Linked account</p>
+		<h4>Use linked players</h4>
+		if props.Authenticated {
+			<p>{ len(props.Players) } linked player(s) are ready. Continue to choose whose teams should be included.</p>
+			<a class="soccer-inline-link" href="#soccer-player-stage">Continue to players</a>
+		} else if props.SupportsDiscovery() {
+			<p>Set up LPS access in Connections above, then return here to choose linked players.</p>
+			<a class="soccer-inline-link" href="#soccer-connections">Go to Connections</a>
+		} else if props.ImportNeedsGrant {
+			<p>Linked players need a site account with Soccer access.</p>
+			<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
+		} else {
+			<p>Linked-player discovery is not enabled in this runtime.</p>
+			<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
+		}
+	</div>
 }
 
 templ SoccerPlayerStageContent(props SoccerLoginStateProps) {

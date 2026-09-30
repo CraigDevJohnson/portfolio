@@ -99,12 +99,33 @@ func newLinkedPlannerWorld(t *testing.T) *linkedPlannerWorld {
 	return world
 }
 
-// importLinkedPlayers imports the fake LPS account through the real route.
-func (world *linkedPlannerWorld) importLinkedPlayers(t *testing.T) {
+// importLinkedPlayers imports the fake LPS account through the real route
+// and returns the import response.
+func (world *linkedPlannerWorld) importLinkedPlayers(t *testing.T) *httptest.ResponseRecorder {
 	t.Helper()
 	imported := world.browser.postForm("/soccer/import", url.Values{"jwt": {world.jwt}})
 	if imported.Code != http.StatusOK || !world.browser.holdsCookie(config.LPSSessionCookieName, "/soccer") {
 		t.Fatalf("LPS import: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	return imported
+}
+
+// assertLinkedSourceRefreshed requires a response to replace the page's
+// linked-player source option out of band with the given state and copy.
+func assertLinkedSourceRefreshed(t *testing.T, doc *html.Node, wantState, wantCopy string) {
+	t.Helper()
+	source := plannerSingle(t, doc, "linked-player source option", plannerAttrIs("id", "soccer-linked-source"))
+	if got := soccerHTMLAttribute(source, "hx-swap-oob"); got != "outerHTML" {
+		t.Errorf("linked-player source swap = %q, want an out-of-band outerHTML replacement", got)
+	}
+	if !plannerHasAttr(source, "data-soccer-linked-source") || !soccerHTMLClassContains(source, "soccer-source-option") {
+		t.Error("the refreshed linked-player source lost its planner hooks")
+	}
+	if got := soccerHTMLAttribute(source, "data-source-state"); got != wantState {
+		t.Errorf("linked-player source state = %q, want %q", got, wantState)
+	}
+	if text := plannerText(source); !strings.Contains(text, wantCopy) {
+		t.Errorf("linked-player source = %q, want %q", text, wantCopy)
 	}
 }
 
@@ -172,7 +193,10 @@ func TestLinkedPlayerSourceRevealsPlayersAndTheirTeamsForAGrantedImport(t *testi
 		t.Fatal("granted visitor is not offered an LPS import")
 	}
 
-	world.importLinkedPlayers(t)
+	imported := world.importLinkedPlayers(t)
+	// The page stays open through the import, so the import response brings
+	// its linked-player source up to date.
+	assertLinkedSourceRefreshed(t, parsePlannerHTML(t, imported.Body.String()), "ready", "2 linked player(s) are ready")
 	page := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
 	players := plannerSingle(t, page, "player stage", plannerAttrIs("data-soccer-stage", "players"))
 	if hidden := plannerHiddenAncestor(players); hidden != nil {
@@ -324,6 +348,7 @@ func TestLostLPSAccessDuringTeamDiscoveryOffersRecoveryWithoutPlayers(t *testing
 		t.Error("the LPS card is not replaced out of band")
 	}
 	assertImportRecovery(t, doc, "Your imported Let's Play Soccer token was rejected.")
+	assertLinkedSourceRefreshed(t, doc, "locked", "Set up LPS access in Connections above")
 
 	page := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
 	if text := plannerText(page); strings.Contains(text, importedAccessShown) || strings.Contains(text, "Taylor Johnson") {

@@ -151,23 +151,7 @@ templ Soccer(props SoccerProps) {
 								<div><p>Schedule source</p><h3 id="soccer-stage-source-title">Choose a schedule source</h3></div>
 							</header>
 							<div class="soccer-source-grid">
-								<div class="soccer-source-option" data-source-state={ soccerReadyState(props.AuthState.Authenticated) } data-soccer-linked-source>
-									<p class="soccer-stage-kicker">Linked account</p>
-									<h4>Use linked players</h4>
-									if props.AuthState.Authenticated {
-										<p>{ len(props.AuthState.Players) } linked player(s) are ready. Continue to choose whose teams should be included.</p>
-										<a class="soccer-inline-link" href="#soccer-player-stage">Continue to players</a>
-									} else if props.AuthState.SupportsDiscovery() {
-										<p>Set up LPS access in Connections above, then return here to choose linked players.</p>
-										<a class="soccer-inline-link" href="#soccer-connections">Go to Connections</a>
-									} else if props.AuthState.ImportNeedsGrant {
-										<p>Linked players need a site account with Soccer access.</p>
-										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
-									} else {
-										<p>Linked-player discovery is not enabled in this runtime.</p>
-										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
-									}
-								</div>
+								@partials.SoccerLinkedSource(props.AuthState, false)
 								<div class="soccer-source-option soccer-manual-path" data-source-state="ready">
 									<p class="soccer-stage-kicker">Direct lookup</p>
 									<h4>Use manual team IDs</h4>
