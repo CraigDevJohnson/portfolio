@@ -21,6 +21,9 @@ DOMAIN = MODULE + 'aws_cognito_user_pool_domain.site'
 BRANDING = MODULE + 'aws_cognito_managed_login_branding.site'
 OUTPUTS = {'cognito_user_pool_id', 'google_redirect_uri', 'session_parameter_path', 'site_runtime'}
 VARIABLES = {'aws_account_id', 'google_client_id', 'google_client_secret', 'cognito_domain_prefix', 'enable_local_callback'}
+# Pool attributes AWS changes on its own. Google sign-in creates a federated
+# user, so once anyone signs in, every refresh reports the user count as drift.
+COMPUTED_POOL_DRIFT = {'estimated_number_of_users', 'last_modified_date'}
 
 
 def require(ok):
@@ -133,13 +136,26 @@ def check_configuration(plan, site):
             require(set(expr.get('client_id', {}).get('references', [])) == {'aws_cognito_user_pool_client.site.id', 'aws_cognito_user_pool_client.site'})
 
 
+def check_drift(drift):
+    """Admit only refresh differences in the pool's computed attributes."""
+    require(isinstance(drift, list))
+    for entry in drift:
+        require(isinstance(entry, dict) and entry.get('address') == POOL)
+        change = entry.get('change')
+        require(isinstance(change, dict) and change.get('actions') == ['update'])
+        before, after = change.get('before'), change.get('after')
+        require(isinstance(before, dict) and isinstance(after, dict))
+        changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
+        require(changed <= COMPUTED_POOL_DRIFT)
+
+
 def check(plan, env):
     """Check one saved plan against env's contract; return a secret-free summary."""
     site = contract(env)
     require(plan.get('errored', False) is False)
     changes = plan.get('resource_changes', [])
     require(len(changes) == 5 and {r['address'] for r in changes} == set(site.resources))
-    require(not plan.get('resource_drift'))
+    check_drift(plan.get('resource_drift') or [])
     check_configuration(plan, site)
     check_links(changes)
     summary = []

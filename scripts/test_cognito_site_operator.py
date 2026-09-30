@@ -147,6 +147,39 @@ class ContractTests(unittest.TestCase):
                 by_address(plan, address)['change']['after'][key] = value
                 with self.assertRaises(ValueError): c.check(plan, 'dev')
 
+    def drift(self, address=POOL, actions=('update',), **changed):
+        """A refresh difference as `tofu show -json` lists it in resource_drift."""
+        before = dict(name='portfolio-lambda-dev-site', callback_urls=['https://dev.craigdevjohnson.com/auth/callback'], estimated_number_of_users=0, last_modified_date='2026-09-30T00:00:00Z')
+        after = dict(before, **changed)
+        return dict(address=address, module_address='module.site', mode='managed', provider_name='registry.opentofu.org/hashicorp/aws', change=dict(actions=list(actions), before=before, after=after, after_unknown={}, before_sensitive={}, after_sensitive={}))
+
+    def test_computed_pool_drift_is_tolerated(self):
+        # Google sign-in creates a federated user, so every later refresh
+        # reports the pool's user count as drift; that is not a change.
+        for changed in [dict(estimated_number_of_users=1), dict(estimated_number_of_users=1, last_modified_date='2026-10-01T00:00:00Z')]:
+            with self.subTest(changed=changed):
+                plan = self.known_fixture('dev', 'no-op')
+                plan['resource_drift'] = [self.drift(**changed)]
+                self.assertEqual(len(c.check(plan, 'dev')), 5)
+
+    def test_configuration_drift_is_rejected(self):
+        cases = [
+            self.drift(callback_urls=['https://evil.example/auth/callback']),
+            self.drift(estimated_number_of_users=1, name='portfolio-lambda-dev-other'),
+            self.drift(estimated_number_of_users=1, lambda_config=[{'pre_sign_up': 'arn:aws:lambda:us-west-2:111122223333:function:other'}]),
+            self.drift(address=CLIENT, estimated_number_of_users=1),
+            self.drift(address='module.site.aws_iam_role.unrelated', estimated_number_of_users=1),
+            self.drift(actions=('delete',), estimated_number_of_users=1),
+            self.drift(actions=('delete', 'create'), estimated_number_of_users=1),
+            dict(address=POOL),
+            {'address': POOL, 'change': {'actions': ['update'], 'before': None, 'after': {'estimated_number_of_users': 1}}},
+        ]
+        for index, entry in enumerate(cases):
+            with self.subTest(case=index):
+                plan = self.known_fixture('dev', 'no-op')
+                plan['resource_drift'] = [self.drift(estimated_number_of_users=1), entry]
+                with self.assertRaises(ValueError): c.check(plan, 'dev')
+
     def test_provider_default_email_configuration_converges(self):
         plan = self.known_fixture('dev', 'no-op')
         by_address(plan, POOL)['change']['after']['email_configuration'] = [{
