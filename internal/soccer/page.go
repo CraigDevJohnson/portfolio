@@ -78,20 +78,27 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 	defer cancel()
 
 	var teamSelection *partials.SoccerTeamSelectProps
+	// teamsErr reports linked teams LPS could not serve while the import
+	// stays usable; the saved teams' public schedules are still restored.
+	var teamsErr error
 	if workflow.Source == "imported" && len(workflow.SelectedPlayerIDs) > 0 {
 		teams, err := h.resolvePlayerTeams(ctx, session, workflow.SelectedPlayerIDs)
-		if err != nil {
+		switch {
+		case err == nil:
+			teamSelection = &partials.SoccerTeamSelectProps{
+				PlayerGroups:    teams.groups,
+				PlayerIDs:       workflow.SelectedPlayerIDs,
+				SelectedTeamIDs: workflow.SelectedTeamIDs,
+				Notice:          teams.notice(),
+			}
+		case lps.ScheduleErrorDetailsFor(err).ClearSession:
 			return nil, nil, nil, "", err
-		}
-		teamSelection = &partials.SoccerTeamSelectProps{
-			PlayerGroups:    teams.groups,
-			PlayerIDs:       workflow.SelectedPlayerIDs,
-			SelectedTeamIDs: workflow.SelectedTeamIDs,
-			Notice:          teams.notice(),
+		default:
+			teamsErr = err
 		}
 	}
 	if len(workflow.SelectedTeamIDs) == 0 {
-		return teamSelection, nil, nil, "", nil
+		return teamSelection, nil, nil, "", teamsErr
 	}
 
 	games, err := lps.FetchAllGamesForTeams(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, workflow.SelectedTeamIDs)
@@ -100,7 +107,7 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 			Kind:    "error",
 			Message: "Your saved player and team choices were restored, but the schedule could not be refreshed. Try fetching the selected schedules again.",
 		}
-		return teamSelection, nil, feedback, joinIntSlice(workflow.SelectedTeamIDs), nil
+		return teamSelection, nil, feedback, joinIntSlice(workflow.SelectedTeamIDs), teamsErr
 	}
 	results := &partials.SoccerTableFragmentProps{
 		TeamCodes: joinIntSlice(workflow.SelectedTeamIDs),
@@ -113,7 +120,7 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 	if workflow.Source == "manual" {
 		manualCodes = results.TeamCodes
 	}
-	return teamSelection, results, nil, manualCodes, nil
+	return teamSelection, results, nil, manualCodes, teamsErr
 }
 
 // importNoticeFor explains imported LPS access that LPS refused or could not

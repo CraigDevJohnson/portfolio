@@ -547,6 +547,31 @@ func TestPlannerReturnDuringAnLPSOutageKeepsTheImport(t *testing.T) {
 	}
 }
 
+func TestPlannerReturnDuringAnLPSOutageKeepsTheSavedSchedule(t *testing.T) {
+	world := newLinkedPlannerWorld(t)
+	world.importLinkedPlayers(t)
+	teams := parsePlannerHTML(t, world.browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1002"}}).Body.String())
+	if fetched := world.browser.postForm("/soccer/fetch", linkedFormValues(t, teams, "soccer-team-select-form")); fetched.Code != http.StatusOK {
+		t.Fatalf("South FC fetch status = %d", fetched.Code)
+	}
+	// LPS stops serving linked teams; the public team schedules still load.
+	world.teamLookup.Store(http.StatusServiceUnavailable)
+
+	page := world.browser.get("/soccer")
+
+	if cookie := findSessionCookie(t, page.Result()); cookie != nil && cookie.MaxAge < 0 {
+		t.Fatal("an LPS outage cleared the import")
+	}
+	doc := parsePlannerHTML(t, page.Body.String())
+	card, notice := linkedAccessNotice(t, doc)
+	if soccerHTMLAttribute(card, "data-connection-state") != "connected" || !strings.Contains(notice, "Try again in a moment") {
+		t.Errorf("LPS card = %q with notice %q, want the kept import and a retry explanation", soccerHTMLAttribute(card, "data-connection-state"), notice)
+	}
+	if got := plannerRowIDs(plannerGameRows(doc, "upcoming-games")); !slices.Equal(got, []string{"3030", "2020"}) {
+		t.Errorf("restored South FC rows = %v, want the saved schedule [3030 2020]", got)
+	}
+}
+
 // teamSelectionNotice returns the text of the notices the team selection
 // form shows above its teams.
 func teamSelectionNotice(t *testing.T, doc *html.Node) string {

@@ -654,9 +654,8 @@ func splitDelimitedValues(raw string) []string {
 type playerTeams struct {
 	groups []types.PlayerTeamGroup
 	// refused lists chosen players LPS denied (403) or did not accept
-	// (400/404); refusedErr is the first of those errors.
-	refused    []types.LPSPlayer
-	refusedErr error
+	// (400/404).
+	refused []types.LPSPlayer
 }
 
 // notice names the chosen players whose teams are missing, or is nil when
@@ -680,7 +679,7 @@ func (teams *playerTeams) notice() *partials.FeedbackProps {
 // resolvePlayerTeams looks up each chosen linked player's current teams. A
 // player LPS refuses on its own is skipped so the others' teams still load;
 // a rejected import or an unavailable LPS affects every player and is
-// returned as the error.
+// returned as the error, as is a refusal when no chosen player's teams load.
 func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) (playerTeams, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
 	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
@@ -689,6 +688,7 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 	}
 
 	var result playerTeams
+	var refusedErr error
 	for _, playerID := range playerIDs {
 		player, ok := playerMap[playerID]
 		if !ok {
@@ -700,8 +700,8 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 				return playerTeams{}, err
 			}
 			result.refused = append(result.refused, player)
-			if result.refusedErr == nil {
-				result.refusedErr = err
+			if refusedErr == nil {
+				refusedErr = err
 			}
 			continue
 		}
@@ -720,6 +720,9 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 		if len(teams) > 0 {
 			result.groups = append(result.groups, types.PlayerTeamGroup{Player: player, Teams: teams})
 		}
+	}
+	if len(result.groups) == 0 && refusedErr != nil {
+		return playerTeams{}, refusedErr
 	}
 	return result, nil
 }
@@ -773,10 +776,6 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	teams, err := h.resolvePlayerTeams(r.Context(), session, playerIDs)
-	if err == nil && len(teams.groups) == 0 && teams.refusedErr != nil {
-		// LPS refused every chosen player that could have had teams.
-		err = teams.refusedErr
-	}
 	if err != nil {
 		detail := lps.ScheduleErrorDetailsFor(err)
 		if detail.ClearSession {
