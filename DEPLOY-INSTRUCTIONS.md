@@ -229,7 +229,9 @@ deployed environment until that environment has site sign-in:
   cookie is gone keep their encrypted tokens in `GOOGLE_CONNECTION_TABLE_NAME`,
   which has no TTL. Plan a one-time cleanup that revokes each token with Google
   and then deletes the rows with an empty `owner_subject`. That cleanup deletes
-  live data and needs Craig's approval.
+  live data and needs Craig's approval. Revoking a token withdraws the whole
+  grant for that Google account and OAuth client, so it also disconnects every
+  newer connection to the same Google account; check for those before revoking.
 - Team ID lookup and .ics file downloads stay public throughout.
 - Google Calendar consent (#93) also requests the basic `openid` and `email`
   scopes so the page can show the Google account that actually connected. If
