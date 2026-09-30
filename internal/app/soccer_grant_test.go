@@ -299,7 +299,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		"legacy": {ConnectionID: "legacy", TokenCiphertext: "old-token"},
 	}}
 	application.GoogleHandler.SetStore(store)
-	var tokenCalls atomic.Int32
+	var tokenCalls, revocations atomic.Int32
 	connectedEmail := "calendar-owner@example.net"
 	googleAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -310,6 +310,8 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		case "/calendar/v3/users/me/calendarList":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
+		case "/revoke":
+			revocations.Add(1)
 		case "/userinfo":
 			if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
 				t.Errorf("userinfo authorization = %q", got)
@@ -326,6 +328,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	application.GoogleHandler.OAuthTokenURL = googleAPI.URL + "/oauth/token"
 	application.GoogleHandler.CalendarAPIBaseURL = googleAPI.URL + "/calendar/v3"
 	application.GoogleHandler.OAuthUserInfoURL = googleAPI.URL + "/userinfo"
+	application.GoogleHandler.OAuthRevokeURL = googleAPI.URL + "/revoke"
 	mux, _ := buildMux(application, application.Logger, false)
 	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
 	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
@@ -430,8 +433,8 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	if otherDisconnect.Code != http.StatusOK {
 		t.Fatalf("different owner disconnect status = %d", otherDisconnect.Code)
 	}
-	if _, exists := store.records[pending.ConnectionID]; !exists {
-		t.Fatal("different site owner deleted the Google connection")
+	if _, exists := store.records[pending.ConnectionID]; !exists || revocations.Load() != 0 {
+		t.Fatal("different site owner deleted or revoked the Google connection")
 	}
 	for _, cookie := range otherDisconnect.Result().Cookies() {
 		if cookie.Name == config.GoogleConnectionCookieName && cookie.MaxAge < 0 {

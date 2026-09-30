@@ -51,6 +51,14 @@ func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	h := NewHandler(cfg, &http.Client{Timeout: 5 * time.Second}, logger, &stubSoccerBridge{})
+	// A closed loopback address stands in for every Google endpoint until a
+	// test attaches its own fake, so no test can reach live Google.
+	const unreachableGoogle = "http://127.0.0.1:1"
+	h.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
+	h.OAuthTokenURL = unreachableGoogle + "/oauth/token"
+	h.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
+	h.OAuthRevokeURL = unreachableGoogle + "/revoke"
+	h.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 	h.SetStore(store)
 	return h
 }

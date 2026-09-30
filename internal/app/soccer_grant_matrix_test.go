@@ -43,6 +43,7 @@ type soccerGrantWorld struct {
 	googleCalls        atomic.Int32
 	googleTokenCalls   atomic.Int32
 	googleEventInserts atomic.Int32
+	googleRevocations  atomic.Int32
 	store              *appTestGoogleConnectionStore
 	jwt                string
 }
@@ -94,6 +95,10 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 		case r.URL.Path == "/oauth/token":
 			world.googleTokenCalls.Add(1)
 			_, _ = w.Write([]byte(`{"access_token":"new-access","refresh_token":"new-refresh","token_type":"Bearer","expires_in":3600}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/revoke":
+			if r.ParseForm() == nil && r.PostForm.Get("token") == "owner-refresh" {
+				world.googleRevocations.Add(1)
+			}
 		case r.URL.Path == "/userinfo":
 			_, _ = fmt.Fprintf(w, `{"sub":%q,"email":%q,"email_verified":true}`, grantWorldGoogleSubject, grantWorldGoogleEmail)
 		case r.URL.Path == "/calendar/v3/users/me/calendarList":
@@ -115,6 +120,7 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 	world.app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
 	world.app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
 	world.app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
+	world.app.GoogleHandler.OAuthRevokeURL = google.URL + "/revoke"
 
 	ciphertext, err := world.app.GoogleHandler.EncryptToken(&oauth2.Token{AccessToken: "owner-access", RefreshToken: "owner-refresh", TokenType: "Bearer", Expiry: time.Now().Add(time.Hour)})
 	if err != nil {
@@ -270,6 +276,9 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 		grantedEffect: func(t *testing.T, world *soccerGrantWorld, _ *httptest.ResponseRecorder) {
 			if _, kept := world.store.records[grantWorldConnectionID]; kept {
 				t.Error("Google disconnect kept the owner's connection")
+			}
+			if world.googleRevocations.Load() != 1 {
+				t.Errorf("Google disconnect revoked the owner's refresh token %d time(s), want 1", world.googleRevocations.Load())
 			}
 		},
 	},

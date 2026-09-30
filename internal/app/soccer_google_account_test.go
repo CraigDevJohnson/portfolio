@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 )
 
@@ -77,6 +78,7 @@ func newGoogleAccountJourney(t *testing.T) *googleAccountJourney {
 	journey.app.GoogleHandler.OAuthAuthURL = google.URL + "/oauth/authorize"
 	journey.app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
 	journey.app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
+	journey.app.GoogleHandler.OAuthRevokeURL = google.URL + "/revoke"
 	journey.app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
 
 	mux, _ := buildMux(journey.app, journey.app.Logger, false)
@@ -130,5 +132,111 @@ func TestGrantedVisitorConnectsGoogleWithTheSuggestedSiteAccountOrAnother(t *tes
 	}
 	if prompt := another.Query().Get("prompt"); !strings.Contains(prompt, "select_account") {
 		t.Errorf("another-account consent prompt = %q, want Google's account chooser", prompt)
+	}
+}
+
+// holdsGoogleConnectionCookie reports whether the browser would send a Google
+// connection cookie to the Soccer page.
+func (journey *googleAccountJourney) holdsGoogleConnectionCookie() bool {
+	soccer, _ := url.Parse("https://app.example.com/soccer")
+	for _, cookie := range journey.browser.jar.Cookies(soccer) {
+		if cookie.Name == config.GoogleConnectionCookieName {
+			return true
+		}
+	}
+	return false
+}
+
+// connectedAccount returns the Google account the Soccer page reports as
+// connected, or "" when it reports no connection.
+func (journey *googleAccountJourney) connectedAccount(t *testing.T) string {
+	t.Helper()
+	page := journey.browser.get("/soccer")
+	if page.Code != http.StatusOK {
+		t.Fatalf("Soccer page status = %d", page.Code)
+	}
+	body := page.Body.String()
+	const marker = `<strong data-google-account>`
+	start := strings.Index(body, marker)
+	if start < 0 {
+		if strings.Contains(body, "Calendar ready") {
+			t.Fatal("Soccer page reported a ready calendar without naming its Google account")
+		}
+		return ""
+	}
+	rest := body[start+len(marker):]
+	return rest[:strings.Index(rest, "</strong>")]
+}
+
+func TestChosenGoogleAccountStaysWithItsSiteOwnerUntilChanged(t *testing.T) {
+	journey := newGoogleAccountJourney(t)
+	journey.browser.signIn("/soccer")
+
+	// The visitor declines the suggestion and consents as another account.
+	callback := journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect?account=choose"), journeyAlternateAccount)
+	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/soccer?google=connected" {
+		t.Fatalf("Google callback = %d %q", callback.Code, callback.Header().Get("Location"))
+	}
+	if got := journey.connectedAccount(t); got != journeyAlternateAccount {
+		t.Fatalf("connected account shown = %q, want the account that consented %q", got, journeyAlternateAccount)
+	}
+	if page := journey.browser.get("/soccer").Body.String(); !strings.Contains(page, "Switch to site account") || !strings.Contains(page, journeySiteAccount) {
+		t.Error("page did not offer the site account as an alternative to the connected account")
+	}
+
+	// Site sign-out hides the connection; the next sign-in as the same owner
+	// finds the chosen account still connected.
+	if signOut := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+	if page := journey.browser.get("/soccer").Body.String(); strings.Contains(page, journeyAlternateAccount) || strings.Contains(page, "Calendar ready") {
+		t.Error("signed-out Soccer page showed the owner's Google connection")
+	}
+	journey.browser.signIn("/soccer")
+	if got := journey.connectedAccount(t); got != journeyAlternateAccount {
+		t.Fatalf("after signing in again the connected account = %q, want %q", got, journeyAlternateAccount)
+	}
+
+	// Changing to the suggested site account replaces the connection.
+	journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect"), journeySiteAccount)
+	if got := journey.connectedAccount(t); got != journeySiteAccount {
+		t.Fatalf("after changing account the connected account = %q, want %q", got, journeySiteAccount)
+	}
+	if len(journey.store.records) != 1 {
+		t.Errorf("changing the Google account left %d stored connections, want 1", len(journey.store.records))
+	}
+	if page := journey.browser.get("/soccer").Body.String(); strings.Contains(page, "Switch to site account") {
+		t.Error("page offered to switch to the site account that is already connected")
+	}
+}
+
+func TestDisconnectRevokesTheOwnersGoogleAccessWhileSignOutKeepsIt(t *testing.T) {
+	journey := newGoogleAccountJourney(t)
+	journey.browser.signIn("/soccer")
+	journey.consentAs(t, journey.startConsent(t, "/soccer/google/connect"), journeySiteAccount)
+
+	if signOut := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+	if len(journey.store.records) != 1 || len(journey.revoked) != 0 || !journey.holdsGoogleConnectionCookie() {
+		t.Fatalf("site sign-out removed the Google connection: %d stored, %d revoked", len(journey.store.records), len(journey.revoked))
+	}
+
+	journey.browser.signIn("/soccer")
+	disconnect := journey.browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/soccer/google/disconnect", nil))
+	if disconnect.Code != http.StatusOK || !strings.Contains(disconnect.Body.String(), "Not connected") {
+		t.Fatalf("disconnect = %d %q", disconnect.Code, disconnect.Body.String())
+	}
+	if len(journey.store.records) != 0 {
+		t.Errorf("disconnect left %d stored Google connections", len(journey.store.records))
+	}
+	if journey.holdsGoogleConnectionCookie() {
+		t.Error("disconnect left the Google connection cookie in the browser")
+	}
+	if want := "refresh:" + journeySiteAccount; len(journey.revoked) != 1 || journey.revoked[0] != want {
+		t.Errorf("Google received revocations %q, want only the connection's refresh token %q", journey.revoked, want)
+	}
+	if got := journey.connectedAccount(t); got != "" {
+		t.Errorf("after disconnect the page still reports %q connected", got)
 	}
 }

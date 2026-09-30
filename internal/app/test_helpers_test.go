@@ -106,10 +106,25 @@ func newTestApp(t *testing.T) *App {
 		nil,
 	)
 	app.GoogleHandler.Soccer = newTestSoccerHandler(app)
+	withoutLiveGoogle(app)
 	t.Cleanup(func() {
 		app.LoginLimiter.Close()
 	})
 	return app
+}
+
+// unreachableGoogle is a closed loopback address. Tests point Google at it
+// until they attach their own fake, so none can reach live Google.
+const unreachableGoogle = "http://127.0.0.1:1"
+
+// withoutLiveGoogle points every Google endpoint of the test app at a closed
+// loopback address.
+func withoutLiveGoogle(app *App) {
+	app.GoogleHandler.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
+	app.GoogleHandler.OAuthTokenURL = unreachableGoogle + "/oauth/token"
+	app.GoogleHandler.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
+	app.GoogleHandler.OAuthRevokeURL = unreachableGoogle + "/revoke"
+	app.GoogleHandler.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 }
 
 // newTestSoccerHandler returns a handler wired to the test app dependencies.

@@ -63,6 +63,7 @@ func newSiteSignInTestApp(t *testing.T) *App {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	application := New(&cfg, logger)
+	withoutLiveGoogle(application)
 	t.Cleanup(application.LoginLimiter.Close)
 	return application
 }
