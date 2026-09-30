@@ -333,6 +333,7 @@ func teamLookup(t *testing.T, teamID int, fetchedAt time.Time, gameSource string
 // the watched item, as a concurrent request for a shared game would.
 type interleavingAPI struct {
 	*archivetest.Table
+
 	watch     string
 	competing func()
 }
