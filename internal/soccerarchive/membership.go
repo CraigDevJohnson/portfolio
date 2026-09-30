@@ -41,17 +41,50 @@ func (s *DynamoStore) HasPlayerMembership(ctx context.Context, issuer, subject s
 		record.OwnerIssuer == issuer && record.OwnerSubject == subject && record.PlayerID == playerID && record.TeamID == teamID && record.SeasonID == seasonID, nil
 }
 
+// playerRemovalRounds bounds how many times a removal lists and deletes the
+// player's partition while imports of the same player keep adding to it.
+const playerRemovalRounds = 3
+
 // DeletePlayerEvidence removes the complete player partition: the identity,
 // every owner link, and every team-season membership, whichever owner
 // recorded them. Team, season, game, and facility records live under other
 // partitions and are kept. It deletes in reverse key order, so each owner's
 // memberships go before that owner's link and the identity goes last; a
-// failed removal leaves no membership without its identity and owner link,
-// and a retry finishes it. A later import may recollect the player.
+// failed delete leaves no membership without its identity and owner link,
+// and a retry finishes it. An import of the same player can write while the
+// removal runs, so the removal lists the partition again with a consistent
+// read and deletes what it finds. It reports success only once that listing
+// is empty, and reports an error if the partition still holds records after
+// playerRemovalRounds rounds. A later import may recollect the player.
 func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) error {
 	if playerID <= 0 {
 		return errors.New("player removal requires a positive player ID")
 	}
+	for round := 0; ; round++ {
+		keys, err := s.playerEvidenceKeys(ctx, playerID)
+		if err != nil {
+			return err
+		}
+		if len(keys) == 0 {
+			return nil
+		}
+		if round == playerRemovalRounds {
+			return fmt.Errorf("remove player %d evidence: %d records remain after concurrent imports", playerID, len(keys))
+		}
+		// Query returns the partition in ascending key order: META, then each
+		// OWNER#<hash>#META before that owner's OWNER#<hash>#TEAM#... records.
+		slices.Reverse(keys)
+		for _, key := range keys {
+			if _, err := s.api.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: aws.String(s.tableName), Key: key}); err != nil {
+				return fmt.Errorf("remove player %d evidence: %w", playerID, err)
+			}
+		}
+	}
+}
+
+// playerEvidenceKeys lists the keys of the player's partition in ascending
+// key order with a consistent read.
+func (s *DynamoStore) playerEvidenceKeys(ctx context.Context, playerID int) ([]map[string]types.AttributeValue, error) {
 	playerPK := "PLAYER#" + strconv.Itoa(playerID)
 	var startKey map[string]types.AttributeValue
 	keys := make([]map[string]types.AttributeValue, 0)
@@ -65,7 +98,7 @@ func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) er
 			ExclusiveStartKey:         startKey,
 		})
 		if err != nil {
-			return fmt.Errorf("list player %d evidence: %w", playerID, err)
+			return nil, fmt.Errorf("list player %d evidence: %w", playerID, err)
 		}
 		for _, item := range page.Items {
 			var key struct {
@@ -73,7 +106,7 @@ func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) er
 				SK string `dynamodbav:"sk"`
 			}
 			if err := attributevalue.UnmarshalMap(item, &key); err != nil || key.PK != playerPK || key.SK == "" {
-				return fmt.Errorf("invalid player %d evidence key", playerID)
+				return nil, fmt.Errorf("invalid player %d evidence key", playerID)
 			}
 			keys = append(keys, map[string]types.AttributeValue{
 				"pk": &types.AttributeValueMemberS{Value: key.PK},
@@ -81,19 +114,10 @@ func (s *DynamoStore) DeletePlayerEvidence(ctx context.Context, playerID int) er
 			})
 		}
 		if len(page.LastEvaluatedKey) == 0 {
-			break
+			return keys, nil
 		}
 		startKey = page.LastEvaluatedKey
 	}
-	// Query returns the partition in ascending key order: META, then each
-	// OWNER#<hash>#META before that owner's OWNER#<hash>#TEAM#... records.
-	slices.Reverse(keys)
-	for _, key := range keys {
-		if _, err := s.api.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: aws.String(s.tableName), Key: key}); err != nil {
-			return fmt.Errorf("remove player %d evidence: %w", playerID, err)
-		}
-	}
-	return nil
 }
 
 // SavePlayerDiscovery enrolls the known teams, then stores player identities

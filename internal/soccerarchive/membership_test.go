@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+
 	"portfolio/internal/lps"
 	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/types"
@@ -326,5 +328,114 @@ func TestDynamoArchiveRemovesOnePlayerGloballyAndRetainsSharedFacts(t *testing.T
 	}
 	if backend.Item("PLAYER#1001/META") == nil {
 		t.Fatal("later valid import did not restore player identity")
+	}
+}
+
+// importingDuringRemoval is the archive table while another site owner
+// imports the same player during a removal: before the first delete that
+// follows each listing of the partition, it runs that import, at most
+// imports times.
+type importingDuringRemoval struct {
+	*archivetest.Table
+
+	runImport func() error
+	imports   int
+	listed    bool
+}
+
+func (api *importingDuringRemoval) Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	api.listed = true
+	return api.Table.Query(ctx, input, optFns...)
+}
+
+func (api *importingDuringRemoval) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+	if api.listed && api.imports > 0 {
+		api.listed = false
+		api.imports--
+		if err := api.runImport(); err != nil {
+			return nil, fmt.Errorf("concurrent import: %w", err)
+		}
+	}
+	return api.Table.DeleteItem(ctx, input, optFns...)
+}
+
+// removalRace stores the first owner's evidence for player 1001, then
+// returns a store whose removals race the second owner's import of 1001.
+func removalRace(t *testing.T, imports int) (*DynamoStore, *importingDuringRemoval) {
+	t.Helper()
+	api := &importingDuringRemoval{Table: archivetest.NewTable(), imports: imports}
+	store := NewDynamoStoreWithAPI(api, "soccer-history")
+	observedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	discovery := func(subject string, at time.Time, season int) *PlayerDiscovery {
+		return &PlayerDiscovery{
+			OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: subject, ObservedAt: at,
+			Players:     []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Alex"}},
+			KnownTeams:  []lps.TeamSummary{{UTeamID: 4101, Season: season}},
+			Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, Season: season}}},
+		}
+	}
+	if err := store.SavePlayerDiscovery(t.Context(), discovery("first-subject", observedAt, 77)); err != nil {
+		t.Fatal(err)
+	}
+	api.runImport = func() error {
+		return store.SavePlayerDiscovery(t.Context(), discovery("second-subject", observedAt.Add(time.Second), 78))
+	}
+	return store, api
+}
+
+// assertRemovalLeftConsistentEvidence requires a removal either to report
+// success with the player's partition empty, or to report failure with every
+// remaining membership still beside its player identity and owner link.
+func assertRemovalLeftConsistentEvidence(t *testing.T, backend *archivetest.Table, removal error) {
+	t.Helper()
+	items, err := backend.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	remaining := make([]string, 0)
+	for key := range items {
+		if strings.HasPrefix(key, "PLAYER#1001/") {
+			remaining = append(remaining, key)
+		}
+	}
+	if removal == nil {
+		if len(remaining) != 0 {
+			t.Errorf("removal reported success but left the player's records %v", remaining)
+		}
+		return
+	}
+	for _, key := range remaining {
+		sk := strings.TrimPrefix(key, "PLAYER#1001/")
+		owner, _, isMembership := strings.Cut(sk, "#TEAM#")
+		if !isMembership {
+			continue
+		}
+		if items["PLAYER#1001/META"] == nil || items["PLAYER#1001/"+owner+"#META"] == nil {
+			t.Errorf("failed removal left membership %s without its player identity or owner link: %v", key, remaining)
+		}
+	}
+}
+
+func TestPlayerRemovalRacingAnotherOwnersImportLeavesNoOrphanedEvidence(t *testing.T) {
+	store, api := removalRace(t, 1)
+
+	removal := store.DeletePlayerEvidence(t.Context(), 1001)
+
+	if api.imports != 0 {
+		t.Fatal("the second owner's import did not run during the removal")
+	}
+	assertRemovalLeftConsistentEvidence(t, api.Table, removal)
+}
+
+func TestPlayerRemovalReportsFailureWhileImportsKeepAddingEvidence(t *testing.T) {
+	store, api := removalRace(t, 100)
+
+	removal := store.DeletePlayerEvidence(t.Context(), 1001)
+
+	if removal == nil {
+		t.Fatal("removal reported success while another owner's imports kept adding the player's records")
+	}
+	if api.imports == 0 {
+		t.Error("removal kept deleting without a bound on its rounds")
 	}
 }
