@@ -98,3 +98,39 @@ variable "management" {
     error_message = "management must contain only the reviewed development public identity, callbacks, allowlist and EC2 tag."
   }
 }
+
+# LPS history sync (#80). Each is required, so its reviewed value lives in
+# dev.auto.tfvars and a saved plan's apply sees the same input; never pass
+# them with -var. The service module validates them and plans nothing for
+# history until each stage's switches and inputs are all set.
+variable "enable_soccer_history" {
+  description = "Plan the durable Soccer history table and the HTTP runtime's grant to it."
+  type        = bool
+}
+
+variable "soccer_history_limits" {
+  description = "Reviewed source-use and cost ceilings for history collection and the daily worker."
+  type = object({
+    max_enrolled_teams      = number
+    reserved_player_slots   = number
+    max_requests_per_run    = number
+    max_retries_per_team    = number
+    min_request_interval_ms = number
+    worker_timeout_seconds  = number
+  })
+}
+
+variable "activate_soccer_history_collection" {
+  description = "Let the HTTP runtime enroll teams into durable history."
+  type        = bool
+}
+
+variable "activate_soccer_history_schedule" {
+  description = "Plan the daily history worker, its schedule, failure queue and alarms. Applying it starts live LPS polling."
+  type        = bool
+}
+
+variable "soccer_history_schedule_expression" {
+  description = "Reviewed once-daily UTC EventBridge Scheduler expression, or null for no schedule."
+  type        = string
+}

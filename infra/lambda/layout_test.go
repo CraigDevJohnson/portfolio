@@ -43,8 +43,10 @@ var serviceOutputTypes = map[string]any{
 	"oauth_redirect_uris":                       []any{"list", "string"},
 	"soccer_session_table_arn":                  "string",
 	"soccer_session_table_name":                 "string",
+	"soccer_history_schedule_name":              "string",
 	"soccer_history_table_arn":                  "string",
 	"soccer_history_table_name":                 "string",
+	"soccer_history_worker_function_name":       "string",
 	"ssm_parameter_paths":                       []any{"map", "string"},
 }
 
@@ -230,10 +232,13 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		// Each root also plans its site runtime; dev also plans the management
-		// runtime and prod a rejected alarm topic.
-		runOpenTofuTestWithSkippedRuns(t, directory, 3, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-			"reject_other_alarm_topic": true,
+		// Each root also plans its site runtime and every history stage from
+		// its own inputs; dev also plans the management runtime and prod a
+		// rejected alarm topic. The history run adds the worker and Scheduler
+		// roles, which the service module's contract checks.
+		runOpenTofuTestWithSkippedRuns(t, directory, 4, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+			"reject_other_alarm_topic":         true,
+			"history_inputs_reach_the_service": true,
 		})
 	}
 }

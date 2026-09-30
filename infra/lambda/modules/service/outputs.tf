@@ -82,6 +82,14 @@ output "soccer_history_table_arn" {
   value = tostring(one(aws_dynamodb_table.soccer_history[*].arn))
 }
 
+output "soccer_history_worker_function_name" {
+  value = tostring(one(aws_lambda_function.history_worker[*].function_name))
+}
+
+output "soccer_history_schedule_name" {
+  value = tostring(one(aws_scheduler_schedule.history_daily[*].name))
+}
+
 output "ssm_parameter_paths" {
   value = tomap(local.ssm_paths)
 }

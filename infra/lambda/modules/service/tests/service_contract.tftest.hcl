@@ -880,6 +880,8 @@ run "history_disabled_without_reviewed_limits" {
       length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 0 &&
       length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 0 &&
       length(aws_cloudwatch_log_metric_filter.history_manual_admission_rejected) == 0 &&
+      output.soccer_history_worker_function_name == null &&
+      output.soccer_history_schedule_name == null &&
       !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
     )
     error_message = "unset reviewed limits must leave collection and daily scheduling disabled"
@@ -1223,7 +1225,9 @@ run "candidate_schedule_stage_prod" {
       aws_cloudwatch_log_group.history_worker[0].retention_in_days == 30 &&
       aws_scheduler_schedule.history_daily[0].name == "portfolio-lambda-prod-soccer-history-daily" &&
       aws_scheduler_schedule.history_daily[0].schedule_expression == "cron(30 10 * * ? *)" &&
-      aws_sqs_queue.history_dead_letter[0].name == "portfolio-lambda-prod-soccer-history-failures"
+      aws_sqs_queue.history_dead_letter[0].name == "portfolio-lambda-prod-soccer-history-failures" &&
+      output.soccer_history_worker_function_name == "portfolio-lambda-prod-soccer-history" &&
+      output.soccer_history_schedule_name == "portfolio-lambda-prod-soccer-history-daily"
     )
     error_message = "the candidate limits and schedule must plan a bounded prod worker at 10:30 UTC"
   }

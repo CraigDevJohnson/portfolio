@@ -41,6 +41,10 @@ mock_provider "aws" {
     defaults = { arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" }
   }
 
+  mock_resource "aws_sqs_queue" {
+    defaults = { arn = "arn:aws:sqs:us-west-2:111122223333:portfolio-lambda-dev-soccer-history-failures" }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test" }
   }
@@ -152,9 +156,32 @@ run "development_environment_contract" {
   assert {
     condition = (
       output.soccer_history_table_name == null &&
-      output.soccer_history_table_arn == null
+      output.soccer_history_table_arn == null &&
+      output.soccer_history_worker_function_name == null &&
+      output.soccer_history_schedule_name == null
     )
-    error_message = "development must not plan the durable Soccer history table before its activation review"
+    error_message = "development must not plan the durable Soccer history table, worker or schedule before its activation review"
+  }
+
+  # Gates 3 and 4 of the LPS history readiness packet accepted these limits on
+  # September 30, 2026. Whether development collects or runs the daily schedule
+  # is undecided, so every switch is off and it has no schedule.
+  assert {
+    condition = (
+      !var.enable_soccer_history &&
+      !var.activate_soccer_history_collection &&
+      !var.activate_soccer_history_schedule &&
+      var.soccer_history_schedule_expression == null &&
+      var.soccer_history_limits == {
+        max_enrolled_teams      = 40
+        reserved_player_slots   = 30
+        max_requests_per_run    = 120
+        max_retries_per_team    = 1
+        min_request_interval_ms = 1000
+        worker_timeout_seconds  = 300
+      }
+    )
+    error_message = "development must carry the accepted history limits with collection and the schedule off"
   }
 
   assert {
@@ -236,5 +263,40 @@ run "site_runtime_contract" {
   assert {
     condition     = output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY"
     error_message = "development must forward its site identity with a development-only session parameter path"
+  }
+}
+
+# Proves the root hands every history input from dev.auto.tfvars to the
+# service module: switching them on here plans each stage. This is not a
+# reviewed development configuration.
+run "history_inputs_reach_the_service" {
+  command = plan
+
+  variables {
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:alerts"]
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(30 10 * * ? *)"
+  }
+
+  assert {
+    condition = (
+      output.soccer_history_table_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_worker_function_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_schedule_name == "portfolio-lambda-dev-soccer-history-daily" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-dev-api-5xx",
+        "portfolio-lambda-dev-api-latency",
+        "portfolio-lambda-dev-lambda-duration",
+        "portfolio-lambda-dev-lambda-errors",
+        "portfolio-lambda-dev-lambda-throttles",
+        "portfolio-lambda-dev-soccer-history-admission-rejected",
+        "portfolio-lambda-dev-soccer-history-dead-letter",
+        "portfolio-lambda-dev-soccer-history-errors",
+        "portfolio-lambda-dev-soccer-history-incomplete",
+      ])
+    )
+    error_message = "development must pass the history switches, limits and schedule to the service module"
   }
 }
