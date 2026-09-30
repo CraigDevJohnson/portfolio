@@ -310,6 +310,7 @@ func TestSoccerProductionFormsPreserveEndpointsFieldsAndHooks(t *testing.T) {
 		`action="/soccer/download"`, `hx-post="/soccer/google/disconnect"`,
 		`hx-post="/soccer/google/calendar"`, `hx-post="/soccer/google/add"`,
 		`hx-post="/soccer/google/sync-results"`, `href="/soccer/google/connect"`,
+		`href="/soccer/google/connect?account=choose"`,
 		`name="jwt"`, `name="team_codes"`, `name="player_ids"`, `name="team_ids"`,
 		`name="selection_mode" value="teams"`, `name="selected"`, `name="calendar_id"`,
 		`data-open-login-modal`, `data-close-login-modal`, `data-loading-button`,
@@ -646,6 +647,8 @@ func soccerPresentationTestPageProps() pages.SoccerProps {
 		LoginAvailable:           true,
 		GoogleAvailable:          true,
 		GoogleConnected:          true,
+		GoogleSuggestedEmail:     "owner@example.com",
+		GoogleAccountEmail:       "family.calendar@example.net",
 		GoogleCalendarSummary:    "Matchday Calendar",
 		SelectedGoogleCalendarID: "matchday",
 		GoogleCalendars: []types.GoogleCalendarOption{{

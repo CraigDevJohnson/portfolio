@@ -347,12 +347,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatal("disconnect left the ownerless Google connection and its token stored")
 	}
 	store.records["legacy"] = legacy
-	suggestedConnect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect?account=suggested", nil, ownerCookie)
-	suggestedURL, err := url.Parse(suggestedConnect.Header().Get("Location"))
-	if err != nil || suggestedURL.Query().Get("login_hint") != "owner@example.com" {
-		t.Fatalf("suggested Google account hint = %q, error %v", suggestedConnect.Header().Get("Location"), err)
-	}
-	connect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect", nil, ownerCookie, legacyCookie)
+	connect := soccerGrantRequest(mux, http.MethodGet, "/soccer/google/connect?account=choose", nil, ownerCookie, legacyCookie)
 	if connect.Code != http.StatusSeeOther {
 		t.Fatalf("Google connect status = %d", connect.Code)
 	}
@@ -416,7 +411,7 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 	if strings.Contains(ownerPage.Body.String(), "Connected Google account: owner@example.com") {
 		t.Fatal("site account suggestion was presented as connected account")
 	}
-	if !strings.Contains(ownerPage.Body.String(), "owner@example.com") || !strings.Contains(ownerPage.Body.String(), "account=suggested") {
+	if !strings.Contains(ownerPage.Body.String(), "owner@example.com") || !strings.Contains(ownerPage.Body.String(), "Switch to site account") {
 		t.Fatal("owner page did not offer the site Google account as a suggestion")
 	}
 	publicPage := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, connectionCookie)

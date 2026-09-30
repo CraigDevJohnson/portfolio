@@ -129,11 +129,11 @@ func (props *SoccerLoginStateProps) SupportsDiscovery() bool {
 	return props.Authenticated || props.LoginAvailable
 }
 
-// Google Calendar consent paths: the suggested path asks Google to suggest the
-// site sign-in account, and the choose path opens Google's account chooser.
+// Google Calendar consent paths: connecting asks Google to suggest the site
+// sign-in account, and the choose path opens Google's account chooser.
 const (
-	soccerGoogleSuggestedConnectPath = "/soccer/google/connect?account=suggested"
-	soccerGoogleChooseConnectPath    = "/soccer/google/connect"
+	soccerGoogleConnectPath       = "/soccer/google/connect"
+	soccerGoogleChooseAccountPath = "/soccer/google/connect?account=choose"
 )
 
 // GoogleOffersSiteAccount reports whether the connected Google account is not

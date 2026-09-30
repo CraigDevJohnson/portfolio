@@ -271,9 +271,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 			}
 			<div class="soccer-connection-actions">
 				if props.GoogleOffersSiteAccount() {
-					@soccerGoogleConnectAction(soccerGoogleSuggestedConnectPath, "Switch to site account", "btn soccer-secondary-btn", props.Preview)
+					@soccerGoogleConnectAction(soccerGoogleConnectPath, "Switch to site account", "btn soccer-secondary-btn", props.Preview)
 				}
-				@soccerGoogleConnectAction(soccerGoogleChooseConnectPath, "Change Google account", "btn soccer-secondary-btn", props.Preview)
+				@soccerGoogleConnectAction(soccerGoogleChooseAccountPath, "Change Google account", "btn soccer-secondary-btn", props.Preview)
 				<button
 					type="button"
 					class="btn soccer-secondary-btn btn-loading"
@@ -298,11 +298,9 @@ templ SoccerCalendarState(props SoccerLoginStateProps) {
 				}
 			</div>
 			<div class="soccer-connection-actions">
+				@soccerGoogleConnectAction(soccerGoogleConnectPath, "Connect Google Calendar", "btn btn-primary", props.Preview)
 				if props.GoogleSuggestedEmail != "" {
-					@soccerGoogleConnectAction(soccerGoogleSuggestedConnectPath, "Connect Google Calendar", "btn btn-primary", props.Preview)
-					@soccerGoogleConnectAction(soccerGoogleChooseConnectPath, "Use another Google account", "btn soccer-secondary-btn", props.Preview)
-				} else {
-					@soccerGoogleConnectAction(soccerGoogleChooseConnectPath, "Connect Google Calendar", "btn btn-primary", props.Preview)
+					@soccerGoogleConnectAction(soccerGoogleChooseAccountPath, "Use another Google account", "btn soccer-secondary-btn", props.Preview)
 				}
 			</div>
 		}
