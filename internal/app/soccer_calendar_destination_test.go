@@ -74,6 +74,11 @@ type fakeGoogleCalendars struct {
 	// listPageSize, when set, is how many calendars each calendar list page
 	// holds; Google may return fewer than the page size asked for.
 	listPageSize int
+	// stallList, when set, is how long each calendar list request waits
+	// before Google answers, unless the caller gives up first.
+	stallList time.Duration
+	// listRequests counts the calendar list requests received.
+	listRequests int
 	// eventSearchPages, when set, splits the events one search by private
 	// property finds into the pages Google answers with, which may hold
 	// fewer events than asked for, or none, while more follow.
@@ -114,6 +119,19 @@ func newFakeGoogleCalendars(t *testing.T) *fakeGoogleCalendars {
 }
 
 func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/calendar/v3/users/me/calendarList" {
+		fake.mu.Lock()
+		fake.listRequests++
+		stall := fake.stallList
+		fake.mu.Unlock()
+		if stall > 0 {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(stall):
+			}
+		}
+	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
@@ -443,6 +461,18 @@ func (fake *fakeGoogleCalendars) patchCount() int {
 	return len(fake.patches)
 }
 
+func (fake *fakeGoogleCalendars) stallCalendarList(stall time.Duration) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.stallList = stall
+}
+
+func (fake *fakeGoogleCalendars) calendarListRequests() int {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return fake.listRequests
+}
+
 func (fake *fakeGoogleCalendars) refuseCalendarList(refusal *googleRefusal) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
@@ -492,20 +522,9 @@ type calendarDestinationWorld struct {
 func newCalendarDestinationWorld(t *testing.T) *calendarDestinationWorld {
 	t.Helper()
 	cognito := newFakeSiteCognito(t)
-	world := &calendarDestinationWorld{app: cognito.app(t), google: newFakeGoogleCalendars(t)}
+	world := &calendarDestinationWorld{app: cognito.app(t)}
 	world.app.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	world.app.Config.GoogleClientID = "google-client"
-	world.app.Config.GoogleClientSecret = "google-secret"
-	world.app.Config.GoogleConnectionTableName = "connections"
-	world.store = &appTestGoogleConnectionStore{records: map[string]internalgoogle.ConnectionRecord{}}
-	world.app.GoogleHandler.SetStore(world.store)
-
-	google := httptest.NewServer(world.google)
-	t.Cleanup(google.Close)
-	world.app.GoogleHandler.OAuthAuthURL = google.URL + "/oauth/authorize"
-	world.app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
-	world.app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
-	world.app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
+	world.google, world.store = wireFakeGoogleAccount(t, world.app)
 
 	next := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	later := testutil.MislabelledLPSZuluTime(time.Now().Add(48 * time.Hour))
@@ -530,6 +549,26 @@ func newCalendarDestinationWorld(t *testing.T) *calendarDestinationWorld {
 	mux, _ := buildMux(world.app, world.app.Logger, false)
 	world.browser = newSiteBrowser(t, mux)
 	return world
+}
+
+// wireFakeGoogleAccount configures the app's Google Calendar connection
+// against a fake Google account and an in-memory connection store.
+func wireFakeGoogleAccount(t *testing.T, app *App) (*fakeGoogleCalendars, *appTestGoogleConnectionStore) {
+	t.Helper()
+	account := newFakeGoogleCalendars(t)
+	store := &appTestGoogleConnectionStore{records: map[string]internalgoogle.ConnectionRecord{}}
+	app.Config.GoogleClientID = "google-client"
+	app.Config.GoogleClientSecret = "google-secret"
+	app.Config.GoogleConnectionTableName = "connections"
+	app.GoogleHandler.SetStore(store)
+
+	google := httptest.NewServer(account)
+	t.Cleanup(google.Close)
+	app.GoogleHandler.OAuthAuthURL = google.URL + "/oauth/authorize"
+	app.GoogleHandler.OAuthTokenURL = google.URL + "/oauth/token"
+	app.GoogleHandler.OAuthUserInfoURL = google.URL + "/userinfo"
+	app.GoogleHandler.CalendarAPIBaseURL = google.URL + "/calendar/v3"
+	return account, store
 }
 
 // connect signs the visitor in and completes Google Calendar consent as the

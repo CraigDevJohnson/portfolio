@@ -27,14 +27,21 @@ import (
 // DefaultHistoryImportLookupBudget is how long an import that collects
 // linked-player history may spend on LPS lookups, counted from when the
 // request arrives: the /users/check account lookup, then each linked
-// player's my_teams lookup, one at a time. A player LPS has not listed by
-// then is skipped for this import. At most historyWriteTimeout of archive
-// writes and importRecordTimeout for the import record follow, so the
-// import's own work ends within 24 s, the budget Google add and result sync
-// keep, leaving 5 s of API Gateway's 29 s for the Lambda and gateway around
-// it. An import that collects no history is bounded only by the LPS
-// client's timeout, as before.
+// player's my_teams lookup, one at a time in the order LPS lists the
+// players. A player LPS has not listed by then is skipped for this import.
+// At most historyWriteTimeout of archive writes and importRecordTimeout for
+// the import record follow.
 const DefaultHistoryImportLookupBudget = 11 * time.Second
+
+// DefaultHistoryImportBudget bounds the whole of an import that collects
+// linked-player history, counted from when the request arrives. Its
+// response's Google connection check (a connection read, a possible token
+// refresh, and a calendar list) gets what remains after the lookups and
+// writes, so the import's work ends within 24 s, the budget Google add and
+// result sync keep, leaving 5 s of API Gateway's 29 s for the Lambda and
+// gateway around it. An import that collects no history is bounded only by
+// the LPS and Google clients' timeouts, as before.
+const DefaultHistoryImportBudget = DefaultHistoryImportLookupBudget + historyWriteTimeout + importRecordTimeout
 
 const (
 	// historyWriteTimeout bounds saving an import's linked-player history.
@@ -47,7 +54,8 @@ const (
 // the session. When durable collection is wired and the visitor submitted the
 // disclosed import, it first records every linked player's team-season
 // memberships under the site owner and refuses the import if that fails. Its
-// LPS lookups then share one deadline (HistoryImportLookupBudget).
+// LPS lookups then share one deadline (HistoryImportLookupBudget), and its
+// response's Google check ends by the import's own (HistoryImportBudget).
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	arrived := time.Now()
 	if !h.Config.LoginEnabled() {
@@ -138,7 +146,16 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	h.setHTMLContentType(w)
-	loginState := h.LoginStateProps(w, r, &session, true)
+	// Only the Google check shares the import's deadline. The fragment
+	// renders under the request's own context, which templ would refuse
+	// once that deadline had passed.
+	loginStateRequest := r
+	if collecting {
+		checkCtx, stopCheck := context.WithDeadline(r.Context(), arrived.Add(h.historyImportBudget()))
+		defer stopCheck()
+		loginStateRequest = r.WithContext(checkCtx)
+	}
+	loginState := h.LoginStateProps(w, loginStateRequest, &session, true)
 	loginState.ImportNotice = historyNotice
 	if err := partials.SoccerLoginState(loginState).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -160,6 +177,13 @@ func (h *Handler) historyImportLookupBudget() time.Duration {
 		return h.HistoryImportLookupBudget
 	}
 	return DefaultHistoryImportLookupBudget
+}
+
+func (h *Handler) historyImportBudget() time.Duration {
+	if h.HistoryImportBudget > 0 {
+		return h.HistoryImportBudget
+	}
+	return DefaultHistoryImportBudget
 }
 
 // collectLinkedPlayerHistory records every linked player's teams in the

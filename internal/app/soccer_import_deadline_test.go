@@ -10,25 +10,29 @@ import (
 	"portfolio/internal/soccerarchive"
 )
 
-// testLookupBudget stands in for the import's LPS lookup budget, so a test
-// sees the deadline pass without waiting whole seconds.
-const testLookupBudget = 200 * time.Millisecond
+// testLookupBudget and testImportBudget stand in for the import's LPS lookup
+// budget and its whole budget, so a test sees a deadline pass without
+// waiting whole seconds.
+const (
+	testLookupBudget = 200 * time.Millisecond
+	testImportBudget = 2 * testLookupBudget
+)
 
-// importWorkAfterLookups bounds the rest of a test import after its LPS
-// lookups: in-memory archive writes and rendering the response. It is no
+// workPastADeadline bounds what a test import does after a deadline cuts its
+// work short: in-memory archive writes and rendering the response. It is no
 // longer than the lookup budget, so a lookup phase that ran twice its budget
 // would fail the elapsed checks.
-const importWorkAfterLookups = testLookupBudget
+const workPastADeadline = testLookupBudget
 
-// stalledLPSAnswer is how long a stalled fake LPS path waits before it
-// answers anyway, as a slow LPS eventually would. It is longer than any
-// bounded import, so only an unbounded one waits for it.
-const stalledLPSAnswer = 3 * time.Second
+// stalledAnswer is how long a stalled fake LPS or Google path waits before
+// it answers anyway, as a slow service eventually would. It is longer than
+// any bounded import, so only an unbounded one waits for it.
+const stalledAnswer = 3 * time.Second
 
 func TestDisclosedImportSkipsALinkedPlayerLPSHasNotListedByTheLookupDeadline(t *testing.T) {
 	route := newPlayerHistoryRoute(t)
 	route.handler.HistoryImportLookupBudget = testLookupBudget
-	route.stalledPath, route.stallFor = "/players/1002/my_teams", stalledLPSAnswer
+	route.stalledPath, route.stallFor = "/players/1002/my_teams", stalledAnswer
 	owner := route.signedInOwner(t)
 	form := route.disclosedImportForm(t, owner)
 	route.logs.take(t)
@@ -41,7 +45,7 @@ func TestDisclosedImportSkipsALinkedPlayerLPSHasNotListedByTheLookupDeadline(t *
 	if imported.Code != http.StatusOK || !strings.Contains(body, "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
 		t.Fatalf("a linked player LPS did not list in time took the import away: status %d, body %q", imported.Code, body)
 	}
-	if elapsed >= testLookupBudget+importWorkAfterLookups {
+	if elapsed >= testLookupBudget+workPastADeadline {
 		t.Errorf("import took %s, want it bounded by the %s lookup budget", elapsed, testLookupBudget)
 	}
 	title, message := importWarning(t, body)
@@ -94,7 +98,7 @@ func TestDisclosedImportSkipsALinkedPlayerLPSHasNotListedByTheLookupDeadline(t *
 func TestDisclosedImportLooksUpNoFurtherPlayerOnceTheSharedDeadlinePasses(t *testing.T) {
 	route := newPlayerHistoryRoute(t)
 	route.handler.HistoryImportLookupBudget = testLookupBudget
-	route.stalledPath, route.stallFor = "/players/1001/my_teams", stalledLPSAnswer
+	route.stalledPath, route.stallFor = "/players/1001/my_teams", stalledAnswer
 	owner := route.signedInOwner(t)
 	form := route.disclosedImportForm(t, owner)
 	route.logs.take(t)
@@ -107,7 +111,7 @@ func TestDisclosedImportLooksUpNoFurtherPlayerOnceTheSharedDeadlinePasses(t *tes
 	if imported.Code != http.StatusOK || !strings.Contains(body, "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
 		t.Fatalf("linked players LPS did not list in time took the import away: status %d, body %q", imported.Code, body)
 	}
-	if elapsed >= testLookupBudget+importWorkAfterLookups {
+	if elapsed >= testLookupBudget+workPastADeadline {
 		t.Errorf("import took %s, want it bounded by the %s lookup budget", elapsed, testLookupBudget)
 	}
 	if requests := route.lpsRequests("/players/1002/my_teams"); requests != 0 {
@@ -140,7 +144,7 @@ func TestDisclosedImportLooksUpNoFurtherPlayerOnceTheSharedDeadlinePasses(t *tes
 func TestDisclosedImportCountsTheAccountLookupAgainstTheLookupDeadline(t *testing.T) {
 	route := newPlayerHistoryRoute(t)
 	route.handler.HistoryImportLookupBudget = testLookupBudget
-	route.stalledPath, route.stallFor = "/users/check", stalledLPSAnswer
+	route.stalledPath, route.stallFor = "/users/check", stalledAnswer
 	owner := route.signedInOwner(t)
 	form := route.disclosedImportForm(t, owner)
 
@@ -152,7 +156,7 @@ func TestDisclosedImportCountsTheAccountLookupAgainstTheLookupDeadline(t *testin
 	if imported.Code != http.StatusOK || !strings.Contains(body, "Could not reach Let&#39;s Play Soccer to look up your players. Try again in a moment.") || strings.Contains(body, "data-login-success") {
 		t.Fatalf("import past the deadline for its account lookup: status %d, body %q", imported.Code, body)
 	}
-	if elapsed >= testLookupBudget+importWorkAfterLookups {
+	if elapsed >= testLookupBudget+workPastADeadline {
 		t.Errorf("import took %s, want it bounded by the %s lookup budget", elapsed, testLookupBudget)
 	}
 	if findSessionCookie(t, imported.Result()) != nil {
@@ -173,7 +177,7 @@ func TestDisclosedImportNamesALatePlayerAndACapacityRefusalTogether(t *testing.T
 	// One slot: Craig's 4101 is admitted and his 4102 refused.
 	route.limitHistory(t, soccerarchive.Limits{MaxEnrolledTeams: 1, MaxRequestsPerRun: 10, MinRequestInterval: time.Second})
 	route.handler.HistoryImportLookupBudget = testLookupBudget
-	route.stalledPath, route.stallFor = "/players/1002/my_teams", stalledLPSAnswer
+	route.stalledPath, route.stallFor = "/players/1002/my_teams", stalledAnswer
 	owner := route.signedInOwner(t)
 
 	imported := route.disclosedImport(t, owner)
@@ -234,6 +238,46 @@ func TestImportThatCollectsNoHistoryIsNotBoundByTheLookupBudget(t *testing.T) {
 				t.Errorf("import without history collection looked up teams or stored history: %v, %d items", route.requests, route.table.Len())
 			}
 		})
+	}
+}
+
+// Rendering an import's response checks the owner's Google connection. That
+// check runs within what remains of the import's budget, so a slow Google
+// cannot hold a saved import past it, and a check cut short keeps the
+// connection.
+func TestDisclosedImportChecksGoogleWithinTheImportBudget(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	owner := route.signedInOwner(t)
+	google, _ := wireFakeGoogleAccount(t, route.app)
+	completeGoogleConsent(t, owner)
+	form := route.disclosedImportForm(t, owner)
+	route.handler.HistoryImportLookupBudget = testLookupBudget
+	route.handler.HistoryImportBudget = testImportBudget
+	google.stallCalendarList(stalledAnswer)
+	checksBefore := google.calendarListRequests()
+
+	started := time.Now()
+	imported := owner.postForm("/soccer/import", form)
+	elapsed := time.Since(started)
+
+	body := imported.Body.String()
+	if imported.Code != http.StatusOK || !strings.Contains(body, "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("a slow Google check took the import away: status %d, body %q", imported.Code, body)
+	}
+	if google.calendarListRequests() == checksBefore {
+		t.Fatal("the import never checked Google's calendars, so this test no longer exercises a slow check")
+	}
+	if elapsed >= testImportBudget+workPastADeadline {
+		t.Errorf("import took %s, want it bounded by the %s import budget", elapsed, testImportBudget)
+	}
+	if byOwner := route.memberships(t); len(byOwner["stable-subject"]) != len(linkedPlayerMemberships) {
+		t.Errorf("stored memberships = %v, want every linked player's history", byOwner)
+	}
+
+	google.stallCalendarList(0)
+	page := owner.get("/soccer").Body.String()
+	if !strings.Contains(page, calendarAccount) || strings.Contains(page, "Not connected") {
+		t.Error("a Google check the import budget cut short removed the owner's connection")
 	}
 }
 

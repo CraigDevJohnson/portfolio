@@ -60,6 +60,10 @@ type Handler struct {
 	// collects linked-player history. Zero means
 	// DefaultHistoryImportLookupBudget.
 	HistoryImportLookupBudget time.Duration
+	// HistoryImportBudget bounds the whole of an import that collects
+	// linked-player history, through the Google check its response shows.
+	// Zero means DefaultHistoryImportBudget.
+	HistoryImportBudget time.Duration
 
 	storeMu      sync.RWMutex
 	store        SoccerStore
