@@ -67,12 +67,15 @@ import collects the player again; a failed delete keeps the import for a
 retry.
 
 Enrollment has a reviewed capacity. Teams already enrolled keep their daily
-refresh; a new team past capacity is refused, the visitor sees why, and the
-refusal is logged for an alarm. Some slots are reserved for teams a granted
-player import finds, so anonymous Team IDs cannot fill them. A separate
-scheduled worker refreshes every due enrolled team once a day, dormant and
-entered teams included, within a per-run request, retry and pacing budget,
-and reports teams it failed or left for the next run. Without every reviewed
+refresh; a new team past capacity is refused, the visitor sees why, and each
+refusal is logged once for an alarm. A granted import still completes when
+some of its new teams are refused: it keeps the other teams' history and names
+the teams it could not add. Some slots are reserved for teams a granted player
+import finds, so anonymous Team IDs cannot fill them. A separate scheduled
+worker attempts every enrolled team at each daily run, dormant and entered
+teams included, whenever they were last fetched, within a per-run request,
+retry, pacing and time budget. It reports each team it refreshed or failed,
+and each due team it left for the next run and why. Without every reviewed
 limit there is no collection and no worker; see
 [infra/lambda/README.md](infra/lambda/README.md#soccer-history-collection-and-daily-refresh).
 

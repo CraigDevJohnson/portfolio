@@ -32,10 +32,13 @@ type Limits struct {
 // maxRetriesPerTeam caps the reviewed retry budget for one team's attempt.
 const maxRetriesPerTeam = 5
 
-// Validate rejects missing or internally inconsistent limits. A run's request
-// ceiling must allow at least one attempt for every team the enrollment
-// ceiling admits, so a full archive still gives each enrolled team a daily
-// attempt.
+// Validate rejects missing or internally inconsistent limits. The request
+// ceiling must be at least the enrollment ceiling, which guarantees only one
+// request per enrolled team. A team really costs its team request, one lookup
+// per facility its games use, and any retries, so the #104 activation review
+// must size MaxRequestsPerRun to at least MaxEnrolledTeams times the measured
+// per-team request cost. Below that, a full archive cannot reach every
+// enrolled team each day, and each run reports the teams it left.
 func (limits Limits) Validate() error {
 	if limits.MaxEnrolledTeams <= 0 || limits.ReservedPlayerSlots < 0 || limits.ReservedPlayerSlots >= limits.MaxEnrolledTeams ||
 		limits.MaxRequestsPerRun < limits.MaxEnrolledTeams || limits.MaxRetriesPerTeam < 0 || limits.MaxRetriesPerTeam > maxRetriesPerTeam ||

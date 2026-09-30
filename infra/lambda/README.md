@@ -42,8 +42,14 @@ application itself refuses to build a history store or worker without every
 reviewed limit. Supplying limits alone activates nothing.
 
 Before any stage is applied, the #104 activation review must settle source use,
-measured traffic and cost, the numeric limits and the schedule, and must also
-change resources this module does not own:
+measured traffic and cost, the numeric limits and the schedule.
+`max_requests_per_run` must be at least `max_enrolled_teams` times the measured
+requests one team costs: its team request, one lookup per facility its games
+use, and retries. The module and the application check only one request per
+team, so below that a full archive cannot reach every enrolled team each day,
+and each run reports the teams it left.
+
+The review must also change settings and resources this module does not own:
 
 - `PortfolioLambdaExecutionBoundary` (`ci-roles/boundary.tf`) grants none of
   the history table, its `due-teams` index, the worker and Scheduler roles, the
@@ -56,5 +62,11 @@ change resources this module does not own:
 - `scripts/check-lambda-plan.sh` accepts a release plan only when the service
   function image and `live` alias change. Once the worker exists, its image
   changes with every release, so the check must also accept that change.
+- The worker reserves one concurrent execution, so a repeated delivery never
+  runs alongside the first. Lambda keeps 100 executions unreserved, and the
+  workloads account's concurrency limit is still 10 (aws-setup #30), which is
+  why both environments run the app unreserved. The schedule stage can't be
+  applied until that limit covers 100 unreserved plus every reservation: prod's
+  planned 10 and the worker's 1.
 
 Local OpenTofu tests use a mocked provider and create no resources.

@@ -67,14 +67,18 @@ resource "aws_iam_role_policy" "history_worker" {
 }
 
 resource "aws_lambda_function" "history_worker" {
-  count                          = local.history_schedule_enabled ? 1 : 0
-  function_name                  = "${local.function_name}-soccer-history"
-  role                           = aws_iam_role.history_worker[0].arn
-  package_type                   = "Image"
-  architectures                  = ["x86_64"]
-  image_uri                      = local.image_uri
-  memory_size                    = var.lambda_memory_mb
-  timeout                        = var.soccer_history_limits.worker_timeout_seconds
+  count         = local.history_schedule_enabled ? 1 : 0
+  function_name = "${local.function_name}-soccer-history"
+  role          = aws_iam_role.history_worker[0].arn
+  package_type  = "Image"
+  architectures = ["x86_64"]
+  image_uri     = local.image_uri
+  memory_size   = var.lambda_memory_mb
+  timeout       = var.soccer_history_limits.worker_timeout_seconds
+  # One execution at a time, so a repeated or re-driven delivery never runs
+  # alongside the first and spends the day's request budget twice. The
+  # account's concurrency limit must leave room for it before this stage is
+  # applied; see infra/lambda/README.md.
   reserved_concurrent_executions = 1
   publish                        = true
 
