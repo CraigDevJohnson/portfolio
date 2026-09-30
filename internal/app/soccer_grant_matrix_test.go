@@ -23,6 +23,10 @@ const (
 	grantWorldPendingState = "pending-google-state"
 	otherSiteSubject       = "other-subject"
 	otherSiteEmail         = "visitor@example.com"
+	// refusedFacilityTeamID is a public team whose game is at a facility the
+	// fake LPS refuses to describe with 401; refusedFacilityGameID is that game.
+	refusedFacilityTeamID = "4109"
+	refusedFacilityGameID = "7009"
 )
 
 // soccerGrantWorld is the real route assembly with site identity read from a
@@ -67,6 +71,11 @@ func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
 			_, _ = w.Write([]byte(`[{"UTeamID":4101,"team_name":"Craig FC","Season":169}]`))
 		case "/teams/4101":
 			_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":7001,"SchedGameDateTime":%q,"field_name":"Field 3","UTeam1":4101,"UTeam2":4102,"home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":4102,"team_name":"Rivals"},"Season":169}]}`, future)
+		case "/teams/" + refusedFacilityTeamID:
+			_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":%[1]s,"SchedGameDateTime":%[2]q,"field_name":"Field 9","FacilityID":55,"UTeam1":%[3]s,"UTeam2":4102,"home_team":{"UTeamID":%[3]s,"team_name":"Far Venue FC"},"visitor_team":{"UTeamID":4102,"team_name":"Rivals"},"Season":169}]}`, refusedFacilityGameID, future, refusedFacilityTeamID)
+		case "/facilities/55":
+			// LPS refuses to describe this facility to a request without a token.
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 		default:
 			t.Errorf("unexpected LPS request %s", r.URL.Path)
 			http.NotFound(w, r)

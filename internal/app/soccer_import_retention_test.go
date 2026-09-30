@@ -258,3 +258,46 @@ func TestAnotherSiteOwnerInTheSameBrowserCannotRecoverTheImport(t *testing.T) {
 		t.Error("the original owner recovered an import another owner's visit discarded")
 	}
 }
+
+func TestTeamIDLookupThatLPSRefusesKeepsTheRetainedImport(t *testing.T) {
+	for _, visitor := range []struct {
+		name     string
+		timedOut bool
+	}{{name: "owner timed out", timedOut: true}, {name: "owner signed in"}} {
+		for _, lookup := range []struct {
+			path string
+			form url.Values
+		}{
+			{path: "/soccer/fetch", form: url.Values{"team_codes": {refusedFacilityTeamID}}},
+			{path: "/soccer/download", form: url.Values{"team_codes": {refusedFacilityTeamID}, "selected": {refusedFacilityGameID}}},
+		} {
+			t.Run(visitor.name+lookup.path, func(t *testing.T) {
+				world, browser := newRetainedImportBrowser(t)
+				if visitor.timedOut {
+					browser.expireSiteSession()
+				}
+				calls := world.lpsCredentialCalls.Load()
+
+				// The lookup never sends the imported token, so LPS refusing one of
+				// its facilities says nothing about the import.
+				refused := browser.postForm(lookup.path, lookup.form)
+				if strings.Contains(refused.Body.String(), "token was rejected") {
+					t.Error("a refusal of a request without the token was reported as a rejected import")
+				}
+				if cookie := findSessionCookie(t, refused.Result()); cookie != nil {
+					t.Errorf("a Team ID lookup LPS refused replaced the retained import: %#v", cookie)
+				}
+				if world.lpsCredentialCalls.Load() != calls {
+					t.Error("the Team ID lookup sent the imported LPS credential")
+				}
+
+				if visitor.timedOut {
+					browser.signIn("/soccer")
+				}
+				if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), importedAccessShown) {
+					t.Error("the owner lost a still-valid import to a Team ID lookup LPS refused")
+				}
+			})
+		}
+	}
+}
