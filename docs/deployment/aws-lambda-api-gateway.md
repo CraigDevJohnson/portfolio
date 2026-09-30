@@ -76,9 +76,11 @@ Register each environment's HTTPS URL ending in `/soccer` as a Google OAuth
 redirect URI (`oauth_redirect_uris` output). Google returns the callback to that
 same route.
 
-The Lambda resources do not pass `MGMT_*` settings unless the development
-`management` input is set, which no environment does. The optional portal is
-therefore unavailable on the Lambda path.
+The Lambda resources pass no `SITE_*` settings, so neither site sign-in nor the
+management portal that follows it is available on the Lambda path. The
+development `management` input, which no environment sets, still controls the
+portal's read-only IAM grants; the application ignores the retired `MGMT_*`
+identity values it would also pass.
 
 ## Verify an environment
 

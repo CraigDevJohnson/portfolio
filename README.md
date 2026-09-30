@@ -143,8 +143,8 @@ that table.
 ### Site sign-in
 
 Site sign-in uses Cognito's Google federation and a separate encrypted session
-cookie. It can be configured without the management portal or AWS management
-clients. Set `SITE_SESSION_KEY` (a 64-character lowercase hex key),
+cookie. It does not depend on the management portal's AWS clients: if they
+cannot be created, sign-in still works and the portal routes stay unregistered. Set `SITE_SESSION_KEY` (a 64-character lowercase hex key),
 `SITE_COGNITO_DOMAIN`, `SITE_COGNITO_ISSUER`, `SITE_COGNITO_CLIENT_ID`,
 `SITE_COGNITO_REDIRECT_URI`, `SITE_COGNITO_LOGOUT_URI`, and
 `SITE_INVITATIONS_JSON` in each environment. The callback URL must end in
@@ -198,7 +198,10 @@ to `us-east-1`.
 
 The shared site Cognito callback and logout URL must be registered before
 configuring the portal in an environment. Existing management-only Cognito
-registration and `MGMT_*` identity settings do not activate this flow.
+registration and `MGMT_*` identity settings do not activate this flow. The
+application ignores `MGMT_SESSION_KEY`, `MGMT_COGNITO_*`,
+`MGMT_ALLOWED_EMAILS`, and `MGMT_ALLOW_LOCAL_CALLBACK`, and logs one warning
+naming any that remain set.
 
 The runtime AWS identity needs these actions:
 
@@ -211,6 +214,9 @@ The runtime AWS identity needs these actions:
 The development dashboard enables start, stop and restart only for instances
 tagged `PortfolioManagement=dev`, subject to their lifecycle state. Other
 instances remain visible with read-only metrics and logs; IAM enforces actions.
+The deployed runtime role grants only `ec2:DescribeInstances` and
+`cloudwatch:GetMetricStatistics` (D22), so start, stop, restart, and log reads
+report a failure there even for an account with the `management` grant.
 
 For a mock review that constructs no Cognito or AWS clients, run:
 
@@ -222,10 +228,12 @@ Then open the `/mgmt` URL printed at startup (port `8080` by default). Preview
 mode requires a loopback listener and is unavailable in the Lambda handler.
 It also serves `/__preview/account/signed-out` and
 `/__preview/account/signed-in`, which render the About page with each shared
-navigation account state, and `/__preview/account/soccer-signed-out`,
+navigation account state; `/__preview/account/soccer-signed-out`,
 `/__preview/account/soccer-ungranted`, and `/__preview/account/soccer-granted`,
-which render an inert Soccer page for each `soccer` grant state; preview mode
-never enables real site sign-in.
+which render an inert Soccer page for each `soccer` grant state; and
+`/__preview/portal/error?fixture=access-denied`, the denial a signed-in account
+without the `management` grant receives. Preview mode never enables real site
+sign-in.
 
 ## Soccer import flow
 

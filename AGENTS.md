@@ -36,10 +36,11 @@
 - Tailwind source: `cmd/web/tailwind/*.css` and `cmd/web/tailwind/pages/*.css`; generated output: `cmd/web/static/css/tailwind.css` (gitignored)
 - `Dockerfile` builds the local/Compose server image; `Dockerfile.lambda` builds
   the managed Lambda image.
-- `internal/portal` contains the optional Cognito-authenticated EC2 management
-  portal, including instance actions, CloudWatch metrics, and CloudWatch Logs.
-  It is disabled in both environments, and its Lambda role has no EC2 start/stop
-  or instance log grants (D22).
+- `internal/portal` contains the optional EC2 management portal, including
+  instance actions, CloudWatch metrics, and CloudWatch Logs. It follows site
+  sign-in and admits only the current `management` grant. No environment
+  supplies site sign-in, so it is disabled in both, and its Lambda role has no
+  EC2 start/stop or instance log grants (D22).
 - See `.github/instructions/templ.instructions.md` and `.github/instructions/tailwind.instructions.md` for detailed authoring rules
 
 ## Gotchas
@@ -52,7 +53,9 @@
   `SITE_INVITATIONS_JSON`; a `mgmt_session` cookie grants nothing.
 - Site OAuth uses `/sign-in`, `/auth/callback`, and `/sign-out`. The old portal
   `/login`, `/callback`, and `/logout` routes are retired in normal and preview
-  modes. `MGMT_AWS_REGION` defaults to `us-east-1`.
+  modes. `MGMT_SESSION_KEY`, `MGMT_COGNITO_*`, `MGMT_ALLOWED_EMAILS`, and
+  `MGMT_ALLOW_LOCAL_CALLBACK` are retired: config logs one warning and ignores
+  them. `MGMT_AWS_REGION` still defaults to `us-east-1`.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`
 

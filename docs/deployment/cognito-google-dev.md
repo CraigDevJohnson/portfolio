@@ -5,6 +5,12 @@ saved plans, provider logs, and plan JSON can contain the Google client secret.
 Never put those artifacts in Git, chat, CI artifacts, or release workflow logs.
 Auth provisioning is an operator task, separate from Lambda release jobs.
 
+The application no longer uses this management-only pool. The portal follows
+site sign-in (`/sign-in`, `/auth/callback`, `/sign-out`) and the `management`
+grant in `SITE_INVITATIONS_JSON`; it ignores the `MGMT_SESSION_KEY` and
+`MGMT_COGNITO_*` values this runbook hands off, and `/callback` and `/login`
+are no longer routes. Completing this runbook cannot activate the portal.
+
 ## Live prerequisites and approvals
 
 The pool is **not provisioned** in the workloads account. The dated records
