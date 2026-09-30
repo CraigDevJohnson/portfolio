@@ -105,6 +105,13 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	h.RenderWorkflowReset(w, r, nil)
 }
 
+// ClearImportedAccess removes retained imported LPS access from the browser.
+// Explicit site sign-out calls it; a site-session timeout does not, so the
+// same owner can use a still-valid import after signing in again.
+func (h *Handler) ClearImportedAccess(w http.ResponseWriter, r *http.Request) {
+	h.clearSession(w, r)
+}
+
 func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	cookie, err := r.Cookie(config.LPSSessionCookieName)
 	if errors.Is(err, http.ErrNoCookie) {

@@ -64,7 +64,6 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
 	mux.HandleFunc("POST /sign-in", siteHandler.LoginHandler)
 	mux.HandleFunc("GET "+siteauth.CallbackPath, siteHandler.CallbackHandler)
-	mux.HandleFunc("POST /sign-out", siteHandler.LogoutHandler)
 
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
@@ -75,6 +74,13 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		rootLogger.With(slog.String("component", "soccer")),
 	)
 	app.GoogleHandler.Soccer = soccerHandler
+
+	// Explicit site sign-out also clears dependent features' browser state:
+	// imported LPS access. The owner-bound Google connection is retained.
+	mux.HandleFunc("POST /sign-out", func(w http.ResponseWriter, r *http.Request) {
+		soccerHandler.ClearImportedAccess(w, r)
+		siteHandler.LogoutHandler(w, r)
+	})
 
 	// portfolio routes
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
