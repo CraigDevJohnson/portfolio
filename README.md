@@ -27,10 +27,13 @@ invited site account with the current `soccer` grant can also:
 
 Imported sessions can optionally write DynamoDB audit baselines.
 The encrypted LPS import cookie stays in the same browser until the JWT expires,
-for at most 12 hours. Linked-player access requires the same site identity and
+for at most 12 hours; a JWT without a valid expiry is rejected. It is bound to
+the importing site identity, and linked-player access requires that identity and
 the current `soccer` grant. A site-session timeout hides the import until that
-identity signs in again; site sign-out or Clear import removes it. Public Team ID
-lookup and ICS download do not require an imported credential.
+identity signs in again. Site sign-out, Clear import, and expiry remove it, as
+does a Soccer visit by another signed-in site account. An anonymous Team ID
+lookup saves its choices only in a cookie that ends with the browser session,
+and never replaces a retained import.
 
 The management portal uses the invited site session and its current
 `management` grant. With site identity configured, it can list EC2 instances,
@@ -170,8 +173,9 @@ When site sign-in is configured, shared navigation links to `GET /sign-in`
 with a local return path; without complete configuration it shows no sign-in
 entry. The landing page starts Google sign-in only on `POST /sign-in`; Cognito
 returns to `GET /auth/callback`. Return paths must be local, and a return path
-to the callback itself falls back to `/`. `POST /sign-out` clears the session
-and pending OAuth state before ending the Cognito managed-login journey. A
+to the callback itself falls back to `/`. `POST /sign-out` clears the session,
+pending OAuth state, and imported LPS access before ending the Cognito
+managed-login journey. A
 denied, uninvited identity is offered **Use a different account**, which uses
 that sign-out path so the next attempt does not reuse the same managed login.
 A stale callback leaves an existing valid session in place. Public
@@ -338,7 +342,7 @@ configured; the landing page then reports that sign-in is unavailable:
 | `GET` | `/sign-in` | Signed-out landing and local return destination |
 | `POST` | `/sign-in` | Start Google-federated Cognito sign-in |
 | `GET` | `/auth/callback` | Complete site sign-in |
-| `POST` | `/sign-out` | Clear browser session and end managed login |
+| `POST` | `/sign-out` | Clear site session and imported LPS access; end managed login |
 
 HTMX and form endpoints:
 
