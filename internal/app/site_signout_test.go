@@ -45,7 +45,7 @@ func newSignedInOwnerBrowser(t *testing.T, world *soccerGrantWorld) (*siteBrowse
 	browser.jar.SetCookies(browser.origin, []*http.Cookie{testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail)})
 
 	before := browser.get("/soccer").Body.String()
-	if !strings.Contains(before, "Imported for this session") || !strings.Contains(before, "Calendar ready") {
+	if !strings.Contains(before, importedAccessShown) || !strings.Contains(before, "Calendar ready") {
 		t.Fatal("signed-in owner did not start with imported access and a Google connection")
 	}
 	return browser, soccerURL
@@ -68,11 +68,11 @@ func TestSiteSignOutClearsImportedAccessAndPendingConsentButKeepsGoogleConnectio
 		if cookie.Path == config.SoccerCookiePath && cookie.Value == "" && cookie.MaxAge < 0 {
 			cleared[cookie.Name] = true
 		}
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == ownerGoogleConnectionName {
 			t.Errorf("sign-out changed the owner's Google connection cookie: %#v", cookie)
 		}
 	}
-	for _, name := range []string{config.LPSSessionCookieName, config.GoogleOAuthStateCookieName} {
+	for _, name := range []string{config.LPSSessionCookieName, config.LPSImportGuardCookieName, config.GoogleOAuthStateCookieName} {
 		if !cleared[name] {
 			t.Errorf("sign-out did not clear %s", name)
 		}
@@ -81,14 +81,14 @@ func TestSiteSignOutClearsImportedAccessAndPendingConsentButKeepsGoogleConnectio
 	for _, cookie := range browser.jar.Cookies(soccerURL) {
 		held[cookie.Name] = true
 	}
-	if held[config.LPSSessionCookieName] || held[config.GoogleOAuthStateCookieName] || !held[config.GoogleConnectionCookieName] {
+	if held[config.LPSSessionCookieName] || held[config.LPSImportGuardCookieName] || held[config.GoogleOAuthStateCookieName] || !held[ownerGoogleConnectionName] {
 		t.Fatalf("browser Soccer cookies after sign-out = %v, want only the Google connection", held)
 	}
 
 	// The owner signs in again in the same browser.
 	browser.jar.SetCookies(browser.origin, []*http.Cookie{testSiteSessionCookie(t, world.app, testSiteSubject, testSiteEmail)})
 	after := browser.get("/soccer").Body.String()
-	if strings.Contains(after, "Imported for this session") {
+	if strings.Contains(after, importedAccessShown) {
 		t.Error("imported LPS access survived site sign-out")
 	}
 	if !strings.Contains(after, "Calendar ready") {
@@ -115,7 +115,7 @@ func TestAnotherSiteCannotSignTheOwnerOut(t *testing.T) {
 		t.Errorf("cross-site sign-out changed cookie %s (Max-Age %d)", cookie.Name, cookie.MaxAge)
 	}
 	page := browser.get("/soccer").Body.String()
-	for _, kept := range []string{testSiteEmail, "Imported for this session", "Calendar ready"} {
+	for _, kept := range []string{testSiteEmail, importedAccessShown, "Calendar ready"} {
 		if !strings.Contains(page, kept) {
 			t.Errorf("cross-site sign-out ended the owner's %q", kept)
 		}
