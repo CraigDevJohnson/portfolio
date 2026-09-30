@@ -8,6 +8,10 @@ import (
 	"golang.org/x/net/html"
 )
 
+// publicSoccerAccessSentence closes every private Soccer access notice. The
+// page hero has already introduced the calendar (.ics) file.
+const publicSoccerAccessSentence = "Team ID lookup and .ics file downloads are still available."
+
 func TestSoccerPageOffersSiteSignInForPrivateActionsOnlyWhereSignInWorks(t *testing.T) {
 	unconfigured := newTestApp(t)
 	mux, _ := buildMux(unconfigured, unconfigured.Logger, false)
@@ -21,6 +25,9 @@ func TestSoccerPageOffersSiteSignInForPrivateActionsOnlyWhereSignInWorks(t *test
 	}
 	if !strings.Contains(body, "site sign-in is not available here") {
 		t.Error("Soccer page did not explain why private actions are unavailable without site sign-in")
+	}
+	if !strings.Contains(body, publicSoccerAccessSentence) || strings.Contains(body, "ICS download") {
+		t.Error("Soccer access notice did not name the public .ics file download as the page introduced it")
 	}
 
 	configured := newTestApp(t)
@@ -93,12 +100,12 @@ func TestSoccerAccessPreviewFixturesShowEachGrantStateLocally(t *testing.T) {
 	}{
 		{
 			name:    "soccer-signed-out",
-			present: []string{"Sign in with an invited account", `<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>`, "Needs Soccer access", "Team IDs"},
+			present: []string{"Sign in with an invited account", `<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>`, "Needs Soccer access", "Team IDs", publicSoccerAccessSentence},
 			gone:    []string{"Import access", "Connect Google Calendar", `action="/sign-out"`},
 		},
 		{
 			name:    "soccer-ungranted",
-			present: []string{"has not been granted", "invited.visitor@example.com", `action="/sign-out"`, "Needs Soccer access", "Team IDs"},
+			present: []string{"has not been granted", "invited.visitor@example.com", `action="/sign-out"`, "Needs Soccer access", "Team IDs", publicSoccerAccessSentence},
 			gone:    []string{"Import access", "Connect Google Calendar", "Sign in for Soccer access"},
 		},
 		{

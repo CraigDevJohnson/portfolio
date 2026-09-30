@@ -100,12 +100,12 @@ func PrivateAccessNotice(ctx context.Context, state *partials.SoccerLoginStatePr
 		return "", false
 	}
 	if _, signedIn := siteidentity.PrincipalFromContext(ctx); signedIn {
-		return "This account has not been granted access to linked players or Google Calendar. Team ID lookup and ICS download are still available.", false
+		return "This account has not been granted access to linked players or Google Calendar. Team ID lookup and .ics file downloads are still available.", false
 	}
 	if !siteidentity.SignInAvailable(ctx) {
-		return "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and ICS download are still available.", false
+		return "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and .ics file downloads are still available.", false
 	}
-	return "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and ICS download are still available.", true
+	return "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and .ics file downloads are still available.", true
 }
 
 // LoginStateProps builds the shared login-state fragment props.
