@@ -706,6 +706,41 @@ func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) 
 	readHistory(t, first, 1001, 4102, 78)
 }
 
+// The site owner is the Cognito issuer and subject, never the email. A new
+// identity signing in with the first owner's email, as a recreated or
+// reassigned account would, gets none of that owner's saved proof.
+func TestSoccerHistoryReadNeverMovesSavedProofToANewIdentityWithTheSameEmail(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4102, oldFCSeason78)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+		t.Fatalf("refresh: %+v", report)
+	}
+	// Craig has left Old FC, so only the owner's saved proof opens season 78.
+	route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+	readHistory(t, owner, 1001, 4102, 78)
+
+	route.cognito.subject = "recreated-subject"
+	successor := route.signedIn(t)
+	route.importLinkedPlayers(t, successor)
+	assertHistoryDenied(t, successor, http.StatusForbidden, 1001, 4102, 78)
+	if body := successor.get(historyPath(1001, 4102, 78)).Body.String(); !strings.Contains(body, "Team-season membership is unverified") {
+		t.Errorf("new identity's read of the former season = %q, want it unverified", body)
+	}
+	readHistory(t, successor, 1001, 4101, 80)
+
+	// The first owner's browser signed in as the new identity loses the import.
+	owner.expireSiteSession()
+	owner.signIn("/soccer")
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+
+	route.cognito.subject = "stable-subject"
+	returning := route.signedIn(t)
+	route.importLinkedPlayers(t, returning)
+	readHistory(t, returning, 1001, 4102, 78)
+}
+
 // A player LPS no longer finds has no current team-seasons, so only earlier
 // proof opens a season; any other season is unverified rather than a failed
 // lookup to retry.
