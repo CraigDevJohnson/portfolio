@@ -264,6 +264,9 @@ class WrapperTests(unittest.TestCase):
         self.identity = dict(Account=c.ACCOUNT, Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsAdmin_123/test')
         self.runtime_output = None
         self.applied = []
+        self.workspace = b'default\n'
+        self.show_plan = None
+        self.moved_backend = False
 
     def use(self, env):
         self.site_env = env
@@ -287,12 +290,16 @@ class WrapperTests(unittest.TestCase):
             site = c.contract(self.site_env)
             if args[2] == 'init':
                 (Path(kwargs['env']['TF_DATA_DIR']) / 'terraform.tfstate').write_text(json.dumps({'backend': {'type': 's3', 'config': {k: v for k, v in site.backend.items() if k != 'type'}}}))
-            elif args[2] == 'workspace': data = b'default\n'
+            elif args[2] == 'workspace': data = self.workspace
             elif args[2] == 'plan':
                 self.assertEqual(kwargs['env']['TF_VAR_google_client_secret'], SENTINEL)
                 Path(args[-1].split('=', 1)[1]).write_bytes(SENTINEL.encode())
                 data = SENTINEL.encode()
-            elif args[2] == 'show': data = json.dumps(fixture(self.site_env)).encode()
+            elif args[2] == 'show':
+                if self.moved_backend:
+                    other = c.contract('prod' if self.site_env == 'dev' else 'dev')
+                    (Path(kwargs['env']['TF_DATA_DIR']) / 'terraform.tfstate').write_text(json.dumps({'backend': {'type': 's3', 'config': {k: v for k, v in other.backend.items() if k != 'type'}}}))
+                data = json.dumps(self.show_plan or fixture(self.site_env)).encode()
             elif args[2] == 'apply': self.applied.append(Path(args[-1]).read_bytes())
             elif args[2] == 'output': data = json.dumps(self.runtime_output).encode()
         return subprocess.CompletedProcess(args, 1 if self.fail_every or (len(args) > 2 and args[2] == self.fail_at) else 0, data, SENTINEL.encode())
@@ -360,9 +367,14 @@ class WrapperTests(unittest.TestCase):
 
     def test_provenance_tamper_before_aws(self):
         self.reviewed_plan()
-        Path(str(self.plan) + '.provenance.json').write_text('{}'); self.calls.clear()
-        _, err = self.invoke('apply')
-        self.assertTrue(err); self.assertFalse(self.calls)
+        recorded = Path(str(self.plan) + '.provenance.json')
+        reviewed = recorded.read_bytes()
+        # The reviewed checksum covers the exact bytes, not only equal JSON.
+        for label, tampered in [('empty', b'{}'), ('reformatted', json.dumps(json.loads(reviewed), indent=2).encode())]:
+            with self.subTest(label=label):
+                recorded.write_bytes(tampered); self.calls.clear()
+                _, err = self.invoke('apply')
+                self.assertTrue(err); self.assertFalse(self.calls)
 
     def test_apply_refuses_another_environments_plan_before_aws(self):
         self.reviewed_plan()
@@ -378,6 +390,7 @@ class WrapperTests(unittest.TestCase):
     def test_identity_or_account_refusal_before_tofu(self):
         for identity in [
             dict(Account='999999999999', Arn='arn:aws:sts::999999999999:assumed-role/AWSReservedSSO_WorkloadsAdmin_123/test'),
+            dict(Account='999999999999', Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsAdmin_123/test'),
             dict(Account=c.ACCOUNT, Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsReadOnly_123/test'),
             dict(Account=c.ACCOUNT, Arn=f'arn:aws:iam::{c.ACCOUNT}:user/admin'),
         ]:
@@ -398,6 +411,46 @@ class WrapperTests(unittest.TestCase):
                 self.calls.clear()
                 _, err = self.invoke(); self.assertTrue(err); self.assertFalse(self.calls)
                 self.env = original
+
+    def fresh_plan(self):
+        self.plan.unlink(missing_ok=True); Path(str(self.plan) + '.provenance.json').unlink(missing_ok=True)
+        self.workspace, self.show_plan, self.moved_backend = b'default\n', None, False
+
+    def test_non_default_workspace_refused_before_other_tofu_calls(self):
+        self.runtime_output = reviewed_runtime()
+        for mode in ['init', 'plan', 'export', 'apply']:
+            with self.subTest(mode=mode):
+                self.fresh_plan()
+                if mode == 'apply': self.reviewed_plan()
+                self.workspace = b'other\n'; self.calls.clear(); self.applied.clear()
+                out, err = self.invoke(mode)
+                self.assertFalse(out); self.assertTrue(err)
+                self.assertEqual([args[2] for args in self.tofu_calls()], ['init', 'workspace'])
+                self.assertEqual(self.plan.exists(), mode == 'apply')
+                self.assertFalse(self.applied)
+
+    def test_apply_rechecks_the_saved_plan_contract(self):
+        for label, mutate in [
+            ('replacement', lambda p: by_address(p, POOL)['change'].update(actions=['delete', 'create'])),
+            ('callback', lambda p: by_address(p, CLIENT)['change']['after'].update(callback_urls=['https://evil.example/auth/callback'])),
+            ('extra resource', lambda p: p['resource_changes'].append(dict(by_address(p, POOL), address='module.site.aws_iam_role.unrelated'))),
+        ]:
+            with self.subTest(label=label):
+                self.fresh_plan(); self.reviewed_plan()
+                self.show_plan = fixture(self.site_env); mutate(self.show_plan)
+                self.calls.clear(); self.applied.clear()
+                out, err = self.invoke('apply')
+                self.assertFalse(out); self.assertTrue(err); self.assertFalse(self.applied)
+                self.assertEqual([args[2] for args in self.tofu_calls()], ['init', 'workspace', 'show'])
+
+    def test_backend_moved_during_plan_or_apply_is_refused(self):
+        self.reviewed_plan()
+        self.moved_backend = True; self.calls.clear()
+        out, err = self.invoke('apply')
+        self.assertFalse(out); self.assertTrue(err); self.assertFalse(self.applied)
+        self.plan.unlink(); Path(str(self.plan) + '.provenance.json').unlink()
+        out, err = self.invoke('plan')
+        self.assertFalse(out); self.assertTrue(err); self.assertFalse(self.plan.exists())
 
     def test_private_directory_checks_before_aws(self):
         link = self.root.parent / (self.root.name + '-link')
