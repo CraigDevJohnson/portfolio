@@ -151,6 +151,7 @@ func loadProductionLikeSite(t *testing.T, pool *fakeSitePool, origin, sessionKey
 	} {
 		t.Setenv(name, value)
 	}
+	isolateAWSEnvironment(t)
 	previousLogger := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	cfg := config.Load()
@@ -160,9 +161,9 @@ func loadProductionLikeSite(t *testing.T, pool *fakeSitePool, origin, sessionKey
 	}
 	application := New(&cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(application.LoginLimiter.Close)
-	if application.PortalHandler != nil {
-		t.Fatal("site sign-in unexpectedly depends on management AWS clients")
-	}
+	// Site sign-in also builds the management portal (#87). Drop its AWS
+	// clients so this journey proves site identity does not depend on them.
+	application.PortalHandler = nil
 	mux, _ := buildMux(application, application.Logger, false)
 	return &productionLikeSite{app: application, mux: mux, pool: pool, origin: origin}
 }
