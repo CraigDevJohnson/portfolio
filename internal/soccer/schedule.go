@@ -264,6 +264,9 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
 	props.FetchError = true
+	var classified *lps.FetchError
+	props.RetryLater = !errors.Is(fetchErr, ErrSessionExpired) &&
+		(!errors.As(fetchErr, &classified) || classified.Kind == lps.ErrorUpstream)
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
 		detail = lps.ScheduleErrorDetails{
@@ -277,6 +280,10 @@ func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr 
 	}
 	props.Message = detail.FeedbackMessage
 	props.Hint = detail.FeedbackHint
+	if props.RetryLater && len(props.PlayerIDs) == 0 {
+		// The shared hint suggests switching to Team IDs, which a manual lookup already uses.
+		props.Hint = manualLookupRetryHint
+	}
 	return detail.ClearSession
 }
 

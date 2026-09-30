@@ -34,9 +34,12 @@ func (props *SoccerTableFragmentProps) emptyState() soccerEmptyState {
 	} else {
 		state.Hint = "Check your team IDs and try again later."
 	}
-	if len(props.PlayerIDs) > 0 {
+	switch {
+	case len(props.PlayerIDs) > 0:
 		state.NextStep = "Confirm that your selected players and teams are still current, then fetch again."
-	} else {
+	case props.RetryLater:
+		state.NextStep = "Your Team IDs are still entered above; fetch their schedules again in a moment."
+	default:
 		state.NextStep = "Check your Team IDs, then fetch their schedules again."
 	}
 	return state

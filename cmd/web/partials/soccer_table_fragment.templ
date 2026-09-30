@@ -18,6 +18,9 @@ type SoccerTableFragmentProps struct {
 	Message         string
 	Hint            string
 	FetchError      bool
+	// RetryLater marks a fetch that failed because Let's Play Soccer was
+	// unavailable, so repeating the same request later may succeed.
+	RetryLater      bool
 	GoogleAvailable bool
 	GoogleConnected bool
 	GoogleFeedback  *SoccerLoginFeedbackProps

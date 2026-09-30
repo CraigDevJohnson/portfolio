@@ -36,6 +36,7 @@ const (
 	invalidPlayersHint    = "Clear the imported players and import again to refresh the discovered player list."
 	invalidTeamIDsMessage = "One or more team IDs were invalid."
 	invalidTeamIDsHint    = "Enter numeric Let's Play Soccer team IDs separated by commas."
+	manualLookupRetryHint = "Let's Play Soccer may be unavailable. Try again in a moment."
 )
 
 // Handler owns the soccer auth and schedule handlers.
