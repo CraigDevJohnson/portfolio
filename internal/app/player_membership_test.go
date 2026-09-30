@@ -320,3 +320,30 @@ func TestSoccerImportWithoutTheHistoryDisclosureCollectsNothing(t *testing.T) {
 		t.Errorf("undisclosed import stored %d durable items", stored)
 	}
 }
+
+func TestSoccerImportWithoutDurableCollectionMakesNoHistoryClaimAndCollectsNothing(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	// The production route assembly wires no durable archive until the
+	// activation review enables it.
+	route.handler.SetArchiveStore(nil)
+	owner := route.signedInOwner(t)
+
+	page := owner.get("/soccer")
+	body := page.Body.String()
+	if page.Code != http.StatusOK || !strings.Contains(body, "Import access") {
+		t.Fatalf("granted Soccer page did not offer import: status %d", page.Code)
+	}
+	for _, claim := range []string{"soccer-history-notice", `name="history_notice"`, "indefinitely", "History collection"} {
+		if strings.Contains(body, claim) {
+			t.Errorf("page without durable collection contains %q", claim)
+		}
+	}
+
+	imported := owner.postForm("/soccer/import", url.Values{"jwt": {route.jwt}, "history_notice": {"indefinite"}})
+	if imported.Code != http.StatusOK || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("import without durable collection failed: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	if route.lpsRequests("/players/1001/my_teams") != 0 || route.lpsRequests("/players/1002/my_teams") != 0 {
+		t.Errorf("import without durable collection looked up linked players' teams: %v", route.requests)
+	}
+}
