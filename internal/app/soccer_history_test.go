@@ -7,278 +7,564 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/lps"
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
 )
 
-type historyProofKey struct {
-	issuer, subject            string
-	playerID, teamID, seasonID int
+// teamHistoryRoute is the real route assembly with fake Cognito site
+// sign-in, a fake LPS whose linked players, player teams and team schedules
+// a test can change, and the durable archive over an in-memory DynamoDB
+// table, as an approved activation would wire it.
+type teamHistoryRoute struct {
+	cognito *fakeSiteCognito
+	app     *App
+	mux     http.Handler
+	handler *internalsoccer.Handler
+	table   *archivetest.Table
+	store   *soccerarchive.DynamoStore
+	jwt     string
+	lpsURL  string
+
+	mu sync.Mutex
+	// account is the /users/check response for the imported JWT.
+	account string
+	// playerTeams is each linked player's /players/{id}/my_teams response.
+	playerTeams map[int]string
+	// teams is each team's /teams/{id} response; teamFailures answers a
+	// team's lookup with that HTTP status instead.
+	teams        map[int]string
+	teamFailures map[int]int
 }
 
-type fakeHistoryArchive struct {
-	history      soccerarchive.TeamSeason
-	proofs       map[historyProofKey]bool
-	readErr      error
-	reads        int
-	refresh      soccerarchive.RefreshState
-	refreshErr   error
-	refreshReads int
-}
-
-func (*fakeHistoryArchive) SaveTeamSnapshot(context.Context, *soccerarchive.Snapshot) error {
-	return nil
-}
-
-func (archive *fakeHistoryArchive) HasPlayerMembership(_ context.Context, issuer, subject string, playerID, teamID, seasonID int) (bool, error) {
-	return archive.proofs[historyProofKey{issuer, subject, playerID, teamID, seasonID}], nil
-}
-
-func (archive *fakeHistoryArchive) ReadTeamSeason(context.Context, int, int) (soccerarchive.TeamSeason, error) {
-	archive.reads++
-	return archive.history, archive.readErr
-}
-
-func (archive *fakeHistoryArchive) ReadRefreshState(context.Context, int) (soccerarchive.RefreshState, error) {
-	archive.refreshReads++
-	return archive.refresh, archive.refreshErr
-}
-
-func TestSoccerHistoryReadCalculatesOnlyNumericScoredGamesForProvenTeamSeason(t *testing.T) {
-	fixture := newFakeSiteCognito(t)
-	application := fixture.app(t)
+// Craig (1001) plays for Craig FC (4101) in LPS season 77 and played for Old
+// FC (4102) in season 78; Taylor (1002) plays for Craig FC in season 77 and
+// for Taylor FC (4202) in season 79.
+func newTeamHistoryRoute(t *testing.T) *teamHistoryRoute {
+	t.Helper()
+	cognito := newFakeSiteCognito(t)
+	application := cognito.app(t)
 	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	token := testutil.TestJWT(t, time.Now().Add(time.Hour))
-	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+token {
-			t.Errorf("LPS call did not use the valid import")
+	route := &teamHistoryRoute{
+		cognito: cognito, app: application, jwt: testutil.TestJWT(t, time.Now().Add(time.Hour)),
+		account: playerHistoryAccount,
+		playerTeams: map[int]string{
+			1001: `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`,
+			1002: `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4202,"team_name":"Taylor FC","Season":79}]`,
+		},
+		teams:        map[int]string{},
+		teamFailures: map[int]int{},
+	}
+	lpsRoutes := http.NewServeMux()
+	lpsRoutes.HandleFunc("GET /users/check", func(w http.ResponseWriter, r *http.Request) {
+		if route.authorized(w, r) {
+			_, _ = fmt.Fprint(w, route.lpsAccount())
 		}
-		switch r.URL.Path {
-		case "/users/check":
-			_, _ = fmt.Fprint(w, `{"players":[{"UPlayerID":1001,"FirstName":"Sam"}],"user_players":[{"player_id":1001}]}`)
-		case "/players/1001/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Sam FC","Season":77}]`)
+	})
+	lpsRoutes.HandleFunc("GET /players/{id}/my_teams", func(w http.ResponseWriter, r *http.Request) {
+		if !route.authorized(w, r) {
+			return
+		}
+		playerID, _ := strconv.Atoi(r.PathValue("id"))
+		route.mu.Lock()
+		teams, found := route.playerTeams[playerID]
+		route.mu.Unlock()
+		if !found {
+			http.Error(w, "player not found", http.StatusNotFound)
+			return
+		}
+		_, _ = fmt.Fprint(w, teams)
+	})
+	lpsRoutes.HandleFunc("GET /teams/{id}", func(w http.ResponseWriter, r *http.Request) {
+		teamID, _ := strconv.Atoi(r.PathValue("id"))
+		route.mu.Lock()
+		schedule, found := route.teams[teamID]
+		failure := route.teamFailures[teamID]
+		route.mu.Unlock()
+		switch {
+		case failure != 0:
+			http.Error(w, "team lookup failed", failure)
+		case found:
+			_, _ = fmt.Fprint(w, schedule)
 		default:
-			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			t.Errorf("unexpected LPS team lookup %s", r.URL.Path)
 			http.NotFound(w, r)
 		}
-	}))
+	})
+	lpsRoutes.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected LPS request %s %s", r.Method, r.URL.Path)
+		http.NotFound(w, r)
+	})
+	lpsServer := httptest.NewServer(lpsRoutes)
 	t.Cleanup(lpsServer.Close)
+	route.lpsURL = lpsServer.URL
 	application.Config.LPSAPIBaseURL = lpsServer.URL
-	mux, handler := buildMux(application, application.Logger, false)
-	archive := &fakeHistoryArchive{refresh: soccerarchive.RefreshState{TeamID: 4101, Status: soccerarchive.RefreshReady}, history: soccerarchive.TeamSeason{
-		Team: lps.TeamSummary{UTeamID: 4101, TeamName: "Sam FC", Season: 77},
-		Coverage: soccerarchive.Coverage{
-			Status: soccerarchive.CoverageFetched, FetchedAt: time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC), ReturnedGameCount: 9,
-		},
-		Games: []lps.TeamScheduleGame{
-			{UGameID: 1, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2025-01-01T18:00:00Z", Result: "3 - 1"},
-			{UGameID: 2, Season: 77, UTeam1: 5, UTeam2: 4101, SchedGameDateTime: "2025-01-02T18:00:00Z", Result: "1 - 2"},
-			{UGameID: 3, Season: 77, UTeam1: 5, UTeam2: 4101, SchedGameDateTime: "2025-01-03T18:00:00Z", Result: "4 - 0"},
-			{UGameID: 4, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2025-01-04T18:00:00Z", Result: "2 - 2"},
-			{UGameID: 5, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2025-01-05T18:00:00Z", Result: "canceled"},
-			{UGameID: 6, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2025-01-06T18:00:00Z"},
-			{UGameID: 7, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2025-01-07T18:00:00Z", Result: "Final"},
-			{UGameID: 8, Season: 77, UTeam1: 4101, UTeam2: 5, SchedGameDateTime: "2099-01-01T18:00:00Z"},
-			{UGameID: 9, Season: 77, SchedGameDateTime: "2025-01-09T18:00:00Z", Result: "8 - 0", HomeTeam: lps.TeamSummary{TeamName: "Sam FC"}, VisitorTeam: lps.TeamSummary{TeamName: "Rivals"}},
-		},
-	}}
-	handler.SetArchiveStore(archive)
-	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
-	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	imported := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
-	if imported.Code != http.StatusOK {
-		t.Fatalf("import failed: %d: %s", imported.Code, imported.Body.String())
-	}
-	lpsCookie, guardCookie := findSessionCookie(t, imported.Result()), findImportGuardCookie(imported.Result())
-	if lpsCookie == nil || guardCookie == nil {
-		t.Fatal("valid LPS import cookies missing")
-	}
+	route.mux, route.handler = buildMux(application, application.Logger, false)
+	route.table = archivetest.NewTable()
+	route.store = soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history")
+	route.handler.SetArchiveStore(route.store)
+	return route
+}
 
-	response := soccerGrantRequest(mux, http.MethodGet, "/soccer/history?player_id=1001&team_id=4101&season_id=77", nil, ownerCookie, lpsCookie, guardCookie)
+func (route *teamHistoryRoute) authorized(w http.ResponseWriter, r *http.Request) bool {
+	if r.Header.Get("Authorization") != "Bearer "+route.jwt {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+func (route *teamHistoryRoute) lpsAccount() string {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	return route.account
+}
+
+// setPlayerTeams changes what LPS returns for a player's current teams.
+func (route *teamHistoryRoute) setPlayerTeams(playerID int, teams string) {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	route.playerTeams[playerID] = teams
+}
+
+// setTeam changes what LPS returns for a team's schedule lookup.
+func (route *teamHistoryRoute) setTeam(teamID int, schedule string) {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	route.teams[teamID] = schedule
+	delete(route.teamFailures, teamID)
+}
+
+// failTeam makes LPS answer a team's schedule lookup with status.
+func (route *teamHistoryRoute) failTeam(teamID, status int) {
+	route.mu.Lock()
+	defer route.mu.Unlock()
+	route.teamFailures[teamID] = status
+}
+
+// signedIn signs a new browser in through the fake Cognito as whoever the
+// fake identity currently names.
+func (route *teamHistoryRoute) signedIn(t *testing.T) *siteBrowser {
+	t.Helper()
+	browser := newSiteBrowser(t, route.mux)
+	if landing := browser.signIn("/soccer"); landing.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-in status = %d", landing.Code)
+	}
+	return browser
+}
+
+// importLinkedPlayers submits the import dialog's form, which discloses
+// indefinite linked-player history, so the import records the linked
+// players' team-season memberships under the signed-in owner.
+func (route *teamHistoryRoute) importLinkedPlayers(t *testing.T, browser *siteBrowser) {
+	t.Helper()
+	imported := browser.postForm("/soccer/import", url.Values{
+		"jwt":                             {route.jwt},
+		partials.SoccerHistoryNoticeField: {partials.SoccerHistoryNoticeIndefinite},
+	})
+	if imported.Code != http.StatusOK || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("linked-player import: status %d, body %q", imported.Code, imported.Body.String())
+	}
+}
+
+// refreshTeams runs the on-demand refresh worker against the fake LPS as of at.
+func (route *teamHistoryRoute) refreshTeams(t *testing.T, at time.Time, teamIDs ...int) soccerarchive.RefreshReport {
+	t.Helper()
+	source := lps.NewScheduleResolver(route.lpsURL, route.app.LPSClient, "")
+	return soccerarchive.NewRefreshWorker(route.store, source, func() time.Time { return at }).Run(context.Background(), teamIDs)
+}
+
+// historyPath is the private history read for one player-team-season.
+func historyPath(playerID, teamID, seasonID int) string {
+	return fmt.Sprintf("/soccer/history?player_id=%d&team_id=%d&season_id=%d", playerID, teamID, seasonID)
+}
+
+// teamSeasonHistory is the read contract as a stats view would decode it.
+type teamSeasonHistory struct {
+	PlayerID    int `json:"player_id"`
+	TeamID      int `json:"team_id"`
+	LPSSeasonID int `json:"lps_season_id"`
+	Team        struct {
+		UTeamID      int    `json:"UTeamID"`
+		TeamName     string `json:"team_name"`
+		DivisionName string `json:"division_name"`
+		Season       int    `json:"Season"`
+	} `json:"team"`
+	Coverage struct {
+		Status            string     `json:"status"`
+		FetchedAt         *time.Time `json:"fetched_at"`
+		ReturnedGameCount int        `json:"returned_game_count"`
+	} `json:"coverage"`
+	Refresh *struct {
+		Status              string     `json:"status"`
+		LastAttemptAt       *time.Time `json:"last_attempt_at"`
+		NextDueAt           *time.Time `json:"next_due_at"`
+		LastErrorKind       string     `json:"last_error_kind"`
+		LastErrorStatusCode int        `json:"last_error_status_code"`
+	} `json:"refresh"`
+	Record struct {
+		Label        string `json:"label"`
+		Wins         int    `json:"wins"`
+		Losses       int    `json:"losses"`
+		Draws        int    `json:"draws"`
+		ScoredGames  int    `json:"scored_games"`
+		Unclassified int    `json:"unclassified"`
+	} `json:"record"`
+	Games []struct {
+		Game struct {
+			UGameID int    `json:"UGameID"`
+			Result  string `json:"result"`
+		} `json:"game"`
+		Classification string `json:"classification"`
+	} `json:"games"`
+}
+
+// readHistory requires an authorized read and decodes its body.
+func readHistory(t *testing.T, browser *siteBrowser, playerID, teamID, seasonID int) teamSeasonHistory {
+	t.Helper()
+	response := browser.get(historyPath(playerID, teamID, seasonID))
 	if response.Code != http.StatusOK {
-		t.Fatalf("history read = %d: %s", response.Code, response.Body.String())
+		t.Fatalf("history read for player %d team %d season %d: status %d, body %q", playerID, teamID, seasonID, response.Code, response.Body.String())
 	}
-	var body struct {
-		PlayerID    int `json:"player_id"`
-		TeamID      int `json:"team_id"`
-		LPSSeasonID int `json:"lps_season_id"`
-		Team        struct {
-			TeamName string `json:"team_name"`
-		} `json:"team"`
-		Coverage struct {
-			Status            string    `json:"status"`
-			FetchedAt         time.Time `json:"fetched_at"`
-			ReturnedGameCount int       `json:"returned_game_count"`
-		} `json:"coverage"`
-		Refresh struct {
-			Status              string    `json:"status"`
-			LastAttemptAt       time.Time `json:"last_attempt_at"`
-			NextDueAt           time.Time `json:"next_due_at"`
-			LastErrorKind       string    `json:"last_error_kind"`
-			LastErrorStatusCode int       `json:"last_error_status_code"`
-		} `json:"refresh"`
-		Record struct {
-			Label        string `json:"label"`
-			Wins         int    `json:"wins"`
-			Losses       int    `json:"losses"`
-			Draws        int    `json:"draws"`
-			ScoredGames  int    `json:"scored_games"`
-			Unclassified int    `json:"unclassified"`
-		} `json:"record"`
-		Games []struct {
-			Game struct {
-				ID int `json:"UGameID"`
-			} `json:"game"`
-			Classification string `json:"classification"`
-		} `json:"games"`
+	if got := response.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Errorf("history read Cache-Control = %q, want private, no-store", got)
 	}
-	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+	var history teamSeasonHistory
+	if err := json.Unmarshal(response.Body.Bytes(), &history); err != nil {
 		t.Fatalf("decode history: %v: %s", err, response.Body.String())
 	}
-	if body.PlayerID != 1001 || body.TeamID != 4101 || body.LPSSeasonID != 77 || body.Team.TeamName != "Sam FC" {
-		t.Fatalf("wrong history identity: %+v", body)
+	return history
+}
+
+// classifications maps each returned game ID to its classification.
+func (history *teamSeasonHistory) classifications() map[int]string {
+	byGame := make(map[int]string, len(history.Games))
+	for _, game := range history.Games {
+		byGame[game.Game.UGameID] = game.Classification
 	}
-	if body.Coverage.Status != "fetched" || !body.Coverage.FetchedAt.Equal(time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)) || body.Coverage.ReturnedGameCount != 9 {
-		t.Fatalf("wrong coverage: %+v", body.Coverage)
-	}
-	if body.Refresh.Status != "ready" || archive.refreshReads != 1 {
-		t.Fatalf("wrong refresh state: %+v, reads %d", body.Refresh, archive.refreshReads)
-	}
-	if body.Record.Label != "Calculated from numeric game scores; not official standings" || body.Record.Wins != 2 || body.Record.Losses != 1 || body.Record.Draws != 1 || body.Record.ScoredGames != 4 || body.Record.Unclassified != 4 {
-		t.Fatalf("wrong scored record: %+v", body.Record)
-	}
-	if len(body.Games) != 8 || body.Games[0].Game.ID != 1 || body.Games[1].Classification != "win" || body.Games[4].Classification != "unclassified" || body.Games[6].Classification != "unclassified" || body.Games[7].Classification != "unclassified" || archive.reads != 1 {
-		t.Fatalf("wrong completed games or read count: games %+v, reads %d", body.Games, archive.reads)
+	return byGame
+}
+
+// craigFCSeason77 is Craig FC's LPS schedule: every kind of season-77 result,
+// one future game, and one game from the next season.
+const craigFCSeason77 = `{"team":{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},"games":[
+{"UGameID":7001,"Season":77,"UTeam1":4101,"UTeam2":5001,"SchedGameDateTime":"2026-01-05T19:00:00Z","result":"3 - 1"},
+{"UGameID":7002,"Season":77,"UTeam1":5002,"UTeam2":4101,"SchedGameDateTime":"2026-01-12T19:00:00Z","result":"1 - 2"},
+{"UGameID":7003,"Season":77,"UTeam1":5003,"UTeam2":4101,"SchedGameDateTime":"2026-01-19T19:00:00Z","result":"4 - 0"},
+{"UGameID":7004,"Season":77,"UTeam1":4101,"UTeam2":5004,"SchedGameDateTime":"2026-01-26T19:00:00Z","result":"2 - 2"},
+{"UGameID":7005,"Season":77,"UTeam1":4101,"UTeam2":5005,"SchedGameDateTime":"2026-02-02T19:00:00Z","result":"canceled"},
+{"UGameID":7006,"Season":77,"UTeam1":5006,"UTeam2":4101,"SchedGameDateTime":"2026-02-09T19:00:00Z","result":""},
+{"UGameID":7007,"Season":77,"UTeam1":4101,"UTeam2":5007,"SchedGameDateTime":"2026-02-16T19:00:00Z","result":"Final"},
+{"UGameID":7008,"Season":77,"UTeam1":4101,"UTeam2":5008,"SchedGameDateTime":"2026-02-23T19:00:00Z","result":"Forfeit"},
+{"UGameID":7009,"Season":77,"SchedGameDateTime":"2026-03-02T19:00:00Z","result":"8 - 0","home_team":{"team_name":"Craig FC"},"visitor_team":{"team_name":"Rivals"}},
+{"UGameID":7010,"Season":77,"UTeam1":4101,"UTeam2":5001,"SchedGameDateTime":"2099-03-09T19:00:00Z","result":""},
+{"UGameID":7011,"Season":78,"UTeam1":4101,"UTeam2":5001,"SchedGameDateTime":"2026-04-06T19:00:00Z","result":"5 - 0"}]}`
+
+func TestSoccerHistoryReadCountsOnlyNumericScoresFromTheTeamsSide(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, craigFCSeason77)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	fetchedAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if report := route.refreshTeams(t, fetchedAt, 4101); !report.Complete {
+		t.Fatalf("refresh of Craig FC: %+v", report)
 	}
 
-	archive.history.Coverage.Status = soccerarchive.CoverageNotFetched
-	archive.history.Coverage.ReturnedGameCount = 0
-	archive.refresh = soccerarchive.RefreshState{
-		TeamID: 4101, Status: soccerarchive.RefreshRetryable,
-		LastAttemptAt: time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC),
-		NextDueAt:     time.Date(2026, 9, 27, 12, 5, 0, 0, time.UTC),
-		LastErrorKind: lps.ErrorUpstream, LastErrorStatusCode: http.StatusServiceUnavailable,
-	}
-	failed := soccerGrantRequest(mux, http.MethodGet, "/soccer/history?player_id=1001&team_id=4101&season_id=77", nil, ownerCookie, lpsCookie, guardCookie)
-	if failed.Code != http.StatusOK || json.Unmarshal(failed.Body.Bytes(), &body) != nil {
-		t.Fatalf("failed collection read = %d: %s", failed.Code, failed.Body.String())
-	}
-	if body.Coverage.Status != "not_fetched" || body.Coverage.ReturnedGameCount != 0 || body.Refresh.Status != "retryable_failure" || body.Refresh.LastErrorKind != "upstream" || body.Refresh.LastErrorStatusCode != http.StatusServiceUnavailable || !body.Refresh.LastAttemptAt.Equal(time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)) || !body.Refresh.NextDueAt.Equal(time.Date(2026, 9, 27, 12, 5, 0, 0, time.UTC)) || len(body.Games) != 8 {
-		t.Fatalf("failure hid retained games or collection context: %+v", body)
-	}
+	history := readHistory(t, owner, 1001, 4101, 77)
 
-	archive.history.Games = nil
-	archive.history.Coverage = soccerarchive.Coverage{Status: soccerarchive.CoverageFetched, FetchedAt: time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)}
-	archive.refresh = soccerarchive.RefreshState{TeamID: 4101, Status: soccerarchive.RefreshReady}
-	empty := soccerGrantRequest(mux, http.MethodGet, "/soccer/history?player_id=1001&team_id=4101&season_id=77", nil, ownerCookie, lpsCookie, guardCookie)
-	if empty.Code != http.StatusOK || json.Unmarshal(empty.Body.Bytes(), &body) != nil {
-		t.Fatalf("empty season read = %d: %s", empty.Code, empty.Body.String())
+	if history.PlayerID != 1001 || history.TeamID != 4101 || history.LPSSeasonID != 77 ||
+		history.Team.UTeamID != 4101 || history.Team.TeamName != "Craig FC" || history.Team.DivisionName != "Open A" || history.Team.Season != 77 {
+		t.Errorf("history identity = player %d team %d season %d, team %+v", history.PlayerID, history.TeamID, history.LPSSeasonID, history.Team)
 	}
-	if body.Coverage.Status != "fetched" || body.Coverage.ReturnedGameCount != 0 || body.Refresh.Status != "ready" || len(body.Games) != 0 {
-		t.Fatalf("fetched empty season resembled a failure: %+v", body)
+	if history.Coverage.Status != "fetched" || history.Coverage.FetchedAt == nil || !history.Coverage.FetchedAt.Equal(fetchedAt) || history.Coverage.ReturnedGameCount != 10 {
+		t.Errorf("coverage = %+v, want season 77's ten games fetched at %s", history.Coverage, fetchedAt)
+	}
+	if history.Refresh == nil || history.Refresh.Status != "ready" || history.Refresh.LastAttemptAt == nil || !history.Refresh.LastAttemptAt.Equal(fetchedAt) ||
+		history.Refresh.NextDueAt == nil || !history.Refresh.NextDueAt.Equal(fetchedAt.Add(24*time.Hour)) || history.Refresh.LastErrorKind != "" {
+		t.Errorf("refresh = %+v, want a ready team attempted at %s", history.Refresh, fetchedAt)
+	}
+	record := history.Record
+	if record.Label != "Calculated from numeric game scores; not official standings" ||
+		record.Wins != 2 || record.Losses != 1 || record.Draws != 1 || record.ScoredGames != 4 || record.Unclassified != 5 {
+		t.Errorf("record = %+v, want 2-1-1 from four scored games with five unclassified", record)
+	}
+	want := map[int]string{
+		7001: "win", 7002: "win", 7003: "loss", 7004: "draw",
+		7005: "unclassified", 7006: "unclassified", 7007: "unclassified", 7008: "unclassified", 7009: "unclassified",
+	}
+	if got := history.classifications(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("completed games = %v, want %v", got, want)
 	}
 }
 
-func TestSoccerHistoryReadRequiresCurrentOwnerImportAndExactMembership(t *testing.T) {
-	fixture := newFakeSiteCognito(t)
-	application := fixture.app(t)
-	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
-	token := testutil.TestJWT(t, time.Now().Add(time.Hour))
-	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+token {
-			t.Errorf("LPS call did not use the valid import")
-		}
-		switch r.URL.Path {
-		case "/users/check":
-			_, _ = fmt.Fprint(w, `{"players":[{"UPlayerID":1001,"FirstName":"Sam"}],"user_players":[{"player_id":1001}]}`)
-		case "/players/1001/my_teams":
-			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Sam FC","Season":78},{"UTeamID":4102,"team_name":"Sam FC","Season":77}]`)
-		default:
-			t.Errorf("unexpected LPS request %s", r.URL.Path)
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(lpsServer.Close)
-	application.Config.LPSAPIBaseURL = lpsServer.URL
-	mux, handler := buildMux(application, application.Logger, false)
-	archive := &fakeHistoryArchive{
-		proofs:  map[historyProofKey]bool{{fixture.issuer, "stable-subject", 1001, 4101, 77}: true},
-		history: soccerarchive.TeamSeason{Team: lps.TeamSummary{UTeamID: 4101, Season: 77}, Coverage: soccerarchive.Coverage{Status: soccerarchive.CoverageNotFetched}},
-		refresh: soccerarchive.RefreshState{TeamID: 4101, Status: soccerarchive.RefreshReady},
-	}
-	handler.SetArchiveStore(archive)
-	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
-	ownerCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	imported := soccerGrantRequest(mux, http.MethodPost, "/soccer/import", url.Values{"jwt": {token}}, ownerCookie)
-	if imported.Code != http.StatusOK {
-		t.Fatalf("import failed: %d: %s", imported.Code, imported.Body.String())
-	}
-	lpsCookie, guardCookie := findSessionCookie(t, imported.Result()), findImportGuardCookie(imported.Result())
-	if lpsCookie == nil || guardCookie == nil {
-		t.Fatal("valid LPS import cookies missing")
-	}
-	read := func(path string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
-		t.Helper()
-		return soccerGrantRequest(mux, http.MethodGet, path, nil, cookies...)
-	}
-	const formerSeason = "/soccer/history?player_id=1001&team_id=4101&season_id=77"
-	if got := read(formerSeason, lpsCookie, guardCookie); got.Code != http.StatusUnauthorized {
-		t.Errorf("signed-out read = %d, want 401", got.Code)
-	}
-	if got := read(formerSeason, ownerCookie); got.Code != http.StatusUnauthorized {
-		t.Errorf("read without LPS import = %d, want 401", got.Code)
-	}
-	application.Config.SiteInvitations["owner@example.com"] = nil
-	if got := read(formerSeason, ownerCookie, lpsCookie, guardCookie); got.Code != http.StatusForbidden {
-		t.Errorf("revoked-grant read = %d, want 403", got.Code)
-	}
-	application.Config.SiteInvitations["owner@example.com"] = []string{"soccer"}
-	fixture.subject = "different-subject"
-	otherStateCookie, otherState := beginSiteSignIn(t, mux, "/soccer")
-	otherCookie := siteCookie(t, completeSiteSignIn(t, mux, otherStateCookie, otherState))
-	if got := read(formerSeason, otherCookie, lpsCookie, guardCookie); got.Code != http.StatusUnauthorized {
-		t.Errorf("different-owner read = %d, want 401", got.Code)
-	}
-	for _, path := range []string{
-		"/soccer/history?player_id=1002&team_id=4101&season_id=77",
-		"/soccer/history?player_id=1001&team_id=4101&season_id=79",
-		"/soccer/history?player_id=1001&team_id=4102&season_id=78",
-		"/soccer/history?player_id=1001&team_id=4103&season_id=77",
-	} {
-		if got := read(path, ownerCookie, lpsCookie, guardCookie); got.Code != http.StatusForbidden {
-			t.Errorf("unproven %s = %d, want 403", path, got.Code)
-		}
-	}
-	if archive.reads != 0 {
-		t.Fatalf("denied reads accessed stored games %d times", archive.reads)
-	}
-	former := read(formerSeason, ownerCookie, lpsCookie, guardCookie)
-	if former.Code != http.StatusOK || !strings.Contains(former.Body.String(), `"status":"not_fetched"`) || !strings.Contains(former.Body.String(), `"games":[]`) || archive.reads != 1 {
-		t.Fatalf("former season with stored proof was unavailable: status %d, body %s, reads %d", former.Code, former.Body.String(), archive.reads)
-	}
-	archive.readErr = soccerarchive.ErrNoArchive
-	archive.refreshErr = soccerarchive.ErrNotEnrolled
-	neverFetched := read(formerSeason, ownerCookie, lpsCookie, guardCookie)
-	if neverFetched.Code != http.StatusOK || !strings.Contains(neverFetched.Body.String(), `"status":"not_fetched"`) || !strings.Contains(neverFetched.Body.String(), `"refresh":null`) || !strings.Contains(neverFetched.Body.String(), `"games":[]`) {
-		t.Fatalf("unfetched authorized season was mistaken for an empty fetch: status %d, body %s", neverFetched.Code, neverFetched.Body.String())
+func TestSoccerHistoryReadTellsAnEmptySeasonFromMissingOrFailedCollection(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, craigFCSeason77)
+	route.setTeam(4202, `{"team":{"UTeamID":4202,"team_name":"Taylor FC","Season":79},"games":[]}`)
+	owner := route.signedIn(t)
+	importedAt := time.Now().UTC()
+	route.importLinkedPlayers(t, owner)
+	fetchedAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if report := route.refreshTeams(t, fetchedAt, 4101, 4202); !report.Complete {
+		t.Fatalf("first refresh: %+v", report)
 	}
 
-	session := decryptTestSession(t, application, lpsCookie.Value)
+	// LPS returned Taylor FC's season with no games.
+	empty := readHistory(t, owner, 1002, 4202, 79)
+	if empty.Coverage.Status != "fetched" || empty.Coverage.FetchedAt == nil || !empty.Coverage.FetchedAt.Equal(fetchedAt) || empty.Coverage.ReturnedGameCount != 0 ||
+		empty.Refresh == nil || empty.Refresh.Status != "ready" || empty.Refresh.LastErrorKind != "" || empty.Games == nil || len(empty.Games) != 0 ||
+		empty.Record.ScoredGames != 0 || empty.Record.Unclassified != 0 {
+		t.Errorf("fetched empty season = %+v", empty)
+	}
+
+	// Old FC is enrolled by the import but no refresh has fetched it yet.
+	pending := readHistory(t, owner, 1001, 4102, 78)
+	if pending.Coverage.Status != "not_fetched" || pending.Coverage.FetchedAt != nil || pending.Coverage.ReturnedGameCount != 0 ||
+		pending.Refresh == nil || pending.Refresh.Status != "ready" || pending.Refresh.LastAttemptAt != nil ||
+		pending.Refresh.NextDueAt == nil || pending.Refresh.NextDueAt.Before(importedAt.Add(-time.Second)) || pending.Refresh.NextDueAt.After(time.Now()) ||
+		len(pending.Games) != 0 {
+		t.Errorf("season awaiting its first collection = %+v", pending)
+	}
+
+	// A later refresh of Craig FC fails upstream, and Old FC's Team ID is
+	// rejected as invalid.
+	failedAt := fetchedAt.Add(24 * time.Hour)
+	route.failTeam(4101, http.StatusServiceUnavailable)
+	route.failTeam(4102, http.StatusNotFound)
+	if report := route.refreshTeams(t, failedAt, 4101, 4102); report.Complete {
+		t.Fatalf("failed refresh reported complete: %+v", report)
+	}
+
+	stale := readHistory(t, owner, 1001, 4101, 77)
+	if stale.Coverage.Status != "fetched" || stale.Coverage.FetchedAt == nil || !stale.Coverage.FetchedAt.Equal(fetchedAt) || stale.Coverage.ReturnedGameCount != 10 {
+		t.Errorf("coverage after a failed refresh = %+v, want the earlier fetch kept", stale.Coverage)
+	}
+	if stale.Refresh == nil || stale.Refresh.Status != "retryable_failure" || stale.Refresh.LastErrorKind != "upstream" || stale.Refresh.LastErrorStatusCode != http.StatusServiceUnavailable ||
+		stale.Refresh.LastAttemptAt == nil || !stale.Refresh.LastAttemptAt.Equal(failedAt) ||
+		stale.Refresh.NextDueAt == nil || !stale.Refresh.NextDueAt.Equal(failedAt.Add(15*time.Minute)) {
+		t.Errorf("refresh after an upstream failure = %+v", stale.Refresh)
+	}
+	if len(stale.Games) != 9 || stale.Record.Wins != 2 || stale.Record.Losses != 1 || stale.Record.Draws != 1 || stale.Record.Unclassified != 5 {
+		t.Errorf("a failed refresh changed the retained games: %d games, record %+v", len(stale.Games), stale.Record)
+	}
+
+	invalid := readHistory(t, owner, 1001, 4102, 78)
+	if invalid.Coverage.Status != "not_fetched" || invalid.Refresh == nil || invalid.Refresh.Status != "invalid_team" ||
+		invalid.Refresh.LastErrorKind != "invalid_team" || invalid.Refresh.LastErrorStatusCode != http.StatusNotFound ||
+		invalid.Refresh.LastAttemptAt == nil || !invalid.Refresh.LastAttemptAt.Equal(failedAt) || invalid.Refresh.NextDueAt != nil {
+		t.Errorf("season of an invalid Team ID = coverage %+v, refresh %+v", invalid.Coverage, invalid.Refresh)
+	}
+}
+
+// assertHistoryDenied requires a read to be refused with status and to
+// disclose no stored game.
+func assertHistoryDenied(t *testing.T, browser *siteBrowser, status, playerID, teamID, seasonID int) {
+	t.Helper()
+	response := browser.get(historyPath(playerID, teamID, seasonID))
+	if response.Code != status || strings.Contains(response.Body.String(), "UGameID") {
+		t.Errorf("read for player %d team %d season %d: status %d, body %q; want %d without history", playerID, teamID, seasonID, response.Code, response.Body.String(), status)
+	}
+}
+
+// storedMembershipSeasons lists the seasons of the stored membership proof
+// for one player and team, whichever owner holds it.
+func (route *teamHistoryRoute) storedMembershipSeasons(t *testing.T, playerID, teamID int) []int {
+	t.Helper()
+	items, err := route.table.Items()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seasons []int
+	for _, item := range items {
+		if item["kind"] == "membership" && intAttribute(item, "player_id") == playerID && intAttribute(item, "team_id") == teamID {
+			seasons = append(seasons, intAttribute(item, "season_id"))
+		}
+	}
+	return seasons
+}
+
+const oldFCSeason78 = `{"team":{"UTeamID":4102,"team_name":"Old FC","Season":78},"games":[
+{"UGameID":7201,"Season":78,"UTeam1":4102,"UTeam2":5001,"SchedGameDateTime":"2025-10-06T19:00:00Z","result":"2 - 0"}]}`
+
+func TestSoccerHistoryReadNeedsExactCurrentOrStoredTeamSeasonProof(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, craigFCSeason77)
+	route.setTeam(4102, oldFCSeason78)
+	// Another team with Craig FC's name plays on Craig FC's dates in the
+	// same LPS season.
+	route.setTeam(4103, `{"team":{"UTeamID":4103,"team_name":"Craig FC","division_name":"Open A","Season":77},"games":[
+{"UGameID":7301,"Season":77,"UTeam1":4103,"UTeam2":5001,"SchedGameDateTime":"2026-01-05T19:00:00Z","result":"6 - 0"}]}`)
+	owner := route.signedIn(t)
+	if lookup := owner.postForm("/soccer/fetch", url.Values{"team_codes": {"4103"}}); !strings.Contains(lookup.Body.String(), "Team 4103 added to history collection.") {
+		t.Fatalf("manual Team ID lookup did not archive team 4103: %q", lookup.Body.String())
+	}
+	route.importLinkedPlayers(t, owner)
+	// The same Team ID entered again is saved with the imported workflow.
+	owner.postForm("/soccer/fetch", url.Values{"team_codes": {"4103"}})
+	if saved := decryptTestSession(t, route.app, owner.cookieValue(config.LPSSessionCookieName, config.SoccerCookiePath)); fmt.Sprint(saved.Workflow.SelectedTeamIDs) != "[4103]" {
+		t.Fatalf("imported workflow Team IDs = %v, want [4103]", saved.Workflow.SelectedTeamIDs)
+	}
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4101, 4102); !report.Complete {
+		t.Fatalf("refresh: %+v", report)
+	}
+	// Craig has moved on: LPS now lists only Craig FC's next season.
+	route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":80}]`)
+
+	// Earlier authenticated proof still opens seasons LPS no longer lists.
+	if former := readHistory(t, owner, 1001, 4102, 78); former.Record.Wins != 1 || former.Record.ScoredGames != 1 || len(former.Games) != 1 {
+		t.Errorf("former Old FC season = %+v", former)
+	}
+	if former := readHistory(t, owner, 1001, 4101, 77); former.Record.Wins != 2 || len(former.Games) != 9 {
+		t.Errorf("former Craig FC season = %+v", former)
+	}
+	// The current lookup alone proves a season no import has stored.
+	if stored := route.storedMembershipSeasons(t, 1001, 4101); fmt.Sprint(stored) != "[77]" {
+		t.Fatalf("stored Craig FC seasons for Craig = %v, want only 77", stored)
+	}
+	if current := readHistory(t, owner, 1001, 4101, 80); current.LPSSeasonID != 80 || current.Coverage.Status != "not_fetched" || len(current.Games) != 0 {
+		t.Errorf("current Craig FC season = %+v", current)
+	}
+
+	for _, unproven := range []struct {
+		name                       string
+		playerID, teamID, seasonID int
+		reason                     string
+	}{
+		{"a season the player's team played without the player", 1001, 4101, 79, "Team-season membership is unverified"},
+		{"another linked player's former team", 1002, 4102, 78, "Team-season membership is unverified"},
+		{"a same-named team on the same dates, entered by Team ID", 1001, 4103, 77, "Team-season membership is unverified"},
+		{"a player this import does not link", 1003, 4101, 77, "Player is not confirmed by this import"},
+	} {
+		t.Run(unproven.name, func(t *testing.T) {
+			assertHistoryDenied(t, owner, http.StatusForbidden, unproven.playerID, unproven.teamID, unproven.seasonID)
+			if body := owner.get(historyPath(unproven.playerID, unproven.teamID, unproven.seasonID)).Body.String(); !strings.Contains(body, unproven.reason) {
+				t.Errorf("denial body = %q, want %q", body, unproven.reason)
+			}
+		})
+	}
+	if route.table.Item("GAME#7301/META") == nil || route.table.Item("TEAM#4103/SEASON#0000000077#GAME#7301") == nil {
+		t.Error("denying the unproven season removed its stored games")
+	}
+}
+
+func TestSoccerHistoryReadNeedsTheCurrentImportToLinkThePlayer(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if taylor := readHistory(t, owner, 1002, 4202, 79); taylor.PlayerID != 1002 {
+		t.Fatalf("Taylor's season = %+v", taylor)
+	}
+
+	// The LPS account no longer links Taylor; the owner imports it again.
+	route.mu.Lock()
+	route.account = `{"first_name":"Craig","last_name":"Johnson","players":[{"UPlayerID":1001,"FirstName":"Craig","LastName":"Johnson","is_main_player":true}],"user_players":[{"player_id":1001}]}`
+	route.mu.Unlock()
+	route.importLinkedPlayers(t, owner)
+
+	assertHistoryDenied(t, owner, http.StatusForbidden, 1002, 4202, 79)
+	if stored := route.storedMembershipSeasons(t, 1002, 4202); fmt.Sprint(stored) != "[79]" {
+		t.Errorf("stored Taylor FC proof for Taylor = %v, want season 79 kept", stored)
+	}
+}
+
+func TestSoccerHistoryReadNeedsTheGrantedSiteSessionAndAValidImport(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4102, oldFCSeason78)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+		t.Fatalf("refresh: %+v", report)
+	}
+	route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+	readHistory(t, owner, 1001, 4102, 78)
+
+	assertHistoryDenied(t, newSiteBrowser(t, route.mux), http.StatusUnauthorized, 1001, 4102, 78)
+
+	// A site-session timeout withholds the retained import until its owner
+	// signs in again.
+	owner.expireSiteSession()
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+	owner.signIn("/soccer")
+	readHistory(t, owner, 1001, 4102, 78)
+
+	route.app.Config.SiteInvitations[testSiteEmail] = nil
+	assertHistoryDenied(t, owner, http.StatusForbidden, 1001, 4102, 78)
+	route.app.Config.SiteInvitations[testSiteEmail] = []string{"soccer"}
+	readHistory(t, owner, 1001, 4102, 78)
+
+	// The import's JWT expires.
+	session := decryptTestSession(t, route.app, owner.cookieValue(config.LPSSessionCookieName, config.SoccerCookiePath))
 	session.JWT = testutil.TestJWT(t, time.Now().Add(-time.Minute))
-	expiredCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, application, &session)}
-	if got := read(formerSeason, ownerCookie, expiredCookie, guardCookie); got.Code != http.StatusUnauthorized || archive.reads != 2 {
-		t.Errorf("expired import read = %d, archive reads %d", got.Code, archive.reads)
+	soccerURL, _ := url.Parse(siteOrigin + config.SoccerCookiePath)
+	owner.jar.SetCookies(soccerURL, []*http.Cookie{{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, route.app, &session), Path: config.SoccerCookiePath}})
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+
+	// Site sign-out ends the import, so signing in again is not enough.
+	route.importLinkedPlayers(t, owner)
+	readHistory(t, owner, 1001, 4102, 78)
+	if signOut := owner.do(browserForm(siteOrigin, "/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("sign-out status = %d", signOut.Code)
 	}
-	signOut := soccerGrantRequest(mux, http.MethodPost, "/sign-out", nil, ownerCookie, lpsCookie, guardCookie)
-	if signOut.Code != http.StatusSeeOther {
-		t.Fatalf("site sign-out = %d", signOut.Code)
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+	owner.signIn("/soccer")
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+}
+
+func TestSoccerHistoryReadNeverUsesAnotherSiteOwnersImportOrProof(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4102, oldFCSeason78)
+	route.app.Config.SiteInvitations[otherSiteEmail] = []string{"soccer"}
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4102); !report.Complete {
+		t.Fatalf("refresh: %+v", report)
 	}
-	assertClearedSessionCookie(t, signOut.Result())
+	route.setPlayerTeams(1001, `[{"UTeamID":4101,"team_name":"Craig FC","Season":80}]`)
+
+	// Another invited account imports the same LPS account after Craig left
+	// Old FC. Only the first owner holds proof of that season.
+	route.cognito.subject, route.cognito.email = otherSiteSubject, otherSiteEmail
+	other := route.signedIn(t)
+	route.importLinkedPlayers(t, other)
+	assertHistoryDenied(t, other, http.StatusForbidden, 1001, 4102, 78)
+	readHistory(t, other, 1001, 4101, 80)
+
+	// The other account signs in to the first owner's browser.
+	owner.expireSiteSession()
+	owner.signIn("/soccer")
+	assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
+	if owner.holdsCookie(config.LPSSessionCookieName, config.SoccerCookiePath) {
+		t.Error("the browser kept the first owner's import for another account")
+	}
+
+	route.cognito.subject, route.cognito.email = "stable-subject", testSiteEmail
+	first := route.signedIn(t)
+	route.importLinkedPlayers(t, first)
+	readHistory(t, first, 1001, 4102, 78)
+}
+
+// The production route assembly wires no durable archive until the #80
+// activation review, so a granted owner with a valid import gets no history.
+func TestSoccerHistoryReadIsUnavailableWithoutTheDurableArchive(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.handler.SetArchiveStore(nil)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+
+	assertHistoryDenied(t, owner, http.StatusServiceUnavailable, 1001, 4101, 77)
+	for _, query := range []string{"player_id=1001&team_id=4101", "player_id=1001&team_id=0&season_id=77", "player_id=x&team_id=4101&season_id=77"} {
+		if response := owner.get("/soccer/history?" + query); response.Code != http.StatusBadRequest {
+			t.Errorf("history read with %q: status %d, want 400", query, response.Code)
+		}
+	}
 }
