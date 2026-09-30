@@ -238,6 +238,45 @@ func TestDynamoArchiveAppliesExplicitNullCorrections(t *testing.T) {
 	}
 }
 
+func TestDynamoArchiveDoesNotMixTeamFactsAfterASideIsReassigned(t *testing.T) {
+	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
+	firstFetch := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
+	for i, response := range []struct {
+		team lps.TeamSummary
+		game string
+	}{
+		{
+			team: lps.TeamSummary{UTeamID: 1, Season: 169},
+			game: `{"UGameID":8001,"Season":169,"UTeam1":1,"UTeam2":2,"home_team":{"UTeamID":1,"team_name":"Old Home","division_name":"Open A","FacilityID":5,"facility_name":"Old Park","Season":169},"visitor_team":{"UTeamID":2,"team_name":"Away FC","Season":169}}`,
+		},
+		{
+			team: lps.TeamSummary{UTeamID: 3},
+			game: `{"UGameID":8001,"UTeam1":3,"home_team":{"UTeamID":3,"team_name":"New Home","Season":169}}`,
+		},
+	} {
+		var game lps.TeamScheduleGame
+		if err := json.Unmarshal([]byte(response.game), &game); err != nil {
+			t.Fatalf("decode LPS game %d: %v", i, err)
+		}
+		snapshot := Snapshot{TeamID: response.team.UTeamID, Team: response.team, Games: []lps.TeamScheduleGame{game}, FetchedAt: firstFetch.Add(time.Duration(i) * time.Hour)}
+		if err := store.SaveTeamSnapshot(context.Background(), &snapshot); err != nil {
+			t.Fatalf("SaveTeamSnapshot %d: %v", i, err)
+		}
+	}
+
+	history, err := store.ReadTeamSeason(context.Background(), 3, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	wantHome := lps.TeamSummary{UTeamID: 3, TeamName: "New Home", Season: 169}
+	if len(history.Games) != 1 || history.Games[0].HomeTeam != wantHome || history.Games[0].VisitorTeam.TeamName != "Away FC" {
+		t.Fatalf("reassigned game = %#v, want home side %#v with no facts from team 1", history.Games, wantHome)
+	}
+	if history.Team != wantHome {
+		t.Fatalf("team 3 season context = %#v, want %#v", history.Team, wantHome)
+	}
+}
+
 func TestDynamoArchiveReadsSeasonSpecificTeamAndFacilityContext(t *testing.T) {
 	store := NewDynamoStoreWithAPI(archivetest.NewTable(), "durable-soccer-history")
 	first := Snapshot{

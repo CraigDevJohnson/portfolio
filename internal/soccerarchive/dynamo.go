@@ -1,7 +1,6 @@
 package soccerarchive
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -235,18 +234,22 @@ func (s *DynamoStore) SaveTeamSnapshot(ctx context.Context, snapshot *Snapshot) 
 	return s.saveTeam(ctx, snapshot, fetchedAt)
 }
 
+// mergeSourceObject lays an incoming LPS game over the stored one. Both
+// describe the same game, keyed by its stable ID, so an omitted field keeps
+// its stored value.
 func mergeSourceObject(previous, incoming []byte) ([]byte, error) {
-	var oldFields map[string]json.RawMessage
-	var newFields map[string]json.RawMessage
-	if err := json.Unmarshal(previous, &oldFields); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(incoming, &newFields); err != nil {
-		return nil, err
-	}
+	oldFields, newFields := sourceObject(previous), sourceObject(incoming)
 	if oldFields == nil || newFields == nil {
 		return nil, errors.New("game source must be a JSON object")
 	}
+	merged, err := mergeSourceFields(oldFields, newFields)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(merged)
+}
+
+func mergeSourceFields(oldFields, newFields map[string]json.RawMessage) (map[string]json.RawMessage, error) {
 	for key, oldValue := range oldFields {
 		// Only an omitted field keeps its old value; an explicit null is an
 		// LPS correction and replaces it.
@@ -255,15 +258,54 @@ func mergeSourceObject(previous, incoming []byte) ([]byte, error) {
 			newFields[key] = oldValue
 			continue
 		}
-		if len(bytes.TrimSpace(oldValue)) > 0 && bytes.TrimSpace(oldValue)[0] == '{' && len(bytes.TrimSpace(newValue)) > 0 && bytes.TrimSpace(newValue)[0] == '{' {
-			merged, err := mergeSourceObject(oldValue, newValue)
-			if err != nil {
-				return nil, err
-			}
-			newFields[key] = merged
+		// A nested object keeps omitted fields only when both versions name
+		// the same LPS entity; a side reassigned to another team replaces the
+		// old team whole instead of inheriting its facts.
+		oldObject, newObject := sourceObject(oldValue), sourceObject(newValue)
+		if oldObject == nil || newObject == nil || !sameSourceEntity(oldObject, newObject) {
+			continue
+		}
+		mergedObject, err := mergeSourceFields(oldObject, newObject)
+		if err != nil {
+			return nil, err
+		}
+		if newFields[key], err = json.Marshal(mergedObject); err != nil {
+			return nil, err
 		}
 	}
-	return json.Marshal(newFields)
+	return newFields, nil
+}
+
+// sourceIdentityKeys are the stable LPS IDs that say which entity a nested
+// source object describes, most specific first.
+var sourceIdentityKeys = []string{"UTeamID", "UGameID", "FacilityID"}
+
+func sameSourceEntity(oldObject, newObject map[string]json.RawMessage) bool {
+	for _, key := range sourceIdentityKeys {
+		oldID, newID := sourceID(oldObject[key]), sourceID(newObject[key])
+		if oldID == 0 && newID == 0 {
+			continue
+		}
+		return oldID == newID
+	}
+	return false
+}
+
+// sourceObject decodes a JSON object, or returns nil for any other value.
+func sourceObject(value []byte) map[string]json.RawMessage {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(value, &fields); err != nil {
+		return nil
+	}
+	return fields
+}
+
+func sourceID(value json.RawMessage) int64 {
+	var id int64
+	if err := json.Unmarshal(value, &id); err != nil || id < 0 {
+		return 0
+	}
+	return id
 }
 
 // ReadTeamSeason returns archived source facts through the team-season index.
