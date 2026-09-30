@@ -23,7 +23,7 @@ import (
 // to an in-memory DynamoDB table, as an approved activation would wire it.
 type archiveRoute struct {
 	app     *App
-	mux     *http.ServeMux
+	mux     http.Handler
 	handler *internalsoccer.Handler
 	table   *archivetest.Table
 	store   *soccerarchive.DynamoStore
