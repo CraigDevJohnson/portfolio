@@ -188,3 +188,90 @@ func TestBuildICSSkipsGamesWithUnparseableStartTime(t *testing.T) {
 		t.Fatal("expected bad-game to be skipped in ICS output")
 	}
 }
+
+// ReplaceCanonicalResult may change only the result slot of the block Add
+// wrote, and only when that block, and nothing else in the description,
+// claims the result.
+func TestReplaceCanonicalResult(t *testing.T) {
+	// North FC beat Rivals 2-1 at home.
+	played := types.Game{
+		ID: "9101", PlayerTeamName: "North FC", OpponentTeamName: "Rivals", Home: "North FC", Away: "Rivals",
+		DivisionName: "Coed B", Facility: &types.Facility{Name: "Boise"}, Field: "Field 1", Result: "2 - 1", StartAt: "2026-09-20T10:00:00-06:00",
+	}
+	// The blocks Add wrote before the game was played, from North FC's
+	// schedule and from Rivals'.
+	upcoming := played
+	upcoming.Result = ""
+	fromRivals := upcoming
+	fromRivals.PlayerTeamName, fromRivals.OpponentTeamName = "Rivals", "North FC"
+	block := canonicalDescription(t, &upcoming)
+	rivalsBlock := canonicalDescription(t, &fromRivals)
+	if block != "North FC is playing Rivals\nDivision: Coed B\nFacility: Boise\nField: Field 1\nResult: " ||
+		rivalsBlock != "Rivals is playing North FC\nDivision: Coed B\nFacility: Boise\nField: Field 1\nResult: " {
+		t.Fatalf("Add wrote blocks %q and %q", block, rivalsBlock)
+	}
+	html := func(text string) string { return strings.ReplaceAll(text, "\n", "<br>") }
+
+	for _, tc := range []struct {
+		name, description string
+		// want is the description with the result written; "" means the
+		// description is not the site's to change.
+		want string
+	}{
+		{name: "blank result slot", description: block, want: block + "Win (2-1)"},
+		{
+			name:        "notes around the block",
+			description: "Bring oranges\n\n" + block + "\nCarpool: Sam drives  ",
+			want:        "Bring oranges\n\n" + block + "Win (2-1)\nCarpool: Sam drives  ",
+		},
+		{name: "a result in the site's format is corrected", description: block + "Win (5-0)", want: block + "Win (2-1)"},
+		{name: "a canceled slot", description: block + "Canceled", want: block + "Win (2-1)"},
+		{name: "already current", description: "Notes\n" + block + "Win (2-1)", want: "Notes\n" + block + "Win (2-1)"},
+		{name: "a shared game worded for the team the heading names", description: rivalsBlock, want: rivalsBlock + "Loss (1-2)"},
+		{
+			name:        "CRLF line breaks",
+			description: strings.ReplaceAll("Bring oranges\n"+block+"\nCarpool", "\n", "\r\n"),
+			want:        strings.ReplaceAll("Bring oranges\n"+block+"Win (2-1)\nCarpool", "\n", "\r\n"),
+		},
+		{
+			name:        "an HTML description saved by Google Calendar's editor",
+			description: "<b>Bring oranges</b><br>" + html(block) + "<br><i>Carpool: Sam drives</i>",
+			want:        "<b>Bring oranges</b><br>" + html(block+"Win (2-1)") + "<br><i>Carpool: Sam drives</i>",
+		},
+		{
+			name:        "every HTML line break spelling",
+			description: "Notes<BR />North FC is playing Rivals<br/>Division: Coed B<br />Facility: Boise<br>\nField: Field 1<br>Result: <br>After",
+			want:        "Notes<BR />North FC is playing Rivals<br/>Division: Coed B<br />Facility: Boise<br>\nField: Field 1<br>Result: Win (2-1)<br>After",
+		},
+		{name: "an HTML description already current", description: html("Notes\n" + block + "Win (2-1)"), want: html("Notes\n" + block + "Win (2-1)")},
+		{name: "a result in the visitor's words", description: block + "we won on penalties!"},
+		{name: "two blocks", description: block + "\n\n" + rivalsBlock},
+		{name: "a result line after the block", description: block + "\nResult: 3-0 in the replay"},
+		{name: "a result line before the block", description: "Result: Win (9-0)\n" + block},
+		{name: "a heading that names neither team", description: strings.Replace(block, "North FC is playing", "Someone Else is playing", 1)},
+		{name: "no block", description: "Bring oranges"},
+		{name: "an empty description", description: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := ReplaceCanonicalResult(tc.description, &played)
+			if tc.want == "" {
+				if ok {
+					t.Fatalf("ReplaceCanonicalResult(%q) claimed the description and wrote %q", tc.description, got)
+				}
+				return
+			}
+			if !ok || got != tc.want {
+				t.Fatalf("ReplaceCanonicalResult(%q) = %q, %t; want %q", tc.description, got, ok, tc.want)
+			}
+		})
+	}
+}
+
+func canonicalDescription(t *testing.T, game *types.Game) string {
+	t.Helper()
+	formatted, ok := CanonicalGameEvent(game)
+	if !ok {
+		t.Fatalf("CanonicalGameEvent(%+v) returned false", game)
+	}
+	return formatted.Description
+}

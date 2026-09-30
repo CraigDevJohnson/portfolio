@@ -445,6 +445,39 @@ func TestSyncWritesTheResultForTheTeamTheEventNames(t *testing.T) {
 	}
 }
 
+// Google Calendar's editor saves a description the visitor edited as HTML,
+// its lines joined by <br>. Sync still finds the block Add wrote and changes
+// only its result.
+func TestSyncWritesTheResultIntoADescriptionEditedInGoogleCalendar(t *testing.T) {
+	world := newResultSyncWorld(t)
+	world.add(t, syncNorthTeamID, syncWonGameID)
+	world.google.editEvent(primaryCalendarID, syncWonGameID, func(event *internalgoogle.Event) {
+		event.Description = "<b>Bring oranges</b><br>" + strings.ReplaceAll(event.Description, "\n", "<br>") + "<br><i>Carpool: Sam drives</i>"
+	})
+	before := world.google.events(primaryCalendarID)[syncWonGameID]
+	if !strings.Contains(before.Description, "<br>Result: <br><i>Carpool") {
+		t.Fatalf("the edited description reads %q", before.Description)
+	}
+
+	world.lps.play(syncWonGameID, "2-1")
+	form := world.reviewForm(t, syncNorthTeamID)
+	if synced := world.sync(t, form, syncWonGameID); !strings.Contains(synced, "1 game result(s) updated in Google Calendar.") {
+		t.Fatalf("Sync answered %q", synced)
+	}
+	after := world.google.events(primaryCalendarID)[syncWonGameID]
+	if want := strings.Replace(before.Description, "<br>Result: <br>", "<br>Result: Win (2-1)<br>", 1); after.Description != want {
+		t.Fatalf("the edited event reads %q, want %q", after.Description, want)
+	}
+	if !reflect.DeepEqual(withoutDescription(&after), withoutDescription(&before)) {
+		t.Errorf("Sync changed the edited event beyond its result text:\nbefore %+v\nafter  %+v", withoutDescription(&before), withoutDescription(&after))
+	}
+
+	patches := world.google.patchCount()
+	if repeated := world.sync(t, form, syncWonGameID); !strings.Contains(repeated, "1 result(s) already current.") || len(world.google.patchesSince(patches)) != 0 {
+		t.Fatalf("repeated Sync answered %q and sent %d patches; want the result already current", repeated, len(world.google.patchesSince(patches)))
+	}
+}
+
 func TestGoogleRefusingSyncDecidesBetweenReconnectRetryAndANewChoice(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
