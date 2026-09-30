@@ -236,6 +236,124 @@ if check_plan "$(printf '%s\n' "$worker_plan" | jq '.resource_changes[-1].change
   fail 'plan checker accepted: another history worker attribute'
 fi
 
+# --- verify-lambda-release.sh ---------------------------------------------
+# Fake tofu, curl and aws answer for a released dev environment; nothing
+# leaves the machine. The fake CloudWatch returns only the requested alarms
+# that exist, with their states from FAKE_ALARMS ("name STATE" lines).
+mkdir -p "$test_dir/verify-bin"
+cat > "$test_dir/verify-bin/tofu" << 'CLI'
+#!/bin/sh
+case "$*" in
+  *" output -json") cat "$FAKE_OUTPUTS" ;;
+  *) exit 1 ;;
+esac
+CLI
+cat > "$test_dir/verify-bin/curl" << 'CLI'
+#!/bin/sh
+body= url=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) body=$2; shift 2 ;;
+    --connect-timeout | --max-time | --max-redirs | --connect-to | --write-out) shift 2 ;;
+    -*) shift ;;
+    *) url=$1; shift ;;
+  esac
+done
+case "$url" in
+  https://dev.craigdevjohnson.com/*) ;;
+  *) exit 7 ;;
+esac
+case "$url" in
+  */healthz) printf '{"status":"ok","revision":"%s"}' "$FAKE_REVISION" > "$body"; type=application/json ;;
+  */tailwind.css) printf 'body{margin:0}' > "$body"; type=text/css ;;
+  */home-hero.jpg) printf '\377\330\377\340' > "$body"; type=image/jpeg ;;
+  *) printf '<!doctype html><html></html>' > "$body"; type='text/html; charset=utf-8' ;;
+esac
+printf '200\n%s\n' "$type"
+CLI
+cat > "$test_dir/verify-bin/aws" << 'CLI'
+#!/bin/sh
+case "$*" in
+  "lambda get-alias "*) printf '{"FunctionVersion":"7"}\n' ;;
+  "lambda get-function "*)
+    printf '{"Code":{"ImageUri":"111122223333.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases@%s"}}\n' "$FAKE_DIGEST"
+    ;;
+  "cloudwatch describe-alarms "*)
+    request=$*
+    names=${request#*--alarm-names }
+    printf '%s\n' "$names" >> "$FAKE_ALARM_REQUESTS"
+    for name in $names; do
+      grep "^$name " "$FAKE_ALARMS" || true
+    done | jq -Rn '{MetricAlarms: [inputs | split(" ") | {AlarmName: .[0], StateValue: .[1]}]}'
+    ;;
+  *) exit 1 ;;
+esac
+CLI
+chmod +x "$test_dir/verify-bin/tofu" "$test_dir/verify-bin/curl" "$test_dir/verify-bin/aws"
+service_alarms='portfolio-lambda-dev-api-5xx portfolio-lambda-dev-api-latency portfolio-lambda-dev-lambda-duration portfolio-lambda-dev-lambda-errors portfolio-lambda-dev-lambda-throttles'
+history_alarms='portfolio-lambda-dev-soccer-history-admission-rejected portfolio-lambda-dev-soccer-history-dead-letter portfolio-lambda-dev-soccer-history-errors portfolio-lambda-dev-soccer-history-incomplete'
+export FAKE_REVISION="$head_sha" FAKE_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export FAKE_OUTPUTS="$test_dir/outputs.json" FAKE_ALARMS="$test_dir/alarms" \
+  FAKE_ALARM_REQUESTS="$test_dir/alarm-requests"
+# outputs NAME...: the environment's outputs, naming exactly those alarms.
+outputs() {
+  printf '%s\n' "$@" | jq -Rn '{
+    api_gateway_domain_targets: {value: {"dev.craigdevjohnson.com": "d-test.execute-api.us-west-2.amazonaws.com"}},
+    api_default_url: {value: "https://test.execute-api.us-west-2.amazonaws.com"},
+    alarm_names: {value: [inputs]}}' > "$FAKE_OUTPUTS"
+}
+# alarms STATE NAMES: the alarms CloudWatch has, all in STATE.
+alarms() {
+  state=$1
+  shift
+  : > "$FAKE_ALARMS"
+  for name in "$@"; do printf '%s %s\n' "$name" "$state" >> "$FAKE_ALARMS"; done
+}
+verify() {
+  rm -rf "$test_dir/verify-evidence"
+  : > "$FAKE_ALARM_REQUESTS"
+  (PATH="$test_dir/verify-bin:$PATH" ENVIRONMENT=dev SOURCE_SHA=$head_sha IMAGE_DIGEST=$FAKE_DIGEST \
+    EVIDENCE_DIR="$test_dir/verify-evidence" sh "$root_dir/scripts/verify-lambda-release.sh" \
+    > /dev/null 2> "$test_dir/verify.err")
+}
+# refuse_release MESSAGE CASE: verification fails, and for the stated reason.
+refuse_release() {
+  if verify; then fail "verification accepted $2"; fi
+  grep -Fxq "$1" "$test_dir/verify.err" || fail "verification refused $2 for another reason: $(cat "$test_dir/verify.err")"
+}
+
+# The alarm lists are split into names on purpose below.
+# shellcheck disable=SC2086
+{
+# History off: the history alarms do not exist, and verification asks
+# CloudWatch only for the service alarms the CI roles can read today.
+outputs $service_alarms
+alarms OK $service_alarms
+verify || fail 'a release with history off must verify without the history alarms'
+[ "$(cat "$FAKE_ALARM_REQUESTS")" = "$service_alarms" ] ||
+  fail "verification asked for alarms the environment does not have: $(cat "$FAKE_ALARM_REQUESTS")"
+alarms OK portfolio-lambda-dev-api-latency portfolio-lambda-dev-lambda-duration \
+  portfolio-lambda-dev-lambda-errors portfolio-lambda-dev-lambda-throttles
+printf 'portfolio-lambda-dev-api-5xx ALARM\n' >> "$FAKE_ALARMS"
+refuse_release 'An environment alarm is missing or in ALARM' 'a firing service alarm'
+
+# History on: its alarms are part of the environment and are checked too.
+outputs $service_alarms $history_alarms
+alarms OK $service_alarms $history_alarms
+verify || fail 'a release with every history alarm OK must verify'
+alarms OK $service_alarms portfolio-lambda-dev-soccer-history-dead-letter \
+  portfolio-lambda-dev-soccer-history-errors portfolio-lambda-dev-soccer-history-incomplete
+printf 'portfolio-lambda-dev-soccer-history-admission-rejected ALARM\n' >> "$FAKE_ALARMS"
+refuse_release 'An environment alarm is missing or in ALARM' 'a firing history alarm'
+alarms OK $service_alarms portfolio-lambda-dev-soccer-history-errors
+refuse_release 'An environment alarm is missing or in ALARM' 'history alarms missing from CloudWatch'
+
+# The environment's outputs must still name the five service alarms.
+outputs portfolio-lambda-dev-api-5xx portfolio-lambda-dev-api-latency
+alarms OK $service_alarms
+refuse_release 'The environment outputs do not name its service alarms' 'outputs without the service alarms'
+}
+
 # --- apply-ci-lambda-production.sh ----------------------------------------
 mkdir -p "$test_dir/workspace/evidence"
 printf 'saved plan\n' > "$test_dir/workspace/evidence/prod.tfplan"

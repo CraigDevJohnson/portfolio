@@ -118,7 +118,9 @@ manually with `workflow_dispatch`:
    with no critical findings.
 4. **development** plans the dev root with that digest, applies it, and verifies
    `/healthz` (revision), `/`, `/soccer`, the stylesheet, a JPEG, the `live`
-   alias image and the five alarms.
+   alias image and every alarm the environment's outputs name: the five
+   service alarms, plus the LPS history alarms once a history stage is
+   applied.
 5. **production-plan** saves the prod plan for the same digest and shows it in
    the job summary.
 6. **production** waits for Craig's approval in the `production` environment,
@@ -180,7 +182,11 @@ accounts, so a hostname can exist in only one account at a time.
 
 Each environment has five alarms (Lambda errors, throttles and p95 duration;
 API 5xx and p95 latency). Prod alarms notify the workloads us-west-2 `alerts`
-topic; dev alarms notify nothing.
+topic; dev alarms notify nothing. LPS history collection adds an alarm on
+refused player-linked teams, and the daily schedule adds incomplete-run,
+worker-error and failure-queue alarms; both are off in each environment (see
+`infra/lambda/README.md`). A release fails when any of the environment's
+alarms is missing or in ALARM.
 
 ## Local image verification
 
