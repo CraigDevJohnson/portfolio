@@ -25,6 +25,8 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	if siteidentity.Evaluated(r.Context()) && !siteidentity.HasGrant(r.Context(), siteidentity.GrantSoccer) {
 		if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {
 			privateAccessMessage = "This account has not been granted access to linked players or Google Calendar. Team ID lookup and ICS download are still available."
+		} else if !siteidentity.SignInAvailable(r.Context()) {
+			privateAccessMessage = "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and ICS download are still available."
 		} else {
 			privateAccessMessage = "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and ICS download are still available."
 			showSiteSignIn = true
