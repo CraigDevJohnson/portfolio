@@ -948,6 +948,24 @@ run "history_schedule_rejects_missing_expression" {
   expect_failures = [aws_iam_role.lambda]
 }
 
+run "history_limits_reject_a_timeout_covering_only_pacing" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    # 99 paced gaps of 2 seconds fit 200 seconds, but one slow team with five
+    # retries and the worker's wrap-up time does not.
+    soccer_history_limits = {
+      max_enrolled_teams      = 100
+      reserved_player_slots   = 10
+      max_requests_per_run    = 100
+      max_retries_per_team    = 5
+      min_request_interval_ms = 2000
+      worker_timeout_seconds  = 200
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
+}
+
 run "history_limits_alone_do_not_activate" {
   command = plan
   variables {

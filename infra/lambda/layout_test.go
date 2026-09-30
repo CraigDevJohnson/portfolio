@@ -201,7 +201,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 26, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 27, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
 		"management_reject_prod":                               true,
 		"management_reject_region":                             true,
 		"management_reject_email":                              true,
@@ -216,6 +216,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"history_collection_rejects_missing_table":             true,
 		"history_collection_rejects_missing_alert_destination": true,
 		"history_schedule_rejects_missing_expression":          true,
+		"history_limits_reject_a_timeout_covering_only_pacing": true,
 		// The scheduled worker adds its own execution and Scheduler roles,
 		// which that run's assertions check statement by statement.
 		"history_worker_schedule_and_failure_contract": true,

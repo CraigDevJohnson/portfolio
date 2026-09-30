@@ -56,6 +56,13 @@ variable "enable_soccer_history" {
 
 variable "alarm_action_arns" { type = list(string) }
 
+# worker_timeout_seconds must cover pacing the whole request budget plus the
+# slowest single team: every allowed attempt waiting out its interval and the
+# worker's 15-second LPS request timeout (lpsClientTimeout in internal/app),
+# the 1, 2, 4, ... second backoffs between them, and the 10 seconds the worker
+# keeps to store its last team and report (dailyWrapUpAllowance in
+# internal/soccerarchive). A run that still runs short of time stops starting
+# teams and reports the rest as left for the next run.
 variable "soccer_history_limits" {
   description = "Reviewed source-use and cost ceilings; null keeps durable enrollment and scheduling off."
   type = object({
@@ -80,10 +87,12 @@ variable "soccer_history_limits" {
       var.soccer_history_limits.min_request_interval_ms > 0 &&
       var.soccer_history_limits.worker_timeout_seconds >= 30 &&
       var.soccer_history_limits.worker_timeout_seconds <= 900 &&
-      (var.soccer_history_limits.max_requests_per_run - 1) * var.soccer_history_limits.min_request_interval_ms < var.soccer_history_limits.worker_timeout_seconds * 1000 &&
+      (var.soccer_history_limits.max_requests_per_run - 1) * var.soccer_history_limits.min_request_interval_ms +
+      (1 + var.soccer_history_limits.max_retries_per_team) * (15000 + var.soccer_history_limits.min_request_interval_ms) +
+      (pow(2, var.soccer_history_limits.max_retries_per_team) - 1) * 1000 + 10000 < var.soccer_history_limits.worker_timeout_seconds * 1000 &&
       alltrue([for value in values(var.soccer_history_limits) : value == floor(value)])
     )
-    error_message = "soccer_history_limits must contain reviewed positive integer ceilings and bounded retry, reserve, pacing, and Lambda timeout values."
+    error_message = "soccer_history_limits must contain reviewed positive integer ceilings, bounded retry, reserve, and pacing values, and a Lambda timeout that covers pacing every request plus one team's slowest fetch."
   }
 }
 
