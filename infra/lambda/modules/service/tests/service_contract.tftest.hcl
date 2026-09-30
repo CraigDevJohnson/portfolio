@@ -1116,3 +1116,136 @@ run "history_worker_schedule_and_failure_contract" {
     error_message = "the daily schedule must fire at a fixed UTC time, retry delivery without re-running work, and alert on every rejected enrollment, incomplete run, worker error, and failed delivery"
   }
 }
+
+# The candidate limits and schedule proposed in the #104 readiness packet
+# (docs/deployment/2026-09-26-lps-history-activation-readiness.md, 3.3). These
+# runs prove only that the module accepts the tuple and plans each stage; they
+# are not an approval of the values.
+run "candidate_collection_stage_dev" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  assert {
+    condition = (
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-dev-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled == false &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled == false &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_COLLECTION_ENABLED == "true" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_TEAMS == "40" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_PLAYER_RESERVED == "30" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "120" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_RETRIES == "1" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MIN_INTERVAL_MS == "1000" &&
+      aws_cloudwatch_metric_alarm.history_admission_rejected[0].alarm_name == "portfolio-lambda-dev-soccer-history-admission-rejected" &&
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      length(aws_sqs_queue.history_dead_letter) == 0
+    )
+    error_message = "the candidate limits must plan dev collection with its admission alarm and no daily worker"
+  }
+}
+
+run "candidate_schedule_stage_prod" {
+  command = plan
+  variables {
+    environment                        = "prod"
+    name_prefix                        = "portfolio-lambda-prod"
+    log_retention_days                 = 30
+    enable_pitr                        = true
+    enable_deletion_protection         = true
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(30 10 * * ? *)"
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  assert {
+    condition = (
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-prod-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled == true &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled == true &&
+      aws_lambda_function.history_worker[0].function_name == "portfolio-lambda-prod-soccer-history" &&
+      aws_lambda_function.history_worker[0].timeout == 300 &&
+      aws_lambda_function.history_worker[0].memory_size == 512 &&
+      aws_lambda_function.history_worker[0].reserved_concurrent_executions == 1 &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "120" &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MIN_INTERVAL_MS == "1000" &&
+      aws_cloudwatch_log_group.history_worker[0].retention_in_days == 30 &&
+      aws_scheduler_schedule.history_daily[0].name == "portfolio-lambda-prod-soccer-history-daily" &&
+      aws_scheduler_schedule.history_daily[0].schedule_expression == "cron(30 10 * * ? *)" &&
+      aws_sqs_queue.history_dead_letter[0].name == "portfolio-lambda-prod-soccer-history-failures"
+    )
+    error_message = "the candidate limits and schedule must plan a bounded prod worker at 10:30 UTC"
+  }
+}
+
+# The timeout floor for the candidate tuple: 119 paced gaps of 1 s, two
+# attempts of one team at 15 s plus pacing, 1 s of backoff and 10 s to report
+# is 162 s, which the timeout must exceed.
+run "candidate_accepts_the_shortest_covering_timeout" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 163
+    }
+  }
+  assert {
+    condition     = length(aws_dynamodb_table.soccer_history) == 1 && length(aws_lambda_function.history_worker) == 0
+    error_message = "a 163-second timeout covers the candidate pacing and must be accepted"
+  }
+}
+
+run "candidate_rejects_a_timeout_below_pacing" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 162
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
+}
+
+run "candidate_rejects_a_budget_below_one_request_per_team" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 39
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
+}
