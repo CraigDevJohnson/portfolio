@@ -39,7 +39,10 @@ reject_input() {
     fi
     test ! -s "$test_dir/stdout"
     test "$(cat "$test_dir/stderr")" = "$rejection"
-    ! grep -Fq s3cr3t "$test_dir/stdout" "$test_dir/stderr"
+    if grep -Fq s3cr3t "$test_dir/stdout" "$test_dir/stderr"; then
+      printf 'FAIL: %s echoed management input\n' "$command" >&2
+      exit 1
+    fi
     test ! -e "$test_dir/tofu.log"
     test ! -e "$test_dir/evidence"
   done
