@@ -324,7 +324,10 @@ require separate review.
 The separate, unapplied development and production Cognito roots, session
 parameter paths, and Lambda handoff are described in
 [site identity configuration](./docs/deployment/site-identity.md). Run
-`task cognito-site-ci` for offline identity and infrastructure checks.
+`task cognito-site-ci` for offline identity and infrastructure checks. Craig
+provisions each root only through its private operator tasks, such as
+`task cognito-site-dev-plan`, `task cognito-site-dev-apply` and
+`task cognito-site-dev-export`, and the `cognito-site-prod-*` equivalents.
 
 The session is an encrypted bearer cookie that lasts at most one hour, or less
 when the Cognito ID token expires sooner. Sign-out clears that cookie and ends

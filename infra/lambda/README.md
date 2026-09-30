@@ -14,7 +14,9 @@ input that its provider enforces through `allowed_account_ids`.
 - `modules/service` contains no backend or provider configuration.
 - `auth/dev` is the planned development Cognito pool; it is not provisioned.
 - `auth/site/dev` and `auth/site/prod` are the planned, separate site sign-in
-  pools built from `auth/site/modules/pool`; neither is provisioned. See
+  pools built from `auth/site/modules/pool`; neither is provisioned. Their
+  plans and state hold the Google client secret, so Craig plans, applies and
+  exports them only with the private `cognito-site-<env>-*` tasks. See
   [site identity](../../docs/deployment/site-identity.md).
 
 Saved plans can contain sensitive configuration, so keep them outside the

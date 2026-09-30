@@ -24,8 +24,8 @@ native lock files).
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |
 | `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
-| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
-| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned; `cognito-site-dev-*` tasks ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned; `cognito-site-prod-*` tasks ([site identity](docs/deployment/site-identity.md)) |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
 execution roles attach the boundary by ARN, so the account root comes first.
@@ -56,7 +56,10 @@ task lambda-dev-apply PLAN_FILE=/absolute/path/dev.tfplan
 ```
 
 The same `-init`, `-plan` and `-apply` tasks exist for `lambda-ci-roles`,
-`lambda-artifacts` and `lambda-prod`. The dev and prod plans take
+`lambda-artifacts` and `lambda-prod`. The site identity roots hold the Google
+client secret in their plans and state, so they have their own private
+`cognito-site-<env>-init`, `-plan`, `-apply` and `-export` tasks, described in
+[site identity](docs/deployment/site-identity.md#private-operator-path). The dev and prod plans take
 `IMAGE_DIGEST` from `portfolio-lambda-releases`. The prod plan always sets
 `alarm_action_arns` to the workloads us-west-2 `alerts` topic.
 

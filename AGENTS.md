@@ -22,7 +22,8 @@
 - `task lint` — generate, format, then `golangci-lint run`
 - `task ci` — clean → generate → fmt → vet → lint → test → build
 - `task infrastructure-ci` — offline OpenTofu fmt/validate/tests and release-script tests (no AWS access)
-- `task cognito-site-ci` — offline checks of the separate dev and prod site identity roots (part of `infrastructure-ci`)
+- `task cognito-site-ci` — offline checks of the separate dev and prod site identity roots and their operator tooling (part of `infrastructure-ci`)
+- Site identity (Craig's private operator path; see `docs/deployment/site-identity.md`): `task cognito-site-dev-init`, `task cognito-site-dev-plan`, `task cognito-site-dev-apply`, `task cognito-site-dev-export`, and `task cognito-site-prod-init`, `task cognito-site-prod-plan`, `task cognito-site-prod-apply`, `task cognito-site-prod-export`
 - `task lambda-release-push` — build and push one immutable full-SHA Lambda release image
 - Account root (CI roles, execution boundary, state bucket): `task lambda-ci-roles-init`, `task lambda-ci-roles-plan`, and `task lambda-ci-roles-apply`
 - Release artifacts: `task lambda-artifacts-init`, `task lambda-artifacts-plan`, and `task lambda-artifacts-apply`

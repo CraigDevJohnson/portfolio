@@ -31,7 +31,9 @@ domain prefixes need a live availability check before any approved plan or
 apply. If one is taken, an override through `cognito_domain_prefix` must still
 start with `portfolio-lambda-<env>-site-` and fit in 63 characters. Each root
 rejects any other prefix, because the environment root accepts only a
-`site.cognito_domain` with its own environment's prefix.
+`site.cognito_domain` with its own environment's prefix. The operator tasks
+below admit only the default prefix, so an override first needs a reviewed
+change to `scripts/check-cognito-site-plan.py`.
 
 Each environment has exactly one reviewed invitation map: `site.invitations`
 in `infra/lambda/environments/<env>/<env>.auto.tfvars`. It is the only map
@@ -60,7 +62,8 @@ null`, `www` keeps serving pages directly.
 ## Offline proof and runtime handoff
 
 Run `task cognito-site-ci` to validate both roots and their shared module with
-mock Cognito resources. `task infrastructure-ci` runs it, and
+mock Cognito resources and to run the operator tooling's offline tests
+(`task cognito-site-tooling-test`). `task infrastructure-ci` runs it, and
 `go test ./infra/lambda` checks each root's backend, account pin and private
 inputs, the Lambda service's `SITE_*` contract, and both environment roots
 without AWS access. Production accepts only its own callbacks and domain, and
@@ -74,10 +77,11 @@ pages, Team ID lookup, and ICS remain available.
 `TestProductionSiteSignInMovesTheWWWAliasToTheCallbackHost` proves that
 production sends `www` requests to the apex before any sign-in cookie is set.
 
-After separately approved provisioning, review each root's `site_runtime`
-output. Supply all of its fields, plus that environment's reviewed
-`invitations` map, as the environment root's optional `site` input. Do not mix
-fields between roots. The service module passes the
+After separately approved provisioning, export each root's reviewed
+`site_runtime` output with the operator path below. Supply all of its fields,
+plus that environment's reviewed `invitations` map, as the `site` object in
+`infra/lambda/environments/<env>/<env>.auto.tfvars`. Do not mix fields between
+roots. The service module passes the
 non-secret fields as `SITE_COGNITO_*`, `SITE_INVITATIONS_JSON`, and
 `SITE_ALLOW_LOCAL_CALLBACK`; it passes only the environment-specific path for
 `SITE_SESSION_KEY`. Create independently random 64-character lowercase hex
@@ -87,21 +91,113 @@ stays disabled and public routes remain available. With `site = null` (the
 default, and the value both environments use today), no site settings or site
 session path are added to Lambda.
 
+## Private operator path
+
+Craig plans, applies and exports each site root only through its
+`cognito-site-<env>-*` tasks, where `<env>` is `dev` or `prod`. They run
+`scripts/cognito-site-operator.py` as the `workloads-admin` SSO session and
+refuse, before any AWS call, another profile or region, static AWS keys, any
+`TF_*`, `TOFU_*` or extra `AWS_*` variable, a `.tfvars` or override file in the
+root or module, and an unsafe private directory or input file. They then refuse
+any identity other than the WorkloadsAdmin role in the configured account, a
+non-default workspace, and a backend without encryption and lock files. Raw
+OpenTofu output, plan JSON and provider data stay in new mode `0700` run
+directories beneath `COGNITO_PRIVATE_DIR`, and a failure prints only a generic
+message. Nothing reaches Git, chat, CI or the release workflow.
+
+1. Create an operator-owned directory outside the checkout with mode `0700`;
+   on macOS use its canonical `/private/...` path. Have the credential channel
+   write that environment's Google OAuth client into it as a regular mode
+   `0600` JSON file with exactly `client_id` and `client_secret`. Never paste
+   either value into a command, chat, tfvars or logs.
+2. Set the inputs as environment variables, not Task variables, and plan:
+
+   ```sh
+   aws sso login
+   export COGNITO_PRIVATE_DIR=/private/absolute/operator-directory
+   export GOOGLE_OAUTH_CREDENTIALS_FILE="$COGNITO_PRIVATE_DIR/google-dev.json"
+   export PLAN_FILE="$COGNITO_PRIVATE_DIR/site-dev.tfplan"
+   export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<AWS_ACCOUNT_ID>/portfolio-lambda-http-api/auth/site/dev/terraform.tfstate.tflock
+   task cognito-site-dev-init
+   task cognito-site-dev-plan
+   ```
+
+   The lock acknowledgement names one environment's state, so the development
+   one never unlocks production; it is not approval to plan or apply. The plan
+   task passes the Google credentials only to the plan subprocess, saves the
+   plan to `PLAN_FILE` (mode `0600`) with an adjacent `.provenance.json` that
+   binds it to this environment's backend, and prints the resource actions,
+   backend, account and both SHA-256 checksums.
+3. Review five create, update or no-op actions under `module.site`: the
+   `portfolio-lambda-<env>-site` names, the default domain prefix
+   `portfolio-lambda-<env>-site-<AWS_ACCOUNT_ID>`, exactly this environment's
+   `/auth/callback` and `/sign-in` URLs with no loopback callback, the Google
+   scopes and attribute mapping, and a public code-flow client. The checker
+   refuses deletions, replacements, drift, other resources or modules, a
+   domain-prefix override, another environment's names or URLs, and a changed
+   backend. Keep both checksums as the approval record.
+4. After Craig approves that exact plan, apply it with the same `PLAN_FILE`:
+
+   ```sh
+   export APPROVED_PLAN_SHA256=<reviewed plan checksum>
+   export APPROVED_PROVENANCE_SHA256=<reviewed provenance checksum>
+   task cognito-site-dev-apply
+   ```
+
+   Apply checks both checksums and the provenance before any AWS call, repeats
+   the identity and backend checks, re-checks the saved plan's contract and
+   applies only that plan with a five-minute lock timeout. It never plans
+   again. Afterwards, plan again with a fresh `PLAN_FILE` and confirm that
+   every action is `no-op`.
+5. Export the handoff:
+
+   ```sh
+   task cognito-site-dev-export
+   ```
+
+   It reads only the `site_runtime` output (never all outputs or state),
+   refuses any field beyond the six reviewed ones or any value outside this
+   environment's contract, and prints them as a `site` block. Add the
+   environment's reviewed `invitations` to that block and commit it to
+   `infra/lambda/environments/<env>/<env>.auto.tfvars`:
+
+   ```hcl
+   site = {
+     cognito_domain       = "https://portfolio-lambda-dev-site-<AWS_ACCOUNT_ID>.auth.us-west-2.amazoncognito.com"
+     cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_<pool>"
+     cognito_client_id    = "<app client id>"
+     redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+     logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+     allow_local_callback = false
+     invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+   }
+   ```
+
+   Production's block has the production URLs and
+   `invitations = { "craigdevjohnson@gmail.com" = ["soccer"] }`.
+
+Production uses `task cognito-site-prod-init`, `task cognito-site-prod-plan`,
+`task cognito-site-prod-apply` and `task cognito-site-prod-export`, with its
+own Google credentials file, `PLAN_FILE` and
+`.../auth/site/prod/terraform.tfstate.tflock` acknowledgement. Private run
+directories are kept for local audit; remove them once the review no longer
+needs them.
+
 ## Activation prerequisites
 
 Activation is a separate, reviewed change in each environment. It needs all of:
 
 1. A dedicated Google OAuth client for the environment.
-2. A reviewed plan and apply of that environment's site root. Its plan and
-   state hold the Google client secret, so it needs an operator path with the
-   same private-input protections as the `cognito-dev-*` tasks; that path is
-   not part of this preparation.
+2. A reviewed plan and apply of that environment's site root through the
+   private operator path above (`task cognito-site-<env>-plan`, then
+   `task cognito-site-<env>-apply` of exactly that plan).
 3. The environment's `SITE_SESSION_KEY` SecureString.
 4. `SITE_SESSION_KEY` added to that environment's parameters in the Lambda
    execution boundary (`infra/lambda/ci-roles/boundary.tf`), applied through the
    account root. Until then the boundary denies the read and sign-in stays off.
-5. The reviewed `site` object, including its `invitations` grant map,
-   committed to `infra/lambda/environments/<env>/<env>.auto.tfvars`, so Craig's
+5. The reviewed `site` object from `task cognito-site-<env>-export`, with its
+   `invitations` grant map added, committed to
+   `infra/lambda/environments/<env>/<env>.auto.tfvars`, so Craig's
    infrastructure apply and later CI release plans carry the same input.
    CI release plans reject any change other than the image, so Craig applies
    the environment first with `task lambda-<env>-plan` and

@@ -306,6 +306,7 @@ tasks:
       - tofu -chdir=infra/lambda/auth/site/prod init -backend=false -lockfile=readonly -input=false
       - tofu -chdir=infra/lambda/auth/site/prod validate
       - tofu -chdir=infra/lambda/auth/site/prod test
+      - task: cognito-site-tooling-test
 
   _lint-check:
     internal: true
@@ -716,3 +717,71 @@ tasks:
     desc: Exercise private auth tooling offline with sentinel secrets
     cmds:
       - python3 -m unittest discover -s scripts -p 'test_cognito_dev_plan.py'
+
+  # ── Site identity operator path ────────────────────────────────────────────
+  #
+  # The site identity roots' plans and state hold the Google client secret, so
+  # these tasks read every private input from environment variables (never
+  # Task variables) and keep raw output, plan JSON and provider data in private
+  # directories under COGNITO_PRIVATE_DIR. See docs/deployment/site-identity.md.
+
+  _cognito-site:
+    internal: true
+    env: *admin-env
+    requires:
+      vars: [SITE_ENV, MODE]
+    cmds:
+      - python3 scripts/cognito-site-operator.py "{{.SITE_ENV}}" "{{.MODE}}"
+
+  cognito-site-dev-init:
+    desc: Initialize the private development site identity backend (requires the dev lock acknowledgement)
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: init }
+
+  cognito-site-dev-plan:
+    desc: Save a private development site identity plan and print its allowlisted review summary
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: plan }
+
+  cognito-site-dev-apply:
+    desc: Apply exactly the approved development site identity plan and provenance checksums
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: apply }
+
+  cognito-site-dev-export:
+    desc: Print the reviewed development site_runtime as the site block for dev.auto.tfvars
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: export }
+
+  cognito-site-prod-init:
+    desc: Initialize the private production site identity backend (requires the prod lock acknowledgement)
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: init }
+
+  cognito-site-prod-plan:
+    desc: Save a private production site identity plan and print its allowlisted review summary
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: plan }
+
+  cognito-site-prod-apply:
+    desc: Apply exactly the approved production site identity plan and provenance checksums
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: apply }
+
+  cognito-site-prod-export:
+    desc: Print the reviewed production site_runtime as the site block for prod.auto.tfvars
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: export }
+
+  cognito-site-tooling-test:
+    desc: Exercise the private site identity tooling offline with sentinel secrets
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_cognito_site_operator.py'
