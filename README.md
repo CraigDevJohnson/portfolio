@@ -478,11 +478,13 @@ every other Soccer route (`401`, import cookies cleared), a player LPS denies
 returns `403`, and an unavailable LPS returns `502` and keeps the import. The
 response includes completed games, a team-relative record labeled as
 calculated from numeric scores rather than official standings, season coverage
-with its fetch time, and the latest team refresh status or failure. The record
+with its fetch time, and the latest team refresh status or failure. A game is
+completed once its kickoff has passed; a game dated later or with no readable
+kickoff is neither listed nor counted, even when LPS shows a score. The record
 places each side by its LPS team ID; canceled, unscored, and unparseable
-results are listed as unclassified and do not change the totals. `not_fetched`
-coverage and a retryable refresh failure remain distinct from a fetched season
-with zero games.
+results of completed games are listed as unclassified and do not change the
+totals. `not_fetched` coverage and a retryable refresh failure remain distinct
+from a fetched season with zero games.
 Until the separate collection activation, the route returns `503` because no
 durable archive is wired into the production server.
 

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"portfolio/internal/logging"
@@ -213,10 +212,13 @@ func buildHistoryResponse(history *soccerarchive.TeamSeason, playerID, teamID, s
 		fetchedAt := history.Coverage.FetchedAt
 		response.Coverage.FetchedAt = &fetchedAt
 	}
+	// A completed game is one that has kicked off, as for the schedule's past
+	// results: a score on a game dated later or with no readable kickoff is
+	// not a completed result, while a past game without one is unclassified.
 	for i := range history.Games {
 		game := &history.Games[i]
 		started, parseableTime := schedule.ParseScheduleTime(game.SchedGameDateTime)
-		if (!parseableTime || started.After(now)) && strings.TrimSpace(game.Result) == "" {
+		if !parseableTime || !started.Before(now) {
 			continue
 		}
 		classification := classifyHistoryGame(&response.Record, game, teamID)

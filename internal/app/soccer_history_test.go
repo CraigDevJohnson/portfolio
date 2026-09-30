@@ -323,6 +323,37 @@ func TestSoccerHistoryReadCountsOnlyNumericScoresFromTheTeamsSide(t *testing.T) 
 	}
 }
 
+// A completed game is one that has kicked off. A score LPS shows on a game
+// dated in the future, or on a game with no readable kickoff, is not a
+// completed result, while a past game without a score stays listed.
+func TestSoccerHistoryReadListsAndCountsOnlyGamesThatHaveKickedOff(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, `{"team":{"UTeamID":4101,"team_name":"Craig FC","Season":77},"games":[
+{"UGameID":7401,"Season":77,"UTeam1":4101,"UTeam2":5001,"SchedGameDateTime":"2026-01-05T19:00:00Z","result":"2 - 1"},
+{"UGameID":7402,"Season":77,"UTeam1":5002,"UTeam2":4101,"SchedGameDateTime":"2026-01-12T19:00:00Z","result":""},
+{"UGameID":7403,"Season":77,"UTeam1":4101,"UTeam2":5003,"SchedGameDateTime":"2099-01-05T19:00:00Z","result":"3 - 0"},
+{"UGameID":7404,"Season":77,"UTeam1":4101,"UTeam2":5004,"SchedGameDateTime":"","result":""},
+{"UGameID":7405,"Season":77,"UTeam1":5005,"UTeam2":4101,"SchedGameDateTime":"TBD","result":"0 - 4"}]}`)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4101); !report.Complete {
+		t.Fatalf("refresh of Craig FC: %+v", report)
+	}
+
+	history := readHistory(t, owner, 1001, 4101, 77)
+
+	want := map[int]string{7401: "win", 7402: "unclassified"}
+	if got := history.classifications(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("completed games = %v, want %v", got, want)
+	}
+	if record := history.Record; record.Wins != 1 || record.Losses != 0 || record.Draws != 0 || record.ScoredGames != 1 || record.Unclassified != 1 {
+		t.Errorf("record = %+v, want 1-0-0 from one scored game with one unclassified", record)
+	}
+	if history.Coverage.ReturnedGameCount != 5 {
+		t.Errorf("coverage returned %d games, want the five LPS returned for season 77", history.Coverage.ReturnedGameCount)
+	}
+}
+
 // LPS can name a game's sides both in the nested home_team and visitor_team
 // objects and in the flat UTeam1 and UTeam2 fields. The schedule and the
 // archive take the nested team first, so the record must too.
