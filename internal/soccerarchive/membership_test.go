@@ -3,6 +3,8 @@ package soccerarchive
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -145,5 +147,105 @@ func TestDynamoArchiveSeparatesTwoSiteOwnersOfOneLPSPlayer(t *testing.T) {
 	}
 	if owners["first-subject"] != 1 || owners["second-subject"] != 1 || len(owners) != 2 {
 		t.Fatalf("one site owner replaced another's proof: %#v", owners)
+	}
+}
+
+// playerEnrollmentLPS serves team 4202's public schedule: one scored game in
+// LPS season 79.
+func playerEnrollmentLPS(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/4202":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":4202,"team_name":"Taylor FC","Season":79},"games":[{"UGameID":9001,"UTeam1":4202,"UTeam2":4999,"Season":79,"result":"2-1"}]}`)
+		case "/teams/4101":
+			http.NotFound(w, r)
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestRefreshWorkerRefreshesATeamAPlayerImportEnrolled(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	observedAt := time.Date(2026, time.September, 26, 12, 0, 0, 0, time.UTC)
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "stable-subject", ObservedAt: observedAt,
+		Players:     []types.LPSPlayer{{UPlayerID: 1002, FirstName: "Taylor"}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 4202, TeamName: "Taylor FC", Season: 79}},
+		Memberships: []PlayerMembership{{PlayerID: 1002, Team: lps.TeamSummary{UTeamID: 4202, TeamName: "Taylor FC", Season: 79}}},
+	}); err != nil {
+		t.Fatalf("save player discovery: %v", err)
+	}
+
+	state, err := store.ReadRefreshState(t.Context(), 4202)
+	if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.IsZero() || !state.NextDueAt.Equal(observedAt) {
+		t.Fatalf("discovered team refresh state = %+v, %v; want ready, never attempted, due when discovered", state, err)
+	}
+	unfetched, err := store.ReadTeamSeason(t.Context(), 4202, 79)
+	if err != nil || unfetched.Coverage.Status != CoverageNotFetched || len(unfetched.Games) != 0 {
+		t.Fatalf("discovered team history before any refresh = %+v, %v; want known but not fetched", unfetched, err)
+	}
+
+	server := playerEnrollmentLPS(t)
+	refreshedAt := observedAt.Add(time.Hour)
+	worker := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return refreshedAt })
+	report := worker.Run(t.Context(), []int{4202})
+	if !report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshSucceeded {
+		t.Fatalf("worker report = %+v", report)
+	}
+	history, err := store.ReadTeamSeason(t.Context(), 4202, 79)
+	if err != nil || history.Coverage.Status != CoverageFetched || len(history.Games) != 1 || history.Games[0].UGameID != 9001 || history.Games[0].Result != "2-1" {
+		t.Fatalf("refreshed history = %+v, %v", history, err)
+	}
+	state, err = store.ReadRefreshState(t.Context(), 4202)
+	if err != nil || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(24*time.Hour)) {
+		t.Fatalf("refresh state after the first refresh = %+v, %v", state, err)
+	}
+	assertArchiveItem(t, backend, "TEAM#4202/META", map[string]any{"enrollment_source": "player", "team_name": "Taylor FC"})
+}
+
+func TestPlayerImportKeepsAnEnrolledTeamsRefreshState(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+	enrolledAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{4101, 4202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 79}, FetchedAt: enrolledAt}); err != nil {
+			t.Fatalf("enroll team %d from a Team ID lookup: %v", teamID, err)
+		}
+	}
+	server := playerEnrollmentLPS(t)
+	invalidAt := enrolledAt.Add(time.Hour)
+	worker := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return invalidAt })
+	if report := worker.Run(t.Context(), []int{4101}); report.Results[0].Outcome != RefreshInvalidTeam {
+		t.Fatalf("team 4101 refresh = %+v, want invalid", report)
+	}
+	scheduled, err := store.ReadRefreshState(t.Context(), 4202)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "stable-subject", ObservedAt: invalidAt.Add(time.Hour),
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 4101, TeamName: "Craig FC", Season: 80}, {UTeamID: 4202, TeamName: "Taylor FC", Season: 80}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 4101, Season: 80}}},
+	}); err != nil {
+		t.Fatalf("save player discovery: %v", err)
+	}
+
+	if report := worker.Run(t.Context(), []int{4101}); report.Results[0].Outcome != RefreshSkippedInvalid {
+		t.Errorf("a player import revived the invalid team 4101: %+v", report)
+	}
+	if state, err := store.ReadRefreshState(t.Context(), 4202); err != nil || state != scheduled {
+		t.Errorf("team 4202 refresh state after a player import = %+v, %v; want unchanged %+v", state, err, scheduled)
+	}
+	for _, teamID := range []int{4101, 4202} {
+		// The team facts still come from the team's own response.
+		assertArchiveItem(t, backend, fmt.Sprintf("TEAM#%d/META", teamID), map[string]any{"enrollment_source": "player", "season_id": 79, "team_name": nil})
 	}
 }

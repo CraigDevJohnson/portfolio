@@ -244,8 +244,10 @@ func uniqueSourceGames(source []lps.TeamScheduleGame) ([]lps.TeamScheduleGame, e
 	return games, nil
 }
 
-// ReadRefreshState returns an enrolled team's latest refresh attempt. Only a
-// saved snapshot enrolls a team, so a team without one is ErrNotEnrolled.
+// ReadRefreshState returns an enrolled team's latest refresh attempt. A saved
+// snapshot or an authenticated player import enrolls a team, so any other
+// team is ErrNotEnrolled. A team a player import enrolled has no attempt
+// until its first refresh.
 func (s *DynamoStore) ReadRefreshState(ctx context.Context, teamID int) (RefreshState, error) {
 	if teamID <= 0 {
 		return RefreshState{}, ErrNotEnrolled
@@ -263,8 +265,10 @@ func (s *DynamoStore) ReadRefreshState(ctx context.Context, teamID int) (Refresh
 		LastErrorKind:       team.FailureKind,
 		LastErrorStatusCode: team.FailureStatusCode,
 	}
-	if state.LastAttemptAt, err = time.Parse(sortableUTCFormat, team.AttemptedAt); err != nil {
-		return RefreshState{}, fmt.Errorf("decode team %d refresh attempt time: %w", teamID, err)
+	if team.AttemptedAt != "" {
+		if state.LastAttemptAt, err = time.Parse(sortableUTCFormat, team.AttemptedAt); err != nil {
+			return RefreshState{}, fmt.Errorf("decode team %d refresh attempt time: %w", teamID, err)
+		}
 	}
 	if team.DueSK != "" {
 		if state.NextDueAt, err = dueTime(team.DueSK); err != nil {
