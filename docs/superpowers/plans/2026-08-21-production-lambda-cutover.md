@@ -296,9 +296,9 @@ Require the exact production backend key, `portfolio-lambda-prod` name prefix,
 - [ ] **Step 3: Validate the merged root offline**
 
 ```bash
-export TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+export TF_VAR_ecr_repository_url=<management-account-id>.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
 export TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:<management-account-id>:portfolio-lambda-prod-alerts"]'
 
 tofu -chdir=infra/lambda/environments/prod init -backend=false -input=false
 tofu -chdir=infra/lambda/environments/prod fmt -check
@@ -511,7 +511,7 @@ jq -e \
   --argjson count "$SNS_CONFIRMED_COUNT" '
     .schema_version == 1 and
     .environment == "production" and
-    .account_id == "180294223248" and
+    .account_id == "<management-account-id>" and
     .region == "us-west-2" and
     .topic_arn == $topic and
     .confirmed_subscription_count == $count and $count >= 1 and
@@ -1172,7 +1172,7 @@ printf '%s' "$alarm_json" | jq -e --arg topic "$alarm_topic_arn" \
    all(.MetricAlarms[]; .AlarmActions == [$topic])' >/dev/null
 jq -e --arg topic "$alarm_topic_arn" '
   .schema_version == 1 and .environment == "production" and
-  .account_id == "180294223248" and .region == "us-west-2" and
+  .account_id == "<management-account-id>" and .region == "us-west-2" and
   .topic_arn == $topic and
   .confirmed_subscription_count >= 1 and
   (.message_id | length) > 0 and

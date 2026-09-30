@@ -226,7 +226,7 @@ The existing `portfolio/terraform.tfstate` object is never migrated or modified
 by these roots. S3 bucket versioning and native lock files are prerequisites.
 
 The Lambda execution role uses the account-root-owned permissions boundary
-`arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+`arn:aws:iam::<management-account-id>:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
 The replacement roots derive its partition and account from the current AWS data
 sources but never create, edit, or remove the boundary policy. A separately
 reviewed Identity Center deployer permission set may create or pass only roles
@@ -247,9 +247,9 @@ its repository policy. The repository uses immutable tags, scan-on-push,
 `force_delete=false`, and no lifecycle rule that expires tagged releases. The
 repository policy grants only `ecr:BatchGetImage` and
 `ecr:GetDownloadUrlForLayer` to the `lambda.amazonaws.com` service principal.
-It requires `aws:SourceAccount` equal to `180294223248` and `aws:SourceArn`
+It requires `aws:SourceAccount` equal to `<management-account-id>` and `aws:SourceArn`
 matching only
-`arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*`. Image tags
+`arn:aws:lambda:us-west-2:<management-account-id>:function:portfolio-lambda-*`. Image tags
 use `git-` followed by the full 40-character source SHA, while Lambda receives
 the digest-qualified URI. Provisioning the access package does not create or
 import any ECR resource. Its temporary `T2` and `T3` SIDs authorize only the

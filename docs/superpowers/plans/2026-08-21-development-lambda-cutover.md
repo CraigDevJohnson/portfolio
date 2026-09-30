@@ -28,7 +28,7 @@
 - Every Lambda image URI contains `@sha256:` and every release is tied to a full Git SHA.
 - App Runner, `/portfolio/*`, both legacy DynamoDB tables, and `portfolio/terraform.tfstate` remain unchanged.
 - The account-root-owned execution boundary is
-  `arn:aws:iam::180294223248:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
+  `arn:aws:iam::<management-account-id>:policy/portfolio/boundaries/PortfolioLambdaExecutionBoundary`.
   Replacement roots may reference it, but never create, edit, or remove it.
 - The reviewed initial development deployer and root-owned boundary inputs are
   tracked under [`infra/lambda/bootstrap/`](../../../infra/lambda/bootstrap/README.md).
@@ -50,7 +50,7 @@
   accesses AWS sets `AWS_PROFILE=portfolio-deployer`, sets
   `AWS_REGION=us-west-2`, rejects ambient `AWS_ACCESS_KEY_ID`,
   `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`, and reruns the identity
-  guard. The guard requires account `180294223248` and an assumed-role ARN
+  guard. The guard requires account `<management-account-id>` and an assumed-role ARN
   containing `AWSReservedSSO_PortfolioDeployer_` and rejects root.
 
 ---
@@ -78,7 +78,7 @@ identity_json=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
 identity_arn=$(printf '%s' "$identity_json" | jq -r .Arn)
 identity_account=$(printf '%s' "$identity_json" | jq -r .Account)
 
-test "$identity_account" = "180294223248"
+test "$identity_account" = "<management-account-id>"
 case "$identity_arn" in
   *:root)
     echo "Refusing to deploy with the AWS root identity" >&2
@@ -107,14 +107,14 @@ test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
 identity_arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Arn --output text)
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
-  --query Account --output text)" = "180294223248"
+  --query Account --output text)" = "<management-account-id>"
 case "$identity_arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
   *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
   *) echo "Refusing unexpected deployment role" >&2; exit 1 ;;
 esac
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api get-bucket-versioning \
-  --bucket portfolio-tofu-state-180294223248 \
+  --bucket portfolio-tofu-state-<management-account-id> \
   --query Status --output text)" = "Enabled"
 ```
 
@@ -136,11 +136,11 @@ export AWS_REGION=us-west-2
 test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
 task lambda-artifacts-init
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api put-bucket-versioning \
-  --bucket portfolio-tofu-state-180294223248 \
+  --bucket portfolio-tofu-state-<management-account-id> \
   --versioning-configuration Status=Enabled
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   s3api get-bucket-versioning \
-  --bucket portfolio-tofu-state-180294223248 \
+  --bucket portfolio-tofu-state-<management-account-id> \
   --query Status --output text)" = "Enabled"
 ```
 
@@ -157,14 +157,14 @@ test -z "${AWS_ACCESS_KEY_ID+x}${AWS_SECRET_ACCESS_KEY+x}${AWS_SESSION_TOKEN+x}"
 identity_arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
   --query Arn --output text)
 test "$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" sts get-caller-identity \
-  --query Account --output text)" = "180294223248"
+  --query Account --output text)" = "<management-account-id>"
 case "$identity_arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
   *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
   *) echo "Refusing unexpected deployment role" >&2; exit 1 ;;
 esac
 aws --profile "$AWS_PROFILE" --region "$AWS_REGION" s3api head-object \
-  --bucket portfolio-tofu-state-180294223248 \
+  --bucket portfolio-tofu-state-<management-account-id> \
   --key portfolio/terraform.tfstate \
   --query '{ETag:ETag,VersionId:VersionId,LastModified:LastModified}' \
   --output json
@@ -275,7 +275,7 @@ Expected after Task 3: pass. Task 6 extends the same test with module and develo
 `backend.hcl`:
 
 ```hcl
-bucket       = "portfolio-tofu-state-180294223248"
+bucket       = "portfolio-tofu-state-<management-account-id>"
 key          = "portfolio-lambda-http-api/artifacts/terraform.tfstate"
 region       = "us-west-2"
 encrypt      = true
@@ -351,10 +351,10 @@ resource "aws_ecr_repository_policy" "lambda_releases" {
       ]
       Condition = {
         StringEquals = {
-          "aws:SourceAccount" = "180294223248"
+          "aws:SourceAccount" = "<management-account-id>"
         }
         ArnLike = {
-          "aws:SourceArn" = "arn:aws:lambda:us-west-2:180294223248:function:portfolio-lambda-*"
+          "aws:SourceArn" = "arn:aws:lambda:us-west-2:<management-account-id>:function:portfolio-lambda-*"
         }
       }
     }]
@@ -719,7 +719,7 @@ git commit -m "feat(infra): define the published Lambda service"
 - [ ] **Step 1: Define the dedicated backend**
 
 ```hcl
-bucket       = "portfolio-tofu-state-180294223248"
+bucket       = "portfolio-tofu-state-<management-account-id>"
 key          = "portfolio-lambda-http-api/dev/terraform.tfstate"
 region       = "us-west-2"
 encrypt      = true
@@ -799,9 +799,9 @@ Extend `infra/lambda/layout_test.go` to require:
 - [ ] **Step 4: Initialize locally without backend and validate**
 
 ```bash
-export TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+export TF_VAR_ecr_repository_url=<management-account-id>.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
 export TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:<management-account-id>:portfolio-lambda-prod-alerts"]'
 
 tofu -chdir=infra/lambda/environments/dev init -backend=false -input=false
 tofu -chdir=infra/lambda/environments/dev fmt -check
@@ -858,7 +858,7 @@ arn=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   sts get-caller-identity --query Arn --output text)
 account=$(aws --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   sts get-caller-identity --query Account --output text)
-test "$account" = "180294223248"
+test "$account" = "<management-account-id>"
 case "$arn" in
   *:root) echo "Refusing AWS root identity" >&2; exit 1 ;;
   *:assumed-role/AWSReservedSSO_PortfolioDeployer_*) ;;
@@ -885,9 +885,9 @@ implicitly plans or applies.
 
 The only accepted values are:
 
-- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock`;
-- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock`;
-- `s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/prod/terraform.tfstate.tflock`.
+- `s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock`;
+- `s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock`;
+- `s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/prod/terraform.tfstate.tflock`.
 
 Each apply command requires an existing `PLAN_FILE`, requires the exact
 separately approved `APPROVED_PLAN_SHA256`, recomputes the file's SHA-256
@@ -1071,9 +1071,9 @@ in deployment docs.
 ```bash
 plugin_cache=$(mktemp -d)
 export TF_PLUGIN_CACHE_DIR="$plugin_cache"
-export TF_VAR_ecr_repository_url=180294223248.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
+export TF_VAR_ecr_repository_url=<management-account-id>.dkr.ecr.us-west-2.amazonaws.com/portfolio-lambda-releases
 export TF_VAR_image_digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:180294223248:portfolio-lambda-prod-alerts"]'
+export TF_VAR_alarm_action_arns='["arn:aws:sns:us-west-2:<management-account-id>:portfolio-lambda-prod-alerts"]'
 
 tofu fmt -check -recursive infra/lambda
 tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
@@ -1152,7 +1152,7 @@ export AWS_REGION=us-west-2
 task lambda-artifacts-init
 plan_dir=$(mktemp -d)
 artifact_plan="$plan_dir/artifacts.tfplan"
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$artifact_plan"
 artifact_plan_sha256=$(shasum -a 256 "$artifact_plan" | awk '{print $1}')
 printf 'artifact_plan_sha256=%s\n' "$artifact_plan_sha256"
@@ -1183,7 +1183,7 @@ task lambda-artifacts-init
 task lambda-artifacts-apply \
   PLAN_FILE="$APPROVED_ARTIFACT_PLAN" \
   APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 5: Verify convergence and repository settings**
@@ -1198,7 +1198,7 @@ export AWS_REGION=us-west-2
 task lambda-artifacts-init
 convergence_dir=$(mktemp -d)
 convergence_plan="$convergence_dir/artifacts-convergence.tfplan"
-export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
+export APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/artifacts/terraform.tfstate.tflock
 task lambda-artifacts-plan PLAN_FILE="$convergence_plan"
 tofu -chdir=infra/lambda/artifacts show -json "$convergence_plan" | \
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length == 0'
@@ -1428,7 +1428,7 @@ dev_plan_json="$dev_plan.json"
 task lambda-dev-plan \
   PLAN_FILE="$dev_plan" \
   IMAGE_DIGEST="$release_digest" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 dev_plan_sha256=$(shasum -a 256 "$dev_plan" | awk '{print $1}')
 printf 'dev_plan_sha256=%s\n' "$dev_plan_sha256"
 
@@ -1466,7 +1466,7 @@ task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_DEV_PLAN" \
   APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 4: Wait for the function and verify version/alias coordinates**
@@ -1534,7 +1534,7 @@ convergence_plan="$convergence_dir/dev-convergence.tfplan"
 task lambda-dev-plan \
   PLAN_FILE="$convergence_plan" \
   IMAGE_DIGEST="$release_digest" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 tofu -chdir=infra/lambda/environments/dev show -json "$convergence_plan" | \
   jq -e '[.resource_changes[]? | select(.change.actions != ["no-op"])] | length == 0'
 rm -- "$convergence_plan"
@@ -1624,7 +1624,7 @@ certificate_plan="$certificate_plan_dir/dev-certificate.tfplan"
 task lambda-dev-plan \
   PLAN_FILE="$certificate_plan" \
   IMAGE_DIGEST="$release_digest" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 certificate_plan_sha256=$(shasum -a 256 "$certificate_plan" | awk '{print $1}')
 printf 'certificate_plan_sha256=%s\n' "$certificate_plan_sha256"
 tofu -chdir=infra/lambda/environments/dev show -json "$certificate_plan" > \
@@ -1653,7 +1653,7 @@ task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_CERTIFICATE_PLAN" \
   APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 4: Add ACM validation records to Cloudflare**
@@ -1694,7 +1694,7 @@ activation_plan="$activation_plan_dir/dev-domain-activation.tfplan"
 task lambda-dev-plan \
   PLAN_FILE="$activation_plan" \
   IMAGE_DIGEST="$release_digest" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 activation_plan_sha256=$(shasum -a 256 "$activation_plan" | awk '{print $1}')
 printf 'activation_plan_sha256=%s\n' "$activation_plan_sha256"
 tofu -chdir=infra/lambda/environments/dev show -json "$activation_plan" > \
@@ -1722,7 +1722,7 @@ task lambda-dev-init
 task lambda-dev-apply \
   PLAN_FILE="$APPROVED_ACTIVATION_PLAN" \
   APPROVED_PLAN_SHA256="$APPROVED_PLAN_SHA256" \
-  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-180294223248/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
+  APPROVED_STATE_LOCK_URI=s3://portfolio-tofu-state-<management-account-id>/portfolio-lambda-http-api/dev/terraform.tfstate.tflock
 ```
 
 - [ ] **Step 6: Add and test the custom-domain OAuth callback before traffic cutover**

@@ -1,9 +1,10 @@
 provider "aws" {
-  region = "us-west-2"
+  region              = "us-west-2"
+  allowed_account_ids = [var.aws_account_id]
 
   default_tags {
     tags = {
-      Project   = "portfolio"
+      project   = "portfolio"
       Platform  = "lambda-http-api"
       ManagedBy = "opentofu"
     }

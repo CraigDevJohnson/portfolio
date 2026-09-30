@@ -12,6 +12,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+# Synthetic account; the contract module reads PORTFOLIO_ACCOUNT_ID at import.
+os.environ['PORTFOLIO_ACCOUNT_ID'] = '111122223333'
 spec = importlib.util.spec_from_file_location('wrapper', Path(__file__).with_name('create-cognito-dev-plan.py'))
 w = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(w)
@@ -40,7 +42,7 @@ def fixture():
         if 'branding' in address:
             expressions['client_id'] = {'references': ['aws_cognito_user_pool_client.management.id', 'aws_cognito_user_pool_client.management']}
         config.append(dict(address=address, expressions=expressions))
-    return dict(resource_changes=resources, configuration=dict(provider_config={'aws': {'expressions': {'region': {'constant_value': c.REGION}, 'allowed_account_ids': {'constant_value': [c.ACCOUNT]}}}}, root_module={'resources': config, 'outputs': {k: {} for k in ['cognito_user_pool_id', 'cognito_domain', 'cognito_issuer', 'cognito_client_id', 'google_redirect_uri', 'session_parameter_path', 'management_runtime']}}))
+    return dict(resource_changes=resources, variables={'aws_account_id': {'value': c.ACCOUNT}}, configuration=dict(provider_config={'aws': {'expressions': {'region': {'constant_value': c.REGION}, 'allowed_account_ids': {'references': ['var.aws_account_id']}}}}, root_module={'resources': config, 'outputs': {k: {} for k in ['cognito_user_pool_id', 'cognito_domain', 'cognito_issuer', 'cognito_client_id', 'google_redirect_uri', 'session_parameter_path', 'management_runtime']}}))
 
 
 class ContractTests(unittest.TestCase):
@@ -50,9 +52,10 @@ class ContractTests(unittest.TestCase):
     def test_tampered_contracts(self):
         cases = [
             lambda p: p['configuration']['root_module']['outputs'].update(secret_output={}),
-            lambda p: p['resource_changes'][0]['change']['after'].update(lambda_config=[{'pre_sign_up': 'arn:aws:lambda:us-west-2:180294223248:function:other'}]),
+            lambda p: p['resource_changes'][0]['change']['after'].update(lambda_config=[{'pre_sign_up': 'arn:aws:lambda:us-west-2:111122223333:function:other'}]),
             lambda p: p['resource_changes'][1]['change']['after']['provider_details'].update(token_url='https://evil.example'),
             lambda p: p['configuration']['provider_config']['aws']['expressions'].update(allowed_account_ids={'constant_value': ['000000000000']}),
+            lambda p: p['variables']['aws_account_id'].update(value='000000000000'),
             lambda p: p['resource_changes'][0]['change'].update(actions=['delete', 'create']),
             lambda p: p['resource_changes'][0].update(address='aws_iam_role.unrelated'),
             lambda p: p['resource_changes'][2]['change']['after'].update(generate_secret=True),
@@ -101,7 +104,7 @@ class ContractTests(unittest.TestCase):
     def test_custom_email_configuration_is_rejected(self):
         cases = [
             {'email_sending_account': 'DEVELOPER'},
-            {'email_sending_account': 'COGNITO_DEFAULT', 'source_arn': 'arn:aws:ses:us-west-2:180294223248:identity/example.com'},
+            {'email_sending_account': 'COGNITO_DEFAULT', 'source_arn': 'arn:aws:ses:us-west-2:111122223333:identity/example.com'},
             {'email_sending_account': 'COGNITO_DEFAULT', 'from_email_address': 'Portfolio <portfolio@example.com>'},
             {'email_sending_account': 'COGNITO_DEFAULT', 'reply_to_email_address': 'reply@example.com'},
             {'email_sending_account': 'COGNITO_DEFAULT', 'configuration_set': 'production'},
@@ -148,7 +151,7 @@ class WrapperTests(unittest.TestCase):
         self.cred = self.root / 'credentials.json'
         w.write_private(self.cred, json.dumps(dict(client_id=SENTINEL, client_secret=SENTINEL)).encode())
         self.plan = self.root / 'plan'
-        self.env = dict(PATH=os.environ['PATH'], HOME=os.environ['HOME'], AWS_PROFILE='portfolio-deployer', AWS_REGION=c.REGION, COGNITO_PRIVATE_DIR=str(self.root), GOOGLE_OAUTH_CREDENTIALS_FILE=str(self.cred), PLAN_FILE=str(self.plan), APPROVED_STATE_LOCK_URI=f"s3://{c.BACKEND['bucket']}/{c.BACKEND['key']}.tflock")
+        self.env = dict(PATH=os.environ['PATH'], HOME=os.environ['HOME'], PORTFOLIO_ACCOUNT_ID=c.ACCOUNT, AWS_PROFILE=w.PROFILE, AWS_REGION=c.REGION, COGNITO_PRIVATE_DIR=str(self.root), GOOGLE_OAUTH_CREDENTIALS_FILE=str(self.cred), PLAN_FILE=str(self.plan), APPROVED_STATE_LOCK_URI=f"s3://{c.BACKEND['bucket']}/{c.BACKEND['key']}.tflock")
         self.calls = []
         self.fail = False
         self.fail_at = None
@@ -161,7 +164,7 @@ class WrapperTests(unittest.TestCase):
         self.assertNotIn(SENTINEL, ' '.join(args))
         data = b''
         if args[0] == 'aws':
-            data = json.dumps(dict(Account=c.ACCOUNT, Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_PortfolioDeployer_123/test')).encode()
+            data = json.dumps(dict(Account=c.ACCOUNT, Arn=f'arn:aws:sts::{c.ACCOUNT}:assumed-role/AWSReservedSSO_WorkloadsAdmin_123/test')).encode()
         elif args[2] == 'init':
             (Path(kwargs['env']['TF_DATA_DIR']) / 'terraform.tfstate').write_text(json.dumps({'backend': {'type': 's3', 'config': {k: v for k, v in c.BACKEND.items() if k != 'type'}}}))
         elif args[2] == 'workspace': data = b'default\n'
