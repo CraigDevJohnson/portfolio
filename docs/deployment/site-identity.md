@@ -40,12 +40,16 @@ HTTP loopback callback; development can explicitly opt in.
 
 Run `task cognito-site-ci` to validate both roots and their shared module with
 mock Cognito resources. `task infrastructure-ci` runs it, and
-`go test ./infra/lambda` checks the Lambda service's `SITE_*` contract and both
-environment roots without AWS access. The application test
+`go test ./infra/lambda` checks each root's backend, account pin and private
+inputs, the Lambda service's `SITE_*` contract, and both environment roots
+without AWS access. Production accepts only its own callbacks and domain, and
+never a loopback callback. The application test
 `TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes`
-uses fake OIDC and LPS endpoints to prove that cross-environment tokens and
-sessions fail, current page grants are checked, and public pages, Team ID
-lookup, and ICS remain available.
+loads each environment from the same `SITE_*` variables and uses fake OIDC and
+LPS endpoints. It proves that only an invited, verified identity signs in, that
+cross-environment tokens and sessions fail (even with a reused session key),
+that each environment checks its own current page grants, and that public
+pages, Team ID lookup, and ICS remain available.
 
 After separately approved provisioning, review each root's `site_runtime`
 output and supply the complete object as that environment root's optional
@@ -64,15 +68,19 @@ session path are added to Lambda.
 Activation is a separate, reviewed change in each environment. It needs all of:
 
 1. A dedicated Google OAuth client for the environment.
-2. A reviewed plan and apply of that environment's site root.
+2. A reviewed plan and apply of that environment's site root. Its plan and
+   state hold the Google client secret, so it needs an operator path with the
+   same private-input protections as the `cognito-dev-*` tasks; that path is
+   not part of this preparation.
 3. The environment's `SITE_SESSION_KEY` SecureString.
 4. `SITE_SESSION_KEY` added to that environment's parameters in the Lambda
    execution boundary (`infra/lambda/ci-roles/boundary.tf`), applied through the
    account root. Until then the boundary denies the read and sign-in stays off.
 5. The reviewed `site` object committed to that environment's `auto.tfvars`, so
    Craig's infrastructure apply and later CI release plans carry the same input.
-   CI release plans reject any change other than the image, so the environment
-   is applied with the operator tasks first.
+   CI release plans reject any change other than the image, so Craig applies
+   the environment first with `task lambda-<env>-plan` and
+   `task lambda-<env>-apply`.
 
 The previous `infra/lambda/auth/dev` root and `MGMT_*` runtime contract are
 legacy management-only configuration. They remain separate from these site

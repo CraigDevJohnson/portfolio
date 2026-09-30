@@ -24,6 +24,8 @@ native lock files).
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |
 | `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
+| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned ([site identity](docs/deployment/site-identity.md)) |
 | `infra` | `portfolio/terraform.tfstate` | Retired legacy root. Its management-account resources are destroyed from the `management-final` tag. A guard (`infra/retired.tf`) fails every plan here |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
