@@ -379,11 +379,7 @@ func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
 	if siteidentity.SoccerPrivateAllowed(r.Context()) {
 		return true
 	}
-	if _, signedIn := siteidentity.PrincipalFromContext(r.Context()); signedIn {
-		http.Error(w, "Soccer access has not been granted to this account.", http.StatusForbidden)
-	} else {
-		http.Error(w, "Sign in with a Soccer grant to use this action.", http.StatusUnauthorized)
-	}
+	internalsoccer.RefusePrivateAction(w, r)
 	return false
 }
 

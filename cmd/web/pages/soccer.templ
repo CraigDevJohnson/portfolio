@@ -117,12 +117,7 @@ templ Soccer(props SoccerProps) {
 					HeadingID:   "soccer-connections-title",
 				})
 				if props.PrivateAccessMessage != "" {
-					<div class="soccer-workspace-feedback">
-						@partials.Feedback(partials.FeedbackProps{Kind: partials.FeedbackInfo, Title: "Private Soccer access", Message: props.PrivateAccessMessage})
-						if props.ShowSiteSignIn {
-							<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>
-						}
-					</div>
+					@partials.SoccerPrivateAccess(partials.SoccerPrivateAccessProps{Kind: partials.FeedbackInfo, Message: props.PrivateAccessMessage, OfferSignIn: props.ShowSiteSignIn})
 				}
 				if props.GoogleMessage != "" {
 					<div class="soccer-workspace-feedback">

@@ -92,6 +92,12 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 	return teamSelection, results, nil, manualCodes
 }
 
+// publicSoccerPaths closes every private Soccer access explanation.
+const publicSoccerPaths = " Team ID lookup and .ics file downloads are still available."
+
+// signInUnavailableMessage explains private access where site sign-in cannot start.
+const signInUnavailableMessage = "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here." + publicSoccerPaths
+
 // PrivateAccessNotice explains why the visitor cannot use the private Soccer
 // actions this server offers and reports whether site sign-in could change
 // that. It is empty when nothing offered is withheld.
@@ -100,12 +106,45 @@ func PrivateAccessNotice(ctx context.Context, state *partials.SoccerLoginStatePr
 		return "", false
 	}
 	if _, signedIn := siteidentity.PrincipalFromContext(ctx); signedIn {
-		return "This account has not been granted access to linked players or Google Calendar. Team ID lookup and .ics file downloads are still available.", false
+		return "This account has not been granted access to linked players or Google Calendar." + publicSoccerPaths, false
 	}
 	if !siteidentity.SignInAvailable(ctx) {
-		return "Linked-player import and Google Calendar need a site account with Soccer access, and site sign-in is not available here. Team ID lookup and .ics file downloads are still available.", false
+		return signInUnavailableMessage, false
 	}
-	return "Sign in with an invited account to import linked players or connect Google Calendar. Team ID lookup and .ics file downloads are still available.", true
+	return "Sign in with an invited account to import linked players or connect Google Calendar." + publicSoccerPaths, true
+}
+
+// RefusePrivateAction answers a private Soccer request the current site
+// session cannot use: 401 without a signed-in account and 403 without the
+// soccer grant. A control on an already-open page receives an explanation
+// htmx swaps into that control's own target, so an expired session or a
+// revoked grant is visible where the visitor acted; other callers receive
+// plain text.
+func RefusePrivateAction(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_, signedIn := siteidentity.PrincipalFromContext(ctx)
+	status, plain := http.StatusUnauthorized, "Sign in with a Soccer grant to use this action."
+	notice := partials.SoccerPrivateAccessProps{Kind: partials.FeedbackError}
+	switch {
+	case signedIn:
+		status, plain = http.StatusForbidden, "Soccer access has not been granted to this account."
+		notice.Message = plain + publicSoccerPaths
+	case !siteidentity.SignInAvailable(ctx):
+		notice.Message = signInUnavailableMessage
+	default:
+		notice.Message = "Sign in again to use Soccer actions." + publicSoccerPaths
+		notice.OfferSignIn = true
+	}
+	if r.Header.Get("HX-Request") != "true" {
+		http.Error(w, plain, status)
+		return
+	}
+	w.Header().Set("Content-Type", htmlContentType)
+	w.Header().Set("X-Portal-Fragment-Error", "true")
+	w.Header().Set("HX-Reswap", "innerHTML")
+	w.WriteHeader(status)
+	// The status is already sent; a render error can only be a failed write.
+	_ = partials.SoccerPrivateAccess(notice).Render(ctx, w)
 }
 
 // LoginStateProps builds the shared login-state fragment props.

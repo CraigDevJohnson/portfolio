@@ -359,6 +359,9 @@ current `soccer` grant. Fetch and download requests using linked-player IDs or
 the imported team-selection form also require that grant. The Google OAuth
 callback is served on `/soccer` and requires the same grant. Protected routes
 return `401` without a site session and `403` when the account lacks the grant.
+An htmx request from an open Soccer page receives the same status with an
+explanation swapped into that control's target, so an expired session or a
+revoked grant is visible where the visitor acted.
 An environment without complete site sign-in configuration has no signed-in
 visitors, so its private Soccer actions stay unavailable and the page says so.
 
