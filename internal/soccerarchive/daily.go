@@ -468,6 +468,7 @@ func (transport *pacedTransport) admit(ctx context.Context) error {
 // cancelOnClose releases a request's timeout once its response body closes.
 type cancelOnClose struct {
 	io.ReadCloser
+
 	cancel context.CancelFunc
 }
 

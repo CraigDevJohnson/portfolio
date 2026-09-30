@@ -21,6 +21,7 @@ import (
 // enrollment transactions as DynamoDB does when transactions contend.
 type racingTable struct {
 	*archivetest.Table
+
 	reads map[string]int
 	// afterRead runs once a read of "pk/sk" has returned, with its count.
 	afterRead func(key string, read int)
