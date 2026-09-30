@@ -23,6 +23,7 @@ STATE_DIR="$RUN_ROOT/state"
 EVIDENCE_DIR="$RUN_ROOT/evidence/soccer-planner"
 VERIFY_URL="$(<"$STATE_DIR/url")"
 SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+SERVER_LOG="$RUN_ROOT/evidence/server.log"
 TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
 ASSERTIONS="$EVIDENCE_DIR/assertions.txt"
 
@@ -54,6 +55,9 @@ capture() {
 }
 
 "$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+[[ -f "$SERVER_LOG" ]] || fail "the launch server log is missing: $SERVER_LOG"
+# The server log lines this proof adds start after the lines already there.
+SERVER_LOG_START=$(($(wc -l <"$SERVER_LOG") + 1))
 
 run_pw open "$VERIFY_URL/"
 run_pw resize 1440 1000
@@ -105,14 +109,20 @@ capture 09-failure-recovered
 step 'Narrow layout' --filename "$STEPS/09-narrow.js"
 capture 10-narrow
 
-run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
+# --static also lists page loads and form posts that succeeded; without it the
+# list shows only fetches and failed requests.
+run_pw requests --static | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
 run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
 
 # Switching outputs is client-side: no Google Calendar route was called.
 if rg -q '/soccer/google/' "$EVIDENCE_DIR/browser-requests.txt"; then
   fail 'the planner journey requested a Google Calendar route'
 fi
-printf '\n## Side effects\nno /soccer/google/ request in the browser request list\n' | tee -a "$ASSERTIONS"
+tail -n "+$SERVER_LOG_START" "$SERVER_LOG" >"$EVIDENCE_DIR/server-log.txt"
+if rg -q 'path=/soccer/google/' "$EVIDENCE_DIR/server-log.txt"; then
+  fail 'the server logged a Google Calendar route during the planner journey'
+fi
+printf '\n## Side effects\nno /soccer/google/ request in the browser request list (page loads and form posts included) or in the server log for this proof\n' | tee -a "$ASSERTIONS"
 
 (
   cd "$EVIDENCE_DIR"
