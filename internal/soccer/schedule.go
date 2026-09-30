@@ -32,8 +32,8 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 
 	input := parseScheduleFormInput(r.Form)
 	privateAllowed := siteidentity.SoccerPrivateAllowed(r.Context())
-	session, clearedBy := h.loadSession(w, r)
-	swapAuthState := clearedBy != nil
+	session, swapAuthState := h.LoadSession(w, r)
+	importEnded := h.importEnded(session, input.PlayerIDs)
 
 	// When team_ids[] is submitted (from the discover-teams step), carry them
 	// forward in TeamCodes so ICS download and Google add forms work unchanged.
@@ -62,11 +62,11 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	h.setHTMLContentType(w)
-	if swapAuthState {
+	if swapAuthState || importEnded {
 		w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 		loginState := h.LoginStateProps(w, r, nil, true)
-		if errors.Is(clearedBy, ErrSessionExpired) && loginState.LoginAvailable {
-			loginState.ImportNotice = importNoticeFor(expiredImportDetails)
+		if importEnded {
+			loginState.ImportNotice = importNoticeFor(endedImportDetails)
 		}
 		if err := partials.SoccerLoginState(loginState).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -385,6 +385,23 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 	default:
 		return nil, ErrScheduleSelection
 	}
+}
+
+// endedImportDetails explains linked players chosen on an open page after
+// the browser stopped holding their imported LPS access. A browser discards
+// an expired import on its own and cannot say so, and another page may have
+// cleared it, so the reason is not known here.
+var endedImportDetails = lps.ScheduleErrorDetails{
+	ClearSession:    true,
+	FeedbackMessage: "Imported player access is no longer available in this browser.",
+	FeedbackHint:    "An import lasts until its JWT expires, for up to 12 hours. Copy a fresh bearer JWT from letsplaysoccer.com and import it again, or use manual Team IDs.",
+}
+
+// importEnded reports linked players chosen without imported LPS access in
+// this browser, which is how an expired import arrives: the import cookies
+// last only as long as the import, so the browser stops sending them.
+func (h *Handler) importEnded(session *types.SessionData, playerIDs []int) bool {
+	return len(playerIDs) > 0 && h.Config.LoginEnabled() && (session == nil || session.JWT == "")
 }
 
 // expiredImportDetails explains imported LPS access whose JWT or 12-hour
@@ -757,9 +774,9 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, clearedBy := h.loadSession(w, r)
-	if errors.Is(clearedBy, ErrSessionExpired) {
-		h.renderEndedImport(w, r, importNoticeFor(expiredImportDetails))
+	session, _ := h.LoadSession(w, r)
+	if h.importEnded(session, playerIDs) {
+		h.renderEndedImport(w, r, importNoticeFor(endedImportDetails))
 		return
 	}
 	if len(playerIDs) == 0 || session == nil {
@@ -779,6 +796,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		detail := lps.ScheduleErrorDetailsFor(err)
 		if detail.ClearSession {
+			h.clearSession(w, r)
 			h.renderEndedImport(w, r, importNoticeFor(detail))
 			return
 		}
@@ -829,12 +847,11 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// renderEndedImport clears imported access that can no longer be used and
-// closes the private workflow. The player and team stages close with it, so
-// the explanation and its recovery actions go to the LPS connection card,
-// which stays visible; the team stage returns to its placeholder.
+// renderEndedImport closes the private workflow of imported access that can
+// no longer be used. The player and team stages close with it, so the
+// explanation and its recovery actions go to the LPS connection card, which
+// stays visible; the team stage returns to its placeholder.
 func (h *Handler) renderEndedImport(w http.ResponseWriter, r *http.Request, notice *partials.FeedbackProps) {
-	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	props := h.LoginStateProps(w, r, nil, true)
 	props.ImportNotice = notice

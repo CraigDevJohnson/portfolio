@@ -311,8 +311,10 @@ grant:
 
 A new JWT import or explicit logout clears downstream workflow state. Google
 connect, reconnect, disconnect, and calendar selection preserve the current
-player and team workflow. An expired import or rejected LPS team lookup asks
-for fresh access; manual Team ID lookup remains available.
+player and team workflow. An expired import or a token LPS rejects asks for
+fresh access; manual Team ID lookup remains available. A linked player whose
+teams LPS refuses on its own is named and left out while the other players'
+teams still load, and an LPS outage keeps the import and the saved schedule.
 
 ## Source layout
 

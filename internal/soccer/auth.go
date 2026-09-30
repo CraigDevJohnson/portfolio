@@ -129,20 +129,16 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 		return nil, err
 	}
 	now := time.Now()
-	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
-	expired := (session.JWT != "" && (session.ExpiresAt.IsZero() || !now.Before(lps.JWTExpiry(session.JWT)))) ||
-		(!session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt))
-	if expired {
-		// Another signed-in owner is not told that someone else's import
-		// expired; either way the browser discards it.
-		if hasPrivateState && siteidentity.ForeignOwner(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
-			return nil, ErrSessionOwnerMismatch
-		}
+	if session.JWT != "" && (session.ExpiresAt.IsZero() || !now.Before(lps.JWTExpiry(session.JWT))) {
+		return nil, ErrSessionExpired
+	}
+	if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
 	if (session.JWT != "" || len(session.Players) > 0) && !importGuardMatches(r, session.ImportGuard) {
 		return nil, errImportGuardMismatch
 	}
+	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
 	if hasPrivateState && !siteidentity.SoccerOwnerAllowed(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
 		if siteidentity.ForeignOwner(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
 			return nil, ErrSessionOwnerMismatch
@@ -155,23 +151,20 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 
 // LoadSession loads the imported soccer session and reports whether it was cleared.
 func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
-	session, clearedBy := h.loadSession(w, r)
-	return session, clearedBy != nil
-}
-
-// loadSession loads the imported soccer session. When the browser's session
-// cannot be used and is cleared, it returns why; ErrSessionExpired means the
-// import of the visitor signed in now, or of a signed-out owner, expired.
-func (h *Handler) loadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, error) {
 	session, err := h.getSession(r)
-	if err == nil || errors.Is(err, errSessionWithheld) {
-		return session, nil
+	if errors.Is(err, errSessionWithheld) {
+		return nil, false
 	}
-	if !errors.Is(err, ErrSessionExpired) && !errors.Is(err, errImportGuardMismatch) {
+	if errors.Is(err, ErrSessionExpired) || errors.Is(err, errImportGuardMismatch) {
+		h.clearSession(w, r)
+		return nil, true
+	}
+	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("soccer session read failed", slog.Any("error", err))
+		h.clearSession(w, r)
+		return nil, true
 	}
-	h.clearSession(w, r)
-	return nil, err
+	return session, false
 }
 
 func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *types.SessionData) error {

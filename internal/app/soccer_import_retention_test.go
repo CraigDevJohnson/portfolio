@@ -125,7 +125,7 @@ func TestExplicitSiteSignOutClearsImportedLPSAccess(t *testing.T) {
 		t.Error("the owner's next sign-in restored imported access that sign-out should have cleared")
 	}
 	calls := world.lpsCredentialCalls.Load()
-	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Import a bearer JWT to discover teams.") {
+	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), endedImportNotice) {
 		t.Errorf("linked-player discovery after sign-out: status %d, body %q", discovered.Code, discovered.Body.String())
 	}
 	if world.lpsCredentialCalls.Load() != calls {
@@ -167,7 +167,7 @@ func TestSoccerResponseInFlightWhenImportIsClearedCannotRestoreIt(t *testing.T) 
 				t.Error("a response in flight restored imported access that was cleared")
 			}
 			calls := world.lpsCredentialCalls.Load()
-			if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Import a bearer JWT to discover teams.") {
+			if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), endedImportNotice) {
 				t.Errorf("linked-player discovery after the import was cleared: status %d", discovered.Code)
 			}
 			if world.lpsCredentialCalls.Load() != calls {
@@ -302,7 +302,7 @@ func TestAnotherSiteOwnerInTheSameBrowserCannotRecoverTheImport(t *testing.T) {
 	if page := browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
 		t.Error("another site owner saw the previous owner's imported access")
 	}
-	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Import a bearer JWT to discover teams.") {
+	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), endedImportNotice) {
 		t.Errorf("another owner's linked-player discovery: status %d, body %q", discovered.Code, discovered.Body.String())
 	}
 	if world.lpsCredentialCalls.Load() != calls {

@@ -465,7 +465,7 @@ func TestGrantedVisitorCannotInheritOwnerlessOrAnotherOwnersPrivateState(t *test
 				status       int
 				want         string
 			}{
-				{http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}}, http.StatusOK, "Import a bearer JWT to discover teams."},
+				{http.MethodPost, "/soccer/discover-teams", url.Values{"player_ids": {"1001"}}, http.StatusOK, endedImportNotice},
 				{http.MethodPost, "/soccer/fetch", url.Values{"player_ids": {"1001"}}, http.StatusOK, "Import a bearer JWT again to fetch schedules for your discovered players."},
 				{http.MethodPost, "/soccer/download", url.Values{"player_ids": {"1001"}, "selected": {"7001"}}, http.StatusUnauthorized, "import a bearer JWT again"},
 				{http.MethodPost, "/soccer/google/add", url.Values{"team_codes": {"4101"}, "selected": {"7001"}}, http.StatusOK, "Connect Google Calendar before adding selected games."},

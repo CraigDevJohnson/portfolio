@@ -15,7 +15,6 @@ import (
 
 	"portfolio/internal/config"
 	"portfolio/internal/testutil"
-	"portfolio/types"
 )
 
 // These tests drive the linked-player schedule source (#92) through the real
@@ -380,89 +379,117 @@ func TestLostLPSAccessOnReturnOffersRecoveryWithoutPlayers(t *testing.T) {
 	assertImportRecovery(t, parsePlannerHTML(t, page.Body.String()), "Your imported Let's Play Soccer token was rejected.")
 }
 
-// holdExpiredImport gives the browser the owner's import of both linked
-// players, with Taylor chosen, after its JWT expired.
-func (world *linkedPlannerWorld) holdExpiredImport(t *testing.T) {
+// importExpiringSoon imports the fake LPS account through the real route
+// with a JWT that expires a few seconds out, so the browser receives the
+// import cookies with their real Max-Age. It returns when the import ends.
+func (world *linkedPlannerWorld) importExpiringSoon(t *testing.T) time.Time {
 	t.Helper()
-	expired := &types.SessionData{
-		JWT:          testutil.TestJWT(t, time.Now().Add(-time.Minute)),
-		Players:      []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}, {UPlayerID: 1002, FirstName: "Taylor", LastName: "Johnson"}},
-		ExpiresAt:    time.Now().Add(-time.Minute),
-		OwnerIssuer:  world.cognito.issuer,
-		OwnerSubject: world.cognito.subject,
-		Workflow:     types.SoccerWorkflowState{Source: "imported", SelectedPlayerIDs: []int{1002}},
-	}
-	soccer, _ := url.Parse("https://app.example.com/soccer")
-	for _, cookie := range importedAccessCookies(t, world.app, expired) {
-		cookie.Path = config.SoccerCookiePath
-		world.browser.jar.SetCookies(soccer, []*http.Cookie{cookie})
+	// A whole-second JWT expiry at least 1.5 seconds out keeps the cookies'
+	// whole-second Max-Age positive while the import runs.
+	expiry := time.Now().Add(2500 * time.Millisecond).Truncate(time.Second)
+	world.jwt = testutil.TestJWT(t, expiry)
+	world.importLinkedPlayers(t)
+	return expiry
+}
+
+// waitForImportExpiry waits until the import has ended and requires the
+// browser to have discarded its cookies itself, as a browser does when their
+// Max-Age runs out, so later requests arrive without them.
+func (world *linkedPlannerWorld) waitForImportExpiry(t *testing.T, expiry time.Time) {
+	t.Helper()
+	time.Sleep(time.Until(expiry) + 250*time.Millisecond)
+	if world.browser.holdsCookie(config.LPSSessionCookieName, "/soccer") || world.browser.holdsCookie(config.LPSImportGuardCookieName, "/soccer") {
+		t.Fatal("the browser still holds the import after its Max-Age ran out")
 	}
 }
 
-const expiredImportNotice = "Your imported Let's Play Soccer token expired."
+// endedImportNotice explains linked players chosen on an open page after the
+// browser discarded their import. The browser does not say why, so neither
+// does the notice.
+const endedImportNotice = "Imported player access is no longer available in this browser."
 
-func TestExpiredImportExplainsRecoveryToItsOwner(t *testing.T) {
+func TestExpiredImportOffersRecoveryToItsOwner(t *testing.T) {
 	t.Run("returning to the planner", func(t *testing.T) {
 		world := newLinkedPlannerWorld(t)
-		world.holdExpiredImport(t)
+		expiry := world.importExpiringSoon(t)
+		if saved := world.browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1002"}}); saved.Code != http.StatusOK {
+			t.Fatalf("player choice status = %d", saved.Code)
+		}
+		world.waitForImportExpiry(t, expiry)
 
-		page := world.browser.get("/soccer")
+		doc := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
 
-		assertClearedSessionCookie(t, page.Result())
-		assertImportRecovery(t, parsePlannerHTML(t, page.Body.String()), expiredImportNotice)
+		// The page offers a new import, as on a first visit.
+		card, _ := linkedAccessNotice(t, doc)
+		if got := soccerHTMLAttribute(card, "data-connection-state"); got != "disconnected" {
+			t.Errorf("LPS card state = %q, want disconnected", got)
+		}
+		if imports := plannerElements(card, func(node *html.Node) bool {
+			return node.Data == "button" && plannerHasAttr(node, "data-open-login-modal")
+		}); len(imports) != 1 {
+			t.Error("LPS card does not offer a new import")
+		}
+		if strings.Contains(plannerText(doc), "Taylor Johnson") || len(plannerElements(doc, plannerAttrIs("name", "player_ids"))) != 0 {
+			t.Error("the page still offered the expired import's linked players")
+		}
 	})
 	t.Run("choosing players", func(t *testing.T) {
 		world := newLinkedPlannerWorld(t)
-		world.holdExpiredImport(t)
+		expiry := world.importExpiringSoon(t)
+		page := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
+		world.waitForImportExpiry(t, expiry)
+		calls := world.bearerCalls.Load()
 
-		expired := world.browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1002"}})
+		expired := world.browser.postForm("/soccer/discover-teams", linkedFormValues(t, page, "soccer-player-select-form"))
 
-		if !strings.Contains(expired.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
-			t.Errorf("expired import did not close the private workflow: HX-Trigger %q", expired.Header().Get("HX-Trigger"))
+		if expired.Code != http.StatusOK || !strings.Contains(expired.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
+			t.Errorf("expired import did not close the private workflow: status %d, HX-Trigger %q", expired.Code, expired.Header().Get("HX-Trigger"))
 		}
-		assertClearedSessionCookie(t, expired.Result())
-		assertImportRecovery(t, parsePlannerHTML(t, expired.Body.String()), expiredImportNotice)
-		if world.bearerCalls.Load() != 0 {
-			t.Error("the expired import was sent to LPS")
+		doc := parsePlannerHTML(t, expired.Body.String())
+		if card, _ := linkedAccessNotice(t, doc); soccerHTMLAttribute(card, "hx-swap-oob") != "outerHTML" {
+			t.Error("the LPS card is not replaced out of band")
+		}
+		assertImportRecovery(t, doc, endedImportNotice)
+		assertLinkedSourceRefreshed(t, doc, "locked", "Set up LPS access in Connections above")
+		if world.bearerCalls.Load() != calls {
+			t.Error("choosing players after the import expired used LPS access")
 		}
 	})
 	t.Run("fetching chosen teams", func(t *testing.T) {
 		world := newLinkedPlannerWorld(t)
-		world.holdExpiredImport(t)
+		expiry := world.importExpiringSoon(t)
+		teams := parsePlannerHTML(t, world.browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1002"}}).Body.String())
+		world.waitForImportExpiry(t, expiry)
 
-		fetched := world.browser.postForm("/soccer/fetch", url.Values{"selection_mode": {"teams"}, "player_ids": {"1002"}, "team_ids": {"202"}})
+		fetched := world.browser.postForm("/soccer/fetch", linkedFormValues(t, teams, "soccer-team-select-form"))
 
-		if !strings.Contains(fetched.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
-			t.Errorf("expired import did not close the private workflow: HX-Trigger %q", fetched.Header().Get("HX-Trigger"))
-		}
-		// The fetch keeps its team choice, but not the expired import.
-		if world.browser.holdsCookie(config.LPSImportGuardCookieName, "/soccer") {
-			t.Error("the browser kept the expired import's guard")
-		}
-		if page := world.browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
-			t.Error("the next page presented the expired import as active")
+		if fetched.Code != http.StatusOK || !strings.Contains(fetched.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
+			t.Errorf("expired import did not close the private workflow: status %d, HX-Trigger %q", fetched.Code, fetched.Header().Get("HX-Trigger"))
 		}
 		doc := parsePlannerHTML(t, fetched.Body.String())
-		assertImportRecovery(t, doc, expiredImportNotice)
+		assertImportRecovery(t, doc, endedImportNotice)
+		assertLinkedSourceRefreshed(t, doc, "locked", "Set up LPS access in Connections above")
 		// The chosen teams' schedules are public, so they still load.
 		if got := plannerRowIDs(plannerGameRows(doc, "upcoming-games")); !slices.Equal(got, []string{"3030", "2020"}) {
 			t.Errorf("South FC rows after the import expired = %v, want [3030 2020]", got)
+		}
+		if page := world.browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) {
+			t.Error("the next page presented the expired import as active")
 		}
 	})
 }
 
 func TestAnotherOwnerIsNotToldAboutAnExpiredImport(t *testing.T) {
 	world := newLinkedPlannerWorld(t)
-	world.holdExpiredImport(t)
+	expiry := world.importExpiringSoon(t)
 	world.app.Config.SiteInvitations[otherSiteEmail] = []string{"soccer"}
 	world.browser.expireSiteSession()
 	world.cognito.subject, world.cognito.email = otherSiteSubject, otherSiteEmail
 	world.browser.signIn("/soccer")
+	world.waitForImportExpiry(t, expiry)
 
-	page := world.browser.get("/soccer")
+	doc := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
 
-	assertClearedSessionCookie(t, page.Result())
-	doc := parsePlannerHTML(t, page.Body.String())
 	if _, notice := linkedAccessNotice(t, doc); notice != "" {
 		t.Errorf("another owner was told about the previous owner's import: %q", notice)
 	}

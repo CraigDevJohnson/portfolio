@@ -2,7 +2,6 @@ package soccer
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -19,12 +18,9 @@ import (
 
 // SoccerPage renders the full soccer page.
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
-	session, clearedBy := h.loadSession(w, r)
+	session, _ := h.LoadSession(w, r)
 	teamSelection, initialResults, restoreFeedback, manualTeamCodes, restoreErr := h.restoreSoccerWorkflow(r.Context(), session)
 	var importNotice *partials.FeedbackProps
-	if errors.Is(clearedBy, ErrSessionExpired) {
-		importNotice = importNoticeFor(expiredImportDetails)
-	}
 	if restoreErr != nil {
 		detail := lps.ScheduleErrorDetailsFor(restoreErr)
 		importNotice = importNoticeFor(detail)
