@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,7 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+
 	"portfolio/internal/config"
+	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
 )
 
@@ -290,6 +296,45 @@ func TestSoccerHistoryTeamSeasonsAreUnavailableWithoutTheDurableArchive(t *testi
 		if response := owner.get("/soccer/history/team-seasons?" + query); response.Code != http.StatusBadRequest {
 			t.Errorf("team-season list with %q: status %d, want 400", query, response.Code)
 		}
+	}
+}
+
+// failingQueries is the archive table whose queries fail, as a DynamoDB
+// outage would answer them.
+type failingQueries struct{ *archivetest.Table }
+
+func (failingQueries) Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	return nil, errors.New("simulated DynamoDB query failure")
+}
+
+// A membership query that fails is an error, never an empty or current-only
+// list, and it keeps the import.
+func TestSoccerHistoryTeamSeasonsAreUnavailableWhenTheMembershipQueryFails(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	failing, err := soccerarchive.NewDynamoStoreWithAPI(failingQueries{route.table}, "portfolio-lambda-dev-soccer-history", generousArchiveLimits)
+	if err != nil {
+		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
+	}
+	route.handler.SetArchiveStore(failing)
+
+	failed := owner.get(teamSeasonsPath(1001))
+	if failed.Code != http.StatusServiceUnavailable || !strings.Contains(failed.Body.String(), "Team history is unavailable") || strings.Contains(failed.Body.String(), "team_seasons") {
+		t.Errorf("list after a failed membership query: status %d, body %q; want 503 without seasons", failed.Code, failed.Body.String())
+	}
+	if got := failed.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Errorf("failed list Cache-Control = %q, want private, no-store", got)
+	}
+	if rewritten := findSessionCookie(t, failed.Result()); rewritten != nil {
+		t.Errorf("failed list rewrote the import: %#v", rewritten)
+	}
+
+	// The import still lists Craig's seasons once the archive answers again.
+	route.handler.SetArchiveStore(route.store)
+	recovered := listTeamSeasons(t, owner, 1001)
+	if got, want := recovered.summary(), "4102/78 Old FC current, 4101/77 Craig FC current"; got != want {
+		t.Errorf("Craig's team seasons after the archive recovered = %q, want %q", got, want)
 	}
 }
 
