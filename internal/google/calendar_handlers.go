@@ -258,7 +258,15 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if report.authRejected {
-		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
+		logging.WithContext(h.Logger, workCtx).Warn(
+			"google result sync connection rejected",
+			slog.Int("updated_count", report.outcomes[resultUpdated]),
+			slog.Int("current_count", report.outcomes[resultCurrent]),
+			slog.Int("skipped_count", report.skipped()),
+		)
+		// Results written before Google rejected the connection stay written;
+		// report them alongside the request to reconnect.
+		h.RenderDisconnectFeedback(w, r, session, strings.TrimSpace(report.done()+" "+googleInvalidConnectionMessage))
 		return
 	}
 	logging.WithContext(h.Logger, workCtx).Info(

@@ -731,6 +731,28 @@ func TestADestinationLostPartwayThroughSyncReportsTheResultsAlreadyWritten(t *te
 	}
 }
 
+func TestCredentialsRejectedPartwayThroughSyncReportTheResultsAlreadyWritten(t *testing.T) {
+	world := newResultSyncWorld(t)
+	world.add(t, syncNorthTeamID, syncWonGameID, syncDrawnGameID)
+	world.lps.play(syncWonGameID, "2-1")
+	world.lps.play(syncDrawnGameID, "1-1")
+	// Google stops accepting the connection after the first result.
+	world.google.refuseEventWrite(syncDrawnGameID, googleRefusal{http.StatusUnauthorized, "global", "authError"})
+
+	synced := world.sync(t, world.reviewForm(t, syncNorthTeamID), syncWonGameID, syncDrawnGameID)
+	for _, want := range []string{"1 game result(s) updated in Google Calendar.", "Your Google Calendar connection is no longer valid. Connect again and retry."} {
+		if !strings.Contains(synced, want) {
+			t.Errorf("Sync whose credentials Google rejected partway answered %q; want it to say %q", synced, want)
+		}
+	}
+	if !strings.HasSuffix(world.google.events(primaryCalendarID)[syncWonGameID].Description, "\nResult: Win (2-1)") {
+		t.Error("the first result was not written before Google rejected the connection")
+	}
+	if page := world.browser.get("/soccer").Body.String(); len(world.store.records) != 0 || !strings.Contains(page, "Not connected") {
+		t.Error("a connection Google no longer accepts was kept")
+	}
+}
+
 // sameMembers reports whether got holds exactly the values of want, in any
 // order.
 func sameMembers(got, want []string) bool {
