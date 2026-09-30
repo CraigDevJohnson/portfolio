@@ -7,8 +7,11 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/testutil"
+	"portfolio/types"
 )
 
 // importedAccessShown is the LPS connection status a page shows only while
@@ -155,5 +158,27 @@ func TestSiteSessionTimeoutWithholdsImportUntilTheSameOwnerSignsIn(t *testing.T)
 	}
 	if world.lpsCredentialCalls.Load() == calls {
 		t.Error("linked-player discovery after signing in again did not use the restored LPS credential")
+	}
+}
+
+func TestTeamIDLookupThatDiscardsAnExpiredImportSavesTheLookup(t *testing.T) {
+	world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+	browser := newSiteBrowser(t, world.mux)
+	expired := ownedBySiteVisitor(&types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(-time.Minute)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(-time.Minute),
+	})
+	soccerPage, _ := url.Parse("https://app.example.com/soccer")
+	browser.jar.SetCookies(soccerPage, []*http.Cookie{{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, world.app, expired), Path: config.SoccerCookiePath}})
+
+	if lookup := browser.postForm("/soccer/fetch", url.Values{"team_codes": {"4101"}}); lookup.Code != http.StatusOK || !strings.Contains(lookup.Body.String(), `value="7001"`) {
+		t.Fatalf("anonymous Team ID lookup: status %d, body %q", lookup.Code, lookup.Body.String())
+	}
+	if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), `value="7001"`) {
+		t.Error("the Soccer page did not restore a Team ID lookup made while an expired import was discarded")
+	}
+	if world.lpsCredentialCalls.Load() != 0 {
+		t.Error("the anonymous lookup used the expired LPS credential")
 	}
 }

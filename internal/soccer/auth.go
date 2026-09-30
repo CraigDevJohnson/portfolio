@@ -137,9 +137,7 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 		if siteidentity.ForeignOwner(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
 			return nil, ErrSessionOwnerMismatch
 		}
-		// The owner's site session timed out or the owner lacks the current
-		// soccer grant: withhold the retained import without discarding it.
-		return nil, nil
+		return nil, errSessionWithheld
 	}
 	session.Workflow = normalizeWorkflowState(&session.Workflow, session.Players)
 	return &session, nil
@@ -148,6 +146,9 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 // LoadSession loads the imported soccer session and reports whether it was cleared.
 func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.SessionData, bool) {
 	session, err := h.getSession(r)
+	if errors.Is(err, errSessionWithheld) {
+		return nil, false
+	}
 	if errors.Is(err, ErrSessionExpired) {
 		h.clearSession(w, r)
 		return nil, true

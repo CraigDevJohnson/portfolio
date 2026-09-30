@@ -25,6 +25,9 @@ var (
 	ErrSessionExpired = errors.New("session expired")
 	// ErrSessionOwnerMismatch reports that imported access belongs to another or unknown site owner.
 	ErrSessionOwnerMismatch = errors.New("soccer session owner does not match the site session")
+	// errSessionWithheld reports the owner's retained imported access while the
+	// owner is signed out or lacks the current soccer grant. It is kept, not cleared.
+	errSessionWithheld = errors.New("imported LPS access is withheld until its owner signs in with the soccer grant")
 	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
 	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.
