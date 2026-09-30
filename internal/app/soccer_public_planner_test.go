@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"portfolio/cmd/web/partials"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
@@ -504,6 +505,60 @@ func TestPublicPlannerRouteRestoresPastOnlyScheduleAsEmptyICSOutput(t *testing.T
 	if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 0 {
 		t.Fatalf("past-only schedule rendered downloadable rows %v", plannerRowIDs(rows))
 	}
+
+	// Past results and their Sync action belong to Google mode only.
+	pastForm := plannerSingle(t, doc, "past results form", plannerAttrIs("id", "past-results-form"))
+	if gate := plannerOutputGate(pastForm); gate == nil || soccerHTMLAttribute(gate, "data-soccer-output-only") != "google" || !plannerHasAttr(gate, "hidden") {
+		t.Error("past results are not inside a hidden Google-only section on the ICS path")
+	}
+	assertPastResultControlsGoogleOnly(t, doc)
+	for _, googleOnly := range plannerElements(doc, plannerAttrIs("data-soccer-output-only", "google")) {
+		if !plannerHasAttr(googleOnly, "hidden") {
+			t.Errorf("Google-only element %q is visible on the ICS path", plannerText(googleOnly))
+		}
+	}
+}
+
+func TestPublicPlannerKeepsResultSyncInGoogleModeOnly(t *testing.T) {
+	// A connected Google account renders the Sync action; it must still sit
+	// behind the Google-only gate so the ICS path never offers result sync.
+	props := soccerPresentationTestTableProps()
+	doc := parsePlannerHTML(t, renderSoccerTestComponent(t, partials.SoccerTableFragment(props)))
+	syncActions := plannerElements(doc, func(node *html.Node) bool {
+		return plannerHasAttr(node, "data-game-action") && soccerHTMLAttribute(node, "data-game-group") == "past-results"
+	})
+	if len(syncActions) == 0 {
+		t.Fatal("connected schedule lacks a result Sync action")
+	}
+	assertPastResultControlsGoogleOnly(t, doc)
+}
+
+// assertPastResultControlsGoogleOnly requires every past-result control,
+// including Sync, to sit inside a hidden Google-only section.
+func assertPastResultControlsGoogleOnly(t *testing.T, doc *html.Node) {
+	t.Helper()
+	controls := plannerElements(doc, func(node *html.Node) bool {
+		return soccerHTMLAttribute(node, "data-game-group") == "past-results"
+	})
+	if len(controls) == 0 {
+		t.Fatal("schedule lacks past-result controls")
+	}
+	for _, control := range controls {
+		if gate := plannerOutputGate(control); gate == nil || soccerHTMLAttribute(gate, "data-soccer-output-only") != "google" || !plannerHasAttr(gate, "hidden") {
+			t.Errorf("past-result control %q is reachable on the ICS path", plannerText(control))
+		}
+	}
+}
+
+// plannerOutputGate returns the nearest ancestor-or-self that limits node to
+// one calendar output.
+func plannerOutputGate(node *html.Node) *html.Node {
+	for current := node; current != nil; current = current.Parent {
+		if current.Type == html.ElementNode && plannerHasAttr(current, "data-soccer-output-only") {
+			return current
+		}
+	}
+	return nil
 }
 
 // importedLPSCookies returns a valid imported LPS session cookie so a case can
