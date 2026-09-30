@@ -15,6 +15,10 @@ type SoccerLoginStateProps struct {
 	// offers but the current visitor lacks the soccer page grant to use.
 	ImportNeedsGrant         bool
 	GoogleNeedsGrant         bool
+	// ImportNotice explains why imported LPS access ended or could not be
+	// used. The LPS card shows it, since that card stays visible once an
+	// output is chosen while the player and team stages close.
+	ImportNotice             *FeedbackProps
 	GoogleConnected          bool
 	// GoogleNeedsReconnect marks the owner's connection saved before its
 	// Google account was verified; it stays unused until the owner reconnects.
@@ -53,6 +57,9 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 				</span>
 				<div><p class="soccer-stage-kicker">LPS source</p><h4>Player access</h4></div>
 			</div>
+			if props.ImportNotice != nil {
+				@Feedback(*props.ImportNotice)
+			}
 			if props.Authenticated {
 				<div class="soccer-connection-copy">
 					<p class="soccer-connection-status">Imported in this browser</p>
@@ -89,7 +96,12 @@ templ SoccerLPSConnection(props SoccerLoginStateProps) {
 					<p>Import temporary LPS access here to discover linked players and their current teams.</p>
 				</div>
 				<div class="soccer-connection-actions">
-					<button type="button" class="btn btn-primary" data-open-login-modal>Import access</button>
+					if props.ImportNotice != nil {
+						<button type="button" class="btn btn-primary" data-open-login-modal>Import fresh access</button>
+						<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
+					} else {
+						<button type="button" class="btn btn-primary" data-open-login-modal>Import access</button>
+					}
 				</div>
 			}
 		}

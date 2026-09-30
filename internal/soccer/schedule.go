@@ -382,6 +382,14 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 	}
 }
 
+// expiredImportDetails explains imported LPS access whose JWT or 12-hour
+// retention expired.
+var expiredImportDetails = lps.ScheduleErrorDetails{
+	ClearSession:    true,
+	FeedbackMessage: "Your imported Let's Play Soccer token expired.",
+	FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
+}
+
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
 	props.FetchError = true
 	var classified *lps.FetchError
@@ -389,11 +397,7 @@ func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr 
 		(!errors.As(fetchErr, &classified) || classified.Kind == lps.ErrorUpstream)
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
-		detail = lps.ScheduleErrorDetails{
-			ClearSession:    true,
-			FeedbackMessage: "Your imported Let's Play Soccer token expired.",
-			FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
-		}
+		detail = expiredImportDetails
 	}
 	if fetchErr != nil && !detail.ClearSession {
 		logging.Component("soccer").Error("soccer LPS fetch failed", slog.Any("error", fetchErr))
@@ -694,7 +698,11 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, _ := h.LoadSession(w, r)
+	session, clearedBy := h.loadSession(w, r)
+	if errors.Is(clearedBy, ErrSessionExpired) {
+		h.renderEndedImport(w, r, importNoticeFor(expiredImportDetails))
+		return
+	}
 	if len(playerIDs) == 0 || session == nil {
 		h.setHTMLContentType(w)
 		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
@@ -712,18 +720,15 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		detail := lps.ScheduleErrorDetailsFor(err)
 		if detail.ClearSession {
-			h.clearSession(w, r)
-			w.Header().Set("HX-Trigger", "soccer-workflow-reset")
-			props := h.LoginStateProps(w, r, nil, true)
-			props.ResetWorkflow = true
-			h.setHTMLContentType(w)
-			if renderErr := partials.SoccerLoginState(props).Render(r.Context(), w); renderErr != nil {
-				http.Error(w, renderErr.Error(), http.StatusInternalServerError)
-				return
-			}
+			h.renderEndedImport(w, r, importNoticeFor(detail))
+			return
 		}
+		// An unavailable LPS says nothing about the import, so it is kept and
+		// no fresh import is suggested.
+		var classified *lps.FetchError
+		retryLater := !errors.As(err, &classified) || classified.Kind == lps.ErrorUpstream
 		h.setHTMLContentType(w)
-		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled()).Render(r.Context(), w); renderErr != nil {
+		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled() && !retryLater).Render(r.Context(), w); renderErr != nil {
 			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -762,6 +767,25 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		PlayerGroups: groups,
 		PlayerIDs:    playerIDs,
 	}).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// renderEndedImport clears imported access that can no longer be used and
+// closes the private workflow. The player and team stages close with it, so
+// the explanation and its recovery actions go to the LPS connection card,
+// which stays visible; the team stage returns to its placeholder.
+func (h *Handler) renderEndedImport(w http.ResponseWriter, r *http.Request, notice *partials.FeedbackProps) {
+	h.clearSession(w, r)
+	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
+	props := h.LoginStateProps(w, r, nil, true)
+	props.ImportNotice = notice
+	h.setHTMLContentType(w)
+	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := partials.SoccerTeamStagePlaceholder().Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

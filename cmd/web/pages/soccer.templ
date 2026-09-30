@@ -16,7 +16,6 @@ type SoccerProps struct {
 	InitialResults       *partials.SoccerTableFragmentProps
 	InitialTeamSelection *partials.SoccerTeamSelectProps
 	InitialFeedback      *partials.SoccerLoginFeedbackProps
-	ImportFeedback       *partials.SoccerLoginFeedbackProps
 	ModalFeedback        *partials.SoccerLoginFeedbackProps
 }
 
@@ -119,11 +118,6 @@ templ Soccer(props SoccerProps) {
 				})
 				if props.PrivateAccessMessage != "" {
 					@partials.SoccerPrivateAccess(partials.SoccerPrivateAccessProps{Kind: partials.FeedbackInfo, Message: props.PrivateAccessMessage, OfferSignIn: props.ShowSiteSignIn})
-				}
-				if props.ImportFeedback != nil {
-					<div class="soccer-workspace-feedback">
-						@partials.SoccerLoginFeedback(*props.ImportFeedback)
-					</div>
 				}
 				if props.GoogleMessage != "" {
 					<div class="soccer-workspace-feedback">

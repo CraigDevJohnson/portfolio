@@ -2,6 +2,7 @@ package soccer
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -18,15 +19,15 @@ import (
 
 // SoccerPage renders the full soccer page.
 func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
-	session, sessionCleared := h.LoadSession(w, r)
+	session, clearedBy := h.loadSession(w, r)
 	teamSelection, initialResults, restoreFeedback, manualTeamCodes, restoreErr := h.restoreSoccerWorkflow(r.Context(), session)
-	var importFeedback *partials.SoccerLoginFeedbackProps
-	if sessionCleared {
-		importFeedback = &partials.SoccerLoginFeedbackProps{Kind: "error", Message: "Saved LPS access expired or could not be restored. Import a fresh JWT to use linked players."}
+	var importNotice *partials.FeedbackProps
+	if errors.Is(clearedBy, ErrSessionExpired) {
+		importNotice = importNoticeFor(expiredImportDetails)
 	}
 	if restoreErr != nil {
 		detail := lps.ScheduleErrorDetailsFor(restoreErr)
-		importFeedback = &partials.SoccerLoginFeedbackProps{Kind: "error", Message: detail.FeedbackMessage + " " + detail.FeedbackHint}
+		importNotice = importNoticeFor(detail)
 		if detail.ClearSession {
 			h.clearSession(w, r)
 			session = nil
@@ -37,6 +38,9 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	authState := h.LoginStateProps(w, r, session, false)
+	if authState.LoginAvailable {
+		authState.ImportNotice = importNotice
+	}
 	privateAccessMessage, showSiteSignIn := PrivateAccessNotice(r.Context(), &authState)
 	googleMessageKind, googleMessage := soccerGoogleFlash(r.URL.Query().Get("google"), authState.GoogleAvailable, authState.GoogleConnected)
 	if initialResults != nil {
@@ -53,7 +57,6 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 		InitialTeamSelection: teamSelection,
 		InitialResults:       initialResults,
 		InitialFeedback:      restoreFeedback,
-		ImportFeedback:       importFeedback,
 		ManualTeamCodes:      manualTeamCodes,
 	}
 	if err := pages.Soccer(props).Render(r.Context(), w); err != nil {
@@ -110,6 +113,21 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 		manualCodes = results.TeamCodes
 	}
 	return teamSelection, results, nil, manualCodes, nil
+}
+
+// importNoticeFor explains imported LPS access that LPS refused or could not
+// serve, in the LPS connection card beside its recovery actions.
+func importNoticeFor(detail lps.ScheduleErrorDetails) *partials.FeedbackProps {
+	title := "Linked teams could not be loaded"
+	if detail.ClearSession {
+		title = "Imported LPS access ended"
+	}
+	return &partials.FeedbackProps{
+		Kind:       partials.FeedbackError,
+		Title:      title,
+		Message:    detail.FeedbackMessage + " " + detail.FeedbackHint,
+		ExtraClass: "soccer-stage-feedback",
+	}
 }
 
 // publicSoccerPaths closes every private Soccer access explanation.
