@@ -629,6 +629,7 @@ func TestSoccerPreviewSuccessFixturesPreserveHandlerMessages(t *testing.T) {
 	tests := []struct{ fixture, message string }{
 		{fixture: "google-add-success", message: "Added 2 selected game(s) to Google Calendar."},
 		{fixture: "google-sync-success", message: "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 unmatched (no event this site added)."},
+		{fixture: "google-sync-error", message: "1 game result(s) updated in Google Calendar. Could not finish result sync. Retry later; results already current will be left unchanged."},
 	}
 	for _, test := range tests {
 		fixture, ok := soccerPreviewFixture(test.fixture)

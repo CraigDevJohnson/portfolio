@@ -19,7 +19,7 @@ async page => {
     message: squash(await feedback.locator('.ui-feedback-message').textContent()),
   }
   if (state.role !== 'alert' || state.title !== 'Selected results were not synced') fail(`alert is role ${state.role}, title ${JSON.stringify(state.title)}`)
-  if (state.message !== '1 game result(s) updated in Google Calendar. Skipped 0 game(s). Could not finish result sync. Retry later; results already current will be left unchanged.') {
+  if (state.message !== '1 game result(s) updated in Google Calendar. Could not finish result sync. Retry later; results already current will be left unchanged.') {
     fail(`alert is ${JSON.stringify(state.message)}`)
   }
   return state

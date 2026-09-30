@@ -70,17 +70,18 @@ func (report resultSyncReport) done() string {
 }
 
 // message reports the updated, current, and skipped games, naming why each
-// skipped game was left alone.
+// skipped game was left alone. The updated count is always given; like Add's
+// report, it leaves out current and skipped games when there are none.
 func (report resultSyncReport) message() string {
 	message := fmt.Sprintf("%d game result(s) updated in Google Calendar.", report.outcomes[resultUpdated])
 	if current := report.outcomes[resultCurrent]; current > 0 {
 		message += fmt.Sprintf(" %d result(s) already current.", current)
 	}
 	skipped := report.skipped()
-	message += fmt.Sprintf(" Skipped %d game(s)", skipped)
 	if skipped == 0 {
-		return message + "."
+		return message
 	}
+	message += fmt.Sprintf(" Skipped %d game(s)", skipped)
 	var reasons []string
 	for _, reason := range []struct {
 		count int
@@ -91,7 +92,7 @@ func (report resultSyncReport) message() string {
 		{report.outcomes[resultAmbiguous], "with more than one matching event"},
 		{report.outcomes[resultChanged], "changed in Google Calendar during Sync"},
 		{report.outcomes[resultEdited], "with an edited description"},
-		{report.refused, "Google Calendar would not let this account change"},
+		{report.refused, "whose existing event Google Calendar would not let this account change"},
 	} {
 		if reason.count > 0 {
 			reasons = append(reasons, fmt.Sprintf("%d %s", reason.count, reason.text))

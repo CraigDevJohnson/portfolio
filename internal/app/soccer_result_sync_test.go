@@ -643,7 +643,8 @@ func TestSyncWritesTheResultForTheTeamTheEventNames(t *testing.T) {
 	world.lps.play(syncSharedGameID, "3-1")
 	synced := world.sync(t, world.reviewForm(t, syncNorthTeamID), syncSharedGameID)
 
-	if !strings.Contains(synced, "1 game result(s) updated in Google Calendar.") {
+	// Like Add, the report names no skipped games when there are none.
+	if !strings.Contains(synced, "1 game result(s) updated in Google Calendar.</p>") {
 		t.Fatalf("Sync answered %q", synced)
 	}
 	if got, want := world.google.events(primaryCalendarID)[syncSharedGameID].Description, withResult(t, before.Description, "Loss (1-3)"); got != want {
@@ -758,7 +759,7 @@ func TestGoogleRefusingToChangeOneEventSkipsItsResultAndKeepsSyncing(t *testing.
 	world.lps.play(syncDrawnGameID, "1-1")
 
 	synced := world.sync(t, world.reviewForm(t, syncNorthTeamID), syncWonGameID, syncDrawnGameID)
-	if want := "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 Google Calendar would not let this account change."; !strings.Contains(synced, want) {
+	if want := "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 whose existing event Google Calendar would not let this account change."; !strings.Contains(synced, want) {
 		t.Fatalf("Sync answered %q, want %q", synced, want)
 	}
 	if !strings.HasSuffix(world.google.events(primaryCalendarID)[syncDrawnGameID].Description, "\nResult: Draw (1-1)") {

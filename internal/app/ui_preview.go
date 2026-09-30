@@ -136,7 +136,7 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(nil, past, true, true)
 		// Google refused to go on after the first result, for a usage limit.
-		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "1 game result(s) updated in Google Calendar. Skipped 0 game(s). Could not finish result sync. Retry later; results already current will be left unchanged.")
+		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "1 game result(s) updated in Google Calendar. Could not finish result sync. Retry later; results already current will be left unchanged.")
 		return page, true
 	case "expired-session-reset":
 		page.Page.AuthState.LoginAvailable = true
