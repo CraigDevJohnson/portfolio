@@ -297,8 +297,10 @@ func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 	}
 }
 
-// The combined preview fixture is the browser-rendered check for team colors:
-// it must show a recognized color, a fallback, and shared matches with labels.
+// The combined preview fixture is the page the manual browser check renders
+// for team colors. This route-level check only pins the fixture's markup: a
+// recognized color, a Team ID fallback, and shared matches with labels. It
+// does not render the page.
 func TestSoccerPreviewFixtureRendersTeamColorStates(t *testing.T) {
 	app := newTestApp(t)
 	mux, _ := buildMux(app, app.Logger, true)
