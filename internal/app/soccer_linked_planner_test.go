@@ -41,6 +41,9 @@ type linkedPlannerWorld struct {
 	// teamLookup answers every /players/{id}/my_teams request with this
 	// status once set; zero keeps the linked teams.
 	teamLookup atomic.Int32
+	// taylorLookup answers only Taylor's /players/1002/my_teams request with
+	// this status once set, as when LPS withdraws one linked player.
+	taylorLookup atomic.Int32
 	// noTeams answers /players/{id}/my_teams with no current teams.
 	noTeams atomic.Bool
 	// bearerCalls counts LPS requests that carried the imported JWT.
@@ -70,7 +73,11 @@ func newLinkedPlannerWorld(t *testing.T) *linkedPlannerWorld {
 			if r.Header.Get("Authorization") != "Bearer "+world.jwt {
 				t.Errorf("team discovery for %s omitted the imported LPS token", path)
 			}
-			if status := int(world.teamLookup.Load()); status != 0 {
+			status := int(world.teamLookup.Load())
+			if taylor := int(world.taylorLookup.Load()); taylor != 0 && path == "/players/1002/my_teams" {
+				status = taylor
+			}
+			if status != 0 {
 				w.WriteHeader(status)
 				_, _ = w.Write([]byte(`{"error":"refused"}`))
 				return
@@ -537,5 +544,59 @@ func TestPlannerReturnDuringAnLPSOutageKeepsTheImport(t *testing.T) {
 	}
 	if len(plannerElements(doc, plannerAttrIs("name", "team_ids"))) != 0 {
 		t.Error("the page offered teams LPS could not confirm")
+	}
+}
+
+// teamSelectionNotice returns the text of the notices the team selection
+// form shows above its teams.
+func teamSelectionNotice(t *testing.T, doc *html.Node) string {
+	t.Helper()
+	form := plannerSingle(t, doc, "team selection form", plannerAttrIs("id", "soccer-team-select-form"))
+	var notice string
+	for _, feedback := range plannerElements(form, func(node *html.Node) bool { return soccerHTMLClassContains(node, "ui-feedback") }) {
+		notice += plannerText(feedback)
+	}
+	return notice
+}
+
+func TestDiscoveryKeepsTheTeamsOfPlayersLPSStillServes(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusNotFound} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			world := newLinkedPlannerWorld(t)
+			world.importLinkedPlayers(t)
+			world.taylorLookup.Store(int32(status))
+
+			resp := world.browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001", "1002"}})
+
+			if resp.Code != http.StatusOK || strings.Contains(resp.Header().Get("HX-Trigger"), "soccer-workflow-reset") {
+				t.Fatalf("status %d, HX-Trigger %q; the import is still usable", resp.Code, resp.Header().Get("HX-Trigger"))
+			}
+			if !world.browser.holdsCookie(config.LPSSessionCookieName, "/soccer") || !world.browser.holdsCookie(config.LPSImportGuardCookieName, "/soccer") {
+				t.Fatal("the browser lost an import LPS did not reject")
+			}
+			doc := parsePlannerHTML(t, resp.Body.String())
+			if got := linkedOptionLabels(doc, "team_ids"); !slices.Equal(got, []string{"North FC Season 77"}) {
+				t.Fatalf("teams offered = %q, want Craig's North FC", got)
+			}
+			if notice := teamSelectionNotice(t, doc); !strings.Contains(notice, "Taylor Johnson") {
+				t.Errorf("team selection notice = %q, want it to name Taylor Johnson", notice)
+			}
+
+			// Both players stay chosen, so the page return asks LPS about
+			// Taylor again and must still restore Craig's teams and schedule.
+			if fetched := world.browser.postForm("/soccer/fetch", linkedFormValues(t, doc, "soccer-team-select-form")); fetched.Code != http.StatusOK {
+				t.Fatalf("North FC fetch status = %d", fetched.Code)
+			}
+			page := parsePlannerHTML(t, world.browser.get("/soccer").Body.String())
+			if got := linkedOptionLabels(page, "team_ids"); !slices.Equal(got, []string{"North FC Season 77"}) {
+				t.Errorf("restored teams = %q, want Craig's North FC", got)
+			}
+			if notice := teamSelectionNotice(t, page); !strings.Contains(notice, "Taylor Johnson") {
+				t.Errorf("restored team selection notice = %q, want it to name Taylor Johnson", notice)
+			}
+			if got := plannerRowIDs(plannerGameRows(page, "upcoming-games")); !slices.Equal(got, []string{"2020", "1010"}) {
+				t.Errorf("restored North FC rows = %v, want [2020 1010]", got)
+			}
+		})
 	}
 }

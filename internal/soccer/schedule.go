@@ -649,14 +649,46 @@ func splitDelimitedValues(raw string) []string {
 	})
 }
 
-func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) ([]types.PlayerTeamGroup, error) {
+// playerTeams holds the current teams LPS served for the chosen linked
+// players, and the players whose own team lookup it refused.
+type playerTeams struct {
+	groups []types.PlayerTeamGroup
+	// refused lists chosen players LPS denied (403) or did not accept
+	// (400/404); refusedErr is the first of those errors.
+	refused    []types.LPSPlayer
+	refusedErr error
+}
+
+// notice names the chosen players whose teams are missing, or is nil when
+// LPS served every chosen player.
+func (teams *playerTeams) notice() *partials.FeedbackProps {
+	if len(teams.refused) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(teams.refused))
+	for _, player := range teams.refused {
+		names = append(names, strings.TrimSpace(player.FirstName+" "+player.LastName))
+	}
+	return &partials.FeedbackProps{
+		Kind:       partials.FeedbackWarning,
+		Title:      "Some linked teams are missing",
+		Message:    "Let's Play Soccer did not share current teams for " + strings.Join(names, ", ") + ". Their teams are left out; add them with manual Team IDs if you need them.",
+		ExtraClass: "soccer-stage-feedback",
+	}
+}
+
+// resolvePlayerTeams looks up each chosen linked player's current teams. A
+// player LPS refuses on its own is skipped so the others' teams still load;
+// a rejected import or an unavailable LPS affects every player and is
+// returned as the error.
+func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) (playerTeams, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
 	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
 	for _, p := range session.Players {
 		playerMap[p.UPlayerID] = p
 	}
 
-	var groups []types.PlayerTeamGroup
+	var result playerTeams
 	for _, playerID := range playerIDs {
 		player, ok := playerMap[playerID]
 		if !ok {
@@ -664,7 +696,14 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 		}
 		rawTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
 		if err != nil {
-			return nil, err
+			if !playerRefused(err) {
+				return playerTeams{}, err
+			}
+			result.refused = append(result.refused, player)
+			if result.refusedErr == nil {
+				result.refusedErr = err
+			}
+			continue
 		}
 		var teams []types.LPSTeam
 		for _, t := range rawTeams {
@@ -679,10 +718,17 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 			})
 		}
 		if len(teams) > 0 {
-			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
+			result.groups = append(result.groups, types.PlayerTeamGroup{Player: player, Teams: teams})
 		}
 	}
-	return groups, nil
+	return result, nil
+}
+
+// playerRefused reports an LPS answer about one linked player, a denial or a
+// player it did not accept, which says nothing about the other players.
+func playerRefused(err error) bool {
+	var classified *lps.FetchError
+	return errors.As(err, &classified) && (classified.Kind == lps.ErrorForbidden || classified.Kind == lps.ErrorInvalidPlayer)
 }
 
 // DiscoverTeamsHandler fetches current LPS teams for the selected players and
@@ -726,7 +772,11 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	teams, err := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	if err == nil && len(teams.groups) == 0 && teams.refusedErr != nil {
+		// LPS refused every chosen player that could have had teams.
+		err = teams.refusedErr
+	}
 	if err != nil {
 		detail := lps.ScheduleErrorDetailsFor(err)
 		if detail.ClearSession {
@@ -741,7 +791,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if len(groups) == 0 {
+	if len(teams.groups) == 0 {
 		h.setHTMLContentType(w)
 		if renderErr := partials.SoccerTeamRecovery(
 			"No current teams were found for the selected linked players.",
@@ -772,8 +822,9 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerTeamSelect(partials.SoccerTeamSelectProps{
-		PlayerGroups: groups,
+		PlayerGroups: teams.groups,
 		PlayerIDs:    playerIDs,
+		Notice:       teams.notice(),
 	}).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

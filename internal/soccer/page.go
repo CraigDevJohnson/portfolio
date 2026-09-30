@@ -79,14 +79,15 @@ func (h *Handler) restoreSoccerWorkflow(parent context.Context, session *types.S
 
 	var teamSelection *partials.SoccerTeamSelectProps
 	if workflow.Source == "imported" && len(workflow.SelectedPlayerIDs) > 0 {
-		groups, err := h.resolvePlayerTeams(ctx, session, workflow.SelectedPlayerIDs)
+		teams, err := h.resolvePlayerTeams(ctx, session, workflow.SelectedPlayerIDs)
 		if err != nil {
 			return nil, nil, nil, "", err
 		}
 		teamSelection = &partials.SoccerTeamSelectProps{
-			PlayerGroups:    groups,
+			PlayerGroups:    teams.groups,
 			PlayerIDs:       workflow.SelectedPlayerIDs,
 			SelectedTeamIDs: workflow.SelectedTeamIDs,
+			Notice:          teams.notice(),
 		}
 	}
 	if len(workflow.SelectedTeamIDs) == 0 {
