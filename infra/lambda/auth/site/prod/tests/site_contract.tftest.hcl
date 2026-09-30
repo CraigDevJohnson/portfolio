@@ -38,3 +38,46 @@ run "production_runtime_handoff" {
     error_message = "production runtime output must contain only its reviewed site identity and grants"
   }
 }
+
+run "accept_reviewed_domain_prefix_override" {
+  command = plan
+
+  variables {
+    cognito_domain_prefix = "portfolio-lambda-prod-site-reviewed"
+  }
+
+  assert {
+    condition     = output.site_runtime.cognito_domain == "https://portfolio-lambda-prod-site-reviewed.auth.us-west-2.amazoncognito.com"
+    error_message = "a reviewed override that keeps the environment prefix must reach site_runtime"
+  }
+}
+
+run "reject_domain_prefix_outside_the_environment" {
+  command = plan
+
+  variables {
+    cognito_domain_prefix = "craig-site-auth"
+  }
+
+  expect_failures = [var.cognito_domain_prefix]
+}
+
+run "reject_other_environment_domain_prefix" {
+  command = plan
+
+  variables {
+    cognito_domain_prefix = "portfolio-lambda-dev-site-reviewed"
+  }
+
+  expect_failures = [var.cognito_domain_prefix]
+}
+
+run "reject_overlong_domain_prefix" {
+  command = plan
+
+  variables {
+    cognito_domain_prefix = "portfolio-lambda-prod-site-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+
+  expect_failures = [var.cognito_domain_prefix]
+}

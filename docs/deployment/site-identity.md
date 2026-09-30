@@ -27,7 +27,10 @@ output, which points to Cognito's `/oauth2/idpresponse`. Neither credential
 belongs in a committed `.tfvars` file. Cognito provider credentials enter state
 and saved plans, so their storage and review must remain private. The default
 domain prefixes need a live availability check before any approved plan or
-apply.
+apply. If one is taken, an override through `cognito_domain_prefix` must still
+start with `portfolio-lambda-<env>-site-` and fit in 63 characters. Each root
+rejects any other prefix, because the environment root accepts only a
+`site.cognito_domain` with its own environment's prefix.
 
 The roots each own a reviewed invitation map. Both initially invite Craig with
 `soccer` and `management`; identical initial grants do not share configuration

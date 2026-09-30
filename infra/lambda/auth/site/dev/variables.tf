@@ -34,9 +34,17 @@ variable "google_client_secret" {
 }
 
 variable "cognito_domain_prefix" {
-  description = "Globally unique development managed-login prefix. Defaults to portfolio-lambda-dev-site-<aws_account_id>; override only after a live availability review."
+  description = "Globally unique development managed-login prefix. Defaults to portfolio-lambda-dev-site-<aws_account_id>; override only after a live availability review, and keep the portfolio-lambda-dev-site- prefix that the dev environment root requires."
   type        = string
   default     = null
+
+  validation {
+    condition = var.cognito_domain_prefix == null ? true : (
+      length(var.cognito_domain_prefix) <= 63 &&
+      can(regex("^portfolio-lambda-dev-site-[a-z0-9-]*[a-z0-9]$", var.cognito_domain_prefix))
+    )
+    error_message = "cognito_domain_prefix must start with portfolio-lambda-dev-site-, use at most 63 lowercase letters, digits, or hyphens, and not end with a hyphen."
+  }
 }
 
 variable "enable_local_callback" {
