@@ -188,6 +188,37 @@ worker-error and failure-queue alarms; both are off in each environment (see
 `infra/lambda/README.md`). A release fails when any of the environment's
 alarms is missing or in ALARM.
 
+The other alarms return to OK within 5 minutes once their condition stops. The
+`portfolio-lambda-<env>-soccer-history-dead-letter` alarm does not: it stays in
+ALARM while any message is visible in
+`portfolio-lambda-<env>-soccer-history-failures`, which keeps a message for 14
+days. A message lands there when a daily worker run fails or Scheduler cannot
+deliver it. Until someone drains the queue, every release in that environment
+applies its plan and then fails verification. Once development runs the
+schedule, a failed development verification also stops `production-plan`. No CI
+role can receive or purge the queue's messages, so drain it as `workloads-admin`:
+
+```sh
+queue_url=$(aws sqs get-queue-url --profile workloads-admin \
+  --queue-name portfolio-lambda-<env>-soccer-history-failures --query QueueUrl --output text)
+aws sqs receive-message --profile workloads-admin --queue-url "$queue_url" \
+  --max-number-of-messages 10 --message-attribute-names All
+# Record each message's cause (with the worker's log lines from that time) and
+# handle it. Then either delete each recorded message within 30 seconds of
+# receiving it, before it becomes visible again:
+aws sqs delete-message --profile workloads-admin --queue-url "$queue_url" \
+  --receipt-handle '<ReceiptHandle>'
+# or, once every message is recorded, purge the queue:
+aws sqs purge-queue --profile workloads-admin --queue-url "$queue_url"
+```
+
+Wait for the alarm to return to OK, then verify again: re-run the failed
+development job, which plans again, or, after a failed production
+verification, start a new Release run, because the saved production plan was
+already applied. The next daily run picks up the teams a failed run left due,
+so nothing needs to be redriven. Gating releases on this alarm is deliberate;
+leaving it out of release verification needs Craig's decision.
+
 ## Local image verification
 
 These Linux amd64 tasks are local-only and do not push or deploy images:

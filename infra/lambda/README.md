@@ -78,7 +78,11 @@ account root must be applied before any stage is planned:
 - `scripts/check-lambda-plan.sh` accepts a release plan that also moves the
   worker's image, only to the release image. `scripts/verify-lambda-release.sh`
   checks every alarm the environment's outputs name, so the history alarms
-  join release verification once a stage is applied.
+  join release verification once a stage is applied. The failure-queue alarm
+  stays in ALARM while any message sits in the 14-day failure queue, so after
+  a failed daily run or delivery every release in that environment fails
+  verification until an operator records the cause and drains the queue as
+  `workloads-admin` (see the Alarms section of `DEPLOY-INSTRUCTIONS.md`).
 - The worker reserves one concurrent execution, so a repeated delivery never
   runs alongside the first. Lambda keeps 100 executions unreserved, and the
   workloads account's concurrency limit is still 10 (aws-setup #30), which is
