@@ -195,14 +195,9 @@ func classifyHistoryGame(record *scoredRecord, game *lps.TeamScheduleGame, teamI
 		record.Unclassified++
 		return "unclassified"
 	}
-	homeID := game.UTeam1
-	if homeID <= 0 {
-		homeID = game.HomeTeam.UTeamID
-	}
-	awayID := game.UTeam2
-	if awayID <= 0 {
-		awayID = game.VisitorTeam.UTeamID
-	}
+	// The sides come from the game's team IDs as the schedule and archive
+	// read them; a team name never places a side.
+	homeID, awayID := game.HomeTeamID(), game.AwayTeamID()
 	if !(homeID == teamID && awayID > 0 && awayID != teamID || awayID == teamID && homeID > 0 && homeID != teamID) {
 		record.Unclassified++
 		return "unclassified"

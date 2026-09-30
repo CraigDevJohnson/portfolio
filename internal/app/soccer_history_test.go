@@ -307,6 +307,31 @@ func TestSoccerHistoryReadCountsOnlyNumericScoresFromTheTeamsSide(t *testing.T) 
 	}
 }
 
+// LPS can name a game's sides both in the nested home_team and visitor_team
+// objects and in the flat UTeam1 and UTeam2 fields. The schedule and the
+// archive take the nested team first, so the record must too.
+func TestSoccerHistoryReadTakesEachSideFromTheNestedTeamLikeTheSchedule(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, `{"team":{"UTeamID":4101,"team_name":"Craig FC","Season":77},"games":[
+{"UGameID":7101,"Season":77,"UTeam1":4999,"UTeam2":5001,"SchedGameDateTime":"2026-01-05T19:00:00Z","result":"1 - 0","home_team":{"UTeamID":4101,"team_name":"Craig FC"},"visitor_team":{"UTeamID":5001,"team_name":"Rivals"}},
+{"UGameID":7102,"Season":77,"UTeam1":4101,"UTeam2":5002,"SchedGameDateTime":"2026-01-12T19:00:00Z","result":"1 - 0","home_team":{"UTeamID":5002,"team_name":"Hosts"},"visitor_team":{"UTeamID":4101,"team_name":"Craig FC"}}]}`)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	if report := route.refreshTeams(t, time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), 4101); !report.Complete {
+		t.Fatalf("refresh of Craig FC: %+v", report)
+	}
+
+	history := readHistory(t, owner, 1001, 4101, 77)
+
+	want := map[int]string{7101: "win", 7102: "loss"}
+	if got := history.classifications(); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("completed games = %v, want %v", got, want)
+	}
+	if record := history.Record; record.Wins != 1 || record.Losses != 1 || record.Draws != 0 || record.ScoredGames != 2 || record.Unclassified != 0 {
+		t.Errorf("record = %+v, want 1-1-0 from two scored games", record)
+	}
+}
+
 func TestSoccerHistoryReadTellsAnEmptySeasonFromMissingOrFailedCollection(t *testing.T) {
 	route := newTeamHistoryRoute(t)
 	route.setTeam(4101, craigFCSeason77)
