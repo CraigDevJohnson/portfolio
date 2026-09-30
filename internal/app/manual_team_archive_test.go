@@ -155,6 +155,8 @@ func TestManualTeamLookupSeparatesEmptyScheduleFromInvalidAndFailedLookups(t *te
 			http.NotFound(w, r)
 		case "/teams/777777":
 			http.Error(w, "upstream unavailable", http.StatusInternalServerError)
+		case "/teams/888888":
+			_, _ = fmt.Fprint(w, `{}`)
 		default:
 			t.Errorf("unexpected LPS request: %s", r.URL.Path)
 			http.NotFound(w, r)
@@ -185,10 +187,53 @@ func TestManualTeamLookupSeparatesEmptyScheduleFromInvalidAndFailedLookups(t *te
 	}
 	route.assertNotArchived(t, 777777)
 
+	unconfirmed := route.lookup(t, "888888")
+	if !strings.Contains(unconfirmed, "Team 888888 was not added to history collection") || strings.Contains(unconfirmed, "accepted the team ID") || strings.Contains(unconfirmed, "was not accepted") {
+		t.Fatalf("unconfirmed empty response outcome: %q", unconfirmed)
+	}
+	route.assertNotArchived(t, 888888)
+
 	malformed := route.lookup(t, "not-a-team")
 	if !strings.Contains(malformed, "were invalid") || strings.Contains(malformed, "history collection") {
 		t.Fatalf("malformed team ID outcome: %q", malformed)
 	}
+}
+
+func TestManualTeamLookupWithArchiveKeepsTheUsualSchedule(t *testing.T) {
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/479691":
+			_, _ = fmt.Fprint(w, boiseFCSchedule(future))
+		case "/facilities/5":
+			_, _ = fmt.Fprint(w, archiveFacilityResponse)
+		case "/teams/888888":
+			// The long-standing manual-lookup fixture shape: games but no team identity.
+			_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":9001,"SchedGameDateTime":%q,"field_name":"Field 3","facilityName":"Boise","home_team":{"team_name":"UNITED NATIONS"},"visitor_team":{"team_name":"GALACTICOS FC"},"Season":169}]}`, future)
+		default:
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	})
+	route.handler.SetArchiveStore(nil)
+	usual := route.lookup(t, "479691, 888888")
+	if !strings.Contains(usual, "Away FC") || !strings.Contains(usual, "GALACTICOS FC") {
+		t.Fatalf("usual manual schedule fixture did not render both teams: %q", usual)
+	}
+
+	route.handler.SetArchiveStore(route.store)
+	archived := route.lookup(t, "479691, 888888")
+
+	if !strings.HasSuffix(archived, usual) {
+		t.Fatalf("archive changed the visitor's schedule\nusual:    %q\narchived: %q", usual, archived)
+	}
+	if !strings.Contains(archived, "Team 479691 added to history collection.") || !strings.Contains(archived, "Team 888888 was not added to history collection") {
+		t.Fatalf("enrollment outcome does not separate the confirmed and unconfirmed teams: %q", archived)
+	}
+	if _, err := route.store.ReadTeamSeason(context.Background(), 479691, 169); err != nil {
+		t.Fatalf("confirmed team was not archived: %v", err)
+	}
+	route.assertNotArchived(t, 888888)
 }
 
 func TestManualTeamLookupNeverArchivesImportedPlayerAccess(t *testing.T) {

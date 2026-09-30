@@ -211,8 +211,17 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 		return applyScheduleFetchError(props, err), false
 	}
 	setTableFragmentGames(props, schedule.UpcomingScheduleGames(games))
+	var enrolled, unconfirmed []int
 	for i := range sources {
 		source := &sources[i]
+		// A decodable 2xx payload that does not name the requested team is not
+		// proof that LPS accepted the ID, and without a documented invalid-ID
+		// contract it is not proof of an invalid ID either: show the schedule,
+		// but do not enroll it.
+		if source.Response.Team.UTeamID != source.TeamID {
+			unconfirmed = append(unconfirmed, source.TeamID)
+			continue
+		}
 		if err := archiveStore.SaveTeamSnapshot(ctx, &soccerarchive.Snapshot{
 			TeamID:     source.TeamID,
 			Team:       source.Response.Team,
@@ -227,19 +236,33 @@ func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStor
 			}
 			return false, true
 		}
+		enrolled = append(enrolled, source.TeamID)
 	}
-	var enrollmentMessage string
-	if len(teamIDs) == 1 {
-		enrollmentMessage = "Team " + strconv.Itoa(teamIDs[0]) + " added to history collection."
-	} else {
-		enrollmentMessage = strconv.Itoa(len(teamIDs)) + " teams added to history collection."
-	}
-	props.EnrollmentFeedback = &partials.FeedbackProps{Kind: partials.FeedbackSuccess, Title: "History collection", Message: enrollmentMessage}
-	if len(games) == 0 {
+	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed)
+	if len(games) == 0 && len(unconfirmed) == 0 {
 		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
 		props.Hint = "Its history is enrolled for collection; this response contains no games."
 	}
 	return false, true
+}
+
+func enrollmentFeedback(enrolled, unconfirmed []int) *partials.FeedbackProps {
+	messages := make([]string, 0, 1+len(unconfirmed))
+	switch len(enrolled) {
+	case 0:
+	case 1:
+		messages = append(messages, "Team "+strconv.Itoa(enrolled[0])+" added to history collection.")
+	default:
+		messages = append(messages, strconv.Itoa(len(enrolled))+" teams added to history collection.")
+	}
+	for _, teamID := range unconfirmed {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because Let's Play Soccer did not confirm the team.")
+	}
+	kind := partials.FeedbackSuccess
+	if len(unconfirmed) > 0 {
+		kind = partials.FeedbackWarning
+	}
+	return &partials.FeedbackProps{Kind: kind, Title: "History collection", Message: strings.Join(messages, " ")}
 }
 
 func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {

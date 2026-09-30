@@ -133,15 +133,9 @@ func FetchAllGamesForTeamsWithSource(ctx context.Context, baseURL string, httpCl
 		if err != nil {
 			return nil, nil, err
 		}
-		// A decodable empty payload is not proof that LPS accepted this ID. In
-		// particular, an empty schedule is valid only when the team identity matches.
-		// Without a documented 2xx invalid-ID contract, report an unconfirmed
-		// identity as an upstream response failure rather than a definitive invalid ID.
-		if response.Team.UTeamID != teamID {
-			return nil, nil, NewFetchError(ErrorUpstream, teamID, http.StatusBadGateway, "team ID %d was not confirmed by Let's Play Soccer", teamID)
-		}
-		// The source keeps the response exactly as LPS sent it; the schedule
-		// maps its own copy.
+		// The caller decides whether Response.Team confirms teamID, so the source
+		// keeps the response exactly as LPS sent it; the games still belong to the
+		// visitor's usual schedule either way, mapped from the schedule's own copy.
 		sources = append(sources, TeamScheduleSource{TeamID: teamID, Response: response, FetchedAt: time.Now().UTC()})
 		schedules = append(schedules, selectedTeamSchedule(response, teamID))
 	}
