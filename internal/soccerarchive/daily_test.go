@@ -197,7 +197,10 @@ func TestDailyWorkerStopsInvalidTeamsAndBacksOffTemporaryFailures(t *testing.T) 
 	store := newTestStore(t, archivetest.NewTable())
 	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
 	for _, teamID := range []int{101, 202} {
-		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt}); err != nil {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+			TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt,
+			Games: []lps.TeamScheduleGame{{UGameID: 9000 + teamID, UTeam1: teamID, UTeam2: 404, Season: 169, Result: "1-0"}},
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -235,6 +238,13 @@ func TestDailyWorkerStopsInvalidTeamsAndBacksOffTemporaryFailures(t *testing.T) 
 	invalid, err := store.ReadRefreshState(t.Context(), 101)
 	if err != nil || invalid.Status != RefreshInvalid || !invalid.NextDueAt.IsZero() {
 		t.Fatalf("invalid team remained due: %#v, err %v", invalid, err)
+	}
+	if history, err := store.ReadTeamSeason(t.Context(), 101, 169); err != nil || len(history.Games) != 1 || history.Games[0].UGameID != 9101 || history.Games[0].Result != "1-0" {
+		t.Fatalf("invalid team lost its history: %#v, err %v", history, err)
+	}
+	transient, err := store.ReadRefreshState(t.Context(), 202)
+	if err != nil || transient.Status != RefreshRetryable || !transient.NextDueAt.After(clock.Now()) {
+		t.Fatalf("temporarily failing team left enrollment or skipped its backoff: %#v, err %v", transient, err)
 	}
 	immediate, err := worker.Run(t.Context())
 	if err != nil || !immediate.Complete || immediate.Requests != 0 || requests[101] != 1 || requests[202] != 1 {
