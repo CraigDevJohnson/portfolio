@@ -249,11 +249,18 @@ const (
 // signInAs signs the journey's browser in as another invited site owner.
 func (journey *googleAccountJourney) signInAs(t *testing.T, email, subject string) {
 	t.Helper()
-	journey.app.Config.SiteInvitations[email] = []string{"soccer"}
-	previousEmail, previousSubject := journey.cognito.email, journey.cognito.subject
-	journey.cognito.email, journey.cognito.subject = email, subject
-	defer func() { journey.cognito.email, journey.cognito.subject = previousEmail, previousSubject }()
-	journey.browser.signIn("/soccer")
+	signInAsInvitedOwner(t, journey.app, journey.cognito, journey.browser, email, subject)
+}
+
+// signInAsInvitedOwner invites another site owner to Soccer and signs the
+// browser in as them through the fake Cognito.
+func signInAsInvitedOwner(t *testing.T, app *App, cognito *fakeSiteCognito, browser *siteBrowser, email, subject string) {
+	t.Helper()
+	app.Config.SiteInvitations[email] = []string{"soccer"}
+	previousEmail, previousSubject := cognito.email, cognito.subject
+	cognito.email, cognito.subject = email, subject
+	defer func() { cognito.email, cognito.subject = previousEmail, previousSubject }()
+	browser.signIn("/soccer")
 }
 
 func TestDisconnectLeavesOtherConnectionsToTheSameGoogleAccountConnected(t *testing.T) {

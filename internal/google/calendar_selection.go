@@ -59,6 +59,21 @@ func (h *Handler) reconcileCalendarSelection(ctx context.Context, record *Connec
 	return id, summary, !record.CalendarSelectionRequired, nil
 }
 
+// reconnectDestination returns the destination for a connection saved by a
+// new consent. When the same Google account consented again over the
+// owner's stored connection, the calendar chosen before stays the
+// destination while that account can still write it. Otherwise, including
+// a connection whose writes wait for a new choice, the new connection starts
+// at the primary calendar.
+func reconnectDestination(previous *ConnectionRecord, accountSubject string, calendars []types.GoogleCalendarOption) (id, summary string) {
+	if previous != nil && previous.accountVerified() && previous.AccountSubject == accountSubject && !previous.CalendarSelectionRequired {
+		if summary := calendarSummary(calendars, previous.CalendarID); summary != "" {
+			return previous.CalendarID, summary
+		}
+	}
+	return preferredCalendar(calendars)
+}
+
 // SyncCalendarSelection reconciles the connection's destination for a page
 // view and returns the destination to show. A save that failed, or that
 // another request's save overtook, is logged; the next page view or Add

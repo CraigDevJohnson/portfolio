@@ -227,6 +227,16 @@ itself, the site removes it and asks the visitor to connect again. Any other
 refusal, such as a Google usage limit, keeps the connection: the card still
 names the connected account and asks the visitor to retry.
 
+Consenting again as the same Google account while the owner's connection is
+still stored, for example through **Change Google account**, keeps the chosen
+calendar as the destination if that account can still write it. Every other
+new consent starts at primary: a different Google account, a chosen calendar
+that is gone or read-only, or writes paused for a new choice. Connecting after
+**Disconnect**, or after Google rejected the connection, also starts at
+primary, because the site no longer holds the earlier connection. Each site
+owner's choice stays with that owner's connection and is never carried over
+to another owner.
+
 Viewing the page and fetching schedules write no Google events. **Add selected
 to calendar** writes only the selected upcoming games; one LPS has not given a
 start time yet is listed as upcoming, and Add skips and reports it. Each event

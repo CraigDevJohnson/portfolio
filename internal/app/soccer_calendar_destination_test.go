@@ -59,6 +59,10 @@ type fakeGoogleCalendars struct {
 	t         *testing.T
 	mu        sync.Mutex
 	calendars []*fakeCalendar
+	// accountSubject and accountEmail identify the Google account that
+	// consents. A test may consent as another account, which the fake lists
+	// the same calendars for.
+	accountSubject, accountEmail string
 	// revoked answers every Calendar request with 401, as Google does once
 	// the account withdraws the grant.
 	revoked bool
@@ -111,7 +115,7 @@ type googleRefusal struct {
 
 func newFakeGoogleCalendars(t *testing.T) *fakeGoogleCalendars {
 	t.Helper()
-	return &fakeGoogleCalendars{t: t, calendars: []*fakeCalendar{
+	return &fakeGoogleCalendars{t: t, accountSubject: "google-family", accountEmail: calendarAccount, calendars: []*fakeCalendar{
 		{id: primaryCalendarID, summary: primaryCalendarName, primary: true, access: "owner", events: map[string]internalgoogle.Event{}},
 		{id: teamCalendarID, summary: teamCalendarName, access: "writer", events: map[string]internalgoogle.Event{}},
 		{id: readOnlyCalendarID, summary: "League Fixtures", access: "reader", events: map[string]internalgoogle.Event{}},
@@ -146,7 +150,7 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		_, _ = w.Write([]byte(`{"access_token":"calendar-access","refresh_token":"calendar-refresh","token_type":"Bearer","expires_in":3600}`))
 		return
 	case r.URL.Path == "/userinfo":
-		_, _ = fmt.Fprintf(w, `{"sub":"google-family","email":%q,"email_verified":true}`, calendarAccount)
+		_, _ = fmt.Fprintf(w, `{"sub":%q,"email":%q,"email_verified":true}`, fake.accountSubject, fake.accountEmail)
 		return
 	case fake.revoked && strings.HasPrefix(r.URL.Path, "/calendar/v3/"):
 		writeGoogleError(w, googleRefusal{status: http.StatusUnauthorized, domain: "global", reason: "authError"})
@@ -331,6 +335,13 @@ func (fake *fakeGoogleCalendars) calendar(id string) *fakeCalendar {
 	return nil
 }
 
+// consentAs makes a different Google account consent from now on.
+func (fake *fakeGoogleCalendars) consentAs(subject, email string) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.accountSubject, fake.accountEmail = subject, email
+}
+
 // setAccess changes the connected account's access to a calendar; "" removes
 // the calendar from the account.
 func (fake *fakeGoogleCalendars) setAccess(id, access string) {
@@ -513,6 +524,7 @@ func writeGoogleError(w http.ResponseWriter, refusal googleRefusal) {
 // sign-in, a fake LPS schedule for one team, and a fake Google account with a
 // primary calendar, a second writable calendar, and a read-only calendar.
 type calendarDestinationWorld struct {
+	cognito *fakeSiteCognito
 	app     *App
 	store   *appTestGoogleConnectionStore
 	google  *fakeGoogleCalendars
@@ -522,7 +534,7 @@ type calendarDestinationWorld struct {
 func newCalendarDestinationWorld(t *testing.T) *calendarDestinationWorld {
 	t.Helper()
 	cognito := newFakeSiteCognito(t)
-	world := &calendarDestinationWorld{app: cognito.app(t)}
+	world := &calendarDestinationWorld{cognito: cognito, app: cognito.app(t)}
 	world.app.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
 	world.google, world.store = wireFakeGoogleAccount(t, world.app)
 

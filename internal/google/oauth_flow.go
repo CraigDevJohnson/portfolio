@@ -237,17 +237,18 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, true, "google calendar list after connect failed: %v", err)
 		return
 	}
-	selectedCalendarID, selectedCalendarSummary := preferredCalendar(calendars)
 	encryptedToken, err := h.EncryptToken(token)
 	if err != nil {
 		h.failOAuthf(w, r, true, "google token encryption failed: %v", err)
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, getErr := h.Store().Get(r.Context(), state.ConnectionID); getErr != nil {
-		h.failOAuthf(w, r, true, "google connection read before save failed: %v", getErr)
+	existing, err := h.Store().Get(r.Context(), state.ConnectionID)
+	if err != nil {
+		h.failOAuthf(w, r, true, "google connection read before save failed: %v", err)
 		return
-	} else if existing != nil {
+	}
+	if existing != nil {
 		if !siteidentity.SoccerOwnerAllowed(r.Context(), existing.OwnerIssuer, existing.OwnerSubject) {
 			ClearOAuthStateCookie(w, r)
 			RedirectSoccerWithGoogleStatus(w, r, "failed")
@@ -255,6 +256,7 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		createdAt = existing.CreatedAt
 	}
+	selectedCalendarID, selectedCalendarSummary := reconnectDestination(existing, account.Subject, calendars)
 	record := ConnectionRecord{
 		ConnectionID:    state.ConnectionID,
 		OwnerIssuer:     state.OwnerIssuer,
