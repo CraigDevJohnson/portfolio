@@ -286,7 +286,8 @@ portfolio/
 │   ├── session/            Encryption and login rate limiting
 │   ├── siteauth/           Site Cognito sign-in and encrypted sessions
 │   ├── siteidentity/       Request principal and current page grants
-│   └── soccer/             Soccer auth and schedule handlers
+│   ├── soccer/             Soccer auth and schedule handlers
+│   └── soccerarchive/      Durable LPS team history and on-demand refresh worker
 └── types/                  Shared application models
 ```
 
