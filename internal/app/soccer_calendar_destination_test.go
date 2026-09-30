@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,16 +66,33 @@ type fakeGoogleCalendars struct {
 	// event insert or update; refuseList, for every calendar list request.
 	refuseWrites *googleRefusal
 	refuseList   *googleRefusal
+	// refuseReads, when set, is Google's refusal of every events read.
+	refuseReads *googleRefusal
 	// refuseEvents is Google's refusal of any insert or update of the event
 	// with that ID.
 	refuseEvents map[string]googleRefusal
 	// listPageSize, when set, is how many calendars each calendar list page
 	// holds; Google may return fewer than the page size asked for.
 	listPageSize int
-	// beforeEventWrite, when set, runs as each event insert or update
-	// arrives, before Google answers it.
+	// beforeEventWrite, when set, runs as each event insert, update, or
+	// patch arrives, before Google answers it.
 	beforeEventWrite func()
-	eventCalls       []string
+	// changeBeforePatch holds an edit made in Google to an event, applied as
+	// the next patch of that event arrives and before Google checks its
+	// If-Match condition, the way a visitor's own edit can land between the
+	// site reading and patching an event.
+	changeBeforePatch map[string]func(*internalgoogle.Event)
+	// etags numbers each version of an event, as Google's ETag does.
+	etags      int
+	eventCalls []string
+	patches    []fakeEventPatch
+}
+
+// fakeEventPatch is one events.patch request the fake received: the event it
+// named, its If-Match condition, and the fields its body set.
+type fakeEventPatch struct {
+	calendarID, eventID, ifMatch string
+	fields                       []string
 }
 
 type googleRefusal struct {
@@ -146,10 +164,12 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		writeGoogleError(w, googleRefusal{status: http.StatusNotFound, domain: "global", reason: "notFound"})
 		return
 	}
-	write := r.Method == http.MethodPost || r.Method == http.MethodPut
+	write := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch
 	switch {
 	case write && fake.refuseWrites != nil:
 		writeGoogleError(w, *fake.refuseWrites)
+	case !write && fake.refuseReads != nil:
+		writeGoogleError(w, *fake.refuseReads)
 	case write && calendar.access != "owner" && calendar.access != "writer":
 		writeGoogleError(w, googleRefusal{status: http.StatusForbidden, domain: "calendar", reason: "requiredAccessLevel"})
 	case r.Method == http.MethodGet && eventID != "":
@@ -163,11 +183,15 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		gameID := strings.TrimPrefix(r.URL.Query().Get("privateExtendedProperty"), "game_id=")
 		matches := []internalgoogle.Event{}
 		for id := range calendar.events {
-			if calendar.events[id].ExtendedProperties.Private["game_id"] == gameID {
-				matches = append(matches, calendar.events[id])
+			event := calendar.events[id]
+			// Google lists deleted events only when asked to show them.
+			if event.ExtendedProperties.Private["game_id"] == gameID && (event.Status != googleDeletedStatus || r.URL.Query().Get("showDeleted") == "true") {
+				matches = append(matches, event)
 			}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"items": matches})
+	case r.Method == http.MethodPatch:
+		fake.patchEvent(w, r, calendar, eventID)
 	case write:
 		var event internalgoogle.Event
 		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
@@ -186,11 +210,74 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			writeGoogleError(w, googleRefusal{status: http.StatusConflict, domain: "global", reason: "duplicate"})
 			return
 		}
+		fake.etags++
+		event.ETag = fmt.Sprintf(`"%d"`, fake.etags)
 		calendar.events[event.ID] = event
 		_ = json.NewEncoder(w).Encode(event)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// googleDeletedStatus is the status Google gives a deleted event.
+const googleDeletedStatus = "cancelled" //nolint:misspell // Google Calendar's wire spelling.
+
+// patchEvent answers events.patch as Google does: it changes only the fields
+// the body names, and refuses the change with 412 when an If-Match condition
+// no longer names the event's current version.
+func (fake *fakeGoogleCalendars) patchEvent(w http.ResponseWriter, r *http.Request, calendar *fakeCalendar, eventID string) {
+	var fields map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
+		fake.t.Errorf("event patch body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	patch := fakeEventPatch{calendarID: calendar.id, eventID: eventID, ifMatch: r.Header.Get("If-Match")}
+	for field := range fields {
+		patch.fields = append(patch.fields, field)
+	}
+	sort.Strings(patch.fields)
+	fake.patches = append(fake.patches, patch)
+	if fake.beforeEventWrite != nil {
+		fake.beforeEventWrite()
+	}
+	if refusal, refused := fake.refuseEvents[eventID]; refused {
+		writeGoogleError(w, refusal)
+		return
+	}
+	event, found := calendar.events[eventID]
+	if !found {
+		writeGoogleError(w, googleRefusal{status: http.StatusNotFound, domain: "global", reason: "notFound"})
+		return
+	}
+	if change := fake.changeBeforePatch[eventID]; change != nil {
+		delete(fake.changeBeforePatch, eventID)
+		change(&event)
+		fake.etags++
+		event.ETag = fmt.Sprintf(`"%d"`, fake.etags)
+		calendar.events[eventID] = event
+	}
+	if patch.ifMatch != "" && patch.ifMatch != event.ETag {
+		writeGoogleError(w, googleRefusal{status: http.StatusPreconditionFailed, domain: "global", reason: "conditionNotMet"})
+		return
+	}
+	var patched map[string]any
+	current, _ := json.Marshal(event)
+	_ = json.Unmarshal(current, &patched)
+	for field, value := range fields {
+		var decoded any
+		_ = json.Unmarshal(value, &decoded)
+		patched[field] = decoded
+	}
+	merged, _ := json.Marshal(patched)
+	event = internalgoogle.Event{}
+	if err := json.Unmarshal(merged, &event); err != nil {
+		fake.t.Errorf("patched event: %v", err)
+	}
+	fake.etags++
+	event.ETag = fmt.Sprintf(`"%d"`, fake.etags)
+	calendar.events[eventID] = event
+	_ = json.NewEncoder(w).Encode(event)
 }
 
 // fakeGoogleEventPath reads a Calendar events path, which names a calendar and
@@ -245,6 +332,12 @@ func (fake *fakeGoogleCalendars) refuseEventWrites(refusal *googleRefusal) {
 	fake.refuseWrites = refusal
 }
 
+func (fake *fakeGoogleCalendars) refuseEventReads(refusal *googleRefusal) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.refuseReads = refusal
+}
+
 func (fake *fakeGoogleCalendars) refuseEventWrite(eventID string, refusal googleRefusal) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
@@ -264,7 +357,55 @@ func (fake *fakeGoogleCalendars) onEventWrite(hook func()) {
 func (fake *fakeGoogleCalendars) addEvent(calendarID string, event *internalgoogle.Event) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	fake.calendar(calendarID).events[event.ID] = *event
+	fake.etags++
+	stored := *event
+	stored.ETag = fmt.Sprintf(`"%d"`, fake.etags)
+	fake.calendar(calendarID).events[event.ID] = stored
+}
+
+// editEvent changes an event as the visitor could in Google Calendar, giving
+// it a new version.
+func (fake *fakeGoogleCalendars) editEvent(calendarID, eventID string, edit func(*internalgoogle.Event)) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	event, found := fake.calendar(calendarID).events[eventID]
+	if !found {
+		fake.t.Fatalf("calendar %s holds no event %s to edit", calendarID, eventID)
+	}
+	edit(&event)
+	fake.etags++
+	event.ETag = fmt.Sprintf(`"%d"`, fake.etags)
+	fake.calendar(calendarID).events[eventID] = event
+}
+
+// deleteEvent deletes an event as Google does: it stays, marked deleted.
+func (fake *fakeGoogleCalendars) deleteEvent(calendarID, eventID string) {
+	fake.editEvent(calendarID, eventID, func(event *internalgoogle.Event) { event.Status = googleDeletedStatus })
+}
+
+// changeEventBeforeNextPatch makes edit land on the event just before the
+// site's next patch of it reaches Google.
+func (fake *fakeGoogleCalendars) changeEventBeforeNextPatch(eventID string, edit func(*internalgoogle.Event)) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.changeBeforePatch == nil {
+		fake.changeBeforePatch = map[string]func(*internalgoogle.Event){}
+	}
+	fake.changeBeforePatch[eventID] = edit
+}
+
+// patchesSince returns the events.patch requests received after the first
+// start of them.
+func (fake *fakeGoogleCalendars) patchesSince(start int) []fakeEventPatch {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return append([]fakeEventPatch(nil), fake.patches[start:]...)
+}
+
+func (fake *fakeGoogleCalendars) patchCount() int {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return len(fake.patches)
 }
 
 func (fake *fakeGoogleCalendars) refuseCalendarList(refusal *googleRefusal) {

@@ -64,8 +64,8 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	h.CalendarMutationTimeout = 20 * time.Millisecond
 	bridge.syncResultsGames = deadlineMutationGames(t, true)
 	transport.blockedOnPatch = true
-	transport.seedSiteResultEvent("9301")
-	transport.seedSiteResultEvent("9302")
+	transport.seedSiteResultEvent("9301", "CLASSIC XI")
+	transport.seedSiteResultEvent("9302", "NIGHT OWLS")
 
 	firstResponse := httptest.NewRecorder()
 	h.SyncResultsHandler(firstResponse, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
@@ -102,8 +102,8 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 func TestSyncResultsHandlerReportsPartialProgressOnProviderError(t *testing.T) {
 	h, bridge, transport := newDeadlineMutationTestHandler(t, "")
 	bridge.syncResultsGames = deadlineMutationGames(t, true)
-	transport.seedSiteResultEvent("9301")
-	transport.seedSiteResultEvent("9302")
+	transport.seedSiteResultEvent("9301", "CLASSIC XI")
+	transport.seedSiteResultEvent("9302", "NIGHT OWLS")
 	transport.failOnPatch = "9302"
 
 	response := httptest.NewRecorder()
@@ -277,8 +277,10 @@ func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Respon
 	}
 }
 
-func (t *controlledCalendarTransport) seedSiteResultEvent(gameID string) {
-	event := Event{ID: gameID, ETag: `"v1"`, Status: "confirmed", Description: "Home is playing Away\nDivision: League\nFacility: Boise\nField: Field 1\nResult: "}
+// seedSiteResultEvent stores the event Add wrote for an upcoming
+// deadlineMutationGames game against opponent, before its result was known.
+func (t *controlledCalendarTransport) seedSiteResultEvent(gameID, opponent string) {
+	event := Event{ID: gameID, ETag: `"v1"`, Status: "confirmed", Description: "UNITED NATIONS is playing " + opponent + "\nDivision: Coed F Fri\nFacility: Boise\nField: Field 1\nResult: "}
 	event.ExtendedProperties.Private = map[string]string{"game_id": gameID, "portfolio_app": "soccer"}
 	t.mu.Lock()
 	t.events[gameID] = event
@@ -634,7 +636,7 @@ func TestSyncResultsHandlerSkipsUnownedAndMissingPastEvents(t *testing.T) {
 	h.SyncResultsHandler(resp, req)
 
 	body := resp.Body.String()
-	if !strings.Contains(body, "0 game result(s) updated in Google Calendar.") || !strings.Contains(body, "Skipped 2 game(s)") {
+	if !strings.Contains(body, "0 game result(s) updated in Google Calendar. Skipped 2 game(s): 2 unmatched (no event this site added).") {
 		t.Fatalf("unowned or missing results were not reported as skipped: %q", body)
 	}
 	if len(updatedEvents) != 0 || len(insertedEvents) != 0 {

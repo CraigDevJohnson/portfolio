@@ -50,9 +50,7 @@ type calendarMutationResult struct {
 	// account read or change.
 	refused int
 	// undated counts games without a start time to give an event.
-	undated int
-	// unchanged counts result sync games whose event already shows the result.
-	unchanged    int
+	undated      int
 	authRejected bool
 }
 

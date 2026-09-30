@@ -128,12 +128,15 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 	case "google-sync-success":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(nil, past, true, true)
-		page.Results.GoogleFeedback = soccerPreviewFeedback("success", "Selected results synced", "2 game result(s) updated in Google Calendar.")
+		// One result was written; the other game has no event this site
+		// added, so Sync reports it instead of inserting one.
+		page.Results.GoogleFeedback = soccerPreviewFeedback("success", "Selected results synced", "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 unmatched (no event this site added).")
 		return page, true
 	case "google-sync-error":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(nil, past, true, true)
-		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "Could not sync past game results to Google Calendar. Try again.")
+		// Google refused to go on after the first result, for a usage limit.
+		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "1 game result(s) updated in Google Calendar. Skipped 0 game(s). Could not finish result sync. Retry later; results already current will be left unchanged.")
 		return page, true
 	case "expired-session-reset":
 		page.Page.AuthState.LoginAvailable = true

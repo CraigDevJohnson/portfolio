@@ -395,12 +395,25 @@ requires a separate Google connection. ICS mode hides past results and exports
 selected upcoming games only. Google output needs the `soccer` grant, so a
 public Team ID lookup stays upcoming-only.
 
-Sync is update-only. It matches one event in the selected calendar using the
-private `game_id` and `portfolio_app=soccer` markers, reads its current ETag,
-then conditionally patches only the canonical result line in its description.
-Other description text and event settings remain intact. Missing, imported,
-deleted, ambiguous, or concurrently changed events are skipped and counted;
-Sync never inserts a past event.
+**Sync selected results** is update-only: it never inserts a past game or
+restores a deleted event. For each selected scored game it makes one bounded
+search of the chosen calendar for events carrying the game's private `game_id`,
+and claims only a single live event that also carries `portfolio_app=soccer`.
+It then patches that event's description alone, conditional on the ETag the
+search returned, and changes only the `Result:` line of the block Add wrote.
+The title, time, location, reminders, and any notes around the block stay as
+the visitor left them. A game two followed teams play keeps its result in the
+words of the team its event names.
+
+Sync reports how many results it updated, how many were already current, and
+why it skipped the rest: unmatched (no event this site added, such as a game
+never added or one imported from an .ics file), deleted, more than one
+matching event, changed in Google Calendar while Sync ran, an edited
+description (including a result the visitor wrote themselves), or an event
+Google would not let the account change. Repeating Sync patches nothing that
+is already current. Google refusals follow Add: a rejected connection asks the
+visitor to reconnect, a usage limit asks for a retry, and a calendar that no
+longer accepts writes pauses them for a new choice.
 
 ## Source layout
 
@@ -565,8 +578,9 @@ invocations.
 
 Both Google Calendar add and result-sync operations have a 24-second request
 budget. If the deadline interrupts a batch, the response includes counts for
-completed work and tells the user to retry. Retries match existing games and
-update them instead of duplicating completed inserts.
+completed work and tells the user to retry. Add retries match existing games
+and update them instead of duplicating completed inserts; Sync retries leave
+results already written unchanged.
 
 `task build-image` and `task build-lambda-image` build local Linux amd64 images.
 By default, they inject the current full Git SHA as the build revision; a

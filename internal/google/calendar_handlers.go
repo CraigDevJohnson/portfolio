@@ -172,7 +172,9 @@ func calendarNameOrDefault(summary string) string {
 	return "the previous calendar"
 }
 
-// SyncResultsHandler updates previously synced past games with result text.
+// SyncResultsHandler writes the results of the selected scored past games
+// into the events this site added for them, changing nothing else and
+// inserting no event.
 func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	timeout := h.CalendarMutationTimeout
 	if timeout <= 0 {
@@ -188,7 +190,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := parseGoogleForm(workRequest, w); err != nil {
 		if calendarMutationContextEnded(workCtx, err) {
-			h.renderSyncResultsDeadline(w, r, calendarMutationResult{})
+			h.renderSyncResultsDeadline(w, r, resultSyncReport{})
 			return
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", googleReadSelectedGamesMessage)
@@ -197,7 +199,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	record, ok := h.loadConnectionRecordOrLog(workCtx, workRequest)
 	if !ok {
 		if calendarMutationContextEnded(workCtx, nil) {
-			h.renderSyncResultsDeadline(w, r, calendarMutationResult{})
+			h.renderSyncResultsDeadline(w, r, resultSyncReport{})
 			return
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", "Connect Google Calendar before syncing results.")
@@ -209,7 +211,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 			logging.WithContext(h.Logger, workCtx).Info("google result sync skipped", slog.String("reason", message))
 		}
 		if calendarMutationContextEnded(workCtx, nil) {
-			h.renderSyncResultsDeadline(w, r, calendarMutationResult{})
+			h.renderSyncResultsDeadline(w, r, resultSyncReport{})
 			return
 		}
 		h.Soccer.RenderLoginFeedback(w, r, "error", message)
@@ -218,7 +220,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	logging.WithContext(h.Logger, workCtx).Info("google result sync candidate games", slog.Int("candidate_game_count", len(games)))
 	if len(games) == 0 {
 		logging.WithContext(h.Logger, workCtx).Info("google result sync found no past games with results")
-		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync. "+syncResultsMutationMessage(calendarMutationResult{}))
+		h.Soccer.RenderLoginFeedback(w, r, "success", "No past games with results to sync.")
 		return
 	}
 
@@ -226,7 +228,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logging.WithContext(h.Logger, workCtx).Warn("google token refresh failed", slog.Any("error", err))
 		if calendarMutationContextEnded(workCtx, err) {
-			h.renderSyncResultsDeadline(w, r, calendarMutationResult{})
+			h.renderSyncResultsDeadline(w, r, resultSyncReport{})
 			return
 		}
 		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
@@ -235,38 +237,38 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No results were synced; try again later.") {
 		return
 	}
-	result, err := h.syncResultEvents(h.httpContext(workCtx), record.CalendarID, token, games)
+	report, err := h.syncResultEvents(h.httpContext(workCtx), record.CalendarID, token, games)
 	if err != nil {
 		logging.WithContext(h.Logger, workCtx).Error(
 			"google result sync failed",
 			slog.Any("error", err),
-			slog.Int("updated_count", result.updated),
-			slog.Int("skipped_count", result.skipped),
-			slog.Int("unchanged_count", result.unchanged),
+			slog.Int("updated_count", report.outcomes[resultUpdated]),
+			slog.Int("current_count", report.outcomes[resultCurrent]),
+			slog.Int("skipped_count", report.skipped()),
 		)
 		if calendarMutationContextEnded(workCtx, err) {
-			h.renderSyncResultsDeadline(w, r, result)
+			h.renderSyncResultsDeadline(w, r, report)
 			return
 		}
 		if calendarDestinationRejected(err) {
-			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, syncResultsMutationMessage(result))
+			h.pauseAndRenderCalendarChoice(workCtx, w, r, session, record, report.done())
 			return
 		}
-		h.Soccer.RenderLoginFeedback(w, r, "error", syncResultsMutationMessage(result)+" "+safeResultSyncFailureMessage)
+		h.Soccer.RenderLoginFeedback(w, r, "error", report.message()+" "+safeResultSyncFailureMessage)
 		return
 	}
-	if result.authRejected {
+	if report.authRejected {
 		h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
 		return
 	}
 	logging.WithContext(h.Logger, workCtx).Info(
 		"google result sync completed",
-		slog.Int("updated_count", result.updated),
-		slog.Int("skipped_count", result.skipped),
-		slog.Int("unchanged_count", result.unchanged),
+		slog.Int("updated_count", report.outcomes[resultUpdated]),
+		slog.Int("current_count", report.outcomes[resultCurrent]),
+		slog.Int("skipped_count", report.skipped()),
 	)
 
-	h.Soccer.RenderLoginFeedback(w, r, "success", syncResultsMutationMessage(result))
+	h.Soccer.RenderLoginFeedback(w, r, "success", report.message())
 }
 
 func calendarMutationContextEnded(ctx context.Context, err error) bool {
@@ -280,17 +282,6 @@ func addMutationMessage(result calendarMutationResult) string {
 		message += fmt.Sprintf(" Updated/restored %d matching game(s).", result.updated)
 	}
 	return message + skippedGamesMessage(result)
-}
-
-func syncResultsMutationMessage(result calendarMutationResult) string {
-	message := fmt.Sprintf("%d game result(s) updated in Google Calendar. Skipped %d game(s) without a safe site-owned match or result slot.", result.updated, result.skipped)
-	if result.unchanged > 0 {
-		message += fmt.Sprintf(" %d result(s) already current.", result.unchanged)
-	}
-	if result.refused > 0 {
-		message += fmt.Sprintf(" Skipped %d game(s) whose existing event Google Calendar would not let this account change.", result.refused)
-	}
-	return message
 }
 
 // skippedGamesMessage reports the games an Add left alone.
@@ -312,8 +303,8 @@ func (h *Handler) renderAddMutationDeadline(w http.ResponseWriter, r *http.Reque
 	h.Soccer.RenderLoginFeedback(w, r, "error", addMutationMessage(result)+" "+safeCalendarMutationRetryMessage)
 }
 
-func (h *Handler) renderSyncResultsDeadline(w http.ResponseWriter, r *http.Request, result calendarMutationResult) {
-	h.Soccer.RenderLoginFeedback(w, r, "error", syncResultsMutationMessage(result)+" "+safeResultSyncRetryMessage)
+func (h *Handler) renderSyncResultsDeadline(w http.ResponseWriter, r *http.Request, report resultSyncReport) {
+	h.Soccer.RenderLoginFeedback(w, r, "error", report.message()+" "+safeResultSyncRetryMessage)
 }
 
 // CalendarHandler handles calendar selection changes.

@@ -67,15 +67,7 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 	start = start.In(MountainTimeLocation())
 	end = end.In(MountainTimeLocation())
 
-	playerTeam := strings.TrimSpace(game.PlayerTeamName)
-	if playerTeam == "" {
-		playerTeam = strings.TrimSpace(game.Home)
-	}
-
-	opponentTeam := strings.TrimSpace(game.OpponentTeamName)
-	if opponentTeam == "" {
-		opponentTeam = strings.TrimSpace(game.Away)
-	}
+	playerTeam, opponentTeam := canonicalTeams(game)
 
 	fieldName := strings.TrimSpace(game.Field)
 	location := canonicalGameLocation(game)
@@ -109,10 +101,27 @@ func CanonicalGameEvent(game *types.Game) (FormattedGameEvent, bool) {
 	}, true
 }
 
-// ReplaceCanonicalResultLine changes only the result slot in one recognizable
-// Add description. Notes before or after the block remain byte-for-byte intact;
-// an annotated or duplicated result slot is left for the user to resolve.
-func ReplaceCanonicalResultLine(description, desired string) (string, bool) {
+// canonicalTeams names the team an event is worded for and its opponent.
+func canonicalTeams(game *types.Game) (playerTeam, opponentTeam string) {
+	playerTeam = strings.TrimSpace(game.PlayerTeamName)
+	if playerTeam == "" {
+		playerTeam = strings.TrimSpace(game.Home)
+	}
+	opponentTeam = strings.TrimSpace(game.OpponentTeamName)
+	if opponentTeam == "" {
+		opponentTeam = strings.TrimSpace(game.Away)
+	}
+	return playerTeam, opponentTeam
+}
+
+// ReplaceCanonicalResult writes the game's result into the result slot of
+// the one description block CanonicalGameEvent wrote for it, worded for the
+// team the block's heading names: a game between two followed teams reads
+// the same whichever team's schedule it now comes from. Notes before or after
+// the block remain byte for byte. It reports false when the description holds
+// no single such block, its result slot holds text this site does not write,
+// or its heading names neither team.
+func ReplaceCanonicalResult(description string, game *types.Game) (string, bool) {
 	lines := strings.Split(description, "\n")
 	resultIndex := -1
 	for i := 0; i+4 < len(lines); i++ {
@@ -134,11 +143,18 @@ func ReplaceCanonicalResultLine(description, desired string) (string, bool) {
 			return "", false
 		}
 	}
+	headingTeam, _, _ := strings.Cut(lines[resultIndex-4], " is playing ")
+	headingTeam = strings.TrimSpace(headingTeam)
+	playerTeam, opponentTeam := canonicalTeams(game)
+	if !strings.EqualFold(headingTeam, playerTeam) && !strings.EqualFold(headingTeam, opponentTeam) {
+		return "", false
+	}
+	result := FormatResultLine(ParseGameResult(strings.TrimSpace(game.Result), headingTeam, strings.TrimSpace(game.Home)))
 	suffix := ""
 	if strings.HasSuffix(lines[resultIndex], "\r") {
 		suffix = "\r"
 	}
-	lines[resultIndex] = desired + suffix
+	lines[resultIndex] = "Result: " + result + suffix
 	return strings.Join(lines, "\n"), true
 }
 
