@@ -153,6 +153,7 @@ func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int
 	if response.Team.UTeamID <= 0 {
 		response.Team.UTeamID = teamID
 	}
+	response.Team.Color = selectedTeamColor(teamID, selectedTeam, &response)
 
 	games := make([]types.Game, 0, len(response.Games))
 	for i := range response.Games {
@@ -242,11 +243,11 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	awayColor := approvedTeamColor(rawGame.VisitorTeam.Color)
 	if homeSelected {
 		homeTeamID = firstPositiveInt(homeTeamID, selectedTeamID)
-		homeColor = firstApprovedTeamColor(selected.Color, responseTeam.Color, rawGame.HomeTeam.Color)
+		homeColor = firstApprovedTeamColor(selected.Color, responseTeam.Color)
 	}
 	if awaySelected {
 		awayTeamID = firstPositiveInt(awayTeamID, selectedTeamID)
-		awayColor = firstApprovedTeamColor(selected.Color, responseTeam.Color, rawGame.VisitorTeam.Color)
+		awayColor = firstApprovedTeamColor(selected.Color, responseTeam.Color)
 	}
 	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected)
 	if playerTeamName == "" {
@@ -279,6 +280,26 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	}
 
 	return game, nil
+}
+
+// selectedTeamColor resolves one display color for the team whose schedule
+// this is, so every row for that team agrees. Team-level colors win; a color
+// LPS nests on the team's own game entries is used only when none exists.
+func selectedTeamColor(teamID int, selectedTeam *TeamSummary, response *TeamScheduleResponse) string {
+	candidates := []string{response.Team.Color}
+	if selectedTeam != nil {
+		candidates = append([]string{selectedTeam.Color}, candidates...)
+	}
+	for i := range response.Games {
+		game := &response.Games[i]
+		if firstPositiveInt(game.HomeTeam.UTeamID, game.UTeam1) == teamID {
+			candidates = append(candidates, game.HomeTeam.Color)
+		}
+		if firstPositiveInt(game.VisitorTeam.UTeamID, game.UTeam2) == teamID {
+			candidates = append(candidates, game.VisitorTeam.Color)
+		}
+	}
+	return firstApprovedTeamColor(candidates...)
 }
 
 func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int, homeName, awayName string) (home, away bool) {

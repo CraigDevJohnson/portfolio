@@ -164,6 +164,36 @@ func TestFetchSchedulesSharedMatchUsesEachSelectedTeamsOwnColor(t *testing.T) {
 	}
 }
 
+func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
+	app := newTestApp(t)
+	// Team 800 has no team-level color, and LPS names its color on only one of
+	// its games. Team 850 has no color in its own schedule, while team 100's
+	// schedule nests a color for it in their shared match.
+	server := newFakeLPSTeams(t, map[string]string{
+		"/teams/100": `{"team":{"UTeamID":100,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":860,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC","Color":"red"}}]}`,
+		"/teams/800": `{"team":{"UTeamID":800,"team_name":"Plain United"},"games":[{"UGameID":801,"SchedGameDateTime":"{future}","UTeam1":800,"UTeam2":820,"home_team":{"UTeamID":800,"team_name":"Plain United","Color":" Green "},"visitor_team":{"UTeamID":820,"team_name":"Visitor Five"}},{"UGameID":802,"SchedGameDateTime":"{future}","UTeam1":821,"UTeam2":800,"home_team":{"UTeamID":821,"team_name":"Visitor Six"},"visitor_team":{"UTeamID":800,"team_name":"Plain United"}}]}`,
+		"/teams/850": `{"team":{"UTeamID":850,"team_name":"Quiet FC"},"games":[{"UGameID":860,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC"}},{"UGameID":861,"SchedGameDateTime":"{future}","UTeam1":850,"UTeam2":870,"home_team":{"UTeamID":850,"team_name":"Quiet FC"},"visitor_team":{"UTeamID":870,"team_name":"Visitor Seven"}}]}`,
+	})
+	app.Config.LPSAPIBaseURL = server.URL
+	mux, _ := buildMux(app, app.Logger, false)
+
+	rows, _ := fetchSoccerMatchRows(t, mux, "100", "800", "850")
+	for _, game := range []string{"801", "802"} {
+		row := onlySoccerRow(t, rows, game)
+		if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != "green" || away != "green" {
+			t.Errorf("team 800 game %s colors = %q/%q, want the green LPS names for that team on every row", game, home, away)
+		}
+	}
+	own := htmlAttr(onlySoccerRow(t, rows, "861"), "data-home-color")
+	shared := onlySoccerRow(t, rows, "860")
+	if away := htmlAttr(shared, "data-away-color"); own == "" || away != own {
+		t.Errorf("team 850 shared-match color = %q, want its own rows' fallback %q", away, own)
+	}
+	if home := htmlAttr(shared, "data-home-color"); home != "blue" {
+		t.Errorf("team 100 shared-match color = %q, want blue", home)
+	}
+}
+
 func htmlAttr(node *html.Node, name string) string {
 	for _, attr := range node.Attr {
 		if attr.Key == name {
