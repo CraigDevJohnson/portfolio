@@ -19,7 +19,7 @@ native lock files).
 
 | Root | State key | Owns |
 | --- | --- | --- |
-| `infra/lambda/ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | Account root: the 4 GitHub OIDC CI roles, `PortfolioLambdaExecutionBoundary`, the state bucket ([README](infra/lambda/ci-roles/README.md)) |
+| `infra/lambda/ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | Account root: the 4 GitHub OIDC CI roles, `PortfolioLambdaExecutionBoundary`, `PortfolioLambdaHistoryExecutionBoundary`, the state bucket ([README](infra/lambda/ci-roles/README.md)) |
 | `infra/lambda/artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | ECR `portfolio-lambda-releases` (immutable tags, scan on push, Lambda pull policy) |
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |

@@ -6,11 +6,12 @@ account. The directory keeps its historical `ci-roles` name and state key.
 | File | Resources |
 | --- | --- |
 | `main.tf` | The four GitHub OIDC CI roles and their inline policies |
-| `boundary.tf` | `PortfolioLambdaExecutionBoundary` at `/portfolio/boundaries/` |
+| `boundary.tf` | `PortfolioLambdaExecutionBoundary` and `PortfolioLambdaHistoryExecutionBoundary` at `/portfolio/boundaries/` |
 | `state_bucket.tf` | The `portfolio-tofu-state-<account>` state bucket and its settings |
 
 Apply this root before any other portfolio root: the dev and prod execution
-roles attach the boundary by ARN, and every root stores its state in the bucket.
+roles, and the LPS history worker and Scheduler roles once they exist, attach
+the boundaries by ARN, and every root stores its state in the bucket.
 
 ## Identity
 
@@ -36,11 +37,20 @@ default subject format.
 - The release builder can push to `portfolio-lambda-releases` and nothing else.
 - The development deployer can read the dev stack, write only the dev state
   object, and publish a new image version and move the `live` alias of
-  `portfolio-lambda-dev`.
+  `portfolio-lambda-dev`. Once the LPS history worker
+  `portfolio-lambda-dev-soccer-history` exists, it may also publish that
+  worker's code; the worker has no alias.
 - The production planner can read the prod stack and write only the prod state
   lock object.
 - The production deployer adds prod state writes and the same image, version and
-  alias writes for `portfolio-lambda-prod`.
+  alias writes for `portfolio-lambda-prod`, and the worker code write for
+  `portfolio-lambda-prod-soccer-history`.
+
+The reads cover the LPS history resources too, most of which do not exist yet:
+the history table, both log groups' metric filters, the worker and Scheduler
+roles, the worker function and log group, the four history alarms, the
+worker's event invoke configuration, its failure queue and its daily schedule.
+Once a history stage is applied, a release plan can still refresh them.
 
 No CI role can create or reconfigure IAM, API Gateway, DynamoDB, ACM, logs or
 alarms. Those changes are applied by Craig with `workloads-admin`.
@@ -53,7 +63,8 @@ variables.
 The boundary is generated from the account ID. Each statement allows only its
 own environment's execution role (`aws:PrincipalArn`):
 
-- the environment's two DynamoDB tables;
+- the environment's two DynamoDB tables, and get, put, query and delete on its
+  LPS history table;
 - `ssm:GetParameters` and SSM-mediated `kms:Decrypt` for the environment's
   three SecureStrings under `/portfolio/lambda/<env>/`: `CLIENT_ID_KEY`,
   `CLIENT_SECRET_KEY` and `LPS_SESSION_KEY`. The retired `MGMT_SESSION_KEY`
@@ -64,6 +75,18 @@ own environment's execution role (`aws:PrincipalArn`):
   `cloudwatch:GetMetricStatistics` in us-west-2.
 
 Per D22 the boundary grants no EC2 start/stop and no `/ec2/i-*` log reads.
+
+`PortfolioLambdaHistoryExecutionBoundary` is the boundary of each
+environment's LPS history worker (`portfolio-lambda-<env>-soccer-history-execution`)
+and its Scheduler role (`portfolio-lambda-<env>-soccer-history-scheduler`).
+It is separate because both sets of grants in one policy would exceed IAM's
+6,144-character managed-policy limit; the tests assert that each boundary
+fits. Each statement allows only its own environment's role:
+
+- the worker: `GetItem` and `PutItem` on the history table, `Query` on its
+  `due-teams` index, and log writes to its own log group;
+- the worker and the Scheduler role: `sqs:SendMessage` to the failure queue;
+- the Scheduler role: `lambda:InvokeFunction` on the worker.
 
 ## State bucket
 

@@ -7,10 +7,19 @@ plus issues #83 and #85 to #103. A Codex draft of this packet from September
 26 predates the workloads move and the reworked #98 to #103; this version
 replaces it.
 
+**Decisions, September 30, 2026.** Craig decided gates 3 and 4: the candidate
+limits and daily time in 3.3 are accepted, the admission cap is a lifetime cap,
+and the admission alarm counts only refused player-linked teams. He will send
+LPS the section 2 questions himself (gate 1, [Appendix A](#appendix-a-message-to-lps)).
+The repository changes in 6.1 items 1 and 3 to 7 are made, with offline tests
+only; whether development collects is still open. Section 7 records the
+membership first-seen note for #81.
+
 **Recommendation: blocked.** Do not enable collection or the daily schedule in
-either environment. The [remaining gates](#remaining-gates) list what must
-happen first. This packet is a review artifact only: it does not approve
-source use, spend, an AWS plan or an activation.
+either environment. Gates 1, 2 and 7 to 11 are open; the
+[remaining gates](#remaining-gates) list what each needs. This packet is a
+review artifact only: it does not approve source use, spend, an AWS plan or an
+activation.
 
 Nothing in this packet contacted LPS, AWS, Cognito or Google. No backend was
 initialized, no state lock was taken, and nothing was planned against AWS,
@@ -24,9 +33,9 @@ it is off in both environments at three levels:
 
 | Level | Switch on the branch | Current state |
 | --- | --- | --- |
-| Table and HTTP grant | `enable_soccer_history` in `modules/service` | `false`; neither environment root passes it (environment contract tests assert no table is planned) |
-| HTTP enrollment, admission counter and admission alarm | `activate_soccer_history_collection` plus `soccer_history_limits` | `false` and `null` |
-| Daily worker, schedule, failure queue, worker alarms | `activate_soccer_history_schedule` plus a once-daily UTC `soccer_history_schedule_expression` | `false` and `null` |
+| Table and HTTP grant | `enable_soccer_history`, set in each environment's `*.auto.tfvars` | `false` in both; the environment contract tests assert that neither plans a history table, worker, schedule or alarm |
+| HTTP enrollment, admission counter, admission alarm and refused-lookup metric | `activate_soccer_history_collection` plus `soccer_history_limits` | `false`; both environments carry the accepted limits (3.3) |
+| Daily worker, schedule, failure queue, worker alarms | `activate_soccer_history_schedule` plus a once-daily UTC `soccer_history_schedule_expression` | `false`; production carries `cron(30 10 * * ? *)`, development no expression |
 
 The application refuses to build a history store or the daily worker unless
 the table name and all five limits are set (`LimitsFromEnvironment`,
@@ -81,7 +90,10 @@ verified removal path. They are product controls, not LPS consent.
 5. Do Team IDs persist across seasons, or does each season get new IDs? This
    decides how fast the enrollment cap fills (see 3.3).
 
-Record the answer, or the decision not to ask, with the activation approval.
+**Decision (gate 1, September 30, 2026).** Craig will send these five
+questions to LPS himself; no agent sends them.
+[Appendix A](#appendix-a-message-to-lps) is a ready-to-send plain-text message.
+Record LPS's written answer with the activation approval.
 
 ## 3. Traffic, storage and runtime
 
@@ -126,7 +138,8 @@ Three properties the numbers establish, all from the code as it stands:
 - **Admission slots are never released.** After LPS rejected team 4301 the
   admission counter still read 3. Teams leave polling when rejected, but keep
   their slot; removing a player removes no team. The enrollment cap is a
-  lifetime cap on distinct Team IDs.
+  lifetime cap on distinct Team IDs. Craig accepted that lifetime cap on
+  September 30, 2026 (gate 4): there is no slot release.
 
 ### 3.2 Inputs, bounds and assumptions
 
@@ -162,33 +175,39 @@ soccer_history_limits = {
 soccer_history_schedule_expression = "cron(30 10 * * ? *)" # 10:30 UTC, 03:30 Pacific daylight time
 ```
 
-This is a proposal for review, not an approved or configured limit.
+**Accepted (gate 3, September 30, 2026).** Craig accepted these limits and
+the daily time exactly. Both `*.auto.tfvars` carry the limits with every
+history switch off; production also carries the expression and development
+none, because whether development collects or runs the schedule is still open.
+Accepting them activates nothing.
 
 - **40 teams.** Player-linked demand is assumed to be 2 to 4 linked players
   on 1 or 2 teams in about five sessions a year. If LPS issues new Team IDs
   each session, that is 10 to 40 new IDs a year. Because slots are never
   released, 40 lasts roughly one to four years. A player-linked team refused
-  at 40 is the trigger to review the cap, but the admission alarm as built
-  cannot single that out (next point).
+  at 40 is the trigger to review the cap, and the admission alarm now fires on
+  exactly that (next point).
 - **30 reserved for player-linked teams.** Any visitor can enter a Team ID
   without signing in, and an entered ID is admitted only while fewer than 10
   teams of any source are enrolled. At most 10 IDs are ever enrolled that way,
   each polled for good, and once 10 teams of any kind are enrolled, entered
   IDs are refused permanently.
-- **The admission alarm fires on routine lookups under this tuple.** Every
-  refusal logs `soccer_history_admission_rejected` with its `source`
-  (`internal/soccer/schedule.go`), and the stage 1 metric filter counts every
-  such line on the HTTP log group, whatever the source
-  (`history_worker.tf`). The manual limit is 40 − 30 = 10
+- **The admission alarm counts only player refusals.** Every refusal logs
+  `soccer_history_admission_rejected` with its `source`
+  (`internal/soccer/schedule.go`). The manual limit is 40 − 30 = 10
   (`admissionLimit`), so once 10 teams of any source are enrolled, every
-  visitor lookup of an unenrolled Team ID logs a `manual` refusal and puts
-  `portfolio-lambda-{env}-soccer-history-admission-rejected` into ALARM,
-  notifying `alerts`. It returns to OK after 5 minutes without a refusal, and
-  one anonymous lookup every 5 minutes keeps it there. The first refusal will
-  almost certainly be a manual one at 10, not a player one at 40, and the
-  manual noise hides the player refusals the alarm exists for. 6.1 item 6
-  proposes scoping the alarm to player refusals; gate 4 records the
-  decision.
+  visitor lookup of an unenrolled Team ID logs a `manual` refusal. As first
+  built, the stage 1 metric filter counted every refusal, so one anonymous
+  lookup every 5 minutes could hold
+  `portfolio-lambda-{env}-soccer-history-admission-rejected` in ALARM and hide
+  the player refusals it exists for. Following gate 4 (6.1 item 6, done), the
+  `AdmissionRejected` filter matches
+  `{ $.msg = "soccer_history_admission_rejected" && $.source = "player" }`,
+  and a separate `ManualAdmissionRejected` metric, with no alarm, counts
+  refused lookups. Both patterns match the refusal line's top-level `source`
+  attribute, which is unambiguous only while the HTTP function keeps
+  `LOG_ADD_SOURCE=false`; slog would otherwise also write its code-location
+  `source` key. The service contract asserts that setting.
 - **120 requests a run.** This is 40 teams × 3: every team with its team
   request and two facility lookups, or with one facility and spare budget to
   retry 20 teams. The application requires at least one request per team.
@@ -222,6 +241,13 @@ Offline checks of the tuple:
 
   Changing 163 to 162, or either rejected value to an accepted one, fails the
   matching run.
+- The environment contracts
+  (`infra/lambda/environments/{dev,prod}/tests/environment_contract.tftest.hcl`)
+  assert that both `*.auto.tfvars` carry exactly this tuple with every switch
+  off, that production carries the expression and development none, and that
+  neither root plans a history table, worker, schedule or alarm. A further run
+  in each root switches every stage on to prove the root passes all five
+  inputs to the module.
 
 ## 4. Itemized AWS cost
 
@@ -243,16 +269,16 @@ noted.
 | Worker Lambda | 512 MB × 120 s × 30 = 1,800 GB-s (bound: 300 s, 4,500 GB-s) at $0.0000166667 per GB-s, plus 30 requests | $0.03 (bound $0.08) |
 | EventBridge Scheduler | 30 invocations at $1 per million, inside the 14 million free | $0.00 |
 | CloudWatch Logs | About 5 KB a run (one report line with up to 40 team results plus Lambda platform lines), 0.15 MB a month at $0.50 per GB ingested and $0.03 per GB stored | < $0.01 |
-| Log-derived metrics | Each publishes only when a line matches (no default value) and costs at most $0.30 per metric-month. `AdmissionRejected` counts manual refusals too, so it publishes in any month a visitor looks up an unenrolled Team ID once 10 teams are enrolled (3.3); `DailyIncomplete` is quiet in a good month | $0.30 (bound $0.60) |
+| Log-derived metrics | Each publishes only when a line matches (no default value) and costs at most $0.30 per metric-month. `ManualAdmissionRejected` publishes in any month a visitor looks up an unenrolled Team ID once 10 teams are enrolled (3.3); `AdmissionRejected` (player refusals only) and `DailyIncomplete` are quiet in a good month | $0.30 (bound $0.90) |
 | Alarms | 4 standard alarms (admission rejected, incomplete run, worker errors, failure queue) at $0.10; the 10 existing environment alarms already use the account's 10 free alarms | $0.40 |
 | Failure handling | SQS standard queue with SQS-managed encryption: a message only per failed run or delivery, well inside 1 million free requests; alarm notifications go to aws-setup's `alerts` topic (email: first 1,000 free) | $0.00 |
 | Data transfer | LPS responses are inbound; requests are small | $0.00 |
-| **Total per environment** | Typical: `AdmissionRejected` active, `DailyIncomplete` quiet, 120 s runs | **about $0.86** |
-| **Bound per environment** | Both metrics active all month, 300 s runs | **about $1.22** |
+| **Total per environment** | Typical: `ManualAdmissionRejected` active, `AdmissionRejected` and `DailyIncomplete` quiet, 120 s runs | **about $0.86** |
+| **Bound per environment** | All three metrics active all month, 300 s runs | **about $1.52** |
 
 Sensitivity: 100 games of 4 KB per team response raises writes to about 711
 WRU per team refresh (853,200 a month, $0.53) and reads to about $0.03, so the
-bound becomes about $1.65 per environment. Running the schedule in both
+bound becomes about $1.95 per environment. Running the schedule in both
 environments doubles every line except storage. Sources:
 [DynamoDB on-demand](https://aws.amazon.com/dynamodb/pricing/on-demand/),
 [Lambda](https://aws.amazon.com/lambda/pricing/),
@@ -300,9 +326,10 @@ matching the deployed JSON logs; alarm delivery to `alerts`; the monthly bill.
 
 ## 6. Infrastructure actions
 
-Nothing below has been done. Each code change is an ordinary pull request
-with offline tests; each apply needs Craig's approval of that specific saved
-plan.
+On September 30, 2026, 6.1 items 1 and 3 to 7 were made in the repository and
+item 8 was decided; each is marked below. Nothing has been planned or applied
+against AWS. Each code change is an ordinary pull request with offline tests;
+each apply needs Craig's approval of that specific saved plan.
 
 ### 6.1 Repository changes needed before any plan
 
@@ -313,12 +340,17 @@ plan.
    and set them in each `*.auto.tfvars`, not with `-var`, so an apply of the
    saved plan sees identical inputs. Update the environment contract tests,
    which currently assert that no history table is planned.
+   **Done.** Both roots declare the five inputs with no defaults and pass them
+   to the module; the values are in each `*.auto.tfvars` (3.3).
 2. **Choose a dev alert destination.** Collection requires a nonempty
    `alarm_action_arns`, and `dev.auto.tfvars` has `[]`. Either dev uses the
    workloads `alerts` topic (`arn:aws:sns:us-west-2:793680745829:alerts`), or
-   dev does not collect.
+   dev does not collect. **Open** with the development part of gate 3.
+   Development keeps `alarm_action_arns = []`, so its live alarms are
+   unchanged, and it does not collect.
 3. **Grant the history runtime in the execution boundaries**
-   (`ci-roles/boundary.tf`), which has no history grants today. Every
+   (`ci-roles/boundary.tf`). **Done** as the tables below describe; the worker
+   and Scheduler roles attach the new boundary. Every
    statement below has `Effect = "Allow"` and the same condition shape as
    `boundary.tf`: `ArnEquals` on `aws:PrincipalArn` naming the role, with
    `{Env}` as `Dev` or `Prod` and `{env}` as `dev` or `prod`. ARNs are in
@@ -373,9 +405,9 @@ plan.
    way. IAM enforces the limit only when an apply calls
    `CreatePolicy` or `CreatePolicyVersion`; `tofu plan` never submits the
    document, so no plan catches an overflow. `ci-roles/tests/policies.tftest.hcl`
-   now asserts `length(aws_iam_policy.lambda_execution_boundary.policy) <=
-   6144`, so `task infrastructure-ci` fails first. The PR that adds the second
-   boundary must add the same assertion for it.
+   asserts that both boundaries fit 6,144 characters, so
+   `task infrastructure-ci` fails first. The committed statements render at
+   the sizes in the table above.
 4. **Grant the CI roles the reads and release writes** (`ci-roles/main.tf`).
    The CI roles read only the existing tables, the service function, its
    execution role, its log groups and the five alarms. Once history resources
@@ -408,7 +440,8 @@ plan.
    way as item 3, the three inline policies grow from 4,894, 4,229 and 4,914
    characters to 7,443, 6,385 and 7,483 (dev deployer, prod planner, prod
    deployer), inside IAM's 10,240-character limit that
-   `policies.tftest.hcl` already asserts. For the table, function, roles, log
+   `policies.tftest.hcl` already asserts. **Done** with exactly those sizes.
+   For the table, function, roles, log
    group and alarms the actions are the ones the existing grants already
    prove; the metric filter, event invoke config, queue and schedule are new
    resource types for these roles. The first release plan after each stage is
@@ -420,7 +453,7 @@ plan.
    the release image is rejected today; `tests/release-scripts.sh` now holds
    that case ("a history worker image update"). Allow exactly that attribute,
    to the same image, turn that case into an accept case, and add reject
-   cases for a different worker image and another worker attribute.
+   cases for a different worker image and another worker attribute. **Done.**
 6. **Scope the admission alarm to player refusals** (recommended; section
    3.3). Change the `history_admission_rejected` metric filter pattern to
    `{ $.msg = "soccer_history_admission_rejected" && $.source = "player" }`
@@ -431,16 +464,24 @@ plan.
    code-location `source` key. The alternative is to accept an alarm that any
    visitor can hold in ALARM once 10 teams are enrolled. This is a change to
    the #80 rule "reject and alert on new enrollment at capacity", so it needs
-   Craig's decision (gate 4).
+   Craig's decision (gate 4). **Done** after that decision, with the manual
+   metric and no alarm on it; the service contract asserts both patterns and
+   `LOG_ADD_SOURCE=false`.
 7. **Verify the history alarms on release** (recommended, after item 6).
    `scripts/verify-lambda-release.sh` checks only the five named alarms and
    fails a release when any is in ALARM. Add the history alarms only once the
    admission alarm counts player refusals alone; until then leave
    `-soccer-history-admission-rejected` out of release verification, or any
    refused visitor lookup in the previous 5 minutes fails the release.
+   **Done.** Verification checks every alarm the environment's `alarm_names`
+   output names: the five service alarms always, and the history alarms once
+   a stage is applied. With history off it asks CloudWatch only for the five,
+   so a release works before and after the account root grants the history
+   alarm reads.
 8. **Decide the admission policy** (section 3.1: slots are never released).
    Accept the cap as a lifetime cap, or add a way to release slots of
-   rejected or long-dormant teams.
+   rejected or long-dormant teams. **Decided** (gate 4): a lifetime cap, so no
+   code change.
 9. **Bound import latency with collection on** (section 3.2), for example
    with one overall discovery deadline, or measure `my_teams` latency and
    accept the risk.
@@ -475,7 +516,8 @@ both in `portfolio-tofu-state-793680745829`.
 | `module.service.aws_iam_role_policy.lambda` | update | adds `dynamodb:GetItem`, `PutItem`, `Query`, `DeleteItem` on the table |
 | `module.service.aws_lambda_function.app` | update | adds `SOCCER_HISTORY_COLLECTION_ENABLED=true`, `SOCCER_ARCHIVE_TABLE_NAME` and the five `SOCCER_HISTORY_*` limits; publishes a new version |
 | `module.service.aws_lambda_alias.live` | update | `live` moves to that version |
-| `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` | create | `AdmissionRejected` in `Portfolio/SoccerHistory` on `/aws/lambda/portfolio-lambda-{env}`, counting manual and player refusals alike unless 6.1 item 6 lands first |
+| `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` | create | `AdmissionRejected` in `Portfolio/SoccerHistory` on `/aws/lambda/portfolio-lambda-{env}`, counting refused player-linked teams only |
+| `module.service.aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0]` | create | `ManualAdmissionRejected` in `Portfolio/SoccerHistory` on the same log group, counting refused visitor Team ID lookups; no alarm |
 | `module.service.aws_cloudwatch_metric_alarm.history_admission_rejected[0]` | create | `portfolio-lambda-{env}-soccer-history-admission-rejected`, ≥ 1 in 5 minutes, to `alarm_action_arns` |
 
 Stage 1 starts enrollment through visitor Team ID lookups and granted imports.
@@ -513,14 +555,22 @@ next scheduled time;** there is no dormant-worker stage.
   and inside the boundary. Five of them plan the candidate tuple (section
   3.3): a dev collection stage, a prod schedule stage, the 163 s floor, and
   the rejected 162 s timeout and 39-request budget.
-- `ci-roles/tests/policies.tftest.hcl` asserts that
-  `PortfolioLambdaExecutionBoundary` fits IAM's 6,144-character limit (it is
-  4,449 today), which a plan cannot check (6.1 item 3).
-- `tests/release-scripts.sh` shows that the plan checker rejects a release
-  plan that also moves the history worker to the release image (6.1 item 5).
-- The rendered sizes of the proposed boundary and CI policies (6.1 items 3
-  and 4) come from a scratch copy of `ci-roles`, not a committed test; the PRs
-  that make those changes carry the size assertions.
+- `ci-roles/tests/policies.tftest.hcl` asserts every statement of both
+  boundaries and that each fits IAM's 6,144-character limit (5,128 and 3,340
+  rendered), which a plan cannot check (6.1 item 3). It also asserts each CI
+  role's history reads and worker release write, and that the three inline
+  policies fit 10,240 characters (7,443, 6,385 and 7,483; 6.1 item 4). The
+  sizes are measured from the mocked plan, whose account ID has the real
+  one's length.
+- The service contract asserts the player-only admission alarm, the manual
+  refusal metric with no alarm, `LOG_ADD_SOURCE=false`, and the worker and
+  Scheduler roles inside `PortfolioLambdaHistoryExecutionBoundary` (6.1
+  items 3 and 6).
+- `tests/release-scripts.sh` shows that the plan checker accepts a release
+  plan that also moves the history worker to the release image and rejects a
+  different worker image or another worker attribute (6.1 item 5), and that
+  release verification checks exactly the alarms an environment's outputs
+  name, failing on a firing or missing one (6.1 item 7).
 
 ### 6.5 Reviewing a saved plan
 
@@ -537,9 +587,12 @@ state, and `apply` changes AWS.
    reads, and stage 2 would create a worker with no scheduled mode.
 2. **Account root.** `aws sso login`, `task lambda-ci-roles-init`,
    `task lambda-ci-roles-plan PLAN_FILE=/absolute/path/ci-roles.tfplan`.
-   Expect only updates to `aws_iam_policy.lambda_execution_boundary`, a create
-   of `PortfolioLambdaHistoryExecutionBoundary`, and updates to the three CI
-   role policies. Review it with the listing in step 5 (run with
+   Expect only an update to `aws_iam_policy.lambda_execution_boundary`, a
+   create of `aws_iam_policy.lambda_history_execution_boundary`
+   (`PortfolioLambdaHistoryExecutionBoundary`), and updates to the three CI
+   role policies (`aws_iam_role_policy.environment["dev"]`,
+   `aws_iam_role_policy.environment["prod"]` and
+   `aws_iam_role_policy.production_deployer`). Review it with the listing in step 5 (run with
    `-chdir=infra/lambda/ci-roles`), and apply with
    `task lambda-ci-roles-apply` only after approval.
 3. **Release that merge to the target environment.** Let the Release
@@ -551,9 +604,10 @@ state, and `apply` changes AWS.
    read-only `aws lambda get-alias` and `get-function` check the script
    makes. If the release plan also changed infrastructure, the checker stops
    the release and Craig applies that first, as for any release.
-4. **Stage 1 in one environment.** With the stage 1 values in its
-   `*.auto.tfvars`, plan with the digest confirmed in step 3, so the plan
-   shows only history changes:
+4. **Stage 1 in one environment.** After a reviewed change sets
+   `enable_soccer_history` and `activate_soccer_history_collection` to `true`
+   in its `*.auto.tfvars` (the limits are already there), plan with the digest
+   confirmed in step 3, so the plan shows only history changes:
    `task lambda-dev-plan IMAGE_DIGEST=sha256:<release digest from step 3> PLAN_FILE=/absolute/path/dev-history-collection.tfplan`
    (production: `task lambda-prod-plan`, which also sets the `alerts` topic).
 5. Review the saved plan without printing secrets:
@@ -583,31 +637,55 @@ state, and `apply` changes AWS.
    the stage 2 list, and approval that explicitly authorizes live LPS polling
    at the reviewed time. Watch the first run's report line and the alarms.
 
+## 7. Note for #81: membership first-seen time
+
+Each granted import rewrites a membership's `observed_at` with the time of
+that import (`internal/soccerarchive/membership.go`), so the store keeps the
+latest observation, not when the membership was first seen. Decision 10
+(September 30, 2026): keep a first-seen time only if the #81 stats view needs
+it. #81 is undecided, so nothing changed. If #81 needs it, write the
+first-seen time only when the membership record is created. A conditional put
+needs no new IAM action; an `UpdateItem` with `if_not_exists` would need
+`dynamodb:UpdateItem` in the runtime policy and both boundaries. Records
+written before that change have no first-seen time, and verified removal
+deletes it with the rest of the player's partition.
+
 ## Remaining gates
 
 Collection and scheduling stay blocked until every gate below is closed.
 Owner in brackets.
 
 1. **LPS permission** for unattended daily requests and indefinite retention,
-   with answers to the questions in section 2. [Craig]
+   with answers to the questions in section 2. Craig decided on September 30,
+   2026 to send the five questions himself
+   ([Appendix A](#appendix-a-message-to-lps)); open until LPS answers in
+   writing. [Craig]
 2. **Live source behaviour** measured under that permission: invalid-ID
    responses, rate limiting, response sizes, games per response, facility
    fanout, latency, and whether Team IDs persist across seasons. Recompute
    sections 3 and 4 from them. [Craig to authorize; agent to measure]
-3. **Numeric limits and schedule** approved, starting from the candidate in
-   3.3, including whether dev runs the schedule at all. [Craig]
-4. **Admission policy**: accept a lifetime cap on distinct Team IDs, with
-   entered IDs refused once 10 teams are enrolled, or change the code to
-   release slots. Decide also whether the admission alarm counts only
-   player refusals (recommended, 6.1 item 6) or every refusal, which under
-   the candidate tuple lets any visitor hold it in ALARM (3.3).
-   [Craig; code if changed]
+3. **Numeric limits and schedule: decided September 30, 2026, except for
+   development.** Craig accepted the candidate in 3.3 exactly:
+   `max_enrolled_teams` 40, `reserved_player_slots` 30,
+   `max_requests_per_run` 120, `max_retries_per_team` 1,
+   `min_request_interval_ms` 1000, `worker_timeout_seconds` 300 and
+   `cron(30 10 * * ? *)`. Both `*.auto.tfvars` carry them with every switch
+   off. **Still open:** whether development collects or runs the daily
+   schedule, and so its alert destination (6.1 item 2). Until Craig decides,
+   development does not collect, has no schedule and keeps
+   `alarm_action_arns = []`. [Craig]
+4. **Admission policy: decided September 30, 2026.** The cap is a lifetime cap
+   on distinct Team IDs with no slot release; entered IDs are refused once 10
+   teams are enrolled. The admission alarm counts only refused player-linked
+   teams (6.1 item 6, done); refused visitor lookups have a metric with no
+   alarm.
 5. **Import latency** with collection on: bound it in code or accept the risk
    from measured `my_teams` latency. [Craig; code if changed]
-6. **Repository changes** in 6.1 items 1 to 7: environment wiring, dev alert
-   destination, boundary grants within the IAM size limit, CI role grants,
-   the plan checker, the admission alarm scope, and release verification.
-   [agent, reviewed by Craig]
+6. **Repository changes** in 6.1 items 1 to 7. Done on September 30, 2026:
+   items 1 (environment wiring), 3 (boundary grants within the IAM size
+   limit), 4 (CI role grants), 5 (the plan checker), 6 (the admission alarm
+   scope) and 7 (release verification). Item 2, the development alert
+   destination, waits on the open part of gate 3. [agent, reviewed by Craig]
 7. **The #80 runtime merged and released**: the #80 loop branch and the 6.1
    changes merged to main, and the target environment's `live` alias running
    a release image built from that merge, confirmed by digest, before that
@@ -623,3 +701,51 @@ Owner in brackets.
     each for an exact saved-plan hash. [Craig]
 
 Until then, **do not activate collection or daily LPS polling.**
+
+## Appendix A: message to LPS
+
+Craig sends this himself (gate 1). It holds no credentials or personal data
+beyond his name and public site. Plain text, ready to send to LPS support:
+
+```text
+Subject: Questions about using the LPS API from a personal website
+
+Hello LPS support,
+
+I run a small personal website, craigdevjohnson.com. Its Soccer page shows
+LPS team schedules: a Team ID lookup calls GET /teams/{id} and
+GET /facilities/{id} without a token, and a player who chooses to import
+their own LPS account calls GET /users/check and GET /players/{id}/my_teams
+with that player's token.
+
+Before I turn on a feature that keeps a history of past seasons, I would
+like your written guidance on five questions:
+
+1. May my site keep a signed-in player's team, season, game and facility
+   details, and the player's own identity and team-season links,
+   indefinitely, if the player can remove that data from the site at any
+   time?
+
+2. May an unattended job call GET /teams/{id} and GET /facilities/{id}
+   without a token once a day for up to 40 teams? That is about 80
+   requests a day, at most 120 per run, at one request per second. Is
+   there a rate limit or a required pacing, and do you require an
+   identifying User-Agent or contact header?
+
+3. Which Acceptable Use Policy applies to this use, and where is it
+   published?
+
+4. How does the API signal a deleted or invalid Team ID? My job treats
+   400 and 404 as permanent, and 429, 5xx and network failures as
+   temporary.
+
+5. Do Team IDs stay the same across seasons, or does each season get new
+   IDs?
+
+I will not turn this feature on until I hear from you, and I am glad to
+change the schedule, volume or anything else you prefer.
+
+Thank you,
+Craig Johnson
+craigdevjohnson.com
+```

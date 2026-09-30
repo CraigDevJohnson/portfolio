@@ -38,10 +38,11 @@ Accounts, roots, approvals, the release workflow and rollback are described in
 The service module can also plan the durable Soccer history table,
 `portfolio-lambda-<env>-soccer-history`, with `enable_soccer_history`, then
 activate collection and the daily history worker with reviewed limits. Both
-environments leave every stage off until the issue #80 activation review.
-Turning any stage on also needs `PortfolioLambdaExecutionBoundary`, the CI
-roles in `infra/lambda/ci-roles/` and the release plan check to cover the new
-resources; see
+environments carry the accepted limits in their `*.auto.tfvars` and leave every
+stage off until the issue #80 activation review. The execution boundaries, the
+CI roles in `infra/lambda/ci-roles/` and the release plan check already cover
+the history resources, and the account root must be applied before any stage
+is planned; see
 [infra/lambda/README.md](../../infra/lambda/README.md#soccer-history-collection-and-daily-refresh).
 The runtime's table grant is `GetItem`, `PutItem`, `Query`, and `DeleteItem`;
 `DeleteItem` serves only verified player removal. Player removal deletes only

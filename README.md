@@ -68,7 +68,8 @@ retry.
 
 Enrollment has a reviewed capacity. Teams already enrolled keep their daily
 refresh; a new team past capacity is refused, the visitor sees why, and each
-refusal is logged once for an alarm. A granted import still completes when
+refusal is logged once. A refused team that a granted player import found
+raises an alarm; a refused anonymous Team ID is only counted. A granted import still completes when
 some of its new teams are refused: it keeps the other teams' history and names
 the teams it could not add. Some slots are reserved for teams a granted player
 import finds, so anonymous Team IDs cannot fill them. A separate scheduled
