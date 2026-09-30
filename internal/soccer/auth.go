@@ -24,11 +24,32 @@ import (
 	"portfolio/types"
 )
 
+// DefaultHistoryImportLookupBudget is how long an import that collects
+// linked-player history may spend on LPS lookups, counted from when the
+// request arrives: the /users/check account lookup, then each linked
+// player's my_teams lookup, one at a time. A player LPS has not listed by
+// then is skipped for this import. At most historyWriteTimeout of archive
+// writes and importRecordTimeout for the import record follow, so the
+// import's own work ends within 24 s, the budget Google add and result sync
+// keep, leaving 5 s of API Gateway's 29 s for the Lambda and gateway around
+// it. An import that collects no history is bounded only by the LPS
+// client's timeout, as before.
+const DefaultHistoryImportLookupBudget = 11 * time.Second
+
+const (
+	// historyWriteTimeout bounds saving an import's linked-player history.
+	historyWriteTimeout = 10 * time.Second
+	// importRecordTimeout bounds saving the import's session record.
+	importRecordTimeout = 3 * time.Second
+)
+
 // ImportHandler validates an imported JWT, discovers linked players, and stores
 // the session. When durable collection is wired and the visitor submitted the
 // disclosed import, it first records every linked player's team-season
-// memberships under the site owner and refuses the import if that fails.
+// memberships under the site owner and refuses the import if that fails. Its
+// LPS lookups then share one deadline (HistoryImportLookupBudget).
 func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
+	arrived := time.Now()
 	if !h.Config.LoginEnabled() {
 		h.RenderLoginFeedback(w, r, "error", "JWT import is unavailable until the session encryption key is configured on the server.")
 		return
@@ -49,7 +70,15 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	discovery, err := lps.FetchUserPlayers(r.Context(), h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
+	membershipStore, collecting := h.historyCollection(r)
+	lookupCtx := r.Context()
+	if collecting {
+		var stopLookups context.CancelFunc
+		lookupCtx, stopLookups = context.WithDeadline(r.Context(), arrived.Add(h.historyImportLookupBudget()))
+		defer stopLookups()
+	}
+
+	discovery, err := lps.FetchUserPlayers(lookupCtx, h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
 	if err != nil {
 		var fetchErr *lps.FetchError
 		if errors.As(err, &fetchErr) {
@@ -70,10 +99,14 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	historyNotice, historyFailure := h.collectLinkedPlayerHistory(r, jwt, discovery.Players)
-	if historyFailure != "" {
-		h.RenderLoginFeedback(w, r, "error", historyFailure)
-		return
+	var historyNotice *partials.FeedbackProps
+	if collecting {
+		var historyFailure string
+		historyNotice, historyFailure = h.collectLinkedPlayerHistory(lookupCtx, r, membershipStore, jwt, discovery.Players)
+		if historyFailure != "" {
+			h.RenderLoginFeedback(w, r, "error", historyFailure)
+			return
+		}
 	}
 	now := time.Now()
 	sessionID := generateSessionID()
@@ -97,7 +130,7 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	h.setImportGuard(w, r, &session)
 
-	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 3*time.Second)
+	persistCtx, cancelPersist := context.WithTimeout(r.Context(), importRecordTimeout)
 	defer cancelPersist()
 	if err := h.persistSessionRecord(persistCtx, sessionID, &session); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("soccer import session persistence failed", slog.Any("error", err))
@@ -114,47 +147,82 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved in this browser until its JWT expires, for up to 12 hours. Choose your players below.</div>`)
 }
 
-// collectLinkedPlayerHistory records every linked player's teams in the
-// durable archive when collection is enabled and the visitor submitted the
-// import form that disclosed it. It returns the reason to show, and the
-// import then stops so the visitor can try again, when the history the
-// visitor accepted could not be collected. A new team refused because the
-// reviewed history capacity is full does not stop the import: the rest of
-// the history is saved, and the returned notice names the refused teams.
-func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, players []types.LPSPlayer) (notice *partials.FeedbackProps, failure string) {
-	membershipStore, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
-	if !enabled || r.FormValue(partials.SoccerHistoryNoticeField) != partials.SoccerHistoryNoticeIndefinite {
-		return nil, ""
+// historyCollection returns the durable membership store when this import
+// collects linked-player history: collection is wired and the visitor
+// submitted the import form that disclosed it.
+func (h *Handler) historyCollection(r *http.Request) (soccerarchive.MembershipStore, bool) {
+	store, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
+	return store, enabled && r.FormValue(partials.SoccerHistoryNoticeField) == partials.SoccerHistoryNoticeIndefinite
+}
+
+func (h *Handler) historyImportLookupBudget() time.Duration {
+	if h.HistoryImportLookupBudget > 0 {
+		return h.HistoryImportLookupBudget
 	}
+	return DefaultHistoryImportLookupBudget
+}
+
+// collectLinkedPlayerHistory records every linked player's teams in the
+// durable archive, looking them up until lookupCtx's deadline. It returns the
+// reason to show, and the import then stops so the visitor can try again,
+// when the history the visitor accepted could not be collected. Neither a
+// player LPS has not listed by the deadline nor a new team refused because
+// the reviewed history capacity is full stops the import: the rest of the
+// history is saved, and the returned notice names what was left out.
+func (h *Handler) collectLinkedPlayerHistory(lookupCtx context.Context, r *http.Request, membershipStore soccerarchive.MembershipStore, jwt string, players []types.LPSPlayer) (notice *partials.FeedbackProps, failure string) {
 	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
 	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
 		return nil, "Sign in with Soccer access before importing linked players."
 	}
-	teams, memberships, err := h.discoverImportedPlayerTeams(r.Context(), jwt, players)
+	discovered, err := h.discoverImportedPlayerTeams(lookupCtx, jwt, players)
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("soccer player team discovery failed", slog.Any("error", err))
 		return nil, "Could not look up every linked player. No player history was saved; try the import again."
 	}
-	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 10*time.Second)
+	persistCtx, cancelPersist := context.WithTimeout(r.Context(), historyWriteTimeout)
 	defer cancelPersist()
 	err = membershipStore.SavePlayerDiscovery(persistCtx, &soccerarchive.PlayerDiscovery{
 		OwnerIssuer: principal.Issuer, OwnerSubject: principal.Subject,
-		Players: players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
+		Players: players, KnownTeams: discovered.teams, Memberships: discovered.memberships, ObservedAt: time.Now(),
 	})
 	var refused *soccerarchive.AdmissionError
 	switch {
 	case errors.As(err, &refused):
 		h.logAdmissionRejected(r.Context(), refused)
-		return &partials.FeedbackProps{
-			Kind:    partials.FeedbackWarning,
-			Title:   "History collection is full",
-			Message: teamsNotAdded(refused.TeamIDs) + " Your import and your other teams' history were saved.",
-		}, ""
 	case err != nil:
 		logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
 		return nil, "Linked-player history could not be saved. Try the import again."
 	}
-	return nil, ""
+	return uncollectedHistoryNotice(discovered.late, refused), ""
+}
+
+// uncollectedHistoryNotice names the linked-player history an import saved
+// without: players LPS had not listed by the lookup deadline and new teams
+// the reviewed capacity refused. It is nil when nothing was left out.
+func uncollectedHistoryNotice(late []types.LPSPlayer, refused *soccerarchive.AdmissionError) *partials.FeedbackProps {
+	if len(late) == 0 {
+		if refused == nil {
+			return nil
+		}
+		return &partials.FeedbackProps{
+			Kind:    partials.FeedbackWarning,
+			Title:   "History collection is full",
+			Message: teamsNotAdded(refused.TeamIDs) + " Your import and your other teams' history were saved.",
+		}
+	}
+	names := make([]string, 0, len(late))
+	for _, player := range late {
+		names = append(names, playerDisplayName(player))
+	}
+	message := "Let's Play Soccer did not list teams for " + listWords(names) + " in time, so their history was not collected. Import again later to collect it."
+	if refused != nil {
+		message += " " + teamsNotAdded(refused.TeamIDs)
+	}
+	return &partials.FeedbackProps{
+		Kind:    partials.FeedbackWarning,
+		Title:   "Some player history was not collected",
+		Message: message + " Your import was saved.",
+	}
 }
 
 // teamsNotAdded says which teams history collection refused at capacity.
@@ -169,28 +237,52 @@ func teamsNotAdded(teamIDs []int) string {
 	case 1:
 		return "Team " + names[0] + " was not added to history collection because its reviewed capacity is full."
 	default:
-		return "Teams " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1] + " were not added to history collection because its reviewed capacity is full."
+		return "Teams " + listWords(names) + " were not added to history collection because its reviewed capacity is full."
 	}
 }
 
-// discoverImportedPlayerTeams looks up every linked player's teams. A player
-// LPS rejects as invalid (a 400 or 404) has no team-seasons to observe, so it
-// keeps its identity and owner link without memberships and the lookup goes
-// on. Any other failure, such as an upstream error, timeout, or rejected JWT,
-// stops the discovery.
-func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) ([]lps.TeamSummary, []soccerarchive.PlayerMembership, error) {
+// listWords joins words as a sentence lists them: "a", "a and b", "a, b and c".
+func listWords(words []string) string {
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
+}
+
+// importedPlayerTeams is what an import's lookups found about its linked
+// players' teams.
+type importedPlayerTeams struct {
+	teams       []lps.TeamSummary
+	memberships []soccerarchive.PlayerMembership
+	// late lists the players LPS had not listed by the lookup deadline.
+	late []types.LPSPlayer
+}
+
+// discoverImportedPlayerTeams looks up every linked player's teams, one
+// player at a time so LPS sees one request at a time from an import, until
+// ctx's deadline. A player LPS rejects as invalid (a 400 or 404) has no
+// team-seasons to observe, and a player whose lookup has not finished by the
+// deadline is skipped for this import and returned as late. Either keeps its
+// identity and owner link without memberships, and the lookup goes on; once
+// the deadline has passed, every remaining player is late. Any other
+// failure, such as an upstream error or a rejected JWT, stops the discovery.
+func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) (importedPlayerTeams, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
 	knownTeams := make(map[int]lps.TeamSummary)
-	memberships := make([]soccerarchive.PlayerMembership, 0)
+	discovered := importedPlayerTeams{memberships: make([]soccerarchive.PlayerMembership, 0)}
 	for _, player := range players {
 		teams, err := resolver.FetchPlayerTeams(ctx, player.UPlayerID)
 		var fetchErr *lps.FetchError
-		if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer {
+		switch {
+		case errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer:
 			logging.WithContext(h.Logger, ctx).Warn("soccer linked player has no LPS teams to observe", slog.Int("player_id", player.UPlayerID), slog.Any("error", err))
 			continue
-		}
-		if err != nil {
-			return nil, nil, err
+		case err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded):
+			logging.WithContext(h.Logger, ctx).Warn("soccer linked player team lookup missed the import deadline", slog.Int("player_id", player.UPlayerID), slog.Any("error", err))
+			discovered.late = append(discovered.late, player)
+			continue
+		case err != nil:
+			return importedPlayerTeams{}, err
 		}
 		for _, team := range teams {
 			if team.UTeamID <= 0 {
@@ -200,14 +292,14 @@ func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, p
 			if team.Season <= 0 {
 				continue
 			}
-			memberships = append(memberships, soccerarchive.PlayerMembership{PlayerID: player.UPlayerID, Team: team})
+			discovered.memberships = append(discovered.memberships, soccerarchive.PlayerMembership{PlayerID: player.UPlayerID, Team: team})
 		}
 	}
-	result := make([]lps.TeamSummary, 0, len(knownTeams))
+	discovered.teams = make([]lps.TeamSummary, 0, len(knownTeams))
 	for _, team := range knownTeams {
-		result = append(result, team)
+		discovered.teams = append(discovered.teams, team)
 	}
-	return result, memberships, nil
+	return discovered, nil
 }
 
 // LogoutHandler clears the imported soccer session.

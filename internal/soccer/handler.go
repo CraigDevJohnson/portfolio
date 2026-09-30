@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
@@ -55,6 +56,10 @@ type Handler struct {
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
 	Logger       *slog.Logger
+	// HistoryImportLookupBudget bounds the LPS lookups of an import that
+	// collects linked-player history. Zero means
+	// DefaultHistoryImportLookupBudget.
+	HistoryImportLookupBudget time.Duration
 
 	storeMu      sync.RWMutex
 	store        SoccerStore

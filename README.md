@@ -46,7 +46,12 @@ from that dialog collects it: every linked player's team and LPS season
 memberships, including unselected players, stored under the importing site
 identity with their source and observation time, never the JWT and without a
 session TTL. Their teams are enrolled for refresh without selecting any
-planner games. A Team ID lookup never records player membership.
+planner games. A Team ID lookup never records player membership. An import
+that collects history gives its LPS lookups, the account and then each linked
+player's teams one at a time, one 11-second deadline. A player LPS has not
+listed by then is skipped: the import still completes, keeps the other
+players' history, and names the player, whose teams a later import can
+collect.
 
 With history wired, the LPS card of an imported, granted owner also offers to
 remove each linked player's kept data. `POST /soccer/players/remove` accepts
@@ -581,7 +586,9 @@ instructions.
 
 The Lambda timeout is 29 seconds. The Google add and result-sync handlers
 reserve 24 seconds of that window, which leaves five seconds outside their
-application work budget.
+application work budget. A Soccer import that collects linked-player history
+keeps to the same 24 seconds: 11 for its LPS lookups, then at most 10 for
+history writes and 3 for the import record.
 
 At the Lambda boundary, the adapter derives an HTTPS origin from API Gateway's
 typed request context. That context controls secure cookies and generated URLs;

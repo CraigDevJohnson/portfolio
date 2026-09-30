@@ -42,6 +42,10 @@ type playerHistoryRoute struct {
 	// rejectJWT makes LPS refuse the imported JWT, as it does once the
 	// token is revoked.
 	rejectJWT bool
+	// stalledPath, when set, is an LPS path that answers only after
+	// stallFor, unless the caller gives up first.
+	stalledPath string
+	stallFor    time.Duration
 }
 
 // The fake LPS account links Craig (the account's main player) and Taylor.
@@ -63,7 +67,15 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 		route.mu.Lock()
 		route.requests[r.URL.Path]++
 		failingPlayer, missingPlayer, account, rejectJWT := route.failingPlayer, route.missingPlayer, route.account, route.rejectJWT
+		stalledPath, stallFor := route.stalledPath, route.stallFor
 		route.mu.Unlock()
+		if r.URL.Path == stalledPath {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(stallFor):
+			}
+		}
 		if account == "" {
 			account = playerHistoryAccount
 		}
