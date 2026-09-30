@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"portfolio/internal/soccerarchive"
 	"portfolio/internal/soccerarchive/archivetest"
 	"portfolio/internal/testutil"
+
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 // playerHistoryRoute is the real route assembly with fake Cognito site
@@ -122,12 +125,52 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 // given reviewed limits.
 func (route *playerHistoryRoute) limitHistory(t *testing.T, limits soccerarchive.Limits) {
 	t.Helper()
-	store, err := soccerarchive.NewDynamoStoreWithAPI(route.table, "portfolio-lambda-dev-soccer-history", limits)
+	store, err := soccerarchive.NewDynamoStoreWithAPI(contextHonoringTable{route.table}, "portfolio-lambda-dev-soccer-history", limits)
 	if err != nil {
 		t.Fatalf("NewDynamoStoreWithAPI: %v", err)
 	}
 	route.store = store
 	route.handler.SetArchiveStore(store)
+}
+
+// contextHonoringTable is the in-memory table answering as DynamoDB does: a
+// call whose context has already ended fails without reaching the table, so
+// a write made under a spent deadline fails here as it would in production.
+type contextHonoringTable struct{ *archivetest.Table }
+
+func (table contextHonoringTable) PutItem(ctx context.Context, input *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return table.Table.PutItem(ctx, input, optFns...)
+}
+
+func (table contextHonoringTable) GetItem(ctx context.Context, input *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return table.Table.GetItem(ctx, input, optFns...)
+}
+
+func (table contextHonoringTable) Query(ctx context.Context, input *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return table.Table.Query(ctx, input, optFns...)
+}
+
+func (table contextHonoringTable) DeleteItem(ctx context.Context, input *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return table.Table.DeleteItem(ctx, input, optFns...)
+}
+
+func (table contextHonoringTable) TransactWriteItems(ctx context.Context, input *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return table.Table.TransactWriteItems(ctx, input, optFns...)
 }
 
 // lpsRequests returns how many requests the fake LPS received for path.

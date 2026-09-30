@@ -15,8 +15,10 @@ import (
 const testLookupBudget = 200 * time.Millisecond
 
 // importWorkAfterLookups bounds the rest of a test import after its LPS
-// lookups: in-memory archive writes and rendering the response.
-const importWorkAfterLookups = time.Second
+// lookups: in-memory archive writes and rendering the response. It is no
+// longer than the lookup budget, so a lookup phase that ran twice its budget
+// would fail the elapsed checks.
+const importWorkAfterLookups = testLookupBudget
 
 // stalledLPSAnswer is how long a stalled fake LPS path waits before it
 // answers anyway, as a slow LPS eventually would. It is longer than any
@@ -83,6 +85,55 @@ func TestDisclosedImportSkipsALinkedPlayerLPSHasNotListedByTheLookupDeadline(t *
 	}
 	if skipped != 1 {
 		t.Errorf("logged %d skipped-player records, want one for player 1002", skipped)
+	}
+}
+
+// The lookups share one deadline rather than each having its own budget: a
+// first player that stalls past it leaves no time to look up the second, so
+// LPS is never asked for that player's teams and both are skipped.
+func TestDisclosedImportLooksUpNoFurtherPlayerOnceTheSharedDeadlinePasses(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	route.handler.HistoryImportLookupBudget = testLookupBudget
+	route.stalledPath, route.stallFor = "/players/1001/my_teams", stalledLPSAnswer
+	owner := route.signedInOwner(t)
+	form := route.disclosedImportForm(t, owner)
+	route.logs.take(t)
+
+	started := time.Now()
+	imported := owner.postForm("/soccer/import", form)
+	elapsed := time.Since(started)
+
+	body := imported.Body.String()
+	if imported.Code != http.StatusOK || !strings.Contains(body, "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("linked players LPS did not list in time took the import away: status %d, body %q", imported.Code, body)
+	}
+	if elapsed >= testLookupBudget+importWorkAfterLookups {
+		t.Errorf("import took %s, want it bounded by the %s lookup budget", elapsed, testLookupBudget)
+	}
+	if requests := route.lpsRequests("/players/1002/my_teams"); requests != 0 {
+		t.Errorf("LPS was asked for Taylor's teams %d times after the shared deadline passed, want none", requests)
+	}
+	_, message := importWarning(t, body)
+	if want := "Let's Play Soccer did not list teams for Craig Johnson and Taylor Johnson in time"; !strings.HasPrefix(message, want) {
+		t.Errorf("import warning = %q, want it to name both players", message)
+	}
+	if byOwner := route.memberships(t); len(byOwner) != 0 {
+		t.Errorf("stored memberships = %v, want none", byOwner)
+	}
+	if teams := route.items(t, "team"); len(teams) != 0 {
+		t.Errorf("enrolled teams = %v, want none", teams)
+	}
+	if players, links := len(route.items(t, "player")), len(route.items(t, "player_owner")); players != 2 || links != 2 {
+		t.Errorf("stored %d player identities and %d owner links, want both players", players, links)
+	}
+	late := map[float64]bool{}
+	for _, record := range route.logs.take(t) {
+		if record["msg"] == "soccer linked player team lookup missed the import deadline" {
+			late[record["player_id"].(float64)] = true
+		}
+	}
+	if len(late) != 2 || !late[1001] || !late[1002] {
+		t.Errorf("logged late players %v, want 1001 and 1002", late)
 	}
 }
 
