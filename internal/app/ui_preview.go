@@ -181,7 +181,7 @@ func soccerPreviewTeamSelection(players []types.LPSPlayer) *partials.SoccerTeamS
 		PlayerGroups: []types.PlayerTeamGroup{
 			{Player: players[0], Teams: []types.LPSTeam{
 				{TeamID: 479691, TeamName: "Pond Mint United", Season: 169, PlayerID: 1669080},
-				{TeamID: 479692, TeamName: "Treasure Valley After-Work Cooperative Football Club", Season: 169, PlayerID: 1669080},
+				{TeamID: 479699, TeamName: "Treasure Valley After-Work Cooperative Football Club", Season: 169, PlayerID: 1669080},
 			}},
 			{Player: players[1], Teams: []types.LPSTeam{
 				{TeamID: 479147, TeamName: "Campfire Rovers", Season: 170, PlayerID: 1669081},
@@ -201,7 +201,7 @@ func soccerPreviewUpcomingGames() []types.Game {
 		{
 			ID: "preview-upcoming-2", DateTime: "Fri, Sep 11 at 8:30 PM", StartAt: "2026-09-11T20:30:00-06:00", EndAt: "2026-09-11T21:45:00-06:00",
 			Field: "Championship Field with the Extra-Long Sideline Name", Home: "Treasure Valley After-Work Cooperative Football Club", Away: "Rosehip Athletic", Season: "Fall 2026", PlayerTeamName: "Treasure Valley After-Work Cooperative Football Club", OpponentTeamName: "Rosehip Athletic", DivisionName: "Coed Premier",
-			HomeTeam: types.TeamAppearance{ID: 479692, Selected: true}, AwayTeam: types.TeamAppearance{ID: 479800},
+			HomeTeam: types.TeamAppearance{ID: 479699, Selected: true}, AwayTeam: types.TeamAppearance{ID: 479800},
 			Facility: &types.Facility{Name: "West Boise Indoor Soccer and Community Recreation Complex", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 	}

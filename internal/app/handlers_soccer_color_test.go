@@ -84,14 +84,14 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 		"/teams/200": `{"team":{"UTeamID":200,"team_name":"Gold FC","Color":" GoLd "},"games":[{"UGameID":700,"SchedGameDateTime":"{past}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"},"result":"2 - 1"}]}`,
 		"/teams/300": `{"team":{"UTeamID":300,"team_name":"Fallback FC","Color":"url(javascript:alert(1))"},"games":[{"UGameID":701,"SchedGameDateTime":"{future}","UTeam1":300,"UTeam2":400,"home_team":{"UTeamID":300,"team_name":"Fallback FC"},"visitor_team":{"UTeamID":400,"team_name":"Visitor One"}},{"UGameID":702,"SchedGameDateTime":"{future}","UTeam1":401,"UTeam2":300,"home_team":{"UTeamID":401,"team_name":"Visitor Two"},"visitor_team":{"UTeamID":300,"team_name":"Fallback FC"}}]}`,
 		"/teams/500": `{"team":{"UTeamID":500,"team_name":"Blue FC","Color":"red"},"games":[{"UGameID":703,"SchedGameDateTime":"{future}","UTeam1":600,"UTeam2":700,"home_team":{"UTeamID":600,"team_name":"Blue FC","Color":"green"},"visitor_team":{"UTeamID":700,"team_name":"Other FC","Color":"yellow"}}]}`,
-		"/teams/900": `{"team":{"UTeamID":900,"team_name":"Plain FC"},"games":[{"UGameID":901,"SchedGameDateTime":"{future}","UTeam1":900,"UTeam2":910,"home_team":{"UTeamID":900,"team_name":"Plain FC"},"visitor_team":{"UTeamID":910,"team_name":"Visitor Three"}},{"UGameID":902,"SchedGameDateTime":"{future}","UTeam1":911,"UTeam2":900,"home_team":{"UTeamID":911,"team_name":"Visitor Four"},"visitor_team":{"UTeamID":900,"team_name":"Plain FC"}}]}`,
+		"/teams/901": `{"team":{"UTeamID":901,"team_name":"Plain FC"},"games":[{"UGameID":951,"SchedGameDateTime":"{future}","UTeam1":901,"UTeam2":910,"home_team":{"UTeamID":901,"team_name":"Plain FC"},"visitor_team":{"UTeamID":910,"team_name":"Visitor Three"}},{"UGameID":952,"SchedGameDateTime":"{future}","UTeam1":911,"UTeam2":901,"home_team":{"UTeamID":911,"team_name":"Visitor Four"},"visitor_team":{"UTeamID":901,"team_name":"Plain FC"}}]}`,
 	})
 	app.Config.LPSAPIBaseURL = server.URL
 	mux, _ := buildMux(app, app.Logger, false)
 
 	fallbackAcrossRefetch := map[string]string{}
 	for attempt := range 2 {
-		rows, body := fetchSoccerMatchRows(t, mux, "100", "200", "300", "500", "900")
+		rows, body := fetchSoccerMatchRows(t, mux, "100", "200", "300", "500", "901")
 		if strings.Contains(body, "url(javascript:") || strings.Contains(body, "BlUe") || strings.Contains(body, "GoLd") {
 			t.Fatal("raw upstream color reached the rendered fragment")
 		}
@@ -117,23 +117,33 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 			t.Fatalf("shared match lacks readable names or neutral score: %q", text)
 		}
 
-		// Team 300's color is unusable and team 900 has none; each keeps one
-		// fallback whether it plays at home or away, and across refetches.
-		for team, games := range map[string][2]string{"300": {"701", "702"}, "900": {"901", "902"}} {
-			homeGame, awayGame := onlySoccerRow(t, rows, games[0]), onlySoccerRow(t, rows, games[1])
+		// Team 300's color is unusable and team 901 has none. Each keeps the
+		// fallback its Team ID selects (300 and 901 pick different palette
+		// entries) whether it plays at home or away, and across refetches.
+		for _, team := range []struct {
+			id, fallback string
+			games        [2]string
+		}{
+			{id: "300", fallback: "orange", games: [2]string{"701", "702"}},
+			{id: "901", fallback: "teal", games: [2]string{"951", "952"}},
+		} {
+			homeGame, awayGame := onlySoccerRow(t, rows, team.games[0]), onlySoccerRow(t, rows, team.games[1])
 			fallback := htmlAttr(homeGame, "data-home-color")
+			if fallback != team.fallback {
+				t.Fatalf("team %s fallback = %q, want %q chosen by its Team ID", team.id, fallback, team.fallback)
+			}
 			for _, got := range []string{htmlAttr(homeGame, "data-away-color"), htmlAttr(awayGame, "data-home-color"), htmlAttr(awayGame, "data-away-color")} {
-				if fallback == "" || got != fallback {
-					t.Fatalf("team %s fallback varied across games: %q vs %q", team, fallback, got)
+				if got != fallback {
+					t.Fatalf("team %s fallback varied across games: %q vs %q", team.id, fallback, got)
 				}
 			}
 			if htmlAttr(homeGame, "data-shared-match") != "" || htmlAttr(awayGame, "data-shared-match") != "" {
-				t.Fatalf("team %s single-team games were marked shared", team)
+				t.Fatalf("team %s single-team games were marked shared", team.id)
 			}
-			if previous := fallbackAcrossRefetch[team]; previous != "" && previous != fallback {
-				t.Fatalf("team %s fallback changed on refetch: %q then %q", team, previous, fallback)
+			if previous := fallbackAcrossRefetch[team.id]; previous != "" && previous != fallback {
+				t.Fatalf("team %s fallback changed on refetch: %q then %q", team.id, previous, fallback)
 			}
-			fallbackAcrossRefetch[team] = fallback
+			fallbackAcrossRefetch[team.id] = fallback
 		}
 
 		collision := onlySoccerRow(t, rows, "703")
@@ -234,9 +244,11 @@ func TestSoccerPreviewFixtureRendersTeamColorStates(t *testing.T) {
 		t.Errorf("shared preview result takes one team's perspective: %q", text)
 	}
 
+	// Team 479699 has no LPS color; its Team ID selects purple, which no
+	// recognized team on the page uses, so the fallback is visibly distinct.
 	fallback := onlySoccerRow(t, rows, "preview-upcoming-2")
-	if home, away := htmlAttr(fallback, "data-home-color"), htmlAttr(fallback, "data-away-color"); home == "" || home != away || htmlAttr(fallback, "data-shared-match") != "" {
-		t.Errorf("colorless preview team colors = %q/%q shared=%q, want one fallback on both halves", home, away, htmlAttr(fallback, "data-shared-match"))
+	if home, away := htmlAttr(fallback, "data-home-color"), htmlAttr(fallback, "data-away-color"); home != "purple" || away != "purple" || htmlAttr(fallback, "data-shared-match") != "" {
+		t.Errorf("colorless preview team colors = %q/%q shared=%q, want the purple Team ID fallback on both halves", home, away, htmlAttr(fallback, "data-shared-match"))
 	}
 }
 
