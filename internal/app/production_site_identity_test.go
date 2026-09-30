@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -23,51 +22,96 @@ import (
 	"portfolio/internal/testutil"
 )
 
-func TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes(t *testing.T) {
+const (
+	devSiteOrigin  = "https://dev.craigdevjohnson.com"
+	prodSiteOrigin = "https://craigdevjohnson.com"
+	// The invitation JSON the service module renders for each environment's
+	// reviewed map (infra/lambda/modules/service tests assert the same text).
+	reviewedSiteInvitationsJSON = `{"craigdevjohnson@gmail.com":["management","soccer"]}`
+	devSiteSessionKeyHex        = "6464646464646464646464646464646464646464646464646464646464646464"
+	prodSiteSessionKeyHex       = "7070707070707070707070707070707070707070707070707070707070707070"
+)
+
+// fakeSitePool stands in for one environment's Cognito user pool: its own
+// managed-login origin, issuer and public app client.
+type fakeSitePool struct {
+	server   *httptest.Server
+	issuer   string
+	clientID string
+}
+
+// fakeSiteFederation mints tokens for the development and production pools.
+// Both sign with one key, so only each environment's configured issuer and
+// client decide whether it accepts a token.
+type fakeSiteFederation struct {
+	t     *testing.T
+	key   *rsa.PrivateKey
+	pools map[string]*fakeSitePool
+}
+
+func newFakeSiteFederation(t *testing.T) *fakeSiteFederation {
+	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
-	issuer := map[string]string{}
-	federation := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	federation := &fakeSiteFederation{t: t, key: key, pools: map[string]*fakeSitePool{}}
+	for environment, pool := range map[string]struct{ id, client string }{
+		"dev":  {id: "us-west-2_DevSite", client: "devsiteclient"},
+		"prod": {id: "us-west-2_ProdSite", client: "prodsiteclient"},
+	} {
+		server := httptest.NewTLSServer(federation.poolHandler(environment, pool.id))
+		t.Cleanup(server.Close)
+		federation.pools[environment] = &fakeSitePool{server: server, issuer: server.URL + "/" + pool.id, clientID: pool.client}
+	}
+	// httptest TLS servers share one certificate, so either client trusts both pools.
+	previousClient := http.DefaultClient
+	http.DefaultClient = federation.pools["prod"].server.Client()
+	t.Cleanup(func() { http.DefaultClient = previousClient })
+	return federation
+}
+
+// poolHandler serves one pool's JWKS and token endpoint. An authorization code
+// names the pool that issued the identity and the identity's kind, for example
+// "dev-invited" or "prod-unverified", so a test can hand one environment
+// another environment's token.
+func (f *fakeSiteFederation) poolHandler(environment, poolID string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/dev/.well-known/jwks.json", "/prod/.well-known/jwks.json":
+		case "/" + poolID + "/.well-known/jwks.json":
 			_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
 				"kid": "site-test", "kty": "RSA", "alg": "RS256", "use": "sig",
-				"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB",
+				"n": base64.RawURLEncoding.EncodeToString(f.key.N.Bytes()), "e": "AQAB",
 			}}})
 		case "/oauth2/token":
-			if r.Method != http.MethodPost || r.ParseForm() != nil || r.Form.Get("code_verifier") == "" || r.Form.Get("client_secret") != "" {
-				t.Error("invalid Cognito token exchange")
+			if r.Method != http.MethodPost || r.ParseForm() != nil || r.Form.Get("code_verifier") == "" || r.Form.Get("client_secret") != "" ||
+				r.Form.Get("client_id") != f.pools[environment].clientID {
+				f.t.Errorf("%s pool received an invalid token exchange for client %q", environment, r.Form.Get("client_id"))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			client := r.Form.Get("client_id")
-			code := r.Form.Get("code")
-			if client != "dev-site-client" && client != "prod-site-client" {
-				t.Errorf("unexpected app client %q", client)
+			issuing, kind, _ := strings.Cut(r.Form.Get("code"), "-")
+			pool, ok := f.pools[issuing]
+			if !ok {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			identity := strings.TrimSuffix(client, "-site-client")
-			if strings.HasPrefix(code, "dev-") {
-				identity = "dev"
-			} else if strings.HasPrefix(code, "prod-") {
-				identity = "prod"
-			}
-			email := "craigdevjohnson@gmail.com"
-			if strings.HasSuffix(code, "-uninvited") {
+			email, verified := "craigdevjohnson@gmail.com", true
+			switch kind {
+			case "uninvited":
 				email = "uninvited@example.com"
+			case "unverified":
+				verified = false
 			}
-			claims := jwt.MapClaims{
-				"iss": issuer[identity], "aud": identity + "-site-client", "sub": identity + "-stable-subject",
-				"exp": time.Now().Add(time.Hour).Unix(), "token_use": "id", "email": email, "email_verified": true,
-			}
-			token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+			token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+				"iss": pool.issuer, "aud": pool.clientID, "sub": issuing + "-stable-subject",
+				"exp": time.Now().Add(time.Hour).Unix(), "token_use": "id",
+				"email": email, "email_verified": verified,
+			})
 			token.Header["kid"] = "site-test"
-			raw, signErr := token.SignedString(key)
-			if signErr != nil {
-				t.Error(signErr)
+			raw, err := token.SignedString(f.key)
+			if err != nil {
+				f.t.Error(err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -75,144 +119,125 @@ func TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes(t *
 		default:
 			http.NotFound(w, r)
 		}
-	}))
-	t.Cleanup(federation.Close)
-	issuer["dev"] = federation.URL + "/dev"
-	issuer["prod"] = federation.URL + "/prod"
-	previousClient := http.DefaultClient
-	http.DefaultClient = federation.Client()
-	t.Cleanup(func() { http.DefaultClient = previousClient })
+	})
+}
 
-	newEnvironment := func(environment string) (*App, http.Handler) {
-		t.Helper()
-		origin := "https://dev.craigdevjohnson.com"
-		keyByte := byte('d')
-		if environment == "prod" {
-			origin = "https://craigdevjohnson.com"
-			keyByte = 'p'
-		}
-		cfg := config.Config{
-			LPSAPIBaseURL:          config.DefaultLPSAPIBaseURL,
-			SiteSessionKey:         bytes.Repeat([]byte{keyByte}, 32),
-			SiteCognitoDomain:      federation.URL,
-			SiteCognitoIssuer:      issuer[environment],
-			SiteCognitoClientID:    environment + "-site-client",
-			SiteCognitoRedirectURI: origin + "/auth/callback",
-			SiteCognitoLogoutURI:   origin + "/sign-in",
-			SiteInvitations: map[string][]string{
-				"craigdevjohnson@gmail.com": {"soccer", "management"},
-			},
-		}
-		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		application := New(&cfg, logger)
-		t.Cleanup(application.LoginLimiter.Close)
-		mux, _ := buildMux(application, logger, false)
-		return application, mux
+// productionLikeSite is one environment assembled from the SITE_* Lambda
+// environment the service module renders from that environment's site root.
+type productionLikeSite struct {
+	app    *App
+	mux    http.Handler
+	pool   *fakeSitePool
+	origin string
+}
+
+func loadProductionLikeSite(t *testing.T, pool *fakeSitePool, origin, sessionKeyHex, lpsURL string) *productionLikeSite {
+	t.Helper()
+	for name, value := range map[string]string{
+		"SITE_SESSION_KEY":             sessionKeyHex,
+		"SITE_COGNITO_DOMAIN":          pool.server.URL,
+		"SITE_COGNITO_ISSUER":          pool.issuer,
+		"SITE_COGNITO_CLIENT_ID":       pool.clientID,
+		"SITE_COGNITO_REDIRECT_URI":    origin + "/auth/callback",
+		"SITE_COGNITO_LOGOUT_URI":      origin + "/sign-in",
+		"SITE_INVITATIONS_JSON":        reviewedSiteInvitationsJSON,
+		"SITE_ALLOW_LOCAL_CALLBACK":    "false",
+		"LPS_API_BASE_URL":             lpsURL,
+		"MGMT_SESSION_KEY":             "",
+		"CLIENT_ID_KEY":                "",
+		"CLIENT_SECRET_KEY":            "",
+		"GOOGLE_CONNECTION_TABLE_NAME": "",
+		"SOCCER_SESSION_TABLE_NAME":    "",
+	} {
+		t.Setenv(name, value)
 	}
-
-	dev, devMux := newEnvironment("dev")
-	prod, prodMux := newEnvironment("prod")
-	if dev.PortalHandler != nil || prod.PortalHandler != nil {
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := config.Load()
+	slog.SetDefault(previousLogger)
+	if !cfg.SiteEnabled() {
+		t.Fatalf("the %s SITE_* environment did not enable site sign-in", origin)
+	}
+	application := New(&cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	t.Cleanup(application.LoginLimiter.Close)
+	if application.PortalHandler != nil {
 		t.Fatal("site sign-in unexpectedly depends on management AWS clients")
 	}
-	start := func(handler http.Handler, origin, client, callback string) (*http.Cookie, string) {
-		t.Helper()
-		form := url.Values{"return_to": {"/soccer"}}
-		req := httptest.NewRequest(http.MethodPost, origin+"/sign-in", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, req)
-		target, parseErr := url.Parse(response.Header().Get("Location"))
-		if parseErr != nil || response.Code != http.StatusSeeOther || target.Query().Get("client_id") != client || target.Query().Get("redirect_uri") != callback || target.Query().Get("identity_provider") != "Google" {
-			t.Fatalf("sign-in did not use its own Google-federated client and callback: %d %s", response.Code, target)
+	mux, _ := buildMux(application, application.Logger, false)
+	return &productionLikeSite{app: application, mux: mux, pool: pool, origin: origin}
+}
+
+// startSignIn begins sign-in and checks it uses this environment's own
+// Google-federated client and callback.
+func (s *productionLikeSite) startSignIn(t *testing.T) (*http.Cookie, string) {
+	t.Helper()
+	form := url.Values{"return_to": {"/soccer"}}
+	request := httptest.NewRequest(http.MethodPost, s.origin+"/sign-in", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	s.mux.ServeHTTP(response, request)
+	target, err := url.Parse(response.Header().Get("Location"))
+	if err != nil || response.Code != http.StatusSeeOther ||
+		"https://"+target.Host != s.pool.server.URL || target.Path != "/oauth2/authorize" ||
+		target.Query().Get("client_id") != s.pool.clientID ||
+		target.Query().Get("redirect_uri") != s.origin+"/auth/callback" ||
+		target.Query().Get("identity_provider") != "Google" {
+		t.Fatalf("%s sign-in did not use its own Google-federated pool, client and callback: %d %s", s.origin, response.Code, target)
+	}
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == config.SiteOAuthStateCookieName {
+			return cookie, target.Query().Get("state")
 		}
-		for _, cookie := range response.Result().Cookies() {
-			if cookie.Name == config.SiteOAuthStateCookieName {
-				return cookie, target.Query().Get("state")
-			}
+	}
+	t.Fatal("sign-in did not set a pending OAuth state")
+	return nil, ""
+}
+
+func (s *productionLikeSite) callback(t *testing.T, code string) *httptest.ResponseRecorder {
+	t.Helper()
+	stateCookie, state := s.startSignIn(t)
+	request := httptest.NewRequest(http.MethodGet, s.origin+"/auth/callback?code="+url.QueryEscape(code)+"&state="+url.QueryEscape(state), nil)
+	request.AddCookie(stateCookie)
+	response := httptest.NewRecorder()
+	s.mux.ServeHTTP(response, request)
+	return response
+}
+
+// restricted reports the status a restricted action gated by grant returns
+// behind this environment's shared site identity.
+func (s *productionLikeSite) restricted(t *testing.T, cookie *http.Cookie, grant siteidentity.Grant) int {
+	t.Helper()
+	action := s.app.SiteHandler.WithIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := siteidentity.PrincipalFromContext(r.Context()); !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
-		t.Fatal("sign-in did not set a pending OAuth state")
-		return nil, ""
-	}
-	finish := func(handler http.Handler, origin, code string, stateCookie *http.Cookie, state string) *httptest.ResponseRecorder {
-		t.Helper()
-		req := httptest.NewRequest(http.MethodGet, origin+"/auth/callback?code="+url.QueryEscape(code)+"&state="+url.QueryEscape(state), nil)
-		req.AddCookie(stateCookie)
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, req)
-		return response
-	}
-	devStateCookie, devState := start(devMux, "https://dev.craigdevjohnson.com", "dev-site-client", dev.Config.SiteCognitoRedirectURI)
-	devCallback := finish(devMux, "https://dev.craigdevjohnson.com", "dev-code", devStateCookie, devState)
-	if devCallback.Code != http.StatusSeeOther || devCallback.Header().Get("Location") != "/soccer" {
-		t.Fatalf("development sign-in failed: %d %s", devCallback.Code, devCallback.Body.String())
-	}
-	devCookie := siteCookie(t, devCallback)
-	prodStateCookie, prodState := start(prodMux, "https://craigdevjohnson.com", "prod-site-client", prod.Config.SiteCognitoRedirectURI)
-	prodCallback := finish(prodMux, "https://craigdevjohnson.com", "prod-code", prodStateCookie, prodState)
-	if prodCallback.Code != http.StatusSeeOther || prodCallback.Header().Get("Location") != "/soccer" {
-		t.Fatalf("production sign-in failed: %d %s", prodCallback.Code, prodCallback.Body.String())
-	}
-	prodCookie := siteCookie(t, prodCallback)
+		if !siteidentity.HasGrant(r.Context(), grant) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodPost, s.origin+"/restricted", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	action.ServeHTTP(response, request)
+	return response.Code
+}
 
-	protected := func(app *App, cookie *http.Cookie, grant siteidentity.Grant) int {
-		t.Helper()
-		probe := app.SiteHandler.WithIdentity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := siteidentity.PrincipalFromContext(r.Context()); !ok {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			if !siteidentity.HasGrant(r.Context(), grant) {
-				w.WriteHeader(http.StatusForbidden)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-		}))
-		req := httptest.NewRequest(http.MethodPost, "https://craigdevjohnson.com/restricted", nil)
-		req.AddCookie(cookie)
-		response := httptest.NewRecorder()
-		probe.ServeHTTP(response, req)
-		return response.Code
+func assertNoSiteSession(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == config.SiteSessionCookieName && cookie.Value != "" {
+			t.Fatal("identity received a site session")
+		}
 	}
-	if protected(dev, devCookie, siteidentity.GrantManagement) != http.StatusNoContent || protected(prod, prodCookie, siteidentity.GrantManagement) != http.StatusNoContent {
-		t.Fatal("invited verified identities did not receive their current management grant")
-	}
-	if protected(prod, devCookie, siteidentity.GrantManagement) != http.StatusUnauthorized || protected(dev, prodCookie, siteidentity.GrantManagement) != http.StatusUnauthorized {
-		t.Fatal("one environment's session authorized the other's restricted action")
-	}
-	prod.Config.SiteInvitations["craigdevjohnson@gmail.com"] = []string{"soccer"}
-	if protected(prod, prodCookie, siteidentity.GrantManagement) != http.StatusForbidden || protected(prod, prodCookie, siteidentity.GrantSoccer) != http.StatusNoContent {
-		t.Fatal("production did not check the current page grant on the next request")
-	}
+}
 
-	for _, attempt := range []struct {
-		name     string
-		mux      http.Handler
-		client   string
-		returnTo string
-		origin   string
-		code     string
-	}{
-		{name: "development token in production", mux: prodMux, client: "prod-site-client", returnTo: prod.Config.SiteCognitoRedirectURI, origin: "https://craigdevjohnson.com", code: "dev-code"},
-		{name: "production token in development", mux: devMux, client: "dev-site-client", returnTo: dev.Config.SiteCognitoRedirectURI, origin: "https://dev.craigdevjohnson.com", code: "prod-code"},
-		{name: "uninvited production identity", mux: prodMux, client: "prod-site-client", returnTo: prod.Config.SiteCognitoRedirectURI, origin: "https://craigdevjohnson.com", code: "prod-uninvited"},
-	} {
-		t.Run(attempt.name, func(t *testing.T) {
-			stateCookie, state := start(attempt.mux, attempt.origin, attempt.client, attempt.returnTo)
-			response := finish(attempt.mux, attempt.origin, attempt.code, stateCookie, state)
-			if response.Code != http.StatusUnauthorized {
-				t.Fatalf("foreign or uninvited token status = %d, want 401", response.Code)
-			}
-			for _, cookie := range response.Result().Cookies() {
-				if cookie.Name == config.SiteSessionCookieName && cookie.Value != "" {
-					t.Fatal("foreign or uninvited identity received a site session")
-				}
-			}
-		})
-	}
-
+func publicTeamLPS(t *testing.T) *httptest.Server {
+	t.Helper()
 	gameDate := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
-	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/teams/479691" {
 			http.NotFound(w, r)
 			return
@@ -220,29 +245,106 @@ func TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes(t *
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"games":[{"UGameID":7001,"SchedGameDateTime":%q,"home_team":{"team_name":"PUBLIC FC"},"visitor_team":{"team_name":"VISITORS"},"Season":169}]}`, gameDate)
 	}))
-	t.Cleanup(lps.Close)
-	prod.Config.LPSAPIBaseURL = lps.URL
-	for _, path := range []string{"/", "/soccer"} {
-		response := httptest.NewRecorder()
-		prodMux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "https://craigdevjohnson.com"+path, nil))
-		if response.Code != http.StatusOK {
-			t.Fatalf("anonymous public %s status = %d", path, response.Code)
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestProductionLikeSiteIdentitySeparatesEnvironmentsAndKeepsPublicRoutes(t *testing.T) {
+	federation := newFakeSiteFederation(t)
+	lps := publicTeamLPS(t)
+	dev := loadProductionLikeSite(t, federation.pools["dev"], devSiteOrigin, devSiteSessionKeyHex, lps.URL)
+	prod := loadProductionLikeSite(t, federation.pools["prod"], prodSiteOrigin, prodSiteSessionKeyHex, lps.URL)
+
+	signedIn := map[string]*http.Cookie{}
+	for name, site := range map[string]*productionLikeSite{"dev": dev, "prod": prod} {
+		response := site.callback(t, name+"-invited")
+		if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/soccer" {
+			t.Fatalf("%s invited sign-in failed: %d %s", name, response.Code, response.Body.String())
+		}
+		signedIn[name] = siteCookie(t, response)
+		if got := site.restricted(t, signedIn[name], siteidentity.GrantManagement); got != http.StatusNoContent {
+			t.Fatalf("%s invited identity lacks its current management grant: %d", name, got)
 		}
 	}
-	for _, request := range []struct {
-		path string
-		form url.Values
-		want string
-	}{
-		{path: "/soccer/fetch", form: url.Values{"team_codes": {"479691"}}, want: "PUBLIC FC"},
-		{path: "/soccer/download", form: url.Values{"team_codes": {"479691"}, "selected": {"7001"}}, want: "BEGIN:VCALENDAR"},
-	} {
-		req := httptest.NewRequest(http.MethodPost, "https://craigdevjohnson.com"+request.path, strings.NewReader(request.form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		response := httptest.NewRecorder()
-		prodMux.ServeHTTP(response, req)
-		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), request.want) {
-			t.Fatalf("anonymous %s status = %d, body = %q", request.path, response.Code, response.Body.String())
+
+	t.Run("only an invited verified identity signs in to production", func(t *testing.T) {
+		for _, code := range []string{"prod-uninvited", "prod-unverified"} {
+			response := prod.callback(t, code)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("%s status = %d, want 401", code, response.Code)
+			}
+			assertNoSiteSession(t, response)
 		}
-	}
+	})
+
+	t.Run("one environment's token cannot sign in to the other", func(t *testing.T) {
+		for _, attempt := range []struct {
+			site *productionLikeSite
+			code string
+		}{{prod, "dev-invited"}, {dev, "prod-invited"}} {
+			response := attempt.site.callback(t, attempt.code)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("%s at %s status = %d, want 401", attempt.code, attempt.site.origin, response.Code)
+			}
+			assertNoSiteSession(t, response)
+		}
+	})
+
+	t.Run("one environment's session cannot authorize the other's restricted action", func(t *testing.T) {
+		if got := prod.restricted(t, signedIn["dev"], siteidentity.GrantManagement); got != http.StatusUnauthorized {
+			t.Fatalf("development session in production = %d, want 401", got)
+		}
+		if got := dev.restricted(t, signedIn["prod"], siteidentity.GrantManagement); got != http.StatusUnauthorized {
+			t.Fatalf("production session in development = %d, want 401", got)
+		}
+		// The issuer boundary holds even if an operator reused one session key.
+		sharedKey := loadProductionLikeSite(t, federation.pools["prod"], prodSiteOrigin, devSiteSessionKeyHex, lps.URL)
+		if got := sharedKey.restricted(t, signedIn["dev"], siteidentity.GrantManagement); got != http.StatusUnauthorized {
+			t.Fatalf("development session in production with a shared key = %d, want 401", got)
+		}
+	})
+
+	t.Run("production checks its own current grant map on every request", func(t *testing.T) {
+		const owner = "craigdevjohnson@gmail.com"
+		prod.app.Config.SiteInvitations[owner] = []string{"soccer"}
+		if got := prod.restricted(t, signedIn["prod"], siteidentity.GrantManagement); got != http.StatusForbidden {
+			t.Fatalf("revoked production management grant = %d, want 403", got)
+		}
+		if got := prod.restricted(t, signedIn["prod"], siteidentity.GrantSoccer); got != http.StatusNoContent {
+			t.Fatalf("remaining production soccer grant = %d, want 204", got)
+		}
+		if got := dev.restricted(t, signedIn["dev"], siteidentity.GrantManagement); got != http.StatusNoContent {
+			t.Fatalf("production grant change reached development: %d", got)
+		}
+		delete(prod.app.Config.SiteInvitations, owner)
+		if got := prod.restricted(t, signedIn["prod"], siteidentity.GrantSoccer); got != http.StatusUnauthorized {
+			t.Fatalf("revoked production invitation = %d, want 401", got)
+		}
+	})
+
+	t.Run("public portfolio and anonymous Team ID and ICS stay available in production", func(t *testing.T) {
+		for _, path := range []string{"/", "/about", "/experience", "/skills", "/projects", "/education", "/contact", "/soccer"} {
+			response := httptest.NewRecorder()
+			prod.mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, prodSiteOrigin+path, nil))
+			if response.Code != http.StatusOK {
+				t.Fatalf("anonymous %s status = %d", path, response.Code)
+			}
+		}
+		for _, request := range []struct {
+			path string
+			form url.Values
+			want string
+		}{
+			{path: "/soccer/fetch", form: url.Values{"team_codes": {"479691"}}, want: "PUBLIC FC"},
+			{path: "/soccer/download", form: url.Values{"team_codes": {"479691"}, "selected": {"7001"}}, want: "BEGIN:VCALENDAR"},
+		} {
+			req := httptest.NewRequest(http.MethodPost, prodSiteOrigin+request.path, strings.NewReader(request.form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			response := httptest.NewRecorder()
+			prod.mux.ServeHTTP(response, req)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), request.want) {
+				t.Fatalf("anonymous %s status = %d, body = %q", request.path, response.Code, response.Body.String())
+			}
+		}
+	})
 }
