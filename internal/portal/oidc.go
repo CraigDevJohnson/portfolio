@@ -343,7 +343,14 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 	if email, ok := mc["email"].(string); ok {
 		claims.Email = email
 	}
-	claims.EmailVerified, _ = mc["email_verified"].(bool)
+	// Cognito can emit email_verified as the string "true" for federated
+	// users, so accept that exact form as well as a boolean.
+	switch verified := mc["email_verified"].(type) {
+	case bool:
+		claims.EmailVerified = verified
+	case string:
+		claims.EmailVerified = verified == "true"
+	}
 	if username, ok := mc["cognito:username"].(string); ok {
 		claims.Username = username
 	}

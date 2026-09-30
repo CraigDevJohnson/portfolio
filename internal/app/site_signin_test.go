@@ -92,7 +92,7 @@ type fakeSiteCognito struct {
 	issuer        string
 	domain        string
 	email         string
-	emailVerified bool
+	emailVerified any
 	subject       string
 	expiry        time.Time
 }
@@ -319,6 +319,32 @@ func TestSiteSignInDeniesUninvitedAndUnsafeReturn(t *testing.T) {
 	mux.ServeHTTP(publicPage, httptest.NewRequest(http.MethodGet, "https://app.example.com/about", nil))
 	if publicPage.Code != http.StatusOK {
 		t.Fatal("public portfolio page unavailable after sign-in denial")
+	}
+}
+
+// Cognito can put a Google-federated user's email_verified attribute into the
+// ID token as a string rather than a boolean, so both forms must be honored.
+func TestSiteSignInAcceptsCognitoStringEmailVerified(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	for _, tc := range []struct {
+		claim    any
+		admitted bool
+	}{
+		{claim: "true", admitted: true},
+		{claim: "false", admitted: false},
+		{claim: "TRUE", admitted: false},
+		{claim: "yes", admitted: false},
+	} {
+		fixture.emailVerified = tc.claim
+		stateCookie, state := beginSiteSignIn(t, mux, "/about")
+		callback := completeSiteSignIn(t, mux, stateCookie, state)
+		session := siteCookie(t, callback)
+		admitted := callback.Code == http.StatusSeeOther && session.Value != "" && session.MaxAge > 0
+		if admitted != tc.admitted {
+			t.Errorf("email_verified %q: admitted = %v (status %d), want %v", tc.claim, admitted, callback.Code, tc.admitted)
+		}
 	}
 }
 
