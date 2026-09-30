@@ -586,21 +586,31 @@ func (r *archiveRoute) assertNoDueTeams(t *testing.T) {
 	}
 }
 
-func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
+// lambdaAssemblyEnvironment configures the Lambda assembly with a fake LPS,
+// no secrets or stores, and AWS clients pointed at a closed loopback port.
+func lambdaAssemblyEnvironment(t *testing.T) {
+	t.Helper()
 	lpsServer := httptest.NewServer(boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))
 	t.Cleanup(lpsServer.Close)
 	for _, name := range []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "GOOGLE_CONNECTION_TABLE_NAME", "SOCCER_SESSION_TABLE_NAME", "MGMT_SESSION_KEY"} {
 		t.Setenv(name, "")
 	}
+	for name, value := range map[string]string{
+		"AWS_ENDPOINT_URL": "http://127.0.0.1:9", "AWS_REGION": "us-west-2",
+		"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_EC2_METADATA_DISABLED": "true",
+	} {
+		t.Setenv(name, value)
+	}
 	t.Setenv("LPS_API_BASE_URL", lpsServer.URL)
 	t.Setenv("LOG_LEVEL", "error")
 	previousLogger := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+}
 
-	handler, err := NewLambdaHandler(context.Background())
-	if err != nil {
-		t.Fatalf("NewLambdaHandler: %v", err)
-	}
+// assertLambdaLookupClaimsNoHistory looks up a Team ID through the Lambda
+// assembly and requires the usual schedule without any enrollment outcome.
+func assertLambdaLookupClaimsNoHistory(t *testing.T, handler http.Handler) {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{"team_codes": {"479691"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp := httptest.NewRecorder()
@@ -611,5 +621,45 @@ func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
 	}
 	if strings.Contains(resp.Body.String(), "history collection") || strings.Contains(resp.Body.String(), "History not saved") {
 		t.Fatalf("live assembly reported durable enrollment before activation: %q", resp.Body.String())
+	}
+}
+
+func TestLambdaAssemblyKeepsEnteredTeamEnrollmentDisabled(t *testing.T) {
+	lambdaAssemblyEnvironment(t)
+
+	handler, err := NewLambdaHandler(context.Background())
+	if err != nil {
+		t.Fatalf("NewLambdaHandler: %v", err)
+	}
+	assertLambdaLookupClaimsNoHistory(t, handler)
+}
+
+func TestLambdaAssemblyLeavesEnrollmentOffWithoutEveryReviewedLimit(t *testing.T) {
+	activated := map[string]string{
+		"SOCCER_HISTORY_COLLECTION_ENABLED": "true",
+		"SOCCER_ARCHIVE_TABLE_NAME":         "portfolio-lambda-dev-soccer-history",
+		"SOCCER_HISTORY_MAX_TEAMS":          "4",
+		"SOCCER_HISTORY_PLAYER_RESERVED":    "2",
+		"SOCCER_HISTORY_MAX_REQUESTS":       "8",
+		"SOCCER_HISTORY_MAX_RETRIES":        "1",
+		"SOCCER_HISTORY_MIN_INTERVAL_MS":    "250",
+	}
+	for unset := range activated {
+		if unset == "SOCCER_HISTORY_COLLECTION_ENABLED" {
+			continue
+		}
+		t.Run(unset, func(t *testing.T) {
+			lambdaAssemblyEnvironment(t)
+			for name, value := range activated {
+				t.Setenv(name, value)
+			}
+			t.Setenv(unset, "")
+
+			handler, err := NewLambdaHandler(context.Background())
+			if err != nil {
+				t.Fatalf("an incomplete history configuration took the site down: %v", err)
+			}
+			assertLambdaLookupClaimsNoHistory(t, handler)
+		})
 	}
 }

@@ -207,6 +207,28 @@ func initializeSoccerStore(ctx context.Context, app *App, soccerHandler *interna
 	return nil
 }
 
+// initializeSoccerHistory wires durable Soccer history collection once it is
+// activated with a table and every reviewed limit, so visitor Team ID lookups
+// and granted player imports enroll teams within the admission capacity. An
+// incomplete configuration leaves collection off, as before activation,
+// without affecting the rest of the site.
+func initializeSoccerHistory(ctx context.Context, logger *slog.Logger, soccerHandler *internalsoccer.Handler) {
+	if os.Getenv("SOCCER_HISTORY_COLLECTION_ENABLED") != "true" {
+		return
+	}
+	limits, err := soccerarchive.LimitsFromEnvironment(os.Getenv)
+	var store *soccerarchive.DynamoStore
+	if err == nil {
+		store, err = soccerarchive.NewDynamoStore(ctx, os.Getenv(soccerarchive.EnvArchiveTableName), limits)
+	}
+	if err != nil {
+		logger.Error("soccer history collection left off: incomplete configuration", slog.Any("error", err))
+		return
+	}
+	soccerHandler.SetArchiveStore(store)
+	logger.Info("soccer history collection enabled", slog.Int("max_enrolled_teams", limits.MaxEnrolledTeams), slog.Int("reserved_player_slots", limits.ReservedPlayerSlots))
+}
+
 // NewLambdaHandler constructs the HTTP handler for Lambda + API Gateway deployments.
 func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
 	rootLogger, _, warnings := logging.NewLoggerFromEnv()
@@ -234,20 +256,7 @@ func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
 			return nil, fmt.Errorf("initialize soccer session store: %w", err)
 		}
 	}
-	if os.Getenv("SOCCER_HISTORY_COLLECTION_ENABLED") == "true" {
-		if !app.Config.SiteEnabled() || !app.Config.LoginEnabled() {
-			return nil, errors.New("soccer history collection requires site identity and LPS import configuration")
-		}
-		limits, err := soccerarchive.LimitsFromEnvironment(os.Getenv)
-		if err != nil {
-			return nil, fmt.Errorf("configure soccer history limits: %w", err)
-		}
-		store, err := soccerarchive.NewDynamoStore(ctx, os.Getenv(soccerarchive.EnvArchiveTableName), limits)
-		if err != nil {
-			return nil, fmt.Errorf("initialize soccer history store: %w", err)
-		}
-		soccerHandler.SetArchiveStore(store)
-	}
+	initializeSoccerHistory(ctx, rootLogger, soccerHandler)
 
 	return withRequestLogging(rootLogger.With(slog.String("component", "http")), mux), nil
 }
