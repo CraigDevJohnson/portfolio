@@ -5,51 +5,170 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/httpx"
+	"portfolio/internal/lps"
 	"portfolio/internal/session"
 	"portfolio/internal/siteauth"
 	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 )
 
-type fakeDailyRunner struct {
-	report soccerarchive.DailyReport
-	err    error
-	calls  int
+// failingIndexTable is an archive table whose due-teams index is unavailable.
+type failingIndexTable struct{ *archivetest.Table }
+
+func (failingIndexTable) Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	return nil, errors.New("due-teams index unavailable")
 }
 
-func (runner *fakeDailyRunner) Run(context.Context) (soccerarchive.DailyReport, error) {
-	runner.calls++
-	return runner.report, runner.err
-}
-
-func TestScheduledLambdaInvocationReturnsPartialReportAndFatalFailure(t *testing.T) {
-	runner := &fakeDailyRunner{report: soccerarchive.DailyReport{
-		Complete: false, PendingDueWork: true, Requests: 2,
-		Results: []soccerarchive.RefreshResult{{TeamID: 101, Outcome: soccerarchive.RefreshSucceeded}},
-	}}
-	handler := newDailyLambdaHandler(runner)
-	report, err := handler(t.Context(), json.RawMessage(`{"source":"portfolio.soccer-history.daily"}`))
-	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 2 || len(report.Results) != 1 || runner.calls != 1 {
-		t.Fatalf("scheduled partial invocation = %#v, err %v, calls %d", report, err, runner.calls)
+// scheduledLogs captures the structured JSON log records of one test.
+func scheduledLogs(t *testing.T) func() []map[string]any {
+	t.Helper()
+	var buffer bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buffer, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return func() []map[string]any {
+		records := make([]map[string]any, 0)
+		for _, line := range bytes.Split(bytes.TrimSpace(buffer.Bytes()), []byte("\n")) {
+			var record map[string]any
+			if err := json.Unmarshal(line, &record); err != nil {
+				t.Fatalf("log line %q is not JSON: %v", line, err)
+			}
+			records = append(records, record)
+		}
+		buffer.Reset()
+		return records
 	}
-	runner.err = errors.New("durable due query failed")
-	_, err = handler(t.Context(), nil)
-	if !errors.Is(err, runner.err) || runner.calls != 2 {
-		t.Fatalf("fatal scheduled invocation = %v, calls %d", err, runner.calls)
+}
+
+// schedulerEvent is the input the daily schedule sends the worker.
+var schedulerEvent = json.RawMessage(`{"source":"portfolio.soccer-history.daily"}`)
+
+func TestScheduledInvocationRefreshesDueTeamsAndReportsPartialWork(t *testing.T) {
+	logs := scheduledLogs(t)
+	limits := soccerarchive.Limits{MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: time.Millisecond}
+	table := archivetest.NewTable()
+	store, err := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both teams were entered by Team ID yesterday, so both are due.
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &soccerarchive.Snapshot{
+			TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/101":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9101,"UTeam1":101,"UTeam2":303,"Season":169,"result":"2-1"}]}`)
+		case "/teams/202":
+			http.Error(w, "rate limited", http.StatusTooManyRequests)
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	worker, err := soccerarchive.NewDailyWorker(store, server.URL, server.Client(), limits, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newDailyLambdaHandler(worker)
+
+	partial, err := handler(t.Context(), schedulerEvent)
+	if err != nil || partial.Complete || partial.Requests != 2 || len(partial.Results) != 2 ||
+		partial.Results[0] != (soccerarchive.RefreshResult{TeamID: 101, Outcome: soccerarchive.RefreshSucceeded}) ||
+		partial.Results[1].TeamID != 202 || partial.Results[1].Outcome != soccerarchive.RefreshRetryableFailure {
+		t.Fatalf("scheduled partial run = %#v, err %v", partial, err)
+	}
+	history, err := store.ReadTeamSeason(t.Context(), 101, 169)
+	if err != nil || len(history.Games) != 1 || history.Games[0].Result != "2-1" {
+		t.Fatalf("refreshed history = %#v, err %v", history, err)
+	}
+	// The incomplete-run alarm matches this message in the worker's log.
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_incomplete" || records[0]["level"] != "WARN" || records[0]["results"] == nil {
+		t.Fatalf("partial run logs = %v", records)
+	}
+
+	// A repeated delivery finds the refreshed team not due and the rate-limited
+	// team still backing off, so it makes no requests and reports completion.
+	repeated, err := handler(t.Context(), schedulerEvent)
+	if err != nil || !repeated.Complete || repeated.Requests != 0 || len(repeated.Results) != 0 {
+		t.Fatalf("repeated delivery = %#v, err %v", repeated, err)
+	}
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_completed" {
+		t.Fatalf("repeated delivery logs = %v", records)
+	}
+}
+
+func TestScheduledInvocationFailsWhenDueTeamsCannotBeSelected(t *testing.T) {
+	logs := scheduledLogs(t)
+	limits := soccerarchive.Limits{MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Millisecond}
+	store, err := soccerarchive.NewDynamoStoreWithAPI(failingIndexTable{archivetest.NewTable()}, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := soccerarchive.NewDailyWorker(store, "http://127.0.0.1:9", nil, limits, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := newDailyLambdaHandler(worker)(t.Context(), schedulerEvent); err == nil {
+		t.Fatal("a run that could not select due teams reported success, so no failure destination or error alarm would see it")
+	}
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_failed" || records[0]["level"] != "ERROR" {
+		t.Fatalf("failed run logs = %v", records)
+	}
+}
+
+func TestScheduledWorkerIsNotBuiltWithoutEveryReviewedLimit(t *testing.T) {
+	configured := map[string]string{
+		"SOCCER_ARCHIVE_TABLE_NAME":      "portfolio-lambda-dev-soccer-history",
+		"SOCCER_HISTORY_MAX_TEAMS":       "4",
+		"SOCCER_HISTORY_PLAYER_RESERVED": "2",
+		"SOCCER_HISTORY_MAX_REQUESTS":    "8",
+		"SOCCER_HISTORY_MAX_RETRIES":     "1",
+		"SOCCER_HISTORY_MIN_INTERVAL_MS": "250",
+	}
+	for unset := range configured {
+		t.Run(unset, func(t *testing.T) {
+			// Any AWS client built by mistake points at a closed loopback port.
+			for name, value := range map[string]string{
+				"AWS_ENDPOINT_URL": "http://127.0.0.1:9", "AWS_REGION": "us-west-2",
+				"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_EC2_METADATA_DISABLED": "true",
+				"LPS_API_BASE_URL": "http://127.0.0.1:9",
+			} {
+				t.Setenv(name, value)
+			}
+			for name, value := range configured {
+				t.Setenv(name, value)
+			}
+			t.Setenv(unset, "")
+
+			if worker, err := initializeDailyLambda(t.Context()); err == nil || worker != nil {
+				t.Fatalf("scheduled worker built without %s: %v", unset, err)
+			}
+		})
 	}
 }
 
