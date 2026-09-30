@@ -13,7 +13,6 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/testutil"
 )
@@ -148,7 +147,7 @@ func TestGoogleAddUsesChosenWritableCalendarAndOnlySelectedUpcomingGames(t *test
 	mux, _ := buildMux(application, application.Logger, false)
 	stateCookie, state := beginSiteSignIn(t, mux, "/soccer")
 	siteCookie := siteCookie(t, completeSiteSignIn(t, mux, stateCookie, state))
-	googleCookie := &http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"}
+	googleCookie := &http.Cookie{Name: internalgoogle.ConnectionCookieName(fixture.issuer, "stable-subject"), Value: "connection-1"}
 
 	page := soccerGrantRequest(mux, http.MethodGet, "/soccer", nil, siteCookie, googleCookie)
 	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "Primary Calendar") || store.records["connection-1"].CalendarID != "primary" {
