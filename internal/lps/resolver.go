@@ -146,18 +146,34 @@ func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID
 
 // FetchTeamGames loads, maps, and normalizes a team's schedule games.
 func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int, selectedTeam *TeamSummary) ([]types.Game, error) {
-	response, err := resolver.FetchTeamSchedule(ctx, teamID)
+	response, err := resolver.fetchSelectedTeamSchedule(ctx, teamID)
 	if err != nil {
 		return nil, err
+	}
+	colors := selectedTeamColors([]int{teamID}, map[int]*TeamSummary{teamID: selectedTeam}, []TeamScheduleResponse{response})
+	return resolver.mapTeamGames(ctx, &response, selectedTeam, colors)
+}
+
+// fetchSelectedTeamSchedule loads a selected team's schedule and makes sure its
+// team summary carries the requested Team ID.
+func (resolver *ScheduleResolver) fetchSelectedTeamSchedule(ctx context.Context, teamID int) (TeamScheduleResponse, error) {
+	response, err := resolver.FetchTeamSchedule(ctx, teamID)
+	if err != nil {
+		return response, err
 	}
 	if response.Team.UTeamID <= 0 {
 		response.Team.UTeamID = teamID
 	}
-	response.Team.Color = selectedTeamColor(teamID, selectedTeam, &response)
+	return response, nil
+}
 
+// mapTeamGames maps one selected team's schedule, painting every fetched team
+// with the one color resolved for its Team ID.
+func (resolver *ScheduleResolver) mapTeamGames(ctx context.Context, response *TeamScheduleResponse, selectedTeam *TeamSummary, teamColors map[int]string) ([]types.Game, error) {
+	response.Team.Color = teamColors[response.Team.UTeamID]
 	games := make([]types.Game, 0, len(response.Games))
 	for i := range response.Games {
-		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam)
+		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam, teamColors)
 		if err != nil {
 			return nil, err
 		}
@@ -195,7 +211,9 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 }
 
 // MapTeamScheduleGame maps a raw team schedule game into the shared game model.
-func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary) (types.Game, error) {
+// teamColors holds the approved color resolved for each fetched Team ID; a side
+// whose team was not fetched uses the color LPS nests on this game.
+func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary, teamColors map[int]string) (types.Game, error) {
 	if rawGame == nil {
 		return types.Game{}, nil
 	}
@@ -239,8 +257,8 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	selectedTeamID := firstPositiveInt(selected.UTeamID, responseTeam.UTeamID)
 	selectedTeamName := firstNonEmptyString(selected.TeamName, responseTeam.TeamName)
 	homeSelected, awaySelected := selectedMatchSides(selectedTeamID, selectedTeamName, homeTeamID, awayTeamID, homeName, visitorName)
-	homeColor := approvedTeamColor(rawGame.HomeTeam.Color)
-	awayColor := approvedTeamColor(rawGame.VisitorTeam.Color)
+	homeColor := firstNonEmptyString(teamColors[homeTeamID], approvedTeamColor(rawGame.HomeTeam.Color))
+	awayColor := firstNonEmptyString(teamColors[awayTeamID], approvedTeamColor(rawGame.VisitorTeam.Color))
 	if homeSelected {
 		homeTeamID = firstPositiveInt(homeTeamID, selectedTeamID)
 		homeColor = firstApprovedTeamColor(selected.Color, responseTeam.Color)
@@ -282,24 +300,54 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	return game, nil
 }
 
-// selectedTeamColor resolves one display color for the team whose schedule
-// this is, so every row for that team agrees. Team-level colors win; a color
-// LPS nests on the team's own game entries is used only when none exists.
-func selectedTeamColor(teamID int, selectedTeam *TeamSummary, response *TeamScheduleResponse) string {
-	candidates := []string{response.Team.Color}
-	if selectedTeam != nil {
-		candidates = append([]string{selectedTeam.Color}, candidates...)
+// selectedTeamColors resolves one display color per fetched Team ID, so every
+// row agrees on a team's color. For each team the first approved color wins
+// from: its own team-level colors, colors LPS nests for it on its own games,
+// then colors nested for it in the other fetched schedules, in Team ID order.
+// A team with none is absent and receives its Team ID fallback in the view.
+func selectedTeamColors(teamIDs []int, teamLookup map[int]*TeamSummary, schedules []TeamScheduleResponse) map[int]string {
+	colors := make(map[int]string, len(teamIDs))
+	for i, teamID := range teamIDs {
+		candidates := []string{schedules[i].Team.Color}
+		if selected := teamLookup[teamID]; selected != nil {
+			candidates = append([]string{selected.Color}, candidates...)
+		}
+		candidates = append(candidates, nestedTeamColors(teamID, &schedules[i])...)
+		if color := firstApprovedTeamColor(candidates...); color != "" {
+			colors[teamID] = color
+		}
 	}
+	for i, teamID := range teamIDs {
+		if colors[teamID] != "" {
+			continue
+		}
+		var candidates []string
+		for j := range schedules {
+			if j != i {
+				candidates = append(candidates, nestedTeamColors(teamID, &schedules[j])...)
+			}
+		}
+		if color := firstApprovedTeamColor(candidates...); color != "" {
+			colors[teamID] = color
+		}
+	}
+	return colors
+}
+
+// nestedTeamColors lists the colors a schedule nests on game sides whose Team
+// ID is teamID.
+func nestedTeamColors(teamID int, response *TeamScheduleResponse) []string {
+	var colors []string
 	for i := range response.Games {
 		game := &response.Games[i]
 		if firstPositiveInt(game.HomeTeam.UTeamID, game.UTeam1) == teamID {
-			candidates = append(candidates, game.HomeTeam.Color)
+			colors = append(colors, game.HomeTeam.Color)
 		}
 		if firstPositiveInt(game.VisitorTeam.UTeamID, game.UTeam2) == teamID {
-			candidates = append(candidates, game.VisitorTeam.Color)
+			colors = append(colors, game.VisitorTeam.Color)
 		}
 	}
-	return firstApprovedTeamColor(candidates...)
+	return colors
 }
 
 func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int, homeName, awayName string) (home, away bool) {
@@ -350,15 +398,24 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 	return facility, nil
 }
 
+// mergeTeamSchedules fetches every selected schedule before mapping any row,
+// so a team's color can come from another fetched schedule, then merges the
+// mapped games into one deduplicated, sorted list.
 func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamIDs []int, teamLookup map[int]*TeamSummary) ([]types.Game, error) {
+	schedules := make([]TeamScheduleResponse, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		response, err := resolver.fetchSelectedTeamSchedule(ctx, teamID)
+		if err != nil {
+			return nil, err
+		}
+		schedules = append(schedules, response)
+	}
+	colors := selectedTeamColors(teamIDs, teamLookup, schedules)
+
 	games := make([]types.Game, 0)
 	indexByKey := make(map[string]int)
-	for _, teamID := range teamIDs {
-		var selectedTeam *TeamSummary
-		if teamLookup != nil {
-			selectedTeam = teamLookup[teamID]
-		}
-		teamGames, err := resolver.FetchTeamGames(ctx, teamID, selectedTeam)
+	for i, teamID := range teamIDs {
+		teamGames, err := resolver.mapTeamGames(ctx, &schedules[i], teamLookup[teamID], colors)
 		if err != nil {
 			return nil, err
 		}

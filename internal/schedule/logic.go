@@ -86,8 +86,9 @@ func MergeGames(base, incoming *types.Game) types.Game {
 }
 
 // mergeTeamAppearance prefers the selected team's own schedule so a shared
-// match paints each selected team as its other rows do. A selected team without
-// a usable color keeps its ID fallback rather than another schedule's color.
+// match paints each selected team as its other rows do. The LPS resolver has
+// already chosen one color per fetched Team ID across every schedule, so a
+// selected side without a color keeps its ID fallback here.
 func mergeTeamAppearance(base, incoming types.TeamAppearance) types.TeamAppearance {
 	if incoming.Selected && !base.Selected {
 		base, incoming = incoming, base

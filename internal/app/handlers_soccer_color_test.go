@@ -180,7 +180,7 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 	app := newTestApp(t)
 	// Team 800 has no team-level color, and LPS names its color on only one of
 	// its games. Team 850 has no color in its own schedule, while team 100's
-	// schedule nests a color for it in their shared match.
+	// schedule nests the recognized color red for it in their shared match.
 	server := newFakeLPSTeams(t, map[string]string{
 		"/teams/100": `{"team":{"UTeamID":100,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":860,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":850,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":850,"team_name":"Quiet FC","Color":"red"}}]}`,
 		"/teams/800": `{"team":{"UTeamID":800,"team_name":"Plain United"},"games":[{"UGameID":801,"SchedGameDateTime":"{future}","UTeam1":800,"UTeam2":820,"home_team":{"UTeamID":800,"team_name":"Plain United","Color":" Green "},"visitor_team":{"UTeamID":820,"team_name":"Visitor Five"}},{"UGameID":802,"SchedGameDateTime":"{future}","UTeam1":821,"UTeam2":800,"home_team":{"UTeamID":821,"team_name":"Visitor Six"},"visitor_team":{"UTeamID":800,"team_name":"Plain United"}}]}`,
@@ -196,13 +196,23 @@ func TestFetchSchedulesKeepsOneColorPerSelectedTeamAcrossRows(t *testing.T) {
 			t.Errorf("team 800 game %s colors = %q/%q, want the green LPS names for that team on every row", game, home, away)
 		}
 	}
-	own := htmlAttr(onlySoccerRow(t, rows, "861"), "data-home-color")
-	shared := onlySoccerRow(t, rows, "860")
-	if away := htmlAttr(shared, "data-away-color"); own == "" || away != own {
-		t.Errorf("team 850 shared-match color = %q, want its own rows' fallback %q", away, own)
+	own := onlySoccerRow(t, rows, "861")
+	if home, away := htmlAttr(own, "data-home-color"), htmlAttr(own, "data-away-color"); home != "red" || away != "red" {
+		t.Errorf("team 850 own game colors = %q/%q, want the red another fetched schedule names for it", home, away)
 	}
-	if home := htmlAttr(shared, "data-home-color"); home != "blue" {
-		t.Errorf("team 100 shared-match color = %q, want blue", home)
+	shared := onlySoccerRow(t, rows, "860")
+	if home, away := htmlAttr(shared, "data-home-color"), htmlAttr(shared, "data-away-color"); home != "blue" || away != "red" {
+		t.Errorf("shared match 860 colors = %q/%q, want team 100 blue and team 850 red", home, away)
+	}
+
+	// Fetched alone, nothing names a color for team 850, so every row keeps
+	// the fallback its Team ID selects.
+	alone, _ := fetchSoccerMatchRows(t, mux, "850")
+	for _, game := range []string{"860", "861"} {
+		row := onlySoccerRow(t, alone, game)
+		if home, away := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); home != "green" || away != "green" {
+			t.Errorf("team 850 alone game %s colors = %q/%q, want its green Team ID fallback", game, home, away)
+		}
 	}
 }
 
