@@ -369,6 +369,7 @@ func TestFormerManagementIdentitySettingsGrantNoPortalAccess(t *testing.T) {
 		{name: "former settings beside site sign-in", withSite: true, mgmtStatus: http.StatusSeeOther},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			isolateAWSEnvironment(t)
 			for key, value := range former {
 				t.Setenv(key, value)
 			}
@@ -381,6 +382,9 @@ func TestFormerManagementIdentitySettingsGrantNoPortalAccess(t *testing.T) {
 			cfg := config.Load()
 			application := New(&cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			t.Cleanup(application.LoginLimiter.Close)
+			if built := application.PortalHandler != nil; built != tc.withSite {
+				t.Fatalf("management portal built = %t, want %t", built, tc.withSite)
+			}
 			mux, _ := buildMux(application, application.Logger, false)
 
 			for _, route := range retiredRoutes {

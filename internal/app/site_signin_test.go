@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -24,8 +26,29 @@ import (
 	"portfolio/internal/siteidentity"
 )
 
+// isolateAWSEnvironment keeps the developer's AWS profile, credentials, and
+// SDK settings out of a test. New builds the management clients whenever site
+// sign-in is enabled, so ambient AWS configuration would otherwise decide
+// whether the portal routes exist.
+func isolateAWSEnvironment(t *testing.T) {
+	t.Helper()
+	for _, entry := range os.Environ() {
+		if name, _, _ := strings.Cut(entry, "="); strings.HasPrefix(name, "AWS_") {
+			t.Setenv(name, "")
+		}
+	}
+	empty := filepath.Join(t.TempDir(), "aws-config")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AWS_CONFIG_FILE", empty)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", empty)
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+}
+
 func newSiteSignInTestApp(t *testing.T) *App {
 	t.Helper()
+	isolateAWSEnvironment(t)
 	cfg := config.Config{
 		LPSAPIBaseURL:          config.DefaultLPSAPIBaseURL,
 		SiteSessionKey:         bytes.Repeat([]byte("a"), 32),
