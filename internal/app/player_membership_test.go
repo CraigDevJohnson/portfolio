@@ -33,6 +33,8 @@ type playerHistoryRoute struct {
 	requests map[string]int
 	// failingPlayer, when set, is a player whose team lookup LPS fails.
 	failingPlayer int
+	// missingPlayer, when set, is a linked player LPS no longer finds.
+	missingPlayer int
 }
 
 // The fake LPS account links Craig (the account's main player) and Taylor.
@@ -53,7 +55,7 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 	lpsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route.mu.Lock()
 		route.requests[r.URL.Path]++
-		failingPlayer := route.failingPlayer
+		failingPlayer, missingPlayer := route.failingPlayer, route.missingPlayer
 		route.mu.Unlock()
 		authorized := r.Header.Get("Authorization") == "Bearer "+route.jwt
 		switch r.URL.Path {
@@ -68,6 +70,8 @@ func newPlayerHistoryRoute(t *testing.T) *playerHistoryRoute {
 			_, _ = fmt.Fprint(w, playerHistoryAccount)
 		case fmt.Sprintf("/players/%d/my_teams", failingPlayer):
 			http.Error(w, "temporary failure", http.StatusBadGateway)
+		case fmt.Sprintf("/players/%d/my_teams", missingPlayer):
+			http.Error(w, "player not found", http.StatusNotFound)
 		case "/players/1001/my_teams":
 			_, _ = fmt.Fprint(w, `[{"UTeamID":4101,"team_name":"Craig FC","division_name":"Open A","Season":77},{"UTeamID":4102,"team_name":"Old FC","Season":78}]`)
 		case "/players/1002/my_teams":
@@ -565,4 +569,42 @@ func TestSoccerImportRetryCompletesLinkedPlayerHistoryAnInterruptedSaveLeftIncom
 			route.assertEvidenceOnlyForEnrolledTeams(t)
 		})
 	}
+}
+
+func TestSoccerImportCollectsTheOtherPlayersWhenLPSNoLongerFindsALinkedPlayer(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	route.missingPlayer = 1002
+	owner := route.signedInOwner(t)
+
+	imported := route.disclosedImport(t, owner)
+
+	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), "data-login-success") || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("import with a linked player LPS no longer finds: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	byOwner := route.memberships(t)
+	craigOnly := map[membershipTriple]bool{{1001, 4101, 77}: true, {1001, 4102, 78}: true}
+	if len(byOwner) != 1 || len(byOwner["stable-subject"]) != len(craigOnly) {
+		t.Fatalf("stored memberships = %v, want Craig's two associations", byOwner)
+	}
+	for triple := range byOwner["stable-subject"] {
+		if !craigOnly[triple] {
+			t.Errorf("unexpected membership %+v", triple)
+		}
+	}
+	players := route.items(t, "player")
+	if len(players) != 2 || players["PLAYER#1002/META"]["first_name"] != "Taylor" {
+		t.Errorf("stored player identities = %v, want Craig and Taylor", players)
+	}
+	links := map[int]bool{}
+	for _, link := range route.items(t, "player_owner") {
+		links[intAttribute(link, "player_id")] = link["owner_subject"] == "stable-subject"
+	}
+	if len(links) != 2 || !links[1001] || !links[1002] {
+		t.Errorf("owner links by player = %v, want Craig and Taylor for stable-subject", links)
+	}
+	teams := route.items(t, "team")
+	if len(teams) != 2 || teams["TEAM#4101/META"] == nil || teams["TEAM#4102/META"] == nil {
+		t.Errorf("enrolled teams = %v, want Craig's 4101 and 4102", teams)
+	}
+	route.assertEvidenceOnlyForEnrolledTeams(t)
 }

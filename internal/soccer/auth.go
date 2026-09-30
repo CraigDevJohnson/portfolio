@@ -138,12 +138,22 @@ func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, player
 	return "", true
 }
 
+// discoverImportedPlayerTeams looks up every linked player's teams. A player
+// LPS rejects as invalid (a 400 or 404) has no team-seasons to observe, so it
+// keeps its identity and owner link without memberships and the lookup goes
+// on. Any other failure, such as an upstream error, timeout, or rejected JWT,
+// stops the discovery.
 func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) ([]lps.TeamSummary, []soccerarchive.PlayerMembership, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, jwt)
 	knownTeams := make(map[int]lps.TeamSummary)
 	memberships := make([]soccerarchive.PlayerMembership, 0)
 	for _, player := range players {
 		teams, err := resolver.FetchPlayerTeams(ctx, player.UPlayerID)
+		var fetchErr *lps.FetchError
+		if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorInvalidPlayer {
+			logging.WithContext(h.Logger, ctx).Warn("soccer linked player has no LPS teams to observe", slog.Int("player_id", player.UPlayerID), slog.Any("error", err))
+			continue
+		}
 		if err != nil {
 			return nil, nil, err
 		}
