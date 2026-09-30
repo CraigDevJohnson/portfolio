@@ -126,6 +126,14 @@ func (route *playerHistoryRoute) signedInOwner(t *testing.T) *siteBrowser {
 // that dialog's form with the JWT as the owner's browser would.
 func (route *playerHistoryRoute) disclosedImport(t *testing.T, owner *siteBrowser) *httptest.ResponseRecorder {
 	t.Helper()
+	return owner.postForm("/soccer/import", route.disclosedImportForm(t, owner))
+}
+
+// disclosedImportForm opens the owner's Soccer page, requires the import
+// dialog to disclose indefinite linked-player history, and returns the form
+// that dialog submits with the JWT.
+func (route *playerHistoryRoute) disclosedImportForm(t *testing.T, owner *siteBrowser) url.Values {
+	t.Helper()
 	storedBefore := route.table.Len()
 	page := owner.get("/soccer")
 	if page.Code != http.StatusOK {
@@ -150,7 +158,7 @@ func (route *playerHistoryRoute) disclosedImport(t *testing.T, owner *siteBrowse
 	if route.table.Len() != storedBefore {
 		t.Fatal("opening the Soccer page stored linked-player history")
 	}
-	return owner.postForm("/soccer/import", form)
+	return form
 }
 
 // items returns the stored items of one kind, keyed by "pk/sk".
@@ -607,4 +615,39 @@ func TestSoccerImportCollectsTheOtherPlayersWhenLPSNoLongerFindsALinkedPlayer(t 
 		t.Errorf("enrolled teams = %v, want Craig's 4101 and 4102", teams)
 	}
 	route.assertEvidenceOnlyForEnrolledTeams(t)
+}
+
+// A page on another origin, even a sibling subdomain of the same site, sends
+// this site's Lax cookies with a top-level form POST. Only the Soccer page
+// itself may submit the import that binds history to the signed-in owner.
+func TestSoccerImportCollectsHistoryOnlyFromThisSitesOwnPages(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	owner := route.signedInOwner(t)
+	form := route.disclosedImportForm(t, owner)
+
+	for _, sender := range []struct{ origin, fetchSite string }{
+		{origin: "https://dev.example.com", fetchSite: "same-site"},
+		{origin: anotherOrigin, fetchSite: "cross-site"},
+	} {
+		request := browserForm(sender.origin, "/soccer/import", form)
+		request.Header.Set("Sec-Fetch-Site", sender.fetchSite)
+		refused := owner.do(request)
+		if refused.Code != http.StatusForbidden || findSessionCookie(t, refused.Result()) != nil {
+			t.Errorf("%s import from %s: status %d, want 403 without imported access", sender.fetchSite, sender.origin, refused.Code)
+		}
+	}
+	if total := route.lpsRequestTotal(); total != 0 {
+		t.Errorf("imports from other origins reached LPS %d times: %v", total, route.requests)
+	}
+	if stored := route.table.Len(); stored != 0 {
+		t.Errorf("imports from other origins stored %d durable items", stored)
+	}
+
+	accepted := owner.do(browserForm(siteOrigin, "/soccer/import", form))
+	if accepted.Code != http.StatusOK || findSessionCookie(t, accepted.Result()) == nil {
+		t.Fatalf("same-origin import: status %d, body %q", accepted.Code, accepted.Body.String())
+	}
+	if collected := len(route.memberships(t)["stable-subject"]); collected != len(linkedPlayerMemberships) {
+		t.Errorf("same-origin import stored %d memberships, want %d", collected, len(linkedPlayerMemberships))
+	}
 }

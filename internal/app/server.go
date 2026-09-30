@@ -63,7 +63,8 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
 	// Starting sign-in and signing out change which session this browser
 	// holds, and sign-out also ends the Soccer state that depends on it, so
-	// only this site's own pages may submit them.
+	// only this site's own pages may submit them. The Soccer import in
+	// registerSoccerLPSRoutes uses the same check.
 	sameOrigin := http.NewCrossOriginProtection()
 	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
 	mux.Handle("POST /sign-in", sameOrigin.Handler(http.HandlerFunc(siteHandler.LoginHandler)))
@@ -381,10 +382,15 @@ func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
 }
 
 // registerSoccerLPSRoutes registers the Soccer import, schedule, and
-// download routes with their soccer-grant guards. The server and the linked
-// preview journey share it, so both serve one authorization shape.
+// download routes with their soccer-grant guards and the import's same-origin
+// check. The server and the linked preview journey share it, so both serve
+// one authorization shape.
 func registerSoccerLPSRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
-	mux.HandleFunc("POST /soccer/import", requireSoccerGrant(h.ImportHandler))
+	// The import replaces this browser's imported access and, with durable
+	// collection wired, binds linked-player history to the signed-in owner
+	// indefinitely, so only this site's own pages may submit it.
+	sameOrigin := http.NewCrossOriginProtection()
+	mux.Handle("POST /soccer/import", sameOrigin.Handler(requireSoccerGrant(h.ImportHandler)))
 	mux.HandleFunc("POST /soccer/logout", requireSoccerGrant(h.LogoutHandler))
 	mux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(h.DiscoverTeamsHandler))
 	mux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(h.FetchSchedulesHandler))
