@@ -37,8 +37,10 @@ const (
 	// resultChanged: the event changed in Google between Sync reading and
 	// updating it.
 	resultChanged
-	// resultEdited: the event's description no longer holds the result slot
-	// Add wrote, or the visitor wrote their own result there.
+	// resultEdited: the event's description no longer holds the one block
+	// Add wrote, or a result line holds text in the visitor's own words. A
+	// result in the site's own format, or an empty slot, is the site's to
+	// update, even if the visitor typed it.
 	resultEdited
 	resultOutcomeCount
 )

@@ -401,25 +401,35 @@ selected upcoming games only. Google output needs the `soccer` grant, so a
 public Team ID lookup stays upcoming-only.
 
 **Sync selected results** is update-only: it never inserts a past game or
-restores a deleted event. For each selected scored game it makes one bounded
-search of the chosen calendar for events carrying the game's private `game_id`,
-and claims only a single live event that also carries `portfolio_app=soccer`,
-or the full pre-marker provenance described above.
-It then patches that event's description alone, conditional on the ETag the
-search returned, and changes only the `Result:` line of the block Add wrote.
-The title, time, location, reminders, and any notes around the block stay as
-the visitor left them. A game two followed teams play keeps its result in the
-words of the team its event names.
+restores a deleted event. For each selected scored game it searches the chosen
+calendar for events carrying the game's private `game_id`, reading every page
+Google returns (at most five), and claims only a single live event that also
+carries `portfolio_app=soccer`, or the full pre-marker provenance described
+above. A deleted copy beside that one live event does not block it. It then
+patches that event's description alone, conditional on the ETag the search
+returned, and changes only the `Result:` line of the block Add wrote. The
+block's lines may be separated by newlines or, once the visitor edits the
+description in Google Calendar's editor, by HTML `<br>` line breaks; every
+other byte of the description stays as it was. The title, time, location,
+reminders, and any notes around the block stay as the visitor left them. A
+game two followed teams play keeps its result in the words of the team its
+event names.
 
 Sync reports how many results it updated, how many were already current, and
 why it skipped the rest: unmatched (no event this site added, such as a game
-never added or one imported from an .ics file), deleted, more than one
-matching event, changed in Google Calendar while Sync ran, an edited
-description (including a result the visitor wrote themselves), or an event
-Google would not let the account change. Repeating Sync patches nothing that
-is already current. Google refusals follow Add: a rejected connection asks the
-visitor to reconnect, a usage limit asks for a retry, and a calendar that no
-longer accepts writes pauses them for a new choice.
+never added or one imported from an .ics file), deleted (Google may keep only
+a deleted event's ID, so Sync also reads the site's event ID when its search
+finds nothing), more than one matching event, changed in Google Calendar
+while Sync ran, an edited description, or an event Google would not let the
+account change. A description counts as edited when the block Add wrote is
+gone or reshaped, or a result line holds text in the visitor's own words. A
+result line in the site's own format, such as `Result: Win (2-1)`,
+`Result: Canceled`, `Result: Final`, or an empty slot, is the site's, and Sync
+updates it to the current LPS result even if the visitor typed it. Repeating
+Sync patches nothing that is already current. Google refusals follow Add: a
+rejected connection asks the visitor to reconnect and reports any results
+already written, a usage limit asks for a retry, and a calendar that no longer
+accepts writes pauses them for a new choice.
 
 ## Source layout
 
