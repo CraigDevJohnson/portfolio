@@ -152,19 +152,54 @@ func FetchAllGamesForTeamsWithSource(ctx context.Context, baseURL string, httpCl
 }
 
 // FetchTeamSource fetches one team's raw LPS response and the facilities it
-// uses, exactly as an entered Team ID lookup archives them. The caller decides
-// whether the response confirms teamID.
+// uses, for refreshing an archived team. The caller decides whether the
+// response confirms teamID. A facility LPS answers is gone (400 or 404) is
+// left out, so the archive keeps what it stored and the games still refresh;
+// any other failure of a facility the games use fails the fetch, so the
+// refresh can be retried. A confirmed team's own facility that no game uses
+// stays best-effort, as on the lookup path.
 func (resolver *ScheduleResolver) FetchTeamSource(ctx context.Context, teamID int) (TeamScheduleSource, error) {
 	// A worker may reuse its resolver across runs; facility details must be
 	// fetched again on each attempt, not served from a previous run's cache.
-	_, sources, err := FetchAllGamesForTeamsWithSource(ctx, resolver.baseURL, resolver.httpClient, []int{teamID})
+	fresh := NewScheduleResolver(resolver.baseURL, resolver.httpClient, "")
+	response, err := fresh.FetchTeamSchedule(ctx, teamID)
 	if err != nil {
 		return TeamScheduleSource{}, err
 	}
-	if len(sources) != 1 {
-		return TeamScheduleSource{}, NewFetchError(ErrorInvalidTeam, teamID, http.StatusBadRequest, "team ID %d is invalid", teamID)
+	source := TeamScheduleSource{TeamID: teamID, Response: response, FetchedAt: time.Now().UTC()}
+	// Each game's facility is resolved as MapTeamScheduleGame resolves it.
+	gameFacilities := make(map[int]bool)
+	for i := range response.Games {
+		game := &response.Games[i]
+		if id := firstPositiveInt(game.FacilityID, response.Team.FacilityID, game.HomeTeam.FacilityID, game.VisitorTeam.FacilityID); id > 0 {
+			gameFacilities[id] = true
+		}
 	}
-	return sources[0], nil
+	facilityIDs := make([]int, 0, len(gameFacilities)+1)
+	for id := range gameFacilities {
+		facilityIDs = append(facilityIDs, id)
+	}
+	if team := response.Team; team.UTeamID == teamID && team.FacilityID > 0 && !gameFacilities[team.FacilityID] {
+		facilityIDs = append(facilityIDs, team.FacilityID)
+	}
+	sort.Ints(facilityIDs)
+	for _, id := range facilityIDs {
+		facility, err := fresh.FetchFacility(ctx, id)
+		switch {
+		case err == nil:
+			source.Facilities = append(source.Facilities, facility)
+		case gameFacilities[id] && !facilityGone(err):
+			return TeamScheduleSource{}, err
+		}
+	}
+	return source, nil
+}
+
+// facilityGone reports whether LPS answered that a facility does not exist,
+// rather than failing to answer.
+func facilityGone(err error) bool {
+	var fetchErr *FetchError
+	return errors.As(err, &fetchErr) && (fetchErr.StatusCode == http.StatusBadRequest || fetchErr.StatusCode == http.StatusNotFound)
 }
 
 // FetchPlayerTeams loads the teams linked to a player.

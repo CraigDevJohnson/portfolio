@@ -211,6 +211,85 @@ func TestRefreshWorkerKeepsAnOmittedSeasonsHistoryAndCoverage(t *testing.T) {
 	}
 }
 
+func TestRefreshWorkerAppliesCorrectionsWhenLPSNoLongerServesAFacility(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// gameFacility is the corrected game's own facility; without one the
+		// game takes the team's facility 5.
+		gameFacility int
+		// served answers each facility LPS still has; any other is gone.
+		served     map[int]string
+		goneStatus int
+		// want is each facility's stored address after the refresh.
+		want map[int]string
+	}{
+		{
+			name: "game's own facility is not found", gameFacility: 77, goneStatus: http.StatusNotFound,
+			served: map[int]string{5: `{"FacilityID":5,"FacilityName":"New Field","Address":"2 New St"}`},
+			want:   map[int]string{5: "2 New St", 77: "7 Gone Rd"},
+		},
+		{
+			name: "game's own facility ID is refused", gameFacility: 77, goneStatus: http.StatusBadRequest,
+			served: map[int]string{5: `{"FacilityID":5,"FacilityName":"New Field","Address":"2 New St"}`},
+			want:   map[int]string{5: "2 New St", 77: "7 Gone Rd"},
+		},
+		{
+			name: "team facility the game falls back to is not found", goneStatus: http.StatusNotFound,
+			want: map[int]string{5: "1 Old St"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			backend := archivetest.NewTable()
+			store := NewDynamoStoreWithAPI(backend, "durable-soccer-history")
+			seededAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+			if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+				TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169, FacilityID: 5},
+				Games: []lps.TeamScheduleGame{{UGameID: 9001, UTeam1: 101, UTeam2: 202, Season: 169, Result: "1-0", FacilityID: tc.gameFacility}},
+				Facilities: []lps.FacilityResponse{
+					{FacilityID: 5, FacilityName: "Old Field", Address: "1 Old St"},
+					{FacilityID: 77, FacilityName: "Lost Field", Address: "7 Gone Rd"},
+				},
+				FetchedAt: seededAt,
+			}); err != nil {
+				t.Fatalf("enroll team: %v", err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/teams/101" {
+					_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":101,"Season":169,"FacilityID":5},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"FacilityID":%d,"SchedGameDateTime":"2026-09-27T19:00:00Z","result":"5-0"}]}`, tc.gameFacility)
+					return
+				}
+				var id int
+				if _, err := fmt.Sscanf(r.URL.Path, "/facilities/%d", &id); err == nil && tc.served[id] != "" {
+					_, _ = fmt.Fprint(w, tc.served[id])
+					return
+				}
+				w.WriteHeader(tc.goneStatus)
+			}))
+			defer server.Close()
+
+			refreshedAt := seededAt.Add(24 * time.Hour)
+			worker := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return refreshedAt })
+			report := worker.Run(t.Context(), []int{101})
+
+			if !report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshSucceeded {
+				t.Fatalf("worker result = %#v", report)
+			}
+			history, err := store.ReadTeamSeason(t.Context(), 101, 169)
+			if err != nil || len(history.Games) != 1 || history.Games[0].Result != "5-0" || history.Games[0].SchedGameDateTime != "2026-09-27T19:00:00Z" ||
+				history.Coverage.Status != CoverageFetched || !history.Coverage.FetchedAt.Equal(refreshedAt) || history.Coverage.ReturnedGameCount != 1 {
+				t.Fatalf("refreshed history = %#v, err = %v", history, err)
+			}
+			for id, address := range tc.want {
+				assertArchiveItem(t, backend, fmt.Sprintf("FACILITY#%d/META", id), map[string]any{"address": address})
+			}
+			state, err := store.ReadRefreshState(t.Context(), 101)
+			if err != nil || state.Status != RefreshReady || !state.LastAttemptAt.Equal(refreshedAt) || !state.NextDueAt.Equal(refreshedAt.Add(24*time.Hour)) {
+				t.Fatalf("refresh state = %#v, err = %v", state, err)
+			}
+		})
+	}
+}
+
 func TestRefreshWorkerKeepsHistoryRetryableAfterTemporaryOrUnconfirmedResponses(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string
@@ -230,6 +309,20 @@ func TestRefreshWorkerKeepsHistoryRetryableAfterTemporaryOrUnconfirmedResponses(
 				return
 			}
 			w.WriteHeader(http.StatusServiceUnavailable)
+		}},
+		{name: "outage of the team facility a game falls back to", lps: func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/teams/101" {
+				_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169,"FacilityID":5},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"result":"9-9"}]}`)
+				return
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}},
+		{name: "game facility rate limit", lps: func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/teams/101" {
+				_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"FacilityID":5,"result":"9-9"}]}`)
+				return
+			}
+			w.WriteHeader(http.StatusTooManyRequests)
 		}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
