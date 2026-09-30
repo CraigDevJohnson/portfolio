@@ -287,23 +287,46 @@ Google Calendar in between; until then it keeps serving its current release.
    [activation prerequisites](docs/deployment/site-identity.md#activation-prerequisites):
    its Google OAuth client, the reviewed `task cognito-site-dev-plan` and
    `task cognito-site-dev-apply`, the `/portfolio/lambda/dev/SITE_SESSION_KEY`
-   SecureString, `SITE_SESSION_KEY` in the development boundary parameters
-   (applied through the account root), and the exported `site` block with
-   Craig's `soccer` and `management` invitations committed to
-   `dev.auto.tfvars` on the pull request branch and applied from it with
-   `task lambda-dev-plan` and `task lambda-dev-apply`.
-2. **Only then merge.** Do not merge the pull request that carries #86 until
+   SecureString, and `SITE_SESSION_KEY` in the development boundary
+   parameters (applied through the account root). Commit the exported `site`
+   block with Craig's `soccer` and `management` invitations to
+   `dev.auto.tfvars` on the pull request branch.
+2. **Apply the development root from that branch, with the portal switch
+   on.** The `management` grant needs the development
+   [portal switch](#ec2-management-portal); without it the portal only shows
+   errors. Plan with the image development runs now, not a newer one, so #86
+   does not reach development before the merge. Its digest ends the image URI
+   of the version the development `live` alias points at: the read-only
+   `aws lambda get-alias` and `aws lambda get-function` check that
+   `scripts/verify-lambda-release.sh` makes.
+
+   ```sh
+   export TF_VAR_management='{"aws_region":"us-west-2"}'
+   task lambda-dev-plan IMAGE_DIGEST=sha256:<digest development runs now> PLAN_FILE=/absolute/path/dev-site.tfplan
+   # review the printed plan
+   task lambda-dev-apply PLAN_FILE=/absolute/path/dev-site.tfplan
+   ```
+
+3. **Set the switch for CI.** Right after that apply, set the GitHub
+   **development** variable `MANAGEMENT_RUNTIME_JSON` to
+   `{"aws_region":"us-west-2"}`. Otherwise the release plan after the merge
+   would remove the portal grants, and CI refuses a plan that changes more
+   than the image. A release of the current `main` refuses both this value
+   and the root applied in step 2, so let no other release reach development
+   between that apply and the merge.
+4. **Only then merge.** Do not merge the pull request that carries #86 until
    development site identity is ready. The merge releases it to development.
-3. **Provision production site identity before approving production.**
+5. **Provision production site identity before approving production.**
    Complete the same prerequisites for production with the
    `cognito-site-prod-*` tasks, `/portfolio/lambda/prod/SITE_SESSION_KEY` and
    invitations granting only `soccer`. Commit its `site` block to
    `prod.auto.tfvars` in a pull request, apply the production root from that
-   branch with `task lambda-prod-plan` and `task lambda-prod-apply`, then
-   merge it. Do not approve the `production` environment apply of a release
-   carrying #86 until then. A Release run whose commit is no longer the tip of
-   `main` stops before production, so approve the production step of the run
-   for that merge, or a later one.
+   branch with `task lambda-prod-plan` (with the image production runs now,
+   found the same way; production has no portal switch) and
+   `task lambda-prod-apply`, then merge it. Do not approve the `production`
+   environment apply of a release carrying #86 until then. A Release run
+   whose commit is no longer the tip of `main` stops before production, so
+   approve the production step of the run for that merge, or a later one.
 
 ## EC2 management portal
 
