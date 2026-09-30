@@ -143,6 +143,27 @@ func TestFetchSchedulesRendersSelectedTeamColorsAndNeutralSharedResult(t *testin
 	}
 }
 
+func TestFetchSchedulesSharedMatchUsesEachSelectedTeamsOwnColor(t *testing.T) {
+	app := newTestApp(t)
+	// Team 100's schedule describes selected team 200 with a different nested
+	// color. The shared row must still paint team 200 as its own rows do.
+	server := newFakeLPSTeams(t, map[string]string{
+		"/teams/100": `{"team":{"UTeamID":100,"team_name":"Blue FC","Color":"blue"},"games":[{"UGameID":710,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC","Color":"red"}}]}`,
+		"/teams/200": `{"team":{"UTeamID":200,"team_name":"Gold FC","Color":"gold"},"games":[{"UGameID":710,"SchedGameDateTime":"{future}","UTeam1":100,"UTeam2":200,"home_team":{"UTeamID":100,"team_name":"Blue FC"},"visitor_team":{"UTeamID":200,"team_name":"Gold FC"}},{"UGameID":711,"SchedGameDateTime":"{future}","UTeam1":200,"UTeam2":250,"home_team":{"UTeamID":200,"team_name":"Gold FC"},"visitor_team":{"UTeamID":250,"team_name":"Other FC"}}]}`,
+	})
+	app.Config.LPSAPIBaseURL = server.URL
+	mux, _ := buildMux(app, app.Logger, false)
+
+	rows, _ := fetchSoccerMatchRows(t, mux, "100", "200")
+	if own := onlySoccerRow(t, rows, "711"); htmlAttr(own, "data-home-color") != "gold" {
+		t.Fatalf("team 200's own row color = %q, want gold", htmlAttr(own, "data-home-color"))
+	}
+	shared := onlySoccerRow(t, rows, "710")
+	if home, away := htmlAttr(shared, "data-home-color"), htmlAttr(shared, "data-away-color"); home != "blue" || away != "gold" {
+		t.Fatalf("shared game colors = %q/%q, want each selected team's own blue/gold", home, away)
+	}
+}
+
 func htmlAttr(node *html.Node, name string) string {
 	for _, attr := range node.Attr {
 		if attr.Key == name {

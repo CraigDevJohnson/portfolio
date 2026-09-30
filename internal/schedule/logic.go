@@ -85,14 +85,18 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	return merged
 }
 
+// mergeTeamAppearance prefers the selected team's own schedule so a shared
+// match paints each selected team as its other rows do.
 func mergeTeamAppearance(base, incoming types.TeamAppearance) types.TeamAppearance {
+	if incoming.Selected && !base.Selected {
+		base, incoming = incoming, base
+	}
 	if base.ID <= 0 {
 		base.ID = incoming.ID
 	}
 	if base.Color == "" {
 		base.Color = incoming.Color
 	}
-	base.Selected = base.Selected || incoming.Selected
 	return base
 }
 
