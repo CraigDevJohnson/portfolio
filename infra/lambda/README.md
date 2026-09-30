@@ -54,7 +54,10 @@ The review must also change settings and resources this module does not own:
 - `PortfolioLambdaExecutionBoundary` (`ci-roles/boundary.tf`) grants none of
   the history table, its `due-teams` index, the worker and Scheduler roles, the
   worker log group or the failure queue. The worker and Scheduler roles attach
-  the boundary, so they can do nothing until it grants them.
+  the boundary, so they can do nothing until it grants them. Granting all of
+  that in this one policy for both environments would exceed IAM's
+  6,144-character limit for a managed policy; the readiness packet below
+  proposes a second boundary for the worker and Scheduler roles.
 - The CI roles read only the existing tables, the service function and its
   alarms. A plan with the history table, worker, schedule, queue or history
   alarms needs matching read grants, and releases need the deployers to update

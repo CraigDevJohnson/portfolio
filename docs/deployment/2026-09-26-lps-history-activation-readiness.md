@@ -1,121 +1,492 @@
 <!-- markdownlint-disable MD013 -->
 # LPS history sync activation readiness
 
-**Issue:** #104 under #80. **Checkpoint:** `1f0ad35a` on September 26, 2026, with #101–#103 merged; the initial packet was committed at `d3262cf1`. **Recommendation:** blocked for live collection. This packet is an offline review artifact, not a source-use approval, AWS plan, or activation record.
+**Issue:** #104 under #80. **Prepared:** September 30, 2026, against the #80
+loop branch at `da915fdd`: main through the workloads-account move (#119),
+plus issues #83 and #85 to #103. A Codex draft of this packet from September
+26 predates the workloads move and the reworked #98 to #103; this version
+replaces it.
 
-## Evidence boundaries
+**Recommendation: blocked.** Do not enable collection or the daily schedule in
+either environment. The [remaining gates](#remaining-gates) list what must
+happen first. This packet is a review artifact only: it does not approve
+source use, spend, an AWS plan or an activation.
 
-The checkout has an owner-bound import and membership write, public Team ID enrollment, a durable archive adapter, a private team-season read, verified global player removal, and a separate daily worker entrypoint. `infra/lambda/modules/service/dynamodb.tf` declares a non-TTL `soccer_history` table with the `due-teams` GSI. The module names it `portfolio-lambda-{dev,prod}-soccer-history` in `us-west-2`. Declaration and passing tests do not establish that either table exists live. The HTTP Lambda still has a 29-second timeout; the separate worker is configurable for 30–900 seconds and is absent by default.
+Nothing in this packet contacted LPS, AWS, Cognito or Google. No backend was
+initialized, no state lock was taken, and nothing was planned against AWS,
+applied, or scheduled. Every measurement below comes from fakes and is marked
+as such.
 
-No live LPS request, AWS state read, backend initialization, state lock, plan, resource change, or scheduled invocation was performed for this packet. Current enrolled team count, source response distribution, facility fanout, changed-game frequency, retained bytes, AWS usage, and worker runtime are **unknown live**. Local fake measurements appear below and are not estimates of LPS production behavior.
+## 1. What exists and what is off
 
-## Source-use finding: unresolved
+History collection is built into the application and the service module, and
+it is off in both environments at three levels:
 
-LPS [Terms and Conditions, §3](https://www.letsplaysoccer.com/terms-and-conditions?lang=en) discuss use of its APIs and published documentation subject to the terms and Acceptable Use Policy. The same section discusses suspension for unusual traffic and service impact. I did not find a published AUP or endpoint-specific rate/retention guidance in the reviewed public pages. That text does **not** establish that the `/teams/{id}`, `/facilities/{id}`, `/users/check`, or `/players/{id}/my_teams` endpoints are a published API available for unattended daily retrieval. Endpoint reachability and existing browser use establish no such permission. The [LPS Privacy Policy](https://www.letsplaysoccer.com/privacy-policy?lang=en) describes the company's own personal-data retention; it does not authorize this site's indefinite retention of player and membership evidence.
+| Level | Switch on the branch | Current state |
+| --- | --- | --- |
+| Table and HTTP grant | `enable_soccer_history` in `modules/service` | `false`; neither environment root passes it (environment contract tests assert no table is planned) |
+| HTTP enrollment, admission counter and admission alarm | `activate_soccer_history_collection` plus `soccer_history_limits` | `false` and `null` |
+| Daily worker, schedule, failure queue, worker alarms | `activate_soccer_history_schedule` plus a once-daily UTC `soccer_history_schedule_expression` | `false` and `null` |
 
-Before any live collection, obtain and record LPS's applicable AUP/API documentation or a direct written answer covering these exact endpoints, daily request and retry rates, indefinite retention of linked-player identity and team-season evidence, and deletion expectations. Review the answer with the operator; do not infer permission from silence. The app's disclosed import action and verified removal path are useful product controls, but do not resolve this source-use gate by themselves.
+The application refuses to build a history store or the daily worker unless
+the table name and all five limits are set (`LimitsFromEnvironment`,
+`NewDailyHistoryWorker`). The HTTP runtime also needs
+`SOCCER_HISTORY_COLLECTION_ENABLED=true`. The module plans nothing for history
+unless each stage's inputs are supplied together.
 
-## Candidate traffic and admission envelope
+## 2. Source-use findings: unresolved
 
-The merged worker and Terraform now accept and enforce numeric limits, but all activation inputs still default to `null` or `false`. This is a **candidate tuple, not a configured or approved limit**:
+Collection would call these LPS endpoints on `lps-api-prod.lps-test.com`:
 
-```text
-max_enrolled_teams=25, reserved_player_slots=10,
-max_requests_per_run=100, max_retries_per_team=1,
-min_request_interval_ms=1000, worker_timeout_seconds=300
-activate_soccer_history_collection=false,
-activate_soccer_history_schedule=false,
-soccer_history_schedule_expression=null
+| When | Endpoint | Credential | Frequency |
+| --- | --- | --- | --- |
+| Daily worker, per enrolled team | `GET /teams/{id}` | none | once per team per run, plus retries |
+| Daily worker, per team | `GET /facilities/{id}` | none | once per distinct facility the team's games use, per team; lookups are not shared between teams |
+| Visitor Team ID lookup (already public today) | `GET /teams/{id}`, `GET /facilities/{id}` | none | per lookup; with collection on, the lookup also enrolls the team |
+| Granted, disclosed import | `GET /users/check`, then `GET /players/{id}/my_teams` for each linked player | player's imported JWT | once per import, one sequential call per linked player |
+| History read without stored proof | `GET /players/{id}/my_teams` | imported JWT | per read |
+| Verified player removal | `GET /users/check` | imported JWT | per removal |
+
+I reviewed these public pages (read only, September 30, 2026):
+
+| Source | What it says | What it does not say |
+| --- | --- | --- |
+| [LPS Terms and Conditions](https://www.letsplaysoccer.com/terms-and-conditions?lang=en) (Let's Play Sports, Inc.) | Section 3 lets a customer use LPS "APIs and published documentation" with its applications, subject to the terms and an Acceptable Use Policy. Section 3.3 allows immediate suspension for unusual traffic spikes or use that threatens availability. The terms are written for customers holding an account. | No link to the Acceptable Use Policy, and I found no published copy. No rate limit, no request pacing, and nothing about end users reading their own data through a third-party tool, or about how long such a tool may keep it. No published API documentation for these endpoints. |
+| [LPS Privacy Policy](https://www.letsplaysoccer.com/privacy-policy?lang=en) | LPS keeps personal data as long as necessary for its purposes and lists a privacy contact address. | Nothing about third parties keeping player data, and no deletion-request process for data a third party copied. |
+| [LPS Messaging Policy](https://www.letsplaysoccer.com/messaging-policy?lang=en) | SMS consent and opt-out only. | Nothing relevant. |
+| `https://www.letsplaysoccer.com/robots.txt` | Only a sitemap line; the disallow rules are commented out. | It covers the website, not the API host, and says nothing about permission. I did not request anything from the API host. |
+| Web searches for LPS or Let's Play Sports API documentation or an Acceptable Use Policy | Nothing found beyond the terms above. | |
+
+**Finding.** No public source permits unattended daily requests to these
+endpoints or indefinite retention of player identities, owner links and
+team-season membership. None of the following is permission: the endpoints
+answering, the site's existing public Team ID lookup making the same
+unauthenticated calls, the import disclosure a visitor accepts, or the
+verified removal path. They are product controls, not LPS consent.
+
+**Questions for LPS, in writing, before any activation:**
+
+1. May a signed-in player's site keep their team, season, game and facility
+   facts, and the player's own identity and team-season links, indefinitely,
+   with a player-initiated removal path?
+2. May an unattended job call `GET /teams/{id}` and `GET /facilities/{id}`
+   without a token once a day for up to 40 teams: about 80 requests a day,
+   120 at most per run, one request a second? Is there a rate limit, a
+   required pacing, or a required identifying `User-Agent` or contact
+   header?
+3. Which Acceptable Use Policy applies, and where is it published?
+4. How does LPS signal a deleted or invalid Team ID? The worker treats
+   `400` and `404` as permanently invalid; `429`, `5xx` and network failures
+   as temporary.
+5. Do Team IDs persist across seasons, or does each season get new IDs? This
+   decides how fast the enrollment cap fills (see 3.3).
+
+Record the answer, or the decision not to ask, with the activation approval.
+
+## 3. Traffic, storage and runtime
+
+### 3.1 Fake-backed measurements
+
+`TestLPSHistoryReadinessJourneyFromEnrollmentThroughRemoval`
+(`internal/app/soccer_history_readiness_test.go`) drives the real route
+assembly and the real daily worker against a counting fake LPS and the real
+`DynamoStore` over an in-memory table that meters DynamoDB calls as on-demand
+billing counts them (1 KB write units, two for a transactional write; 4 KB
+strongly consistent read units, half for an index query; due-index writes
+counted separately). It uses the candidate limits in 3.3. Run it with
+`go test ./internal/app -run TestLPSHistoryReadinessJourney -count=1 -v`.
+Output on this branch:
+
+| Phase | LPS requests | Response bytes | DynamoDB calls | Billed units |
+| --- | --- | --- | --- | --- |
+| Anonymous Team ID lookup enrolls team 4301 | 1 team, 1 facility | 352 | 7 puts, 2 transactional puts, 7 gets | 11 WRU, 1 index WRU, 7 RRU |
+| Disclosed import, 2 linked players | 1 account check, 2 player-team lookups | 464 | 6 puts, 4 transactional puts, 4 gets | 14 WRU, 2 index WRU, 4 RRU |
+| Daily run 1: 2 teams due | 2 team, 3 facility | 1,069 | 23 puts, 15 gets, 1 index query | 23 WRU, 4 index WRU, 15.5 RRU |
+| Repeated delivery of run 1 | none | 0 | 1 index query | 0.5 RRU |
+| Daily run 2: 3 teams, 1 corrected score, 1 omitted game | 3 team, 3 facility | 1,181 | 27 puts, 19 gets, 1 index query | 27 WRU, 6 index WRU, 19.5 RRU |
+| Daily run 3: one `503` retried, one Team ID rejected with `404` | 4 team, 2 facility | 829 | 20 puts, 15 gets, 1 index query | 20 WRU, 5 index WRU, 15.5 RRU |
+| Daily run 4: 2 teams, nothing changed | 2 team, 2 facility | 829 | 19 puts, 13 gets, 1 index query | 19 WRU, 4 index WRU, 13.5 RRU |
+| Verified removal of player 1001 | 1 account check | 277 | 2 queries, 3 deletes | 3 WRU, 2 RRU |
+
+After the journey the table held 34 items, about 8.3 KB: team partitions
+4,555 B, games 1,724 B, player partitions 1,095 B, facilities 861 B, the
+admission counter 103 B. The fixture's games are about 150 bytes of JSON
+each; real LPS games are larger (see 3.2).
+
+Three properties the numbers establish, all from the code as it stands:
+
+- **Every returned game is rewritten on every refresh.** Run 4 changed
+  nothing and still wrote 19 items. One team refresh writes
+  `F + 3G + 2S + 2` items and reads `F + G + S + 3`, where `F` is facility
+  lookups, `G` returned games and `S` returned seasons (each game writes its
+  game record and two team-game edges). Changed-game frequency therefore does
+  not reduce DynamoDB cost; returned-game count does.
+- **Facility lookups are per team.** Two teams at arena 5 cost two arena-5
+  lookups in one run.
+- **Admission slots are never released.** After LPS rejected team 4301 the
+  admission counter still read 3. Teams leave polling when rejected, but keep
+  their slot; removing a player removes no team. The enrollment cap is a
+  lifetime cap on distinct Team IDs.
+
+### 3.2 Inputs, bounds and assumptions
+
+No live measurement was possible. Each input below is either bounded by code
+or assumed, and the assumption is stated.
+
+| Input | Bound or assumption | Basis | Uncertainty |
+| --- | --- | --- | --- |
+| Enrolled teams `T` | At most 40 (candidate cap). An entered Team ID is admitted only while fewer than 10 teams of any source are enrolled | Admission transaction in `internal/soccerarchive/admission.go` | Real demand unknown; see 3.3 |
+| Facility fanout `F` | 1 per team typical, 2 as the planning bound | Indoor leagues play at their home arena; the fixture has one away arena | Unmeasured |
+| Team response size | Assumed 30 games at about 2 KB each, about 60 KB; hard cap 2 MiB per response (`MaxLPSResponseBodySize`) | Fixture games are about 150 B; real LPS games nest both teams | Unmeasured; 120 responses could read up to 240 MiB in the worst case |
+| Retry rate | At most one retry per team (`max_retries_per_team = 1`), retrying only `429`, `5xx` and network errors; a retry repeats the whole team fetch, facilities included | `retryingTeamSource` in `daily.go` | Unmeasured; the fixture retried once in 10 team refreshes, by design |
+| Changed-game writes | Equal to returned games, not changes: `G` game writes and `2G` edge writes per team per day | 3.1, run 4 | Exact for the current code |
+| Retained bytes | Game item about 2.3 KB plus two edges of about 0.2 KB, and DynamoDB's 100 bytes of overhead per item; about 40 new games per team per year (five sessions of eight games); 40 teams give about 5 MB in year one and about 25 MB after five years | Item layout in `dynamo.go`, fixture sizes scaled to 2 KB games | Indefinite retention has no byte ceiling; dormant teams add no games |
+| Worker duration | About 80 to 120 s per run at 80 requests paced one a second; at most the 300 s timeout, after which the run stops starting teams and reports the rest | `pacedTransport`, the run deadline logic in `daily.go` | LPS and DynamoDB latency unmeasured |
+| Runs per day | One scheduled run. EventBridge Scheduler invokes Lambda asynchronously and retries only when that hand-off fails, so its two retries do not repeat a run that started. Delivery is at least once, so rare duplicates can run; a duplicate refreshes only teams still due, because a success keeps a team from being due for 4 hours and a temporary failure for 15 minutes | [Lambda with Scheduler](https://docs.aws.amazon.com/lambda/latest/dg/with-eventbridge-scheduler.html), [EventBridge FAQ](https://aws.amazon.com/eventbridge/faqs/), `refreshedTeamGuard` and `retryableFailureDelay` | No durable daily request counter exists; the bound is per run, so a duplicate after a budget-limited run can spend another 120 requests |
+| Import latency with collection on | `1 + P` sequential LPS calls for `P` linked players, each bounded only by the 15 s client timeout, plus up to 10 s of DynamoDB writes, against the 29 s Lambda timeout behind API Gateway | `collectLinkedPlayerHistory` in `internal/soccer/auth.go`, `lpsClientTimeout` | Two slow LPS calls exceed 29 s; the visitor then sees a gateway timeout |
+
+Both environments would call the same LPS. If dev and prod both ran the
+schedule, the source traffic doubles; any source approval must cover the sum.
+
+### 3.3 Candidate limits
+
+```hcl
+soccer_history_limits = {
+  max_enrolled_teams      = 40
+  reserved_player_slots   = 30
+  max_requests_per_run    = 120
+  max_retries_per_team    = 1
+  min_request_interval_ms = 1000
+  worker_timeout_seconds  = 300
+}
+soccer_history_schedule_expression = "cron(30 10 * * ? *)" # 10:30 UTC, 03:30 Pacific daylight time
 ```
 
-The tuple satisfies the Terraform validation and `DailyLimits.Validate`; it has not been placed in either environment. The daily worker counts team, facility, and retry HTTP calls through one paced transport, queries the sparse due-team index, and checkpoints each completed team. The admission transaction caps new manual teams at 15 while reserving the remaining 10 slots for player-linked teams; existing enrolled teams retain refresh work. Fake tests prove those mechanics, not the chosen values' suitability.
+This is a proposal for review, not an approved or configured limit.
 
-| Input | Candidate assumption or present bound | Evidence gap |
-| --- | --- | --- |
-| Enrolled teams | 25 total; reserve 10 new slots for authenticated player-linked enrollment, leaving at most 15 manual slots | Actual enrolled count and growth unknown live; the counter is enforced only when collection is activated with limits |
-| LPS calls per invocation | One team response plus two distinct facility responses per team: `25 × (1 + 2) = 75`, with 25 calls left for retries or extra facilities; 100 is a hard **per-invocation** ceiling | Facility fanout and 429/5xx frequency unknown live; overflow remains due and produces an incomplete report |
-| Aggregate scheduled calls | Scheduler permits two delivery retries, so three deliveries could each use 100 calls: **up to 300/day** for one schedule occurrence, plus any separately authorized manual invocations | Successful team checkpoints often reduce repeat work, but there is no durable account-wide daily LPS call counter; source-use approval must cover the worst case or retry policy must change before activation |
-| Response bytes | Fake continuous journey: **882 bytes** across seven LPS responses (two team, two facility, one player-team, two user checks). Planning case for a full 25-team pass: `25 × (64 + 2 × 4) = 1,800 KiB` | Fake payloads are deliberately small. `internal/lps/client.go` reads at most 2 MiB/response; 100 calls could still read up to 200 MiB/invocation without a tighter size cap |
-| Games and seasons | Cost scenario: 20 returned games and two returned seasons per team; allow two previously known omitted seasons | Live distributions unknown; a later omission retains old facts and changes coverage |
-| Changed games | Fake continuous journey: two logical game upserts across two due passes, one of which corrected a score. Estimate daily writes from **all** returned games because `SaveTeamSnapshot` upserts each game and team-game edge even when unchanged | Live changed-game frequency and actual DynamoDB writes are unmeasured; a low change rate does not lower current write volume |
-| Retained bytes | Fake retained team/coverage/game/facility view serialized to 768 JSON bytes after removal. Cost scenario: 0.1 GB average archive/index in the first year. At 100 newly retained games/team/year, 25 teams, four game/edge records at ≤4 KiB each imply about 40 MiB/year before team, coverage, index, and overhead; reserve up to 0.1 GB/year in the planning model | The 768-byte view is not a billed DynamoDB item measurement. Indefinite retention has no enforced byte ceiling; live item-size distribution and growth need measurement |
-| Worker duration | Separate 512 MiB, reserved-concurrency-one worker; candidate 300-second timeout. One-second pacing means 100 calls require at least 99 seconds between first and last starts before network/DynamoDB time | Fake clock recorded one second of pacing for two calls per due pass; real latency and timeout margin remain unmeasured |
+- **40 teams.** Player-linked demand is assumed to be 2 to 4 linked players
+  on 1 or 2 teams in about five sessions a year. If LPS issues new Team IDs
+  each session, that is 10 to 40 new IDs a year. Because slots are never
+  released, 40 lasts roughly one to four years; the admission alarm fires on
+  the first refusal and is the trigger to review the cap.
+- **30 reserved for player-linked teams.** Any visitor can enter a Team ID
+  without signing in, and an entered ID is admitted only while fewer than 10
+  teams of any source are enrolled. At most 10 IDs are ever enrolled that way,
+  each polled for good, and once 10 teams of any kind are enrolled, entered
+  IDs are refused permanently.
+- **120 requests a run.** This is 40 teams × 3: every team with its team
+  request and two facility lookups, or with one facility and spare budget to
+  retry 20 teams. The application requires at least one request per team.
+- **One retry, one request a second.** About 80 requests a day at the cap,
+  120 at most per run: about 2,400 a month typical and 3,600 at the per-run
+  ceiling, per environment that runs the schedule.
+- **300 s timeout.** The module's validation needs at least 163 s for this
+  tuple: 119 paced gaps, two attempts of one team at 15 s plus pacing, one
+  second of backoff, and 10 s to report.
 
-At 25 teams for 30 days, the normal planning case is 75 requests/day or 2,250/month; the per-run ceiling is 3,000/month for one successful daily delivery. Scheduler retries make 9,000/month a conservative delivery-only ceiling at the candidate limit. A team with more than two facilities may consume the reserved calls; the transport stops at 100 and leaves remaining teams due. No permission, rate allowance, or live performance measurement supports this tuple yet.
+Offline checks of the tuple:
 
-## Itemized cost model, provisional
+- The journey test builds the store and the daily worker with it, so
+  `Limits.Validate` accepts it.
+- A scratch copy of `modules/service` with a mocked-provider test file (not
+  committed) planned the tuple as a dev collection-only stage and a prod
+  schedule stage, and confirmed that 39 requests a run or a 162 s timeout is
+  rejected. All four runs passed:
 
-The arithmetic below is an illustrative **gross** 30-day scenario with one 300-second daily worker invocation and the candidate tuple. It assumes 25 teams, 20 games/team, two facilities and two seasons/team, at most two old omitted seasons, three team-game edge writes/game, ≤4 write units per item, 0.1 GB average retained table/index size, 0.1 GB worker logs, and no failure redrive. These are workload assumptions, not measured live quantities or a verified `us-west-2` quote. Reprice each environment in the [AWS Pricing Calculator](https://calculator.aws/) with the exact plan. Shared free-tier use, transaction overhead, item sizes, GSI writes, repeated deliveries, retained growth, notifications, and data transfer can change the bill.
+  ```text
+  tofu init -backend=false -input=false
+  tofu test
+  ... candidate_collection_stage_dev ... pass
+  ... candidate_schedule_stage_prod ... pass
+  ... candidate_rejects_a_budget_below_one_request_per_team ... pass
+  ... candidate_rejects_a_timeout_below_pacing ... pass
+  ```
 
-| Component | Scenario arithmetic | Reference charge/month |
+## 4. Itemized AWS cost
+
+Planning assumptions for one environment running both stages at the cap: 40
+teams, one facility each, 30 returned games of about 2 KB in two seasons per
+team response, one run a day, 30-day month, no duplicate runs. Prices are the
+list prices each service's pricing page showed on September 30, 2026, for its
+default region (US East); get a us-west-2 quote before approval. Free tiers
+are shared with the rest of the workloads account and are ignored unless
+noted.
+
+| Item | Arithmetic | Per month |
 | --- | --- | ---: |
-| DynamoDB writes + due index | Scenario: 91 base item puts/team/day including full game re-upsert and three team-game edges/game, 4 write units/item, plus one due-index update/team/day: `(25 × 30 × 91 × 4 + 25 × 30 × 4) × $0.625/M` | $0.17 |
-| DynamoDB reads | About 28 strongly consistent 4 KiB reads/team/day plus one sparse due-index query/run: `25 × 30 × 28 × $0.125/M`, with small query/admission allowance | <$0.01 |
-| Durable table storage | Assumed 0.1 GB average, including index and accumulated history: `0.1 × $0.25/GB-month` | $0.03 |
-| Production PITR | Enabled by `prod.auto.tfvars`; assumed 0.1 GB: `0.1 × $0.20/GB-month` | $0.02 |
-| Development PITR | Disabled by `dev.auto.tfvars` | $0.00 |
-| Worker Lambda | 30 runs × 300 seconds × 0.5 GB × $0.0000166667/GB-second, plus 30 × $0.20/M requests | $0.08 |
-| EventBridge Scheduler | 30 invocations × $1/M before the shared 14M/month free allowance | <$0.01 |
-| CloudWatch logs | Worker group, 0.1 GB assumed ingested and retained for the month: `0.1 × ($0.50 + $0.03)/GB`; the application log group is separately declared | $0.05 |
-| Two low-cardinality log-derived metrics | `DailyIncomplete` and `AdmissionRejected`, two × $0.30/month reference; no team-ID dimensions | $0.60 |
-| Four standard alarms | Admission rejection, incomplete run, worker error, SQS visible messages: four × $0.10/month reference | $0.40 |
-| Failure handling | One SSE-enabled SQS failure queue with 14-day retention; placeholder for low-volume send/receive/delete and any redrive | $0.01 placeholder |
+| DynamoDB writes | Per team refresh: 1 facility + 30 games × 3 WRU + 60 edges × 1 + 4 season items + 1 coverage + 2 team + 3 due-index = 161 WRU. × 40 teams × 30 days = 193,200 WRU at $0.625 per million | $0.12 |
+| DynamoDB reads | Per team refresh: 36 strongly consistent reads of items under 4 KB = 36 RRU. × 40 × 30 + one index query a day = 43,230 RRU at $0.125 per million | $0.01 |
+| DynamoDB HTTP enrollment, reads and removal | A few imports, lookups and reads a month; the journey shows tens of units each | < $0.01 |
+| DynamoDB storage | About 5 MB in year one, 25 MB after five years, at $0.25 per GB-month (25 GB free tier) | < $0.01 |
+| Point-in-time recovery | Production only (`enable_pitr = true`); 5 to 25 MB at $0.20 per GB-month | < $0.01 |
+| Worker Lambda | 512 MB × 120 s × 30 = 1,800 GB-s (bound: 300 s, 4,500 GB-s) at $0.0000166667 per GB-s, plus 30 requests | $0.03 (bound $0.08) |
+| EventBridge Scheduler | 30 invocations at $1 per million, inside the 14 million free | $0.00 |
+| CloudWatch Logs | About 5 KB a run (one report line with up to 40 team results plus Lambda platform lines), 0.15 MB a month at $0.50 per GB ingested and $0.03 per GB stored | < $0.01 |
+| Log-derived metrics | `AdmissionRejected` and `DailyIncomplete` publish only when a line matches (no default value), so a quiet month costs nothing; each is at most $0.30 per metric-month | $0.00 (bound $0.60) |
+| Alarms | 4 standard alarms (admission rejected, incomplete run, worker errors, failure queue) at $0.10; the 10 existing environment alarms already use the account's 10 free alarms | $0.40 |
+| Failure handling | SQS standard queue with SQS-managed encryption: a message only per failed run or delivery, well inside 1 million free requests; alarm notifications go to aws-setup's `alerts` topic (email: first 1,000 free) | $0.00 |
+| Data transfer | LPS responses are inbound; requests are small | $0.00 |
+| **Total per environment** | Typical: quiet metrics, 120 s runs | **about $0.56** |
+| **Bound per environment** | Both metrics active all month, 300 s runs | **about $1.22** |
 
-**Reference subtotal:** about **$1.36/month in production** or **$1.34/month in development**, assuming no other charges. Three full 300-second deliveries/day would raise worker duration alone from about $0.08 to $0.23/month and could repeat reads, writes, and logs before checkpoints. Neither subtotal is a spend authorization or a cost ceiling. The largest uncertainty is permitted LPS use, fanout, full-game write amplification, worker duration, and indefinite history growth. Sources: [DynamoDB pricing](https://aws.amazon.com/dynamodb/pricing/), [Lambda pricing](https://aws.amazon.com/lambda/pricing/), [EventBridge Scheduler pricing](https://aws.amazon.com/eventbridge/pricing/), [CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/), and [SQS pricing](https://aws.amazon.com/sqs/pricing/). AWS's example rates are region-sensitive; obtain a `us-west-2` quote and include the reviewed SNS notification destination before approval.
+Sensitivity: 100 games of 4 KB per team response raises writes to about 711
+WRU per team refresh (853,200 a month, $0.53) and reads to about $0.03, so the
+bound becomes about $1.65 per environment. Running the schedule in both
+environments doubles every line except storage. Sources:
+[DynamoDB on-demand](https://aws.amazon.com/dynamodb/pricing/on-demand/),
+[Lambda](https://aws.amazon.com/lambda/pricing/),
+[EventBridge](https://aws.amazon.com/eventbridge/pricing/),
+[CloudWatch](https://aws.amazon.com/cloudwatch/pricing/) and
+[SQS](https://aws.amazon.com/sqs/pricing/). An AWS budget alert is not a
+traffic limit; the request budget and pacing are the only enforced limits.
 
-## Offline behavior evidence
+## 5. Fake-backed journey and what stays unproven
 
-At the initial `0a552e90` checkpoint, focused fake Cognito/LPS/DynamoDB tests passed separately for import, manual enrollment, on-demand refresh, private read, and global removal. On the merged `1f0ad35a` base, `TestLPSHistoryReadinessJourneyFromEnrollmentThroughRemoval` now drives the real HTTP route assembly and real `DailyWorker` against one shared in-memory archive and fake LPS server. It passed with this literal journey:
+The journey test proves, at the real HTTP route assembly and the real worker
+over one table:
 
-1. Granted import captured one owner-bound player–team–season proof and enrolled Team ID 4101 without fetching games.
-2. The first due pass made one `/teams/4101` and one `/facilities/5` call, applied a one-second fake-clock pacing interval, stored one scored game, and checkpointed the team. An immediate duplicate pass made zero LPS calls.
-3. The private read returned fetched coverage and a one-win calculated record for the proven owner. After advancing the fake clock by 25 hours and changing the fake score, a second due pass made two calls and the read returned the corrected `2-0` result.
-4. A fresh `/users/check` verified removal. Global player proof was erased while the retained team/game fact remained; the ordinary browser read without a new import was denied.
+1. An anonymous Team ID lookup enrolls a team and proves no membership.
+2. A granted, disclosed import records owner-bound player–team–season proof
+   for both linked players, with one team lookup per player and no schedule
+   fetch; another owner and the entered Team ID have no proof.
+3. Daily runs refresh due teams under pacing, skip them on a repeated
+   delivery, follow a corrected score, keep an omitted game, retry a `503`
+   within budget, stop polling a rejected ID while keeping its facts, and
+   report a run with a rejected team as incomplete.
+4. The owner's read of the proven season returns coverage and a scored record
+   from stored proof without another LPS call; the entered Team ID's season is
+   refused with `403`.
+5. Verified removal erases the player's partition for every owner with one
+   fresh LPS check, keeps team, game and facility facts and the other player,
+   and ends the import, so the next read is refused with `401`.
 
-The fake server returned **882 bytes across seven responses**: two team, two facility, one player-team, and two user-check. Each due pass used two LPS requests under the candidate 100-request invocation ceiling; the not-due replay used zero. The shared fake archive saw **two logical game upserts** (one correction) and retained a **768-byte JSON fact view** after player removal. This is a tiny fixture, not a live response-size, worker-duration, DynamoDB item-size, or changed-game-rate sample. The in-memory archive does not measure billed RRU/WRU, GSI writes, or provisioned latency. Existing `internal/soccerarchive/daily_test.go` separately exercises capacity reservation, 429/5xx retries, request-budget overflow including facility lookups, due-index pagination, duplicate delivery, and invalid-team stop behavior with the fake Dynamo adapter.
+The grant matrix now includes `GET /soccer/history`
+(`internal/app/soccer_grant_matrix_test.go`), so signed-out, expired,
+ungranted and revoked visitors are shown to be refused there too.
 
-Focused commands run locally on the merged base:
+**Unproven live, source:** permission (section 2); whether `/teams/{id}` and
+`/facilities/{id}` keep answering unauthenticated requests from the Lambda
+(the deployed public lookup makes the same calls today, not re-checked for
+this packet); LPS's invalid-ID contract; its `429` behaviour and any rate
+limit; real response sizes, game counts, facility fanout and latency; whether
+Team IDs persist across seasons; whether `my_teams` returns past seasons.
 
-```text
-go test ./internal/app -run '^TestLPSHistoryReadinessJourneyFromEnrollmentThroughRemoval$' -count=1 -v
-go test ./internal/soccerarchive -run 'Test(ArchiveAdmissionReservesCapacityForPlayerTeamsWithoutEvictingEnrolledTeams|DailyWorkerRetriesTransientTeamsWithinBudgetAndReportsPartialFailure|DailyRequestBudgetIncludesFacilityLookupsAndPreservesDueWork|DailyWorkerRefreshesEveryDueValidTeamAndCheckpointsDuplicateDelivery)$' -count=1
-```
+**Unproven live, AWS:** that any history resource exists; the effective
+permissions once the boundary changes; real item sizes and billed units (the
+meter approximates DynamoDB's sizing rules); duplicate delivery by Scheduler
+and Lambda's asynchronous queue with reserved concurrency 1; metric filters
+matching the deployed JSON logs; alarm delivery to `alerts`; the monthly bill.
 
-The local test and mocked OpenTofu contracts cannot establish LPS permission, live invalid-ID behavior, actual response bytes, DynamoDB capacity/cost, an effective IAM boundary, or deployed AWS resources. Record real enrolled count, representative response/facility fanout, item-size and read/write counts, retries, and runtime only after the separate source-use and AWS observation approvals.
+## 6. Infrastructure actions
 
-The service module's backend-free `tofu test` passed **21 mocked cases**, including limits-only off, collection capacity alert, and worker/scheduler/failure contracts. It reported provider deprecation warnings for `hash_key`/`range_key`; those warnings are not a failed test or live compatibility proof.
+Nothing below has been done. Each code change is an ordinary pull request
+with offline tests; each apply needs Craig's approval of that specific saved
+plan.
 
-`task lambda-infrastructure-ci` was attempted with `-backend=false` initialization and no AWS state lock. Formatting, validation, mocked auth/CI-role tests, and `go test ./infra/lambda` passed before the gate stopped in `tests/lambda-plan-contract.sh` at its **“exact GitHub Actions role plan”** fixture: `CI role names, trust, attachments, or inline policies drifted`. This failure is outside the #104 file diff, but the full offline infrastructure gate is **red** at this checkpoint. Diagnose and repair that fixture/contract independently before calling infrastructure CI green; do not treat the partial pass as validation of a live plan.
+### 6.1 Repository changes needed before any plan
 
-## Exact checked-in resource and IAM map
+1. **Wire the environment roots.** `environments/{dev,prod}` do not pass
+   `enable_soccer_history`, `soccer_history_limits`,
+   `activate_soccer_history_collection`, `activate_soccer_history_schedule`
+   or `soccer_history_schedule_expression` to the module. Add the variables
+   and set them in each `*.auto.tfvars`, not with `-var`, so an apply of the
+   saved plan sees identical inputs. Update the environment contract tests,
+   which currently assert that no history table is planned.
+2. **Choose a dev alert destination.** Collection requires a nonempty
+   `alarm_action_arns`, and `dev.auto.tfvars` has `[]`. Either dev uses the
+   workloads `alerts` topic (`arn:aws:sns:us-west-2:793680745829:alerts`), or
+   dev does not collect.
+3. **Grant the history table in `PortfolioLambdaExecutionBoundary`**
+   (`ci-roles/boundary.tf`), which has no history grants. The HTTP role
+   `portfolio-lambda-{env}-execution` needs `dynamodb:GetItem`, `PutItem`,
+   `Query` and `DeleteItem` on `table/portfolio-lambda-{env}-soccer-history`
+   (collection, read and removal). The admission transaction is two
+   conditional puts, which IAM authorizes as `dynamodb:PutItem`; there is no
+   separate `TransactWriteItems` action
+   ([DynamoDB transactions and IAM](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis-iam.html)).
+   The worker and Scheduler roles also attach this boundary, and need:
+   worker `portfolio-lambda-{env}-soccer-history-execution`: `GetItem` and
+   `PutItem` on the table, `Query` on `…/index/due-teams`, `CreateLogStream`
+   and `PutLogEvents` on `/aws/lambda/portfolio-lambda-{env}-soccer-history:*`,
+   `sqs:SendMessage` on `portfolio-lambda-{env}-soccer-history-failures`;
+   Scheduler `portfolio-lambda-{env}-soccer-history-scheduler`:
+   `lambda:InvokeFunction` on `function:portfolio-lambda-{env}-soccer-history`
+   and `sqs:SendMessage` on the queue. **Size limit:** the boundary is about
+   4,449 characters today; adding those grants per role for both
+   environments makes it about 8,088, over IAM's 6,144-character limit for a
+   managed policy, and one merged statement per environment is still about
+   6,358. Adding only the HTTP-role statements gives about 5,128. Put the
+   worker and Scheduler grants in a second boundary policy (about 2,998
+   characters) and point the two roles in `history_worker.tf` at it.
+   (Estimated offline by rendering the statements as compact JSON with
+   `boundary.tf`'s conditions; the account root's plan is the real check.)
+4. **Grant the CI roles the reads and release writes.** The dev deployer,
+   prod planner and prod deployer read only the existing tables, the service
+   function, its execution role, its log groups and the five alarms. Once
+   history resources are in an environment's state, every release plan
+   refreshes them and fails without: `dynamodb:Describe*`/`ListTagsOfResource`
+   on the history table; `lambda:Get*`, `ListTags`, `ListVersionsByFunction`
+   and `GetFunctionEventInvokeConfig` on the worker; `iam:GetRole`,
+   `GetRolePolicy`, `ListRolePolicies`, `ListAttachedRolePolicies` and
+   `ListRoleTags` on the worker and Scheduler roles; `scheduler:GetSchedule`;
+   `sqs:GetQueueAttributes` and `ListQueueTags`; `logs:ListTagsForResource`
+   on the worker log group and `logs:DescribeMetricFilters`;
+   `cloudwatch:DescribeAlarms` and `ListTagsForResource` on the four history
+   alarms. The deployers also need `lambda:UpdateFunctionCode` and
+   `PublishVersion` on the worker, whose image follows every release. Confirm
+   the exact list when the first saved plan is reviewed.
+5. **Teach `scripts/check-lambda-plan.sh` the worker image.** It accepts only
+   `aws_lambda_function.app` `image_uri` and the `live` alias. A release plan
+   that also moves `module.service.aws_lambda_function.history_worker[0]` to
+   the release image is rejected today (checked offline with a fixture plan:
+   "plan must change only the Lambda image and live alias"). Allow exactly
+   that attribute, to the same image, and add accept and reject cases to
+   `tests/release-scripts.sh`.
+6. **Verify the history alarms on release** (recommended).
+   `scripts/verify-lambda-release.sh` checks only the five named alarms.
+7. **Decide the admission policy** (section 3.1: slots are never released).
+   Accept the cap as a lifetime cap, or add a way to release slots of
+   rejected or long-dormant teams.
+8. **Bound import latency with collection on** (section 3.2), for example
+   with one overall discovery deadline, or measure `my_teams` latency and
+   accept the risk.
 
-The following are Terraform addresses and names derived from `infra/lambda/modules/service/`; **none is asserted to exist live**. Both environments are in `us-west-2` and use different state roots.
+### 6.2 Prerequisites outside this repository
 
-| Environment | Archive and worker | Scheduler, queue, and logs |
+- **Lambda concurrency.** The worker reserves one execution. The workloads
+  account limit is still 10 (aws-setup #30) and Lambda keeps 100 unreserved,
+  so the schedule stage cannot be applied until the limit covers 100 plus
+  every reservation: prod's planned 10 and one per environment that runs the
+  worker (111, or 112 with both).
+- **Site identity.** Player-linked collection needs site sign-in and the
+  `soccer` grant in the environment. No environment supplies `SITE_*` yet
+  (#88 for production). Anonymous Team ID enrollment works without it.
+- **LPS permission** (section 2).
+
+### 6.3 Resources and IAM per environment
+
+Names come from `modules/service`; the workloads account is 793680745829,
+region us-west-2. Development is `portfolio-lambda-dev` (14-day logs, no PITR,
+no deletion protection, state key `portfolio-lambda-http-api/dev/terraform.tfstate`);
+production is `portfolio-lambda-prod` (30-day logs, PITR and deletion
+protection, state key `portfolio-lambda-http-api/prod/terraform.tfstate`),
+both in `portfolio-tofu-state-793680745829`.
+
+**Stage 1, collection only** (`enable_soccer_history`, limits,
+`activate_soccer_history_collection`, schedule off). Expected plan actions:
+
+| Address | Action | Detail |
 | --- | --- | --- |
-| Development (`portfolio-lambda-dev`) | `portfolio-lambda-dev-soccer-history` table and `due-teams` GSI; `portfolio-lambda-dev-soccer-history` worker Lambda; `portfolio-lambda-dev-soccer-history-execution` role and `portfolio-lambda-dev-soccer-history-runtime` inline policy. Table PITR/deletion protection off in checked-in dev vars. | `portfolio-lambda-dev-soccer-history-daily` UTC schedule; `portfolio-lambda-dev-soccer-history-scheduler` role and same-named inline policy; `portfolio-lambda-dev-soccer-history-failures` SQS queue; `/aws/lambda/portfolio-lambda-dev-soccer-history` log group, 14-day retention. |
-| Production (`portfolio-lambda-prod`) | `portfolio-lambda-prod-soccer-history` table and `due-teams` GSI; `portfolio-lambda-prod-soccer-history` worker Lambda; `portfolio-lambda-prod-soccer-history-execution` role and `portfolio-lambda-prod-soccer-history-runtime` inline policy. Table PITR/deletion protection on in checked-in prod vars. | `portfolio-lambda-prod-soccer-history-daily` UTC schedule; `portfolio-lambda-prod-soccer-history-scheduler` role and same-named inline policy; `portfolio-lambda-prod-soccer-history-failures` SQS queue; `/aws/lambda/portfolio-lambda-prod-soccer-history` log group, 90-day retention. |
+| `module.service.aws_dynamodb_table.soccer_history[0]` | create | `portfolio-lambda-{env}-soccer-history`, on demand, `pk`/`sk`, `due-teams` index (`due_pk`/`due_sk`, all attributes), SSE, no TTL; PITR and deletion protection per environment |
+| `module.service.aws_iam_role_policy.lambda` | update | adds `dynamodb:GetItem`, `PutItem`, `Query`, `DeleteItem` on the table |
+| `module.service.aws_lambda_function.app` | update | adds `SOCCER_HISTORY_COLLECTION_ENABLED=true`, `SOCCER_ARCHIVE_TABLE_NAME` and the five `SOCCER_HISTORY_*` limits; publishes a new version |
+| `module.service.aws_lambda_alias.live` | update | `live` moves to that version |
+| `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` | create | `AdmissionRejected` in `Portfolio/SoccerHistory` on `/aws/lambda/portfolio-lambda-{env}` |
+| `module.service.aws_cloudwatch_metric_alarm.history_admission_rejected[0]` | create | `portfolio-lambda-{env}-soccer-history-admission-rejected`, ≥ 1 in 5 minutes, to `alarm_action_arns` |
 
-With `activate_soccer_history_collection=true` and reviewed limits, the HTTP Lambda environment gains the five `SOCCER_HISTORY_*` limit values plus `SOCCER_HISTORY_COLLECTION_ENABLED=true`; `module.service.aws_iam_role_policy.lambda` adds `dynamodb:UpdateItem` on the archive table for the transactional admission counter, alongside its existing `GetItem`, `PutItem`, `Query`, and `DeleteItem`. `module.service.aws_cloudwatch_log_metric_filter.history_admission_rejected[0]` and `aws_cloudwatch_metric_alarm.history_admission_rejected[0]` are created against the application log group. A nonempty reviewed `alarm_action_arns` is required. The checked-in Lambda execution boundary does not yet grant the archive table actions; its exact replacement and read-back require distinct authorization.
+Stage 1 starts enrollment through visitor Team ID lookups and granted imports.
+It starts no daily polling.
 
-With `activate_soccer_history_schedule=true` **and** collection enabled and a reviewed UTC expression, `history_worker.tf` creates `aws_sqs_queue.history_dead_letter[0]` (SQS-managed encryption, 14-day retention), `aws_cloudwatch_log_group.history_worker[0]`, `aws_iam_role.history_worker[0]` and its policy, `aws_lambda_function.history_worker[0]` (same digest-qualified image, x86-64, 512 MiB at current env vars, timeout from limits, reserved concurrency one), and `aws_lambda_function_event_invoke_config.history_worker[0]` (zero Lambda async retries, failure destination the queue). It also creates `aws_iam_role.history_scheduler[0]` and policy, `aws_scheduler_schedule.history_daily[0]`, `aws_cloudwatch_log_metric_filter.history_incomplete[0]`, and three more alarms: daily incomplete, worker Lambda errors, and visible failure-queue messages. The scheduler has two target-delivery retries and points to the same queue. Both worker and scheduler roles attach the `PortfolioLambdaExecutionBoundary`, whose installed grants have not been verified for these new actions.
+**Stage 2, daily schedule** (adds `activate_soccer_history_schedule` and the
+expression). Expected creates, all with `portfolio-lambda-{env}-soccer-history`
+names: `aws_sqs_queue.history_dead_letter[0]` (`-failures`, 14-day retention,
+SSE-SQS); `aws_cloudwatch_log_group.history_worker[0]`;
+`aws_iam_role.history_worker[0]` (`-execution`) and
+`aws_iam_role_policy.history_worker[0]` (`-runtime`: table `GetItem`/`PutItem`,
+index `Query`, log stream writes, queue `SendMessage`);
+`aws_lambda_function.history_worker[0]` (release image,
+`SOCCER_HISTORY_MODE=scheduled`, 512 MB, timeout 300 s, reserved concurrency
+1); `aws_lambda_function_event_invoke_config.history_worker[0]` (no retries,
+one-hour event age, failures to the queue); `aws_iam_role.history_scheduler[0]`
+and its policy (`lambda:InvokeFunction` on the worker, queue `SendMessage`,
+trusted only for schedule `-daily`); `aws_scheduler_schedule.history_daily[0]`
+(`-daily`, UTC, `ENABLED`, two delivery retries, dead-letter queue);
+`aws_cloudwatch_log_metric_filter.history_incomplete[0]`; alarms `-incomplete`,
+`-errors` and `-dead-letter`. **Applying stage 2 starts live LPS polling at the
+next scheduled time;** there is no dormant-worker stage.
 
-The worker inline policy allows archive-table `dynamodb:GetItem` and `PutItem`, `dynamodb:Query` on the exact `due-teams` index ARN, log-stream creation/write on its log group, and `sqs:SendMessage` on its queue. The scheduler role allows `lambda:InvokeFunction` on the worker and `sqs:SendMessage` on that queue, with a schedule-source ARN condition in its trust policy. Neither role has player-removal or unrelated portfolio permissions. Public-HTTP egress to LPS is a separate network/code control, not an IAM action. Each environment has two fixed-cardinality log metric filters and four history alarms after both stages are enabled; the production alarm destination ARN and a development alert destination remain unselected in this packet.
+### 6.4 Offline validation evidence
 
-### Saved-plan review procedure and current blocker
+- `task infrastructure-ci` passes on this branch (offline: formatting,
+  validation with `-backend=false`, the mocked `tofu test` suites including the
+  service module's 28 runs, ten of them history contracts, release script
+  tests and operator plan tests). It contacts no AWS account.
+- The service module's committed history contracts cover: nothing planned
+  without limits; limits alone activate nothing; collection needs the table,
+  limits and an alert destination; collection adds only the admission alarm;
+  the schedule needs collection and an expression; the worker is bounded,
+  reserved to one, and monitored; the worker and Scheduler roles are scoped
+  and inside the boundary.
+- The candidate tuple's scratch plan (section 3.3), the plan checker fixture
+  (6.1 item 5) and the boundary size estimate (6.1 item 3) were run offline for
+  this packet.
 
-1. Before an AWS-backed init or plan, obtain approval for the exact `dev` or `prod` root and its native S3 state-lock URI in `DEPLOY-INSTRUCTIONS.md`. Use only the reviewed non-root profile in `us-west-2`, a digest-qualified image, an absolute unused `PLAN_FILE`, and the environment's reviewed public identity and alarm inputs. `task lambda-dev-plan`/`task lambda-prod-plan` acquire AWS state locks; neither was run here. Keep the saved plan and its SHA-256 private.
-2. Review a **collection-only** plan first (`soccer_history_limits` set, `activate_soccer_history_collection=true`, `activate_soccer_history_schedule=false`, expression unset). This would activate new HTTP enrollment, not daily polling. Compare the archive table state, app environment/IAM changes, admission metric filter/alarm, boundary, alerts, and all other plan actions. It still needs source-use, spend, state-lock, plan, and apply approval.
-3. Separately review any **schedule** plan with an exact once-daily UTC `cron(...)` expression and `activate_soccer_history_schedule=true`. The Terraform resource has `state = "ENABLED"` and the worker/queue/roles/alarms appear only in this stage; an apply would immediately schedule live LPS requests. There is no dormant-worker plan in the current IaC. Require a distinct activation approval for the exact saved-plan hash, limits, schedule time, IAM boundary, queue redrive procedure, and expected resource actions.
-4. The current closed allowlists in `scripts/check-lambda-plan.sh` include the history table but **do not yet enumerate** the conditional `UpdateItem` policy or the new worker, Scheduler, SQS, metric-filter, and alarm addresses. Expand and test that offline checker against representative collection-only and schedule plan JSON before relying on `task lambda-plan-check` or approving an AWS-backed plan. The normal plan task calls this checker after producing a saved plan; a new-resource plan would presently fail its gate. Only expected create/update/no-op actions are acceptable; no delete, import, move, or unreviewed IAM widening.
+### 6.5 Reviewing a saved plan
 
-Offline mocked provider tests validate configuration without the backend, but do not replace a green full infrastructure gate, saved-plan inspection, effective IAM read-back, source-use permission, or live-resource verification. No AWS-backed plan or lock was attempted for this packet.
+Each step needs its own approval from Craig before it runs, because `plan`
+against a real backend takes the S3 state lock and reads live state, and
+`apply` changes AWS.
+
+1. Merge the repository changes in 6.1 after review, with
+   `task infrastructure-ci` green.
+2. **Account root first.** `aws sso login`, `task lambda-ci-roles-init`,
+   `task lambda-ci-roles-plan PLAN_FILE=/absolute/path/ci-roles.tfplan`.
+   Expect only updates to `aws_iam_policy.lambda_execution_boundary`, a create
+   of the second boundary policy, and updates to the CI role policies. Apply
+   with `task lambda-ci-roles-apply` only after approval.
+3. **Stage 1 in one environment.** With the stage 1 values in its
+   `*.auto.tfvars`, plan with the image digest the environment already runs, so
+   the plan shows only history changes:
+   `task lambda-dev-plan IMAGE_DIGEST=sha256:<live digest> PLAN_FILE=/absolute/path/dev-history-collection.tfplan`
+   (production: `task lambda-prod-plan`, which also sets the `alerts` topic).
+4. Review the saved plan without printing secrets:
+
+   ```sh
+   shasum -a 256 /absolute/path/dev-history-collection.tfplan
+   tofu -chdir=infra/lambda/environments/dev show -json /absolute/path/dev-history-collection.tfplan |
+     jq -r '.resource_changes[] | select(.change.actions != ["no-op"]) |
+       "\(.change.actions | join(",")) \(.address)"'
+   ```
+
+   Accept only the stage 1 rows in 6.3. Reject any delete, replace, import,
+   move, or IAM change beyond the table grant. Check the limits in the
+   function's planned environment.
+5. Apply exactly that file with `task lambda-dev-apply PLAN_FILE=…` after
+   approval of that plan hash. The CI plan checker rejects such plans by
+   design; infrastructure changes are applied by Craig, then the Release
+   workflow resumes.
+6. **Stage 2 is a separate decision** with its own plan, hash, review against
+   the stage 2 list, and approval that explicitly authorizes live LPS polling
+   at the reviewed time. Watch the first run's report line and the alarms.
 
 ## Remaining gates
 
-1. Obtain LPS's applicable AUP/API and written answer for the exact endpoints, worst-case **300 scheduled calls/day** under the candidate tuple and retries (or change delivery retries and recalculate), request pacing, and indefinite player evidence retention. Do not activate from the public terms alone.
-2. Close the **partial changed-game/retained-byte acceptance item** with permitted representative LPS response and facility measurements, archive item/GSI byte sizes, actual per-pass game upserts versus corrections, real RRU/WRU, worker duration, and retained growth. The 882-byte response and 768-byte fact-view fixtures are not live or billed measurements, and 0.1 GB/year is a scenario rather than an enforced lifetime bound. Review whether a durable daily call counter or a lower Scheduler retry limit is required to enforce the approved aggregate source budget.
-3. Obtain `us-west-2` AWS quotes for the exact dev/prod plan, select reviewed SNS alert destinations, and review the installed Lambda execution boundary plus worker/scheduler role grants. Extend `check-lambda-plan.sh` and its offline fixtures for #103's conditional resources, and restore the separate failing CI-role plan fixture, before any live saved-plan review.
-4. Obtain distinct source-use, state-lock/plan, collection creation, and later schedule activation approvals. Inspect each environment's exact saved-plan actions and hash; verify live state and failure alerts only after an authorized apply.
+Collection and scheduling stay blocked until every gate below is closed.
+Owner in brackets.
 
-Until those gates are met, **do not activate daily LPS polling**.
+1. **LPS permission** for unattended daily requests and indefinite retention,
+   with answers to the questions in section 2. [Craig]
+2. **Live source behaviour** measured under that permission: invalid-ID
+   responses, rate limiting, response sizes, games per response, facility
+   fanout, latency, and whether Team IDs persist across seasons. Recompute
+   sections 3 and 4 from them. [Craig to authorize; agent to measure]
+3. **Numeric limits and schedule** approved, starting from the candidate in
+   3.3, including whether dev runs the schedule at all. [Craig]
+4. **Admission policy**: accept a lifetime cap on distinct Team IDs, with
+   entered IDs refused once 10 teams are enrolled, or change the code to
+   release slots. [Craig; code if changed]
+5. **Import latency** with collection on: bound it in code or accept the risk
+   from measured `my_teams` latency. [Craig; code if changed]
+6. **Repository changes** in 6.1 items 1 to 6: environment wiring, dev alert
+   destination, boundary grants within the IAM size limit, CI role grants,
+   the plan checker, and release verification. [agent, reviewed by Craig]
+7. **Lambda concurrency** limit of at least 111 (112 if both environments run
+   the worker) before stage 2 (aws-setup #30). [aws-setup]
+8. **Site identity** in the environment before player-linked collection
+   (#88 for production). [Craig]
+9. **Cost acceptance** from a us-west-2 quote of the reviewed plan. [Craig]
+10. **Separate approvals** for the account root plan and apply, each
+    environment's stage 1 plan and apply, and each stage 2 plan and apply,
+    each for an exact saved-plan hash. [Craig]
+
+Until then, **do not activate collection or daily LPS polling.**
