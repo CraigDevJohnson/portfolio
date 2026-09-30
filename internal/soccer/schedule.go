@@ -296,9 +296,6 @@ func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Req
 			DownloadStatus:  http.StatusUnauthorized,
 		}
 	}
-	if detail.DownloadStatus == http.StatusUnauthorized || detail.DownloadStatus == http.StatusBadRequest {
-		detail.ClearSession = true
-	}
 	if detail.ClearSession {
 		h.clearSession(w, r)
 	}

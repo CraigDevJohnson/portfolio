@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -503,4 +504,108 @@ func TestPublicPlannerRouteRestoresPastOnlyScheduleAsEmptyICSOutput(t *testing.T
 	if rows := plannerGameRows(doc, "upcoming-games"); len(rows) != 0 {
 		t.Fatalf("past-only schedule rendered downloadable rows %v", plannerRowIDs(rows))
 	}
+}
+
+// importedLPSCookies returns a valid imported LPS session cookie so a case can
+// prove the public Team ID path leaves that private credential untouched.
+func importedLPSCookies(t *testing.T, app *App) []*http.Cookie {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	addSessionCookie(t, app, req, &types.SessionData{
+		JWT:       testutil.TestJWT(t, time.Now().Add(time.Hour)),
+		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Linked", LastName: "Player", IsMainPlayer: true}},
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	return req.Cookies()
+}
+
+func assertImportedAccessKept(t *testing.T, resp *httptest.ResponseRecorder) {
+	t.Helper()
+	for _, cookie := range resp.Result().Cookies() {
+		if cookie.Name == "lps_session" && (cookie.MaxAge < 0 || cookie.Value == "") {
+			t.Errorf("public Team ID request cleared the imported LPS session: %v", cookie)
+		}
+	}
+	if trigger := resp.Header().Get("HX-Trigger"); strings.Contains(trigger, "soccer-workflow-reset") {
+		t.Errorf("public Team ID request reset the workflow with HX-Trigger %q", trigger)
+	}
+}
+
+func TestPublicPlannerRouteExplainsRefusedTeamLookupWithoutTouchingImportedAccess(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		for _, imported := range []bool{false, true} {
+			name := fmt.Sprintf("LPS %d imported=%t", status, imported)
+			t.Run(name, func(t *testing.T) {
+				routes, app := newPublicPlannerRoutes(t, func(path string) (int, string) {
+					if path == "/teams/479691" {
+						return status, `{"message":"refused"}`
+					}
+					return 0, ""
+				})
+				var cookies []*http.Cookie
+				if imported {
+					cookies = importedLPSCookies(t, app)
+				}
+
+				fetch := servePublicPlanner(t, routes, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {"479691"}}, cookies...)
+				if fetch.Code != http.StatusOK {
+					t.Fatalf("POST /soccer/fetch status = %d", fetch.Code)
+				}
+				assertImportedAccessKept(t, fetch)
+				doc := parsePlannerHTML(t, fetch.Body.String())
+				heading := plannerSingle(t, doc, "result state heading", func(node *html.Node) bool { return node.Data == "h4" })
+				if got := plannerText(heading); got != "Could not fetch games" {
+					t.Fatalf("heading = %q, want Could not fetch games", got)
+				}
+				text := plannerText(doc)
+				for _, want := range []string{
+					"Let's Play Soccer would not share the schedule for team ID 479691.",
+					"Check that the team appears on the Let's Play Soccer Team Schedules page",
+				} {
+					if !strings.Contains(text, want) {
+						t.Errorf("refused lookup lacks %q: %q", want, text)
+					}
+				}
+				for _, forbidden := range []string{"token", "discovered player", "imported players"} {
+					if strings.Contains(text, forbidden) {
+						t.Errorf("refused public lookup blames private access with %q: %q", forbidden, text)
+					}
+				}
+
+				download := servePublicPlanner(t, routes, http.MethodPost, "/soccer/download", url.Values{
+					"team_codes": {"479691"},
+					"selected":   {"1"},
+				}, cookies...)
+				if download.Code != http.StatusBadGateway {
+					t.Fatalf("POST /soccer/download status = %d, want %d", download.Code, http.StatusBadGateway)
+				}
+				assertImportedAccessKept(t, download)
+				if body := download.Body.String(); strings.Contains(body, "token") || !strings.Contains(body, "team ID 479691") {
+					t.Errorf("refused download message = %q", body)
+				}
+			})
+		}
+	}
+}
+
+func TestPublicPlannerRouteRejectedTeamDownloadKeepsImportedAccess(t *testing.T) {
+	routes, app := newPublicPlannerRoutes(t, func(path string) (int, string) {
+		if path == "/teams/101" {
+			return http.StatusNotFound, `{"message":"not found"}`
+		}
+		return 0, ""
+	})
+
+	resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/download", url.Values{
+		"team_codes": {"101"},
+		"selected":   {"1"},
+	}, importedLPSCookies(t, app)...)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("POST /soccer/download status = %d, want %d", resp.Code, http.StatusBadRequest)
+	}
+	if body := resp.Body.String(); !strings.Contains(body, "team ID 101 was not accepted") {
+		t.Errorf("rejected team download message = %q", body)
+	}
+	assertImportedAccessKept(t, resp)
 }

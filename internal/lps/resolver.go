@@ -178,6 +178,7 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 
 	responseBody, err := executeAPIRequest(resolver.httpClient, req, teamID,
 		statusErrorKind{codes: []int{http.StatusBadRequest, http.StatusNotFound}, kind: ErrorInvalidTeam},
+		statusErrorKind{codes: []int{http.StatusUnauthorized, http.StatusForbidden}, kind: ErrorTeamRefused},
 	)
 	if err != nil {
 		return teamSchedule, err
