@@ -314,10 +314,22 @@ class WrapperTests(unittest.TestCase):
         return review
 
     def test_cli_failure_diagnostic_never_echoes_input(self):
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name('cognito-site-operator.py')), 'dev', 'plan'], env=dict(self.env, TF_LOG=SENTINEL), capture_output=True, check=False)
+        # The real script runs here, so only stub aws and tofu are on PATH and
+        # HOME hides the SSO cache: a regressed guard fails offline.
+        bin_dir = self.root / 'bin'
+        bin_dir.mkdir()
+        called = self.root / 'called.log'
+        for name in ['aws', 'tofu']:
+            (bin_dir / name).write_text('#!/bin/sh\nprintf \'%s\\n\' "$0 $*" >> "$STUB_LOG"\nexit 1\n')
+            (bin_dir / name).chmod(0o700)
+        env = dict(self.env, PATH=str(bin_dir), HOME=str(self.root), STUB_LOG=str(called), TF_LOG=SENTINEL)
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('cognito-site-operator.py')), 'dev', 'plan'], env=env, capture_output=True, check=False)
         self.assertEqual(result.returncode, 1)
         self.assertNotIn(SENTINEL.encode(), result.stdout + result.stderr)
         self.assertIn(b'Site identity operation rejected or failed', result.stderr)
+        # The TF_LOG refusal comes before any run directory or external command.
+        self.assertFalse(called.exists())
+        self.assertFalse(list(self.root.glob('cognito-site-*')))
 
     def test_plan_then_apply_exactly_the_saved_plan(self):
         for env in ENVIRONMENTS:
