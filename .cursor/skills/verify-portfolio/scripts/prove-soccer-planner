@@ -73,11 +73,14 @@ capture 04-deselected
 step 'Refetch the same team set' --filename "$STEPS/04-refetch.js"
 capture 05-refetched
 
-step 'Switch output and back' --filename "$STEPS/05-switch-output.js"
+step 'Switch output and back as the Google account' --filename "$STEPS/05-switch-output.js"
 capture 06-output-switched-back
 
-step 'Refetch with a stale imported session' --filename "$STEPS/06-cleared-import.js"
-capture 07-stale-import-cleared
+step 'Return to the public planner' --filename "$STEPS/06-return-public.js"
+capture 07-public-planner
+
+step 'Refetch with a stale imported session' --filename "$STEPS/07-cleared-import.js"
+capture 08-stale-import-cleared
 
 ICS_FILE="$EVIDENCE_DIR/soccer_schedule.ics"
 rm -f "$ICS_FILE"
@@ -97,13 +100,19 @@ fi
 printf 'ics: 3 events, UIDs 7003 7002 7004, deselected 7001 absent\n' | tee -a "$ASSERTIONS"
 
 step 'Recover from a failed first fetch' --filename "$STEPS/08-transport-failure.js"
-capture 08-failure-recovered
+capture 09-failure-recovered
 
 step 'Narrow layout' --filename "$STEPS/09-narrow.js"
-capture 09-narrow
+capture 10-narrow
 
 run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
 run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
+
+# Switching outputs is client-side: no Google Calendar route was called.
+if rg -q '/soccer/google/' "$EVIDENCE_DIR/browser-requests.txt"; then
+  fail 'the planner journey requested a Google Calendar route'
+fi
+printf '\n## Side effects\nno /soccer/google/ request in the browser request list\n' | tee -a "$ASSERTIONS"
 
 (
   cd "$EVIDENCE_DIR"
@@ -112,4 +121,4 @@ run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/n
   done
 ) >"$EVIDENCE_DIR/manifest.sha256"
 
-printf 'soccer-planner proof captured at %s (preview fake LPS; live LPS and Google were not tested)\n' "$EVIDENCE_DIR"
+printf 'soccer-planner proof captured at %s (preview fake LPS and preview Google account; live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"

@@ -1,12 +1,12 @@
-// Open the preview's granted account, choose Google Calendar with the
-// keyboard, and look up both preview teams by Team ID. Only a visitor with the
-// soccer grant has Google mode, so a public lookup shows no past results. The
-// review lists every scored past game once, newest first and selected,
-// including one from over a year ago, and leaves out the postponed game
-// without a score. The preview has no Google configuration, so its Google
-// option is disabled; this step enables that radio in the page to drive the
-// client-side output switch. It proves the review, not Google availability or
-// a Google write.
+// Open the preview's Google account, the granted preview account on a server
+// that offers Google Calendar, choose Google Calendar with the keyboard, and
+// look up both preview teams by Team ID. Only a visitor with the soccer grant
+// has Google mode, so a public lookup shows no past results. The review lists
+// every scored past game once, newest first and selected, including one from
+// over a year ago, and leaves out the postponed game without a score. The
+// account has no Google connection, so the review offers the connect prompt
+// and no result Sync; its Google controls answer in the preview and never
+// reach Google. It proves the review, not a Google connection or write.
 async page => {
   const fail = message => {
     throw new Error(`soccer past results proof (Team IDs in Google mode): ${message}`)
@@ -14,16 +14,14 @@ async page => {
   const squash = text => (text || '').replace(/\s+/g, ' ').trim()
 
   const { origin } = new URL(page.url())
-  await page.goto(`${origin}/__preview/account/soccer-linked`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${origin}/__preview/account/soccer-google`, { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => window.sessionStorage.clear())
   await page.reload({ waitUntil: 'domcontentloaded' })
   if (new URL(page.url()).pathname !== '/soccer') fail(`the preview entry landed on ${page.url()}`)
   const account = squash(await page.locator('nav[aria-label="Main navigation"] .site-account-email').first().textContent())
   if (account !== 'invited.visitor@example.com') fail(`navigation account is ${JSON.stringify(account)}`)
   const google = page.locator('input[name="calendar_output"][value="google"]')
-  await google.evaluate(input => {
-    input.disabled = false
-  })
+  if (await google.isDisabled()) fail('Google Calendar is not offered to the preview Google account')
   await google.focus()
   await page.keyboard.press('Space')
   if (!(await google.isChecked())) fail('Space did not choose the Google Calendar output')
@@ -63,8 +61,10 @@ async page => {
   if (await page.locator('#download-button').isVisible()) fail('the .ics download is visible in Google mode')
   if (await page.locator('[data-game-action][data-game-group="past-results"]').count()) fail('Sync is offered without a Google connection')
   const googleNote = squash(await page.locator('.soccer-google-cta:visible').textContent())
-  if (!googleNote.includes('Google Calendar add is unavailable in this environment')) fail(`Google note is ${JSON.stringify(googleNote)}`)
+  if (!googleNote.includes('Connect Google Calendar to add selected games directly or sync selected past results.')) fail(`Google note is ${JSON.stringify(googleNote)}`)
+  const connect = await page.locator('.soccer-google-cta:visible a').getAttribute('href')
+  if (connect !== '/soccer/google/connect') fail(`the connect prompt leads to ${connect}`)
   const scope = await page.locator('[data-team-fingerprint]').getAttribute('data-team-fingerprint')
   if (scope !== '479147-479691') fail(`team-set scope is ${scope}`)
-  return { route: '/soccer', account, rows, heading, count, scope, googleNote }
+  return { route: '/soccer', account, rows, heading, count, scope, googleNote, connect }
 }

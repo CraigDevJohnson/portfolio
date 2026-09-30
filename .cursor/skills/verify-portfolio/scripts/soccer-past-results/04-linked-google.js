@@ -1,10 +1,8 @@
 // The linked-player source reviews the same scored past games. The browser
-// reopens the preview's granted account, imports a fake token through the
-// real dialog (never a real JWT), keeps both players and their teams, chooses
-// Google Calendar with the keyboard, and fetches. Selection memory is cleared
-// first, because the Team ID steps used the same team set. As in the Team ID
-// step, the disabled Google option is enabled in the page only to drive the
-// client-side output switch.
+// reopens the preview's Google account, chooses Google Calendar with the
+// keyboard, imports a fake token through the real dialog (never a real JWT),
+// keeps both players and their teams, and fetches. Selection memory is
+// cleared first, because the Team ID steps used the same team set.
 async page => {
   const fail = message => {
     throw new Error(`soccer past results proof (linked players in Google mode): ${message}`)
@@ -14,7 +12,7 @@ async page => {
   const fakeJWT = [encode({ alg: 'none', typ: 'JWT' }), encode({ exp: Math.floor(Date.now() / 1000) + 3600 }), 'preview-signature'].join('.')
 
   const { origin } = new URL(page.url())
-  await page.goto(`${origin}/__preview/account/soccer-linked`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${origin}/__preview/account/soccer-google`, { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => window.sessionStorage.clear())
   await page.reload({ waitUntil: 'domcontentloaded' })
   if (new URL(page.url()).pathname !== '/soccer') fail(`the preview entry landed on ${page.url()}`)
@@ -22,9 +20,7 @@ async page => {
   if (account !== 'invited.visitor@example.com') fail(`navigation account is ${JSON.stringify(account)}`)
 
   const google = page.locator('input[name="calendar_output"][value="google"]')
-  await google.evaluate(input => {
-    input.disabled = false
-  })
+  if (await google.isDisabled()) fail('Google Calendar is not offered to the preview Google account')
   await google.focus()
   await page.keyboard.press('Space')
   if (!(await google.isChecked())) fail('Space did not choose the Google Calendar output')

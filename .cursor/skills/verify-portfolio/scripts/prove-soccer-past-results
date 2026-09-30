@@ -101,4 +101,4 @@ run_pw run-code "async (page) => { await page.context().clearCookies(); await pa
   done
 ) >"$EVIDENCE_DIR/manifest.sha256"
 
-printf 'soccer-past-results proof captured at %s (preview fake LPS and preview account; live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"
+printf 'soccer-past-results proof captured at %s (preview fake LPS and preview Google account; live Cognito, LPS, and Google were not tested)\n' "$EVIDENCE_DIR"
