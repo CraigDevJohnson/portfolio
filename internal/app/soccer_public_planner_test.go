@@ -218,6 +218,9 @@ func TestPublicPlannerRouteOffersOutputChoiceFirstWithoutSession(t *testing.T) {
 	if !slices.Equal(values, []string{"ics", "google"}) {
 		t.Fatalf("calendar output options = %v, want [ics google]", values)
 	}
+	if label := plannerText(options[0].Parent); !strings.HasPrefix(label, "Download an .ics file") {
+		t.Errorf("ICS output label = %q; use the documented .ics file wording", label)
+	}
 	// This runtime has no Google Calendar configuration.
 	if plannerHasAttr(options[0], "disabled") || !plannerHasAttr(options[1], "disabled") {
 		t.Error("only ICS may be chosen when Google Calendar is not configured")

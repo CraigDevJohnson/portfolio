@@ -65,16 +65,16 @@ templ Soccer(props SoccerProps) {
 			}
 			<section class="page-section soccer-output-choice" data-soccer-stage="calendar-output" aria-labelledby="soccer-output-title">
 				@partials.SectionIntro(partials.SectionIntroProps{
-					Label: "Start here",
+					Label: "Calendar output",
 					Title: "Choose your calendar output",
-					Description: "Download a calendar file without signing in, or use Google Calendar when your account is connected.",
+					Description: "Download an .ics file without signing in, or use Google Calendar when your account is connected.",
 					HeadingID: "soccer-output-title",
 				})
 				<fieldset class="soccer-output-options" aria-describedby="soccer-output-hint">
 					<legend class="sr-only">Calendar output</legend>
 					<label class="soccer-output-option">
 						<input type="radio" name="calendar_output" value="ics" data-soccer-output-option/>
-						<span><strong>Download ICS</strong><small>Use any calendar app. Team ID lookup and download are public.</small></span>
+						<span><strong>Download an .ics file</strong><small>Use any calendar app. Team ID lookup and download are public.</small></span>
 					</label>
 					<label class="soccer-output-option">
 						if props.AuthState.SupportsGoogle() {
@@ -111,7 +111,7 @@ templ Soccer(props SoccerProps) {
 						HeadingID:   "soccer-planner-title",
 					})
 					<ol class="soccer-stage-legend" aria-label="Matchday planner stages">
-						<li><span aria-hidden="true">1</span><strong>Choose output</strong><small>ICS or Google Calendar</small></li>
+						<li><span aria-hidden="true">1</span><strong>Choose output</strong><small>.ics file or Google Calendar</small></li>
 						<li><span aria-hidden="true">2</span><strong>Choose source</strong><small>Team IDs or linked players</small></li>
 						<li data-soccer-private-stage hidden><span aria-hidden="true">3</span><strong>Select players</strong><small>Choose linked players</small></li>
 						<li data-soccer-private-stage hidden><span aria-hidden="true">4</span><strong>Confirm teams</strong><small>Review current teams</small></li>
