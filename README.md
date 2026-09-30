@@ -142,12 +142,20 @@ Register each application URL ending in `/soccer` as an authorized redirect
 URI in the Google OAuth client. Local DynamoDB access uses the standard AWS
 credential chain.
 
-Calendar consent requests `openid` and `email` alongside the Calendar scopes.
-The page suggests the verified site email, while a separate account chooser
-allows another Google account. The callback reads the verified Google account
-from the UserInfo endpoint and displays that address; the site email is never
-treated as confirmation of the Calendar owner. Older connections without a
-verified Google account require reconnection before calendar use.
+Calendar consent is separate from site sign-in and requests `openid` and
+`email` alongside the Calendar scopes. **Connect Google Calendar** passes the
+site sign-in email to Google as `login_hint`; **Use another Google account**
+opens Google's account chooser instead. The callback reads the consenting
+account from Google's UserInfo endpoint, stores it with the connection, and the
+page shows that address; the site email is never treated as confirmation of
+the Calendar owner. A connection without a verified Google account is not used
+and is replaced on reconnection.
+
+The connection belongs to the site owner who consented. Site sign-out keeps it
+for that owner's next sign-in in the same browser, while a signed-out visitor
+or another site owner cannot see or use it. **Disconnect** asks Google to
+revoke the Calendar grant, then deletes the stored connection and its cookie;
+the stored connection is deleted even when Google cannot be reached.
 
 The encrypted browser cookie is the Soccer workflow source of truth. Imported
 access and Google OAuth state are bound to the validated Cognito issuer and

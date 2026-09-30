@@ -224,6 +224,13 @@ deployed environment until that environment has site sign-in:
   and then deletes the rows with an empty `owner_subject`. That cleanup deletes
   live data and needs Craig's approval.
 - Team ID lookup and .ics file downloads stay public throughout.
+- Google Calendar consent (#93) also requests the basic `openid` and `email`
+  scopes so the page can show the Google account that actually connected. If
+  the Google OAuth consent screen lists its scopes, add those two alongside the
+  Calendar scopes; the `/soccer` redirect URIs are unchanged. The server now
+  also calls Google's UserInfo endpoint after consent and its token revocation
+  endpoint on **Disconnect**. An owner-bound connection saved before #93 has no
+  verified Google account, so it is not used until its owner reconnects.
 
 Record the release order as an explicit decision before approving the next
 `production` apply that contains #86. Either accept that production LPS import
