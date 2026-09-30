@@ -260,6 +260,80 @@ func TestManualTeamLookupWithArchiveKeepsTheUsualSchedule(t *testing.T) {
 	route.assertNotArchived(t, 888888)
 }
 
+func TestManualTeamLookupKeepsTheScheduleWhenOnlyTheTeamFacilityFails(t *testing.T) {
+	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
+	route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/479691":
+			// The team's home facility (9) is not where its game is played (5).
+			_, _ = fmt.Fprint(w, strings.Replace(boiseFCSchedule(future), `"UTeamID":479691,"team_name":"Boise FC","division_name":"Open A","FacilityID":5`, `"UTeamID":479691,"team_name":"Boise FC","division_name":"Open A","FacilityID":9`, 1))
+		case "/facilities/5":
+			_, _ = fmt.Fprint(w, archiveFacilityResponse)
+		case "/facilities/9":
+			http.NotFound(w, r)
+		default:
+			t.Errorf("unexpected LPS request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	})
+	route.handler.SetArchiveStore(nil)
+	usual := route.lookup(t, "479691")
+	if !strings.Contains(usual, "Away FC") {
+		t.Fatalf("usual lookup did not render the game: %q", usual)
+	}
+
+	route.handler.SetArchiveStore(route.store)
+	archived := route.lookup(t, "479691")
+
+	if !strings.HasSuffix(archived, usual) || !strings.Contains(archived, "Team 479691 added to history collection.") {
+		t.Fatalf("team facility failure changed the archived lookup\nusual:    %q\narchived: %q", usual, archived)
+	}
+	history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+	if err != nil {
+		t.Fatalf("ReadTeamSeason: %v", err)
+	}
+	if history.Team.FacilityID != 9 || len(history.Facilities) != 1 || history.Facilities[0].FacilityID != 5 {
+		t.Fatalf("stored team facility context = %#v, facilities %#v; want team facility 9 without its details and game facility 5", history.Team, history.Facilities)
+	}
+}
+
+func TestEmptyManualTeamLookupEnrollsWhenTheTeamFacilityFails(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusInternalServerError} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			route := newArchiveRoute(t, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/teams/479691":
+					_, _ = fmt.Fprint(w, `{"team":{"UTeamID":479691,"team_name":"Dormant FC","FacilityID":9,"Season":169},"games":[]}`)
+				case "/facilities/9":
+					http.Error(w, http.StatusText(status), status)
+				default:
+					t.Errorf("unexpected LPS request: %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			})
+			route.handler.SetArchiveStore(nil)
+			if usual := route.lookup(t, "479691"); !strings.Contains(usual, "No games found for the provided request.") {
+				t.Fatalf("usual empty lookup: %q", usual)
+			}
+
+			route.handler.SetArchiveStore(route.store)
+			archived := route.lookup(t, "479691")
+
+			if !strings.Contains(archived, "Let&#39;s Play Soccer accepted the team ID but returned no games.") ||
+				!strings.Contains(archived, "Team 479691 added to history collection.") || strings.Contains(archived, "Could not load schedules") {
+				t.Fatalf("empty schedule with a failed team facility lookup: %q", archived)
+			}
+			history, err := route.store.ReadTeamSeason(context.Background(), 479691, 169)
+			if err != nil {
+				t.Fatalf("ReadTeamSeason: %v", err)
+			}
+			if history.Coverage.Status != soccerarchive.CoverageFetched || history.Coverage.ReturnedGameCount != 0 || history.Team.FacilityID != 9 || len(history.Facilities) != 0 {
+				t.Fatalf("empty schedule archived as %#v", history)
+			}
+		})
+	}
+}
+
 func TestManualTeamLookupNeverArchivesImportedPlayerAccess(t *testing.T) {
 	const playerID = 7654321
 	route := newArchiveRoute(t, boiseFCLPS(t, testutil.MislabelledLPSZuluTime(time.Now().Add(24*time.Hour))))

@@ -451,12 +451,11 @@ func (resolver *ScheduleResolver) mapTeamGames(ctx context.Context, response *Te
 }
 
 // fetchSourceFacilities records the facilities behind a team's mapped games,
-// plus the team's own facility, on its archive source.
+// plus a confirmed team's own facility, on its archive source.
 func (resolver *ScheduleResolver) fetchSourceFacilities(ctx context.Context, source *TeamScheduleSource, games []types.Game) error {
+	// Mapping already fetched (and cached) each game's facility, so those
+	// lookups fail the request exactly as they do on the ordinary path.
 	facilityIDs := make(map[int]struct{})
-	if source.Response.Team.FacilityID > 0 {
-		facilityIDs[source.Response.Team.FacilityID] = struct{}{}
-	}
 	for i := range games {
 		game := &games[i]
 		if game.Facility != nil && game.Facility.ID > 0 {
@@ -469,6 +468,16 @@ func (resolver *ScheduleResolver) fetchSourceFacilities(ctx context.Context, sou
 			return err
 		}
 		source.Facilities = append(source.Facilities, facility)
+	}
+	// A confirmed team's own facility is archive-only context that the
+	// visitor's schedule does not use: a failed lookup leaves it out instead
+	// of taking the schedule away.
+	if team := source.Response.Team; team.UTeamID == source.TeamID && team.FacilityID > 0 {
+		if _, fetched := facilityIDs[team.FacilityID]; !fetched {
+			if facility, err := resolver.FetchFacility(ctx, team.FacilityID); err == nil {
+				source.Facilities = append(source.Facilities, facility)
+			}
+		}
 	}
 	sort.Slice(source.Facilities, func(i, j int) bool { return source.Facilities[i].FacilityID < source.Facilities[j].FacilityID })
 	return nil
