@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -23,8 +24,12 @@ import (
 //     rather than falling back to primary.
 //   - A writable destination takes Google's current name for it.
 //
-// It returns the destination and whether it accepts writes now.
+// The save applies only over the copy of the connection this request read,
+// so it never restores a connection removed meanwhile or undoes another
+// request's save; it then returns ErrConnectionChanged. It returns the
+// destination and whether it accepts writes now.
 func (h *Handler) reconcileCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (id, summary string, writable bool, err error) {
+	read := record.UpdatedAt
 	id = strings.TrimSpace(record.CalendarID)
 	summary = calendarSummary(calendars, id)
 	if record.CalendarSelectionRequired {
@@ -47,7 +52,7 @@ func (h *Handler) reconcileCalendarSelection(ctx context.Context, record *Connec
 		changed = true
 	}
 	if changed {
-		if err := h.Store().Put(ctx, record); err != nil {
+		if err := h.Store().PutIfUnchanged(ctx, record, read); err != nil {
 			return id, summary, false, err
 		}
 	}
@@ -55,11 +60,15 @@ func (h *Handler) reconcileCalendarSelection(ctx context.Context, record *Connec
 }
 
 // SyncCalendarSelection reconciles the connection's destination for a page
-// view and returns the destination to show. A failed save is logged; the
-// next page view or Add tries again.
+// view and returns the destination to show. A save that failed, or that
+// another request's save overtook, is logged; the next page view or Add
+// reconciles again.
 func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
 	calendarID, summary, _, err := h.reconcileCalendarSelection(ctx, record, calendars)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrConnectionChanged):
+		logging.WithContext(h.Logger, ctx).Info("google connection changed before its destination was saved")
+	case err != nil:
 		logging.WithContext(h.Logger, ctx).Error("google calendar selection save failed", slog.Any("error", err))
 	}
 	return calendarID, summary
@@ -80,9 +89,17 @@ func (h *Handler) ensureWritableCalendar(ctx context.Context, record *Connection
 }
 
 // pauseCalendarSelection records that writes wait for a new calendar choice.
+// When another request removed or saved the connection since this one read
+// it, that newer state stands and nothing is paused.
 func (h *Handler) pauseCalendarSelection(ctx context.Context, record *ConnectionRecord) error {
+	read := record.UpdatedAt
 	if !record.pauseSelection(time.Now().UTC()) {
 		return nil
 	}
-	return h.Store().Put(ctx, record)
+	err := h.Store().PutIfUnchanged(ctx, record, read)
+	if errors.Is(err, ErrConnectionChanged) {
+		logging.WithContext(h.Logger, ctx).Info("google connection changed during the request; destination not paused")
+		return nil
+	}
+	return err
 }

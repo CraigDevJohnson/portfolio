@@ -3,9 +3,11 @@ package google
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -16,7 +18,16 @@ type ConnectionStore interface {
 	Delete(ctx context.Context, connectionID string) error
 	Get(ctx context.Context, connectionID string) (*ConnectionRecord, error)
 	Put(ctx context.Context, record *ConnectionRecord) error
+	// PutIfUnchanged saves record only while the stored connection still
+	// exists and was last saved at readUpdatedAt, the UpdatedAt of the copy
+	// this request read. Otherwise it saves nothing and returns
+	// ErrConnectionChanged.
+	PutIfUnchanged(ctx context.Context, record *ConnectionRecord, readUpdatedAt time.Time) error
 }
+
+// ErrConnectionChanged reports that a connection was not saved because
+// another request removed or saved it after this one read it.
+var ErrConnectionChanged = errors.New("google connection changed since it was read")
 
 // ConnectionRecord stores the encrypted Google token and selected calendar.
 type ConnectionRecord struct {
@@ -87,6 +98,9 @@ func NewConnectionStore(ctx context.Context, tableName string) (ConnectionStore,
 func (NoopStore) Delete(_ context.Context, _ string) error                   { return nil }
 func (NoopStore) Get(_ context.Context, _ string) (*ConnectionRecord, error) { return nil, nil }
 func (NoopStore) Put(_ context.Context, _ *ConnectionRecord) error           { return nil }
+func (NoopStore) PutIfUnchanged(_ context.Context, _ *ConnectionRecord, _ time.Time) error {
+	return nil
+}
 
 func (s *DynamoStore) Delete(ctx context.Context, connectionID string) error {
 	if strings.TrimSpace(connectionID) == "" {
@@ -130,5 +144,29 @@ func (s *DynamoStore) Put(ctx context.Context, record *ConnectionRecord) error {
 		Item:      item,
 		TableName: &s.tableName,
 	})
+	return err
+}
+
+// PutIfUnchanged uses a conditional PutItem, so it needs no DynamoDB
+// permission beyond Put.
+func (s *DynamoStore) PutIfUnchanged(ctx context.Context, record *ConnectionRecord, readUpdatedAt time.Time) error {
+	item, err := attributevalue.MarshalMap(record)
+	if err != nil {
+		return err
+	}
+	read, err := attributevalue.Marshal(readUpdatedAt)
+	if err != nil {
+		return err
+	}
+	_, err = s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		Item:                      item,
+		TableName:                 &s.tableName,
+		ConditionExpression:       aws.String("attribute_exists(connection_id) AND updated_at = :read_updated_at"),
+		ExpressionAttributeValues: map[string]dynamodbTypes.AttributeValue{":read_updated_at": read},
+	})
+	var changed *dynamodbTypes.ConditionalCheckFailedException
+	if errors.As(err, &changed) {
+		return ErrConnectionChanged
+	}
 	return err
 }

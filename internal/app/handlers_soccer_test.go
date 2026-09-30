@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,17 +19,22 @@ import (
 )
 
 type appTestGoogleConnectionStore struct {
+	mu      sync.Mutex
 	records map[string]internalgoogle.ConnectionRecord
 	// getErr, when set, fails every read as an unavailable table would.
 	getErr error
 }
 
 func (s *appTestGoogleConnectionStore) Delete(_ context.Context, connectionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.records, connectionID)
 	return nil
 }
 
 func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID string) (*internalgoogle.ConnectionRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.getErr != nil {
 		return nil, s.getErr
 	}
@@ -41,8 +47,28 @@ func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID strin
 }
 
 func (s *appTestGoogleConnectionStore) Put(_ context.Context, record *internalgoogle.ConnectionRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.records[record.ConnectionID] = *record
 	return nil
+}
+
+func (s *appTestGoogleConnectionStore) PutIfUnchanged(_ context.Context, record *internalgoogle.ConnectionRecord, readUpdatedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stored, ok := s.records[record.ConnectionID]; !ok || !stored.UpdatedAt.Equal(readUpdatedAt) {
+		return internalgoogle.ErrConnectionChanged
+	}
+	s.records[record.ConnectionID] = *record
+	return nil
+}
+
+// edit changes the stored connections as another request would, while a
+// request under test may be running.
+func (s *appTestGoogleConnectionStore) edit(change func(records map[string]internalgoogle.ConnectionRecord)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	change(s.records)
 }
 
 func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {

@@ -31,6 +31,10 @@ func (testConnectionStore) Get(context.Context, string) (*internalgoogle.Connect
 
 func (testConnectionStore) Put(context.Context, *internalgoogle.ConnectionRecord) error { return nil }
 
+func (testConnectionStore) PutIfUnchanged(context.Context, *internalgoogle.ConnectionRecord, time.Time) error {
+	return nil
+}
+
 type recordingProxyV2 struct {
 	calls  int
 	events []events.APIGatewayV2HTTPRequest

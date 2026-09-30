@@ -69,7 +69,10 @@ type fakeGoogleCalendars struct {
 	// listPageSize, when set, is how many calendars each calendar list page
 	// holds; Google may return fewer than the page size asked for.
 	listPageSize int
-	eventCalls   []string
+	// beforeEventWrite, when set, runs as each event insert or update
+	// arrives, before Google answers it.
+	beforeEventWrite func()
+	eventCalls       []string
 }
 
 type googleRefusal struct {
@@ -167,6 +170,9 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if fake.beforeEventWrite != nil {
+			fake.beforeEventWrite()
+		}
 		if refusal, refused := fake.refuseEvents[event.ID]; refused {
 			writeGoogleError(w, refusal)
 			return
@@ -230,6 +236,12 @@ func (fake *fakeGoogleCalendars) refuseEventWrite(eventID string, refusal google
 		fake.refuseEvents = map[string]googleRefusal{}
 	}
 	fake.refuseEvents[eventID] = refusal
+}
+
+func (fake *fakeGoogleCalendars) onEventWrite(hook func()) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.beforeEventWrite = hook
 }
 
 // addEvent places an event in a calendar as if another client had written it.
@@ -502,6 +514,59 @@ func TestADestinationLostPartwayThroughAnAddReportsTheGamesAlreadyAdded(t *testi
 		if !strings.Contains(added, want) {
 			t.Errorf("Add that lost its destination partway answered %q; want it to say %q", added, want)
 		}
+	}
+}
+
+func TestAPauseDuringAnAddLeavesAConnectionChangedMeanwhileAsItNowIs(t *testing.T) {
+	for _, meanwhile := range []struct {
+		name   string
+		change func(records map[string]internalgoogle.ConnectionRecord)
+		check  func(t *testing.T, world *calendarDestinationWorld)
+	}{
+		{
+			name: "disconnected in another tab",
+			change: func(records map[string]internalgoogle.ConnectionRecord) {
+				clear(records)
+			},
+			check: func(t *testing.T, world *calendarDestinationWorld) {
+				if len(world.store.records) != 0 {
+					t.Fatal("the paused Add saved the disconnected connection again")
+				}
+			},
+		},
+		{
+			name: "primary chosen in another tab",
+			change: func(records map[string]internalgoogle.ConnectionRecord) {
+				for id, record := range records {
+					record.CalendarID, record.CalendarSummary = primaryCalendarID, primaryCalendarName
+					record.UpdatedAt = time.Now().UTC()
+					records[id] = record
+				}
+			},
+			check: func(t *testing.T, world *calendarDestinationWorld) {
+				if page := world.page(t); !strings.Contains(page, calendarReady) || selectedCalendar(t, page) != primaryCalendarID {
+					t.Fatal("the paused Add overwrote the calendar chosen meanwhile")
+				}
+				if added := world.add(t, laterGameID); !strings.Contains(added, "Added 1 selected game") || len(world.google.events(primaryCalendarID)) != 1 {
+					t.Fatalf("Add after the other tab's choice did not go to it: %q", added)
+				}
+			},
+		},
+	} {
+		t.Run(meanwhile.name, func(t *testing.T) {
+			world := newCalendarDestinationWorld(t)
+			world.connect(t)
+			world.choose(t, teamCalendarID)
+			world.fetch(t)
+			// Google reports the team calendar gone only once the insert
+			// arrives, after another tab has changed the connection.
+			world.google.refuseEventWrite(nextGameID, googleRefusal{http.StatusNotFound, "global", "notFound"})
+			world.google.onEventWrite(func() { world.store.edit(meanwhile.change) })
+
+			world.add(t, nextGameID)
+			world.google.onEventWrite(nil)
+			meanwhile.check(t, world)
+		})
 	}
 }
 

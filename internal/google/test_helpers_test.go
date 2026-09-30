@@ -106,6 +106,14 @@ func (s *fakeConnectionStore) Put(_ context.Context, record *ConnectionRecord) e
 	return nil
 }
 
+func (s *fakeConnectionStore) PutIfUnchanged(_ context.Context, record *ConnectionRecord, readUpdatedAt time.Time) error {
+	if stored, ok := s.records[record.ConnectionID]; !ok || !stored.UpdatedAt.Equal(readUpdatedAt) {
+		return ErrConnectionChanged
+	}
+	s.records[record.ConnectionID] = *record
+	return nil
+}
+
 type stubSoccerBridge struct {
 	lastFeedbackKind       string
 	lastFeedbackMessage    string

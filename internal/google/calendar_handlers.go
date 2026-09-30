@@ -342,8 +342,14 @@ func (h *Handler) CalendarHandler(w http.ResponseWriter, r *http.Request) {
 		h.Soccer.RenderLoginStateRefresh(w, r, session)
 		return
 	}
+	read := record.UpdatedAt
 	record.selectCalendar(selectedCalendarID, selectedCalendarSummary, time.Now().UTC())
-	if err := h.Store().Put(r.Context(), record); err != nil {
+	switch err := h.Store().PutIfUnchanged(r.Context(), record, read); {
+	case errors.Is(err, ErrConnectionChanged):
+		// A connection removed or saved meanwhile keeps its newer state,
+		// which the refreshed card shows.
+		logging.WithContext(h.Logger, r.Context()).Info("google connection changed before the calendar choice was saved")
+	case err != nil:
 		logging.WithContext(h.Logger, r.Context()).Error("google calendar selection save failed", slog.Any("error", err))
 	}
 	h.Soccer.RenderLoginStateRefresh(w, r, session)
