@@ -72,6 +72,10 @@ run_pw resize 1440 1000
 step 'Direct Google requests from the production entry' --filename "$STEPS/04-direct-requests.js"
 capture 04-production-soccer-signed-out
 
+step 'Paused destination calendar (preview fixture)' --filename "$STEPS/05-paused-destination.js"
+capture 05-paused-destination-narrow
+run_pw resize 1440 1000
+
 run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
 run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
 

@@ -20,7 +20,7 @@ import (
 var soccerPreviewFixtureNames = []string{
 	"manual", "import", "token-invalid", "token-expired", "token-rejected", "token-upstream-error",
 	"players", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
-	"google-disconnected", "google-connected", "google-add-success", "google-add-error",
+	"google-disconnected", "google-connected", "google-calendar-paused", "google-add-success", "google-add-error",
 	"google-sync-success", "google-sync-error", "expired-session-reset", "loading",
 }
 
@@ -98,6 +98,15 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 		return page, true
 	case "google-connected":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
+		page.Results = soccerPreviewResults(upcoming, past, true, true)
+		return page, true
+	case "google-calendar-paused":
+		// The chosen destination left the account, so writes wait for a new
+		// choice instead of falling back to the primary calendar.
+		page.Page.AuthState = soccerPreviewGoogleState(true)
+		page.Page.AuthState.GoogleCalendarNeedsSelection = true
+		page.Page.AuthState.GoogleCalendarSummary = ""
+		page.Page.AuthState.SelectedGoogleCalendarID = "preview-removed"
 		page.Results = soccerPreviewResults(upcoming, past, true, true)
 		return page, true
 	case "google-add-success":

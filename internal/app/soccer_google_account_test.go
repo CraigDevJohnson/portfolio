@@ -442,6 +442,15 @@ func TestGooglePreviewFixturesShowTheSuggestedAndConnectedAccountsInertly(t *tes
 			},
 			gone: []string{"data-google-suggested-account"},
 		},
+		{
+			name: "google-calendar-paused",
+			present: []string{
+				"Calendar selection needed", "Connected Google account: <strong data-google-account>calendar@example.com</strong>",
+				"Choose a writable calendar before adding games. Writes are paused until you save a destination.",
+				`<option value="" selected disabled>Choose a writable calendar</option>`,
+			},
+			gone: []string{"Calendar ready", "Connected to Matchdays", "preview-matchdays\" selected"},
+		},
 	} {
 		body := soccerGrantRequest(preview, http.MethodGet, "/__preview/soccer/"+fixture.name, nil).Body.String()
 		for _, marker := range fixture.present {

@@ -16,7 +16,7 @@ import (
 var soccerPreviewFixtureNamesForTest = []string{
 	"manual", "import", "token-invalid", "token-expired", "token-rejected", "token-upstream-error",
 	"players", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
-	"google-disconnected", "google-connected", "google-add-success", "google-add-error",
+	"google-disconnected", "google-connected", "google-calendar-paused", "google-add-success", "google-add-error",
 	"google-sync-success", "google-sync-error", "expired-session-reset", "loading",
 }
 
@@ -34,10 +34,10 @@ func TestLocalPreviewSkipsLiveStoreInitialization(t *testing.T) {
 
 func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 	if !reflect.DeepEqual(soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest) {
-		t.Fatalf("preview fixture names = %#v, want exact closed 21-name set %#v", soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest)
+		t.Fatalf("preview fixture names = %#v, want exact closed 22-name set %#v", soccerPreviewFixtureNames, soccerPreviewFixtureNamesForTest)
 	}
-	if got := len(soccerPreviewFixtureNames); got != 21 {
-		t.Fatalf("preview fixture count = %d, want 21", got)
+	if got := len(soccerPreviewFixtureNames); got != 22 {
+		t.Fatalf("preview fixture count = %d, want 22", got)
 	}
 	type fixtureState struct {
 		authenticated, loginAvailable bool
@@ -47,31 +47,33 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 		googleAvailable               bool
 		googleConnected               bool
 		calendars                     int
+		calendarPaused                bool
 		feedback                      string
 		loading                       bool
 	}
 	wantStates := map[string]fixtureState{
-		"manual":                {},
-		"import":                {loginAvailable: true},
-		"token-invalid":         {loginAvailable: true, modalOpen: true, feedback: "modal:error:Token format is invalid"},
-		"token-expired":         {loginAvailable: true, modalOpen: true, feedback: "modal:error:Token expired"},
-		"token-rejected":        {loginAvailable: true, modalOpen: true, feedback: "modal:rejected:Token rejected"},
-		"token-upstream-error":  {loginAvailable: true, modalOpen: true, feedback: "modal:upstream:Player lookup unavailable"},
-		"players":               {authenticated: true, loginAvailable: true, players: 2},
-		"no-players":            {authenticated: true, loginAvailable: true},
-		"team-selection":        {authenticated: true, loginAvailable: true, players: 2, teamGroups: 2},
-		"no-games":              {loginAvailable: true},
-		"upcoming":              {upcoming: 2},
-		"past":                  {past: 2},
-		"combined":              {upcoming: 2, past: 2},
-		"google-disconnected":   {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true},
-		"google-connected":      {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2},
-		"google-add-success":    {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:success:Selected games added"},
-		"google-add-error":      {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:google-error:Selected games were not added"},
-		"google-sync-success":   {authenticated: true, loginAvailable: true, players: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:success:Selected results synced"},
-		"google-sync-error":     {authenticated: true, loginAvailable: true, players: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:google-error:Selected results were not synced"},
-		"expired-session-reset": {loginAvailable: true, feedback: "page:error:Imported session expired"},
-		"loading":               {loginAvailable: true, loading: true},
+		"manual":                 {},
+		"import":                 {loginAvailable: true},
+		"token-invalid":          {loginAvailable: true, modalOpen: true, feedback: "modal:error:Token format is invalid"},
+		"token-expired":          {loginAvailable: true, modalOpen: true, feedback: "modal:error:Token expired"},
+		"token-rejected":         {loginAvailable: true, modalOpen: true, feedback: "modal:rejected:Token rejected"},
+		"token-upstream-error":   {loginAvailable: true, modalOpen: true, feedback: "modal:upstream:Player lookup unavailable"},
+		"players":                {authenticated: true, loginAvailable: true, players: 2},
+		"no-players":             {authenticated: true, loginAvailable: true},
+		"team-selection":         {authenticated: true, loginAvailable: true, players: 2, teamGroups: 2},
+		"no-games":               {loginAvailable: true},
+		"upcoming":               {upcoming: 2},
+		"past":                   {past: 2},
+		"combined":               {upcoming: 2, past: 2},
+		"google-disconnected":    {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true},
+		"google-connected":       {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2},
+		"google-calendar-paused": {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, calendarPaused: true},
+		"google-add-success":     {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:success:Selected games added"},
+		"google-add-error":       {authenticated: true, loginAvailable: true, players: 2, upcoming: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:google-error:Selected games were not added"},
+		"google-sync-success":    {authenticated: true, loginAvailable: true, players: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:success:Selected results synced"},
+		"google-sync-error":      {authenticated: true, loginAvailable: true, players: 2, past: 2, googleAvailable: true, googleConnected: true, calendars: 2, feedback: "results:google-error:Selected results were not synced"},
+		"expired-session-reset":  {loginAvailable: true, feedback: "page:error:Imported session expired"},
+		"loading":                {loginAvailable: true, loading: true},
 	}
 	for _, name := range soccerPreviewFixtureNamesForTest {
 		fixture, ok := soccerPreviewFixture(name)
@@ -90,6 +92,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 			googleAvailable: fixture.Page.AuthState.GoogleAvailable,
 			googleConnected: fixture.Page.AuthState.GoogleConnected,
 			calendars:       len(fixture.Page.AuthState.GoogleCalendars),
+			calendarPaused:  fixture.Page.AuthState.GoogleCalendarNeedsSelection,
 			loading:         fixture.Loading,
 		}
 		if fixture.TeamSelection != nil {
@@ -113,7 +116,7 @@ func TestSoccerPreviewFixtureCoverage(t *testing.T) {
 		}
 	}
 	if _, ok := soccerPreviewFixture("production"); ok {
-		t.Fatal("production unexpectedly resolves as a 22nd preview fixture")
+		t.Fatal("production unexpectedly resolves as a 23rd preview fixture")
 	}
 	if _, ok := soccerPreviewFixture("unknown"); ok {
 		t.Fatal("unknown preview fixture did not fail closed")
