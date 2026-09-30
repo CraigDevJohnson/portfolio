@@ -108,9 +108,9 @@ func soccerGameMetaLabel(hasResult bool) string {
 	return "Season"
 }
 
-templ SoccerGameRows(sectionKey string, games []types.Game) {
+templ SoccerGameRows(sectionKey string, games []types.Game, palette soccerTeamPalette) {
 	for _, game := range games {
-		{{ row := soccerMatchRow(&game) }}
+		{{ row := soccerMatchRow(&game, palette) }}
 		{{ isPast := row.HasResult }}
 		<li
 			class="soccer-match-row"
@@ -167,9 +167,9 @@ templ SoccerScheduleHiddenInputs(props SoccerTableFragmentProps) {
 	}
 }
 
-templ SoccerGamesList(sectionID string, games []types.Game) {
+templ SoccerGamesList(sectionID string, games []types.Game, palette soccerTeamPalette) {
 	<ol class="soccer-match-list" aria-labelledby={ sectionID + "-heading" } data-game-group={ sectionID }>
-		@SoccerGameRows(sectionID, games)
+		@SoccerGameRows(sectionID, games, palette)
 	</ol>
 }
 
@@ -195,6 +195,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 			</div>
 		</div>
 	} else {
+		{{ palette := newSoccerTeamPalette(props.Games, props.UpcomingGames, props.PastGames) }}
 		<div class="games-form" data-soccer-form data-team-fingerprint={ soccerTeamFingerprint(props.TeamCodes) }>
 			<div class="games-results-layout">
 				if len(props.UpcomingGames) > 0 {
@@ -270,7 +271,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										}
 									</div>
 								</div>
-								@SoccerGamesList("upcoming-games", props.UpcomingGames)
+								@SoccerGamesList("upcoming-games", props.UpcomingGames, palette)
 							</div>
 						</form>
 					</section>
@@ -352,7 +353,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										}
 									</div>
 								</div>
-								@SoccerGamesList("past-results", props.PastGames)
+								@SoccerGamesList("past-results", props.PastGames, palette)
 							</div>
 						</form>
 					</section>

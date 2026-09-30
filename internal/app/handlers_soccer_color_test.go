@@ -255,7 +255,8 @@ func TestFetchSchedulesDoesNotGuessTheSelectedSideOfAGameWithoutTeamIDs(t *testi
 func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 	app := newTestApp(t)
 	// Each team plays one home game, so both halves of its row show its color.
-	// Values whose last word is not a known hue keep the Team ID fallback.
+	// Values whose last word is not a known hue take a Team ID fallback that no
+	// other team in this fetch wears.
 	cases := []struct {
 		teamID int
 		color  string
@@ -275,7 +276,7 @@ func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 		{teamID: 1211, color: "Magenta", want: "purple"},    // 1211 % 8 == 3
 		{teamID: 1212, color: "#ff0000", want: "orange"},    // 1212 % 8 == 4
 		{teamID: 1213, color: "Blue Magenta", want: "teal"}, // 1213 % 8 == 5
-		{teamID: 1214, color: "url(blue)", want: "pink"},    // 1214 % 8 == 6
+		{teamID: 1214, color: "url(blue)", want: "gold"},    // 1214 % 8 == 6, pink, which team 1204 wears
 	}
 	payloads := make(map[string]string, len(cases))
 	teamIDs := make([]string, 0, len(cases))
@@ -297,6 +298,81 @@ func TestFetchSchedulesRecognizesLPSColorNamesWithModifiers(t *testing.T) {
 			t.Errorf("LPS color %q for team %d painted %q/%q, want %q", tc.color, tc.teamID, home, away, tc.want)
 		}
 	}
+}
+
+// examplePairSchedules serves LPS schedules for the Team IDs the Soccer page
+// offers as its example, 479691 and 479147, whose IDs select the same fallback
+// (479691 % 8 == 479147 % 8 == 3). They meet in upcoming game 7001, and each
+// plays one upcoming game against an unselected opponent: 7002 for 479691 and
+// 7003 for 479147. colors holds the color each team's LPS summary names; a
+// team missing from it sends no Color field, as every recorded live payload.
+func examplePairSchedules(colors map[int]string) func(path string) (int, string) {
+	team := func(id int, name string) string {
+		if color, ok := colors[id]; ok {
+			return fmt.Sprintf(`{"UTeamID":%d,"team_name":%q,"Color":%q}`, id, name, color)
+		}
+		return fmt.Sprintf(`{"UTeamID":%d,"team_name":%q}`, id, name)
+	}
+	pondMint, campfire := team(479691, "Pond Mint United"), team(479147, "Campfire Rovers")
+	game := func(id int, day, home string, homeID int, visitor string, visitorID int) string {
+		return fmt.Sprintf(`{"UGameID":%d,"SchedGameDateTime":"2099-10-%sT19:15:00.000Z","field_name":"Field 1","UTeam1":%d,"UTeam2":%d,"home_team":%s,"visitor_team":%s}`,
+			id, day, homeID, visitorID, home, visitor)
+	}
+	shared := game(7001, "11", pondMint, 479691, campfire, 479147)
+	schedules := map[string]string{
+		"/teams/479691": `{"team":` + pondMint + `,"games":[` + shared + `,` + game(7002, "18", team(479800, "Rosehip Athletic"), 479800, pondMint, 479691) + `]}`,
+		"/teams/479147": `{"team":` + campfire + `,"games":[` + game(7003, "04", campfire, 479147, team(479801, "Candle Oat Wanderers"), 479801) + `,` + shared + `]}`,
+	}
+	return func(path string) (int, string) {
+		if body, ok := schedules[path]; ok {
+			return http.StatusOK, body
+		}
+		return 0, ""
+	}
+}
+
+// requireExamplePairColors fetches the example Team IDs through the public
+// route in both orders and requires shared game 7001 to be one row painted
+// home then away, with each team painted the same on its own game.
+func requireExamplePairColors(t *testing.T, routes http.Handler, home, away string) {
+	t.Helper()
+	for _, codes := range []string{"479691, 479147", "479147 479691"} {
+		resp := servePublicPlanner(t, routes, http.MethodPost, "/soccer/fetch", url.Values{"team_codes": {codes}})
+		if resp.Code != http.StatusOK {
+			t.Fatalf("POST /soccer/fetch %q status = %d", codes, resp.Code)
+		}
+		rows := soccerMatchRows(parsePlannerHTML(t, resp.Body.String()))
+		shared := onlySoccerRow(t, rows, "7001")
+		if htmlAttr(shared, "data-shared-match") == "" {
+			t.Fatalf("fetch %q: game 7001 between both selected teams was not marked shared", codes)
+		}
+		if gotHome, gotAway := htmlAttr(shared, "data-home-color"), htmlAttr(shared, "data-away-color"); gotHome != home || gotAway != away {
+			t.Fatalf("fetch %q: shared game 7001 colors = %q/%q, want %q/%q", codes, gotHome, gotAway, home, away)
+		}
+		for game, want := range map[string]string{"7002": home, "7003": away} {
+			row := onlySoccerRow(t, rows, game)
+			if gotHome, gotAway := htmlAttr(row, "data-home-color"), htmlAttr(row, "data-away-color"); gotHome != want || gotAway != want {
+				t.Errorf("fetch %q: game %s colors = %q/%q, want the %q its team shows in game 7001", codes, game, gotHome, gotAway, want)
+			}
+		}
+	}
+}
+
+// LPS names no color for either example team, and both Team IDs select purple.
+// Their shared game must still show one half per team: in Team ID order,
+// 479147 keeps the purple its ID selects and 479691 takes the next unused
+// fallback, orange, whichever order the visitor enters them in.
+func TestPublicFetchPaintsColorlessExampleTeamsInDistinctHalves(t *testing.T) {
+	routes, _ := newPublicPlannerRoutes(t, examplePairSchedules(nil))
+	requireExamplePairColors(t, routes, "orange", "purple")
+}
+
+// A fallback also avoids a color LPS names for another selected team: LPS
+// names 479691 "Violet", which is purple, the fallback 479147's Team ID
+// selects, so 479147 takes the next unused fallback, orange.
+func TestPublicFetchKeepsAFallbackOffAnotherSelectedTeamsLPSColor(t *testing.T) {
+	routes, _ := newPublicPlannerRoutes(t, examplePairSchedules(map[int]string{479691: "Violet"}))
+	requireExamplePairColors(t, routes, "purple", "orange")
 }
 
 // The combined and Google preview fixtures share these games, which the

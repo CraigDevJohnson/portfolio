@@ -119,7 +119,8 @@ type Game struct {
 
 // TeamAppearance carries only approved display color names and selected-team
 // identity through schedule deduplication. Color is empty when LPS has no
-// recognizable value; the view supplies a stable Team ID fallback then.
+// recognizable value; the view then assigns a Team ID fallback that no other
+// selected team in the rendered schedule wears while one is unused.
 //
 // On a Game, HomeTeam and AwayTeam describe the two sides, and Selected marks
 // a side identified as a selected team. ScheduleTeam is the selected team whose
