@@ -160,6 +160,13 @@ task lambda-prod-apply PLAN_FILE=/absolute/path/rollback.tfplan
 The environment roots also accept `live_version_override` to point `live` at an
 earlier published version.
 
+A release before #93 reads only the browser-wide `google_connection` cookie, so
+while it serves traffic, Google Calendar connections made on #93 or later look
+disconnected. It neither reads nor rewrites them, and they return once the newer
+release is live again. A connection made during the rollback has no verified
+Google account; after rolling forward, its owner sees **Reconnect needed** and
+must reconnect.
+
 ## Custom domains and DNS
 
 Cloudflare is the registrar and DNS for `craigdevjohnson.com`. The records are
