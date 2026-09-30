@@ -65,6 +65,16 @@ type APIError struct {
 	Reason string
 }
 
+func (err *APIError) Error() string {
+	if err == nil {
+		return ""
+	}
+	if err.Message != "" {
+		return err.Message
+	}
+	return "google api request failed"
+}
+
 // credentialsRejected reports whether Google refused the connection itself:
 // its token is no longer valid, or it lacks the Calendar access consent
 // asked for. Only a new consent can recover it.
@@ -82,16 +92,6 @@ func (err *APIError) usageLimited() bool {
 	default:
 		return false
 	}
-}
-
-func (err *APIError) Error() string {
-	if err == nil {
-		return ""
-	}
-	if err.Message != "" {
-		return err.Message
-	}
-	return "google api request failed"
 }
 
 type calendarEventAction int

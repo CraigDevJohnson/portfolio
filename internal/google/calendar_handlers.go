@@ -75,18 +75,7 @@ func (h *Handler) AddHandler(w http.ResponseWriter, r *http.Request) {
 		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
 		return
 	}
-	writable, err := h.ensureWritableCalendar(workCtx, record, token)
-	if err != nil {
-		logging.WithContext(h.Logger, workCtx).Warn("google destination check failed", slog.Any("error", err))
-		if isGoogleAuthRejected(err) {
-			h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
-			return
-		}
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not verify the selected calendar. No games were added; try again later.")
-		return
-	}
-	if !writable {
-		h.renderCalendarChoiceRequired(w, r, session)
+	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No games were added; try again later.") {
 		return
 	}
 	result, err := h.insertCalendarEvents(workCtx, workRequest, record, token, filteredGames)
@@ -128,6 +117,30 @@ func calendarDestinationRejected(err error) bool {
 	return apiErr.StatusCode == http.StatusForbidden || apiErr.StatusCode == http.StatusNotFound || apiErr.StatusCode == http.StatusGone
 }
 
+// destinationReady reports whether the chosen calendar still accepts this
+// connection's events. When it does not, it answers the request: a rejected
+// connection is removed with a request to reconnect, a lost or unwritable
+// calendar pauses writes for a new choice, and a failed check asks the
+// visitor to retry with checkFailedMessage.
+func (h *Handler) destinationReady(ctx context.Context, w http.ResponseWriter, r *http.Request, session *types.SessionData, record *ConnectionRecord, token *oauth2.Token, checkFailedMessage string) bool {
+	writable, err := h.ensureWritableCalendar(ctx, record, token)
+	switch {
+	case err != nil:
+		logging.WithContext(h.Logger, ctx).Warn("google destination check failed", slog.Any("error", err))
+		if isGoogleAuthRejected(err) {
+			h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
+		} else {
+			h.Soccer.RenderLoginFeedback(w, r, "error", checkFailedMessage)
+		}
+		return false
+	case !writable:
+		h.renderCalendarChoiceRequired(w, r, session)
+		return false
+	default:
+		return true
+	}
+}
+
 func (h *Handler) renderCalendarChoiceRequired(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
 	h.Soccer.RenderLoginStateOOB(w, r, session)
 	h.Soccer.RenderLoginFeedback(w, r, "error", googleCalendarChoiceMessage)
@@ -140,6 +153,10 @@ func (h *Handler) pauseAndRenderCalendarChoice(ctx context.Context, w http.Respo
 	h.renderCalendarChoiceRequired(w, r, session)
 }
 
+// ensureWritableCalendar reports whether the connection's chosen calendar is
+// still among the calendars the account can write. An unset choice becomes
+// the primary calendar; a missing one pauses writes until the visitor
+// chooses again, and a paused choice stays paused.
 func (h *Handler) ensureWritableCalendar(ctx context.Context, record *ConnectionRecord, token *oauth2.Token) (bool, error) {
 	if record.CalendarSelectionRequired {
 		return false, nil
@@ -172,6 +189,7 @@ func (h *Handler) ensureWritableCalendar(ctx context.Context, record *Connection
 	return true, nil
 }
 
+// pauseCalendarSelection records that writes wait for a new calendar choice.
 func (h *Handler) pauseCalendarSelection(ctx context.Context, record *ConnectionRecord) error {
 	if record.CalendarSelectionRequired {
 		return nil
@@ -241,18 +259,7 @@ func (h *Handler) SyncResultsHandler(w http.ResponseWriter, r *http.Request) {
 		h.RenderDisconnectFeedback(w, r, session, googleExpiredConnectionMessage)
 		return
 	}
-	writable, err := h.ensureWritableCalendar(workCtx, record, token)
-	if err != nil {
-		logging.WithContext(h.Logger, workCtx).Warn("google destination check failed", slog.Any("error", err))
-		if isGoogleAuthRejected(err) {
-			h.RenderDisconnectFeedback(w, r, session, googleInvalidConnectionMessage)
-			return
-		}
-		h.Soccer.RenderLoginFeedback(w, r, "error", "Could not verify the selected calendar. No results were synced; try again later.")
-		return
-	}
-	if !writable {
-		h.renderCalendarChoiceRequired(w, r, session)
+	if !h.destinationReady(workCtx, w, r, session, record, token, "Could not verify the selected calendar. No results were synced; try again later.") {
 		return
 	}
 	result, err := h.insertCalendarEvents(workCtx, workRequest, record, token, games)

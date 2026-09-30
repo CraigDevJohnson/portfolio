@@ -18,16 +18,21 @@ import (
 // The games the fake LPS schedules for destinationTeamID: two upcoming games
 // and one scored past game.
 const (
-	destinationTeamID   = "4101"
-	nextGameID          = "70001"
-	laterGameID         = "70002"
-	scoredPastGameID    = "70003"
+	destinationTeamID = "4101"
+	nextGameID        = "70001"
+	laterGameID       = "70002"
+	scoredPastGameID  = "70003"
+)
+
+// The Google account that consents in these tests and its calendars. Google
+// identifies an account's primary calendar by the account's email address.
+const (
 	calendarAccount     = "family.calendar@example.net"
-	primaryCalendarID   = "family.calendar@example.net"
-	teamCalendarID      = "team-calendar-id"
-	readOnlyCalendarID  = "league-calendar-id"
+	primaryCalendarID   = calendarAccount
 	primaryCalendarName = "Family"
+	teamCalendarID      = "team-calendar-id"
 	teamCalendarName    = "Team Matches"
+	readOnlyCalendarID  = "league-calendar-id"
 )
 
 // fakeCalendar is one calendar in the fake Google account. Access is Google's
@@ -69,71 +74,6 @@ func newFakeGoogleCalendars(t *testing.T) *fakeGoogleCalendars {
 		{id: teamCalendarID, summary: teamCalendarName, access: "writer", events: map[string]internalgoogle.Event{}},
 		{id: readOnlyCalendarID, summary: "League Fixtures", access: "reader", events: map[string]internalgoogle.Event{}},
 	}}
-}
-
-func (fake *fakeGoogleCalendars) calendar(id string) *fakeCalendar {
-	for _, calendar := range fake.calendars {
-		if calendar.id == id {
-			return calendar
-		}
-	}
-	return nil
-}
-
-// setAccess changes the connected account's access to a calendar; "" removes
-// the calendar from the account.
-func (fake *fakeGoogleCalendars) setAccess(id, access string) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.calendar(id).access = access
-}
-
-func (fake *fakeGoogleCalendars) setRevoked(revoked bool) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.revoked = revoked
-}
-
-func (fake *fakeGoogleCalendars) refuseEventWrites(refusal *googleRefusal) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.refuseWrites = refusal
-}
-
-func (fake *fakeGoogleCalendars) refuseCalendarList(refusal *googleRefusal) {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	fake.refuseList = refusal
-}
-
-// events returns a copy of the events stored in a calendar.
-func (fake *fakeGoogleCalendars) events(id string) map[string]internalgoogle.Event {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	events := map[string]internalgoogle.Event{}
-	for eventID := range fake.calendar(id).events {
-		events[eventID] = fake.calendar(id).events[eventID]
-	}
-	return events
-}
-
-// calls returns the Calendar events requests received since the given count,
-// as "METHOD calendar-id[/event-id]".
-func (fake *fakeGoogleCalendars) callsSince(start int) []string {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	return append([]string(nil), fake.eventCalls[start:]...)
-}
-
-func (fake *fakeGoogleCalendars) callCount() int {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	return len(fake.eventCalls)
-}
-
-func writeGoogleError(w http.ResponseWriter, refusal googleRefusal) {
-	w.WriteHeader(refusal.status)
-	_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"refused","errors":[{"domain":%q,"reason":%q,"message":"refused"}]}}`, refusal.status, refusal.domain, refusal.reason)
 }
 
 func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +157,71 @@ func (fake *fakeGoogleCalendars) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func (fake *fakeGoogleCalendars) calendar(id string) *fakeCalendar {
+	for _, calendar := range fake.calendars {
+		if calendar.id == id {
+			return calendar
+		}
+	}
+	return nil
+}
+
+// setAccess changes the connected account's access to a calendar; "" removes
+// the calendar from the account.
+func (fake *fakeGoogleCalendars) setAccess(id, access string) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.calendar(id).access = access
+}
+
+func (fake *fakeGoogleCalendars) setRevoked(revoked bool) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.revoked = revoked
+}
+
+func (fake *fakeGoogleCalendars) refuseEventWrites(refusal *googleRefusal) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.refuseWrites = refusal
+}
+
+func (fake *fakeGoogleCalendars) refuseCalendarList(refusal *googleRefusal) {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	fake.refuseList = refusal
+}
+
+// events returns a copy of the events stored in a calendar.
+func (fake *fakeGoogleCalendars) events(id string) map[string]internalgoogle.Event {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	events := map[string]internalgoogle.Event{}
+	for eventID := range fake.calendar(id).events {
+		events[eventID] = fake.calendar(id).events[eventID]
+	}
+	return events
+}
+
+// callsSince returns the Calendar events requests received after the first
+// start of them, each as "METHOD calendar-id[/event-id]".
+func (fake *fakeGoogleCalendars) callsSince(start int) []string {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return append([]string(nil), fake.eventCalls[start:]...)
+}
+
+func (fake *fakeGoogleCalendars) callCount() int {
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	return len(fake.eventCalls)
+}
+
+func writeGoogleError(w http.ResponseWriter, refusal googleRefusal) {
+	w.WriteHeader(refusal.status)
+	_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"refused","errors":[{"domain":%q,"reason":%q,"message":"refused"}]}}`, refusal.status, refusal.domain, refusal.reason)
 }
 
 // calendarDestinationWorld is the real route assembly behind fake Cognito
@@ -575,11 +580,10 @@ func TestAddedEventsCarryGameIdentityAndTheSiteMarkerSoRepeatedAddsMatchThem(t *
 
 	// An event this site added before event IDs followed game IDs is found by
 	// its private game ID.
-	world.google.mu.Lock()
-	world.google.calendar(primaryCalendarID).events["olderevent0001"] = internalgoogle.Event{ID: "olderevent0001", Summary: "Craig FC vs Strikers"}
-	older := world.google.calendar(primaryCalendarID).events["olderevent0001"]
+	older := internalgoogle.Event{ID: "olderevent0001", Summary: "Craig FC vs Strikers"}
 	older.ExtendedProperties.Private = map[string]string{"game_id": laterGameID}
-	world.google.calendar(primaryCalendarID).events["olderevent0001"] = older
+	world.google.mu.Lock()
+	world.google.calendar(primaryCalendarID).events[older.ID] = older
 	world.google.mu.Unlock()
 
 	mark := world.google.callCount()
