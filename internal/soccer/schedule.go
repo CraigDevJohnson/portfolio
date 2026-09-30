@@ -395,11 +395,16 @@ var expiredImportDetails = lps.ScheduleErrorDetails{
 	FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
 }
 
+// lpsUnavailable reports an LPS failure that says nothing about the request
+// or its credential, so repeating it later may succeed.
+func lpsUnavailable(err error) bool {
+	var classified *lps.FetchError
+	return !errors.As(err, &classified) || classified.Kind == lps.ErrorUpstream
+}
+
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
 	props.FetchError = true
-	var classified *lps.FetchError
-	props.RetryLater = !errors.Is(fetchErr, ErrSessionExpired) &&
-		(!errors.As(fetchErr, &classified) || classified.Kind == lps.ErrorUpstream)
+	props.RetryLater = !errors.Is(fetchErr, ErrSessionExpired) && lpsUnavailable(fetchErr)
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
 		detail = expiredImportDetails
@@ -730,10 +735,8 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// An unavailable LPS says nothing about the import, so it is kept and
 		// no fresh import is suggested.
-		var classified *lps.FetchError
-		retryLater := !errors.As(err, &classified) || classified.Kind == lps.ErrorUpstream
 		h.setHTMLContentType(w)
-		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled() && !retryLater).Render(r.Context(), w); renderErr != nil {
+		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled() && !lpsUnavailable(err)).Render(r.Context(), w); renderErr != nil {
 			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
 		}
 		return
