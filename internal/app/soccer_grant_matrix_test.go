@@ -41,8 +41,17 @@ type soccerGrantWorld struct {
 
 func newSoccerGrantWorld(t *testing.T, invitations map[string][]string) *soccerGrantWorld {
 	t.Helper()
-	world := &soccerGrantWorld{app: newTestApp(t), jwt: testutil.TestJWT(t, time.Now().Add(time.Hour))}
-	enableTestSiteIdentity(world.app, invitations)
+	application := newTestApp(t)
+	enableTestSiteIdentity(application, invitations)
+	return newSoccerGrantWorldFor(t, application)
+}
+
+// newSoccerGrantWorldFor attaches the fake LPS and Google services and the
+// owner's stored Google connection to an app whose site identity is already
+// configured, then assembles its routes.
+func newSoccerGrantWorldFor(t *testing.T, application *App) *soccerGrantWorld {
+	t.Helper()
+	world := &soccerGrantWorld{app: application, jwt: testutil.TestJWT(t, time.Now().Add(time.Hour))}
 
 	future := testutil.MislabelledLPSZuluTime(time.Now().Add(24 * time.Hour))
 	lps := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

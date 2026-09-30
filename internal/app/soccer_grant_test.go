@@ -274,3 +274,46 @@ func TestSoccerGoogleRejectsOwnerlessConnectionAndPendingState(t *testing.T) {
 		t.Fatalf("signed-out browser reached Google callback: status %d, exchanges %d", signedOutCallback.Code, tokenCalls.Load())
 	}
 }
+
+// postForm submits a form from the browser, sending the cookies it holds.
+func (b *siteBrowser) postForm(path string, form url.Values) *httptest.ResponseRecorder {
+	b.t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "https://app.example.com"+path, strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return b.do(request)
+}
+
+func TestGrantedVisitorEntersLinkedPlayerFlowThroughSiteSession(t *testing.T) {
+	cognito := newFakeSiteCognito(t)
+	application := cognito.app(t)
+	application.Config.SessionKey = []byte("0123456789abcdef0123456789abcdef")
+	world := newSoccerGrantWorldFor(t, application)
+	browser := newSiteBrowser(t, world.mux)
+
+	if landing := browser.signIn("/soccer"); landing.Code != http.StatusSeeOther || landing.Header().Get("Location") != "/soccer" {
+		t.Fatalf("site sign-in did not return to Soccer: %d %q", landing.Code, landing.Header().Get("Location"))
+	}
+	if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), "Import access") || strings.Contains(page.Body.String(), "Private Soccer access") {
+		t.Fatal("granted Soccer page did not offer LPS import")
+	}
+
+	imported := browser.postForm("/soccer/import", url.Values{"jwt": {world.jwt}})
+	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), "Import saved for this browser session") || !strings.Contains(imported.Body.String(), `name="player_ids"`) {
+		t.Fatalf("granted import did not list linked players: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}})
+	if discovered.Code != http.StatusOK || !strings.Contains(discovered.Body.String(), "Craig FC") || !strings.Contains(discovered.Body.String(), `name="team_ids"`) {
+		t.Fatalf("linked-player discovery did not offer the player's teams: status %d, body %q", discovered.Code, discovered.Body.String())
+	}
+	schedule := browser.postForm("/soccer/fetch", url.Values{"selection_mode": {"teams"}, "player_ids": {"1001"}, "team_ids": {"4101"}})
+	if schedule.Code != http.StatusOK || !strings.Contains(schedule.Body.String(), `value="7001"`) {
+		t.Fatalf("discovered-team schedule did not list the team's game: status %d, body %q", schedule.Code, schedule.Body.String())
+	}
+	ics := browser.postForm("/soccer/download", url.Values{"player_ids": {"1001"}, "selected": {"7001"}})
+	if ics.Code != http.StatusOK || !strings.Contains(ics.Body.String(), "BEGIN:VEVENT") || !strings.Contains(ics.Body.String(), "Rivals") {
+		t.Fatalf("linked-player ICS download failed: status %d, body %q", ics.Code, ics.Body.String())
+	}
+	if world.lpsCredentialCalls.Load() == 0 {
+		t.Fatal("the linked-player flow never used the imported LPS access")
+	}
+}
