@@ -221,15 +221,7 @@ run "management_runtime_contract" {
   command = plan
   variables {
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   assert {
@@ -241,8 +233,18 @@ run "management_runtime_contract" {
       }) &&
       output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
     )
-    error_message = "dev root must forward management into its existing runtime without the retired MGMT_SESSION_KEY parameter"
+    error_message = "dev root must forward the identity-free management switch into its existing runtime without the retired MGMT_SESSION_KEY parameter"
   }
+}
+
+run "reject_management_in_another_region" {
+  command = plan
+  variables {
+    management = {
+      aws_region = "us-east-1"
+    }
+  }
+  expect_failures = [var.management]
 }
 
 run "site_runtime_contract" {

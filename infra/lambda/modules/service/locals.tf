@@ -43,9 +43,9 @@ locals {
     SITE_ALLOW_LOCAL_CALLBACK = tostring(var.site.allow_local_callback)
   }
 
-  # The portal follows site sign-in and the management grant; of the former
-  # management settings, the application still reads only its AWS region.
+  # The portal follows site sign-in and the management grant; the switch
+  # carries only the region its read-only EC2 and metric calls use.
   management_environment = var.management == null ? {} : {
-    MGMT_AWS_REGION = var.aws_region
+    MGMT_AWS_REGION = var.management.aws_region
   }
 }

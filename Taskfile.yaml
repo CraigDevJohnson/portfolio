@@ -268,7 +268,6 @@ tasks:
     desc: Run the authoritative offline Lambda infrastructure and release gate
     cmds:
       - tofu fmt -check -recursive infra/lambda
-      - task: cognito-dev-ci
       - task: cognito-site-ci
       - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
       - tofu -chdir=infra/lambda/ci-roles validate
@@ -283,15 +282,6 @@ tasks:
       - sh tests/management-input.sh
       - sh tests/release-scripts.sh
       - sh tests/operator-plan-apply.sh
-
-  cognito-dev-ci:
-    desc: Validate the isolated development Cognito root without backend or AWS access
-    cmds:
-      - tofu -chdir=infra/lambda/auth/dev fmt -check -recursive
-      - tofu -chdir=infra/lambda/auth/dev init -backend=false -lockfile=readonly -input=false
-      - tofu -chdir=infra/lambda/auth/dev validate
-      - tofu -chdir=infra/lambda/auth/dev test
-      - task: cognito-dev-tooling-test
 
   cognito-site-ci:
     desc: Validate the separate development and production site identity roots without backend or AWS access
@@ -688,35 +678,6 @@ tasks:
       - |
         set -eu
         docker compose -f docker-compose.yml logs --tail=200 -f portfolio
-
-  cognito-dev-init:
-    desc: Initialize isolated private development auth backend (requires lock acknowledgement)
-    env: *admin-env
-    cmds:
-      - python3 scripts/create-cognito-dev-plan.py init
-
-  cognito-dev-plan:
-    desc: Create private development auth plan and allowlisted review summary
-    env: *admin-env
-    cmds:
-      - python3 scripts/create-cognito-dev-plan.py plan
-
-  cognito-dev-apply:
-    desc: Apply separately approved development auth plan and provenance checksums
-    env: *admin-env
-    cmds:
-      - python3 scripts/create-cognito-dev-plan.py apply
-
-  cognito-dev-export:
-    desc: Export only validated management runtime public settings
-    env: *admin-env
-    cmds:
-      - python3 scripts/create-cognito-dev-plan.py export
-
-  cognito-dev-tooling-test:
-    desc: Exercise private auth tooling offline with sentinel secrets
-    cmds:
-      - python3 -m unittest discover -s scripts -p 'test_cognito_dev_plan.py'
 
   # ── Site identity operator path ────────────────────────────────────────────
   #

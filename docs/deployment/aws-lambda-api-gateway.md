@@ -87,9 +87,10 @@ same route.
 
 The Lambda resources pass no `SITE_*` settings, so neither site sign-in nor the
 management portal that follows it is available on the Lambda path. The
-development `management` input, which no environment sets, still controls the
-portal's read-only IAM grants and passes only `MGMT_AWS_REGION`. It no longer
-passes the retired `MGMT_*` identity values or the `MGMT_SESSION_KEY`
+development `management` input, which no environment sets, is an
+identity-free switch: `null` or exactly `{ aws_region = "us-west-2" }`. It
+controls only the portal's read-only IAM grants and `MGMT_AWS_REGION`. It
+passes none of the retired `MGMT_*` identity values or the `MGMT_SESSION_KEY`
 parameter path, and neither the runtime policy nor the execution boundary
 permits reading that parameter.
 

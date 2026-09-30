@@ -58,9 +58,13 @@
   modes. `MGMT_SESSION_KEY`, `MGMT_COGNITO_*`, `MGMT_ALLOWED_EMAILS`, and
   `MGMT_ALLOW_LOCAL_CALLBACK` are retired: config logs one warning and ignores
   them, and infrastructure no longer passes them or grants the
-  `MGMT_SESSION_KEY` parameter. The development `management` input adds only
-  `MGMT_AWS_REGION` (the app defaults to `us-east-1`) and the portal's
-  read-only EC2 and metric grants.
+  `MGMT_SESSION_KEY` parameter. The development `management` input is an
+  identity-free switch, `null` or exactly `{ aws_region = "us-west-2" }`; it
+  adds only `MGMT_AWS_REGION` (the app defaults to `us-east-1`) and the
+  portal's read-only EC2 and metric grants. The management-only
+  `infra/lambda/auth/dev` root and `cognito-dev-*` tasks are retired.
+- Production site invitations grant only `soccer`; the production root refuses
+  a `management` grant because production has no portal EC2 grants.
 - For Docker Compose: `cp .env.example .env`, set `LPS_SESSION_KEY` (`openssl rand -hex 32`)
 - `task fmt` uses `golangci-lint fmt`, not `go fmt ./...` — do not suggest `go fmt`
 

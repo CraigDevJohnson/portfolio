@@ -23,7 +23,6 @@ native lock files).
 | `infra/lambda/artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | ECR `portfolio-lambda-releases` (immutable tags, scan on push, Lambda pull policy) |
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |
-| `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
 | `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned; `cognito-site-dev-*` tasks ([site identity](docs/deployment/site-identity.md)) |
 | `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned; `cognito-site-prod-*` tasks ([site identity](docs/deployment/site-identity.md)) |
 
@@ -145,7 +144,7 @@ GitHub configuration:
 | --- | --- | --- |
 | Repository | `AWS_RELEASE_BUILDER_ROLE_ARN` | |
 | `release-review` | | Required reviewer: Craig |
-| `development` | `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN`, optional `MANAGEMENT_RUNTIME_JSON` | Protected branches |
+| `development` | `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN`, optional `MANAGEMENT_RUNTIME_JSON` (unset, `null` or exactly `{"aws_region":"us-west-2"}`) | Protected branches |
 | `production-plan` | `AWS_PRODUCTION_PLANNER_ROLE_ARN` | Protected branches. It still requires Craig as a reviewer, so a release asks for approval twice. Removing that reviewer is a separate GitHub change that needs Craig's approval |
 | `production` | `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` | Required reviewer: Craig |
 
@@ -242,10 +241,8 @@ reviewed `SITE_INVITATIONS_JSON` map as described in README. No environment
 supplies them yet, so deployed pages show no sign-in entry. Separate offline
 development and production Cognito roots and their Lambda handoff contract are
 documented in [site identity configuration](./docs/deployment/site-identity.md).
-They have not provisioned or activated a site pool. Register `/auth/callback`
-and `/sign-in` with the environment's Cognito app client before supplying those
-settings to a deployment; the existing management-only client does not register
-the site callback.
+They have not provisioned or activated a site pool. Each site root's app
+client registers exactly that environment's `/auth/callback` and `/sign-in`.
 
 ### Releasing the Soccer page grant
 
@@ -293,9 +290,44 @@ configured, and no environment supplies those settings yet. The former
 management-only `MGMT_*` identity settings, `mgmt_session` cookie and
 `/callback` registration no longer authorize portal access, and the Lambda no
 longer receives those settings or may read `MGMT_SESSION_KEY`.
-`MGMT_AWS_REGION` still selects the AWS region for portal operations. Its
-runtime role has only read-only EC2 and metric grants: no EC2 start/stop and
-no `/ec2/i-*` log reads (D22). Production has no portal grants at all, so its
+
+The development root's `management` input is an identity-free portal switch:
+`null` (the default) or exactly `{ aws_region = "us-west-2" }`. Setting it
+grants the portal read-only EC2 inventory and metrics in that region and
+passes `MGMT_AWS_REGION`; the runtime role has no EC2 start/stop and no
+`/ec2/i-*` log reads (D22). Production has no portal grants at all, so its
 invitations grant only `soccer`; the production root refuses a `management`
-grant (decision 6). The planned Foundry backend replaces direct EC2
-control. Local mock review uses `task portal-preview`.
+grant (decision 6). The planned Foundry backend replaces direct EC2 control.
+Local mock review uses `task portal-preview`.
+
+To turn on the development portal grants, export
+`TF_VAR_management='{"aws_region":"us-west-2"}'` for both
+`task lambda-dev-plan` and `task lambda-dev-apply`, then set the GitHub
+**development** variable `MANAGEMENT_RUNTIME_JSON` to
+`{"aws_region":"us-west-2"}` so CI releases carry the same input. A CI release
+cannot change the switch, because its plan may change only the Lambda image
+and `live` alias.
+
+### Retired management-only identity
+
+Decided 2026-09-30 (decision 8): the management-only development identity is
+retired. The `infra/lambda/auth/dev` root, its `cognito-dev-*` tasks and
+scripts, and their tests are removed, and the private tooling now serves the
+site identity roots. That pool was never provisioned in the workloads account,
+so no AWS resource, state object or SecureString needs removing. The
+[former runbook](docs/deployment/cognito-google-dev.md) is kept as history.
+
+Craig's follow-ups:
+
+1. GitHub **development** environment variable `MANAGEMENT_RUNTIME_JSON`: if
+   it holds the old nine-field Cognito object, delete it (or set it to
+   `null`) before the next release, because the development job now refuses
+   that shape. Set `{"aws_region":"us-west-2"}` only after applying the
+   development root with the same switch, as above.
+2. Google OAuth client `portfolio-lambda-dev-mgmt-google` in Google Cloud
+   project `portoflio-dev-508000`: nothing uses it. Either delete it, or reuse
+   it as the development site client: replace its authorized redirect URI with
+   the development site root's `google_redirect_uri` output
+   (`https://portfolio-lambda-dev-site-<AWS_ACCOUNT_ID>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`)
+   and deliver its credentials as that root's private `google.json`.
+   Production needs its own client either way.

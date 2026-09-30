@@ -47,7 +47,6 @@ infra/**/*.tfplan
 tfplan
 
 # Track provider locks for replacement infrastructure roots.
-!infra/lambda/auth/dev/.terraform.lock.hcl
 !infra/lambda/auth/site/dev/.terraform.lock.hcl
 !infra/lambda/auth/site/prod/.terraform.lock.hcl
 !infra/lambda/auth/site/modules/pool/.terraform.lock.hcl

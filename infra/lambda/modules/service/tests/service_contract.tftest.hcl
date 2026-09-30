@@ -522,15 +522,7 @@ run "management_enabled_contract" {
   command = plan
   variables {
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   assert {
@@ -545,7 +537,7 @@ run "management_enabled_contract" {
       SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-dev-soccer-sessions"
       MGMT_AWS_REGION              = "us-west-2"
     })
-    error_message = "management must pass the portal only its AWS region; the application no longer reads the retired management-only session, Cognito, allowlist or callback settings"
+    error_message = "the identity-free management switch must pass the portal only its AWS region; the application no longer reads the retired management-only session, Cognito, allowlist or callback settings"
   }
   assert {
     condition = (
@@ -592,15 +584,7 @@ run "management_reject_prod" {
   variables {
     environment = "prod"
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   expect_failures = [aws_iam_role.lambda]
@@ -611,110 +595,17 @@ run "management_reject_region" {
   variables {
     aws_region = "us-east-1"
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   expect_failures = [aws_iam_role.lambda]
 }
 
-run "management_reject_email" {
+run "management_rejects_another_portal_region" {
   command = plan
   variables {
-
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["other@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
-    }
-  }
-  expect_failures = [var.management]
-}
-
-run "management_reject_empty_email" {
-  command = plan
-  variables {
-
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = []
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
-    }
-  }
-  expect_failures = [var.management]
-}
-
-run "management_reject_callback" {
-  command = plan
-  variables {
-
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "http://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
-    }
-  }
-  expect_failures = [var.management]
-}
-
-run "management_reject_tag" {
-  command = plan
-  variables {
-
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "OtherTag"
-      ec2_management_tag_value = "dev"
-    }
-  }
-  expect_failures = [var.management]
-}
-
-run "management_reject_issuer" {
-  command = plan
-  variables {
-
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-east-1_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-east-1"
     }
   }
   expect_failures = [var.management]

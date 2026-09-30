@@ -24,7 +24,7 @@ resource "aws_iam_role" "lambda" {
 
   lifecycle {
     precondition {
-      condition     = var.management == null ? true : (var.environment == "dev" && var.name_prefix == "portfolio-lambda-dev" && var.aws_region == "us-west-2" && data.aws_partition.current.partition == "aws")
+      condition     = var.management == null ? true : (var.environment == "dev" && var.name_prefix == "portfolio-lambda-dev" && var.aws_region == var.management.aws_region && data.aws_partition.current.partition == "aws")
       error_message = "management is restricted to the development environment in us-west-2."
     }
 
@@ -111,7 +111,7 @@ data "aws_iam_policy_document" "lambda" {
       condition {
         test     = "StringEquals"
         variable = "aws:RequestedRegion"
-        values   = ["us-west-2"]
+        values   = [var.management.aws_region]
       }
     }
   }

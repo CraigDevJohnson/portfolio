@@ -33,6 +33,9 @@ case "$RELEASE_ENVIRONMENT" in
     ;;
 esac
 root=infra/lambda/environments/$environment
+# The development management input is the identity-free portal switch: null,
+# or exactly {"aws_region":"us-west-2"}. It must match what the environment
+# already has, because the plan check below refuses any IAM or setting change.
 management=${EXPECTED_MANAGEMENT_JSON:-null}
 ENVIRONMENT="$environment" EXPECTED_MANAGEMENT_JSON="$management" \
   sh "$(dirname "$0")/check-management-input.sh"

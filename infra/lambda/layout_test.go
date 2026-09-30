@@ -56,26 +56,6 @@ var artifactOutputTypes = map[string]any{
 	"ecr_repository_url":  "string",
 }
 
-var authOutputTypes = map[string]any{
-	"cognito_user_pool_id":   "string",
-	"cognito_domain":         "string",
-	"cognito_issuer":         "string",
-	"cognito_client_id":      "string",
-	"google_redirect_uri":    "string",
-	"session_parameter_path": "string",
-	"management_runtime": []any{"object", map[string]any{
-		"cognito_domain":           "string",
-		"cognito_issuer":           "string",
-		"cognito_client_id":        "string",
-		"redirect_uri":             "string",
-		"logout_uri":               "string",
-		"allowed_emails":           []any{"set", "string"},
-		"allow_local_callback":     "bool",
-		"ec2_management_tag_key":   "string",
-		"ec2_management_tag_value": "string",
-	}},
-}
-
 var serviceIAMResourceCounts = map[string]int{
 	"aws_iam_role":        1,
 	"aws_iam_role_policy": 1,
@@ -93,13 +73,6 @@ type plannedModule struct {
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
-		"auth/dev/backend.hcl",
-		"auth/dev/main.tf",
-		"auth/dev/outputs.tf",
-		"auth/dev/providers.tf",
-		"auth/dev/tests/auth_contract.tftest.hcl",
-		"auth/dev/variables.tf",
-		"auth/dev/versions.tf",
 		"auth/site/dev/backend.hcl",
 		"auth/site/dev/main.tf",
 		"auth/site/dev/tests/site_contract.tftest.hcl",
@@ -143,11 +116,6 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"infra/lambda/auth/dev/.terraform/providers/example",
-		"infra/lambda/auth/dev/.tofu/providers/example",
-		"infra/lambda/auth/dev/terraform.tfstate",
-		"infra/lambda/auth/dev/terraform.tfstate.backup",
-		"infra/lambda/auth/dev/saved.tfplan",
 		"infra/lambda/auth/site/dev/.terraform/providers/example",
 		"infra/lambda/auth/site/dev/terraform.tfstate",
 		"infra/lambda/auth/site/prod/.terraform/providers/example",
@@ -175,7 +143,6 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"infra/lambda/auth/dev/.terraform.lock.hcl",
 		"infra/lambda/auth/site/dev/.terraform.lock.hcl",
 		"infra/lambda/auth/site/prod/.terraform.lock.hcl",
 		"infra/lambda/auth/site/modules/pool/.terraform.lock.hcl",
@@ -188,29 +155,16 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		}
 	}
 
-	runOpenTofu(t, "auth/dev", "init", "-backend=false", "-lockfile=readonly", "-input=false")
-	runOpenTofu(t, "auth/dev", "fmt", "-check")
-	runOpenTofu(t, "auth/dev", "validate")
-	runOpenTofuTestWithSkippedRuns(t, "auth/dev", 5, authOutputTypes, map[string]int{}, map[string]bool{
-		"reject_empty_google_client_id":     true,
-		"reject_empty_google_client_secret": true,
-		"reject_invalid_domain_prefix":      true,
-	})
-
 	runOpenTofu(t, "artifacts", "init", "-backend=false", "-input=false")
 	runOpenTofu(t, "artifacts", "fmt", "-check")
 	runOpenTofu(t, "artifacts", "validate")
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 32, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 28, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
 		"management_reject_prod":                                true,
 		"management_reject_region":                              true,
-		"management_reject_email":                               true,
-		"management_reject_empty_email":                         true,
-		"management_reject_callback":                            true,
-		"management_reject_tag":                                 true,
-		"management_reject_issuer":                              true,
+		"management_rejects_another_portal_region":              true,
 		"site_rejects_wrong_environment_callback":               true,
 		"site_rejects_development_identity_in_production":       true,
 		"site_rejects_production_loopback_callback":             true,
@@ -236,8 +190,9 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		plans              int
 		skipContractChecks map[string]bool
 	}{
-		{"dev", 4, map[string]bool{
-			"history_inputs_reach_the_service": true,
+		{"dev", 5, map[string]bool{
+			"reject_management_in_another_region": true,
+			"history_inputs_reach_the_service":    true,
 		}},
 		{"prod", 5, map[string]bool{
 			"reject_other_alarm_topic":                 true,

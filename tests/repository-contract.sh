@@ -22,6 +22,17 @@ if grep -Eq '^  (deploy|redeploy|logs|deploy-lambda|redeploy-lambda|legacy-appru
 	fail "Taskfile exposes a retired shared-stack deployment or App Runner interface"
 fi
 
+# The management-only development identity is retired (decision 8,
+# 2026-09-30): the portal signs in through site identity, and the site roots
+# have their own operator tasks.
+for path in infra/lambda/auth/dev scripts/create-cognito-dev-plan.py \
+	scripts/check-cognito-dev-plan.py scripts/test_cognito_dev_plan.py; do
+	test ! -e "$repo_root/$path" || fail "retired management-only identity is back: $path"
+done
+if grep -Eq '^  cognito-dev-[a-z-]+:' "$repo_root/Taskfile.yaml"; then
+	fail "Taskfile exposes a retired management-only cognito-dev task"
+fi
+
 # The backticks are Markdown delimiters, not shell syntax.
 # shellcheck disable=SC2016
 for document in AGENTS.md README.md DEPLOY-INSTRUCTIONS.md; do
@@ -36,4 +47,4 @@ for document in AGENTS.md README.md DEPLOY-INSTRUCTIONS.md; do
 	done
 done
 
-printf 'PASS: the legacy root stays deleted and the docs advertise only existing tasks\n'
+printf 'PASS: the retired roots stay deleted and the docs advertise only existing tasks\n'

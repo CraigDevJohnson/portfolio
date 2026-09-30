@@ -12,7 +12,6 @@ input that its provider enforces through `allowed_account_ids`.
 - `environments/dev` and `environments/prod` call `modules/service` with
   distinct backend keys and settings.
 - `modules/service` contains no backend or provider configuration.
-- `auth/dev` is the planned development Cognito pool; it is not provisioned.
 - `auth/site/dev` and `auth/site/prod` are the planned, separate site sign-in
   pools built from `auth/site/modules/pool`; neither is provisioned. Their
   plans and state hold the Google client secret, so Craig plans, applies and

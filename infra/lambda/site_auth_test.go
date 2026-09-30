@@ -30,7 +30,7 @@ func TestSiteIdentityRootsKeepSeparateEncryptedWorkloadsState(t *testing.T) {
 		}
 		keys[environment] = key
 	}
-	if keys["dev"] == keys["prod"] || keys["prod"] == "portfolio-lambda-http-api/auth/dev/terraform.tfstate" {
+	if keys["dev"] == keys["prod"] {
 		t.Errorf("site identity roots must not share state: %v", keys)
 	}
 }
@@ -47,7 +47,7 @@ func TestSiteIdentityProvidersArePinnedToTheWorkloadsAccount(t *testing.T) {
 				t.Errorf("%s site identity provider is missing %q", environment, contract)
 			}
 		}
-		account := authHCLBlock(t, readSiteIdentityFile(t, environment, "variables.tf"), "variable", "aws_account_id")
+		account := hclBlock(t, readSiteIdentityFile(t, environment, "variables.tf"), "variable", "aws_account_id")
 		if !strings.Contains(account, `default     = "793680745829"`) {
 			t.Errorf("%s site identity root must default to the workloads account", environment)
 		}
@@ -58,7 +58,7 @@ func TestSiteIdentityGoogleCredentialsAreSensitiveInputsOnly(t *testing.T) {
 	for _, environment := range siteIdentityRoots {
 		variables := readSiteIdentityFile(t, environment, "variables.tf")
 		for _, name := range []string{"google_client_id", "google_client_secret"} {
-			block := authHCLBlock(t, variables, "variable", name)
+			block := hclBlock(t, variables, "variable", name)
 			if !regexp.MustCompile(`(?m)^\s*sensitive\s*=\s*true\s*$`).MatchString(block) {
 				t.Errorf("%s variable %q must be sensitive", environment, name)
 			}
@@ -86,4 +86,28 @@ func readSiteIdentityFile(t *testing.T, environment, name string) string {
 		t.Fatalf("read %s site identity %q: %v", environment, name, err)
 	}
 	return string(contents)
+}
+
+// hclBlock returns the text of one top-level HCL block, such as a variable.
+func hclBlock(t *testing.T, contents, kind, name string) string {
+	t.Helper()
+	header := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(kind) + `\s+"` + regexp.QuoteMeta(name) + `"\s*\{`)
+	location := header.FindStringIndex(contents)
+	if location == nil {
+		t.Fatalf("missing %s block %q", kind, name)
+	}
+	depth := 0
+	for i := location[0]; i < len(contents); i++ {
+		switch contents[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return contents[location[0] : i+1]
+			}
+		}
+	}
+	t.Fatalf("unterminated %s block %q", kind, name)
+	return ""
 }
