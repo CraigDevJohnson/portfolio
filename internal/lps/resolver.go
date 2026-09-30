@@ -154,36 +154,6 @@ func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int
 	return resolver.mapTeamGames(ctx, &response, selectedTeam, colors)
 }
 
-// fetchSelectedTeamSchedule loads a selected team's schedule and makes sure its
-// team summary carries the requested Team ID.
-func (resolver *ScheduleResolver) fetchSelectedTeamSchedule(ctx context.Context, teamID int) (TeamScheduleResponse, error) {
-	response, err := resolver.FetchTeamSchedule(ctx, teamID)
-	if err != nil {
-		return response, err
-	}
-	if response.Team.UTeamID <= 0 {
-		response.Team.UTeamID = teamID
-	}
-	return response, nil
-}
-
-// mapTeamGames maps one selected team's schedule, painting every fetched team
-// with the one color resolved for its Team ID.
-func (resolver *ScheduleResolver) mapTeamGames(ctx context.Context, response *TeamScheduleResponse, selectedTeam *TeamSummary, teamColors map[int]string) ([]types.Game, error) {
-	response.Team.Color = teamColors[response.Team.UTeamID]
-	games := make([]types.Game, 0, len(response.Games))
-	for i := range response.Games {
-		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam, teamColors)
-		if err != nil {
-			return nil, err
-		}
-		games = append(games, game)
-	}
-
-	schedule.NormalizeScheduleGames(games)
-	return games, nil
-}
-
 // FetchTeamSchedule loads the raw team schedule response.
 func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID int) (TeamScheduleResponse, error) {
 	var teamSchedule TeamScheduleResponse
@@ -403,6 +373,36 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 	}
 	resolver.facilityCache[facilityID] = facility
 	return facility, nil
+}
+
+// fetchSelectedTeamSchedule loads a selected team's schedule and makes sure its
+// team summary carries the requested Team ID.
+func (resolver *ScheduleResolver) fetchSelectedTeamSchedule(ctx context.Context, teamID int) (TeamScheduleResponse, error) {
+	response, err := resolver.FetchTeamSchedule(ctx, teamID)
+	if err != nil {
+		return response, err
+	}
+	if response.Team.UTeamID <= 0 {
+		response.Team.UTeamID = teamID
+	}
+	return response, nil
+}
+
+// mapTeamGames maps one selected team's schedule, painting every fetched team
+// with the one color resolved for its Team ID.
+func (resolver *ScheduleResolver) mapTeamGames(ctx context.Context, response *TeamScheduleResponse, selectedTeam *TeamSummary, teamColors map[int]string) ([]types.Game, error) {
+	response.Team.Color = teamColors[response.Team.UTeamID]
+	games := make([]types.Game, 0, len(response.Games))
+	for i := range response.Games {
+		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam, teamColors)
+		if err != nil {
+			return nil, err
+		}
+		games = append(games, game)
+	}
+
+	schedule.NormalizeScheduleGames(games)
+	return games, nil
 }
 
 // mergeTeamSchedules fetches every selected schedule before mapping any row,
