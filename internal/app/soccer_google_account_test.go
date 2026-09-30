@@ -274,3 +274,44 @@ func TestOwnerConnectionWithoutAVerifiedGoogleAccountNeedsReconnection(t *testin
 		})
 	}
 }
+
+func TestGooglePreviewFixturesShowTheSuggestedAndConnectedAccountsInertly(t *testing.T) {
+	application := newTestApp(t)
+	preview, _ := buildMux(application, application.Logger, true)
+	for _, fixture := range []struct {
+		name          string
+		present, gone []string
+	}{
+		{
+			name: "google-disconnected",
+			present: []string{
+				"Not connected", "Google will suggest <strong data-google-suggested-account>site@example.com</strong>",
+				`<button type="button" class="btn btn-primary" disabled aria-disabled="true">Connect Google Calendar</button>`,
+				`<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Use another Google account</button>`,
+			},
+			gone: []string{"data-google-account>", "Calendar ready"},
+		},
+		{
+			name: "google-connected",
+			present: []string{
+				"Calendar ready", "Connected Google account: <strong data-google-account>calendar@example.com</strong>",
+				"Your site sign-in account, <strong>site@example.com</strong>, is a different Google account.",
+				`<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Switch to site account</button>`,
+				`<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true">Change Google account</button>`,
+			},
+			gone: []string{"data-google-suggested-account"},
+		},
+	} {
+		body := soccerGrantRequest(preview, http.MethodGet, "/__preview/soccer/"+fixture.name, nil).Body.String()
+		for _, marker := range fixture.present {
+			if !strings.Contains(body, marker) {
+				t.Errorf("%s preview lacks %q", fixture.name, marker)
+			}
+		}
+		for _, marker := range append(fixture.gone, `href="/soccer/google/connect`) {
+			if strings.Contains(body, marker) {
+				t.Errorf("%s preview shows %q", fixture.name, marker)
+			}
+		}
+	}
+}

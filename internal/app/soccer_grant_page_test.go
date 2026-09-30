@@ -110,7 +110,7 @@ func TestSoccerAccessPreviewFixturesShowEachGrantStateLocally(t *testing.T) {
 		},
 		{
 			name:    "soccer-granted",
-			present: []string{"invited.visitor@example.com", "Import access", "Connect Google Calendar", "Team IDs"},
+			present: []string{"invited.visitor@example.com", "Import access", "Connect Google Calendar", "Team IDs", "Google will suggest <strong data-google-suggested-account>invited.visitor@example.com</strong>", "Use another Google account"},
 			gone:    []string{"Private Soccer access", "Needs Soccer access"},
 		},
 	} {

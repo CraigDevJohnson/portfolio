@@ -340,6 +340,9 @@ func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter) {
 	page.AuthState.GoogleAvailable = granted
 	page.AuthState.ImportNeedsGrant = !granted
 	page.AuthState.GoogleNeedsGrant = !granted
+	if principal, signedIn := siteidentity.PrincipalFromContext(ctx); signedIn && granted {
+		page.AuthState.GoogleSuggestedEmail = principal.Email
+	}
 	page.PrivateAccessMessage, page.ShowSiteSignIn = internalsoccer.PrivateAccessNotice(ctx, &page.AuthState)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pages.Soccer(page).Render(ctx, w); err != nil {
