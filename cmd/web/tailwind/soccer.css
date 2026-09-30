@@ -528,6 +528,32 @@
   text-underline-offset: 0.25em;
 }
 
+.soccer-history-notice {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: var(--line-hairline) solid color-mix(in srgb, var(--campfire-apricot) 38%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--campfire-apricot) 8%, var(--night-mulberry));
+  color: var(--candle-oat);
+}
+
+.soccer-history-notice p {
+  margin: 0;
+  color: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-history-notice .soccer-history-notice-title {
+  color: var(--campfire-apricot);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .soccer-manual-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1305,6 +1331,7 @@ body.soccer-modal-open {
   .soccer-stage-number,
   .soccer-stage-legend span,
   .soccer-security-notice,
+  .soccer-history-notice,
   .soccer-login-dialog,
   .soccer-modal-close,
   .soccer-page .loading-indicator,

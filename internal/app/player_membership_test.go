@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -116,6 +117,37 @@ func (route *playerHistoryRoute) signedInOwner(t *testing.T) *siteBrowser {
 	return browser
 }
 
+// disclosedImport opens the owner's Soccer page, requires the import dialog
+// to disclose indefinite linked-player history before import, and submits
+// that dialog's form with the JWT as the owner's browser would.
+func (route *playerHistoryRoute) disclosedImport(t *testing.T, owner *siteBrowser) *httptest.ResponseRecorder {
+	t.Helper()
+	page := owner.get("/soccer")
+	if page.Code != http.StatusOK {
+		t.Fatalf("Soccer page status = %d", page.Code)
+	}
+	doc := parsePlannerHTML(t, page.Body.String())
+	dialog := plannerSingle(t, doc, "import dialog", plannerAttrIs("role", "dialog"))
+	notice := plannerSingle(t, dialog, "history notice", plannerAttrIs("id", "soccer-history-notice"))
+	if described := strings.Fields(soccerHTMLAttribute(dialog, "aria-describedby")); !slices.Contains(described, "soccer-history-notice") {
+		t.Errorf("import dialog is not described by the history notice: %q", described)
+	}
+	text := strings.Join(strings.Fields(plannerText(notice)), " ")
+	for _, disclosure := range []string{"every player linked", "including players you don't choose", "indefinitely", "refreshing", "JWT stays temporary"} {
+		if !strings.Contains(text, disclosure) {
+			t.Errorf("history notice %q does not say %q", text, disclosure)
+		}
+	}
+	form := url.Values{"jwt": {route.jwt}}
+	for _, input := range plannerElements(plannerSingle(t, dialog, "import form", plannerAttrIs("id", "soccer-login-form")), plannerAttrIs("type", "hidden")) {
+		form.Add(soccerHTMLAttribute(input, "name"), soccerHTMLAttribute(input, "value"))
+	}
+	if route.table.Len() != 0 {
+		t.Fatal("opening the Soccer page stored linked-player history")
+	}
+	return owner.postForm("/soccer/import", form)
+}
+
 // items returns the stored items of one kind, keyed by "pk/sk".
 func (route *playerHistoryRoute) items(t *testing.T, kind string) map[string]map[string]any {
 	t.Helper()
@@ -182,7 +214,7 @@ func TestGrantedSoccerImportRecordsEveryLinkedPlayersOwnerBoundTeamSeasons(t *te
 	owner := route.signedInOwner(t)
 
 	before := time.Now()
-	imported := owner.postForm("/soccer/import", url.Values{"jwt": {route.jwt}})
+	imported := route.disclosedImport(t, owner)
 	after := time.Now()
 
 	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), `name="player_ids"`) {
@@ -269,5 +301,22 @@ func TestGrantedSoccerImportRecordsEveryLinkedPlayersOwnerBoundTeamSeasons(t *te
 	}
 	if route.table.Item("TEAM#4101/COVERAGE") != nil {
 		t.Error("the import fetched a discovered team's games")
+	}
+}
+
+func TestSoccerImportWithoutTheHistoryDisclosureCollectsNothing(t *testing.T) {
+	route := newPlayerHistoryRoute(t)
+	owner := route.signedInOwner(t)
+
+	imported := owner.postForm("/soccer/import", url.Values{"jwt": {route.jwt}})
+
+	if imported.Code != http.StatusOK || !strings.Contains(imported.Body.String(), `name="player_ids"`) || findSessionCookie(t, imported.Result()) == nil {
+		t.Fatalf("undisclosed import did not keep the planner import: status %d, body %q", imported.Code, imported.Body.String())
+	}
+	if route.lpsRequests("/players/1001/my_teams") != 0 || route.lpsRequests("/players/1002/my_teams") != 0 {
+		t.Errorf("undisclosed import looked up linked players' teams: %v", route.requests)
+	}
+	if stored := route.table.Len(); stored != 0 {
+		t.Errorf("undisclosed import stored %d durable items", stored)
 	}
 }

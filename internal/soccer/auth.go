@@ -65,31 +65,11 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now()
-	if membershipStore, enabled := h.ArchiveStore().(soccerarchive.MembershipStore); enabled {
-		principal, granted := siteidentity.PrincipalFromContext(r.Context())
-		if !granted || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
-			h.RenderLoginFeedback(w, r, "error", "Sign in with Soccer access before importing linked players.")
-			return
-		}
-		teams, memberships, lookupErr := h.discoverImportedPlayerTeams(r.Context(), jwt, discovery.Players)
-		if lookupErr != nil {
-			logging.WithContext(h.Logger, r.Context()).Warn("soccer player team discovery failed", slog.Any("error", lookupErr))
-			h.RenderLoginFeedback(w, r, "error", "Could not look up every linked player. No player history was saved; try the import again.")
-			return
-		}
-		persistCtx, cancelPersist := context.WithTimeout(r.Context(), 10*time.Second)
-		err = membershipStore.SavePlayerDiscovery(persistCtx, &soccerarchive.PlayerDiscovery{
-			OwnerIssuer: principal.Issuer, OwnerSubject: principal.Subject,
-			Players: discovery.Players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
-		})
-		cancelPersist()
-		if err != nil {
-			logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
-			h.RenderLoginFeedback(w, r, "error", "Linked-player history could not be saved. Try the import again.")
-			return
-		}
+	if message, collected := h.collectLinkedPlayerHistory(r, jwt, discovery.Players); !collected {
+		h.RenderLoginFeedback(w, r, "error", message)
+		return
 	}
+	now := time.Now()
 	sessionID := generateSessionID()
 	session := types.SessionData{
 		JWT:         jwt,
@@ -124,6 +104,38 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = io.WriteString(w, `<div class="soccer-login-success" data-login-success>Import saved in this browser until its JWT expires, for up to 12 hours. Choose your players below.</div>`)
+}
+
+// collectLinkedPlayerHistory records every linked player's teams in the
+// durable archive when collection is enabled and the visitor submitted the
+// import form that disclosed it. It reports false, with the reason to show,
+// when the history the visitor accepted could not be collected in full; the
+// import then stops so the visitor can try again.
+func (h *Handler) collectLinkedPlayerHistory(r *http.Request, jwt string, players []types.LPSPlayer) (string, bool) {
+	membershipStore, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
+	if !enabled || r.FormValue(partials.SoccerHistoryNoticeField) != partials.SoccerHistoryNoticeIndefinite {
+		return "", true
+	}
+	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
+	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
+		return "Sign in with Soccer access before importing linked players.", false
+	}
+	teams, memberships, err := h.discoverImportedPlayerTeams(r.Context(), jwt, players)
+	if err != nil {
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer player team discovery failed", slog.Any("error", err))
+		return "Could not look up every linked player. No player history was saved; try the import again.", false
+	}
+	persistCtx, cancelPersist := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancelPersist()
+	err = membershipStore.SavePlayerDiscovery(persistCtx, &soccerarchive.PlayerDiscovery{
+		OwnerIssuer: principal.Issuer, OwnerSubject: principal.Subject,
+		Players: players, KnownTeams: teams, Memberships: memberships, ObservedAt: time.Now(),
+	})
+	if err != nil {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer player history write failed", slog.Any("error", err))
+		return "Linked-player history could not be saved. Try the import again.", false
+	}
+	return "", true
 }
 
 func (h *Handler) discoverImportedPlayerTeams(ctx context.Context, jwt string, players []types.LPSPlayer) ([]lps.TeamSummary, []soccerarchive.PlayerMembership, error) {

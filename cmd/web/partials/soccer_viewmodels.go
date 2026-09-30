@@ -8,6 +8,15 @@ import (
 	"portfolio/types"
 )
 
+// SoccerHistoryNoticeField names the import form field that says which
+// history notice the visitor saw. Only the import form that shows the
+// indefinite-collection notice sends SoccerHistoryNoticeIndefinite, and only
+// that import collects linked-player history.
+const (
+	SoccerHistoryNoticeField      = "history_notice"
+	SoccerHistoryNoticeIndefinite = "indefinite"
+)
+
 var fallbackSoccerColors = [...]string{"blue", "red", "green", "purple", "orange", "teal", "pink", "gold"}
 
 type soccerMatchRowView struct {
