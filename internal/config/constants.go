@@ -37,11 +37,5 @@ const (
 	SiteOAuthStateTTL = 10 * time.Minute
 )
 
-const (
-	PortalSessionCookieName    = "mgmt_session"
-	PortalCookiePath           = "/"
-	PortalSessionTTL           = 12 * time.Hour
-	PortalOAuthStateCookieName = "mgmt_oauth_state"
-	PortalOAuthStateCookieTTL  = 10 * time.Minute
-	DefaultPortalAWSRegion     = "us-east-1"
-)
+// DefaultPortalAWSRegion is the management portal's region when MGMT_AWS_REGION is unset.
+const DefaultPortalAWSRegion = "us-east-1"

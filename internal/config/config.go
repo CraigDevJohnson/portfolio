@@ -30,16 +30,8 @@ type Config struct {
 	SiteAllowLocalCallback bool
 	SiteInvitations        map[string][]string
 
-	// Portal fields
-	PortalSessionKey         []byte
-	PortalCognitoDomain      string
-	PortalCognitoIssuer      string
-	PortalAllowedEmails      []string
-	PortalAllowLocalCallback bool
-	PortalCognitoClientID    string
-	PortalCognitoRedirectURI string
-	PortalCognitoLogoutURI   string
-	PortalAWSRegion          string
+	// PortalAWSRegion selects the management portal's EC2 and CloudWatch region.
+	PortalAWSRegion string
 }
 
 // Load reads runtime configuration from the environment.

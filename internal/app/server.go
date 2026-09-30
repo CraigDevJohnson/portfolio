@@ -249,16 +249,9 @@ func Run() error {
 
 	cfg := config.Load()
 	if localPortalPreview {
-		// Preview mode must never initialize the real portal's Cognito or AWS
-		// dependencies, even when live portal variables are also present locally.
-		cfg.PortalSessionKey = nil
-		cfg.PortalCognitoDomain = ""
-		cfg.PortalCognitoIssuer = ""
-		cfg.PortalAllowedEmails = nil
-		cfg.PortalAllowLocalCallback = false
-		cfg.PortalCognitoClientID = ""
-		cfg.PortalCognitoRedirectURI = ""
-		cfg.PortalCognitoLogoutURI = ""
+		// Preview mode must never initialize site Cognito or the real portal's
+		// AWS clients, which follow site sign-in, even when live variables are
+		// also present locally.
 		cfg.SiteSessionKey = nil
 		cfg.SiteCognitoDomain = ""
 		cfg.SiteCognitoIssuer = ""

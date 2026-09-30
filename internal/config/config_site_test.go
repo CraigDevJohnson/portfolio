@@ -25,7 +25,7 @@ func setSiteEnvironment(t *testing.T, invitations string) {
 func TestSiteConfigurationLoadsInvitationsWithoutSoccerOrManagement(t *testing.T) {
 	setSiteEnvironment(t, `{"craigdevjohnson@gmail.com":["soccer","management"],"visitor@example.com":[]}`)
 	cfg := Load()
-	if !cfg.SiteEnabled() || cfg.LoginEnabled() || cfg.PortalEnabled() {
+	if !cfg.SiteEnabled() || cfg.LoginEnabled() {
 		t.Fatal("site sign-in should be independently enabled")
 	}
 	if !cfg.SiteEmailInvited(" CRAIGDEVJOHNSON@GMAIL.COM ") || cfg.SiteEmailInvited("craigdevjohnson+other@gmail.com") {
