@@ -150,7 +150,8 @@ func (h *Handler) syncResultEvent(ctx context.Context, calendarID string, token 
 // findSiteEvent returns the one live event this site added for gameID in the
 // calendar, as one bounded search lists it with its current version. Without
 // one, it returns why: no such event, only deleted ones, or more than one
-// live one.
+// live one. When the search finds no site event, one read by the site's
+// event ID tells a deleted event from a missing one.
 func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (*Event, resultSyncOutcome, bool, error) {
 	response, err := h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
 	if err != nil {
@@ -186,13 +187,46 @@ func (h *Handler) findSiteEvent(ctx context.Context, calendarID string, token *o
 	case len(live) == 0 && deleted > 0:
 		return nil, resultDeleted, false, nil
 	case len(live) == 0:
-		return nil, resultUnmatched, false, nil
+		missing, rejected, err := h.deletedSiteEventOutcome(ctx, calendarID, token, gameID)
+		return nil, missing, rejected, err
 	}
 	if strings.TrimSpace(live[0].ETag) == "" {
 		// Without its version, a change could not be made conditional.
 		return nil, resultChanged, false, nil
 	}
 	return live[0], resultUnmatched, false, nil
+}
+
+// deletedSiteEventOutcome tells a deleted site event from a missing one when
+// the search found neither. Google guarantees a deleted event keeps only its
+// ID, so the search by private game ID may no longer find it, but a read by
+// ID always returns it. The site gives each event the game's ID as its event
+// ID, which an .ics import or an event created in Google never has.
+func (h *Handler) deletedSiteEventOutcome(ctx context.Context, calendarID string, token *oauth2.Token, gameID string) (resultSyncOutcome, bool, error) {
+	response, err := h.getCalendarEvent(ctx, calendarID, gameID, token)
+	if err != nil {
+		return resultUnmatched, false, err
+	}
+	switch response.StatusCode {
+	case http.StatusOK:
+		event, err := decodeEvent(response)
+		if err != nil {
+			return resultUnmatched, false, err
+		}
+		if isDeletedCalendarEvent(event.Status) {
+			return resultDeleted, false, nil
+		}
+		return resultUnmatched, false, nil
+	case http.StatusGone:
+		response.Body.Close()
+		return resultDeleted, false, nil
+	case http.StatusNotFound:
+		response.Body.Close()
+		return resultUnmatched, false, nil
+	default:
+		rejected, apiErr := apiResponseError(h.Logger, response)
+		return resultUnmatched, rejected, markEventRefused(apiErr)
+	}
 }
 
 // siteEventMatchesGame reports whether the event is one this site added for

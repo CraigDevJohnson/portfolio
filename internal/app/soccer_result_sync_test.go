@@ -310,13 +310,16 @@ func TestSyncWritesOnlyTheResultTextOfEventsThisSiteAddedToTheChosenCalendar(t *
 		t.Errorf("Sync patched %v, want each updated event once", patched)
 	}
 	// Each selected game costs one search of the chosen calendar, plus the
-	// patch when there is a result to write.
+	// patch when there is a result to write, or, when the search finds no
+	// site event, one read by the site's event ID to tell a deleted event
+	// from a missing one.
 	var searches int
 	for _, call := range world.google.callsSince(calls) {
 		switch {
 		case call == http.MethodGet+" "+teamCalendarID:
 			searches++
-		case call == http.MethodPatch+" "+teamCalendarID+"/"+syncWonGameID, call == http.MethodPatch+" "+teamCalendarID+"/"+syncDrawnGameID:
+		case call == http.MethodPatch+" "+teamCalendarID+"/"+syncWonGameID, call == http.MethodPatch+" "+teamCalendarID+"/"+syncDrawnGameID,
+			call == http.MethodGet+" "+teamCalendarID+"/"+syncMissingGameID:
 		default:
 			t.Errorf("Sync sent %q", call)
 		}

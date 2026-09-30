@@ -378,9 +378,15 @@ func (fake *fakeGoogleCalendars) editEvent(calendarID, eventID string, edit func
 	fake.calendar(calendarID).events[eventID] = event
 }
 
-// deleteEvent deletes an event as Google does: it stays, marked deleted.
+// deleteEvent deletes an event as Google does: it stays, marked deleted,
+// but holds only what Google guarantees a deleted event keeps, its ID. Its
+// private properties are gone, so a search by them no longer finds it; a
+// read by its ID still returns it. To model Google still listing a deleted
+// event with its properties, set its status with editEvent instead.
 func (fake *fakeGoogleCalendars) deleteEvent(calendarID, eventID string) {
-	fake.editEvent(calendarID, eventID, func(event *internalgoogle.Event) { event.Status = googleDeletedStatus })
+	fake.editEvent(calendarID, eventID, func(event *internalgoogle.Event) {
+		*event = internalgoogle.Event{ID: event.ID, Status: googleDeletedStatus}
+	})
 }
 
 // changeEventBeforeNextPatch makes edit land on the event just before the
