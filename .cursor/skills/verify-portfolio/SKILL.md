@@ -94,7 +94,7 @@ Every browser proof must include:
 
 Exercise a real user entry point, not a handler call or internal setter. Public portfolio and Skills proofs must use `/`, the visible navigation or CTA, and the production routes. The loopback preview is acceptable only for the production boundaries it replaces: Cognito/AWS and LPS/Google data. Label such artifacts `preview`; they prove the application behavior around that boundary, not live AWS, LPS, Google OAuth, or public connectivity.
 
-The preview launch clears the inherited environment, binds only `127.0.0.1`, and initializes no portal AWS clients. For preview mutations, retain the preview banner, the returned `Preview only` feedback, the server log, and the browser request list. Never infer that a live AWS or Google side effect was tested.
+The preview launch clears the inherited environment, binds only `127.0.0.1`, and initializes no portal AWS clients. Its LPS API base URL points at the in-process fake under `/__preview/lps`, so Soccer lookups never reach Let's Play Soccer. For preview mutations, retain the preview banner, the returned `Preview only` feedback, the server log, and the browser request list. Never infer that a live AWS or Google side effect was tested.
 
 ## Cleanup
 
@@ -117,13 +117,14 @@ Run cleanup after every failed iteration so no broken attempt strands a server, 
 
 ## Helpers
 
-Both shipped helpers are executable:
+The shipped helpers are executable:
 
 ```bash
 .cursor/skills/verify-portfolio/scripts/control-portfolio launch
 .cursor/skills/verify-portfolio/scripts/control-portfolio doctor
 .cursor/skills/verify-portfolio/scripts/prove-skills-search
+.cursor/skills/verify-portfolio/scripts/prove-soccer-planner
 .cursor/skills/verify-portfolio/scripts/control-portfolio cleanup
 ```
 
-`control-portfolio` owns lifecycle and doctor checks. `prove-skills-search` is the reference browser proof and records its command transcript alongside snapshots, screenshots, assertions, request records, and console diagnostics. Read the scripts only when changing the verification harness; normal use should not require reverse-engineering them.
+`control-portfolio` owns lifecycle and doctor checks. `prove-skills-search` is the reference browser proof and records its command transcript alongside snapshots, screenshots, assertions, request records, and console diagnostics. `prove-soccer-planner` drives the choice-first Soccer journey against the preview's fake LPS; its steps live in `scripts/soccer-planner/`, and it needs a fresh launch. Read the scripts only when changing the verification harness; normal use should not require reverse-engineering them.

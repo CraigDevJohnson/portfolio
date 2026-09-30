@@ -39,5 +39,5 @@ Each feature file uses the same four H2 sections: `Sub-features`, `How to get to
 - [Portfolio navigation](./portfolio-navigation.md) covers desktop and mobile navigation, Home CTAs, current-page state, and the skip link.
 - [Skills catalog](./skills-catalog.md) covers search, category and proficiency filters, URL-backed state, empty results, and HTMX skill details.
 - [Project showcase](./project-showcase.md) covers the Home Projects CTA, the three project dossiers, destinations, and responsive reading order.
-- [Soccer schedule](./soccer-schedule.md) covers the production entry page and safe fixture-backed selection and ICS download behavior.
+- [Soccer schedule](./soccer-schedule.md) covers the choice-first entry page, the public Team ID journey against the preview fake LPS, and safe fixture-backed selection and ICS download behavior.
 - [Management portal preview](./management-portal-preview.md) covers the loopback-only dashboard, instance controls, metrics, logs, and interruption states without live AWS or Cognito.

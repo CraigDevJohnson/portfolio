@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+STEPS="$SCRIPT_DIR/soccer-planner"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+fail() {
+  printf 'prove-soccer-planner: %s\n' "$*" >&2
+  exit 1
+}
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'invalid VERIFY_RUN_ID'
+command -v npx >/dev/null 2>&1 || fail 'npx is required by the Playwright CLI wrapper'
+[[ -x "$PWCLI" ]] || fail "Playwright CLI wrapper is not executable: $PWCLI"
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/soccer-planner"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+ASSERTIONS="$EVIDENCE_DIR/assertions.txt"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+: >"$ASSERTIONS"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+# Run one journey step; its assertions throw, which fails the CLI and this proof.
+step() {
+  local name="$1"
+  shift
+  printf '\n## %s\n' "$name" >>"$ASSERTIONS"
+  run_pw run-code "$@" | tee -a "$ASSERTIONS"
+}
+
+capture() {
+  run_pw snapshot --filename "$EVIDENCE_DIR/$1.md" >/dev/null
+  run_pw screenshot --filename "$EVIDENCE_DIR/$1.png" --full-page >/dev/null
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+
+run_pw open "$VERIFY_URL/"
+run_pw resize 1440 1000
+run_pw run-code "async (page) => { await page.evaluate(() => window.sessionStorage.clear()); if (await page.evaluate(() => typeof window.htmx) === 'undefined') throw new Error('HTMX did not load'); }"
+run_pw click "nav[aria-label='Main navigation'] a[data-nav-page='soccer']"
+capture 01-before-output-choice
+
+step 'Choose .ics with the keyboard' --filename "$STEPS/01-choose-ics.js"
+capture 02-ics-chosen
+
+step 'First public Team ID fetch' --filename "$STEPS/02-first-fetch.js"
+capture 03-first-fetch
+
+step 'Deselect the shared game' --filename "$STEPS/03-deselect.js"
+capture 04-deselected
+
+step 'Refetch the same team set' --filename "$STEPS/04-refetch.js"
+capture 05-refetched
+
+step 'Switch output and back' --filename "$STEPS/05-switch-output.js"
+capture 06-output-switched-back
+
+step 'Refetch with a stale imported session' --filename "$STEPS/06-cleared-import.js"
+capture 07-stale-import-cleared
+
+ICS_FILE="$EVIDENCE_DIR/soccer_schedule.ics"
+rm -f "$ICS_FILE"
+step 'Download the selected games' "async (page) => { const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#download-button').click()]); if (download.suggestedFilename() !== 'soccer_schedule.ics') throw new Error('unexpected download ' + download.suggestedFilename()); await download.saveAs('$ICS_FILE'); return download.suggestedFilename(); }"
+[[ -s "$ICS_FILE" ]] || fail 'the .ics download was not saved'
+{
+  printf '\n## Downloaded .ics content\n'
+  rg -n 'BEGIN:VCALENDAR|BEGIN:VEVENT|UID:|SUMMARY:|DTSTART' "$ICS_FILE"
+} | tee -a "$ASSERTIONS"
+[[ "$(rg -c '^BEGIN:VEVENT' "$ICS_FILE")" == 3 ]] || fail 'the .ics file does not hold exactly the three selected games'
+for uid in 7003 7002 7004; do
+  rg -q "^UID:$uid\r?$" "$ICS_FILE" || fail "the .ics file lacks selected game $uid"
+done
+if rg -q '^UID:7001\r?$' "$ICS_FILE"; then
+  fail 'the .ics file contains deselected game 7001'
+fi
+printf 'ics: 3 events, UIDs 7003 7002 7004, deselected 7001 absent\n' | tee -a "$ASSERTIONS"
+
+step 'Recover from a failed first fetch' --filename "$STEPS/08-transport-failure.js"
+capture 08-failure-recovered
+
+step 'Narrow layout' --filename "$STEPS/09-narrow.js"
+capture 09-narrow
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'soccer-planner proof captured at %s (preview fake LPS; live LPS and Google were not tested)\n' "$EVIDENCE_DIR"

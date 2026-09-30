@@ -122,6 +122,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 
 	// portal routes
 	if localPortalPreview {
+		mux.HandleFunc("GET /__preview/lps/teams/{id}", newSoccerPreviewLPS().teamScheduleHandler)
 		mux.HandleFunc("GET /__preview/soccer/{fixture}", soccerPreviewPageHandler)
 		mux.HandleFunc("GET /__preview/account/{fixture}", accountPreviewPageHandler)
 		mux.HandleFunc("POST /__preview/soccer/download", soccerPreviewDownloadHandler)
@@ -269,6 +270,9 @@ func Run() error {
 		cfg.SiteCognitoRedirectURI = ""
 		cfg.SiteCognitoLogoutURI = ""
 		cfg.SiteInvitations = nil
+		// Public Team ID lookups read canned schedules from the in-process
+		// fake LPS so preview browser proofs never reach Let's Play Soccer.
+		cfg.LPSAPIBaseURL = previewLPSBaseURL(listenAddress)
 		appLogger.Warn(
 			"local portal preview enabled; mock data only and no AWS actions will be sent",
 			slog.String("preview_url", config.LocalServerURL(listenAddress)+"/mgmt"),
