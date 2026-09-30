@@ -12,7 +12,8 @@ import (
 )
 
 // expiredSiteSessionCookie is the site session cookie a browser still holds
-// after the session it carries has expired.
+// after the session it carries has expired. The Soccer grant matrix, in
+// TestSoccerGrantDecidesEveryPrivateRouteLikeThePage, uses it for Soccer.
 func expiredSiteSessionCookie(t *testing.T, key []byte, principal siteidentity.Principal) *http.Cookie {
 	t.Helper()
 	value, err := session.EncryptJSONValue(key, map[string]any{
@@ -23,33 +24,6 @@ func expiredSiteSessionCookie(t *testing.T, key []byte, principal siteidentity.P
 		t.Fatal(err)
 	}
 	return &http.Cookie{Name: config.SiteSessionCookieName, Value: value}
-}
-
-func TestExpiredSiteSessionStopsSoccerPrivateActionsUntilSignInAgain(t *testing.T) {
-	invitations := map[string][]string{testSiteEmail: {"soccer"}}
-	owner := siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail}
-	for _, route := range soccerPrivateRoutes {
-		t.Run(route.name, func(t *testing.T) {
-			world := newSoccerGrantWorld(t, invitations)
-			expired := append(world.ownerPrivateState(t), expiredSiteSessionCookie(t, world.app.Config.SiteSessionKey, owner))
-			resp := soccerGrantRequest(world.mux, route.method, route.path, route.form, expired...)
-			if resp.Code != http.StatusUnauthorized {
-				t.Fatalf("expired site session: status = %d, want 401", resp.Code)
-			}
-			if calls := world.lpsCredentialCalls.Load() + world.googleCalls.Load(); calls != 0 {
-				t.Fatalf("expired site session reached LPS or Google %d time(s)", calls)
-			}
-
-			// Signing in again as the same owner admits the action.
-			again := newSoccerGrantWorld(t, invitations)
-			fresh := append(again.ownerPrivateState(t), testSiteSessionCookie(t, again.app, testSiteSubject, testSiteEmail))
-			resp = soccerGrantRequest(again.mux, route.method, route.path, route.form, fresh...)
-			if resp.Code != route.grantedStatus {
-				t.Fatalf("after signing in again: status = %d, want %d", resp.Code, route.grantedStatus)
-			}
-			route.grantedEffect(t, again, resp)
-		})
-	}
 }
 
 func TestExpiredSiteSessionStopsManagementPortalUntilSignInAgain(t *testing.T) {

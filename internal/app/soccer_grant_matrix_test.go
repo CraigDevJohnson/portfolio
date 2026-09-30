@@ -14,6 +14,7 @@ import (
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
+	"portfolio/internal/siteidentity"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
@@ -294,6 +295,15 @@ func TestSoccerGrantDecidesEveryPrivateRouteLikeThePage(t *testing.T) {
 		{
 			name:         "signed out holding the owner's private state",
 			invitations:  map[string][]string{testSiteEmail: {"soccer"}},
+			deniedStatus: http.StatusUnauthorized,
+			notice:       "Sign in with an invited account",
+		},
+		{
+			name:        "expired site session holding the owner's private state",
+			invitations: map[string][]string{testSiteEmail: {"soccer"}},
+			siteSession: func(t *testing.T, app *App) *http.Cookie {
+				return expiredSiteSessionCookie(t, app.Config.SiteSessionKey, siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail})
+			},
 			deniedStatus: http.StatusUnauthorized,
 			notice:       "Sign in with an invited account",
 		},
