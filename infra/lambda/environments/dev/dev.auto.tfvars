@@ -30,3 +30,14 @@ soccer_history_limits = {
   min_request_interval_ms = 1000
   worker_timeout_seconds  = 300
 }
+
+# Development site identity (#88), from task cognito-site-dev-export on 2026-09-30.
+site = {
+  cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+  cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_YOKhtHmRa"
+  cognito_client_id    = "5k9d32a4m7dnli1ad4ul4afmd9"
+  redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+  logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+  allow_local_callback = false
+  invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+}
