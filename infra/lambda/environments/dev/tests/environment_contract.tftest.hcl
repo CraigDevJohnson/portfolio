@@ -164,8 +164,8 @@ run "development_environment_contract" {
   }
 
   # Gates 3 and 4 of the LPS history readiness packet accepted these limits on
-  # September 30, 2026. Whether development collects or runs the daily schedule
-  # is undecided, so every switch is off and it has no schedule.
+  # September 30, 2026, and Craig decided the same day that development neither
+  # collects nor runs the daily schedule, so every switch is off.
   assert {
     condition = (
       !var.enable_soccer_history &&
@@ -189,8 +189,9 @@ run "development_environment_contract" {
       CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
       CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
       LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      SITE_SESSION_KEY  = "/portfolio/lambda/dev/SITE_SESSION_KEY"
     })
-    error_message = "development must expose only the three non-secret SSM paths"
+    error_message = "development must expose only its four SSM paths, including SITE_SESSION_KEY now that its reviewed site identity is set"
   }
 
   assert {
@@ -230,6 +231,7 @@ run "management_runtime_contract" {
         CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
         CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
         LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+        SITE_SESSION_KEY  = "/portfolio/lambda/dev/SITE_SESSION_KEY"
       }) &&
       output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
     )
