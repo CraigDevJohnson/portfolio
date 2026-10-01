@@ -34,8 +34,15 @@ the current `soccer` grant. A site-session timeout hides the import until that
 identity signs in again. Site sign-out, Clear import, and expiry remove it, as
 does a Soccer visit by another signed-in site account. The import also writes a
 guard cookie that its payload must match. Only an import writes the guard, so
-once sign-out or Clear import deletes both, a Soccer response still in flight
-cannot restore usable access. An anonymous Team ID
+once sign-out or Clear import deletes both, another Soccer response still in
+flight cannot restore usable access. An import still in flight writes both
+itself, so each import also records when the site session that authorized it
+was issued, and site sign-out records its own time in a separate cookie that
+no import writes. An import authorized by a session issued at or before the
+browser's latest sign-out is cleared when read, so the owner's next sign-in
+cannot use it. A timeout records no sign-out. The comparison uses server
+clocks, so it relies on them agreeing to well within the seconds a sign-in
+takes. An anonymous Team ID
 lookup saves its choices only in a cookie that ends with the browser session,
 and never replaces a retained import.
 
@@ -301,7 +308,7 @@ An invited address may have an empty grant list. Supported grants are `soccer`
 and `management`. Changes require updated environment configuration and a
 deployment. The app reads that current map for every request; grants are never
 stored in the browser cookie. The encrypted session retains the validated
-Cognito issuer, subject, email, and bounded expiry.
+Cognito issuer, subject, email, issue time, and bounded expiry.
 
 When site sign-in is configured, shared navigation links to `GET /sign-in`
 with a local return path; without complete configuration it shows no sign-in
@@ -311,7 +318,13 @@ to the callback itself falls back to `/`. `POST /sign-out` clears the session
 and pending OAuth state before ending the Cognito managed-login journey. It
 also clears features' browser state that depends on the site session: imported
 LPS access and pending Google Calendar consent. The owner-bound Google
-connection stays, so it is available again when its owner signs back in. Only
+connection stays, so it is available again when its owner signs back in.
+Sign-out also writes `site_signed_out`, an encrypted, host-only cookie holding
+the sign-out time that lasts 13 hours, longer than any import. Only sign-out
+writes it, and an import authorized by a site session issued at or before it
+is cleared, so an import still in flight at sign-out stays ended after the
+next sign-in. A record the current `SITE_SESSION_KEY` cannot read, such as one
+written before the key was rotated, counts as no sign-out. Only
 the site's own pages may submit `POST /sign-in` and `POST /sign-out`: a form
 another site submits receives `403` and changes no cookies. A
 denied, uninvited identity is offered **Use a different account**, which uses
@@ -529,7 +542,7 @@ configured; the landing page then reports that sign-in is unavailable:
 | `GET` | `/sign-in` | Signed-out landing and local return destination |
 | `POST` | `/sign-in` | Start Google-federated Cognito sign-in |
 | `GET` | `/auth/callback` | Complete site sign-in |
-| `POST` | `/sign-out` | Clear site session, imported LPS access, and pending Google consent; end managed login |
+| `POST` | `/sign-out` | Clear site session, imported LPS access, and pending Google consent; record the sign-out; end managed login |
 
 HTMX and form endpoints:
 
