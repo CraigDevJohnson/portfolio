@@ -135,9 +135,13 @@ message. Nothing reaches Git, chat, CI or the release workflow.
    scopes and attribute mapping, and a public code-flow client. The checker
    refuses deletions, replacements, other resources or modules, a
    domain-prefix override, another environment's names or URLs, and a changed
-   backend. It also refuses drift, except a refresh difference in the pool's
-   computed `estimated_number_of_users` or `last_modified_date`: once anyone
-   signs in, the federated user makes every later plan report the user count.
+   backend. It also refuses drift, except refresh differences that change
+   nothing reviewed: the pool's computed `estimated_number_of_users` or
+   `last_modified_date` (once anyone signs in, every later plan reports the
+   user count), an unset list or map that AWS now reports as empty, and the
+   pool's `domain` becoming its reviewed prefix after the first apply. The
+   Google provider declares the endpoint settings and `username` mapping that
+   Cognito adds after create, so the plan after an apply is all `no-op`.
    Keep both checksums as the approval record.
 4. After Craig approves that exact plan, apply it with the same `PLAN_FILE`:
 
