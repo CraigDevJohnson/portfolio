@@ -95,22 +95,21 @@ type fakeSiteCognito struct {
 	emailVerified any
 	subject       string
 	expiry        time.Time
+	// signingKey and signingKid sign every ID token; published is the pool's
+	// JWKS key set.
+	signingKey *rsa.PrivateKey
+	signingKid string
+	published  []map[string]string
 }
 
 func newFakeSiteCognito(t *testing.T) *fakeSiteCognito {
 	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
 	fixture := &fakeSiteCognito{email: "owner@example.com", emailVerified: true, subject: "stable-subject", expiry: time.Now().Add(time.Hour)}
+	fixture.rotateSigningKey(t, "test")
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/pool/.well-known/jwks.json":
-			_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
-				"kid": "test", "kty": "RSA", "alg": "RS256", "use": "sig",
-				"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB",
-			}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"keys": fixture.published})
 		case "/oauth2/token":
 			if r.Method != http.MethodPost || r.ParseForm() != nil || r.Form.Get("code") != "test-code" || r.Form.Get("code_verifier") == "" || r.Form.Get("client_id") != "site-client" || r.Form.Get("client_secret") != "" {
 				t.Errorf("invalid Cognito token request: %s %s", r.Method, r.URL.Path)
@@ -123,8 +122,8 @@ func newFakeSiteCognito(t *testing.T) *fakeSiteCognito {
 				"email_verified": fixture.emailVerified,
 			}
 			token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-			token.Header["kid"] = "test"
-			raw, signErr := token.SignedString(key)
+			token.Header["kid"] = fixture.signingKid
+			raw, signErr := token.SignedString(fixture.signingKey)
 			if signErr != nil {
 				t.Error(signErr)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -142,6 +141,21 @@ func newFakeSiteCognito(t *testing.T) *fakeSiteCognito {
 	fixture.domain = server.URL
 	fixture.issuer = server.URL + "/pool"
 	return fixture
+}
+
+// rotateSigningKey publishes a new key under kid alongside the earlier ones and
+// signs later ID tokens with it, as Cognito does when it rotates.
+func (f *fakeSiteCognito) rotateSigningKey(t *testing.T, kid string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.signingKey, f.signingKid = key, kid
+	f.published = append(f.published, map[string]string{
+		"kid": kid, "kty": "RSA", "alg": "RS256", "use": "sig",
+		"n": base64.RawURLEncoding.EncodeToString(key.N.Bytes()), "e": "AQAB",
+	})
 }
 
 func (f *fakeSiteCognito) app(t *testing.T) *App {
@@ -345,6 +359,26 @@ func TestSiteSignInAcceptsCognitoStringEmailVerified(t *testing.T) {
 		if admitted != tc.admitted {
 			t.Errorf("email_verified %q: admitted = %v (status %d), want %v", tc.claim, admitted, callback.Code, tc.admitted)
 		}
+	}
+}
+
+// A warm process caches the pool's JWKS. When Cognito rotates its signing key,
+// the next sign-in carries a token whose kid the cache has not seen; it must
+// still succeed rather than wait out the cache lifetime.
+func TestSiteSignInAcceptsTokenSignedByRotatedKey(t *testing.T) {
+	fixture := newFakeSiteCognito(t)
+	application := fixture.app(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	stateCookie, state := beginSiteSignIn(t, mux, "/about")
+	if first := completeSiteSignIn(t, mux, stateCookie, state); first.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in before rotation status = %d, want 303", first.Code)
+	}
+
+	fixture.rotateSigningKey(t, "rotated")
+	stateCookie, state = beginSiteSignIn(t, mux, "/about")
+	callback := completeSiteSignIn(t, mux, stateCookie, state)
+	if callback.Code != http.StatusSeeOther || callback.Header().Get("Location") != "/about" || siteCookie(t, callback).Value == "" {
+		t.Fatalf("sign-in with the rotated key: status %d, location %q, want 303 to /about with a site session", callback.Code, callback.Header().Get("Location"))
 	}
 }
 

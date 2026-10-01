@@ -61,14 +61,24 @@ type jwksResponse struct {
 	Keys []jwk `json:"keys"`
 }
 
+// jwksRefreshInterval is the shortest time between two JWKS refetches forced by
+// tokens naming a kid the cached set lacks. Cognito publishes a new signing key
+// before it signs with it, so one refetch picks up a rotation; within this
+// interval of the last forced refetch, a token naming an unknown kid is
+// rejected without another request to the issuer.
+const jwksRefreshInterval = time.Minute
+
 // jwksCache holds cached public keys fetched from a Cognito JWKS endpoint.
-// It refreshes at most once per hour.
+// It refreshes once per hour, and sooner, at most once per
+// jwksRefreshInterval, when a token names a kid the cached set lacks.
 type jwksCache struct {
-	mu        sync.RWMutex
-	keys      map[string]crypto.PublicKey // kid → *rsa.PublicKey
-	fetchedAt time.Time
-	ttl       time.Duration
-	fetchFn   func(ctx context.Context) ([]jwk, error)
+	mu          sync.RWMutex
+	keys        map[string]crypto.PublicKey // kid → *rsa.PublicKey
+	fetchedAt   time.Time
+	refreshedAt time.Time // last refetch forced by an unknown kid
+	ttl         time.Duration
+	now         func() time.Time
+	fetchFn     func(ctx context.Context) ([]jwk, error)
 }
 
 // newJWKSCache constructs a jwksCache that fetches keys from jwksURL using
@@ -77,6 +87,7 @@ func newJWKSCache(jwksURL string) *jwksCache {
 	c := &jwksCache{
 		keys: make(map[string]crypto.PublicKey),
 		ttl:  time.Hour,
+		now:  time.Now,
 	}
 	c.fetchFn = func(ctx context.Context) ([]jwk, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
@@ -109,7 +120,7 @@ func newJWKSCache(jwksURL string) *jwksCache {
 func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, error) {
 	// Fast path: read lock.
 	c.mu.RLock()
-	if len(c.keys) > 0 && time.Since(c.fetchedAt) < c.ttl {
+	if len(c.keys) > 0 && c.now().Sub(c.fetchedAt) < c.ttl {
 		keys := c.keys
 		c.mu.RUnlock()
 		return keys, nil
@@ -121,7 +132,7 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 	defer c.mu.Unlock()
 
 	// Double-check after acquiring write lock.
-	if len(c.keys) > 0 && time.Since(c.fetchedAt) < c.ttl {
+	if len(c.keys) > 0 && c.now().Sub(c.fetchedAt) < c.ttl {
 		return c.keys, nil
 	}
 
@@ -130,7 +141,44 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 		return nil, err
 	}
 
-	newKeys := make(map[string]crypto.PublicKey, len(rawKeys))
+	c.keys = parseJWKs(rawKeys)
+	c.fetchedAt = c.now()
+	return c.keys, nil
+}
+
+// refreshForKid refetches the JWKS because a token named kid, which the cached
+// set lacks, and returns kid's key from the refreshed set. It refetches at most
+// once per jwksRefreshInterval. A refetch that fails or yields no usable key
+// keeps the cached set.
+func (c *jwksCache) refreshForKid(ctx context.Context, kid string) (crypto.PublicKey, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if pub, found := c.keys[kid]; found {
+		// Another request refreshed the set while this one waited.
+		return pub, true
+	}
+	now := c.now()
+	if !c.refreshedAt.IsZero() && now.Sub(c.refreshedAt) < jwksRefreshInterval {
+		return nil, false
+	}
+	c.refreshedAt = now
+	rawKeys, err := c.fetchFn(ctx)
+	if err != nil {
+		return nil, false
+	}
+	keys := parseJWKs(rawKeys)
+	if len(keys) == 0 {
+		return nil, false
+	}
+	c.keys, c.fetchedAt = keys, now
+	pub, found := c.keys[kid]
+	return pub, found
+}
+
+// parseJWKs returns the RSA keys of a JWKS response by kid. It skips keys it
+// cannot parse rather than failing the whole set.
+func parseJWKs(rawKeys []jwk) map[string]crypto.PublicKey {
+	keys := make(map[string]crypto.PublicKey, len(rawKeys))
 	for i := range rawKeys {
 		k := &rawKeys[i]
 		if k.Kty != "RSA" {
@@ -138,15 +186,11 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 		}
 		pub, err := parseRSAPublicKey(k)
 		if err != nil {
-			// Skip keys we cannot parse rather than failing the whole refresh.
 			continue
 		}
-		newKeys[k.Kid] = pub
+		keys[k.Kid] = pub
 	}
-
-	c.keys = newKeys
-	c.fetchedAt = time.Now()
-	return c.keys, nil
+	return keys
 }
 
 // parseRSAPublicKey converts a JWK RSA entry into an *rsa.PublicKey.
@@ -255,7 +299,9 @@ func (c *OIDCClient) ExchangeCode(ctx context.Context, code, codeVerifier string
 
 // ValidateIDToken verifies a raw Cognito ID token JWT. It:
 //   - Fetches the JWKS from the cache (refreshing if needed)
-//   - Parses the JWT and looks up the signing key by kid
+//   - Parses the JWT and looks up the signing key by kid, refetching the JWKS
+//     once (at most once per jwksRefreshInterval) when the kid is unknown, so
+//     a key Cognito has just rotated in validates before the cache expires
 //   - Verifies the RS256 signature
 //   - Verifies iss == CognitoIssuer
 //   - Verifies aud == ClientID
@@ -277,6 +323,9 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 			return nil, errors.New("missing kid in JWT header")
 		}
 		pub, found := keys[kid]
+		if !found {
+			pub, found = c.jwksCache.refreshForKid(ctx, kid)
+		}
 		if !found {
 			return nil, fmt.Errorf("no public key found for kid %q", kid)
 		}
