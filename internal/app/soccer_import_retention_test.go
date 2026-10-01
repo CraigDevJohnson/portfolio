@@ -178,8 +178,13 @@ func TestSoccerResponseInFlightWhenImportIsClearedCannotRestoreIt(t *testing.T) 
 	}
 }
 
+// inFlightImportWait bounds each wait on an import held in flight, so a test
+// whose import never reaches LPS or never finishes fails instead of hanging.
+const inFlightImportWait = 10 * time.Second
+
 // holdLPSAccountLookup holds the fake LPS account lookup an import makes until
-// release is called; started is closed once the lookup has reached LPS.
+// release is called or the lookup's own request ends; started is closed once
+// the lookup has reached LPS.
 func (world *soccerGrantWorld) holdLPSAccountLookup(t *testing.T) (started <-chan struct{}, release func()) {
 	t.Helper()
 	reached, released := make(chan struct{}), make(chan struct{})
@@ -187,7 +192,11 @@ func (world *soccerGrantWorld) holdLPSAccountLookup(t *testing.T) (started <-cha
 	world.app.LPSClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if request.URL.Path == "/users/check" {
 			reachedOnce.Do(func() { close(reached) })
-			<-released
+			select {
+			case <-released:
+			case <-request.Context().Done():
+				return nil, request.Context().Err()
+			}
 		}
 		return http.DefaultTransport.RoundTrip(request)
 	})
@@ -204,14 +213,26 @@ func TestImportInFlightAtSiteSignOutCannotRestoreImportedAccess(t *testing.T) {
 	world, browser := newRetainedImportBrowser(t)
 	lookupStarted, releaseLookup := world.holdLPSAccountLookup(t)
 
-	sent := make(chan func() *httptest.ResponseRecorder)
+	// Buffered, so the import can finish and exit even after the test failed.
+	sent := make(chan func() *httptest.ResponseRecorder, 1)
 	go func() { sent <- browser.sendForm("/soccer/import", url.Values{"jwt": {world.jwt}}) }()
-	<-lookupStarted
+	select {
+	case <-lookupStarted:
+	case deliver := <-sent:
+		t.Fatalf("the import finished without reaching the LPS account lookup: status %d", deliver().Code)
+	case <-time.After(inFlightImportWait):
+		t.Fatal("the import never reached the LPS account lookup")
+	}
 	if signOut := browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
 		t.Fatalf("site sign-out status = %d", signOut.Code)
 	}
 	releaseLookup()
-	inFlight := <-sent
+	var inFlight func() *httptest.ResponseRecorder
+	select {
+	case inFlight = <-sent:
+	case <-time.After(inFlightImportWait):
+		t.Fatal("the import in flight never finished after the LPS account lookup was released")
+	}
 	if late := inFlight(); !strings.Contains(late.Body.String(), `name="player_ids"`) || findSessionCookie(t, late.Result()) == nil || findImportGuardCookie(late.Result()) == nil {
 		t.Fatalf("the import in flight did not write its import cookies: status %d", late.Code)
 	}
