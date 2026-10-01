@@ -34,9 +34,24 @@ run "development_site_pool_contract" {
         email          = "email"
         email_verified = "email_verified"
         name           = "name"
+        username       = "sub"
       })
     )
     error_message = "development site pool must be invite-only and Google-federated with verified email"
+  }
+
+  # Cognito adds these Google settings after create; declaring them keeps
+  # every later plan a no-op instead of an update that Cognito undoes.
+  assert {
+    condition = (
+      aws_cognito_identity_provider.google.provider_details.attributes_url == "https://people.googleapis.com/v1/people/me?personFields=" &&
+      aws_cognito_identity_provider.google.provider_details.attributes_url_add_attributes == "true" &&
+      aws_cognito_identity_provider.google.provider_details.authorize_url == "https://accounts.google.com/o/oauth2/v2/auth" &&
+      aws_cognito_identity_provider.google.provider_details.oidc_issuer == "https://accounts.google.com" &&
+      aws_cognito_identity_provider.google.provider_details.token_request_method == "POST" &&
+      aws_cognito_identity_provider.google.provider_details.token_url == "https://www.googleapis.com/oauth2/v4/token"
+    )
+    error_message = "the Google provider must declare the settings Cognito adds, so plans converge"
   }
 
   assert {

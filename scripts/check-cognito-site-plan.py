@@ -50,7 +50,7 @@ def contract(env):
         lock_uri=f"s3://{backend['bucket']}/{backend['key']}.tflock",
         resources={
             POOL: dict(name=name, user_pool_tier='ESSENTIALS', admin_create_user_config=[{'allow_admin_create_user_only': True}], username_configuration=[{'case_sensitive': False}]),
-            GOOGLE: dict(provider_name='Google', provider_type='Google', attribute_mapping={'email': 'email', 'email_verified': 'email_verified', 'name': 'name'}),
+            GOOGLE: dict(provider_name='Google', provider_type='Google', attribute_mapping={'email': 'email', 'email_verified': 'email_verified', 'name': 'name', 'username': 'sub'}),
             CLIENT: dict(name=f'{name}-web', generate_secret=False, allowed_oauth_flows_user_pool_client=True, allowed_oauth_flows=['code'], allowed_oauth_scopes=['openid', 'email', 'profile'], supported_identity_providers=['Google'], explicit_auth_flows=['ALLOW_REFRESH_TOKEN_AUTH'], callback_urls=[f'{origin}/auth/callback'], logout_urls=[f'{origin}/sign-in'], read_attributes=['email', 'email_verified', 'name'], write_attributes=['email', 'name']),
             DOMAIN: dict(domain=prefix, managed_login_version=2),
             BRANDING: dict(use_cognito_provided_values=True),
@@ -136,17 +136,28 @@ def check_configuration(plan, site):
             require(set(expr.get('client_id', {}).get('references', [])) == {'aws_cognito_user_pool_client.site.id', 'aws_cognito_user_pool_client.site'})
 
 
-def check_drift(drift):
-    """Admit only refresh differences in the pool's computed attributes."""
+def benign_drift(address, key, before, after, site):
+    """A refresh difference that changes nothing reviewed."""
+    if address == POOL and key in COMPUTED_POOL_DRIFT:
+        return True
+    # After the first apply AWS reports an unset collection as empty.
+    if before is None and after in ([], {}):
+        return True
+    # The pool learns its domain once the reviewed domain resource exists.
+    return address == POOL and key == 'domain' and before in (None, '') and after == site.prefix
+
+
+def check_drift(drift, site):
+    """Admit only refresh differences that change nothing reviewed."""
     require(isinstance(drift, list))
     for entry in drift:
-        require(isinstance(entry, dict) and entry.get('address') == POOL)
+        require(isinstance(entry, dict) and entry.get('address') in site.resources)
         change = entry.get('change')
         require(isinstance(change, dict) and change.get('actions') == ['update'])
         before, after = change.get('before'), change.get('after')
         require(isinstance(before, dict) and isinstance(after, dict))
         changed = {key for key in set(before) | set(after) if before.get(key) != after.get(key)}
-        require(changed <= COMPUTED_POOL_DRIFT)
+        require(all(benign_drift(entry['address'], key, before.get(key), after.get(key), site) for key in changed))
 
 
 def check(plan, env):
@@ -155,7 +166,7 @@ def check(plan, env):
     require(plan.get('errored', False) is False)
     changes = plan.get('resource_changes', [])
     require(len(changes) == 5 and {r['address'] for r in changes} == set(site.resources))
-    check_drift(plan.get('resource_drift') or [])
+    check_drift(plan.get('resource_drift') or [], site)
     check_configuration(plan, site)
     check_links(changes)
     summary = []
@@ -176,8 +187,9 @@ def check(plan, env):
             details = after['provider_details']
             require(details.get('authorize_scopes') == 'openid email profile')
             defaults = {'attributes_url': 'https://people.googleapis.com/v1/people/me?personFields=', 'attributes_url_add_attributes': 'true', 'authorize_url': 'https://accounts.google.com/o/oauth2/v2/auth', 'oidc_issuer': 'https://accounts.google.com', 'token_request_method': 'POST', 'token_url': 'https://www.googleapis.com/oauth2/v4/token'}
-            require(set(details) <= {'authorize_scopes', 'client_id', 'client_secret'} | set(defaults))
-            require(all(key not in details or details[key] == value for key, value in defaults.items()))
+            # Cognito adds these after create; declaring them keeps the plan converged.
+            require(set(details) == {'authorize_scopes', 'client_id', 'client_secret'} | set(defaults))
+            require(all(details[key] == value for key, value in defaults.items()))
             require(all(isinstance(details.get(k), str) and details[k].strip() for k in ['client_id', 'client_secret']))
         summary.append({'resource': r['address'], 'action': change['actions'][0]})
     return sorted(summary, key=lambda r: r['resource'])

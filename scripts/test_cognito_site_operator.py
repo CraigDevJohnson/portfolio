@@ -30,6 +30,15 @@ CLIENT = 'module.site.aws_cognito_user_pool_client.site'
 DOMAIN = 'module.site.aws_cognito_user_pool_domain.site'
 BRANDING = 'module.site.aws_cognito_managed_login_branding.site'
 ORIGIN = {'dev': 'https://dev.craigdevjohnson.com', 'prod': 'https://craigdevjohnson.com'}
+# The settings Cognito adds to every Google identity provider after creation.
+GOOGLE_DEFAULTS = {
+    'attributes_url': 'https://people.googleapis.com/v1/people/me?personFields=',
+    'attributes_url_add_attributes': 'true',
+    'authorize_url': 'https://accounts.google.com/o/oauth2/v2/auth',
+    'oidc_issuer': 'https://accounts.google.com',
+    'token_request_method': 'POST',
+    'token_url': 'https://www.googleapis.com/oauth2/v4/token',
+}
 
 
 def fixture(env='dev'):
@@ -40,7 +49,7 @@ def fixture(env='dev'):
     for address, values in site.resources.items():
         after = copy.deepcopy(values)
         if address == GOOGLE:
-            after['provider_details'] = dict(authorize_scopes='openid email profile', client_id=SENTINEL, client_secret=SENTINEL)
+            after['provider_details'] = dict(GOOGLE_DEFAULTS, authorize_scopes='openid email profile', client_id=SENTINEL, client_secret=SENTINEL)
         unknown = {}
         if address in {POOL, CLIENT}:
             unknown['id'] = True
@@ -179,6 +188,64 @@ class ContractTests(unittest.TestCase):
                 plan = self.known_fixture('dev', 'no-op')
                 plan['resource_drift'] = [self.drift(estimated_number_of_users=1), entry]
                 with self.assertRaises(ValueError): c.check(plan, 'dev')
+
+    def first_apply_drift(self, env='dev'):
+        """The refresh differences the first plan after a create reports."""
+        prefix = f'portfolio-lambda-{env}-site-{c.ACCOUNT}'
+        pool = self.drift(auto_verified_attributes=[], username_attributes=[], tags={}, domain=prefix)
+        pool['change']['before'].update(auto_verified_attributes=None, username_attributes=None, tags=None, domain='')
+        google = self.drift(address=GOOGLE, idp_identifiers=[])
+        google['change']['before']['idp_identifiers'] = None
+        return [pool, google]
+
+    def test_first_apply_normalization_drift_is_tolerated(self):
+        # After the first apply AWS reports unset collections as empty and the
+        # pool learns its reviewed domain; neither is a change to review.
+        for env in ENVIRONMENTS:
+            with self.subTest(env=env):
+                plan = self.known_fixture(env, 'no-op')
+                plan['resource_drift'] = self.first_apply_drift(env)
+                self.assertEqual(len(c.check(plan, env)), 5)
+
+    def test_normalization_drift_beyond_empty_values_is_rejected(self):
+        def pool_drift(**changes):
+            entry = self.first_apply_drift()[0]
+            entry['change']['after'].update(changes)
+            return entry
+
+        def google_before(**before):
+            entry = self.first_apply_drift()[1]
+            entry['change']['before'].update(before)
+            return entry
+
+        cases = [
+            pool_drift(username_attributes=['email']),
+            pool_drift(auto_verified_attributes=['email']),
+            pool_drift(tags={'owner': 'someone-else'}),
+            pool_drift(domain='portfolio-lambda-dev-site-other'),
+            pool_drift(domain=f'portfolio-lambda-prod-site-{c.ACCOUNT}'),
+            google_before(idp_identifiers=['other-idp']),
+            self.drift(address=CLIENT, callback_urls=['https://evil.example/auth/callback']),
+            self.drift(address=DOMAIN, domain='portfolio-lambda-dev-site-other'),
+        ]
+        for index, entry in enumerate(cases):
+            with self.subTest(case=index):
+                plan = self.known_fixture('dev', 'no-op')
+                plan['resource_drift'] = [entry]
+                with self.assertRaises(ValueError): c.check(plan, 'dev')
+
+    def test_google_provider_declares_cognitos_google_settings(self):
+        # Cognito adds these settings and the username mapping after create;
+        # a plan that omits them would update the provider on every run.
+        self.assertEqual(c.contract('dev').resources[GOOGLE]['attribute_mapping']['username'], 'sub')
+        for key in GOOGLE_DEFAULTS:
+            with self.subTest(key=key):
+                plan = self.known_fixture('dev', 'no-op')
+                del by_address(plan, GOOGLE)['change']['after']['provider_details'][key]
+                with self.assertRaises(ValueError): c.check(plan, 'dev')
+        plan = self.known_fixture('dev', 'no-op')
+        del by_address(plan, GOOGLE)['change']['after']['attribute_mapping']['username']
+        with self.assertRaises(ValueError): c.check(plan, 'dev')
 
     def test_provider_default_email_configuration_converges(self):
         plan = self.known_fixture('dev', 'no-op')
