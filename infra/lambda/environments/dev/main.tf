@@ -2,6 +2,7 @@ module "service" {
   source = "../../modules/service"
 
   management                 = var.management
+  site                       = var.site
   environment                = var.environment
   name_prefix                = var.name_prefix
   aws_region                 = var.aws_region
@@ -18,4 +19,10 @@ module "service" {
   request_custom_domain      = var.request_custom_domain
   activate_custom_domain     = var.activate_custom_domain
   live_version_override      = var.live_version_override
+
+  enable_soccer_history              = var.enable_soccer_history
+  soccer_history_limits              = var.soccer_history_limits
+  activate_soccer_history_collection = var.activate_soccer_history_collection
+  activate_soccer_history_schedule   = var.activate_soccer_history_schedule
+  soccer_history_schedule_expression = var.soccer_history_schedule_expression
 }

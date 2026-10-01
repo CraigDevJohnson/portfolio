@@ -12,6 +12,10 @@ output "lambda_execution_boundary_arn" {
   value = aws_iam_policy.lambda_execution_boundary.arn
 }
 
+output "lambda_history_execution_boundary_arn" {
+  value = aws_iam_policy.lambda_history_execution_boundary.arn
+}
+
 output "state_bucket_name" {
   value = aws_s3_bucket.state.bucket
 }

@@ -50,7 +50,7 @@ func TestSoccerRouteCSSUsesMatchdayCompositionContract(t *testing.T) {
 		{selector: ".soccer-source-grid", width: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{selector: ".soccer-match-row", width: 48, want: map[string]string{"grid-template-columns": "3rem minmax(0,0.9fr) minmax(0,1.35fr) minmax(0,1.2fr) minmax(0,0.7fr)"}},
 		{selector: ".soccer-connections-grid", width: 70, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
-		{selector: ".soccer-stage-legend", width: 70, want: map[string]string{"grid-template-columns": "repeat(4,minmax(0,1fr))"}},
+		{selector: ".soccer-stage-legend", width: 48, want: map[string]string{"grid-auto-flow": "column", "grid-auto-columns": "minmax(0,1fr)"}},
 		{selector: ".soccer-matchday-workspace", width: 70, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{selector: ".soccer-stage-source", width: 70, want: map[string]string{"grid-column": "1/-1"}},
 		{selector: ".soccer-page *", reduced: true, want: map[string]string{"animation-duration": "0.01ms !important", "animation-delay": "0ms !important", "transition-duration": "0.01ms !important", "transition-delay": "0ms !important"}},

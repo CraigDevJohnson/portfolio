@@ -43,6 +43,10 @@ var serviceOutputTypes = map[string]any{
 	"oauth_redirect_uris":                       []any{"list", "string"},
 	"soccer_session_table_arn":                  "string",
 	"soccer_session_table_name":                 "string",
+	"soccer_history_schedule_name":              "string",
+	"soccer_history_table_arn":                  "string",
+	"soccer_history_table_name":                 "string",
+	"soccer_history_worker_function_name":       "string",
 	"ssm_parameter_paths":                       []any{"map", "string"},
 }
 
@@ -50,26 +54,6 @@ var artifactOutputTypes = map[string]any{
 	"ecr_repository_arn":  "string",
 	"ecr_repository_name": "string",
 	"ecr_repository_url":  "string",
-}
-
-var authOutputTypes = map[string]any{
-	"cognito_user_pool_id":   "string",
-	"cognito_domain":         "string",
-	"cognito_issuer":         "string",
-	"cognito_client_id":      "string",
-	"google_redirect_uri":    "string",
-	"session_parameter_path": "string",
-	"management_runtime": []any{"object", map[string]any{
-		"cognito_domain":           "string",
-		"cognito_issuer":           "string",
-		"cognito_client_id":        "string",
-		"redirect_uri":             "string",
-		"logout_uri":               "string",
-		"allowed_emails":           []any{"set", "string"},
-		"allow_local_callback":     "bool",
-		"ec2_management_tag_key":   "string",
-		"ec2_management_tag_value": "string",
-	}},
 }
 
 var serviceIAMResourceCounts = map[string]int{
@@ -89,13 +73,14 @@ type plannedModule struct {
 
 func TestLambdaInfrastructureLayout(t *testing.T) {
 	required := []string{
-		"auth/dev/backend.hcl",
-		"auth/dev/main.tf",
-		"auth/dev/outputs.tf",
-		"auth/dev/providers.tf",
-		"auth/dev/tests/auth_contract.tftest.hcl",
-		"auth/dev/variables.tf",
-		"auth/dev/versions.tf",
+		"auth/site/dev/backend.hcl",
+		"auth/site/dev/main.tf",
+		"auth/site/dev/tests/site_contract.tftest.hcl",
+		"auth/site/prod/backend.hcl",
+		"auth/site/prod/main.tf",
+		"auth/site/prod/tests/site_contract.tftest.hcl",
+		"auth/site/modules/pool/main.tf",
+		"auth/site/modules/pool/tests/pool_contract.tftest.hcl",
 		"artifacts/backend.hcl",
 		"artifacts/main.tf",
 		"artifacts/tests/artifact_contract.tftest.hcl",
@@ -117,6 +102,7 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		"environments/prod/versions.tf",
 		"modules/service/api.tf",
 		"modules/service/domain.tf",
+		"modules/service/history_worker.tf",
 		"modules/service/lambda.tf",
 		"modules/service/observability.tf",
 		"modules/service/outputs.tf",
@@ -130,11 +116,11 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"infra/lambda/auth/dev/.terraform/providers/example",
-		"infra/lambda/auth/dev/.tofu/providers/example",
-		"infra/lambda/auth/dev/terraform.tfstate",
-		"infra/lambda/auth/dev/terraform.tfstate.backup",
-		"infra/lambda/auth/dev/saved.tfplan",
+		"infra/lambda/auth/site/dev/.terraform/providers/example",
+		"infra/lambda/auth/site/dev/terraform.tfstate",
+		"infra/lambda/auth/site/prod/.terraform/providers/example",
+		"infra/lambda/auth/site/prod/terraform.tfstate",
+		"infra/lambda/auth/site/modules/pool/.terraform/providers/example",
 		"infra/lambda/artifacts/.terraform/providers/example",
 		"infra/lambda/artifacts/.tofu/providers/example",
 		"infra/lambda/artifacts/terraform.tfstate",
@@ -157,7 +143,9 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"infra/lambda/auth/dev/.terraform.lock.hcl",
+		"infra/lambda/auth/site/dev/.terraform.lock.hcl",
+		"infra/lambda/auth/site/prod/.terraform.lock.hcl",
+		"infra/lambda/auth/site/modules/pool/.terraform.lock.hcl",
 		"infra/lambda/artifacts/.terraform.lock.hcl",
 		"infra/lambda/environments/dev/.terraform.lock.hcl",
 		"infra/lambda/environments/prod/.terraform.lock.hcl",
@@ -167,39 +155,56 @@ func TestLambdaInfrastructureLayout(t *testing.T) {
 		}
 	}
 
-	runOpenTofu(t, "auth/dev", "init", "-backend=false", "-lockfile=readonly", "-input=false")
-	runOpenTofu(t, "auth/dev", "fmt", "-check")
-	runOpenTofu(t, "auth/dev", "validate")
-	runOpenTofuTestWithSkippedRuns(t, "auth/dev", 5, authOutputTypes, map[string]int{}, map[string]bool{
-		"reject_empty_google_client_id":     true,
-		"reject_empty_google_client_secret": true,
-		"reject_invalid_domain_prefix":      true,
-	})
-
 	runOpenTofu(t, "artifacts", "init", "-backend=false", "-input=false")
 	runOpenTofu(t, "artifacts", "fmt", "-check")
 	runOpenTofu(t, "artifacts", "validate")
 	runOpenTofuTest(t, "artifacts", 1, artifactOutputTypes, nil)
 
 	runOpenTofu(t, "modules/service", "init", "-backend=false", "-input=false")
-	runOpenTofuTestWithSkippedRuns(t, "modules/service", 12, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-		"management_reject_prod":        true,
-		"management_reject_region":      true,
-		"management_reject_email":       true,
-		"management_reject_empty_email": true,
-		"management_reject_callback":    true,
-		"management_reject_tag":         true,
-		"management_reject_issuer":      true,
+	runOpenTofuTestWithSkippedRuns(t, "modules/service", 28, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
+		"management_reject_prod":                                true,
+		"management_reject_region":                              true,
+		"management_rejects_another_portal_region":              true,
+		"site_rejects_wrong_environment_callback":               true,
+		"site_rejects_development_identity_in_production":       true,
+		"site_rejects_production_loopback_callback":             true,
+		"history_schedule_rejects_missing_limits":               true,
+		"history_collection_rejects_missing_table":              true,
+		"history_collection_rejects_missing_alert_destination":  true,
+		"history_schedule_rejects_missing_expression":           true,
+		"history_limits_reject_a_timeout_covering_only_pacing":  true,
+		"candidate_rejects_a_timeout_below_pacing":              true,
+		"candidate_rejects_a_budget_below_one_request_per_team": true,
+		// The scheduled worker adds its own execution and Scheduler roles,
+		// which history_worker_schedule_and_failure_contract checks statement
+		// by statement.
+		"history_worker_schedule_and_failure_contract": true,
+		"candidate_schedule_stage_prod":                true,
 	})
-	for _, environment := range []string{"dev", "prod"} {
-		directory := "environments/" + environment
+	// Each root also plans its site runtime, every history stage from its own
+	// inputs, and the runs listed here, which skip the contract checks: input
+	// rejections, whose plans stop before them, and the history run, whose
+	// worker and Scheduler roles the service module's contract checks.
+	for _, root := range []struct {
+		environment        string
+		plans              int
+		skipContractChecks map[string]bool
+	}{
+		{"dev", 5, map[string]bool{
+			"reject_management_in_another_region": true,
+			"history_inputs_reach_the_service":    true,
+		}},
+		{"prod", 5, map[string]bool{
+			"reject_other_alarm_topic":                 true,
+			"production_site_rejects_management_grant": true,
+			"history_inputs_reach_the_service":         true,
+		}},
+	} {
+		directory := "environments/" + root.environment
 		runOpenTofu(t, directory, "init", "-backend=false", "-input=false")
 		runOpenTofu(t, directory, "fmt", "-check")
 		runOpenTofu(t, directory, "validate")
-		// dev also plans the management runtime; prod also plans a rejected alarm topic.
-		runOpenTofuTestWithSkippedRuns(t, directory, 2, serviceOutputTypes, serviceIAMResourceCounts, map[string]bool{
-			"reject_other_alarm_topic": true,
-		})
+		runOpenTofuTestWithSkippedRuns(t, directory, root.plans, serviceOutputTypes, serviceIAMResourceCounts, root.skipContractChecks)
 	}
 }
 

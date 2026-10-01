@@ -61,6 +61,12 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_sqs_queue" {
+    defaults = {
+      arn = "arn:aws:sqs:us-west-2:111122223333:portfolio-test-history-failures"
+    }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = {
       arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test"
@@ -204,6 +210,15 @@ run "published_service_contract" {
   assert {
     condition     = aws_cloudwatch_log_group.lambda.retention_in_days == 14 && aws_cloudwatch_log_group.api_access.retention_in_days == 14
     error_message = "both service log groups must use finite configured retention"
+  }
+
+  assert {
+    condition = (
+      length(aws_dynamodb_table.soccer_history) == 0 &&
+      output.soccer_history_table_name == null &&
+      output.soccer_history_table_arn == null
+    )
+    error_message = "durable Soccer history must not be planned until its activation review enables it"
   }
 
   assert {
@@ -424,6 +439,72 @@ run "staged_custom_domain_contract" {
   }
 }
 
+run "soccer_history_enabled_contract" {
+  command = plan
+
+  variables {
+    enable_soccer_history      = true
+    enable_pitr                = true
+    enable_deletion_protection = true
+  }
+
+  # Every mocked table shares one ARN; give this table its own so the IAM
+  # checks below can tell its grant apart from the other tables'.
+  override_resource {
+    target = aws_dynamodb_table.soccer_history
+    values = {
+      arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-dev-soccer-history"
+    }
+  }
+
+  assert {
+    condition = (
+      length(aws_dynamodb_table.soccer_history) == 1 &&
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-dev-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].billing_mode == "PAY_PER_REQUEST" &&
+      aws_dynamodb_table.soccer_history[0].hash_key == "pk" &&
+      aws_dynamodb_table.soccer_history[0].range_key == "sk" &&
+      length(aws_dynamodb_table.soccer_history[0].ttl) == 0 &&
+      aws_dynamodb_table.soccer_history[0].server_side_encryption[0].enabled &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled &&
+      length(aws_dynamodb_table.soccer_history[0].global_secondary_index) == 1 &&
+      length([
+        for index in aws_dynamodb_table.soccer_history[0].global_secondary_index : index
+        if index.name == "due-teams" && index.projection_type == "ALL" &&
+        join(",", [for key in index.key_schema : "${key.attribute_name}:${key.key_type}"]) == "due_pk:HASH,due_sk:RANGE"
+      ]) == 1 &&
+      output.soccer_history_table_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_table_arn == "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-lambda-dev-soccer-history"
+    )
+    error_message = "enabled Soccer history must be a protected, encrypted source-fact table with a due-team index and no session TTL"
+  }
+
+  assert {
+    condition = (
+      length(data.aws_iam_policy_document.lambda.statement) == 6 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if length(statement.actions) == 4 &&
+        toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]) &&
+        length(statement.resources) == 1 &&
+        toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn]) &&
+        length(statement.condition) == 0
+      ]) == 1 &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if contains(statement.resources, aws_dynamodb_table.soccer_history[0].arn)
+      ]) == 1
+    )
+    error_message = "enabled Soccer history must add exactly one read, write, base-table query, and player-removal delete statement for its table"
+  }
+
+  assert {
+    condition     = !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_ARCHIVE_TABLE_NAME")
+    error_message = "enabling the table must not hand the runtime an archive to enroll into before activation"
+  }
+}
+
 run "runtime_policy_attachment_contract" {
   command = apply
 
@@ -441,22 +522,9 @@ run "management_enabled_contract" {
   command = plan
   variables {
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
-  assert {
-    condition     = aws_lambda_function.app.environment[0].variables.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && length(data.aws_iam_policy_document.lambda.statement) == 6
-    error_message = "management must add a session parameter reference and exactly one bounded read-only management IAM statement"
-  }
-
   assert {
     condition = aws_lambda_function.app.environment[0].variables == tomap({
       CLIENT_ID_KEY                = "/portfolio/lambda/dev/CLIENT_ID_KEY"
@@ -467,20 +535,13 @@ run "management_enabled_contract" {
       LOG_LEVEL                    = "info"
       LPS_SESSION_KEY              = "/portfolio/lambda/dev/LPS_SESSION_KEY"
       SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-dev-soccer-sessions"
-      MGMT_SESSION_KEY             = "/portfolio/lambda/dev/MGMT_SESSION_KEY"
-      MGMT_COGNITO_DOMAIN          = var.management.cognito_domain
-      MGMT_COGNITO_ISSUER          = var.management.cognito_issuer
-      MGMT_COGNITO_CLIENT_ID       = var.management.cognito_client_id
-      MGMT_COGNITO_REDIRECT_URI    = "https://dev.craigdevjohnson.com/callback"
-      MGMT_COGNITO_LOGOUT_URI      = "https://dev.craigdevjohnson.com/login"
-      MGMT_ALLOWED_EMAILS          = "craigdevjohnson@gmail.com"
-      MGMT_ALLOW_LOCAL_CALLBACK    = "false"
       MGMT_AWS_REGION              = "us-west-2"
     })
-    error_message = "enabled runtime environment must match the full public contract, with a path instead of the session value"
+    error_message = "the identity-free management switch must pass the portal only its AWS region; the application no longer reads the retired management-only session, Cognito, allowlist or callback settings"
   }
   assert {
     condition = (
+      length(data.aws_iam_policy_document.lambda.statement) == 6 &&
       length([for st in data.aws_iam_policy_document.lambda.statement : st if
         toset(st.actions) == toset(["ec2:DescribeInstances", "cloudwatch:GetMetricStatistics"]) &&
         st.resources == toset(["*"]) && length(st.condition) == 1 &&
@@ -489,15 +550,32 @@ run "management_enabled_contract" {
         length(setintersection(toset(st.actions), toset(["ec2:StartInstances", "ec2:StopInstances", "logs:FilterLogEvents"]))) > 0
       ]) == 0
     )
-    error_message = "management permissions must be read-only and region-scoped, with no EC2 start/stop or instance log reads (D22)"
+    error_message = "management must add exactly one read-only, region-scoped statement, with no EC2 start/stop or instance log reads (D22)"
   }
   assert {
-    condition = (length([for st in data.aws_iam_policy_document.lambda.statement : st if
-      st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
-      alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
-      toset(c.values) == toset([for path in values(output.ssm_parameter_paths) : "arn:aws:ssm:us-west-2:111122223333:parameter${path}"])])]) == 1 &&
-    output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-    error_message = "enabled KMS context must exactly bind the four SSM parameters"
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      }) &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["ssm:GetParameters"]) &&
+        st.resources == toset([
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+          "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
+        alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
+          toset(c.values) == toset([
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/dev/LPS_SESSION_KEY",
+      ])])]) == 1
+    )
+    error_message = "management adds no SecureString: parameter reads and decryption stay on the three required parameters, without the retired MGMT_SESSION_KEY"
   }
 }
 
@@ -506,15 +584,7 @@ run "management_reject_prod" {
   variables {
     environment = "prod"
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   expect_failures = [aws_iam_role.lambda]
@@ -525,111 +595,585 @@ run "management_reject_region" {
   variables {
     aws_region = "us-east-1"
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   expect_failures = [aws_iam_role.lambda]
 }
 
-run "management_reject_email" {
+run "management_rejects_another_portal_region" {
   command = plan
   variables {
-
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["other@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-east-1"
     }
   }
   expect_failures = [var.management]
 }
 
-run "management_reject_empty_email" {
+run "development_site_runtime_contract" {
   command = plan
-  variables {
 
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = []
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
     }
   }
-  expect_failures = [var.management]
+
+  assert {
+    condition = (
+      output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY" &&
+      aws_lambda_function.app.environment[0].variables.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_ISSUER == "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_CLIENT_ID == "devsiteclient" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_REDIRECT_URI == "https://dev.craigdevjohnson.com/auth/callback" &&
+      aws_lambda_function.app.environment[0].variables.SITE_COGNITO_LOGOUT_URI == "https://dev.craigdevjohnson.com/sign-in" &&
+      jsondecode(aws_lambda_function.app.environment[0].variables.SITE_INVITATIONS_JSON)["craigdevjohnson@gmail.com"] == ["management", "soccer"] &&
+      aws_lambda_function.app.environment[0].variables.SITE_ALLOW_LOCAL_CALLBACK == "false"
+    )
+    error_message = "reviewed development site identity must wire only its own runtime and session path"
+  }
 }
 
-run "management_reject_callback" {
+run "site_rejects_wrong_environment_callback" {
   command = plan
-  variables {
 
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "http://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
     }
   }
-  expect_failures = [var.management]
+
+  expect_failures = [var.site]
 }
 
-run "management_reject_tag" {
+run "production_site_runtime_contract" {
   command = plan
-  variables {
 
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "OtherTag"
-      ec2_management_tag_value = "dev"
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
     }
   }
-  expect_failures = [var.management]
+
+  assert {
+    condition = aws_lambda_function.app.environment[0].variables == tomap({
+      CLIENT_ID_KEY                = "/portfolio/lambda/prod/CLIENT_ID_KEY"
+      CLIENT_SECRET_KEY            = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
+      GOOGLE_CONNECTION_TABLE_NAME = "portfolio-lambda-prod-google-connections"
+      LOG_ADD_SOURCE               = "false"
+      LOG_FORMAT                   = "json"
+      LOG_LEVEL                    = "info"
+      LPS_SESSION_KEY              = "/portfolio/lambda/prod/LPS_SESSION_KEY"
+      SOCCER_SESSION_TABLE_NAME    = "portfolio-lambda-prod-soccer-sessions"
+      SITE_SESSION_KEY             = "/portfolio/lambda/prod/SITE_SESSION_KEY"
+      SITE_COGNITO_DOMAIN          = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      SITE_COGNITO_ISSUER          = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      SITE_COGNITO_CLIENT_ID       = "prodsiteclient"
+      SITE_COGNITO_REDIRECT_URI    = "https://craigdevjohnson.com/auth/callback"
+      SITE_COGNITO_LOGOUT_URI      = "https://craigdevjohnson.com/sign-in"
+      SITE_INVITATIONS_JSON        = "{\"craigdevjohnson@gmail.com\":[\"management\",\"soccer\"]}"
+      SITE_ALLOW_LOCAL_CALLBACK    = "false"
+    })
+    error_message = "production site identity must reach Lambda as its own public settings and a session parameter path, without management settings"
+  }
+
+  assert {
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/prod/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/prod/LPS_SESSION_KEY"
+        SITE_SESSION_KEY  = "/portfolio/lambda/prod/SITE_SESSION_KEY"
+      }) &&
+      length([for st in data.aws_iam_policy_document.lambda.statement : st if
+        st.actions == toset(["kms:Decrypt"]) && length(st.condition) == 1 &&
+        alltrue([for c in st.condition : c.test == "StringEquals" && c.variable == "kms:EncryptionContext:PARAMETER_ARN" &&
+          toset(c.values) == toset([
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_ID_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/CLIENT_SECRET_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/LPS_SESSION_KEY",
+            "arn:aws:ssm:us-west-2:111122223333:parameter/portfolio/lambda/prod/SITE_SESSION_KEY",
+      ])])]) == 1
+    )
+    error_message = "production may read and decrypt only its own four SecureStrings once site identity is enabled"
+  }
 }
 
-run "management_reject_issuer" {
+run "site_rejects_development_identity_in_production" {
   command = plan
-  variables {
 
-    management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-east-1_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
     }
   }
-  expect_failures = [var.management]
+
+  expect_failures = [var.site]
+}
+
+run "site_rejects_production_loopback_callback" {
+  command = plan
+
+  variables {
+    environment = "prod"
+    name_prefix = "portfolio-lambda-prod"
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = true
+    }
+  }
+
+  expect_failures = [var.site]
+}
+
+run "history_disabled_without_reviewed_limits" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      length(aws_sqs_queue.history_dead_letter) == 0 &&
+      length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 0 &&
+      length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 0 &&
+      length(aws_cloudwatch_log_metric_filter.history_manual_admission_rejected) == 0 &&
+      output.soccer_history_worker_function_name == null &&
+      output.soccer_history_schedule_name == null &&
+      !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
+    )
+    error_message = "unset reviewed limits must leave collection and daily scheduling disabled"
+  }
+}
+
+run "history_schedule_rejects_missing_limits" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(0 12 * * ? *)"
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_collection_rejects_missing_table" {
+  command = plan
+  variables {
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_collection_rejects_missing_alert_destination" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = []
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_schedule_rejects_missing_expression" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  expect_failures = [aws_iam_role.lambda]
+}
+
+run "history_limits_reject_a_timeout_covering_only_pacing" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    # 99 paced gaps of 2 seconds fit 200 seconds, but one slow team with five
+    # retries and the worker's wrap-up time does not.
+    soccer_history_limits = {
+      max_enrolled_teams      = 100
+      reserved_player_slots   = 10
+      max_requests_per_run    = 100
+      max_retries_per_team    = 5
+      min_request_interval_ms = 2000
+      worker_timeout_seconds  = 200
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
+}
+
+run "history_limits_alone_do_not_activate" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      !contains(keys(aws_lambda_function.app.environment[0].variables), "SOCCER_HISTORY_COLLECTION_ENABLED")
+    )
+    error_message = "numeric limits alone must not activate collection or polling"
+  }
+}
+
+run "history_collection_has_capacity_alert_without_schedule" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_COLLECTION_ENABLED == "true" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_TEAMS == "4" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_ARCHIVE_TABLE_NAME == "portfolio-lambda-dev-soccer-history" &&
+      length([
+        for statement in data.aws_iam_policy_document.lambda.statement : statement
+        if toset(statement.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]) &&
+        toset(statement.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])
+      ]) == 1 &&
+      length(aws_cloudwatch_log_metric_filter.history_admission_rejected) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_admission_rejected) == 1 &&
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0
+    )
+    error_message = "collection must have a capacity alarm without implicitly starting a schedule"
+  }
+  # Gate 4 (September 30, 2026): the alarm counts only refused player-linked
+  # teams. Refused visitor Team ID lookups are counted by a metric with no
+  # alarm, so a visitor cannot hold the alarm in ALARM once the manual share of
+  # the cap is used. Both patterns match the top-level "source" attribute the
+  # refusal line carries, which only holds while the HTTP runtime keeps
+  # LOG_ADD_SOURCE=false: slog would otherwise also write its code-location
+  # "source" key.
+  assert {
+    condition = (
+      aws_lambda_function.app.environment[0].variables.LOG_ADD_SOURCE == "false" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"player\" }" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].metric_transformation[0].name == "AdmissionRejected" &&
+      aws_cloudwatch_metric_alarm.history_admission_rejected[0].metric_name == "AdmissionRejected" &&
+      length(aws_cloudwatch_log_metric_filter.history_manual_admission_rejected) == 1 &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].name == "portfolio-lambda-dev-soccer-history-manual-admission-rejected" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"manual\" }" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].metric_transformation[0].name == "ManualAdmissionRejected" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].metric_transformation[0].namespace == "Portfolio/SoccerHistory" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-dev-api-5xx",
+        "portfolio-lambda-dev-api-latency",
+        "portfolio-lambda-dev-lambda-duration",
+        "portfolio-lambda-dev-lambda-errors",
+        "portfolio-lambda-dev-lambda-throttles",
+        "portfolio-lambda-dev-soccer-history-admission-rejected",
+      ])
+    )
+    error_message = "the admission alarm must count only player refusals, and refused visitor lookups only a metric with no alarm"
+  }
+}
+
+run "history_worker_schedule_and_failure_contract" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"]
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(0 12 * * ? *)"
+    soccer_history_limits = {
+      max_enrolled_teams      = 4
+      reserved_player_slots   = 2
+      max_requests_per_run    = 8
+      max_retries_per_team    = 1
+      min_request_interval_ms = 250
+      worker_timeout_seconds  = 120
+    }
+  }
+  assert {
+    condition = (
+      length(aws_lambda_function.history_worker) == 1 &&
+      aws_lambda_function.history_worker[0].reserved_concurrent_executions == 1 &&
+      aws_lambda_function.history_worker[0].timeout == 120 &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MODE == "scheduled" &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "8" &&
+      aws_scheduler_schedule.history_daily[0].schedule_expression == "cron(0 12 * * ? *)" &&
+      aws_scheduler_schedule.history_daily[0].target[0].arn == aws_lambda_function.history_worker[0].arn &&
+      aws_scheduler_schedule.history_daily[0].target[0].dead_letter_config[0].arn == aws_sqs_queue.history_dead_letter[0].arn &&
+      aws_lambda_function_event_invoke_config.history_worker[0].destination_config[0].on_failure[0].destination == aws_sqs_queue.history_dead_letter[0].arn &&
+      length(aws_cloudwatch_metric_alarm.history_worker_errors) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_incomplete) == 1 &&
+      length(aws_cloudwatch_metric_alarm.history_dead_letter) == 1 &&
+      aws_cloudwatch_log_metric_filter.history_incomplete[0].pattern == "{ $.msg = \"soccer_history_daily_incomplete\" }" &&
+      length(output.alarm_arns) == 9
+    )
+    error_message = "the daily worker must be bounded, separately invoked, and monitored for delivery, execution, and partial failure"
+  }
+  assert {
+    condition = (
+      length(data.aws_iam_policy_document.history_worker[0].statement) == 4 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["dynamodb:GetItem", "dynamodb:PutItem"]) &&
+      toset(st.resources) == toset([aws_dynamodb_table.soccer_history[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["dynamodb:Query"]) &&
+      toset(st.resources) == toset(["${aws_dynamodb_table.soccer_history[0].arn}/index/due-teams"])]) == 1 &&
+      length(data.aws_iam_policy_document.history_scheduler[0].statement) == 2
+    )
+    error_message = "worker and Scheduler roles must have only scoped table, due-index, invoke, DLQ, and log rights"
+  }
+  assert {
+    condition = (
+      aws_iam_role.history_worker[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary" &&
+      aws_iam_role.history_scheduler[0].permissions_boundary == "arn:aws:iam::111122223333:policy/portfolio/boundaries/PortfolioLambdaHistoryExecutionBoundary" &&
+      length([for st in data.aws_iam_policy_document.history_scheduler[0].statement : st if
+        toset(st.actions) == toset(["lambda:InvokeFunction"]) &&
+      toset(st.resources) == toset([aws_lambda_function.history_worker[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_scheduler[0].statement : st if
+        toset(st.actions) == toset(["sqs:SendMessage"]) &&
+      toset(st.resources) == toset([aws_sqs_queue.history_dead_letter[0].arn])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["logs:CreateLogStream", "logs:PutLogEvents"]) &&
+      toset(st.resources) == toset(["${aws_cloudwatch_log_group.history_worker[0].arn}:*"])]) == 1 &&
+      length([for st in data.aws_iam_policy_document.history_worker[0].statement : st if
+        toset(st.actions) == toset(["sqs:SendMessage"]) &&
+      toset(st.resources) == toset([aws_sqs_queue.history_dead_letter[0].arn])]) == 1 &&
+      one(data.aws_iam_policy_document.history_scheduler_assume[0].statement[0].condition).values == tolist(["arn:aws:scheduler:us-west-2:111122223333:schedule/default/portfolio-lambda-dev-soccer-history-daily"])
+    )
+    error_message = "the worker and Scheduler roles must sit inside the history execution boundary and reach only the worker, its log group, and the failure queue"
+  }
+  assert {
+    condition = (
+      aws_scheduler_schedule.history_daily[0].schedule_expression_timezone == "UTC" &&
+      aws_scheduler_schedule.history_daily[0].state == "ENABLED" &&
+      aws_scheduler_schedule.history_daily[0].flexible_time_window[0].mode == "OFF" &&
+      aws_scheduler_schedule.history_daily[0].target[0].retry_policy[0].maximum_retry_attempts == 2 &&
+      aws_lambda_function_event_invoke_config.history_worker[0].maximum_retry_attempts == 0 &&
+      aws_cloudwatch_log_metric_filter.history_incomplete[0].log_group_name == "/aws/lambda/portfolio-lambda-dev-soccer-history" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_log_metric_filter.history_admission_rejected[0].pattern == "{ $.msg = \"soccer_history_admission_rejected\" && $.source = \"player\" }" &&
+      aws_cloudwatch_log_metric_filter.history_manual_admission_rejected[0].log_group_name == "/aws/lambda/portfolio-lambda-dev" &&
+      aws_cloudwatch_metric_alarm.history_worker_errors[0].dimensions == tomap({ FunctionName = "portfolio-lambda-dev-soccer-history" }) &&
+      alltrue([
+        for alarm in [
+          aws_cloudwatch_metric_alarm.history_admission_rejected[0],
+          aws_cloudwatch_metric_alarm.history_incomplete[0],
+          aws_cloudwatch_metric_alarm.history_worker_errors[0],
+          aws_cloudwatch_metric_alarm.history_dead_letter[0],
+        ] : alarm.threshold == 1 && toset(alarm.alarm_actions) == toset(["arn:aws:sns:us-west-2:111122223333:portfolio-lambda-alerts"])
+      ])
+    )
+    error_message = "the daily schedule must fire at a fixed UTC time, retry delivery without re-running work, and alert on every refused player-linked team, incomplete run, worker error, and failed delivery"
+  }
+}
+
+# The candidate limits and schedule proposed in the #104 readiness packet
+# (docs/deployment/2026-09-26-lps-history-activation-readiness.md, 3.3). These
+# runs prove only that the module accepts the tuple and plans each stage; they
+# are not an approval of the values.
+run "candidate_collection_stage_dev" {
+  command = plan
+  variables {
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  assert {
+    condition = (
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-dev-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled == false &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled == false &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_COLLECTION_ENABLED == "true" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_TEAMS == "40" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_PLAYER_RESERVED == "30" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "120" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MAX_RETRIES == "1" &&
+      aws_lambda_function.app.environment[0].variables.SOCCER_HISTORY_MIN_INTERVAL_MS == "1000" &&
+      aws_cloudwatch_metric_alarm.history_admission_rejected[0].alarm_name == "portfolio-lambda-dev-soccer-history-admission-rejected" &&
+      length(aws_lambda_function.history_worker) == 0 &&
+      length(aws_scheduler_schedule.history_daily) == 0 &&
+      length(aws_sqs_queue.history_dead_letter) == 0
+    )
+    error_message = "the candidate limits must plan dev collection with its admission alarm and no daily worker"
+  }
+}
+
+run "candidate_schedule_stage_prod" {
+  command = plan
+  variables {
+    environment                        = "prod"
+    name_prefix                        = "portfolio-lambda-prod"
+    log_retention_days                 = 30
+    enable_pitr                        = true
+    enable_deletion_protection         = true
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(30 10 * * ? *)"
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  assert {
+    condition = (
+      aws_dynamodb_table.soccer_history[0].name == "portfolio-lambda-prod-soccer-history" &&
+      aws_dynamodb_table.soccer_history[0].point_in_time_recovery[0].enabled == true &&
+      aws_dynamodb_table.soccer_history[0].deletion_protection_enabled == true &&
+      aws_lambda_function.history_worker[0].function_name == "portfolio-lambda-prod-soccer-history" &&
+      aws_lambda_function.history_worker[0].timeout == 300 &&
+      aws_lambda_function.history_worker[0].memory_size == 512 &&
+      aws_lambda_function.history_worker[0].reserved_concurrent_executions == 1 &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MAX_REQUESTS == "120" &&
+      aws_lambda_function.history_worker[0].environment[0].variables.SOCCER_HISTORY_MIN_INTERVAL_MS == "1000" &&
+      aws_cloudwatch_log_group.history_worker[0].retention_in_days == 30 &&
+      aws_scheduler_schedule.history_daily[0].name == "portfolio-lambda-prod-soccer-history-daily" &&
+      aws_scheduler_schedule.history_daily[0].schedule_expression == "cron(30 10 * * ? *)" &&
+      aws_sqs_queue.history_dead_letter[0].name == "portfolio-lambda-prod-soccer-history-failures" &&
+      output.soccer_history_worker_function_name == "portfolio-lambda-prod-soccer-history" &&
+      output.soccer_history_schedule_name == "portfolio-lambda-prod-soccer-history-daily"
+    )
+    error_message = "the candidate limits and schedule must plan a bounded prod worker at 10:30 UTC"
+  }
+}
+
+# The timeout floor for the candidate tuple: 119 paced gaps of 1 s, two
+# attempts of one team at 15 s plus pacing, 1 s of backoff and 10 s to report
+# is 162 s, which the timeout must exceed.
+run "candidate_accepts_the_shortest_covering_timeout" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 163
+    }
+  }
+  assert {
+    condition     = length(aws_dynamodb_table.soccer_history) == 1 && length(aws_lambda_function.history_worker) == 0
+    error_message = "a 163-second timeout covers the candidate pacing and must be accepted"
+  }
+}
+
+run "candidate_rejects_a_timeout_below_pacing" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 120
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 162
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
+}
+
+run "candidate_rejects_a_budget_below_one_request_per_team" {
+  command = plan
+  variables {
+    enable_soccer_history = true
+    soccer_history_limits = {
+      max_enrolled_teams      = 40
+      reserved_player_slots   = 30
+      max_requests_per_run    = 39
+      max_retries_per_team    = 1
+      min_request_interval_ms = 1000
+      worker_timeout_seconds  = 300
+    }
+  }
+  expect_failures = [var.soccer_history_limits]
 }

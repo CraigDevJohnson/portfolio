@@ -3,6 +3,7 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,9 +12,11 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/logging"
 	internalsession "portfolio/internal/session"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -22,34 +25,6 @@ func (h *Handler) RenderDisconnectFeedback(w http.ResponseWriter, r *http.Reques
 	h.DeleteConnection(r.Context(), w, r)
 	h.Soccer.RenderLoginStateOOB(w, r, session)
 	h.Soccer.RenderLoginFeedback(w, r, "error", message)
-}
-
-// SyncCalendarSelection ensures the connection record has a valid calendar selection.
-func (h *Handler) SyncCalendarSelection(ctx context.Context, record *ConnectionRecord, calendars []types.GoogleCalendarOption) (calendarID, summary string) {
-	calendarID = strings.TrimSpace(record.CalendarID)
-	if calendarID == "" {
-		calendarID, summary = preferredCalendar(calendars)
-		record.CalendarID = calendarID
-		record.CalendarSummary = summary
-		record.UpdatedAt = time.Now().UTC()
-		if err := h.Store().Put(ctx, record); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("google connection default calendar save failed", slog.Any("error", err))
-		}
-		return calendarID, summary
-	}
-	summary = calendarSummary(calendars, calendarID)
-	if summary == "" {
-		calendarID, summary = preferredCalendar(calendars)
-	}
-	if summary != "" && (record.CalendarID != calendarID || record.CalendarSummary != summary) {
-		record.CalendarID = calendarID
-		record.CalendarSummary = summary
-		record.UpdatedAt = time.Now().UTC()
-		if err := h.Store().Put(ctx, record); err != nil {
-			logging.WithContext(h.Logger, ctx).Error("google connection calendar sync failed", slog.Any("error", err))
-		}
-	}
-	return calendarID, summary
 }
 
 // EncryptToken encrypts an OAuth token for storage.
@@ -72,29 +47,83 @@ func (h *Handler) LoadConnectionRecord(ctx context.Context, r *http.Request) (*C
 	if connectionID == "" {
 		return nil, nil
 	}
-	return h.Store().Get(ctx, connectionID)
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil || record == nil {
+		return nil, err
+	}
+	if !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
+		return nil, nil
+	}
+	if !record.accountVerified() {
+		return nil, nil
+	}
+	return record, nil
 }
 
-// DeleteConnection removes the Google connection and clears the cookie.
+// DeleteConnection removes the current site owner's Google connection and
+// clears its cookie. A cookie naming another site owner's connection, or one
+// whose removal failed, stays so that connection is never stranded with its
+// token.
 func (h *Handler) DeleteConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	connectionID := GetConnectionID(r)
-	if connectionID != "" {
-		if err := h.Store().Delete(ctx, connectionID); err != nil {
-			logging.WithContext(h.Logger, ctx).Error(
-				"google connection delete failed",
-				slog.String("connection_id", connectionID),
-				slog.Any("error", err),
-			)
-		}
+	if connectionID := GetConnectionID(r); connectionID != "" && !h.releaseConnection(ctx, r, connectionID) {
+		return
 	}
 	ClearConnectionCookie(w, r)
 }
+
+// releaseBrowserWideConnection releases the connection named by the
+// browser-wide cookie that site owners shared before each had their own, and
+// clears that cookie once the connection is gone. Another owner's connection
+// stays with the cookie for that owner to release.
+func (h *Handler) releaseBrowserWideConnection(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	if connectionID := browserWideConnectionID(r); connectionID != "" && h.releaseConnection(ctx, r, connectionID) {
+		clearSoccerCookie(w, r, config.GoogleConnectionCookieName)
+	}
+}
+
+// releaseConnection deletes the stored connection when this request may let
+// it go: the current granted owner's connection, or a legacy connection saved
+// before connections had owners and presented by a granted visitor. Holding
+// the legacy cookie was the authority to delete it, and deleting grants no
+// access, so its stored token is not stranded. Another owner's connection
+// stays. It reports whether the connection is gone.
+func (h *Handler) releaseConnection(ctx context.Context, r *http.Request, connectionID string) bool {
+	logger := logging.WithContext(h.Logger, ctx)
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil {
+		logger.Error("google connection read before delete failed", slog.Any("error", err))
+		return false
+	}
+	if record == nil {
+		return true
+	}
+	legacy := record.OwnerIssuer == "" || record.OwnerSubject == ""
+	if legacy && !siteidentity.SoccerPrivateAllowed(r.Context()) {
+		return false
+	}
+	if !legacy && !siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject) {
+		return false
+	}
+	if err := h.Store().Delete(ctx, connectionID); err != nil {
+		logger.Error("google connection delete failed", slog.String("connection_id", connectionID), slog.Any("error", err))
+		return false
+	}
+	if legacy {
+		logger.Info("legacy ownerless google connection deleted", slog.String("connection_id", connectionID))
+	}
+	return true
+}
+
+// errStoredTokenUnreadable reports a stored OAuth token the site cannot
+// decrypt, such as one sealed under a previous session key. Unlike a failed
+// renewal, retrying never helps.
+var errStoredTokenUnreadable = errors.New("stored google token unreadable")
 
 // CurrentToken retrieves and refreshes the stored OAuth token.
 func (h *Handler) CurrentToken(ctx context.Context, r *http.Request, record *ConnectionRecord) (*oauth2.Token, error) {
 	storedToken, err := h.DecryptToken(record.TokenCiphertext)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errStoredTokenUnreadable, err)
 	}
 	tokenSource := h.oauthConfigForRequest(r).TokenSource(h.httpContext(ctx), storedToken)
 	token, err := tokenSource.Token()
@@ -127,15 +156,16 @@ func (h *Handler) ListCalendars(ctx context.Context, r *http.Request, record *Co
 	return h.listCalendarsWithToken(h.httpContext(ctx), token)
 }
 
-// GoogleConnected returns true if a valid Google connection exists for the request.
-func (h *Handler) GoogleConnected(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+// GoogleConnected returns true if a valid Google connection exists for the
+// request. A failed read reports no connection but keeps the cookie, so a
+// transient storage error never strands the owner's connection.
+func (h *Handler) GoogleConnected(ctx context.Context, _ http.ResponseWriter, r *http.Request) bool {
 	if !h.GoogleAvailable() {
 		return false
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
 		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
-		ClearConnectionCookie(w, r)
 		return false
 	}
 	return record != nil
@@ -148,27 +178,56 @@ func (h *Handler) PopulateLoginState(ctx context.Context, w http.ResponseWriter,
 	}
 	record, err := h.LoadConnectionRecord(ctx, r)
 	if err != nil {
+		// Keep the cookie: the connection may still exist once storage recovers.
 		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
-		ClearConnectionCookie(w, r)
 		return
 	}
 	if record == nil {
+		props.GoogleNeedsReconnect = h.ownerHasUnverifiedConnection(ctx, r)
 		return
 	}
 	calendars, err := h.ListCalendars(ctx, r, record)
-	if err != nil {
-		logger := logging.WithContext(h.Logger, ctx)
-		if isGoogleAuthRejected(err) {
-			logger.Warn("google calendar connection expired", slog.Any("error", err))
-			h.DeleteConnection(ctx, w, r)
-		} else {
-			logger.Error("google calendar list failed", slog.Any("error", err))
-		}
+	if connectionUnusable(err) {
+		logging.WithContext(h.Logger, ctx).Warn("google calendar connection unusable", slog.Any("error", err))
+		h.DeleteConnection(ctx, w, r)
 		return
 	}
 	props.GoogleConnected = true
+	props.GoogleAccountEmail = record.AccountEmail
+	if err != nil {
+		// The connection stays: Google refused only this check, so the card
+		// asks for a retry rather than offering to connect again.
+		logging.WithContext(h.Logger, ctx).Error("google calendar list failed", slog.Any("error", err))
+		props.GoogleCalendarsUnavailable = true
+		return
+	}
 	props.GoogleCalendars = calendars
 	props.SelectedGoogleCalendarID, props.GoogleCalendarSummary = h.SyncCalendarSelection(ctx, record, calendars)
+	props.GoogleCalendarNeedsSelection = record.CalendarSelectionRequired || props.GoogleCalendarSummary == ""
+}
+
+// ownerHasUnverifiedConnection reports whether the browser-wide cookie names
+// the current owner's connection saved before its Google account was
+// verified. That connection stays unused until the owner reconnects or
+// disconnects it.
+func (h *Handler) ownerHasUnverifiedConnection(ctx context.Context, r *http.Request) bool {
+	connectionID := browserWideConnectionID(r)
+	if connectionID == "" {
+		return false
+	}
+	record, err := h.Store().Get(ctx, connectionID)
+	if err != nil {
+		logging.WithContext(h.Logger, ctx).Error("google connection read failed", slog.Any("error", err))
+		return false
+	}
+	return record != nil && !record.accountVerified() && siteidentity.SoccerOwnerAllowed(r.Context(), record.OwnerIssuer, record.OwnerSubject)
+}
+
+// connectionUnusable reports whether err shows the stored connection can
+// never work again: Google rejected its grant, or the site cannot read its
+// stored token. Any other failure may pass, so the connection stays.
+func connectionUnusable(err error) bool {
+	return isGoogleAuthRejected(err) || errors.Is(err, errStoredTokenUnreadable)
 }
 
 func isGoogleAuthRejected(err error) bool {
@@ -178,7 +237,7 @@ func isGoogleAuthRejected(err error) bool {
 
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden
+		return apiErr.credentialsRejected()
 	}
 
 	var retrieveErr *oauth2.RetrieveError
@@ -209,6 +268,8 @@ func (h *Handler) oauthConfigForRequest(r *http.Request) *oauth2.Config {
 		ClientSecret: h.Config.GoogleClientSecret,
 		RedirectURL:  internalhttpx.RequestBaseURL(r) + "/soccer",
 		Scopes: []string{
+			"openid",
+			"email",
 			"https://www.googleapis.com/auth/calendar.events",
 			"https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 		},

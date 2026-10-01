@@ -14,6 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
+
+	"portfolio/internal/config"
 )
 
 type fakeSSMGetter struct {
@@ -64,6 +66,73 @@ func setSSMPathEnv(t *testing.T) {
 	t.Setenv("CLIENT_SECRET_KEY", "/portfolio/client-secret")
 	t.Setenv("LPS_SESSION_KEY", "/portfolio/lps-session")
 	t.Setenv("MGMT_SESSION_KEY", "")
+	t.Setenv("SITE_SESSION_KEY", "")
+}
+
+func TestResolveSSMSiteSessionKeyUsesItsEnvironmentParameter(t *testing.T) {
+	setSSMPathEnv(t)
+	path := "/portfolio/lambda/prod/SITE_SESSION_KEY"
+	t.Setenv("SITE_SESSION_KEY", path)
+	client := &fakeSSMGetter{responses: []fakeSSMResponse{
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter("/portfolio/client-id", "resolved-client-id"),
+			ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+			ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		}}},
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter(path, strings.Repeat("ab", 32)),
+		}}},
+	}}
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	assertSSMRequests(t, client,
+		[]string{"/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session"},
+		[]string{path},
+	)
+	if got := os.Getenv("SITE_SESSION_KEY"); got != strings.Repeat("ab", 32) {
+		t.Fatalf("SITE_SESSION_KEY = %q, want decrypted key", got)
+	}
+}
+
+func TestResolveSSMMissingSiteSessionKeyLeavesPublicRuntimeAvailable(t *testing.T) {
+	setSSMPathEnv(t)
+	path := "/portfolio/lambda/prod/SITE_SESSION_KEY"
+	t.Setenv("SITE_SESSION_KEY", path)
+	client := &fakeSSMGetter{responses: []fakeSSMResponse{
+		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+			ssmParameter("/portfolio/client-id", "resolved-client-id"),
+			ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+			ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+		}}},
+		{output: &ssm.GetParametersOutput{InvalidParameters: []string{path}}},
+	}}
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("optional site key failure stopped public runtime: %v", err)
+	}
+	if _, ok := os.LookupEnv("SITE_SESSION_KEY"); ok {
+		t.Fatal("failed site key left an SSM path available to site configuration")
+	}
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
+}
+
+// A production runtime whose only SSM path is the optional site key must still
+// start when AWS configuration cannot load, with site sign-in off rather than
+// configured from a parameter path.
+func TestResolveSSMAWSConfigFailureLeavesSiteSignInOffAndPublicRuntimeUp(t *testing.T) {
+	t.Setenv("AWS_MAX_ATTEMPTS", "invalid")
+	t.Setenv("CLIENT_ID_KEY", "")
+	t.Setenv("CLIENT_SECRET_KEY", "")
+	t.Setenv("LPS_SESSION_KEY", "")
+	t.Setenv("MGMT_SESSION_KEY", "")
+	t.Setenv("SITE_SESSION_KEY", "/portfolio/lambda/prod/SITE_SESSION_KEY")
+
+	if err := resolveSSMSecrets(t.Context()); err != nil {
+		t.Fatalf("optional site key AWS config failure prevented startup: %v", err)
+	}
+	if value, ok := os.LookupEnv("SITE_SESSION_KEY"); ok {
+		t.Fatalf("SITE_SESSION_KEY = %q after AWS config failure, want unset", value)
+	}
 }
 
 func assertSSMEnv(t *testing.T, wantClientID, wantClientSecret, wantLPSSession, wantManagement string) {
@@ -105,42 +174,66 @@ func assertSSMRequests(t *testing.T, client *fakeSSMGetter, wantRequests ...[]st
 // leave Lambda configured with parameter paths instead of usable credentials.
 func TestResolveSSMCompleteResponseUpdatesAllParameterPaths(t *testing.T) {
 	setSSMPathEnv(t)
-	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-	client := &fakeSSMGetter{responses: []fakeSSMResponse{
-		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-			ssmParameter("/portfolio/client-id", "resolved-client-id"),
-			ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
-			ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
-		}}},
-		{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-			ssmParameter("/portfolio/lambda/dev/MGMT_SESSION_KEY", strings.Repeat("ab", 32)),
-		}}},
-	}}
-
-	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
-		t.Fatalf("resolve SSM secrets: %v", err)
-	}
-	assertSSMRequests(t, client,
-		[]string{"/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session"},
-		[]string{"/portfolio/lambda/dev/MGMT_SESSION_KEY"},
-	)
-	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", strings.Repeat("ab", 32))
-}
-
-func TestResolveSSMManagementSessionKeyOnly(t *testing.T) {
-	t.Setenv("CLIENT_ID_KEY", "")
-	t.Setenv("CLIENT_SECRET_KEY", "")
-	t.Setenv("LPS_SESSION_KEY", "")
-	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-		ssmParameter("/portfolio/lambda/dev/MGMT_SESSION_KEY", strings.Repeat("ab", 32)),
+		ssmParameter("/portfolio/client-id", "resolved-client-id"),
+		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
 	}}}
 
 	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
 		t.Fatalf("resolve SSM secrets: %v", err)
 	}
-	assertSSMRequest(t, client, "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-	assertSSMEnv(t, "", "", "", strings.Repeat("ab", 32))
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
+}
+
+// Production break caught: fetching the retired management session key kept a
+// secret read alive only to feed a setting the application ignores. A path the
+// environment still carries stays in place, so config names it in its
+// retirement warning without logging the path.
+func TestResolveSSMLeavesRetiredManagementSessionPathForConfigWarning(t *testing.T) {
+	path := "/portfolio/lambda/dev/MGMT_SESSION_KEY"
+	setSSMPathEnv(t)
+	t.Setenv("MGMT_SESSION_KEY", path)
+	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
+		ssmParameter("/portfolio/client-id", "resolved-client-id"),
+		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
+		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
+	}}}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
+	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", path)
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	config.Load()
+	if !strings.Contains(logs.String(), "retired management-only identity settings are ignored") || !strings.Contains(logs.String(), "MGMT_SESSION_KEY") {
+		t.Fatal("config did not warn that the management session key is retired")
+	}
+	if strings.Contains(logs.String(), path) {
+		t.Fatal("retirement warning logged the parameter path")
+	}
+}
+
+func TestResolveSSMRetiredManagementSessionPathAloneNeedsNoSSM(t *testing.T) {
+	t.Setenv("CLIENT_ID_KEY", "literal-client-id")
+	t.Setenv("CLIENT_SECRET_KEY", "literal-client-secret")
+	t.Setenv("LPS_SESSION_KEY", "literal-lps-session")
+	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
+	client := &fakeSSMGetter{err: errors.New("SSM must not be called")}
+
+	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
+		t.Fatalf("resolve SSM secrets: %v", err)
+	}
+	if client.calls != 0 {
+		t.Fatalf("GetParameters calls = %d, want 0", client.calls)
+	}
+	assertSSMEnv(t, "literal-client-id", "literal-client-secret", "literal-lps-session", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 }
 
 // Production break caught: dereferencing or accepting a missing SSM response
@@ -179,103 +272,10 @@ func TestResolveSSMLiteralValueRemainsUnchanged(t *testing.T) {
 	}
 }
 
-func TestResolveSSMUnsetManagementSessionKeyRemainsUnset(t *testing.T) {
-	setSSMPathEnv(t)
-	if err := os.Unsetenv("MGMT_SESSION_KEY"); err != nil {
-		t.Fatalf("unset management session key: %v", err)
-	}
-	client := &fakeSSMGetter{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-		ssmParameter("/portfolio/client-id", "resolved-client-id"),
-		ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
-		ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
-	}}}
-
-	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
-		t.Fatalf("resolve SSM secrets: %v", err)
-	}
-	assertSSMRequest(t, client, "/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session")
-	assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
-	if _, ok := os.LookupEnv("MGMT_SESSION_KEY"); ok {
-		t.Fatal("MGMT_SESSION_KEY remained present, want it unset")
-	}
-}
-
-// An unavailable optional portal key must not prevent the existing portfolio
-// and soccer secrets from resolving, or leave a raw SSM path in configuration.
-func TestResolveSSMManagementFailureDisablesOnlyPortal(t *testing.T) {
-	path := "/portfolio/lambda/dev/MGMT_SESSION_KEY"
-	for name, response := range map[string]fakeSSMResponse{
-		"missing response":  {},
-		"missing parameter": {output: &ssm.GetParametersOutput{}},
-		"invalid parameter": {output: &ssm.GetParametersOutput{InvalidParameters: []string{path}}},
-		"invalid environment value": {output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-			ssmParameter(path, "invalid\x00management-session"),
-		}}},
-		"access denied": {err: errors.New("AccessDenied: " + path)},
-		"error with value": {
-			output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-				ssmParameter(path, "secret-response-must-not-appear-in-logs"),
-			}},
-			err: errors.New("failed request: " + path + " secret-error-must-not-appear-in-logs"),
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			setSSMPathEnv(t)
-			t.Setenv("MGMT_SESSION_KEY", path)
-			var logs bytes.Buffer
-			previousLogger := slog.Default()
-			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-			t.Cleanup(func() { slog.SetDefault(previousLogger) })
-			client := &fakeSSMGetter{responses: []fakeSSMResponse{
-				{output: &ssm.GetParametersOutput{Parameters: []types.Parameter{
-					ssmParameter("/portfolio/client-id", "resolved-client-id"),
-					ssmParameter("/portfolio/client-secret", "resolved-client-secret"),
-					ssmParameter("/portfolio/lps-session", "resolved-lps-session"),
-				}}},
-				response,
-			}}
-
-			if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
-				t.Fatalf("optional management failure prevented startup: %v", err)
-			}
-			assertSSMRequests(t, client,
-				[]string{"/portfolio/client-id", "/portfolio/client-secret", "/portfolio/lps-session"},
-				[]string{path},
-			)
-			assertSSMEnv(t, "resolved-client-id", "resolved-client-secret", "resolved-lps-session", "")
-			if _, ok := os.LookupEnv("MGMT_SESSION_KEY"); ok {
-				t.Fatal("failed management session key was not unset")
-			}
-			if !strings.Contains(logs.String(), "portal disabled") {
-				t.Fatal("missing portal-disabled warning")
-			}
-			for _, sensitive := range []string{path, "secret-response-must-not-appear-in-logs", "secret-error-must-not-appear-in-logs"} {
-				if strings.Contains(logs.String(), sensitive) {
-					t.Fatal("optional SSM failure logged a parameter path or secret")
-				}
-			}
-		})
-	}
-}
-
-func TestResolveSSMManagementOnlyFailureDoesNotPreventStartup(t *testing.T) {
-	t.Setenv("CLIENT_ID_KEY", "literal-client-id")
-	t.Setenv("CLIENT_SECRET_KEY", "literal-client-secret")
-	t.Setenv("LPS_SESSION_KEY", "literal-lps-session")
-	t.Setenv("MGMT_SESSION_KEY", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-	client := &fakeSSMGetter{err: errors.New("SSM unavailable")}
-
-	if err := resolveSSMSecretsWithClient(t.Context(), client); err != nil {
-		t.Fatalf("optional management failure prevented startup: %v", err)
-	}
-	assertSSMRequest(t, client, "/portfolio/lambda/dev/MGMT_SESSION_KEY")
-	assertSSMEnv(t, "literal-client-id", "literal-client-secret", "literal-lps-session", "")
-}
-
-func TestResolveSSMAWSConfigFailureIsOptionalOnlyWithoutRequiredPaths(t *testing.T) {
+func TestResolveSSMAWSConfigFailureStopsStartupOnlyForRequiredPaths(t *testing.T) {
 	t.Setenv("AWS_MAX_ATTEMPTS", "invalid")
 	for _, required := range []bool{false, true} {
-		name := "management only"
+		name := "retired management path only"
 		if required {
 			name = "required secrets"
 		}
@@ -296,9 +296,9 @@ func TestResolveSSMAWSConfigFailureIsOptionalOnlyWithoutRequiredPaths(t *testing
 				assertSSMEnv(t, "/portfolio/client-id", "", "", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 			} else {
 				if err != nil {
-					t.Fatalf("optional AWS config failure prevented startup: %v", err)
+					t.Fatalf("retired management path loaded AWS config: %v", err)
 				}
-				assertSSMEnv(t, "", "", "", "")
+				assertSSMEnv(t, "", "", "", "/portfolio/lambda/dev/MGMT_SESSION_KEY")
 			}
 		})
 	}

@@ -14,6 +14,7 @@ import (
 const (
 	OAuthAuthURL       = "https://accounts.google.com/o/oauth2/auth"
 	OAuthTokenURL      = "https://oauth2.googleapis.com/token" //nolint:gosec // G101: public OAuth endpoint URL, not a credential
+	OAuthUserInfoURL   = "https://openidconnect.googleapis.com/v1/userinfo"
 	CalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
 )
 
@@ -31,6 +32,8 @@ type SoccerBridge interface {
 
 type OAuthState struct {
 	ConnectionID string    `json:"connection_id"`
+	OwnerIssuer  string    `json:"owner_issuer,omitempty"`
+	OwnerSubject string    `json:"owner_subject,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	State        string    `json:"state"`
 }
@@ -39,6 +42,7 @@ type Handler struct {
 	Config                  *config.Config
 	OAuthAuthURL            string
 	OAuthTokenURL           string
+	OAuthUserInfoURL        string
 	CalendarAPIBaseURL      string
 	CalendarMutationTimeout time.Duration
 	LPSClient               *http.Client
@@ -60,6 +64,7 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, logger *slog.Logger,
 		Config:             cfg,
 		OAuthAuthURL:       OAuthAuthURL,
 		OAuthTokenURL:      OAuthTokenURL,
+		OAuthUserInfoURL:   OAuthUserInfoURL,
 		CalendarAPIBaseURL: CalendarAPIBaseURL,
 		LPSClient:          lpsClient,
 		Logger:             logger,

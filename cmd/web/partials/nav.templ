@@ -1,5 +1,11 @@
 package partials
 
+type AccountNavProps struct {
+	Email           string
+	ReturnTo        string
+	SignInAvailable bool
+}
+
 // navItem represents a single navigation link.
 type navItem struct {
 	Href        string
@@ -66,8 +72,39 @@ templ NavLinks(page string) {
 	}
 }
 
-templ Nav(page string) {
+// AccountPage is the layout page value for the site sign-in landing.
+const AccountPage = "account"
+
+func accountLinkClasses(active bool) string {
+	base := "site-chrome-nav-link site-account-link"
+	if active {
+		return base + " site-chrome-nav-link-active"
+	}
+	return base
+}
+
+templ AccountNav(page string, account AccountNavProps) {
+	if account.Email != "" {
+		<div class="site-account-state">
+			<span class="site-account-email" title={ account.Email }>{ account.Email }</span>
+			<form method="POST" action="/sign-out">
+				<button type="submit" class="site-chrome-nav-link site-account-link">Sign out</button>
+			</form>
+		</div>
+	} else if account.SignInAvailable {
+		<a
+			href={ templ.SafeURL(signInHref(account.ReturnTo)) }
+			class={ accountLinkClasses(page == AccountPage) }
+			if page == AccountPage {
+				aria-current="page"
+			}
+		>Sign in</a>
+	}
+}
+
+templ Nav(page string, account AccountNavProps) {
 	<nav class="main-nav site-dock-desktop-nav" aria-label="Main navigation">
 		@NavLinks(page)
+		@AccountNav(page, account)
 	</nav>
 }

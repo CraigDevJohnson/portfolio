@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/mail"
@@ -9,64 +8,37 @@ import (
 	"strings"
 )
 
+// retiredManagementIdentitySettings configured the former management-only
+// Cognito sign-in. The portal now uses the site session and management grant.
+var retiredManagementIdentitySettings = []string{
+	"MGMT_SESSION_KEY",
+	"MGMT_COGNITO_DOMAIN",
+	"MGMT_COGNITO_ISSUER",
+	"MGMT_COGNITO_CLIENT_ID",
+	"MGMT_COGNITO_REDIRECT_URI",
+	"MGMT_COGNITO_LOGOUT_URI",
+	"MGMT_ALLOWED_EMAILS",
+	"MGMT_ALLOW_LOCAL_CALLBACK",
+}
+
 func loadPortalConfig(logger *slog.Logger, cfg *Config) {
 	cfg.PortalAWSRegion = envTrimmed("MGMT_AWS_REGION")
 	if cfg.PortalAWSRegion == "" {
 		cfg.PortalAWSRegion = DefaultPortalAWSRegion
 	}
-	defer func() {
-		logger.Info("portal config loaded", slog.Bool("portal_enabled", cfg.PortalEnabled()), slog.String("aws_region", cfg.PortalAWSRegion))
-	}()
-	keyHex := envTrimmed("MGMT_SESSION_KEY")
-	if keyHex == "" {
-		return
-	}
-	decoded, err := hex.DecodeString(keyHex)
-	if err != nil || len(decoded) != sessionKeyLengthBytes || keyHex != strings.ToLower(keyHex) {
-		logger.Warn("portal disabled; MGMT_SESSION_KEY must be a 64-character lowercase hex string")
-		return
-	}
-	cfg.PortalCognitoDomain, _ = NormalizeCognitoDomain(envTrimmed("MGMT_COGNITO_DOMAIN"))
-	cfg.PortalCognitoIssuer = envTrimmed("MGMT_COGNITO_ISSUER")
-	cfg.PortalCognitoClientID = envTrimmed("MGMT_COGNITO_CLIENT_ID")
-	cfg.PortalCognitoRedirectURI = envTrimmed("MGMT_COGNITO_REDIRECT_URI")
-	cfg.PortalCognitoLogoutURI = envTrimmed("MGMT_COGNITO_LOGOUT_URI")
-	switch strings.ToLower(envTrimmed("MGMT_ALLOW_LOCAL_CALLBACK")) {
-	case "", "false":
-	case "true":
-		cfg.PortalAllowLocalCallback = true
-	default:
-		logger.Warn("portal disabled; MGMT_ALLOW_LOCAL_CALLBACK must be true or false")
-		return
-	}
-	cfg.PortalAllowedEmails, err = parsePortalAllowedEmails(envTrimmed("MGMT_ALLOWED_EMAILS"))
-	if err != nil {
-		logger.Warn("portal disabled; MGMT_ALLOWED_EMAILS must contain comma-separated bare email addresses")
-		return
-	}
-	cfg.PortalSessionKey = decoded
-	if !cfg.PortalEnabled() {
-		logger.Warn("portal disabled; valid Cognito domain, issuer, client ID, callback, logout, and allowed emails are required")
-	}
-}
-
-// PortalEnabled reports whether all portal identity and session settings are valid.
-func (c *Config) PortalEnabled() bool {
-	if c == nil || len(c.PortalSessionKey) != sessionKeyLengthBytes || strings.TrimSpace(c.PortalCognitoClientID) == "" || len(c.PortalAllowedEmails) == 0 {
-		return false
-	}
-	if _, err := NormalizeCognitoDomain(c.PortalCognitoDomain); err != nil {
-		return false
-	}
-	if !validCognitoIssuer(c.PortalCognitoIssuer) || !validPortalReturnURL(c.PortalCognitoRedirectURI, "/callback", c.PortalAllowLocalCallback) || !validPortalReturnURL(c.PortalCognitoLogoutURI, "/login", false) {
-		return false
-	}
-	for _, email := range c.PortalAllowedEmails {
-		if _, err := NormalizePortalEmail(email); err != nil {
-			return false
+	var retired []string
+	for _, name := range retiredManagementIdentitySettings {
+		if envTrimmed(name) != "" {
+			retired = append(retired, name)
 		}
 	}
-	return true
+	if len(retired) > 0 {
+		logger.Warn(
+			"retired management-only identity settings are ignored; the portal uses site sign-in and the management grant",
+			slog.String("settings", strings.Join(retired, ",")),
+		)
+	}
+	logger.Info("portal config loaded", slog.String("aws_region", cfg.PortalAWSRegion))
 }
 
 // NormalizePortalEmail accepts only a bare mailbox address and normalizes case.
@@ -78,41 +50,6 @@ func NormalizePortalEmail(raw string) (string, error) {
 		return "", errors.New("email must be a bare mailbox address")
 	}
 	return email, nil
-}
-
-// PortalEmailAllowed compares normalized, validated email addresses exactly.
-func (c *Config) PortalEmailAllowed(email string) bool {
-	if c == nil {
-		return false
-	}
-	normalized, err := NormalizePortalEmail(email)
-	if err != nil {
-		return false
-	}
-	for _, allowed := range c.PortalAllowedEmails {
-		candidate, candidateErr := NormalizePortalEmail(allowed)
-		if candidateErr == nil && normalized == candidate {
-			return true
-		}
-	}
-	return false
-}
-
-func parsePortalAllowedEmails(raw string) ([]string, error) {
-	parts := strings.Split(raw, ",")
-	emails := make([]string, 0, len(parts))
-	seen := make(map[string]bool, len(parts))
-	for _, part := range parts {
-		email, err := NormalizePortalEmail(part)
-		if err != nil {
-			return nil, err
-		}
-		if !seen[email] {
-			seen[email] = true
-			emails = append(emails, email)
-		}
-	}
-	return emails, nil
 }
 
 // NormalizeCognitoDomain validates the HTTPS hosted UI origin used for OAuth.

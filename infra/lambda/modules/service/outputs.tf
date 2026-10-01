@@ -74,28 +74,54 @@ output "soccer_session_table_arn" {
   value = aws_dynamodb_table.soccer_sessions.arn
 }
 
+output "soccer_history_table_name" {
+  value = tostring(one(aws_dynamodb_table.soccer_history[*].name))
+}
+
+output "soccer_history_table_arn" {
+  value = tostring(one(aws_dynamodb_table.soccer_history[*].arn))
+}
+
+output "soccer_history_worker_function_name" {
+  value = tostring(one(aws_lambda_function.history_worker[*].function_name))
+}
+
+output "soccer_history_schedule_name" {
+  value = tostring(one(aws_scheduler_schedule.history_daily[*].name))
+}
+
 output "ssm_parameter_paths" {
   value = tomap(local.ssm_paths)
 }
 
 output "alarm_arns" {
-  value = sort([
+  value = sort(concat([
     aws_cloudwatch_metric_alarm.api_5xx.arn,
     aws_cloudwatch_metric_alarm.api_latency.arn,
     aws_cloudwatch_metric_alarm.lambda_duration.arn,
     aws_cloudwatch_metric_alarm.lambda_errors.arn,
     aws_cloudwatch_metric_alarm.lambda_throttles.arn,
-  ])
+    ],
+    aws_cloudwatch_metric_alarm.history_admission_rejected[*].arn,
+    aws_cloudwatch_metric_alarm.history_incomplete[*].arn,
+    aws_cloudwatch_metric_alarm.history_worker_errors[*].arn,
+    aws_cloudwatch_metric_alarm.history_dead_letter[*].arn,
+  ))
 }
 
 output "alarm_names" {
-  value = sort([
+  value = sort(concat([
     aws_cloudwatch_metric_alarm.api_5xx.alarm_name,
     aws_cloudwatch_metric_alarm.api_latency.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_duration.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_errors.alarm_name,
     aws_cloudwatch_metric_alarm.lambda_throttles.alarm_name,
-  ])
+    ],
+    aws_cloudwatch_metric_alarm.history_admission_rejected[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_incomplete[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_worker_errors[*].alarm_name,
+    aws_cloudwatch_metric_alarm.history_dead_letter[*].alarm_name,
+  ))
 }
 
 output "certificate_arn" {

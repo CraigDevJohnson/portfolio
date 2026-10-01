@@ -15,7 +15,11 @@ const (
 	ErrorForbidden      ErrorKind = "forbidden"
 	ErrorInvalidPlayer  ErrorKind = "invalid_player"
 	ErrorInvalidTeam    ErrorKind = "invalid_team"
-	ErrorUpstream       ErrorKind = "upstream"
+	// ErrorTeamRefused marks a public team schedule that LPS refused to share.
+	// Team schedule requests never carry the imported token, so a 401 or 403
+	// there says nothing about the visitor's imported access.
+	ErrorTeamRefused ErrorKind = "team_refused"
+	ErrorUpstream    ErrorKind = "upstream"
 )
 
 // FetchError wraps an LPS fetch failure with a stable classification and HTTP status.
@@ -127,6 +131,14 @@ func scheduleErrorDetail(fetchErr *FetchError) (ScheduleErrorDetails, bool) {
 			DownloadStatus:  http.StatusBadRequest,
 			FeedbackHint:    "Enter valid numeric team IDs from the Let's Play Soccer Team Schedules page and try again.",
 			FeedbackMessage: fmt.Sprintf("Team ID %d was not accepted by Let's Play Soccer.", fetchErr.ResourceID),
+		}, true
+	case ErrorTeamRefused:
+		return ScheduleErrorDetails{
+			ClearSession:    false,
+			DownloadMessage: fmt.Sprintf("Let's Play Soccer would not share the schedule for team ID %d; check the team ID and try again in a moment", fetchErr.ResourceID),
+			DownloadStatus:  http.StatusBadGateway,
+			FeedbackHint:    "Check that the team appears on the Let's Play Soccer Team Schedules page, then try again in a moment.",
+			FeedbackMessage: fmt.Sprintf("Let's Play Soccer would not share the schedule for team ID %d.", fetchErr.ResourceID),
 		}, true
 	case ErrorUpstream:
 		return ScheduleErrorDetails{

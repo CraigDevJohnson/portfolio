@@ -212,6 +212,88 @@
 
   // Soccer page functionality - using data attributes for flexibility
 	const SOCCER_SELECTION_STORAGE_PREFIX = 'portfolio:soccer:selection:'
+	const SOCCER_OUTPUT_STORAGE_KEY = 'portfolio:soccer:output'
+
+  // The server renders every step the visitor can use without JavaScript.
+  // Once the script runs, later steps wait for a calendar output choice.
+  function refreshSoccerOutputChoice() {
+    if (!document.querySelector('[data-soccer-output-option]')) {
+      return
+    }
+    const output = document.querySelector('[data-soccer-output-option]:checked:not(:disabled)')?.value || ''
+    const imported = document.getElementById('soccer-lps-connection')?.dataset.connectionState === 'connected'
+    const connections = document.getElementById('soccer-connections')
+    const source = document.querySelector('[data-soccer-stage="source"]')
+    const review = document.querySelector('[data-soccer-stage="review"]')
+
+    if (connections) {
+      connections.hidden = !output
+    }
+    if (source) {
+      source.hidden = !output
+    }
+    // The schedule source stays independent of the output: linked players can
+    // feed an .ics file as well as Google Calendar.
+    document.querySelectorAll('[data-soccer-linked-source]').forEach(element => {
+      element.hidden = !output
+    })
+    document.querySelectorAll('[data-soccer-private-stage]').forEach(element => {
+      element.hidden = !output || !imported
+    })
+    if (review) {
+      review.hidden = !output || review.dataset.soccerResultsReady !== 'ready'
+    }
+    document.querySelectorAll('[data-soccer-review-number]').forEach(reviewNumber => {
+      reviewNumber.textContent = imported ? '5' : '3'
+    })
+    document.querySelectorAll('[data-soccer-output-only]').forEach(element => {
+      element.hidden = element.dataset.soccerOutputOnly !== output
+    })
+  }
+
+  function setupSoccerOutputChoice() {
+    const options = Array.from(document.querySelectorAll('[data-soccer-output-option]'))
+    if (options.length === 0) {
+      return
+    }
+
+    let savedOutput = ''
+    try {
+      savedOutput = window.sessionStorage.getItem(SOCCER_OUTPUT_STORAGE_KEY) || ''
+    } catch (_error) {
+      // The public planner still works when browser storage is unavailable.
+    }
+    const choosable = options.filter(option => !option.disabled)
+    let savedOption = choosable.find(option => option.value === savedOutput)
+    if (!savedOption && document.querySelector('[data-soccer-results-ready="ready"]')) {
+      savedOption = choosable.find(option => option.value === 'ics')
+    }
+    if (savedOption) {
+      savedOption.checked = true
+    }
+
+    options.forEach(option => {
+      option.addEventListener('change', () => {
+        if (option.checked) {
+          try {
+            window.sessionStorage.setItem(SOCCER_OUTPUT_STORAGE_KEY, option.value)
+          } catch (_error) {
+            // Output switching does not require browser storage.
+          }
+        }
+        refreshSoccerOutputChoice()
+      })
+    })
+    refreshSoccerOutputChoice()
+  }
+
+  function revealSoccerReview() {
+    const review = document.querySelector('[data-soccer-stage="review"]')
+    if (review) {
+      review.dataset.soccerResultsReady = 'ready'
+    }
+    refreshSoccerOutputChoice()
+  }
 
   function soccerSelectionStorageKey(form) {
     const fingerprint = form?.closest('[data-team-fingerprint]')?.getAttribute('data-team-fingerprint')?.trim()
@@ -242,10 +324,9 @@
     try {
 			const stored = JSON.parse(window.sessionStorage.getItem(key) || 'null')
 			if (
-				stored?.version !== 1 ||
-				!Array.isArray(stored.upcoming) ||
-				!Array.isArray(stored.past) ||
-				[...stored.upcoming, ...stored.past].some(gameID => typeof gameID !== 'string')
+				stored?.version !== 2 ||
+				!Array.isArray(stored.deselected) ||
+				stored.deselected.some(gameID => typeof gameID !== 'string')
 			) {
 				try {
 					window.sessionStorage.removeItem(key)
@@ -254,9 +335,9 @@
 				}
         return false
       }
-			const selectedGameIDs = new Set([...stored.upcoming, ...stored.past])
+			const deselectedGameIDs = new Set(stored.deselected)
       form.querySelectorAll('[data-game-checkbox]').forEach(checkbox => {
-        checkbox.checked = selectedGameIDs.has(checkbox.value)
+        checkbox.checked = !deselectedGameIDs.has(checkbox.value)
       })
       return true
     } catch (_error) {
@@ -274,15 +355,9 @@
     if (!key) {
       return
     }
-		const selectedGameIDs = gameGroup =>
-			Array.from(
-				form.querySelectorAll(`[data-game-checkbox][data-game-group="${gameGroup}"]:checked`),
-				checkbox => checkbox.value
-			)
 		const stored = {
-			version: 1,
-			upcoming: selectedGameIDs('upcoming-games'),
-			past: selectedGameIDs('past-results'),
+			version: 2,
+			deselected: Array.from(form.querySelectorAll('[data-game-checkbox]:not(:checked)'), checkbox => checkbox.value),
 		}
     try {
       pruneSoccerSelectionKeys(key)
@@ -290,10 +365,6 @@
     } catch (_error) {
       // Ignore unavailable or quota-limited session storage.
     }
-  }
-
-  function clearSoccerSelection() {
-    pruneSoccerSelectionKeys()
   }
 
   function setupSoccerSelectAll() {
@@ -1373,6 +1444,11 @@
     bindSoccerResponseGate(requestElement, xhr)
     soccerTarget.dataset.soccerRequestId = String(context.id)
     soccerTarget.setAttribute('aria-busy', 'true')
+    if (soccerTarget.id === 'games-container') {
+      // Show the review stage as soon as a schedule is requested so its
+      // loading and error states are visible on the first fetch.
+      revealSoccerReview()
+    }
     if (loadingControl) {
       loadingControl.dataset.soccerLoadingRequestId = String(context.id)
       setSoccerLoadingState(loadingControl, true)
@@ -1420,6 +1496,32 @@
     if (xhr) {
       soccerRequestContexts.delete(xhr)
     }
+  }
+
+  // htmx swaps nothing when a request fails in transit or returns an HTTP
+  // error, so say so where the schedule results would have appeared.
+  // htmx fires afterRequest, which settles the request context, before
+  // sendError and timeout, so match the latest request by its xhr ID instead.
+  function showSoccerRequestFailure(evt) {
+    const xhr = evt.detail?.xhr
+    const results = getSoccerRequestTarget(evt)
+    if (!xhr || results?.id !== 'games-container' || latestSoccerRequestIDs.get(results.id) !== xhr.__soccerRequestID) {
+      return
+    }
+    results.querySelector('[data-soccer-request-failure]')?.remove()
+    const failure = document.createElement('div')
+    failure.className = 'ui-feedback ui-feedback-error soccer-stage-feedback'
+    failure.setAttribute('role', 'alert')
+    failure.dataset.soccerRequestFailure = ''
+    const title = document.createElement('p')
+    title.className = 'ui-feedback-title'
+    title.textContent = 'Could not fetch games'
+    const message = document.createElement('p')
+    message.className = 'ui-feedback-message'
+    message.textContent = 'The schedule request did not complete. Check your connection, then fetch again.'
+    failure.append(title, message)
+    results.prepend(failure)
+    revealSoccerReview()
   }
 
   function suppressStaleSoccerResponse(evt) {
@@ -1621,6 +1723,12 @@
     if (evt.target.querySelector('[data-soccer-form]') || evt.target.id === 'games-container') {
       setupSoccerSelectAll()
     }
+    if (evt.target.id === 'games-container') {
+      revealSoccerReview()
+    } else {
+      // Connection cards and stage fragments can change which steps apply.
+      refreshSoccerOutputChoice()
+    }
 
     const soccerContext = evt.detail.xhr ? soccerRequestContexts.get(evt.detail.xhr) : null
     const swappedSoccerTarget =
@@ -1753,6 +1861,7 @@
   ;['htmx:responseError', 'htmx:sendError', 'htmx:timeout'].forEach(eventName => {
     document.body.addEventListener(eventName, function (evt) {
       settlePortalDetailRequest(evt)
+      showSoccerRequestFailure(evt)
       settleSoccerRequest(evt)
       clearSoccerProcessingContext(evt)
       settleSkillsFilterRequest(evt, true)
@@ -1804,6 +1913,7 @@
 
     delete soccerTarget.dataset.soccerRequestId
     soccerTarget.removeAttribute('aria-busy')
+    refreshSoccerOutputChoice()
   })
 
   document.body.addEventListener('htmx:afterProcessNode', function (evt) {
@@ -1915,8 +2025,10 @@
     setSoccerLoadingState(loadingControl, true)
   })
 
+	// Clearing or replacing imported access resets private request state only.
+	// Deselections belong to the team set, not the credential, so they stay;
+	// restore and persist already prune keys for other team sets.
 	function resetSoccerWorkflowState() {
-		clearSoccerSelection()
 		resetSoccerResults()
 	}
 
@@ -1926,6 +2038,7 @@
   window.addEventListener('pageshow', resetSoccerLoadingLinks)
 
   // Initialize on page load (for non-HTMX scenarios)
+  setupSoccerOutputChoice()
   setupSoccerSelectAll()
   setupSoccerLoginModal()
   initializeServerOpenSoccerModal()

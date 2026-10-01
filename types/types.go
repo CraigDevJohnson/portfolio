@@ -98,20 +98,38 @@ type Facility struct {
 // on every record. Optional schedule metadata is included when the upstream API
 // provides it.
 type Game struct {
-	ID               string    `json:"id"`
-	DateTime         string    `json:"datetime"`
-	StartAt          string    `json:"start_at,omitempty"`
-	EndAt            string    `json:"end_at,omitempty"`
-	Field            string    `json:"field"`
-	Location         string    `json:"location,omitempty"`
-	Home             string    `json:"home"`
-	Away             string    `json:"away"`
-	Season           string    `json:"season"`
-	PlayerTeamName   string    `json:"player_team_name,omitempty"`
-	OpponentTeamName string    `json:"opponent_team_name,omitempty"`
-	DivisionName     string    `json:"division_name,omitempty"`
-	Facility         *Facility `json:"facility,omitempty"`
-	Result           string    `json:"result,omitempty"`
+	ID               string         `json:"id"`
+	DateTime         string         `json:"datetime"`
+	StartAt          string         `json:"start_at,omitempty"`
+	EndAt            string         `json:"end_at,omitempty"`
+	Field            string         `json:"field"`
+	Location         string         `json:"location,omitempty"`
+	Home             string         `json:"home"`
+	Away             string         `json:"away"`
+	HomeTeam         TeamAppearance `json:"home_team,omitempty"`
+	AwayTeam         TeamAppearance `json:"away_team,omitempty"`
+	ScheduleTeam     TeamAppearance `json:"schedule_team,omitempty"`
+	Season           string         `json:"season"`
+	PlayerTeamName   string         `json:"player_team_name,omitempty"`
+	OpponentTeamName string         `json:"opponent_team_name,omitempty"`
+	DivisionName     string         `json:"division_name,omitempty"`
+	Facility         *Facility      `json:"facility,omitempty"`
+	Result           string         `json:"result,omitempty"`
+}
+
+// TeamAppearance carries only approved display color names and selected-team
+// identity through schedule deduplication. Color is empty when LPS has no
+// recognizable value; the view then assigns a Team ID fallback that no other
+// selected team in the rendered schedule wears while one is unused.
+//
+// On a Game, HomeTeam and AwayTeam describe the two sides, and Selected marks
+// a side identified as a selected team. ScheduleTeam is the selected team whose
+// LPS schedule listed the game; the view paints it alone when neither side
+// could be identified as that team.
+type TeamAppearance struct {
+	ID       int    `json:"id,omitempty"`
+	Color    string `json:"color,omitempty"`
+	Selected bool   `json:"selected,omitempty"`
 }
 
 // NewFacilityDetails builds and normalizes a Facility from legacy flat fields.
@@ -220,13 +238,22 @@ type SoccerWorkflowState struct {
 
 // SessionData stores the encrypted soccer session payload in the auth cookie.
 type SessionData struct {
-	JWT       string              `json:"jwt"`
-	UserName  string              `json:"user_name"`
-	Players   []LPSPlayer         `json:"players"`
-	ExpiresAt time.Time           `json:"expires_at"`
-	SessionID string              `json:"session_id,omitempty"`
-	StartedAt time.Time           `json:"started_at,omitempty"`
-	Workflow  SoccerWorkflowState `json:"workflow,omitempty"`
+	JWT          string              `json:"jwt"`
+	OwnerIssuer  string              `json:"owner_issuer,omitempty"`
+	OwnerSubject string              `json:"owner_subject,omitempty"`
+	UserName     string              `json:"user_name"`
+	Players      []LPSPlayer         `json:"players"`
+	ExpiresAt    time.Time           `json:"expires_at"`
+	SessionID    string              `json:"session_id,omitempty"`
+	StartedAt    time.Time           `json:"started_at,omitempty"`
+	Workflow     SoccerWorkflowState `json:"workflow,omitempty"`
+	// ImportGuard is a random value an import also writes to its own guard
+	// cookie. Imported access is usable only while the two match.
+	ImportGuard string `json:"import_guard,omitempty"`
+	// SiteSessionIssuedAt is when the site session that authorized the import
+	// was issued. Imported access ends once this browser records an explicit
+	// site sign-out at or after it.
+	SiteSessionIssuedAt time.Time `json:"site_session_issued_at,omitzero"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

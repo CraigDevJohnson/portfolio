@@ -85,333 +85,64 @@ func setEnv(t *testing.T, pairs map[string]string) {
 	}
 }
 
-// valid64HexKey is a 64-character lowercase hex string (32 bytes) used in tests
-// that require a valid MGMT_SESSION_KEY.
+// valid64HexKey is a 64-character lowercase hex string (32 bytes) used by
+// tests that require a valid session key.
 const valid64HexKey = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
 
-func TestPortalAbsentKey(t *testing.T) {
+// retiredManagementIdentity is a complete configuration for the former
+// management-only Cognito sign-in, as the development infrastructure supplied it.
+var retiredManagementIdentity = map[string]string{
+	"MGMT_SESSION_KEY":          valid64HexKey,
+	"MGMT_COGNITO_DOMAIN":       "https://portal.auth.us-west-2.amazoncognito.com",
+	"MGMT_COGNITO_ISSUER":       "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mgmt",
+	"MGMT_COGNITO_CLIENT_ID":    "client",
+	"MGMT_COGNITO_REDIRECT_URI": "https://dev.craigdevjohnson.com/callback",
+	"MGMT_COGNITO_LOGOUT_URI":   "https://dev.craigdevjohnson.com/login",
+	"MGMT_ALLOWED_EMAILS":       "craigdevjohnson@gmail.com",
+	"MGMT_ALLOW_LOCAL_CALLBACK": "false",
+}
+
+func clearManagementEnvironment(t *testing.T) {
+	t.Helper()
+	for key := range retiredManagementIdentity {
+		t.Setenv(key, "")
+	}
+	for _, key := range []string{"MGMT_AWS_REGION", "SITE_SESSION_KEY", "LPS_SESSION_KEY"} {
+		t.Setenv(key, "")
+	}
+}
+
+func TestPortalAWSRegionDefaultsAndOverrides(t *testing.T) {
+	clearManagementEnvironment(t)
 	capture := &logCapture{}
 	restore := withLogger(capture)
 	defer restore()
 
-	// Ensure MGMT_SESSION_KEY is absent.
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":       "",
-		"MGMT_COGNITO_DOMAIN":    "",
-		"MGMT_COGNITO_CLIENT_ID": "",
-	})
-
-	cfg := Load()
-
-	if cfg.PortalEnabled() {
-		t.Fatal("expected portal to be disabled when MGMT_SESSION_KEY is absent")
+	if cfg := Load(); cfg.PortalAWSRegion != "us-east-1" {
+		t.Fatalf("default portal region = %q, want us-east-1", cfg.PortalAWSRegion)
+	}
+	t.Setenv("MGMT_AWS_REGION", " us-west-2 ")
+	if cfg := Load(); cfg.PortalAWSRegion != "us-west-2" {
+		t.Fatalf("configured portal region = %q, want us-west-2", cfg.PortalAWSRegion)
 	}
 	if capture.hasWarn() {
-		t.Fatalf("expected no WARN log when key is absent, got: %v", capture.warnMessages())
+		t.Fatalf("region-only configuration warned: %v", capture.warnMessages())
 	}
 }
 
-func TestPortalFullyEnabled(t *testing.T) {
-	validPortalEnvironment(t)
+func TestRetiredManagementIdentitySettingsAreReportedAndIgnored(t *testing.T) {
+	clearManagementEnvironment(t)
+	setEnv(t, retiredManagementIdentity)
 	capture := &logCapture{}
 	restore := withLogger(capture)
 	defer restore()
 
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":       valid64HexKey,
-		"MGMT_COGNITO_DOMAIN":    "https://myapp.auth.us-east-1.amazoncognito.com",
-		"MGMT_COGNITO_CLIENT_ID": "testclientid",
-		"MGMT_AWS_REGION":        "us-west-2",
-	})
-
 	cfg := Load()
-
-	if !cfg.PortalEnabled() {
-		t.Fatal("expected portal to be enabled with valid key + Cognito domain + client ID")
+	warnings := capture.warnMessages()
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "retired") || !strings.Contains(warnings[0], "management grant") {
+		t.Fatalf("retired management identity settings were not reported once as ignored: %v", warnings)
 	}
-	if cfg.PortalCognitoDomain != "https://myapp.auth.us-east-1.amazoncognito.com" {
-		t.Errorf("unexpected CognitoDomain: %q", cfg.PortalCognitoDomain)
-	}
-	if cfg.PortalCognitoClientID != "testclientid" {
-		t.Errorf("unexpected CognitoClientID: %q", cfg.PortalCognitoClientID)
-	}
-	if len(cfg.PortalSessionKey) != sessionKeyLengthBytes {
-		t.Errorf("unexpected PortalSessionKey length: got %d want %d", len(cfg.PortalSessionKey), sessionKeyLengthBytes)
-	}
-}
-
-func TestPortalInvalidHexKey(t *testing.T) {
-	cases := []struct {
-		name string
-		key  string
-	}{
-		{"too short", "aabbccdd"},
-		{"non-hex characters", strings.Repeat("zz", 32)},
-		{"odd length", "aabbccddeeff0011223344556677889900112233445566778899aabbccddee"},
-		{"uppercase hex", strings.ToUpper(valid64HexKey)},
-		{"63 chars", valid64HexKey[:63]},
-		{"too long", valid64HexKey + "a"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			capture := &logCapture{}
-			restore := withLogger(capture)
-			defer restore()
-
-			setEnv(t, map[string]string{
-				"MGMT_SESSION_KEY":       tc.key,
-				"MGMT_COGNITO_DOMAIN":    "https://myapp.auth.us-east-1.amazoncognito.com",
-				"MGMT_COGNITO_CLIENT_ID": "testclientid",
-			})
-
-			cfg := Load()
-
-			if cfg.PortalEnabled() {
-				t.Fatalf("expected portal disabled for key %q", tc.key)
-			}
-			if !capture.hasWarn() {
-				t.Fatalf("expected WARN log for invalid key %q, got no WARN logs", tc.key)
-			}
-		})
-	}
-}
-
-func TestPortalMissingCognitoDomain(t *testing.T) {
-	capture := &logCapture{}
-	restore := withLogger(capture)
-	defer restore()
-
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":       valid64HexKey,
-		"MGMT_COGNITO_DOMAIN":    "",
-		"MGMT_COGNITO_CLIENT_ID": "testclientid",
-	})
-
-	cfg := Load()
-
-	if cfg.PortalEnabled() {
-		t.Fatal("expected portal disabled when MGMT_COGNITO_DOMAIN is absent")
-	}
-	if !capture.hasWarn() {
-		t.Fatalf("expected WARN log when MGMT_COGNITO_DOMAIN is absent, got no WARN logs")
-	}
-}
-
-func TestPortalMissingCognitoClientID(t *testing.T) {
-	capture := &logCapture{}
-	restore := withLogger(capture)
-	defer restore()
-
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":       valid64HexKey,
-		"MGMT_COGNITO_DOMAIN":    "https://myapp.auth.us-east-1.amazoncognito.com",
-		"MGMT_COGNITO_CLIENT_ID": "",
-	})
-
-	cfg := Load()
-
-	if cfg.PortalEnabled() {
-		t.Fatal("expected portal disabled when MGMT_COGNITO_CLIENT_ID is absent")
-	}
-	if !capture.hasWarn() {
-		t.Fatalf("expected WARN log when MGMT_COGNITO_CLIENT_ID is absent, got no WARN logs")
-	}
-}
-
-func TestPortalDefaultAWSRegion(t *testing.T) {
-	validPortalEnvironment(t)
-	capture := &logCapture{}
-	restore := withLogger(capture)
-	defer restore()
-
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":       valid64HexKey,
-		"MGMT_COGNITO_DOMAIN":    "https://myapp.auth.us-east-1.amazoncognito.com",
-		"MGMT_COGNITO_CLIENT_ID": "testclientid",
-		"MGMT_AWS_REGION":        "",
-	})
-
-	cfg := Load()
-
-	if !cfg.PortalEnabled() {
-		t.Fatal("expected portal to be enabled for region default test")
-	}
-	if cfg.PortalAWSRegion != DefaultPortalAWSRegion {
-		t.Errorf("expected PortalAWSRegion %q, got %q", DefaultPortalAWSRegion, cfg.PortalAWSRegion)
-	}
-	if cfg.PortalAWSRegion != "us-east-1" {
-		t.Errorf("expected default region us-east-1, got %q", cfg.PortalAWSRegion)
-	}
-}
-
-func validPortalEnvironment(t *testing.T) {
-	t.Helper()
-	setEnv(t, map[string]string{
-		"MGMT_SESSION_KEY":          valid64HexKey,
-		"MGMT_COGNITO_DOMAIN":       "https://portal.auth.us-east-1.amazoncognito.com",
-		"MGMT_COGNITO_ISSUER":       "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_test",
-		"MGMT_COGNITO_CLIENT_ID":    "client",
-		"MGMT_COGNITO_REDIRECT_URI": "https://app.example/callback",
-		"MGMT_COGNITO_LOGOUT_URI":   "https://app.example/login",
-		"MGMT_ALLOWED_EMAILS":       "craigdevjohnson@gmail.com",
-		"MGMT_ALLOW_LOCAL_CALLBACK": "false",
-	})
-}
-
-func TestPortalRejectsIncompleteOrInvalidIdentityConfiguration(t *testing.T) {
-	cases := []struct{ key, value string }{
-		{"MGMT_ALLOWED_EMAILS", ""},
-		{"MGMT_ALLOWED_EMAILS", "person"},
-		{"MGMT_ALLOWED_EMAILS", "Craig <craigdevjohnson@gmail.com>"},
-		{"MGMT_ALLOWED_EMAILS", "craigdevjohnson@gmail.com,"},
-		{"MGMT_ALLOWED_EMAILS", ",craigdevjohnson@gmail.com"},
-		{"MGMT_ALLOWED_EMAILS", "craigdevjohnson@gmail.com, ,other@example.com"},
-		{"MGMT_COGNITO_ISSUER", ""},
-		{"MGMT_COGNITO_ISSUER", "https://cognito-idp.us-east-1.amazonaws.com"},
-		{"MGMT_COGNITO_ISSUER", "http://issuer.example/pool"},
-		{"MGMT_COGNITO_ISSUER", "https://user:password@issuer.example/pool"},
-		{"MGMT_COGNITO_ISSUER", "https://issuer.example/pool?query=1"},
-		{"MGMT_COGNITO_ISSUER", "https://issuer.example/pool#fragment"},
-		{"MGMT_COGNITO_ISSUER", "https://issuer.example/pool?"},
-		{"MGMT_COGNITO_REDIRECT_URI", ""},
-		{"MGMT_COGNITO_REDIRECT_URI", "/callback"},
-		{"MGMT_COGNITO_REDIRECT_URI", "http://app.example/callback"},
-		{"MGMT_COGNITO_REDIRECT_URI", "http://localhost:8080/callback"},
-		{"MGMT_COGNITO_REDIRECT_URI", "https://user:password@app.example/callback"},
-		{"MGMT_COGNITO_REDIRECT_URI", "https://app.example/callback?code=1"},
-		{"MGMT_COGNITO_REDIRECT_URI", "https://app.example/callback#fragment"},
-		{"MGMT_COGNITO_LOGOUT_URI", ""},
-		{"MGMT_COGNITO_LOGOUT_URI", "http://localhost:8080/login"},
-		{"MGMT_COGNITO_LOGOUT_URI", "https://user:password@app.example/login"},
-		{"MGMT_COGNITO_LOGOUT_URI", "https://app.example/login?query=1"},
-		{"MGMT_COGNITO_LOGOUT_URI", "https://app.example/login#fragment"},
-		{"MGMT_ALLOW_LOCAL_CALLBACK", "tru"},
-		{"MGMT_ALLOW_LOCAL_CALLBACK", "yes"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.key+"/"+tc.value, func(t *testing.T) {
-			validPortalEnvironment(t)
-			t.Setenv(tc.key, tc.value)
-			cfg := Load()
-			if cfg.PortalEnabled() {
-				t.Fatal("invalid configuration enabled portal")
-			}
-		})
-	}
-}
-
-func TestPortalAllowedEmailsNormalizeAndMatchExactly(t *testing.T) {
-	validPortalEnvironment(t)
-	t.Setenv("MGMT_ALLOWED_EMAILS", " CRAIGDEVJOHNSON@gmail.com, other@EXAMPLE.COM , craigdevjohnson@gmail.com ")
-	cfg := Load()
-	if !cfg.PortalEnabled() || strings.Join(cfg.PortalAllowedEmails, ",") != "craigdevjohnson@gmail.com,other@example.com" {
-		t.Fatalf("allowlist was not normalized and deduplicated: %v", cfg.PortalAllowedEmails)
-	}
-	cfg.PortalAllowedEmails = []string{"craigdevjohnson@gmail.com"}
-	if !cfg.PortalEmailAllowed(" CRAIGDEVJOHNSON@gmail.com ") {
-		t.Fatal("normalized exact address should match")
-	}
-	for _, email := range []string{"", "craigdevjohnson+dev@gmail.com", "craig.dev.johnson@gmail.com", "other@gmail.com", "Craig <craigdevjohnson@gmail.com>", "<craigdevjohnson@gmail.com>", "craigdevjohnson@gmail.com (Craig)"} {
-		if cfg.PortalEmailAllowed(email) {
-			t.Fatalf("unexpected match for %q", email)
-		}
-	}
-}
-
-func TestPortalLocalCallbackRequiresExplicitOptIn(t *testing.T) {
-	for _, callback := range []string{"http://localhost:8080/callback", "http://127.0.0.1:8080/callback", "http://[::1]:8080/callback", "http://app.example/callback"} {
-		t.Run(callback, func(t *testing.T) {
-			validPortalEnvironment(t)
-			t.Setenv("MGMT_COGNITO_REDIRECT_URI", callback)
-			t.Setenv("MGMT_ALLOW_LOCAL_CALLBACK", "true")
-			cfg := Load()
-			if cfg.PortalEnabled() != !strings.Contains(callback, "app.example") {
-				t.Fatal("incorrect loopback callback decision")
-			}
-		})
-	}
-}
-
-func TestPortalCallbackMustMatchRegisteredRoute(t *testing.T) {
-	cases := []struct {
-		name          string
-		callback      string
-		allowLoopback bool
-		wantEnabled   bool
-	}{
-		{name: "development callback", callback: "https://dev.craigdevjohnson.com/callback", wantEnabled: true},
-		{name: "HTTPS loopback callback", callback: "https://localhost:8080/callback", wantEnabled: true},
-		{name: "HTTP loopback opt-in", callback: "http://localhost:8080/callback", allowLoopback: true, wantEnabled: true},
-		{name: "HTTP loopback requires opt-in", callback: "http://localhost:8080/callback"},
-		{name: "legacy callback", callback: "https://app.example/auth/callback"},
-		{name: "different route", callback: "https://app.example/login"},
-		{name: "missing path", callback: "https://app.example"},
-		{name: "trailing slash", callback: "https://app.example/callback/"},
-		{name: "case mismatch", callback: "https://app.example/Callback"},
-		{name: "encoded path", callback: "https://app.example/%63allback"},
-		{name: "encoded slash", callback: "https://app.example/%2fcallback"},
-		{name: "path normalization", callback: "https://app.example/auth/../callback"},
-		{name: "query", callback: "https://app.example/callback?code=1"},
-		{name: "empty query", callback: "https://app.example/callback?"},
-		{name: "fragment", callback: "https://app.example/callback#fragment"},
-		{name: "empty fragment", callback: "https://app.example/callback#"},
-		{name: "loopback legacy callback", callback: "http://127.0.0.1:8080/auth/callback", allowLoopback: true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			validPortalEnvironment(t)
-			t.Setenv("MGMT_COGNITO_REDIRECT_URI", tc.callback)
-			if tc.allowLoopback {
-				t.Setenv("MGMT_ALLOW_LOCAL_CALLBACK", "true")
-			}
-			cfg := Load()
-			if got := cfg.PortalEnabled(); got != tc.wantEnabled {
-				t.Fatalf("PortalEnabled() = %v, want %v for callback %q", got, tc.wantEnabled, tc.callback)
-			}
-		})
-	}
-}
-
-func TestPortalLogoutMustMatchSignedOutRoute(t *testing.T) {
-	cases := []struct {
-		name               string
-		logout             string
-		allowLocalCallback bool
-		wantEnabled        bool
-	}{
-		{name: "development logout", logout: "https://dev.craigdevjohnson.com/login", wantEnabled: true},
-		{name: "HTTPS loopback logout", logout: "https://localhost:8080/login", wantEnabled: true},
-		{name: "HTTP logout", logout: "http://app.example/login"},
-		{name: "HTTP loopback logout", logout: "http://localhost:8080/login"},
-		{name: "callback opt-in does not allow HTTP logout", logout: "http://127.0.0.1:8080/login", allowLocalCallback: true},
-		{name: "relative path", logout: "/login"},
-		{name: "protected route", logout: "https://app.example/mgmt"},
-		{name: "callback route", logout: "https://app.example/callback"},
-		{name: "missing path", logout: "https://app.example"},
-		{name: "root path", logout: "https://app.example/"},
-		{name: "trailing slash", logout: "https://app.example/login/"},
-		{name: "case mismatch", logout: "https://app.example/Login"},
-		{name: "encoded path", logout: "https://app.example/%6cogin"},
-		{name: "encoded slash", logout: "https://app.example/%2flogin"},
-		{name: "path normalization", logout: "https://app.example/auth/../login"},
-		{name: "credentials", logout: "https://user:password@app.example/login"},
-		{name: "query", logout: "https://app.example/login?next=/mgmt"},
-		{name: "empty query", logout: "https://app.example/login?"},
-		{name: "fragment", logout: "https://app.example/login#fragment"},
-		{name: "empty fragment", logout: "https://app.example/login#"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			validPortalEnvironment(t)
-			t.Setenv("MGMT_COGNITO_LOGOUT_URI", tc.logout)
-			if tc.allowLocalCallback {
-				t.Setenv("MGMT_ALLOW_LOCAL_CALLBACK", "true")
-			}
-			cfg := Load()
-			if got := cfg.PortalEnabled(); got != tc.wantEnabled {
-				t.Fatalf("PortalEnabled() = %v, want %v for logout %q", got, tc.wantEnabled, tc.logout)
-			}
-		})
+	if cfg.SiteEnabled() {
+		t.Fatal("retired management identity settings enabled site sign-in")
 	}
 }

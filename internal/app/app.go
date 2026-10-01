@@ -16,6 +16,7 @@ import (
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/portal"
 	"portfolio/internal/session"
+	"portfolio/internal/siteauth"
 )
 
 // App holds all runtime dependencies, replacing package-level mutable state.
@@ -25,6 +26,7 @@ type App struct {
 	LoginLimiter  *session.LoginRateLimiter
 	GoogleHandler *internalgoogle.Handler
 	PortalHandler *portal.Handler
+	SiteHandler   *siteauth.Handler
 	Logger        *slog.Logger
 }
 
@@ -48,14 +50,14 @@ func New(cfg *config.Config, logger *slog.Logger) *App {
 		logger.With(slog.String("component", "google")),
 		nil,
 	)
-	if app.Config.PortalEnabled() {
+	app.SiteHandler = siteauth.NewHandler(&app.Config, logger)
+	if app.Config.SiteEnabled() {
 		awsConfig, err := awscfg.LoadDefaultConfig(context.Background(), awscfg.WithRegion(app.Config.PortalAWSRegion))
 		if err != nil {
 			app.Logger.Warn("portal AWS clients unavailable; portal routes disabled", slog.Any("error", err))
 		} else {
 			app.PortalHandler = portal.NewHandler(
 				&app.Config,
-				portal.NewOIDCClient(app.Config.PortalCognitoDomain, app.Config.PortalCognitoIssuer, app.Config.PortalCognitoClientID, app.Config.PortalCognitoRedirectURI, app.Config.PortalCognitoLogoutURI),
 				ec2.NewFromConfig(awsConfig),
 				cloudwatch.NewFromConfig(awsConfig),
 				cloudwatchlogs.NewFromConfig(awsConfig),

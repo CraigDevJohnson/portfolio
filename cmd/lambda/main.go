@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"portfolio/internal/app"
 	"portfolio/internal/httpx"
+	"portfolio/internal/soccerarchive"
 )
 
 // lambdaInitializationTimeout bounds Lambda cold-start initialization.
@@ -26,6 +28,29 @@ type proxyV2 interface {
 }
 
 type lambdaHandlerFunc func(context.Context, *events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error)
+
+type dailyRunner interface {
+	Run(ctx context.Context) (soccerarchive.DailyReport, error)
+}
+
+type dailyHandlerFunc func(context.Context, json.RawMessage) (soccerarchive.DailyReport, error)
+
+func newDailyLambdaHandler(runner dailyRunner) dailyHandlerFunc {
+	return func(ctx context.Context, _ json.RawMessage) (soccerarchive.DailyReport, error) {
+		report, err := runner.Run(ctx)
+		if err != nil {
+			slog.Error("soccer_history_daily_failed", slog.Any("error", err), slog.Int("requests", report.Requests), slog.Any("results", report.Results))
+			return report, err
+		}
+		if !report.Complete {
+			slog.Warn(soccerarchive.DailyIncompleteLog, slog.Int("requests", report.Requests), slog.Bool("pending_due_work", report.PendingDueWork),
+				slog.Int("unselected_due_teams", report.UnselectedDueTeams), slog.Any("results", report.Results))
+		} else {
+			slog.Info(soccerarchive.DailyCompletedLog, slog.Int("requests", report.Requests), slog.Any("results", report.Results))
+		}
+		return report, nil
+	}
+}
 
 func initializeLambda(ctx context.Context) (proxyV2, error) {
 	if err := resolveSSMSecrets(ctx); err != nil {
@@ -61,6 +86,17 @@ func withAPIGatewayOrigin(next http.Handler) http.Handler {
 }
 
 func main() {
+	if os.Getenv("SOCCER_HISTORY_MODE") == "scheduled" {
+		initCtx, cancel := context.WithTimeout(context.Background(), lambdaInitializationTimeout)
+		worker, err := app.NewDailyHistoryWorker(initCtx)
+		cancel()
+		if err != nil {
+			slog.Error("daily history lambda initialization failed", slog.Any("error", err))
+			os.Exit(1)
+		}
+		lambda.Start(newDailyLambdaHandler(worker))
+		return
+	}
 	initCtx, cancel := context.WithTimeout(context.Background(), lambdaInitializationTimeout)
 	proxy, err := initializeLambda(initCtx)
 	cancel()

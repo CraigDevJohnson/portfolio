@@ -5,8 +5,14 @@ import "time"
 const CareerStartYear = 2012
 
 const (
-	DefaultLPSAPIBaseURL       = "https://lps-api-prod.lps-test.com"
-	LPSSessionCookieName       = "lps_session"
+	DefaultLPSAPIBaseURL = "https://lps-api-prod.lps-test.com"
+	LPSSessionCookieName = "lps_session"
+	// LPSImportGuardCookieName holds the guard an import shares with its
+	// lps_session payload. Only an import writes it; sign-out deletes it.
+	LPSImportGuardCookieName = "lps_import_guard"
+	// GoogleConnectionCookieName is the browser-wide Google connection cookie
+	// that site owners shared before #93, and the prefix of each owner's own
+	// connection cookie.
 	GoogleConnectionCookieName = "google_connection"
 	GoogleOAuthStateCookieName = "google_oauth_state"
 	DefaultSessionTTL          = 12 * time.Hour
@@ -28,10 +34,24 @@ const (
 )
 
 const (
-	PortalSessionCookieName    = "mgmt_session"
-	PortalCookiePath           = "/"
-	PortalSessionTTL           = 12 * time.Hour
-	PortalOAuthStateCookieName = "mgmt_oauth_state"
-	PortalOAuthStateCookieTTL  = 10 * time.Minute
-	DefaultPortalAWSRegion     = "us-east-1"
+	SiteSessionCookieName    = "site_session"
+	SiteOAuthStateCookieName = "site_oauth_state"
+	SiteCookiePath           = "/"
+	// SiteSessionTTL bounds how long a copied session cookie survives sign-out;
+	// the session carries no server-side revocation state.
+	SiteSessionTTL    = time.Hour
+	SiteOAuthStateTTL = 10 * time.Minute
+	// SiteSignOutCookieName records when this browser last signed out
+	// explicitly. Only POST /sign-out writes it, and the site session key
+	// protects it. Imported LPS access authorized by a site session issued
+	// at or before that time is cleared, even when a response still in
+	// flight at sign-out wrote it back.
+	SiteSignOutCookieName = "site_signed_out"
+	// SiteSignOutTTL keeps the sign-out record longer than any import a
+	// request in flight at sign-out could still write, which lasts at most
+	// DefaultSessionTTL.
+	SiteSignOutTTL = DefaultSessionTTL + time.Hour
 )
+
+// DefaultPortalAWSRegion is the management portal's region when MGMT_AWS_REGION is unset.
+const DefaultPortalAWSRegion = "us-east-1"

@@ -19,6 +19,8 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/portal"
 	"portfolio/internal/portfolio"
+	"portfolio/internal/siteauth"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 )
 
@@ -51,9 +53,23 @@ func registerMIMETypes() error {
 	return nil
 }
 
-func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http.ServeMux, *internalsoccer.Handler) {
+func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.Handler, *internalsoccer.Handler) {
 	mux := http.NewServeMux()
+	siteHandler := app.SiteHandler
+	if siteHandler == nil {
+		siteHandler = siteauth.NewHandler(&app.Config, rootLogger)
+		app.SiteHandler = siteHandler
+	}
 	mux.HandleFunc("GET /healthz", healthHandler(buildinfo.Revision()))
+	// Starting sign-in and signing out change which session this browser
+	// holds, and sign-out also ends the Soccer state that depends on it, so
+	// only this site's own pages may submit them. The Soccer import in
+	// registerSoccerLPSRoutes uses the same check.
+	sameOrigin := http.NewCrossOriginProtection()
+	mux.HandleFunc("GET /sign-in", siteHandler.LoginHandler)
+	mux.Handle("POST /sign-in", sameOrigin.Handler(http.HandlerFunc(siteHandler.LoginHandler)))
+	mux.HandleFunc("GET "+siteauth.CallbackPath, siteHandler.CallbackHandler)
+	mux.Handle("POST /sign-out", sameOrigin.Handler(http.HandlerFunc(siteHandler.LogoutHandler)))
 
 	soccerHandler := internalsoccer.NewHandler(
 		&app.Config,
@@ -64,6 +80,13 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		rootLogger.With(slog.String("component", "soccer")),
 	)
 	app.GoogleHandler.Soccer = soccerHandler
+	// Site sign-out also ends the Soccer state that depends on the site
+	// session. The owner-bound Google connection stays for the owner's next
+	// sign-in.
+	siteHandler.SignOutHooks = []func(http.ResponseWriter, *http.Request){
+		soccerHandler.ClearImportedAccess,
+		internalgoogle.ClearOAuthStateCookie,
+	}
 
 	// portfolio routes
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -87,57 +110,59 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 	soccerMux := http.NewServeMux()
 	soccerMux.HandleFunc("/soccer", func(w http.ResponseWriter, r *http.Request) {
 		if isGoogleCallbackRequest(r) {
+			if !soccerGrantAllowed(w, r) {
+				return
+			}
 			app.GoogleHandler.CallbackHandler(w, r)
 			return
 		}
 		soccerHandler.SoccerPage(w, r)
 	})
-	soccerMux.HandleFunc("POST /soccer/import", soccerHandler.ImportHandler)
-	soccerMux.HandleFunc("POST /soccer/logout", soccerHandler.LogoutHandler)
-	soccerMux.HandleFunc("POST /soccer/google/add", app.GoogleHandler.AddHandler)
-	soccerMux.HandleFunc("POST /soccer/google/sync-results", app.GoogleHandler.SyncResultsHandler)
-	soccerMux.HandleFunc("POST /soccer/google/calendar", app.GoogleHandler.CalendarHandler)
-	soccerMux.HandleFunc("GET /soccer/google/connect", app.GoogleHandler.ConnectHandler)
-	soccerMux.HandleFunc("POST /soccer/google/disconnect", app.GoogleHandler.DisconnectHandler)
-	soccerMux.HandleFunc("POST /soccer/fetch", soccerHandler.FetchSchedulesHandler)
-	soccerMux.HandleFunc("POST /soccer/discover-teams", soccerHandler.DiscoverTeamsHandler)
-	soccerMux.HandleFunc("POST /soccer/download", soccerHandler.DownloadICSHandler)
+	registerSoccerLPSRoutes(soccerMux, soccerHandler)
+	soccerMux.HandleFunc("GET /soccer/history", requireSoccerGrant(soccerHandler.HistoryHandler))
+	soccerMux.HandleFunc("GET /soccer/history/team-seasons", requireSoccerGrant(soccerHandler.HistoryTeamSeasonsHandler))
+	soccerMux.HandleFunc("POST /soccer/google/add", requireSoccerGrant(app.GoogleHandler.AddHandler))
+	soccerMux.HandleFunc("POST /soccer/google/sync-results", requireSoccerGrant(app.GoogleHandler.SyncResultsHandler))
+	soccerMux.HandleFunc("POST /soccer/google/calendar", requireSoccerGrant(app.GoogleHandler.CalendarHandler))
+	soccerMux.HandleFunc("GET /soccer/google/connect", requireSoccerGrant(app.GoogleHandler.ConnectHandler))
+	soccerMux.HandleFunc("POST /soccer/google/disconnect", requireSoccerGrant(app.GoogleHandler.DisconnectHandler))
 
-	soccerRoutes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var soccerRoutes http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		soccerMux.ServeHTTP(w, r)
 	})
+	if localPortalPreview {
+		linked := newPreviewLinkedSoccer(app, rootLogger, "linked", nil)
+		google := newPreviewLinkedSoccer(app, rootLogger, "google", previewGoogleCalendar{})
+		soccerRoutes = google.wrap(linked.wrap(soccerRoutes))
+		mux.HandleFunc("GET /__preview/account/soccer-linked", linked.enter)
+		mux.HandleFunc("GET /__preview/account/soccer-google", google.enter)
+	}
 	mux.Handle("/soccer", soccerRoutes)
 	mux.Handle("/soccer/", soccerRoutes)
 
 	// portal routes
 	if localPortalPreview {
+		mux.HandleFunc("GET /__preview/lps/teams/{id}", newSoccerPreviewLPS().teamScheduleHandler)
 		mux.HandleFunc("GET /__preview/soccer/{fixture}", soccerPreviewPageHandler)
+		mux.HandleFunc("GET /__preview/account/{fixture}", accountPreviewPageHandler)
 		mux.HandleFunc("POST /__preview/soccer/download", soccerPreviewDownloadHandler)
 		ph := portal.NewPreviewHandler(rootLogger.With(slog.String("component", "portal_preview")))
 		mux.HandleFunc("GET /__preview/portal/error", ph.ErrorPageHandler)
-		mux.HandleFunc("GET /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("POST /login", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("GET /callback", ph.RedirectToDashboardHandler)
-		mux.HandleFunc("POST /logout", ph.RedirectToDashboardHandler)
 		mux.HandleFunc("GET /mgmt", ph.DashboardHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.InstanceActionHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.InstanceActionHandler)
 		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.InstanceActionHandler)
 		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.MetricsHandler)
 		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.LogsHandler)
-	} else if app.Config.PortalEnabled() && app.PortalHandler != nil {
+	} else if app.Config.SiteEnabled() && app.PortalHandler != nil {
 		ph := app.PortalHandler
-		mux.HandleFunc("GET /login", ph.LoginPageHandler)
-		mux.HandleFunc("POST /login", ph.LoginPageHandler)
-		mux.HandleFunc("GET /callback", ph.CallbackHandler)
-		mux.HandleFunc("POST /logout", ph.LogoutHandler)
-		mux.HandleFunc("GET /mgmt", ph.RequireAuth(ph.DashboardHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.RequireAuth(ph.InstanceActionHandler))
-		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.RequireAuth(ph.MetricsHandler))
-		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.RequireAuth(ph.LogsHandler))
+		mux.HandleFunc("GET /mgmt", ph.RequireManagement(ph.DashboardHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/start", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/stop", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("POST /mgmt/instances/{id}/restart", ph.RequireManagement(ph.InstanceActionHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/metrics", ph.RequireManagement(ph.MetricsHandler))
+		mux.HandleFunc("GET /mgmt/instances/{id}/logs", ph.RequireManagement(ph.LogsHandler))
 	}
 
 	// static files
@@ -155,7 +180,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (*http
 		http.ServeFile(w, r, "cmd/web/static/images/favicon.ico")
 	})
 
-	return mux, soccerHandler
+	return siteHandler.WithCanonicalHost(siteHandler.WithIdentity(mux)), soccerHandler
 }
 
 func initializeGoogleStore(ctx context.Context, app *App) error {
@@ -184,13 +209,21 @@ func initializeSoccerStore(ctx context.Context, app *App, soccerHandler *interna
 	return nil
 }
 
-// NewLambdaHandler constructs the HTTP handler for Lambda + API Gateway deployments.
-func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
-	rootLogger, _, warnings := logging.NewLoggerFromEnv()
+// newRootLogger builds the process logger from the environment, makes it the
+// default logger, and reports any invalid logging setting it replaced with a
+// fallback. Every runtime entry point starts with it.
+func newRootLogger() (*slog.Logger, logging.Config) {
+	rootLogger, logConfig, warnings := logging.NewLoggerFromEnv()
 	slog.SetDefault(rootLogger)
 	for _, warning := range warnings {
 		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
 	}
+	return rootLogger, logConfig
+}
+
+// NewLambdaHandler constructs the HTTP handler for Lambda + API Gateway deployments.
+func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
+	rootLogger, _ := newRootLogger()
 
 	if err := registerMIMETypes(); err != nil {
 		rootLogger.Error("mime type registration failed", slog.Any("error", err))
@@ -211,17 +244,14 @@ func NewLambdaHandler(ctx context.Context) (http.Handler, error) {
 			return nil, fmt.Errorf("initialize soccer session store: %w", err)
 		}
 	}
+	initializeSoccerHistory(ctx, rootLogger, soccerHandler)
 
 	return withRequestLogging(rootLogger.With(slog.String("component", "http")), mux), nil
 }
 
 // Run loads configuration, constructs the App, registers routes, and starts the server.
 func Run() error {
-	rootLogger, logConfig, warnings := logging.NewLoggerFromEnv()
-	slog.SetDefault(rootLogger)
-	for _, warning := range warnings {
-		rootLogger.Warn("invalid logging configuration; using fallback", slog.String("warning", warning))
-	}
+	rootLogger, logConfig := newRootLogger()
 
 	appLogger := rootLogger.With(slog.String("component", "app"))
 
@@ -241,16 +271,19 @@ func Run() error {
 
 	cfg := config.Load()
 	if localPortalPreview {
-		// Preview mode must never initialize the real portal's Cognito or AWS
-		// dependencies, even when live portal variables are also present locally.
-		cfg.PortalSessionKey = nil
-		cfg.PortalCognitoDomain = ""
-		cfg.PortalCognitoIssuer = ""
-		cfg.PortalAllowedEmails = nil
-		cfg.PortalAllowLocalCallback = false
-		cfg.PortalCognitoClientID = ""
-		cfg.PortalCognitoRedirectURI = ""
-		cfg.PortalCognitoLogoutURI = ""
+		// Preview mode must never initialize site Cognito or the real portal's
+		// AWS clients, which follow site sign-in, even when live variables are
+		// also present locally.
+		cfg.SiteSessionKey = nil
+		cfg.SiteCognitoDomain = ""
+		cfg.SiteCognitoIssuer = ""
+		cfg.SiteCognitoClientID = ""
+		cfg.SiteCognitoRedirectURI = ""
+		cfg.SiteCognitoLogoutURI = ""
+		cfg.SiteInvitations = nil
+		// Public Team ID lookups read canned schedules from the in-process
+		// fake LPS so preview browser proofs never reach Let's Play Soccer.
+		cfg.LPSAPIBaseURL = previewLPSBaseURL(listenAddress)
 		appLogger.Warn(
 			"local portal preview enabled; mock data only and no AWS actions will be sent",
 			slog.String("preview_url", config.LocalServerURL(listenAddress)+"/mgmt"),
@@ -347,4 +380,54 @@ func Run() error {
 func isGoogleCallbackRequest(r *http.Request) bool {
 	query := r.URL.Query()
 	return query.Get("code") != "" || query.Get("error") != "" || query.Get("state") != ""
+}
+
+func soccerGrantAllowed(w http.ResponseWriter, r *http.Request) bool {
+	if siteidentity.SoccerPrivateAllowed(r.Context()) {
+		return true
+	}
+	internalsoccer.RefusePrivateAction(w, r)
+	return false
+}
+
+// registerSoccerLPSRoutes registers the Soccer import, player removal,
+// schedule, and download routes with their soccer-grant guards and the
+// same-origin check on import and removal. The server and the linked preview
+// journey share it, so both serve one authorization shape.
+func registerSoccerLPSRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
+	// The import replaces this browser's imported access and, with durable
+	// collection wired, binds linked-player history to the signed-in owner
+	// indefinitely, so only this site's own pages may submit it.
+	sameOrigin := http.NewCrossOriginProtection()
+	mux.Handle("POST /soccer/import", sameOrigin.Handler(requireSoccerGrant(h.ImportHandler)))
+	// Removal erases a player's retained history for every owner, so only
+	// this site's own pages may submit it.
+	mux.Handle("POST /soccer/players/remove", sameOrigin.Handler(requireSoccerGrant(h.RemovePlayerHandler)))
+	mux.HandleFunc("POST /soccer/logout", requireSoccerGrant(h.LogoutHandler))
+	mux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(h.DiscoverTeamsHandler))
+	mux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(h.FetchSchedulesHandler))
+	mux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(h.DownloadICSHandler))
+}
+
+func requireSoccerGrant(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if soccerGrantAllowed(w, r) {
+			next(w, r)
+		}
+	}
+}
+
+// requireSoccerGrantForPlayers keeps Team ID schedules and their ICS
+// downloads public while applying the soccer grant to any schedule form the
+// Soccer handlers would read as linked-player or discovered-team data.
+func requireSoccerGrantForPlayers(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !internalsoccer.ParseScheduleRequest(w, r) {
+			return
+		}
+		if internalsoccer.ScheduleFormNeedsGrant(r.Form) && !soccerGrantAllowed(w, r) {
+			return
+		}
+		next(w, r)
+	}
 }

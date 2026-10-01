@@ -7,6 +7,10 @@
   isolation: auto;
 }
 
+.soccer-page [hidden] {
+  display: none !important;
+}
+
 .soccer-page,
 .soccer-connections-section,
 .soccer-connections-grid,
@@ -34,6 +38,66 @@
 
 .soccer-workflow-section {
   padding-block: clamp(var(--space-xl), 5vw, var(--space-3xl));
+}
+
+.soccer-output-choice {
+  display: grid;
+  gap: var(--space-md);
+  padding-block: clamp(var(--space-xl), 5vw, var(--space-2xl));
+}
+
+.soccer-output-options {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.soccer-output-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-lg);
+  border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 26%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  cursor: pointer;
+}
+
+.soccer-output-option:has(input:checked) {
+  border-color: var(--pond-mint);
+  box-shadow: var(--shadow-panel);
+}
+
+.soccer-output-option:has(input:disabled) {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.soccer-output-option:focus-within {
+  outline: var(--line-hairline) solid var(--pond-mint);
+  outline-offset: var(--space-xs);
+}
+
+.soccer-output-option input {
+  margin-top: var(--space-xs);
+  accent-color: var(--pond-mint);
+}
+
+.soccer-output-option span {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.soccer-output-option strong {
+  color: var(--color-copy-primary);
+}
+
+.soccer-output-option small {
+  color: var(--color-copy-secondary);
 }
 
 .soccer-connections-section {
@@ -147,6 +211,11 @@
   line-height: var(--leading-relaxed);
 }
 
+.soccer-connection-copy strong {
+  color: var(--color-copy-primary);
+  font-weight: var(--font-semibold);
+}
+
 .soccer-connection-copy .soccer-connection-status {
   color: var(--candle-oat);
 }
@@ -176,6 +245,63 @@
   align-items: center;
   gap: var(--space-sm);
   margin-top: auto;
+}
+
+/* Verified removal of one player's kept history sits behind a disclosure so
+ * the destructive action needs a deliberate second step. */
+.soccer-player-removal {
+  padding-top: var(--space-xs);
+  border-top: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 14%, transparent);
+}
+
+.soccer-player-removal summary {
+  /* A list item keeps the native disclosure marker; the padding keeps a
+   * 44px target. */
+  display: list-item;
+  padding-block: calc(var(--space-sm) + var(--space-xs));
+  cursor: pointer;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.soccer-player-removal summary:hover,
+.soccer-player-removal[open] summary {
+  color: var(--candle-oat);
+}
+
+.soccer-player-removal-body {
+  display: grid;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-xs);
+}
+
+.soccer-player-removal-body p {
+  margin: 0;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-player-removal-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soccer-player-removal-list .soccer-secondary-btn {
+  max-width: 100%;
+  border-color: color-mix(in srgb, var(--rosehip) 42%, transparent);
+  background: color-mix(in srgb, var(--rosehip) 8%, transparent);
+  text-align: start;
+  white-space: normal;
+}
+
+.soccer-player-removal-list .soccer-secondary-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--rosehip) 64%, transparent);
+  background: color-mix(in srgb, var(--rosehip) 14%, transparent);
 }
 
 .soccer-calendar-form {
@@ -457,6 +583,32 @@
   color: var(--pond-mint);
   font-size: var(--text-sm);
   text-underline-offset: 0.25em;
+}
+
+.soccer-history-notice {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: var(--line-hairline) solid color-mix(in srgb, var(--campfire-apricot) 38%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--campfire-apricot) 8%, var(--night-mulberry));
+  color: var(--candle-oat);
+}
+
+.soccer-history-notice p {
+  margin: 0;
+  color: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-history-notice .soccer-history-notice-title {
+  color: var(--campfire-apricot);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
 }
 
 .soccer-manual-controls {
@@ -943,29 +1095,65 @@ body.soccer-modal-open {
 }
 
 .soccer-match-row {
+  --soccer-home-paint: var(--soccer-team-gray);
+  --soccer-away-paint: var(--soccer-team-gray);
   display: grid;
   min-width: 0;
   gap: var(--space-sm);
   padding: var(--space-md);
   border: var(--line-hairline) solid color-mix(in srgb, var(--candle-oat) 13%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--cocoa-cedar) 80%, var(--night-mulberry));
+  background: linear-gradient(90deg, var(--soccer-home-paint) 0 50%, var(--soccer-away-paint) 50% 100%);
   box-shadow: var(--shadow-sm);
 }
 
-.soccer-match-row:nth-child(even) {
-  background: color-mix(in srgb, var(--pond-mint) 5%, var(--cocoa-cedar));
-}
+.soccer-match-row[data-home-color='red'] { --soccer-home-paint: var(--soccer-team-red); }
+.soccer-match-row[data-home-color='blue'] { --soccer-home-paint: var(--soccer-team-blue); }
+.soccer-match-row[data-home-color='navy'] { --soccer-home-paint: var(--soccer-team-navy); }
+.soccer-match-row[data-home-color='green'] { --soccer-home-paint: var(--soccer-team-green); }
+.soccer-match-row[data-home-color='yellow'] { --soccer-home-paint: var(--soccer-team-yellow); }
+.soccer-match-row[data-home-color='gold'] { --soccer-home-paint: var(--soccer-team-gold); }
+.soccer-match-row[data-home-color='orange'] { --soccer-home-paint: var(--soccer-team-orange); }
+.soccer-match-row[data-home-color='purple'] { --soccer-home-paint: var(--soccer-team-purple); }
+.soccer-match-row[data-home-color='pink'] { --soccer-home-paint: var(--soccer-team-pink); }
+.soccer-match-row[data-home-color='teal'] { --soccer-home-paint: var(--soccer-team-teal); }
+.soccer-match-row[data-home-color='maroon'] { --soccer-home-paint: var(--soccer-team-maroon); }
+.soccer-match-row[data-home-color='black'] { --soccer-home-paint: var(--soccer-team-black); }
+.soccer-match-row[data-home-color='white'] { --soccer-home-paint: var(--soccer-team-white); }
+.soccer-match-row[data-home-color='gray'] { --soccer-home-paint: var(--soccer-team-gray); }
+
+.soccer-match-row[data-away-color='red'] { --soccer-away-paint: var(--soccer-team-red); }
+.soccer-match-row[data-away-color='blue'] { --soccer-away-paint: var(--soccer-team-blue); }
+.soccer-match-row[data-away-color='navy'] { --soccer-away-paint: var(--soccer-team-navy); }
+.soccer-match-row[data-away-color='green'] { --soccer-away-paint: var(--soccer-team-green); }
+.soccer-match-row[data-away-color='yellow'] { --soccer-away-paint: var(--soccer-team-yellow); }
+.soccer-match-row[data-away-color='gold'] { --soccer-away-paint: var(--soccer-team-gold); }
+.soccer-match-row[data-away-color='orange'] { --soccer-away-paint: var(--soccer-team-orange); }
+.soccer-match-row[data-away-color='purple'] { --soccer-away-paint: var(--soccer-team-purple); }
+.soccer-match-row[data-away-color='pink'] { --soccer-away-paint: var(--soccer-team-pink); }
+.soccer-match-row[data-away-color='teal'] { --soccer-away-paint: var(--soccer-team-teal); }
+.soccer-match-row[data-away-color='maroon'] { --soccer-away-paint: var(--soccer-team-maroon); }
+.soccer-match-row[data-away-color='black'] { --soccer-away-paint: var(--soccer-team-black); }
+.soccer-match-row[data-away-color='white'] { --soccer-away-paint: var(--soccer-team-white); }
+.soccer-match-row[data-away-color='gray'] { --soccer-away-paint: var(--soccer-team-gray); }
 
 .soccer-match-row:hover,
 .soccer-match-row:focus-within {
   border-color: color-mix(in srgb, var(--pond-mint) 46%, transparent);
-  background: color-mix(in srgb, var(--pond-mint) 8%, var(--cocoa-cedar));
+  box-shadow: 0 0 0 var(--line-accent) color-mix(in srgb, var(--pond-mint) 28%, transparent);
 }
 
 .soccer-match-row[data-past-game] {
   border-color: color-mix(in srgb, var(--rosehip) 34%, transparent);
-  background: color-mix(in srgb, var(--rosehip) 7%, var(--cocoa-cedar));
+}
+
+.soccer-match-select,
+.soccer-match-detail {
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--night-mulberry) 82%, transparent);
+  color: var(--candle-oat);
 }
 
 .soccer-match-select {
@@ -985,9 +1173,7 @@ body.soccer-modal-open {
 
 .soccer-match-detail {
   display: grid;
-  min-width: 0;
   gap: var(--space-xs);
-  color: var(--color-copy-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   overflow-wrap: anywhere;
@@ -1063,8 +1249,16 @@ body.soccer-modal-open {
 }
 
 @media (width >= 48rem) {
+  .soccer-output-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* One row of equal columns for however many steps apply: three on the
+     public path, five with imported LPS access. Hidden steps take no column. */
   .soccer-stage-legend {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: none;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
   }
 
   .soccer-stage-legend li {
@@ -1136,10 +1330,6 @@ body.soccer-modal-open {
   .soccer-stage-source {
     grid-column: 1/-1;
   }
-
-  .soccer-stage-legend {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (width >= 80rem) {
@@ -1177,11 +1367,28 @@ body.soccer-modal-open {
 }
 
 @media (forced-colors: active) {
+  .soccer-match-row,
+  .soccer-match-select,
+  .soccer-match-detail {
+    border-color: ButtonBorder;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+  }
+
+  .soccer-match-detail::before,
+  .soccer-match-datetime,
+  .soccer-matchup strong,
+  .soccer-match-versus {
+    color: CanvasText;
+  }
+
   .soccer-stage,
   .soccer-stage-legend li,
   .soccer-stage-number,
   .soccer-stage-legend span,
   .soccer-security-notice,
+  .soccer-history-notice,
   .soccer-login-dialog,
   .soccer-modal-close,
   .soccer-page .loading-indicator,

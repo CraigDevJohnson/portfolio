@@ -52,7 +52,8 @@ type statusErrorKind struct {
 // executeAPIRequest sends an LPS API request, reads the response body, and
 // classifies non-2xx status codes into a *FetchError. Callers pass resource-specific
 // status mappings; 401→Unauthorized, 403→Forbidden, and remaining non-2xx→Upstream
-// are always applied as fallbacks.
+// are always applied as fallbacks. A request that carries no imported token
+// cannot have that token rejected, so its 401 or 403 falls back to Upstream.
 func executeAPIRequest(client *http.Client, req *http.Request, resourceID int, resourceMappings ...statusErrorKind) ([]byte, error) {
 	resp, err := doAPIRequest(client, req)
 	if err != nil {
@@ -77,6 +78,9 @@ func executeAPIRequest(client *http.Client, req *http.Request, resourceID int, r
 		}
 	}
 
+	if req.Header.Get("Authorization") == "" {
+		return nil, NewFetchError(ErrorUpstream, resourceID, resp.StatusCode, "Let's Play Soccer returned status %d", resp.StatusCode)
+	}
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
 		return nil, NewFetchError(ErrorUnauthorized, resourceID, resp.StatusCode, "Let's Play Soccer rejected the imported token with status %d", resp.StatusCode)

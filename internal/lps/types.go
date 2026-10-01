@@ -1,6 +1,10 @@
 package lps
 
-import "portfolio/types"
+import (
+	"encoding/json"
+
+	"portfolio/types"
+)
 
 // UserPlayerDiscovery is the normalized result of the LPS user check lookup.
 type UserPlayerDiscovery struct {
@@ -22,9 +26,15 @@ type UserCheckResponse struct {
 }
 
 // TeamSummary is the subset of team metadata returned by the LPS team endpoints.
+//
+// Color is an unverified assumption: no recorded LPS payload yet shows the
+// team color's key or format. It is read as a color name under "Color" (any
+// letter case, via encoding/json) on the team and on nested game sides. If LPS
+// sends another key or hex values, every team gets its Team ID fallback.
 type TeamSummary struct {
 	UTeamID      int    `json:"UTeamID"`
 	TeamName     string `json:"team_name"`
+	Color        string `json:"Color"`
 	DivisionName string `json:"division_name"`
 	FacilityID   int    `json:"FacilityID"`
 	FacilityName string `json:"facility_name"`
@@ -33,20 +43,50 @@ type TeamSummary struct {
 
 // TeamScheduleGame is a raw game record from the LPS team schedule response.
 type TeamScheduleGame struct {
-	UGameID           int         `json:"UGameID"`
-	FieldName         string      `json:"field_name"`
-	SchedGameDateTime string      `json:"SchedGameDateTime"`
-	SchedGameEndTime  *string     `json:"schedGameEndTime"`
-	FacilityName      string      `json:"facilityName"`
-	Result            string      `json:"result"`
-	Field             int         `json:"Field"`
-	Season            int         `json:"Season"`
-	FacilityID        int         `json:"FacilityID"`
-	UTeam1            int         `json:"UTeam1"`
-	UTeam2            int         `json:"UTeam2"`
-	TeamIDSelected    *int        `json:"team_id_selected"`
-	HomeTeam          TeamSummary `json:"home_team"`
-	VisitorTeam       TeamSummary `json:"visitor_team"`
+	UGameID           int             `json:"UGameID"`
+	FieldName         string          `json:"field_name"`
+	SchedGameDateTime string          `json:"SchedGameDateTime"`
+	SchedGameEndTime  *string         `json:"schedGameEndTime"`
+	FacilityName      string          `json:"facilityName"`
+	Result            string          `json:"result"`
+	Field             int             `json:"Field"`
+	Season            int             `json:"Season"`
+	FacilityID        int             `json:"FacilityID"`
+	UTeam1            int             `json:"UTeam1"`
+	UTeam2            int             `json:"UTeam2"`
+	TeamIDSelected    *int            `json:"team_id_selected"`
+	HomeTeam          TeamSummary     `json:"home_team"`
+	VisitorTeam       TeamSummary     `json:"visitor_team"`
+	SourceJSON        json.RawMessage `json:"-"`
+}
+
+// HomeTeamID returns the game's home team: the nested home_team ID, else UTeam1.
+func (game *TeamScheduleGame) HomeTeamID() int {
+	return firstPositiveInt(game.HomeTeam.UTeamID, game.UTeam1)
+}
+
+// AwayTeamID returns the game's away team: the nested visitor_team ID, else UTeam2.
+func (game *TeamScheduleGame) AwayTeamID() int {
+	return firstPositiveInt(game.VisitorTeam.UTeamID, game.UTeam2)
+}
+
+// SeasonID returns the game's LPS season: its own Season, else the season of
+// the response team that listed it, else either side's season.
+func (game *TeamScheduleGame) SeasonID(responseTeamSeason int) int {
+	return firstPositiveInt(game.Season, responseTeamSeason, game.HomeTeam.Season, game.VisitorTeam.Season)
+}
+
+// UnmarshalJSON retains the source fields so durable refresh can distinguish
+// omitted fields from explicit updates to an existing game.
+func (game *TeamScheduleGame) UnmarshalJSON(payload []byte) error {
+	type wireGame TeamScheduleGame
+	var decoded wireGame
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return err
+	}
+	*game = TeamScheduleGame(decoded)
+	game.SourceJSON = append([]byte(nil), payload...)
+	return nil
 }
 
 // TeamScheduleResponse is the raw LPS /teams/{id} response payload.

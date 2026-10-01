@@ -2,6 +2,9 @@ package google
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -9,14 +12,46 @@ import (
 
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
+	"portfolio/internal/logging"
 	"portfolio/internal/schedule"
 	"portfolio/types"
 )
 
+// Provenance written on every event the Soccer planner adds to Google
+// Calendar. Result sync relies on it to recognize the site's own events, so
+// changing a name or value orphans events already added:
+//
+//   - The event ID is the canonical game ID from schedule.CanonicalGameEvent:
+//     the LPS game ID, or a hash of the game's schedule fields when LPS gives
+//     none. Repeating Add in the same calendar addresses the same event.
+//   - The private extended property eventGameIDProperty repeats that game ID,
+//     so an event whose ID differs is still found by game.
+//   - The private extended property eventOwnerProperty set to eventOwnerValue
+//     marks the event as added by this site rather than imported from an .ics
+//     file or created by hand. Events added before this marker existed carry
+//     the other three; siteEventMatchesGame recognizes them by all three.
+//   - The event source names the site's Soccer page.
+const (
+	eventGameIDProperty = "game_id"
+	eventOwnerProperty  = "portfolio_app"
+	eventOwnerValue     = "soccer"
+	eventSourceTitle    = "Soccer Schedule"
+)
+
+// errEventRefused marks Google's refusal of a request about one existing
+// event while the calendar may still accept this account's writes. Only that
+// game is skipped; the destination stays.
+var errEventRefused = errors.New("google refused the request for this event")
+
 type calendarMutationResult struct {
-	added        int
-	updated      int
-	skipped      int
+	added   int
+	updated int
+	skipped int
+	// refused counts games whose existing event Google would not let this
+	// account read or change.
+	refused int
+	// undated counts games without a start time to give an event.
+	undated      int
 	authRejected bool
 }
 
@@ -25,9 +60,15 @@ func (h *Handler) insertCalendarEvents(ctx context.Context, r *http.Request, rec
 	for i := range games {
 		event, ok := eventPayload(r, &games[i])
 		if !ok {
+			result.undated++
 			continue
 		}
 		action, authRejected, err := h.syncCalendarEvent(h.httpContext(ctx), record.CalendarID, token, &event)
+		if errors.Is(err, errEventRefused) {
+			logging.WithContext(h.Logger, ctx).Warn("google refused one event; game skipped", slog.String("event_id", event.ID), slog.Any("error", err))
+			result.refused++
+			continue
+		}
 		if err != nil {
 			return result, err
 		}
@@ -113,7 +154,7 @@ func (h *Handler) refreshCalendarEvent(ctx context.Context, calendarID string, t
 		if authRejected {
 			return calendarEventSkipped, true, nil
 		}
-		return calendarEventSkipped, false, apiErr
+		return calendarEventSkipped, false, markEventRefused(apiErr)
 	}
 }
 
@@ -135,7 +176,7 @@ func (h *Handler) findCalendarEventByGameID(ctx context.Context, calendarID stri
 
 	// handleListEventsResponse owns and closes the replacement response body.
 	//nolint:bodyclose
-	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID)
+	resp, err = h.listCalendarEventsByPrivateGameID(ctx, calendarID, token, gameID, "")
 	if err != nil {
 		return nil, false, false, err
 	}
@@ -161,20 +202,32 @@ func (h *Handler) handleGetEventByIDResponse(resp *http.Response, gameID string)
 		if authRejected {
 			return nil, false, true, nil
 		}
-		return nil, false, false, apiErr
+		return nil, false, false, markEventRefused(apiErr)
 	}
+}
+
+// markEventRefused marks a refusal of a request about one existing event, a
+// read or update by its ID, so that only its game is skipped. Other errors,
+// including a refusal that names the calendar's access level, are returned
+// unchanged.
+func markEventRefused(err error) error {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.eventRefused() {
+		return fmt.Errorf("%w: %w", errEventRefused, err)
+	}
+	return err
 }
 
 func (h *Handler) handleListEventsResponse(resp *http.Response, gameID string) (*Event, bool, bool, error) {
 	switch resp.StatusCode {
 	case http.StatusOK:
-		events, decodeErr := decodeEventList(resp)
+		page, decodeErr := decodeEventList(resp)
 		if decodeErr != nil {
 			return nil, false, false, decodeErr
 		}
-		for i := range events {
-			if eventMatchesGameID(&events[i], gameID) {
-				return &events[i], true, false, nil
+		for i := range page.Items {
+			if eventMatchesGameID(&page.Items[i], gameID) {
+				return &page.Items[i], true, false, nil
 			}
 		}
 		return nil, false, false, nil
@@ -197,7 +250,7 @@ func eventMatchesGameID(event *Event, gameID string) bool {
 		return false
 	}
 	eventID := strings.TrimSpace(event.ID)
-	storedGameID := strings.TrimSpace(event.ExtendedProperties.Private["game_id"])
+	storedGameID := strings.TrimSpace(event.ExtendedProperties.Private[eventGameIDProperty])
 	if eventID == gameID {
 		return true
 	}
@@ -255,10 +308,11 @@ func eventPayload(r *http.Request, game *types.Game) (Event, bool) {
 		Summary: formatted.Summary,
 	}
 	event.ExtendedProperties.Private = map[string]string{
-		"game_id": formatted.ID,
+		eventGameIDProperty: formatted.ID,
+		eventOwnerProperty:  eventOwnerValue,
 	}
 	event.Source = &EventSource{
-		Title: "Soccer Schedule",
+		Title: eventSourceTitle,
 		URL:   internalhttpx.RequestBaseURL(r) + "/soccer",
 	}
 	return event, true

@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,15 +20,26 @@ import (
 )
 
 type appTestGoogleConnectionStore struct {
+	mu      sync.Mutex
 	records map[string]internalgoogle.ConnectionRecord
+	// getErr, when set, fails every read as an unavailable table would;
+	// putErr, every save.
+	getErr, putErr error
 }
 
 func (s *appTestGoogleConnectionStore) Delete(_ context.Context, connectionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.records, connectionID)
 	return nil
 }
 
 func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID string) (*internalgoogle.ConnectionRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
 	record, ok := s.records[connectionID]
 	if !ok {
 		return nil, nil
@@ -36,13 +49,55 @@ func (s *appTestGoogleConnectionStore) Get(_ context.Context, connectionID strin
 }
 
 func (s *appTestGoogleConnectionStore) Put(_ context.Context, record *internalgoogle.ConnectionRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.putErr != nil {
+		return s.putErr
+	}
 	s.records[record.ConnectionID] = *record
 	return nil
+}
+
+func (s *appTestGoogleConnectionStore) PutIfUnchanged(_ context.Context, record *internalgoogle.ConnectionRecord, readUpdatedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.putErr != nil {
+		return s.putErr
+	}
+	if stored, ok := s.records[record.ConnectionID]; !ok || !stored.UpdatedAt.Equal(readUpdatedAt) {
+		return internalgoogle.ErrConnectionChanged
+	}
+	s.records[record.ConnectionID] = *record
+	return nil
+}
+
+// edit changes the stored connections as another request would, while a
+// request under test may be running.
+func (s *appTestGoogleConnectionStore) edit(change func(records map[string]internalgoogle.ConnectionRecord)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	change(s.records)
+}
+
+// failSaves fails every later save with err, as an unavailable table would;
+// nil lets saves succeed again.
+func (s *appTestGoogleConnectionStore) failSaves(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.putErr = err
+}
+
+// snapshot returns a copy of the stored connections.
+func (s *appTestGoogleConnectionStore) snapshot() map[string]internalgoogle.ConnectionRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return maps.Clone(s.records)
 }
 
 func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	resp := httptest.NewRecorder()
 
 	newTestSoccerHandler(app).SoccerPage(resp, req)
@@ -67,6 +122,7 @@ func TestSoccerPageRendersAuthPanelOnFirstPaint(t *testing.T) {
 func TestSoccerPageRendersImportedPlayersOnFirstPaintWhenSessionExists(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Craig Johnson",
@@ -105,6 +161,7 @@ func TestSoccerLoginStateCountsUniqueConfirmedTeams(t *testing.T) {
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	resp := httptest.NewRecorder()
 
 	props := newTestSoccerHandler(app).LoginStateProps(resp, req, session, false)
@@ -145,6 +202,7 @@ func TestSoccerPageRestoresWorkflowAndReportsMissingGoogleConnection(t *testing.
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}, {UPlayerID: 1002, FirstName: "Taylor", LastName: "Johnson"}},
@@ -215,6 +273,9 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
+		case "/userinfo":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"sub":"google-subject","email":"calendar@example.com","email_verified":true}`))
 		default:
 			t.Fatalf("unexpected Google path: %s", r.URL.Path)
 		}
@@ -222,6 +283,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	defer googleServer.Close()
 	app.GoogleHandler.OAuthAuthURL = googleServer.URL + "/oauth/auth"
 	app.GoogleHandler.OAuthTokenURL = googleServer.URL + "/oauth/token"
+	app.GoogleHandler.OAuthUserInfoURL = googleServer.URL + "/userinfo"
 	app.GoogleHandler.CalendarAPIBaseURL = googleServer.URL + "/calendar/v3"
 
 	workflow := &types.SessionData{
@@ -234,12 +296,14 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 			SelectedTeamIDs:   []int{4101},
 		},
 	}
-	encryptedSession := encryptTestSession(t, app, workflow)
-	lpsCookie := &http.Cookie{Name: config.LPSSessionCookieName, Value: encryptedSession}
+	lpsCookies := importedAccessCookies(t, app, ownedBySiteVisitor(workflow))
 
 	connectReq := httptest.NewRequest(http.MethodGet, "/soccer/google/connect", nil)
+	connectReq = asGrantedSoccerOwner(connectReq)
 	connectReq.Host = "example.com"
-	connectReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		connectReq.AddCookie(cookie)
+	}
 	connectResp := httptest.NewRecorder()
 	app.GoogleHandler.ConnectHandler(connectResp, connectReq)
 	connectResult := connectResp.Result()
@@ -263,8 +327,11 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 
 	callbackReq := httptest.NewRequest(http.MethodGet, "/soccer/google/callback?code=auth-code&state="+url.QueryEscape(stateValue), nil)
+	callbackReq = asGrantedSoccerOwner(callbackReq)
 	callbackReq.Host = "example.com"
-	callbackReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		callbackReq.AddCookie(cookie)
+	}
 	callbackReq.AddCookie(stateCookie)
 	callbackResp := httptest.NewRecorder()
 	app.GoogleHandler.CallbackHandler(callbackResp, callbackReq)
@@ -274,7 +341,7 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 	var connectionCookie *http.Cookie
 	for _, cookie := range callbackResult.Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == ownerGoogleConnectionName {
 			connectionCookie = cookie
 		}
 		if cookie.Name == config.LPSSessionCookieName && cookie.MaxAge < 0 {
@@ -286,14 +353,17 @@ func TestSoccerOAuthRoundTripPreservesImportedWorkflowAndRendersConnectedState(t
 	}
 
 	pageReq := httptest.NewRequest(http.MethodGet, "/soccer?google=connected", nil)
+	pageReq = asGrantedSoccerOwner(pageReq)
 	pageReq.Host = "example.com"
-	pageReq.AddCookie(lpsCookie)
+	for _, cookie := range lpsCookies {
+		pageReq.AddCookie(cookie)
+	}
 	pageReq.AddCookie(connectionCookie)
 	pageResp := httptest.NewRecorder()
 	newTestSoccerHandler(app).SoccerPage(pageResp, pageReq)
 	pageBody := pageResp.Body.String()
 	for _, marker := range []string{
-		"Google Calendar connected", "Connected to Primary Calendar", "Imported for this session",
+		"Google Calendar connected", "Connected to Primary Calendar", "Imported in this browser",
 		"Craig Johnson", "Craig FC", "Rivals", "Pitch 4", "1 selected", "1 confirmed",
 	} {
 		if !strings.Contains(pageBody, marker) {
@@ -323,6 +393,7 @@ func TestSoccerPageKeepsRestoredChoicesWhenScheduleRefreshFails(t *testing.T) {
 	app.Config.LPSAPIBaseURL = server.URL
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:       testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		Players:   []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson", IsMainPlayer: true}},
@@ -415,8 +486,8 @@ func TestSoccerImportHandlerStoresCurrentSessionCookie(t *testing.T) {
 	if !sessionCookie.HttpOnly {
 		t.Fatal("expected session cookie to be HttpOnly")
 	}
-	if sessionCookie.Expires != (time.Time{}) {
-		t.Fatalf("expected current-session cookie without expiry, got %v", sessionCookie.Expires)
+	if sessionCookie.Expires.IsZero() || sessionCookie.MaxAge <= 0 {
+		t.Fatalf("expected retained import cookie, got max-age %d and expiry %v", sessionCookie.MaxAge, sessionCookie.Expires)
 	}
 	if sessionCookie.SameSite != http.SameSiteLaxMode {
 		t.Fatalf("unexpected same-site mode: got %v want Lax for Google OAuth restoration", sessionCookie.SameSite)
@@ -549,6 +620,7 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	importReq := httptest.NewRequest(http.MethodPost, "/soccer/import", strings.NewReader(url.Values{
 		"jwt": {"Bearer " + token},
 	}.Encode()))
+	importReq = asGrantedSoccerOwner(importReq)
 	importReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	importResp := httptest.NewRecorder()
 
@@ -562,8 +634,9 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	}
 
 	sessionCookie := findSessionCookie(t, importResp.Result())
-	if sessionCookie == nil {
-		t.Fatal("expected session cookie to be set")
+	guardCookie := findImportGuardCookie(importResp.Result())
+	if sessionCookie == nil || guardCookie == nil {
+		t.Fatal("expected session and import guard cookies to be set")
 	}
 
 	session := decryptTestSession(t, app, sessionCookie.Value)
@@ -583,8 +656,10 @@ func TestSoccerImportDiscoveryFlowFetchesSchedulesForDiscoveredPlayers(t *testin
 	fetchReq := httptest.NewRequest(http.MethodPost, "/soccer/fetch", strings.NewReader(url.Values{
 		"player_ids": {"1669080", "1669081"},
 	}.Encode()))
+	fetchReq = asGrantedSoccerOwner(fetchReq)
 	fetchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	fetchReq.AddCookie(sessionCookie)
+	fetchReq.AddCookie(guardCookie)
 	fetchResp := httptest.NewRecorder()
 
 	newTestSoccerHandler(app).FetchSchedulesHandler(fetchResp, fetchReq)
@@ -748,6 +823,7 @@ func TestSoccerImportHandlerShowsActionableUsersCheckUpstreamError(t *testing.T)
 func TestSoccerLogoutHandlerClearsSessionAndRendersUnauthenticatedPanel(t *testing.T) {
 	app := newTestApp(t)
 	req := httptest.NewRequest(http.MethodPost, "/soccer/logout", nil)
+	req = asGrantedSoccerOwner(req)
 	addSessionCookie(t, app, req, &types.SessionData{
 		JWT:      testutil.TestJWT(t, time.Now().Add(30*time.Minute)),
 		UserName: "Current browser session",
@@ -818,6 +894,7 @@ func TestSoccerPageClearsExpiredOrInvalidSessionAndRendersUnauthenticatedState(t
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+			req = asGrantedSoccerOwner(req)
 			tc.addCookie(t, req)
 			resp := httptest.NewRecorder()
 

@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # Management portal preview
 
-Management portal preview lets a local reviewer inspect representative EC2 inventory states, request harmless preview actions, load sample metrics and logs, and view empty, retrieval-error, and interruption states without Cognito or AWS clients.
+Management portal preview lets a local reviewer inspect representative EC2 inventory states, request harmless preview actions, load sample metrics and logs, and view empty, retrieval-error, interruption, and management access-denied states without Cognito or AWS clients.
 
 ## Sub-features
 
@@ -10,6 +10,7 @@ Management portal preview lets a local reviewer inspect representative EC2 inven
 - `portal-metrics` loads sample CPU values into the selected instance's detail region.
 - `portal-logs` loads recent sample events in descending time order.
 - `portal-states` renders empty, retrieval-error, fragment-error, and full interruption fixtures.
+- `portal-access-denied` renders the 403 page a signed-in account without the `management` grant receives, with that account in shared navigation.
 - `portal-exit` returns from the operator shell to the public portfolio.
 
 ## How to get to it (user POV)
@@ -34,12 +35,15 @@ Preconditions:
 - **Fragment error.** Point one preview metrics or logs control at the same route with `?fixture=error`, process it with HTMX, and activate it. Require HTTP `500`, `X-Portal-Fragment-Error: true`, useful inline error feedback, and the open scoped detail region.
 - **Dashboard states.** Open `/mgmt?fixture=empty` and require `No instances found`; open `/mgmt?fixture=retrieval-error` and require `Unable to load instances.`.
 - **Interruption state.** Open `/__preview/portal/error`; expect HTTP `503` and the full operator interruption page headed `Something interrupted the connection`. Capture this with an HTTP response body/status alongside browser evidence because a successful-looking screenshot cannot prove the status code.
+- **Access denied.** Open `/__preview/portal/error?fixture=access-denied`; expect HTTP `403`, the H1 `Management access required`, the feedback `Your account does not have management access.`, a `Back to portfolio` link to `/`, and `local.preview@portfolio.test` with a `Sign out` button in `nav[aria-label='Main navigation']`. Record the status the same way as the interruption state. Any other `fixture` value returns `404`.
 - **Exit.** Return to `/mgmt`, click `"a.portal-session-action[href='/']"`, and require the Home title and `data-layout="systems-overlook"`.
+- **Scripted access proof.** `.cursor/skills/verify-portfolio/scripts/prove-portal-access` runs the dashboard, retired-route, and access-denied steps, follows `Back to portfolio`, and writes its evidence to `evidence/management-portal-preview/`.
 - **Proof.** Retain the dashboard before-action evidence, inline action result, metrics/log result snapshots, browser requests, response status for the interruption route, server log, and launch metadata under `evidence/management-portal-preview/`.
 
 ## Gotchas
 
-- The preview intentionally has no authentication. That proves only local operator UI behavior, not Cognito login or authorization enforcement.
+- The preview intentionally has no authentication. That proves only local operator UI behavior, not site sign-in or `management` grant enforcement; the access-denied fixture shows the denial's markup, and route tests prove the grant decision.
+- The retired management-only `/login`, `/callback`, and `/logout` routes return `404` in preview as in live mode.
 - Preview action feedback is not evidence of an EC2 state change. Its value is proving the request path, safety copy, and inline swap.
 - Metrics and logs are adjacent detail regions. Scope assertions to the instance ID and detail kind.
 - HTTP error fragments carry `X-Portal-Fragment-Error: true` so HTMX swaps meaningful error content. Preserve the response header when verifying an error path.

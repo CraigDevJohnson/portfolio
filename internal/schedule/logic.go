@@ -42,7 +42,7 @@ func normalizeScheduleGame(game *types.Game) {
 		case gameFacilityName(game) != "":
 			game.Location = gameFacilityName(game)
 		case game.Field != "":
-			game.Location = fieldLocationPrefix + game.Field
+			game.Location = fieldLocation(game.Field)
 		}
 	}
 	if game.Field == "" && game.Location != "" {
@@ -73,6 +73,11 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	merged.Location = mergeStringValue(merged.Location, incoming.Location)
 	merged.Home = mergeStringValue(merged.Home, incoming.Home)
 	merged.Away = mergeStringValue(merged.Away, incoming.Away)
+	merged.HomeTeam = mergeTeamAppearance(merged.HomeTeam, incoming.HomeTeam)
+	merged.AwayTeam = mergeTeamAppearance(merged.AwayTeam, incoming.AwayTeam)
+	if merged.ScheduleTeam.ID <= 0 && merged.ScheduleTeam.Color == "" {
+		merged.ScheduleTeam = incoming.ScheduleTeam
+	}
 	merged.Season = mergeStringValue(merged.Season, incoming.Season)
 	merged.PlayerTeamName = mergeStringValue(merged.PlayerTeamName, incoming.PlayerTeamName)
 	merged.OpponentTeamName = mergeStringValue(merged.OpponentTeamName, incoming.OpponentTeamName)
@@ -81,6 +86,23 @@ func MergeGames(base, incoming *types.Game) types.Game {
 	merged.Result = mergeStringValue(merged.Result, incoming.Result)
 	normalizeScheduleGame(&merged)
 	return merged
+}
+
+// mergeTeamAppearance prefers the selected team's own schedule so a shared
+// match paints each selected team as its other rows do. The LPS resolver has
+// already chosen one color per fetched Team ID across every schedule, so a
+// selected side without a color keeps its ID fallback here.
+func mergeTeamAppearance(base, incoming types.TeamAppearance) types.TeamAppearance {
+	if incoming.Selected && !base.Selected {
+		base, incoming = incoming, base
+	}
+	if base.ID <= 0 {
+		base.ID = incoming.ID
+	}
+	if base.Color == "" && !base.Selected {
+		base.Color = incoming.Color
+	}
+	return base
 }
 
 // stableGameFields returns the fields used to derive a stable fallback identifier.
@@ -104,6 +126,15 @@ func GameKey(game *types.Game) string {
 		return game.ID
 	}
 	return stableGameFields(game)
+}
+
+// fieldLocation labels a bare field name as a field without repeating a
+// label LPS already supplied, so "3" and "Field 3" both become "Field 3".
+func fieldLocation(field string) string {
+	if strings.HasPrefix(strings.ToLower(field), strings.ToLower(fieldLocationPrefix)) {
+		return field
+	}
+	return fieldLocationPrefix + field
 }
 
 // GameStartTime returns the best available parsed start time for a game.
@@ -195,12 +226,12 @@ func UpcomingScheduleGames(games []types.Game) []types.Game {
 	return filtered
 }
 
-// PastGamesWithResults filters to games that already started and have non-empty results.
+// PastGamesWithResults filters to games that already started and have numeric scores.
 func PastGamesWithResults(games []types.Game) []types.Game {
 	filtered := make([]types.Game, 0, len(games))
 	now := time.Now()
 	for i := range games {
-		if strings.TrimSpace(games[i].Result) == "" {
+		if !scorePattern.MatchString(strings.TrimSpace(games[i].Result)) {
 			continue
 		}
 		start, ok := GameStartTime(&games[i])

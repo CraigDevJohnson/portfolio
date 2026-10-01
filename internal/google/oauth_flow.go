@@ -1,10 +1,14 @@
 package google
 
 import (
+	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +19,7 @@ import (
 	"portfolio/internal/config"
 	internalhttpx "portfolio/internal/httpx"
 	"portfolio/internal/logging"
+	"portfolio/internal/siteidentity"
 )
 
 func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires time.Time) { //nolint:gosec // Callers pass cookies created by httpx.NewSecureCookie.
@@ -22,28 +27,74 @@ func setCookieWithExpiry(w http.ResponseWriter, cookie *http.Cookie, expires tim
 	http.SetCookie(w, cookie)
 }
 
-// GetConnectionID returns the Google connection ID stored in the request cookie.
-func GetConnectionID(r *http.Request) string {
-	cookie, err := r.Cookie(config.GoogleConnectionCookieName)
+// ConnectionCookieName names the cookie that holds a site owner's Google
+// connection. Each owner has their own cookie, derived from their Cognito
+// issuer and subject, so owners who share a browser never replace one
+// another's connection. It is "" without an owner.
+func ConnectionCookieName(ownerIssuer, ownerSubject string) string {
+	if ownerIssuer == "" || ownerSubject == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(ownerIssuer + "\x00" + ownerSubject))
+	return config.GoogleConnectionCookieName + "_" + hex.EncodeToString(sum[:16])
+}
+
+// connectionCookieName names the current site owner's connection cookie.
+func connectionCookieName(r *http.Request) string {
+	principal, _ := siteidentity.PrincipalFromContext(r.Context())
+	return ConnectionCookieName(principal.Issuer, principal.Subject)
+}
+
+func cookieValue(r *http.Request, name string) string {
+	if name == "" {
+		return ""
+	}
+	cookie, err := r.Cookie(name)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(cookie.Value)
 }
 
-// SetConnectionCookie persists the Google connection ID in a secure cookie.
+// GetConnectionID returns the current site owner's Google connection ID.
+func GetConnectionID(r *http.Request) string {
+	return cookieValue(r, connectionCookieName(r))
+}
+
+// browserWideConnectionID returns the connection ID held in the browser-wide
+// cookie that every site owner shared before each had their own. The
+// connection it names predates verified Google accounts, so it is never used;
+// a granted visitor may only release it.
+func browserWideConnectionID(r *http.Request) string {
+	return cookieValue(r, config.GoogleConnectionCookieName)
+}
+
+// SetConnectionCookie persists the current site owner's Google connection ID
+// in a secure cookie.
 func SetConnectionCookie(w http.ResponseWriter, r *http.Request, connectionID string) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, connectionID, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
+	name := connectionCookieName(r)
+	if name == "" {
+		return
+	}
+	cookie := internalhttpx.NewSecureCookie(r, name, connectionID, config.SoccerCookiePath, 0, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Now().Add(config.GoogleConnectionCookieTTL))
 }
 
-// ClearConnectionCookie removes the Google connection cookie.
+// ClearConnectionCookie removes the current site owner's Google connection
+// cookie.
 func ClearConnectionCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleConnectionCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
+	clearSoccerCookie(w, r, connectionCookieName(r))
+}
+
+func clearSoccerCookie(w http.ResponseWriter, r *http.Request, name string) {
+	if name == "" {
+		return
+	}
+	cookie := internalhttpx.NewSecureCookie(r, name, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
 	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
 }
 
-func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, state OAuthState) error {
+func (h *Handler) SetOAuthStateCookie(w http.ResponseWriter, r *http.Request, state *OAuthState) error {
 	encrypted, err := h.encryptJSONValue(state)
 	if err != nil {
 		return err
@@ -72,8 +123,7 @@ func (h *Handler) GetOAuthStateCookie(r *http.Request) (*OAuthState, error) {
 }
 
 func ClearOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
-	cookie := internalhttpx.NewSecureCookie(r, config.GoogleOAuthStateCookieName, "", config.SoccerCookiePath, -1, http.SameSiteLaxMode)
-	setCookieWithExpiry(w, cookie, time.Unix(0, 0))
+	clearSoccerCookie(w, r, config.GoogleOAuthStateCookieName)
 }
 
 // RedirectSoccerWithGoogleStatus redirects to /soccer with an optional google= query parameter.
@@ -85,13 +135,29 @@ func RedirectSoccerWithGoogleStatus(w http.ResponseWriter, r *http.Request, stat
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
+// chooseAccountParam is the connect request's account value that opens
+// Google's account chooser instead of suggesting the site sign-in account.
+const chooseAccountParam = "choose"
+
 // ConnectHandler initiates the Google OAuth flow.
 func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	if !h.GoogleAvailable() {
 		RedirectSoccerWithGoogleStatus(w, r, "unavailable")
 		return
 	}
+	h.releaseBrowserWideConnection(r.Context(), w, r)
 	connectionID := GetConnectionID(r)
+	if connectionID != "" {
+		record, err := h.LoadConnectionRecord(r.Context(), r)
+		if err != nil {
+			h.failOAuthf(w, r, false, "google connection read before connect failed: %v", err)
+			return
+		}
+		if record == nil {
+			h.releaseConnection(r.Context(), r, connectionID)
+			connectionID = ""
+		}
+	}
 	if connectionID == "" {
 		var err error
 		connectionID, err = NewRandomHex(16)
@@ -105,16 +171,26 @@ func (h *Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, false, "google oauth state generation failed: %v", err)
 		return
 	}
-	if err := h.SetOAuthStateCookie(w, r, state); err != nil {
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok {
+		state.OwnerIssuer = principal.Issuer
+		state.OwnerSubject = principal.Subject
+	}
+	if err := h.SetOAuthStateCookie(w, r, &state); err != nil {
 		h.failOAuthf(w, r, false, "google oauth state cookie write failed: %v", err)
 		return
 	}
-	authURL := h.oauthConfigForRequest(r).AuthCodeURL(
-		state.State,
+	options := []oauth2.AuthCodeOption{
 		oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("include_granted_scopes", "true"),
-		oauth2.SetAuthURLParam("prompt", "consent"),
-	)
+	}
+	// Google suggests the site sign-in account unless the visitor asked to
+	// choose another; either way Google reports the account that consented.
+	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok && principal.Email != "" && r.URL.Query().Get("account") != chooseAccountParam {
+		options = append(options, oauth2.SetAuthURLParam("login_hint", principal.Email), oauth2.SetAuthURLParam("prompt", "consent"))
+	} else {
+		options = append(options, oauth2.SetAuthURLParam("prompt", "select_account consent"))
+	}
+	authURL := h.oauthConfigForRequest(r).AuthCodeURL(state.State, options...)
 	http.Redirect(w, r, authURL, http.StatusSeeOther)
 }
 
@@ -140,10 +216,20 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		RedirectSoccerWithGoogleStatus(w, r, "failed")
 		return
 	}
+	if !siteidentity.SoccerOwnerAllowed(r.Context(), state.OwnerIssuer, state.OwnerSubject) {
+		ClearOAuthStateCookie(w, r)
+		RedirectSoccerWithGoogleStatus(w, r, "failed")
+		return
+	}
 	ctx := h.httpContext(r.Context())
 	token, err := h.oauthConfigForRequest(r).Exchange(ctx, strings.TrimSpace(r.URL.Query().Get("code")))
 	if err != nil {
 		h.failOAuthf(w, r, true, "google token exchange failed: %v", err)
+		return
+	}
+	account, err := h.loadGoogleAccount(ctx, token)
+	if err != nil {
+		h.failOAuthf(w, r, true, "google account verification failed: %v", err)
 		return
 	}
 	calendars, err := h.listCalendarsWithToken(ctx, token)
@@ -151,18 +237,32 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.failOAuthf(w, r, true, "google calendar list after connect failed: %v", err)
 		return
 	}
-	selectedCalendarID, selectedCalendarSummary := preferredCalendar(calendars)
 	encryptedToken, err := h.EncryptToken(token)
 	if err != nil {
 		h.failOAuthf(w, r, true, "google token encryption failed: %v", err)
 		return
 	}
 	createdAt := time.Now().UTC()
-	if existing, err := h.Store().Get(r.Context(), state.ConnectionID); err == nil && existing != nil {
+	existing, err := h.Store().Get(r.Context(), state.ConnectionID)
+	if err != nil {
+		h.failOAuthf(w, r, true, "google connection read before save failed: %v", err)
+		return
+	}
+	if existing != nil {
+		if !siteidentity.SoccerOwnerAllowed(r.Context(), existing.OwnerIssuer, existing.OwnerSubject) {
+			ClearOAuthStateCookie(w, r)
+			RedirectSoccerWithGoogleStatus(w, r, "failed")
+			return
+		}
 		createdAt = existing.CreatedAt
 	}
+	selectedCalendarID, selectedCalendarSummary := reconnectDestination(existing, account.Subject, calendars)
 	record := ConnectionRecord{
 		ConnectionID:    state.ConnectionID,
+		OwnerIssuer:     state.OwnerIssuer,
+		OwnerSubject:    state.OwnerSubject,
+		AccountSubject:  account.Subject,
+		AccountEmail:    account.Email,
 		TokenCiphertext: encryptedToken,
 		CalendarID:      selectedCalendarID,
 		CalendarSummary: selectedCalendarSummary,
@@ -178,10 +278,46 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	RedirectSoccerWithGoogleStatus(w, r, "connected")
 }
 
-// DisconnectHandler removes the Google connection.
+type googleAccount struct {
+	Subject       string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+}
+
+func (h *Handler) loadGoogleAccount(ctx context.Context, token *oauth2.Token) (*googleAccount, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.OAuthUserInfoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	resp, err := h.LPSClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, readAPIError(resp)
+	}
+	defer resp.Body.Close()
+	var account googleAccount
+	if err := json.NewDecoder(io.LimitReader(resp.Body, config.MaxRequestBodySize)).Decode(&account); err != nil {
+		return nil, err
+	}
+	account.Email, err = config.NormalizePortalEmail(account.Email)
+	if err != nil || strings.TrimSpace(account.Subject) == "" || !account.EmailVerified {
+		return nil, errors.New("Google account identity is incomplete or unverified")
+	}
+	return &account, nil
+}
+
+// DisconnectHandler removes the owner's stored Google connection and its
+// cookie. It does not revoke the grant at Google: Google withdraws a grant for
+// the whole Google account and OAuth client, which would also disconnect the
+// same account's connections on other devices, for other site owners, and in
+// other environments. Site sign-out keeps the connection.
 func (h *Handler) DisconnectHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := h.Soccer.LoadSession(w, r)
 	h.DeleteConnection(r.Context(), w, r)
+	h.releaseBrowserWideConnection(r.Context(), w, r)
 	h.Soccer.RenderLoginStateRefresh(w, r, session)
 }
 

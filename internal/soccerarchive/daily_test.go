@@ -1,0 +1,783 @@
+package soccerarchive
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"portfolio/internal/lps"
+	"portfolio/internal/soccerarchive/archivetest"
+	"portfolio/types"
+)
+
+type fakeDailyClock struct {
+	now    time.Time
+	sleeps []time.Duration
+}
+
+func TestArchiveAdmissionReservesCapacityForPlayerTeamsWithoutEvictingEnrolledTeams(t *testing.T) {
+	backend := archivetest.NewTable()
+	limits := Limits{MaxEnrolledTeams: 4, ReservedPlayerSlots: 2, MaxRequestsPerRun: 8, MaxRetriesPerTeam: 1, MinRequestInterval: time.Second}
+	store, err := NewDynamoStoreWithAPI(backend, "durable-soccer-history", limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 102} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: now}); err != nil {
+			t.Fatalf("admit manual team %d: %v", teamID, err)
+		}
+	}
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 103, Team: lps.TeamSummary{UTeamID: 103, Season: 169}, FetchedAt: now}); !errors.Is(err, ErrAdmissionFull) {
+		t.Fatalf("third manual team = %v, want capacity rejection", err)
+	}
+	for _, teamID := range []int{201, 202} {
+		if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+			OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "owner", ObservedAt: now,
+			Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+			KnownTeams:  []lps.TeamSummary{{UTeamID: teamID, Season: 169}},
+			Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}}},
+		}); err != nil {
+			t.Fatalf("reserved player admission %d: %v", teamID, err)
+		}
+	}
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "owner", ObservedAt: now,
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 203, Season: 169}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 203, Season: 169}}},
+	}); !errors.Is(err, ErrAdmissionFull) {
+		t.Fatalf("fifth team = %v, want capacity rejection", err)
+	}
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: now.Add(time.Hour)}); err != nil {
+		t.Fatalf("existing manual team lost refresh service at capacity: %v", err)
+	}
+	for _, teamID := range []int{101, 102, 201, 202} {
+		if _, err := store.ReadRefreshState(t.Context(), teamID); err != nil {
+			t.Errorf("enrolled team %d disappeared: %v", teamID, err)
+		}
+	}
+	if _, err := store.ReadRefreshState(t.Context(), 103); !errors.Is(err, ErrNotEnrolled) {
+		t.Errorf("rejected manual team was enrolled: %v", err)
+	}
+	if _, err := store.ReadRefreshState(t.Context(), 203); !errors.Is(err, ErrNotEnrolled) {
+		t.Errorf("rejected player team was enrolled: %v", err)
+	}
+}
+
+func TestDailyWorkerRetriesTransientTeamsWithinBudgetAndReportsPartialFailure(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 202, 303} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		if teamID == 101 && requests[teamID] == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		if teamID == 202 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 3, ReservedPlayerSlots: 1, MaxRequestsPerRun: 5, MaxRetriesPerTeam: 1, MinRequestInterval: time.Second,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := worker.Run(t.Context())
+	if err != nil || report.Complete || report.PendingDueWork || report.Requests != 5 || len(report.Results) != 3 ||
+		report.Results[0].Outcome != RefreshSucceeded || report.Results[1].Outcome != RefreshRetryableFailure || report.Results[2].Outcome != RefreshSucceeded ||
+		requests[101] != 2 || requests[202] != 2 || requests[303] != 1 {
+		t.Fatalf("bounded retry report = %#v, err %v, requests %#v", report, err, requests)
+	}
+	state, err := store.ReadRefreshState(t.Context(), 202)
+	if err != nil || state.Status != RefreshRetryable || state.LastErrorStatusCode != http.StatusTooManyRequests || !state.NextDueAt.After(clock.Now()) {
+		t.Fatalf("transient team was not checkpointed for retry: state %#v, err %v", state, err)
+	}
+	if len(clock.sleeps) < 4 {
+		t.Fatalf("retries or source requests were not paced: %#v", clock.sleeps)
+	}
+}
+
+func TestDailyWorkerLeavesBudgetLimitedTeamsDueForNextInvocation(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 202, 303} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		if teamID == 101 && requests[teamID] == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 3, ReservedPlayerSlots: 1, MaxRequestsPerRun: 3, MaxRetriesPerTeam: 1, MinRequestInterval: time.Second,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Team 101's retry spends the request team 303 would have used, so the
+	// run names 303 as left for the next invocation.
+	first, err := worker.Run(t.Context())
+	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 3 || len(first.Results) != 3 ||
+		first.Results[0].Outcome != RefreshSucceeded || first.Results[1].Outcome != RefreshSucceeded ||
+		first.Results[2] != (RefreshResult{TeamID: 303, Outcome: RefreshBudgetExhausted}) || requests[303] != 0 {
+		t.Fatalf("first budget-limited pass = %#v, err %v, requests %#v", first, err, requests)
+	}
+	second, err := worker.Run(t.Context())
+	if err != nil || !second.Complete || second.PendingDueWork || second.Requests != 1 || len(second.Results) != 1 || requests[101] != 2 || requests[202] != 1 || requests[303] != 1 {
+		t.Fatalf("continuation missed work or repeated checkpoint: %#v, err %v, requests %#v", second, err, requests)
+	}
+}
+
+func TestDailyRuntimeRequiresEveryReviewedNumericLimit(t *testing.T) {
+	values := map[string]string{
+		"SOCCER_HISTORY_MAX_TEAMS":       "4",
+		"SOCCER_HISTORY_PLAYER_RESERVED": "2",
+		"SOCCER_HISTORY_MAX_REQUESTS":    "8",
+		"SOCCER_HISTORY_MAX_RETRIES":     "1",
+		"SOCCER_HISTORY_MIN_INTERVAL_MS": "250",
+	}
+	lookup := func(key string) string { return values[key] }
+	limits, err := LimitsFromEnvironment(lookup)
+	if err != nil || limits.MaxEnrolledTeams != 4 || limits.ReservedPlayerSlots != 2 || limits.MaxRequestsPerRun != 8 || limits.MaxRetriesPerTeam != 1 || limits.MinRequestInterval != 250*time.Millisecond {
+		t.Fatalf("reviewed limits = %#v, err %v", limits, err)
+	}
+	for key := range values {
+		original := values[key]
+		delete(values, key)
+		if _, err := LimitsFromEnvironment(lookup); err == nil {
+			t.Errorf("missing %s enabled the worker", key)
+		}
+		values[key] = original
+	}
+	values["SOCCER_HISTORY_MAX_REQUESTS"] = "0"
+	if _, err := LimitsFromEnvironment(lookup); err == nil {
+		t.Fatal("zero request ceiling enabled the worker")
+	}
+	// Four enrolled teams cannot each get a daily attempt from three requests.
+	values["SOCCER_HISTORY_MAX_REQUESTS"] = "3"
+	if _, err := LimitsFromEnvironment(lookup); err == nil {
+		t.Fatal("a request ceiling below the enrollment ceiling enabled the worker")
+	}
+}
+
+func TestDailyWorkerStopsInvalidTeamsAndBacksOffTemporaryFailures(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+			TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt,
+			Games: []lps.TeamScheduleGame{{UGameID: 9000 + teamID, UTeam1: teamID, UTeam2: 404, Season: 169, Result: "1-0"}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := map[int]int{}
+	recovered := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		if teamID == 101 {
+			http.NotFound(w, r)
+			return
+		}
+		if !recovered {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = fmt.Fprint(w, `{"team":{"UTeamID":202,"Season":169},"games":[]}`)
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 2, ReservedPlayerSlots: 1, MaxRequestsPerRun: 2, MaxRetriesPerTeam: 0, MinRequestInterval: time.Second,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := worker.Run(t.Context())
+	if err != nil || first.Complete || first.Requests != 2 || len(first.Results) != 2 || first.Results[0].Outcome != RefreshInvalidTeam || first.Results[1].Outcome != RefreshRetryableFailure {
+		t.Fatalf("invalid and transient outcomes = %#v, err %v", first, err)
+	}
+	invalid, err := store.ReadRefreshState(t.Context(), 101)
+	if err != nil || invalid.Status != RefreshInvalid || !invalid.NextDueAt.IsZero() {
+		t.Fatalf("invalid team remained due: %#v, err %v", invalid, err)
+	}
+	if history, err := store.ReadTeamSeason(t.Context(), 101, 169); err != nil || len(history.Games) != 1 || history.Games[0].UGameID != 9101 || history.Games[0].Result != "1-0" {
+		t.Fatalf("invalid team lost its history: %#v, err %v", history, err)
+	}
+	transient, err := store.ReadRefreshState(t.Context(), 202)
+	if err != nil || transient.Status != RefreshRetryable || !transient.NextDueAt.After(clock.Now()) {
+		t.Fatalf("temporarily failing team left enrollment or skipped its backoff: %#v, err %v", transient, err)
+	}
+	// An immediate delivery leaves the invalid team alone and reports the
+	// temporarily failing one as still backing off, without a request.
+	immediate, err := worker.Run(t.Context())
+	if err != nil || immediate.Complete || !immediate.PendingDueWork || immediate.Requests != 0 || len(immediate.Results) != 1 ||
+		immediate.Results[0] != (RefreshResult{TeamID: 202, Outcome: RefreshBackingOff}) || requests[101] != 1 || requests[202] != 1 {
+		t.Fatalf("backoff or invalid stop failed: %#v, err %v, requests %#v", immediate, err, requests)
+	}
+	clock.now = clock.now.Add(16 * time.Minute)
+	recovered = true
+	later, err := worker.Run(t.Context())
+	if err != nil || !later.Complete || later.Requests != 1 || len(later.Results) != 1 || later.Results[0].TeamID != 202 || requests[101] != 1 || requests[202] != 2 {
+		t.Fatalf("transient recovery repeated invalid team: %#v, err %v, requests %#v", later, err, requests)
+	}
+}
+
+func TestDailyRequestBudgetIncludesFacilityLookupsAndPreservesDueWork(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+		TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169},
+		Games:     []lps.TeamScheduleGame{{UGameID: 9001, Season: 169, UTeam1: 101, UTeam2: 202, Result: "1-0"}},
+		FetchedAt: seededAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/teams/101":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169,"FacilityID":5},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":202,"Season":169,"result":"2-0","FacilityID":5}]}`)
+		case "/facilities/5":
+			_, _ = fmt.Fprint(w, `{"FacilityID":5,"FacilityName":"Downtown"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	base := Limits{MaxEnrolledTeams: 1, ReservedPlayerSlots: 0, MaxRequestsPerRun: 1, MaxRetriesPerTeam: 0, MinRequestInterval: time.Second}
+	limited, err := NewDailyWorker(store, server.URL, server.Client(), base, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := limited.Run(t.Context())
+	if err != nil || first.Complete || !first.PendingDueWork || first.Requests != 1 || len(first.Results) != 1 || first.Results[0].Outcome != RefreshBudgetExhausted || !slices.Equal(requests, []string{"/teams/101"}) {
+		t.Fatalf("facility fanout exceeded request budget: %#v, err %v, requests %#v", first, err, requests)
+	}
+	history, err := store.ReadTeamSeason(t.Context(), 101, 169)
+	if err != nil || len(history.Games) != 1 || history.Games[0].Result != "1-0" {
+		t.Fatalf("budget exhaustion changed retained game: %#v, err %v", history, err)
+	}
+	base.MaxRequestsPerRun = 2
+	continued, err := NewDailyWorker(store, server.URL, server.Client(), base, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := continued.Run(t.Context())
+	if err != nil || !second.Complete || second.Requests != 2 || !slices.Equal(requests, []string{"/teams/101", "/teams/101", "/facilities/5"}) {
+		t.Fatalf("due team did not resume within facility budget: %#v, err %v, requests %#v", second, err, requests)
+	}
+}
+
+func TestDailyWorkerPagesPastFirstDueIndexPage(t *testing.T) {
+	backend := archivetest.NewTable()
+	backend.PageSize = 25
+	store := newTestStore(t, backend)
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for teamID := 101; teamID <= 130; teamID++ {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 30, ReservedPlayerSlots: 1, MaxRequestsPerRun: 30, MaxRetriesPerTeam: 0, MinRequestInterval: time.Millisecond,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := worker.Run(t.Context())
+	if err != nil || !report.Complete || report.Requests != 30 || len(report.Results) != 30 || backend.IndexQueries() < 2 || len(requests) != 30 {
+		t.Fatalf("daily pagination missed due work: report %#v, err %v, queries %d, requests %#v", report, err, backend.IndexQueries(), requests)
+	}
+	for teamID := 101; teamID <= 130; teamID++ {
+		if requests[teamID] != 1 {
+			t.Errorf("team %d attempted %d times", teamID, requests[teamID])
+		}
+	}
+}
+
+func (clock *fakeDailyClock) Now() time.Time { return clock.now }
+
+func (clock *fakeDailyClock) Sleep(_ context.Context, delay time.Duration) error {
+	clock.sleeps = append(clock.sleeps, delay)
+	clock.now = clock.now.Add(delay)
+	return nil
+}
+
+func TestDailyWorkerRefreshesEveryDueValidTeamAndCheckpointsDuplicateDelivery(t *testing.T) {
+	backend := archivetest.NewTable()
+	store := newTestStore(t, backend)
+	seededAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 303, 404} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{
+			TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: seededAt,
+		}); err != nil {
+			t.Fatalf("seed manual team %d: %v", teamID, err)
+		}
+	}
+	if err := store.SavePlayerDiscovery(t.Context(), &PlayerDiscovery{
+		OwnerIssuer: "https://issuer.example.com/pool", OwnerSubject: "owner", ObservedAt: seededAt,
+		Players:     []types.LPSPlayer{{UPlayerID: 1001}},
+		KnownTeams:  []lps.TeamSummary{{UTeamID: 202, Season: 169}},
+		Memberships: []PlayerMembership{{PlayerID: 1001, Team: lps.TeamSummary{UTeamID: 202, Season: 169}}},
+	}); err != nil {
+		t.Fatalf("seed player team: %v", err)
+	}
+	initialPlayerState, err := store.ReadRefreshState(t.Context(), 202)
+	if err != nil || !initialPlayerState.LastAttemptAt.IsZero() {
+		t.Fatalf("new player enrollment was reported as a completed source attempt: %#v, err %v", initialPlayerState, err)
+	}
+	if err := store.RecordRefreshFailure(t.Context(), &RefreshFailure{
+		TeamID: 404, AttemptedAt: seededAt.Add(time.Hour), Status: RefreshInvalid,
+		ErrorKind: lps.ErrorInvalidTeam, HTTPStatusCode: http.StatusNotFound,
+	}); err != nil {
+		t.Fatalf("mark invalid team: %v", err)
+	}
+	clock := &fakeDailyClock{now: seededAt.Add(25 * time.Hour)}
+	requests := []int{}
+	requestTimes := []time.Time{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests = append(requests, teamID)
+		requestTimes = append(requestTimes, clock.Now())
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	limits := Limits{MaxEnrolledTeams: 8, ReservedPlayerSlots: 2, MaxRequestsPerRun: 8, MaxRetriesPerTeam: 1, MinRequestInterval: 2 * time.Second}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), limits, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := worker.Run(t.Context())
+	if err != nil {
+		t.Fatalf("daily invocation: %v", err)
+	}
+	if !report.Complete || report.Requests != 3 || len(report.Results) != 3 || !slices.Equal(requests, []int{202, 101, 303}) || backend.IndexQueries() == 0 {
+		t.Fatalf("daily report = %#v, requests = %#v", report, requests)
+	}
+	if len(clock.sleeps) != 2 || clock.sleeps[0] != 2*time.Second || clock.sleeps[1] != 2*time.Second || requestTimes[1].Sub(requestTimes[0]) < 2*time.Second || requestTimes[2].Sub(requestTimes[1]) < 2*time.Second {
+		t.Fatalf("requests were not paced: times %#v, sleeps %#v", requestTimes, clock.sleeps)
+	}
+	for _, teamID := range []int{101, 202, 303} {
+		state, err := store.ReadRefreshState(t.Context(), teamID)
+		if err != nil || state.Status != RefreshReady || !state.NextDueAt.After(clock.Now()) {
+			t.Errorf("team %d was not checkpointed: state %#v, err %v", teamID, state, err)
+		}
+	}
+	second, err := worker.Run(context.Background())
+	if err != nil || !second.Complete || second.Requests != 0 || len(second.Results) != 0 || len(requests) != 3 {
+		t.Fatalf("duplicate delivery repeated work: report %#v, err %v, requests %#v", second, err, requests)
+	}
+}
+
+func TestDailyRunsAttemptDormantAndEnteredTeamsEveryDay(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// Two teams entered by Team ID the day before the first scheduled run.
+	enteredAt := time.Date(2026, 9, 20, 11, 0, 0, 0, time.UTC)
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: enteredAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		requests[teamID]++
+		// Dormant: LPS still accepts the team but returns no games.
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	clock := &fakeDailyClock{}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{
+		MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: 30 * time.Second,
+	}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The schedule fires at 12:00 UTC each day; pacing fetches the second
+	// team half a minute after the run starts.
+	for day := 1; day <= 3; day++ {
+		clock.now = time.Date(2026, 9, 20+day, 12, 0, 0, 0, time.UTC)
+		report, err := worker.Run(t.Context())
+		if err != nil || !report.Complete || len(report.Results) != 2 || requests[101] != day || requests[202] != day {
+			t.Fatalf("day %d run skipped a dormant entered team: report %#v, err %v, requests %v", day, report, err, requests)
+		}
+	}
+}
+
+func TestDailyPacingDoesNotSpendARequestsTimeout(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	enteredAt := time.Now().Add(-25 * time.Hour)
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: enteredAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var mu sync.Mutex
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		requests[teamID]++
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	// Each request may take 150ms, and requests are spaced 400ms apart on the
+	// real clock, so the second team's pacing wait outlasts that timeout.
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 150 * time.Millisecond}, Limits{
+		MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: 400 * time.Millisecond,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	mu.Lock()
+	defer mu.Unlock()
+	if err != nil || !report.Complete || len(report.Results) != 2 || requests[101] != 1 || requests[202] != 1 {
+		t.Fatalf("a paced request timed out before reaching LPS: report %#v, err %v, requests %v", report, err, requests)
+	}
+}
+
+func TestDailyRequestTimeoutStillBoundsASlowResponse(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 150 * time.Millisecond}, Limits{
+		MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Millisecond,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	if err != nil || report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshRetryableFailure {
+		t.Fatalf("an unanswered LPS request was not timed out: report %#v, err %v", report, err)
+	}
+}
+
+// dailyTeamsLPS answers every team request with a dormant schedule and counts
+// the requests per team.
+func dailyTeamsLPS(t *testing.T) (*httptest.Server, func(teamID int) int) {
+	t.Helper()
+	var mu sync.Mutex
+	requests := map[int]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var teamID int
+		if _, err := fmt.Sscanf(r.URL.Path, "/teams/%d", &teamID); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		requests[teamID]++
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"team":{"UTeamID":%d,"Season":169},"games":[]}`, teamID)
+	}))
+	t.Cleanup(server.Close)
+	return server, func(teamID int) int {
+		mu.Lock()
+		defer mu.Unlock()
+		return requests[teamID]
+	}
+}
+
+func TestDailyRunAttemptsATeamEnteredAfterTheScheduledHour(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// A visitor enters the team in the evening, after that day's 12:00 run.
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: time.Date(2026, 9, 20, 18, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	server, requests := dailyTeamsLPS(t)
+	clock := &fakeDailyClock{now: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+	if err != nil || !report.Complete || len(report.Results) != 1 || report.Results[0] != (RefreshResult{TeamID: 101, Outcome: RefreshSucceeded}) || requests(101) != 1 {
+		t.Fatalf("next day's run skipped a team entered that evening: report %#v, err %v, requests %d", report, err, requests(101))
+	}
+	// Repeated deliveries of the same day's event, at once or after the
+	// Scheduler and Lambda retry windows, find the team refreshed.
+	for _, redelivered := range []time.Time{time.Date(2026, 9, 21, 12, 5, 0, 0, time.UTC), time.Date(2026, 9, 21, 14, 10, 0, 0, time.UTC)} {
+		clock.now = redelivered
+		repeated, err := worker.Run(t.Context())
+		if err != nil || !repeated.Complete || len(repeated.Results) != 0 || requests(101) != 1 {
+			t.Fatalf("delivery at %s repeated the day's work: report %#v, err %v, requests %d", redelivered, repeated, err, requests(101))
+		}
+	}
+}
+
+func TestDailyRunAttemptsATeamRefreshedOnDemandThatAfternoon(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: 101, Team: lps.TeamSummary{UTeamID: 101, Season: 169}, FetchedAt: time.Date(2026, 9, 19, 18, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	server, requests := dailyTeamsLPS(t)
+	// The team is refreshed on demand the afternoon before the next run.
+	onDemand := NewRefreshWorker(store, lps.NewScheduleResolver(server.URL, server.Client(), ""), func() time.Time { return time.Date(2026, 9, 20, 15, 0, 0, 0, time.UTC) })
+	if refreshed := onDemand.Run(t.Context(), []int{101}); !refreshed.Complete {
+		t.Fatalf("on-demand refresh = %#v", refreshed)
+	}
+	clock := &fakeDailyClock{now: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	if err != nil || !report.Complete || len(report.Results) != 1 || report.Results[0].Outcome != RefreshSucceeded || requests(101) != 2 {
+		t.Fatalf("next day's run skipped a team refreshed that afternoon: report %#v, err %v, requests %d", report, err, requests(101))
+	}
+}
+
+func TestDailyRunReportsATeamStillBackingOffWhenItsTurnComes(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: time.Date(2026, 9, 20, 11, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A visitor's lookup of team 202 failed ten minutes before the run, so
+	// its backoff ends five minutes after the run starts.
+	failedAt := time.Date(2026, 9, 21, 11, 50, 0, 0, time.UTC)
+	if err := store.RecordRefreshFailure(t.Context(), &RefreshFailure{
+		TeamID: 202, AttemptedAt: failedAt, Status: RefreshRetryable, NextDueAt: failedAt.Add(retryableFailureDelay),
+		ErrorKind: lps.ErrorUpstream, HTTPStatusCode: http.StatusServiceUnavailable,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server, requests := dailyTeamsLPS(t)
+	clock := &fakeDailyClock{now: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)}
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	if err != nil || report.Complete || !report.PendingDueWork || len(report.Results) != 2 ||
+		report.Results[0] != (RefreshResult{TeamID: 101, Outcome: RefreshSucceeded}) || report.Results[1] != (RefreshResult{TeamID: 202, Outcome: RefreshBackingOff}) ||
+		requests(101) != 1 || requests(202) != 0 {
+		t.Fatalf("a team backing off at its turn was skipped silently or retried early: report %#v, err %v, requests %d/%d", report, err, requests(101), requests(202))
+	}
+}
+
+func TestBudgetLimitedRunNamesEveryDueTeamItLeft(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// Teams are due in the order they were last fetched.
+	for teamID, fetchedAt := range map[int]time.Time{
+		202: time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC),
+		101: time.Date(2026, 9, 20, 11, 0, 0, 0, time.UTC),
+		303: time.Date(2026, 9, 20, 11, 30, 0, 0, time.UTC),
+		404: time.Date(2026, 9, 20, 11, 45, 0, 0, time.UTC),
+	} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: fetchedAt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/teams/101":
+			// Team 101's games use two facilities, one lookup each.
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9001,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":5},{"UGameID":9002,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":6}]}`)
+		case "/teams/202":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":202,"Season":169},"games":[]}`)
+		case "/facilities/5", "/facilities/6":
+			_, _ = fmt.Fprintf(w, `{"FacilityID":%s}`, strings.TrimPrefix(r.URL.Path, "/facilities/"))
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	clock := &fakeDailyClock{now: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)}
+	// Three teams a run, three requests: 202 takes one, and 101's second
+	// facility lookup is refused; 303 is never started, and 404 is past the
+	// run's team ceiling.
+	worker, err := NewDailyWorker(store, server.URL, server.Client(), Limits{MaxEnrolledTeams: 3, MaxRequestsPerRun: 3, MinRequestInterval: time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := worker.Run(t.Context())
+
+	want := []RefreshResult{{TeamID: 202, Outcome: RefreshSucceeded}, {TeamID: 101, Outcome: RefreshBudgetExhausted}, {TeamID: 303, Outcome: RefreshBudgetExhausted}}
+	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 3 || !slices.Equal(report.Results, want) || report.UnselectedDueTeams != 1 ||
+		!slices.Equal(requests, []string{"/teams/202", "/teams/101", "/facilities/5"}) {
+		t.Fatalf("budget-limited run = %#v, err %v, requests %v; want results %v and one unselected due team", report, err, requests, want)
+	}
+}
+
+func TestDailyRunStopsStartingTeamsBeforeItsDeadline(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	// The fake clock starts at the real time, so the run's real deadline
+	// lies in its future.
+	start := time.Now().UTC()
+	for i, teamID := range []int{101, 202, 303, 404, 505} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: start.Add(-25*time.Hour + time.Duration(i)*time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server, requests := dailyTeamsLPS(t)
+	clock := &fakeDailyClock{now: start}
+	// A team may take its 30-second pacing wait and 15-second request
+	// timeout. With 100 seconds left, the run starts a team only while 45
+	// seconds remain before the last 10, which it keeps to store its work.
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 15 * time.Second}, Limits{MaxEnrolledTeams: 5, MaxRequestsPerRun: 5, MinRequestInterval: 30 * time.Second}, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithDeadline(t.Context(), start.Add(100*time.Second))
+	defer cancel()
+
+	report, err := worker.Run(ctx)
+
+	want := []RefreshResult{
+		{TeamID: 101, Outcome: RefreshSucceeded},
+		{TeamID: 202, Outcome: RefreshSucceeded},
+		{TeamID: 303, Outcome: RefreshSucceeded},
+		{TeamID: 404, Outcome: RefreshRunTimeExhausted},
+		{TeamID: 505, Outcome: RefreshRunTimeExhausted},
+	}
+	if err != nil || report.Complete || !report.PendingDueWork || report.Requests != 3 || !slices.Equal(report.Results, want) || requests(404) != 0 || requests(505) != 0 {
+		t.Fatalf("run near its deadline = %#v, err %v; want results %v", report, err, want)
+	}
+	for _, teamID := range []int{404, 505} {
+		if state, err := store.ReadRefreshState(t.Context(), teamID); err != nil || state.Status != RefreshReady || state.NextDueAt.After(start) {
+			t.Errorf("team %d left for the next run is no longer due: %#v, err %v", teamID, state, err)
+		}
+	}
+}
+
+func TestDailyRunCutsOffATeamWhoseFetchOutrunsTheDeadline(t *testing.T) {
+	store := newTestStore(t, archivetest.NewTable())
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &Snapshot{TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/teams/101":
+			// Three facilities, each answered within the request timeout but
+			// together slower than the time the run has left.
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":1,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":5},{"UGameID":2,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":6},{"UGameID":3,"UTeam1":101,"UTeam2":9,"Season":169,"FacilityID":7}]}`)
+		case strings.HasPrefix(r.URL.Path, "/facilities/"):
+			select {
+			case <-time.After(250 * time.Millisecond):
+				_, _ = fmt.Fprintf(w, `{"FacilityID":%s}`, strings.TrimPrefix(r.URL.Path, "/facilities/"))
+			case <-r.Context().Done():
+			}
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	worker, err := NewDailyWorker(store, server.URL, &http.Client{Timeout: 400 * time.Millisecond}, Limits{MaxEnrolledTeams: 2, MaxRequestsPerRun: 8, MinRequestInterval: time.Millisecond}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 600ms remain for requests once the run keeps its last 10 seconds.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second+600*time.Millisecond)
+	defer cancel()
+
+	report, err := worker.Run(ctx)
+
+	want := []RefreshResult{{TeamID: 101, Outcome: RefreshRunTimeExhausted}, {TeamID: 202, Outcome: RefreshRunTimeExhausted}}
+	if err != nil || report.Complete || !report.PendingDueWork || !slices.Equal(report.Results, want) {
+		t.Fatalf("run whose fetch outran its deadline = %#v, err %v; want results %v", report, err, want)
+	}
+	// Running out of time is not an LPS failure: team 101 stays ready and due.
+	if state, err := store.ReadRefreshState(t.Context(), 101); err != nil || state.Status != RefreshReady || state.NextDueAt.After(time.Now()) {
+		t.Fatalf("team 101 was recorded as failed: %#v, err %v", state, err)
+	}
+}

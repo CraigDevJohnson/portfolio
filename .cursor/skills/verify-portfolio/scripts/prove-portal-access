@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+# Proves the management portal's preview surfaces after the move to the shared
+# site grant: the dashboard still renders, the retired management-only sign-in
+# routes are gone, and the access-denied state a signed-in account without the
+# management grant receives renders with that account in shared navigation.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+  printf 'prove-portal-access: invalid VERIFY_RUN_ID\n' >&2
+  exit 1
+}
+command -v npx >/dev/null 2>&1 || {
+  printf 'prove-portal-access: npx is required by the Playwright CLI wrapper\n' >&2
+  exit 1
+}
+[[ -x "$PWCLI" ]] || {
+  printf 'prove-portal-access: Playwright CLI wrapper is not executable: %s\n' "$PWCLI" >&2
+  exit 1
+}
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/management-portal-preview"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+assert_pw() {
+  run_pw "$@" | tee -a "$EVIDENCE_DIR/assertions.txt"
+  if rg -q '^### Error' "$TRANSCRIPT"; then
+    printf 'prove-portal-access: assertion failed; see %s\n' "$TRANSCRIPT" >&2
+    exit 1
+  fi
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+: >"$EVIDENCE_DIR/assertions.txt"
+
+run_pw open "$VERIFY_URL/mgmt"
+run_pw resize 1440 1000
+assert_pw eval "() => { const failures = []; if (location.pathname !== '/mgmt') failures.push('path'); if (document.querySelector('h1')?.textContent?.trim() !== 'Management portal') failures.push('heading'); if (!document.body.textContent.includes('Local preview — no AWS actions are sent')) failures.push('preview banner'); if (document.querySelectorAll('[data-portal-instance]').length !== 6) failures.push('instance rows'); if (document.querySelector('a[href=\"/login\"], form[action=\"/login\"], form[action=\"/logout\"]')) failures.push('retired sign-in control'); if (failures.length) throw new Error('dashboard proof failed: ' + failures.join(', ')); return { url: location.href, rows: document.querySelectorAll('[data-portal-instance]').length }; }"
+run_pw snapshot --filename "$EVIDENCE_DIR/01-dashboard.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/01-dashboard.png" --full-page
+
+assert_pw run-code "async (page) => { const base = '$VERIFY_URL'; const statuses = {}; for (const path of ['/login', '/callback?code=former&state=former']) { statuses['GET ' + path] = (await page.request.get(base + path, { maxRedirects: 0 })).status(); } for (const path of ['/login', '/logout']) { statuses['POST ' + path] = (await page.request.post(base + path, { maxRedirects: 0 })).status(); } statuses['GET fixture=admin'] = (await page.request.get(base + '/__preview/portal/error?fixture=admin')).status(); for (const [route, status] of Object.entries(statuses)) { if (status !== 404) throw new Error(route + ' returned ' + status); } return statuses; }"
+
+assert_pw run-code "async (page) => { const response = await page.goto('$VERIFY_URL/__preview/portal/error?fixture=access-denied'); if (response.status() !== 403) throw new Error('access-denied status ' + response.status()); return { status: response.status(), cacheControl: response.headers()['cache-control'] }; }"
+run_pw snapshot --filename "$EVIDENCE_DIR/02-access-denied-before.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/02-access-denied-before.png" --full-page
+assert_pw eval "() => { const nav = document.querySelector(\"nav[aria-label='Main navigation']\"); const failures = []; if (document.querySelector('h1')?.textContent?.trim() !== 'Management access required') failures.push('heading'); if (!document.body.textContent.includes('Your account does not have management access.')) failures.push('message'); if (nav?.querySelector('.site-account-email')?.textContent?.trim() !== 'local.preview@portfolio.test') failures.push('navigation account'); if (nav?.querySelector('form[action=\"/sign-out\"] button')?.textContent?.trim() !== 'Sign out') failures.push('navigation sign-out'); if (!document.querySelector('a.portal-error-action[href=\"/\"]')) failures.push('back to portfolio'); if (failures.length) throw new Error('access-denied proof failed: ' + failures.join(', ')); return { title: document.title, heading: document.querySelector('h1').textContent.trim() }; }"
+
+run_pw click "a.portal-error-action[href='/']"
+assert_pw run-code "async (page) => { await page.waitForURL('$VERIFY_URL/'); const layout = await page.locator('[data-layout=\"systems-overlook\"]').count(); if (layout !== 1) throw new Error('Home layout missing after Back to portfolio'); return { url: page.url(), title: await page.title() }; }"
+run_pw snapshot --filename "$EVIDENCE_DIR/03-back-to-portfolio.md"
+run_pw screenshot --filename "$EVIDENCE_DIR/03-back-to-portfolio.png"
+
+run_pw resize 390 844
+run_pw goto "$VERIFY_URL/__preview/portal/error?fixture=access-denied"
+run_pw screenshot --filename "$EVIDENCE_DIR/04-access-denied-compact.png" --full-page
+assert_pw eval "() => { if (document.documentElement.scrollWidth > window.innerWidth) throw new Error('horizontal overflow at compact width: ' + document.documentElement.scrollWidth); return { width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }; }"
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt"
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt"
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'management portal access proof captured at %s\n' "$EVIDENCE_DIR"

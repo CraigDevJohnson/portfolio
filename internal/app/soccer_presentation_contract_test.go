@@ -36,7 +36,7 @@ func TestSoccerPageRendersMatchdayPlannerContract(t *testing.T) {
 	if connections < 0 {
 		t.Fatal("Soccer page lacks the Connections panel")
 	}
-	wantStages := []string{"source", "players", "teams", "review"}
+	wantStages := []string{"calendar-output", "source", "players", "teams", "review"}
 	last := -1
 	for _, stage := range wantStages {
 		marker := `data-soccer-stage="` + stage + `"`
@@ -49,16 +49,35 @@ func TestSoccerPageRendersMatchdayPlannerContract(t *testing.T) {
 		}
 		last = index
 	}
-	if connections >= strings.Index(html, `data-soccer-stage="source"`) {
-		t.Fatal("Soccer Connections panel must precede stage 1")
+	if connections <= strings.Index(html, `data-soccer-stage="calendar-output"`) || connections >= strings.Index(html, `data-soccer-stage="source"`) {
+		t.Fatal("Soccer Connections panel must sit between output choice and schedule source")
 	}
-	if strings.Contains(html, `data-soccer-stage="calendar-output"`) || strings.Contains(html, `<strong>Calendar output</strong>`) {
-		t.Fatal("Soccer page retains a fifth Calendar Output stage")
+	assertReviewFollowsPlannerWorkspace(t, html)
+}
+
+// assertReviewFollowsPlannerWorkspace requires Review & Output to be a
+// full-width planner section after the workspace, not nested inside it.
+func assertReviewFollowsPlannerWorkspace(t *testing.T, page string) {
+	t.Helper()
+	doc := parsePlannerHTML(t, page)
+	review := plannerSingle(t, doc, "review stage", plannerAttrIs("data-soccer-stage", "review"))
+	if review.Parent == nil || !soccerHTMLClassContains(review.Parent, "soccer-workflow-section") {
+		t.Fatal("Review & Output is not rendered as a full-width section of the planner")
 	}
-	workspaceEnd := strings.Index(html, `</div></div><section class="soccer-stage soccer-stage-review`)
-	if workspaceEnd < 0 {
-		t.Fatal("Review & Output is not rendered as a full-width section after the planner workspace")
+	layout := plannerSingle(t, doc, "planner layout", func(node *html.Node) bool { return soccerHTMLClassContains(node, "soccer-planner-layout") })
+	if layout.Parent != review.Parent || !plannerNodePrecedes(layout, review) {
+		t.Fatal("Review & Output does not follow the planner workspace")
 	}
+}
+
+// plannerNodePrecedes reports whether first is an earlier sibling of second.
+func plannerNodePrecedes(first, second *html.Node) bool {
+	for sibling := first.NextSibling; sibling != nil; sibling = sibling.NextSibling {
+		if sibling == second {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSoccerPrimaryPlayerOwnsWholeRowAndSubClassificationIsRemoved(t *testing.T) {
@@ -112,7 +131,7 @@ func TestSoccerConnectionCardsExposeExplicitState(t *testing.T) {
 	}))
 	for _, marker := range []string{
 		`id="soccer-lps-connection"`, `id="soccer-google-connection"`,
-		`data-connection-state="connected"`, "Imported for this session", "Connected to Matchdays",
+		`data-connection-state="connected"`, "Imported in this browser", "Connected to Matchdays",
 		"2 linked players", "1 selected player", "1 confirmed team", "Calendar ready", "Matchdays",
 	} {
 		if !strings.Contains(connected, marker) {
@@ -203,7 +222,7 @@ func TestSoccerSourceStageOffersTheNextActionWithoutRepeatingImport(t *testing.T
 	}
 }
 
-func TestSoccerPlannerExplainsTheFourStageWorkflow(t *testing.T) {
+func TestSoccerPlannerExplainsChoiceFirstWorkflow(t *testing.T) {
 	html := renderSoccerTestComponent(t, pages.Soccer(soccerPresentationTestPageProps()))
 	legendStart := strings.Index(html, `class="soccer-stage-legend"`)
 	if legendStart < 0 {
@@ -214,11 +233,11 @@ func TestSoccerPlannerExplainsTheFourStageWorkflow(t *testing.T) {
 		t.Fatal("Soccer workflow legend is incomplete")
 	}
 	legend := html[legendStart : legendStart+legendEnd]
-	if got := strings.Count(legend, `<li>`); got != 4 {
-		t.Fatalf("Soccer workflow legend step count = %d, want 4", got)
+	if got := strings.Count(legend, `<li`); got != 5 {
+		t.Fatalf("Soccer workflow legend step count = %d, want 5", got)
 	}
 	for _, marker := range []string{
-		"Choose source", "Select players", "Confirm teams", "Review &amp; output",
+		"Choose output", "Choose source", "Select players", "Confirm teams", "Review &amp; output",
 	} {
 		if !strings.Contains(legend, marker) {
 			t.Errorf("Soccer workflow legend lacks %q", marker)
@@ -291,6 +310,7 @@ func TestSoccerProductionFormsPreserveEndpointsFieldsAndHooks(t *testing.T) {
 		`action="/soccer/download"`, `hx-post="/soccer/google/disconnect"`,
 		`hx-post="/soccer/google/calendar"`, `hx-post="/soccer/google/add"`,
 		`hx-post="/soccer/google/sync-results"`, `href="/soccer/google/connect"`,
+		`href="/soccer/google/connect?account=choose"`,
 		`name="jwt"`, `name="team_codes"`, `name="player_ids"`, `name="team_ids"`,
 		`name="selection_mode" value="teams"`, `name="selected"`, `name="calendar_id"`,
 		`data-open-login-modal`, `data-close-login-modal`, `data-loading-button`,
@@ -608,7 +628,8 @@ func TestSoccerScheduleUsesResponsiveMatchListsWithLocalFeedback(t *testing.T) {
 func TestSoccerPreviewSuccessFixturesPreserveHandlerMessages(t *testing.T) {
 	tests := []struct{ fixture, message string }{
 		{fixture: "google-add-success", message: "Added 2 selected game(s) to Google Calendar."},
-		{fixture: "google-sync-success", message: "2 game result(s) updated in Google Calendar."},
+		{fixture: "google-sync-success", message: "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 unmatched (no event this site added)."},
+		{fixture: "google-sync-error", message: "1 game result(s) updated in Google Calendar. Could not finish result sync. Retry later; results already current will be left unchanged."},
 	}
 	for _, test := range tests {
 		fixture, ok := soccerPreviewFixture(test.fixture)
@@ -627,6 +648,8 @@ func soccerPresentationTestPageProps() pages.SoccerProps {
 		LoginAvailable:           true,
 		GoogleAvailable:          true,
 		GoogleConnected:          true,
+		GoogleSuggestedEmail:     "owner@example.com",
+		GoogleAccountEmail:       "family.calendar@example.net",
 		GoogleCalendarSummary:    "Matchday Calendar",
 		SelectedGoogleCalendarID: "matchday",
 		GoogleCalendars: []types.GoogleCalendarOption{{

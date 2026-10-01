@@ -74,6 +74,22 @@ output "soccer_session_table_arn" {
   value = module.service.soccer_session_table_arn
 }
 
+output "soccer_history_table_name" {
+  value = module.service.soccer_history_table_name
+}
+
+output "soccer_history_table_arn" {
+  value = module.service.soccer_history_table_arn
+}
+
+output "soccer_history_worker_function_name" {
+  value = module.service.soccer_history_worker_function_name
+}
+
+output "soccer_history_schedule_name" {
+  value = module.service.soccer_history_schedule_name
+}
+
 output "ssm_parameter_paths" {
   value = module.service.ssm_parameter_paths
 }

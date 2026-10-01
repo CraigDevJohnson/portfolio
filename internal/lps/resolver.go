@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"portfolio/internal/schedule"
 	"portfolio/types"
@@ -19,6 +20,14 @@ type ScheduleResolver struct {
 	httpClient    *http.Client
 	jwt           string
 	facilityCache map[int]FacilityResponse
+}
+
+// TeamScheduleSource retains the raw facts alongside rendered schedule games.
+type TeamScheduleSource struct {
+	TeamID     int
+	Response   TeamScheduleResponse
+	Facilities []FacilityResponse
+	FetchedAt  time.Time
 }
 
 // NewScheduleResolver constructs a resolver with explicit request dependencies.
@@ -112,6 +121,87 @@ func FetchAllGamesForTeams(ctx context.Context, baseURL string, httpClient *http
 	return resolver.mergeTeamSchedules(ctx, sortedUniqueIDs(teamIDs), nil)
 }
 
+// FetchAllGamesForTeamsWithSource returns the same normalized games and each
+// team's raw LPS response without fetching a team twice.
+func FetchAllGamesForTeamsWithSource(ctx context.Context, baseURL string, httpClient *http.Client, teamIDs []int) ([]types.Game, []TeamScheduleSource, error) {
+	resolver := NewScheduleResolver(baseURL, httpClient, "")
+	teamIDs = sortedUniqueIDs(teamIDs)
+	sources := make([]TeamScheduleSource, 0, len(teamIDs))
+	schedules := make([]TeamScheduleResponse, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		response, err := resolver.FetchTeamSchedule(ctx, teamID)
+		if err != nil {
+			return nil, nil, err
+		}
+		// The caller decides whether Response.Team confirms teamID, so the source
+		// keeps the response exactly as LPS sent it; the games still belong to the
+		// visitor's usual schedule either way, mapped from the schedule's own copy.
+		sources = append(sources, TeamScheduleSource{TeamID: teamID, Response: response, FetchedAt: time.Now().UTC()})
+		schedules = append(schedules, selectedTeamSchedule(&response, teamID))
+	}
+	teamGames, err := resolver.mapSelectedTeamSchedules(ctx, teamIDs, nil, schedules)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range sources {
+		if err := resolver.fetchSourceFacilities(ctx, &sources[i], teamGames[i]); err != nil {
+			return nil, nil, err
+		}
+	}
+	return mergeTeamGames(teamGames), sources, nil
+}
+
+// FetchTeamSource fetches one team's raw LPS response and the facilities it
+// uses, for refreshing an archived team. The caller decides whether the
+// response confirms teamID. A facility LPS answers is gone (400 or 404) is
+// left out, so the archive keeps what it stored and the games still refresh;
+// any other failure of a facility the games use fails the fetch, so the
+// refresh can be retried. A confirmed team's own facility that no game uses
+// stays best-effort, as on the lookup path.
+func (resolver *ScheduleResolver) FetchTeamSource(ctx context.Context, teamID int) (TeamScheduleSource, error) {
+	// A worker may reuse its resolver across runs; facility details must be
+	// fetched again on each attempt, not served from a previous run's cache.
+	fresh := NewScheduleResolver(resolver.baseURL, resolver.httpClient, "")
+	response, err := fresh.FetchTeamSchedule(ctx, teamID)
+	if err != nil {
+		return TeamScheduleSource{}, err
+	}
+	source := TeamScheduleSource{TeamID: teamID, Response: response, FetchedAt: time.Now().UTC()}
+	// Each game's facility is resolved as MapTeamScheduleGame resolves it.
+	gameFacilities := make(map[int]bool)
+	for i := range response.Games {
+		game := &response.Games[i]
+		if id := firstPositiveInt(game.FacilityID, response.Team.FacilityID, game.HomeTeam.FacilityID, game.VisitorTeam.FacilityID); id > 0 {
+			gameFacilities[id] = true
+		}
+	}
+	facilityIDs := make([]int, 0, len(gameFacilities)+1)
+	for id := range gameFacilities {
+		facilityIDs = append(facilityIDs, id)
+	}
+	if team := response.Team; team.UTeamID == teamID && team.FacilityID > 0 && !gameFacilities[team.FacilityID] {
+		facilityIDs = append(facilityIDs, team.FacilityID)
+	}
+	sort.Ints(facilityIDs)
+	for _, id := range facilityIDs {
+		facility, err := fresh.FetchFacility(ctx, id)
+		switch {
+		case err == nil:
+			source.Facilities = append(source.Facilities, facility)
+		case gameFacilities[id] && !facilityGone(err):
+			return TeamScheduleSource{}, err
+		}
+	}
+	return source, nil
+}
+
+// facilityGone reports whether LPS answered that a facility does not exist,
+// rather than failing to answer.
+func facilityGone(err error) bool {
+	var fetchErr *FetchError
+	return errors.As(err, &fetchErr) && (fetchErr.StatusCode == http.StatusBadRequest || fetchErr.StatusCode == http.StatusNotFound)
+}
+
 // FetchPlayerTeams loads the teams linked to a player.
 func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID int) ([]TeamSummary, error) {
 	if playerID <= 0 {
@@ -146,22 +236,12 @@ func (resolver *ScheduleResolver) FetchPlayerTeams(ctx context.Context, playerID
 
 // FetchTeamGames loads, maps, and normalizes a team's schedule games.
 func (resolver *ScheduleResolver) FetchTeamGames(ctx context.Context, teamID int, selectedTeam *TeamSummary) ([]types.Game, error) {
-	response, err := resolver.FetchTeamSchedule(ctx, teamID)
+	response, err := resolver.fetchSelectedTeamSchedule(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
-
-	games := make([]types.Game, 0, len(response.Games))
-	for i := range response.Games {
-		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], response.Team, selectedTeam)
-		if err != nil {
-			return nil, err
-		}
-		games = append(games, game)
-	}
-
-	schedule.NormalizeScheduleGames(games)
-	return games, nil
+	colors := selectedTeamColors([]int{teamID}, map[int]*TeamSummary{teamID: selectedTeam}, []TeamScheduleResponse{response})
+	return resolver.mapTeamGames(ctx, &response, selectedTeam, colors)
 }
 
 // FetchTeamSchedule loads the raw team schedule response.
@@ -178,6 +258,7 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 
 	responseBody, err := executeAPIRequest(resolver.httpClient, req, teamID,
 		statusErrorKind{codes: []int{http.StatusBadRequest, http.StatusNotFound}, kind: ErrorInvalidTeam},
+		statusErrorKind{codes: []int{http.StatusUnauthorized, http.StatusForbidden}, kind: ErrorTeamRefused},
 	)
 	if err != nil {
 		return teamSchedule, err
@@ -190,7 +271,9 @@ func (resolver *ScheduleResolver) FetchTeamSchedule(ctx context.Context, teamID 
 }
 
 // MapTeamScheduleGame maps a raw team schedule game into the shared game model.
-func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (types.Game, error) {
+// teamColors holds the approved color resolved for each fetched Team ID; a side
+// whose team was not fetched uses the color LPS nests on this game.
+func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary, teamColors map[int]string) (types.Game, error) {
 	if rawGame == nil {
 		return types.Game{}, nil
 	}
@@ -229,7 +312,28 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
-	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected)
+	homeTeamID := rawGame.HomeTeamID()
+	awayTeamID := rawGame.AwayTeamID()
+	selectedTeamID := firstPositiveInt(selected.UTeamID, responseTeam.UTeamID)
+	if selectedTeamID <= 0 && rawGame.TeamIDSelected != nil {
+		selectedTeamID = *rawGame.TeamIDSelected
+	}
+	selectedTeamName := strings.TrimSpace(firstNonEmptyString(selected.TeamName, responseTeam.TeamName))
+	selectedColor := firstApprovedTeamColor(selected.Color, responseTeam.Color)
+	// Identify the selected team's side once; colors and the result perspective
+	// both follow this answer.
+	homeSelected, awaySelected := selectedMatchSides(selectedTeamID, selectedTeamName, homeTeamID, awayTeamID, homeName, visitorName)
+	homeColor := firstNonEmptyString(teamColors[homeTeamID], approvedTeamColor(rawGame.HomeTeam.Color))
+	awayColor := firstNonEmptyString(teamColors[awayTeamID], approvedTeamColor(rawGame.VisitorTeam.Color))
+	if homeSelected {
+		homeTeamID = firstPositiveInt(homeTeamID, selectedTeamID)
+		homeColor = selectedColor
+	}
+	if awaySelected {
+		awayTeamID = firstPositiveInt(awayTeamID, selectedTeamID)
+		awayColor = selectedColor
+	}
+	playerTeamName, opponentTeamName, divisionName := resolveSelectedTeamMatchup(rawGame, responseTeam, &selected, homeSelected, awaySelected)
 	if playerTeamName == "" {
 		playerTeamName = homeName
 	}
@@ -249,6 +353,9 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 		Location:         strings.TrimSpace(facilityName),
 		Home:             homeName,
 		Away:             visitorName,
+		HomeTeam:         types.TeamAppearance{ID: homeTeamID, Color: homeColor, Selected: homeSelected},
+		AwayTeam:         types.TeamAppearance{ID: awayTeamID, Color: awayColor, Selected: awaySelected},
+		ScheduleTeam:     types.TeamAppearance{ID: selectedTeamID, Color: selectedColor},
 		Season:           firstNonEmptyString(intString(selected.Season), intString(responseTeam.Season), intString(rawGame.Season), intString(rawGame.HomeTeam.Season), intString(rawGame.VisitorTeam.Season)),
 		PlayerTeamName:   playerTeamName,
 		OpponentTeamName: opponentTeamName,
@@ -258,6 +365,75 @@ func (resolver *ScheduleResolver) MapTeamScheduleGame(ctx context.Context, rawGa
 	}
 
 	return game, nil
+}
+
+// selectedTeamColors resolves one display color per fetched Team ID, so every
+// row agrees on a team's color. For each team the first approved color wins
+// from: its own team-level colors, colors LPS nests for it on its own games,
+// then colors nested for it in the other fetched schedules, in Team ID order.
+// A team with none is absent and receives its Team ID fallback in the view.
+func selectedTeamColors(teamIDs []int, teamLookup map[int]*TeamSummary, schedules []TeamScheduleResponse) map[int]string {
+	colors := make(map[int]string, len(teamIDs))
+	for i, teamID := range teamIDs {
+		candidates := []string{schedules[i].Team.Color}
+		if selected := teamLookup[teamID]; selected != nil {
+			candidates = append([]string{selected.Color}, candidates...)
+		}
+		candidates = append(candidates, nestedTeamColors(teamID, &schedules[i])...)
+		if color := firstApprovedTeamColor(candidates...); color != "" {
+			colors[teamID] = color
+		}
+	}
+	for i, teamID := range teamIDs {
+		if colors[teamID] != "" {
+			continue
+		}
+		var candidates []string
+		for j := range schedules {
+			if j != i {
+				candidates = append(candidates, nestedTeamColors(teamID, &schedules[j])...)
+			}
+		}
+		if color := firstApprovedTeamColor(candidates...); color != "" {
+			colors[teamID] = color
+		}
+	}
+	return colors
+}
+
+// nestedTeamColors lists the colors a schedule nests on game sides whose Team
+// ID is teamID.
+func nestedTeamColors(teamID int, response *TeamScheduleResponse) []string {
+	var colors []string
+	for i := range response.Games {
+		game := &response.Games[i]
+		if game.HomeTeamID() == teamID {
+			colors = append(colors, game.HomeTeam.Color)
+		}
+		if game.AwayTeamID() == teamID {
+			colors = append(colors, game.VisitorTeam.Color)
+		}
+	}
+	return colors
+}
+
+func selectedMatchSides(selectedID int, selectedName string, homeID, awayID int, homeName, awayName string) (home, away bool) {
+	switch {
+	case selectedID > 0 && homeID == selectedID:
+		return true, false
+	case selectedID > 0 && awayID == selectedID:
+		return false, true
+	case selectedName != "" && (selectedID <= 0 || homeID <= 0) && strings.EqualFold(selectedName, homeName):
+		return true, false
+	case selectedName != "" && (selectedID <= 0 || awayID <= 0) && strings.EqualFold(selectedName, awayName):
+		return false, true
+	case selectedName == "" && homeID <= 0 && awayID <= 0:
+		// Nothing identifies either side, so keep the historical home default.
+		// A known name that matches neither side is not guessed.
+		return true, false
+	default:
+		return false, false
+	}
 }
 
 // FetchFacility loads a facility and caches it for the lifetime of the resolver.
@@ -289,42 +465,134 @@ func (resolver *ScheduleResolver) FetchFacility(ctx context.Context, facilityID 
 	return facility, nil
 }
 
-func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamIDs []int, teamLookup map[int]*TeamSummary) ([]types.Game, error) {
-	games := make([]types.Game, 0)
-	indexByKey := make(map[string]int)
-	for _, teamID := range teamIDs {
-		var selectedTeam *TeamSummary
-		if teamLookup != nil {
-			selectedTeam = teamLookup[teamID]
-		}
-		teamGames, err := resolver.FetchTeamGames(ctx, teamID, selectedTeam)
+// fetchSelectedTeamSchedule loads a selected team's schedule and makes sure its
+// team summary carries the requested Team ID.
+func (resolver *ScheduleResolver) fetchSelectedTeamSchedule(ctx context.Context, teamID int) (TeamScheduleResponse, error) {
+	response, err := resolver.FetchTeamSchedule(ctx, teamID)
+	if err != nil {
+		return response, err
+	}
+	return selectedTeamSchedule(&response, teamID), nil
+}
+
+// selectedTeamSchedule returns a copy of a selected team's schedule whose team
+// summary carries the requested Team ID, leaving the given response unchanged.
+func selectedTeamSchedule(response *TeamScheduleResponse, teamID int) TeamScheduleResponse {
+	selected := *response
+	if selected.Team.UTeamID <= 0 {
+		selected.Team.UTeamID = teamID
+	}
+	return selected
+}
+
+// mapTeamGames maps one selected team's schedule, painting every fetched team
+// with the one color resolved for its Team ID.
+func (resolver *ScheduleResolver) mapTeamGames(ctx context.Context, response *TeamScheduleResponse, selectedTeam *TeamSummary, teamColors map[int]string) ([]types.Game, error) {
+	response.Team.Color = teamColors[response.Team.UTeamID]
+	games := make([]types.Game, 0, len(response.Games))
+	for i := range response.Games {
+		game, err := resolver.MapTeamScheduleGame(ctx, &response.Games[i], &response.Team, selectedTeam, teamColors)
 		if err != nil {
 			return nil, err
 		}
-		games = schedule.MergeScheduleGames(games, teamGames, indexByKey)
+		games = append(games, game)
 	}
-	schedule.SortScheduleGames(games)
+
+	schedule.NormalizeScheduleGames(games)
 	return games, nil
 }
 
-func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSummary, selectedTeam *TeamSummary) (string, string, string) {
-	// Prefer an explicit selected team ID match first. If the upstream payload does
-	// not identify the selected team clearly, fall back to the response team name
-	// and treat the other side as the opponent.
-	selectedTeamID := responseTeam.UTeamID
+// fetchSourceFacilities records the facilities behind a team's mapped games,
+// plus a confirmed team's own facility, on its archive source.
+func (resolver *ScheduleResolver) fetchSourceFacilities(ctx context.Context, source *TeamScheduleSource, games []types.Game) error {
+	// Mapping already fetched (and cached) each game's facility, so those
+	// lookups fail the request exactly as they do on the ordinary path.
+	facilityIDs := make(map[int]struct{})
+	for i := range games {
+		game := &games[i]
+		if game.Facility != nil && game.Facility.ID > 0 {
+			facilityIDs[game.Facility.ID] = struct{}{}
+		}
+	}
+	for facilityID := range facilityIDs {
+		facility, err := resolver.FetchFacility(ctx, facilityID)
+		if err != nil {
+			return err
+		}
+		source.Facilities = append(source.Facilities, facility)
+	}
+	// A confirmed team's own facility is archive-only context that the
+	// visitor's schedule does not use: a failed lookup leaves it out instead
+	// of taking the schedule away.
+	if team := source.Response.Team; team.UTeamID == source.TeamID && team.FacilityID > 0 {
+		if _, fetched := facilityIDs[team.FacilityID]; !fetched {
+			if facility, err := resolver.FetchFacility(ctx, team.FacilityID); err == nil {
+				source.Facilities = append(source.Facilities, facility)
+			}
+		}
+	}
+	sort.Slice(source.Facilities, func(i, j int) bool { return source.Facilities[i].FacilityID < source.Facilities[j].FacilityID })
+	return nil
+}
+
+// mergeTeamSchedules fetches every selected schedule before mapping any row,
+// so a team's color can come from another fetched schedule, then merges the
+// mapped games into one deduplicated, sorted list.
+func (resolver *ScheduleResolver) mergeTeamSchedules(ctx context.Context, teamIDs []int, teamLookup map[int]*TeamSummary) ([]types.Game, error) {
+	schedules := make([]TeamScheduleResponse, 0, len(teamIDs))
+	for _, teamID := range teamIDs {
+		response, err := resolver.fetchSelectedTeamSchedule(ctx, teamID)
+		if err != nil {
+			return nil, err
+		}
+		schedules = append(schedules, response)
+	}
+	teamGames, err := resolver.mapSelectedTeamSchedules(ctx, teamIDs, teamLookup, schedules)
+	if err != nil {
+		return nil, err
+	}
+	return mergeTeamGames(teamGames), nil
+}
+
+// mapSelectedTeamSchedules maps each fetched schedule, in teamIDs order, with
+// one color resolved per selected Team ID.
+func (resolver *ScheduleResolver) mapSelectedTeamSchedules(ctx context.Context, teamIDs []int, teamLookup map[int]*TeamSummary, schedules []TeamScheduleResponse) ([][]types.Game, error) {
+	colors := selectedTeamColors(teamIDs, teamLookup, schedules)
+	teamGames := make([][]types.Game, len(teamIDs))
+	for i, teamID := range teamIDs {
+		games, err := resolver.mapTeamGames(ctx, &schedules[i], teamLookup[teamID], colors)
+		if err != nil {
+			return nil, err
+		}
+		teamGames[i] = games
+	}
+	return teamGames, nil
+}
+
+// mergeTeamGames merges each team's mapped games into one deduplicated,
+// sorted list.
+func mergeTeamGames(teamGames [][]types.Game) []types.Game {
+	games := make([]types.Game, 0)
+	indexByKey := make(map[string]int)
+	for _, mapped := range teamGames {
+		games = schedule.MergeScheduleGames(games, mapped, indexByKey)
+	}
+	schedule.SortScheduleGames(games)
+	return games
+}
+
+// resolveSelectedTeamMatchup names the selected team, its opponent, and its
+// division from the sides selectedMatchSides identified. When neither side was
+// identified, the selected team's name stands in for calendar labels and the
+// other side is treated as the opponent.
+func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam, selectedTeam *TeamSummary, homeSelected, awaySelected bool) (string, string, string) {
 	selectedTeamName := strings.TrimSpace(responseTeam.TeamName)
 	divisionName := strings.TrimSpace(responseTeam.DivisionName)
 	if selectedTeam != nil {
-		selectedTeamID = firstPositiveInt(selectedTeam.UTeamID, responseTeam.UTeamID)
 		selectedTeamName = firstNonEmptyString(selectedTeam.TeamName, responseTeam.TeamName)
 		divisionName = firstNonEmptyString(selectedTeam.DivisionName, responseTeam.DivisionName)
 	}
-	if selectedTeamID == 0 && rawGame.TeamIDSelected != nil {
-		selectedTeamID = *rawGame.TeamIDSelected
-	}
 
-	homeID := firstPositiveInt(rawGame.HomeTeam.UTeamID, rawGame.UTeam1)
-	visitorID := firstPositiveInt(rawGame.VisitorTeam.UTeamID, rawGame.UTeam2)
 	homeName := strings.TrimSpace(rawGame.HomeTeam.TeamName)
 	visitorName := strings.TrimSpace(rawGame.VisitorTeam.TeamName)
 	homeDivision := strings.TrimSpace(rawGame.HomeTeam.DivisionName)
@@ -333,9 +601,9 @@ func resolveSelectedTeamMatchup(rawGame *TeamScheduleGame, responseTeam TeamSumm
 	visitorTeamDivision := firstNonEmptyString(divisionName, visitorDivision, homeDivision)
 
 	switch {
-	case selectedTeamID > 0 && homeID == selectedTeamID:
+	case homeSelected:
 		return firstNonEmptyString(selectedTeamName, homeName), visitorName, homeTeamDivision
-	case selectedTeamID > 0 && visitorID == selectedTeamID:
+	case awaySelected:
 		return firstNonEmptyString(selectedTeamName, visitorName), homeName, visitorTeamDivision
 	}
 

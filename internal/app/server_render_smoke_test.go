@@ -150,11 +150,11 @@ func TestBuildMuxPublicRouteRenderingSmoke(t *testing.T) {
 			name:        "soccer schedule result fragment",
 			method:      http.MethodPost,
 			path:        "/soccer/fetch",
-			body:        "player_ids=invalid",
+			body:        "team_codes=invalid",
 			contentType: "application/x-www-form-urlencoded",
 			status:      http.StatusOK,
 			mediaType:   "text/html",
-			bodyMarker:  "selected players were invalid",
+			bodyMarker:  "team IDs were invalid",
 			fragment:    true,
 		},
 		{
@@ -1772,8 +1772,8 @@ func assertRenderedPageShell(t *testing.T, path, body, bodyClass, pageMarker, sh
 		`<body class="` + bodyClass + `" data-shell="` + shell + `">`,
 		`class="site-skip-link"`,
 		`class="` + pageMarker,
-		`/static/css/tailwind.css?v=20260908c`,
-		`/static/js/main.js?v=20260906a`,
+		`/static/css/tailwind.css?v=20260930b`,
+		`/static/js/main.js?v=20260926a`,
 	}
 	if count := strings.Count(body, "<h1"); count != 1 {
 		t.Errorf("GET %s h1 count = %d, want 1", path, count)

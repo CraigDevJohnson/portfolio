@@ -3,23 +3,146 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	"portfolio/internal/httpx"
-	"portfolio/internal/portal"
+	"portfolio/internal/lps"
 	"portfolio/internal/session"
+	"portfolio/internal/siteauth"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
+	"portfolio/internal/soccerarchive"
+	"portfolio/internal/soccerarchive/archivetest"
 )
+
+// failingIndexTable is an archive table whose due-teams index is unavailable.
+type failingIndexTable struct{ *archivetest.Table }
+
+func (failingIndexTable) Query(context.Context, *dynamodb.QueryInput, ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	return nil, errors.New("due-teams index unavailable")
+}
+
+// scheduledLogs captures the structured JSON log records of one test.
+func scheduledLogs(t *testing.T) func() []map[string]any {
+	t.Helper()
+	var buffer bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buffer, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return func() []map[string]any {
+		lines := bytes.Split(bytes.TrimSpace(buffer.Bytes()), []byte("\n"))
+		records := make([]map[string]any, 0, len(lines))
+		for _, line := range lines {
+			var record map[string]any
+			if err := json.Unmarshal(line, &record); err != nil {
+				t.Fatalf("log line %q is not JSON: %v", line, err)
+			}
+			records = append(records, record)
+		}
+		buffer.Reset()
+		return records
+	}
+}
+
+// schedulerEvent is the input the daily schedule sends the worker.
+var schedulerEvent = json.RawMessage(`{"source":"portfolio.soccer-history.daily"}`)
+
+func TestScheduledInvocationRefreshesDueTeamsAndReportsPartialWork(t *testing.T) {
+	logs := scheduledLogs(t)
+	limits := soccerarchive.Limits{MaxEnrolledTeams: 2, MaxRequestsPerRun: 2, MinRequestInterval: time.Millisecond}
+	table := archivetest.NewTable()
+	store, err := soccerarchive.NewDynamoStoreWithAPI(table, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both teams were entered by Team ID yesterday, so both are due.
+	for _, teamID := range []int{101, 202} {
+		if err := store.SaveTeamSnapshot(t.Context(), &soccerarchive.Snapshot{
+			TeamID: teamID, Team: lps.TeamSummary{UTeamID: teamID, Season: 169}, FetchedAt: time.Now().Add(-25 * time.Hour),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/teams/101":
+			_, _ = fmt.Fprint(w, `{"team":{"UTeamID":101,"Season":169},"games":[{"UGameID":9101,"UTeam1":101,"UTeam2":303,"Season":169,"result":"2-1"}]}`)
+		case "/teams/202":
+			http.Error(w, "rate limited", http.StatusTooManyRequests)
+		default:
+			t.Errorf("unexpected LPS request %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	worker, err := soccerarchive.NewDailyWorker(store, server.URL, server.Client(), limits, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newDailyLambdaHandler(worker)
+
+	partial, err := handler(t.Context(), schedulerEvent)
+	if err != nil || partial.Complete || partial.Requests != 2 || len(partial.Results) != 2 ||
+		partial.Results[0] != (soccerarchive.RefreshResult{TeamID: 101, Outcome: soccerarchive.RefreshSucceeded}) ||
+		partial.Results[1].TeamID != 202 || partial.Results[1].Outcome != soccerarchive.RefreshRetryableFailure {
+		t.Fatalf("scheduled partial run = %#v, err %v", partial, err)
+	}
+	history, err := store.ReadTeamSeason(t.Context(), 101, 169)
+	if err != nil || len(history.Games) != 1 || history.Games[0].Result != "2-1" {
+		t.Fatalf("refreshed history = %#v, err %v", history, err)
+	}
+	// The incomplete-run alarm matches this message in the worker's log.
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_incomplete" || records[0]["level"] != "WARN" || records[0]["results"] == nil {
+		t.Fatalf("partial run logs = %v", records)
+	}
+
+	// A repeated delivery finds the refreshed team not due and the rate-limited
+	// team still backing off, so it makes no requests and names the team it
+	// left for later rather than reporting completion.
+	repeated, err := handler(t.Context(), schedulerEvent)
+	if err != nil || repeated.Complete || !repeated.PendingDueWork || repeated.Requests != 0 || len(repeated.Results) != 1 ||
+		repeated.Results[0] != (soccerarchive.RefreshResult{TeamID: 202, Outcome: soccerarchive.RefreshBackingOff}) {
+		t.Fatalf("repeated delivery = %#v, err %v", repeated, err)
+	}
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_incomplete" || records[0]["pending_due_work"] != true {
+		t.Fatalf("repeated delivery logs = %v", records)
+	}
+}
+
+func TestScheduledInvocationFailsWhenDueTeamsCannotBeSelected(t *testing.T) {
+	logs := scheduledLogs(t)
+	limits := soccerarchive.Limits{MaxEnrolledTeams: 1, MaxRequestsPerRun: 1, MinRequestInterval: time.Millisecond}
+	store, err := soccerarchive.NewDynamoStoreWithAPI(failingIndexTable{archivetest.NewTable()}, "portfolio-lambda-dev-soccer-history", limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := soccerarchive.NewDailyWorker(store, "http://127.0.0.1:9", nil, limits, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := newDailyLambdaHandler(worker)(t.Context(), schedulerEvent); err == nil {
+		t.Fatal("a run that could not select due teams reported success, so no failure destination or error alarm would see it")
+	}
+	if records := logs(); len(records) != 1 || records[0]["msg"] != "soccer_history_daily_failed" || records[0]["level"] != "ERROR" {
+		t.Fatalf("failed run logs = %v", records)
+	}
+}
 
 type testConnectionStore struct{}
 
@@ -29,6 +152,10 @@ func (testConnectionStore) Get(context.Context, string) (*internalgoogle.Connect
 }
 
 func (testConnectionStore) Put(context.Context, *internalgoogle.ConnectionRecord) error { return nil }
+
+func (testConnectionStore) PutIfUnchanged(context.Context, *internalgoogle.ConnectionRecord, time.Time) error {
+	return nil
+}
 
 type recordingProxyV2 struct {
 	calls  int
@@ -79,8 +206,7 @@ func responseHeader(response events.APIGatewayV2HTTPResponse, name string) strin
 }
 
 // Production breaks caught: trusting request headers instead of the typed gateway
-// context yields HTTP OAuth callbacks and cookies without Secure; enabling the
-// empty portal config exposes management routes; accepting an empty gateway domain
+// context yields HTTP OAuth callbacks and cookies without Secure; accepting an empty gateway domain
 // lets requests reach handlers without a trustworthy origin.
 func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -104,20 +230,18 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 		logger,
 	)
 
-	portalConfig := config.Config{}
-	portalHandler := portal.NewHandler(&portalConfig, nil, nil, nil, nil, logger)
-	if portalHandler.Config.PortalEnabled() {
-		t.Fatal("empty portal config unexpectedly enabled the portal")
-	}
+	siteHandler := siteauth.NewHandler(&config.Config{}, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /soccer/google/connect", googleHandler.ConnectHandler)
+	owner := siteidentity.Principal{Issuer: "https://issuer.example.com/pool", Subject: "owner-subject"}
 	mux.HandleFunc("GET /test/google-connection", func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(siteidentity.WithRequestIdentity(r.Context(), &owner, []siteidentity.Grant{siteidentity.GrantSoccer}, r.URL.Path))
 		internalgoogle.SetConnectionCookie(w, r, "connection-id")
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /test/soccer-logout", soccerHandler.LogoutHandler)
-	mux.HandleFunc("POST /test/portal-logout", portalHandler.LogoutHandler)
+	mux.HandleFunc("POST /test/site-logout", siteHandler.LogoutHandler)
 	mux.HandleFunc("GET /test/origin", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, httpx.RequestBaseURL(r))
 	})
@@ -152,8 +276,8 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 			name:  "Google connection cookie remains secure",
 			event: gatewayEvent(http.MethodGet, "/test/google-connection"),
 			assert: func(t *testing.T, response events.APIGatewayV2HTTPResponse) {
-				if cookie := responseCookie(t, response, config.GoogleConnectionCookieName); !cookie.Secure {
-					t.Fatal("google_connection cookie is not Secure")
+				if cookie := responseCookie(t, response, internalgoogle.ConnectionCookieName(owner.Issuer, owner.Subject)); !cookie.Secure {
+					t.Fatal("Google connection cookie is not Secure")
 				}
 			},
 		},
@@ -168,12 +292,12 @@ func TestAPIGatewayOriginSecuresProductionCookiesAndRedirects(t *testing.T) {
 			},
 		},
 		{
-			name:  "Portal logout cookie remains secure and strict",
-			event: gatewayEvent(http.MethodPost, "/test/portal-logout"),
+			name:  "Shared site logout cookie remains secure and lax",
+			event: gatewayEvent(http.MethodPost, "/test/site-logout"),
 			assert: func(t *testing.T, response events.APIGatewayV2HTTPResponse) {
-				cookie := responseCookie(t, response, config.PortalSessionCookieName)
-				if !cookie.Secure || cookie.MaxAge >= 0 || cookie.Path != config.PortalCookiePath || cookie.SameSite != http.SameSiteStrictMode {
-					t.Fatalf("expired mgmt_session attributes = Secure:%t MaxAge:%d Path:%q SameSite:%d", cookie.Secure, cookie.MaxAge, cookie.Path, cookie.SameSite)
+				cookie := responseCookie(t, response, config.SiteSessionCookieName)
+				if !cookie.Secure || cookie.MaxAge >= 0 || cookie.Path != config.SiteCookiePath || cookie.SameSite != http.SameSiteLaxMode {
+					t.Fatalf("expired site_session attributes = Secure:%t MaxAge:%d Path:%q SameSite:%d", cookie.Secure, cookie.MaxAge, cookie.Path, cookie.SameSite)
 				}
 			},
 		},

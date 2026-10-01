@@ -10,6 +10,7 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
 
@@ -63,24 +64,32 @@ func (h *PreviewHandler) DashboardHandler(w http.ResponseWriter, r *http.Request
 	}))
 }
 
-// ErrorPageHandler renders the full operator interruption state without any
-// authentication or AWS dependency. Its route is registered only by the
-// loopback-safe local preview mux branch.
+// ErrorPageHandler renders the full operator interruption state, or with
+// ?fixture=access-denied the denial a signed-in account without the management
+// grant receives, without any authentication or AWS dependency. Its route is
+// registered only by the loopback-safe local preview mux branch.
 func (h *PreviewHandler) ErrorPageHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", htmlContentType)
-	w.WriteHeader(http.StatusServiceUnavailable)
-	if err := pages.PortalError(pages.ErrorPageProps{
+	props := pages.ErrorPageProps{
 		StatusCode: http.StatusServiceUnavailable,
 		Message:    "The local preview is showing the management connection interruption state.",
-	}).Render(r.Context(), w); err != nil {
+	}
+	ctx := r.Context()
+	switch r.URL.Query().Get("fixture") {
+	case "":
+	case "access-denied":
+		props = pages.ErrorPageProps{StatusCode: http.StatusForbidden, Message: managementAccessDenied}
+		principal := &siteidentity.Principal{Issuer: "https://preview.invalid/pool", Subject: "preview-subject", Email: previewUsername}
+		ctx = siteidentity.WithSignInAvailable(siteidentity.WithRequestIdentity(ctx, principal, nil, "/mgmt"), true)
+		w.Header().Set("Cache-Control", "no-store")
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", htmlContentType)
+	w.WriteHeader(props.StatusCode)
+	if err := pages.PortalError(props).Render(ctx, w); err != nil {
 		h.Logger.Error("portal preview error page render failed", slog.Any("error", err))
 	}
-}
-
-// RedirectToDashboardHandler keeps the production auth URLs harmless and
-// navigable while preview mode is active.
-func (h *PreviewHandler) RedirectToDashboardHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/mgmt", http.StatusSeeOther)
 }
 
 // InstanceActionHandler renders feedback without sending any AWS request.

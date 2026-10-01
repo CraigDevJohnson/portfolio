@@ -14,10 +14,11 @@ import (
 
 // ssmSecretEnvVars lists the environment variable names whose values are SSM
 // parameter paths that must be resolved to their plaintext secrets before the
-// application configuration is loaded.
+// application configuration is loaded. The retired MGMT_SESSION_KEY is not
+// resolved: a path left in it only makes config log its retirement warning.
 var ssmSecretEnvVars = []string{"CLIENT_ID_KEY", "CLIENT_SECRET_KEY", "LPS_SESSION_KEY"}
 
-const managementSessionKeyEnv = "MGMT_SESSION_KEY"
+const siteSessionKeyEnv = "SITE_SESSION_KEY"
 
 type ssmParameterGetter interface {
 	GetParameters(ctx context.Context, params *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)
@@ -104,55 +105,60 @@ func resolveRequiredSSMSecretsWithClient(ctx context.Context, client ssmParamete
 	return applySSMSecrets(pathsByEnv, valuesByPath)
 }
 
-func resolveManagementSSMSecretWithClient(ctx context.Context, client ssmParameterGetter) {
-	path := os.Getenv(managementSessionKeyEnv)
+func resolveOptionalSessionKeyWithClient(ctx context.Context, client ssmParameterGetter, name, feature string) {
+	path := os.Getenv(name)
 	if !strings.HasPrefix(path, "/") {
 		return
 	}
-	// The portal is optional. Clear its parameter path before fetching so any
-	// failure disables only the portal and cannot leave a path as its secret.
-	_ = os.Unsetenv(managementSessionKeyEnv)
+	// Clear the path before fetching so a failure disables only this feature.
+	_ = os.Unsetenv(name)
 	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          []string{path},
 		WithDecryption: aws.Bool(true),
 	})
 	if err == nil && out != nil && len(out.InvalidParameters) == 0 {
 		value, ok := buildPathIndex(out)[path]
-		if ok && strings.IndexByte(value, 0) < 0 && os.Setenv(managementSessionKeyEnv, value) == nil {
+		if ok && strings.IndexByte(value, 0) < 0 && os.Setenv(name, value) == nil {
 			return
 		}
 	}
-	slog.Warn("portal disabled; management session key could not be resolved")
+	slog.Warn(feature + " disabled; session key could not be resolved")
 }
 
 func resolveSSMSecretsWithClient(ctx context.Context, client ssmParameterGetter) error {
 	if err := resolveRequiredSSMSecretsWithClient(ctx, client); err != nil {
 		return err
 	}
-	resolveManagementSSMSecretWithClient(ctx, client)
+	resolveOptionalSessionKeyWithClient(ctx, client, siteSessionKeyEnv, "site sign-in")
 	return nil
+}
+
+func clearOptionalSessionPathsOnConfigFailure() {
+	if strings.HasPrefix(os.Getenv(siteSessionKeyEnv), "/") {
+		_ = os.Unsetenv(siteSessionKeyEnv)
+		slog.Warn("site sign-in disabled; session key could not be resolved")
+	}
 }
 
 // resolveSSMSecrets replaces each env var in ssmSecretEnvVars whose current
 // value begins with "/" with the decrypted value fetched from AWS SSM Parameter
 // Store. This keeps plaintext secrets out of Terraform state while still making
 // them available to the application via the standard os.Getenv API. The optional
-// management session key is resolved separately so its failure cannot stop the
-// rest of the application from starting.
+// site session key is resolved separately so its failure cannot stop the public
+// application from starting.
 func resolveSSMSecrets(ctx context.Context) error {
 	_, paths := collectSSMPathEnvVars()
-	managementPath := strings.HasPrefix(os.Getenv(managementSessionKeyEnv), "/")
-	if len(paths) == 0 && !managementPath {
+	sitePath := strings.HasPrefix(os.Getenv(siteSessionKeyEnv), "/")
+	if len(paths) == 0 && !sitePath {
 		return nil
 	}
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		if len(paths) == 0 {
-			_ = os.Unsetenv(managementSessionKeyEnv)
-			slog.Warn("portal disabled; management session key could not be resolved")
-			return nil
+		if len(paths) > 0 {
+			return fmt.Errorf("load AWS config: %w", err)
 		}
-		return fmt.Errorf("load AWS config: %w", err)
+		clearOptionalSessionPathsOnConfigFailure()
+		return nil
 	}
 	return resolveSSMSecretsWithClient(ctx, ssm.NewFromConfig(cfg))
 }

@@ -17,6 +17,8 @@ import (
 	"portfolio/internal/logging"
 	"portfolio/internal/lps"
 	"portfolio/internal/schedule"
+	"portfolio/internal/siteidentity"
+	"portfolio/internal/soccerarchive"
 	"portfolio/types"
 )
 
@@ -24,12 +26,14 @@ const teamSelectionMode = "teams"
 
 // FetchSchedulesHandler renders the schedule results fragment for the current selection.
 func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 
 	input := parseScheduleFormInput(r.Form)
+	privateAllowed := siteidentity.SoccerPrivateAllowed(r.Context())
 	session, swapAuthState := h.LoadSession(w, r)
+	importEnded := h.importEnded(session, input.PlayerIDs)
 
 	// When team_ids[] is submitted (from the discover-teams step), carry them
 	// forward in TeamCodes so ICS download and Google add forms work unchanged.
@@ -41,10 +45,10 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	props := partials.SoccerTableFragmentProps{
 		TeamCodes:       teamCodes,
 		PlayerIDs:       input.PlayerIDs,
-		GoogleAvailable: h.googleAvailable(),
-		ImportAvailable: h.Config.LoginEnabled(),
+		GoogleAvailable: privateAllowed && h.googleAvailable(),
+		ImportAvailable: privateAllowed && h.Config.LoginEnabled(),
 	}
-	if h.googleHooks != nil {
+	if privateAllowed && h.googleHooks != nil {
 		props.GoogleConnected = h.googleHooks.GoogleConnected(r.Context(), w, r)
 	}
 	clearImportedSession, resolved := h.resolveScheduleData(r.Context(), session, &input, &props)
@@ -58,9 +62,13 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	h.setHTMLContentType(w)
-	if swapAuthState {
+	if swapAuthState || importEnded {
 		w.Header().Set("HX-Trigger", "soccer-workflow-reset")
-		if err := partials.SoccerLoginState(h.LoginStateProps(w, r, nil, true)).Render(r.Context(), w); err != nil {
+		loginState := h.LoginStateProps(w, r, nil, true)
+		if importEnded {
+			loginState.ImportNotice = importNoticeFor(endedImportDetails)
+		}
+		if err := partials.SoccerLoginState(loginState).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -72,6 +80,11 @@ func (h *Handler) FetchSchedulesHandler(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request, session *types.SessionData, input *scheduleFormInput) error {
 	if session == nil {
+		if _, err := h.getSession(r); errors.Is(err, errSessionWithheld) {
+			// A public lookup must not replace imported access withheld by a
+			// site-session timeout or a missing grant.
+			return nil
+		}
 		if !h.Config.LoginEnabled() {
 			return nil
 		}
@@ -98,12 +111,34 @@ func (h *Handler) persistScheduleWorkflow(w http.ResponseWriter, r *http.Request
 	default:
 		return nil
 	}
+	bindWorkflowOwner(r.Context(), session)
 	return h.setSession(w, r, session)
+}
+
+// bindWorkflowOwner keeps a saved imported selection readable on the next
+// request. A selection saved without imported LPS access, such as a
+// discovered-team fetch after the import expired, is bound to the current
+// granted site owner; without the soccer grant only its teams are kept, as a
+// Team ID selection. Imported access itself is never rebound to a new owner.
+func bindWorkflowOwner(ctx context.Context, session *types.SessionData) {
+	if session.Workflow.Source != "imported" || siteidentity.SoccerOwnerAllowed(ctx, session.OwnerIssuer, session.OwnerSubject) {
+		return
+	}
+	principal, signedIn := siteidentity.PrincipalFromContext(ctx)
+	hasImportedAccess := session.JWT != "" || len(session.Players) > 0
+	if signedIn && !hasImportedAccess && siteidentity.SoccerPrivateAllowed(ctx) {
+		session.OwnerIssuer, session.OwnerSubject = principal.Issuer, principal.Subject
+		return
+	}
+	session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
+		Source:          "manual",
+		SelectedTeamIDs: session.Workflow.SelectedTeamIDs,
+	}, session.Players)
 }
 
 // DownloadICSHandler exports the selected schedule rows as an ICS download.
 func (h *Handler) DownloadICSHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 
@@ -175,15 +210,21 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 		}
 		return applyScheduleFetchError(props, err), false
 	}
-
-	// Player-based fetch always includes past games so results are visible.
-	var games []types.Game
-	var err error
-	if len(input.PlayerIDs) > 0 {
-		games, err = h.RequestedAllScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
-	} else {
-		games, err = h.RequestedScheduleGames(ctx, session, input.PlayerIDs, input.TeamCodes)
+	// Scored past games serve the Google-mode result review, which only a
+	// visitor with the soccer grant can reach, from either source. A public
+	// Team ID lookup stays upcoming-only, so a team without upcoming games
+	// gets the full empty state. The ICS UI hides past results, and downloads
+	// resolve upcoming games only.
+	reviewPast := siteidentity.SoccerPrivateAllowed(ctx)
+	if archiveStore := h.ArchiveStore(); archiveStore != nil && strings.TrimSpace(input.TeamCodes) != "" && len(input.PlayerIDs) == 0 {
+		return h.resolveArchivedManualSchedule(ctx, archiveStore, input.TeamCodes, reviewPast, props)
 	}
+
+	requested := h.RequestedScheduleGames
+	if reviewPast {
+		requested = h.RequestedAllScheduleGames
+	}
+	games, err := requested(ctx, session, input.PlayerIDs, input.TeamCodes)
 	if err == nil {
 		setTableFragmentGames(props, games)
 		return false, true
@@ -193,6 +234,126 @@ func (h *Handler) resolveScheduleData(ctx context.Context, session *types.Sessio
 	}
 
 	return applyScheduleFetchError(props, err), false
+}
+
+func (h *Handler) resolveArchivedManualSchedule(ctx context.Context, archiveStore soccerarchive.Store, teamCodes string, reviewPast bool, props *partials.SoccerTableFragmentProps) (clearSession, resolved bool) {
+	// The visitor gets the same schedule as the ordinary manual lookup, which
+	// skips unusable entries and keeps past games only for the result review;
+	// only an unambiguous entry list is enrolled.
+	teamIDs := parseTeamIDs(teamCodes)
+	if len(teamIDs) == 0 {
+		props.Message = invalidTeamIDsMessage
+		props.Hint = invalidTeamIDsHint
+		return false, false
+	}
+	games, sources, err := lps.FetchAllGamesForTeamsWithSource(ctx, h.Config.LPSAPIBaseURL, h.LPSClient, teamIDs)
+	if err != nil {
+		return applyScheduleFetchError(props, err), false
+	}
+	shown := games
+	if !reviewPast {
+		shown = schedule.UpcomingScheduleGames(games)
+	}
+	setTableFragmentGames(props, shown)
+	if !allTeamIDEntriesValid(teamCodes) {
+		props.EnrollmentFeedback = &partials.FeedbackProps{
+			Kind: partials.FeedbackWarning, Title: "History collection",
+			Message: "Teams were not added to history collection because some entries were not valid team IDs.",
+		}
+		return false, true
+	}
+	var enrolled, unconfirmed, full, notSaved []int
+	for i := range sources {
+		source := &sources[i]
+		// A decodable 2xx payload that does not name the requested team is not
+		// proof that LPS accepted the ID, and without a documented invalid-ID
+		// contract it is not proof of an invalid ID either: show the schedule,
+		// but do not enroll it.
+		if source.Response.Team.UTeamID != source.TeamID {
+			unconfirmed = append(unconfirmed, source.TeamID)
+			continue
+		}
+		if err := archiveStore.SaveTeamSnapshot(ctx, &soccerarchive.Snapshot{
+			TeamID:     source.TeamID,
+			Team:       source.Response.Team,
+			Games:      source.Response.Games,
+			Facilities: source.Facilities,
+			FetchedAt:  source.FetchedAt,
+		}); err != nil {
+			// Keep going: one team's failed write must not hide the outcome of
+			// the others, which are saved independently. A refusal at capacity
+			// is an expected outcome, recorded once for the admission alarm.
+			var refused *soccerarchive.AdmissionError
+			if errors.As(err, &refused) {
+				h.logAdmissionRejected(ctx, refused)
+				full = append(full, source.TeamID)
+				continue
+			}
+			logging.WithContext(h.Logger, ctx).Error("soccer team history write failed", slog.Int("team_id", source.TeamID), slog.Any("error", err))
+			notSaved = append(notSaved, source.TeamID)
+			continue
+		}
+		enrolled = append(enrolled, source.TeamID)
+	}
+	props.EnrollmentFeedback = enrollmentFeedback(enrolled, unconfirmed, full, notSaved)
+	if len(games) == 0 && len(unconfirmed) == 0 {
+		props.Message = "Let's Play Soccer accepted the team ID but returned no games."
+		switch {
+		case len(notSaved) > 0:
+			props.Hint = "This response contains no games, and its history could not be saved."
+		case len(full) > 0:
+			props.Hint = "This response contains no games, and history collection is full, so it was not enrolled."
+		default:
+			props.Hint = "Its history is enrolled for collection; this response contains no games."
+		}
+	}
+	return false, true
+}
+
+// logAdmissionRejected records each team history collection refused at
+// capacity with the message the admission alarm counts.
+func (h *Handler) logAdmissionRejected(ctx context.Context, refused *soccerarchive.AdmissionError) {
+	logger := logging.WithContext(h.Logger, ctx)
+	for _, teamID := range refused.TeamIDs {
+		logger.Warn(soccerarchive.AdmissionRejectedLog, slog.Int("team_id", teamID), slog.String("source", refused.Source), slog.Int("limit", refused.Limit))
+	}
+}
+
+// enrollmentFeedback names each team's history outcome: enrolled, not
+// confirmed by LPS, refused because the reviewed admission capacity is full,
+// or not saved.
+func enrollmentFeedback(enrolled, unconfirmed, full, notSaved []int) *partials.FeedbackProps {
+	messages := make([]string, 0, len(enrolled)+len(unconfirmed)+len(full)+len(notSaved)+1)
+	for _, teamID := range enrolled {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" added to history collection.")
+	}
+	for _, teamID := range unconfirmed {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because Let's Play Soccer did not confirm the team.")
+	}
+	for _, teamID := range full {
+		messages = append(messages, "Team "+strconv.Itoa(teamID)+" was not added to history collection because its reviewed capacity is full.")
+	}
+	for _, teamID := range notSaved {
+		messages = append(messages, "History collection could not save team "+strconv.Itoa(teamID)+".")
+	}
+	feedback := &partials.FeedbackProps{Kind: partials.FeedbackSuccess, Title: "History collection"}
+	switch {
+	case len(notSaved) > 0 && len(enrolled) == 0:
+		feedback.Kind, feedback.Title = partials.FeedbackError, "History not saved"
+	case len(notSaved) > 0:
+		feedback.Kind, feedback.Title = partials.FeedbackWarning, "History partly saved"
+	case len(full) > 0 && len(enrolled) == 0:
+		feedback.Kind, feedback.Title = partials.FeedbackError, "History collection is full"
+	case len(full) > 0:
+		feedback.Kind, feedback.Title = partials.FeedbackWarning, "History collection is full"
+	case len(unconfirmed) > 0:
+		feedback.Kind = partials.FeedbackWarning
+	}
+	if len(notSaved) > 0 {
+		messages = append(messages, "Try again later.")
+	}
+	feedback.Message = strings.Join(messages, " ")
+	return feedback
 }
 
 func setTableFragmentGames(props *partials.SoccerTableFragmentProps, games []types.Game) {
@@ -262,20 +423,54 @@ func (h *Handler) requestedScheduleGames(ctx context.Context, session *types.Ses
 	}
 }
 
+// endedImportDetails explains linked players chosen on an open page after
+// the browser stopped holding their imported LPS access. A browser discards
+// an expired import on its own and cannot say so, and another page may have
+// cleared it, so the reason is not known here.
+var endedImportDetails = lps.ScheduleErrorDetails{
+	ClearSession:    true,
+	FeedbackMessage: "Imported player access is no longer available in this browser.",
+	FeedbackHint:    "An import lasts until its JWT expires, for up to 12 hours. Copy a fresh bearer JWT from letsplaysoccer.com and import it again, or use manual Team IDs.",
+}
+
+// importEnded reports linked players chosen without imported LPS access in
+// this browser, which is how an expired import arrives: the import cookies
+// last only as long as the import, so the browser stops sending them.
+func (h *Handler) importEnded(session *types.SessionData, playerIDs []int) bool {
+	return len(playerIDs) > 0 && h.Config.LoginEnabled() && (session == nil || session.JWT == "")
+}
+
+// expiredImportDetails explains imported LPS access whose JWT or 12-hour
+// retention expired.
+var expiredImportDetails = lps.ScheduleErrorDetails{
+	ClearSession:    true,
+	FeedbackMessage: "Your imported Let's Play Soccer token expired.",
+	FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
+}
+
+// lpsUnavailable reports an LPS failure that says nothing about the request
+// or its credential, so repeating it later may succeed.
+func lpsUnavailable(err error) bool {
+	var classified *lps.FetchError
+	return !errors.As(err, &classified) || classified.Kind == lps.ErrorUpstream
+}
+
 func applyScheduleFetchError(props *partials.SoccerTableFragmentProps, fetchErr error) bool {
+	props.FetchError = true
+	props.RetryLater = !errors.Is(fetchErr, ErrSessionExpired) && lpsUnavailable(fetchErr)
 	detail := lps.ScheduleErrorDetailsFor(fetchErr)
 	if errors.Is(fetchErr, ErrSessionExpired) {
-		detail = lps.ScheduleErrorDetails{
-			ClearSession:    true,
-			FeedbackMessage: "Your imported Let's Play Soccer token expired.",
-			FeedbackHint:    "Copy a fresh bearer JWT from letsplaysoccer.com and import it again.",
-		}
+		detail = expiredImportDetails
 	}
 	if fetchErr != nil && !detail.ClearSession {
 		logging.Component("soccer").Error("soccer LPS fetch failed", slog.Any("error", fetchErr))
 	}
 	props.Message = detail.FeedbackMessage
 	props.Hint = detail.FeedbackHint
+	if props.RetryLater && len(props.PlayerIDs) == 0 {
+		// The shared hint suggests switching to Team IDs, which a manual lookup already uses.
+		props.Hint = manualLookupRetryHint
+	}
 	return detail.ClearSession
 }
 
@@ -287,9 +482,6 @@ func (h *Handler) handleScheduleDownloadError(w http.ResponseWriter, r *http.Req
 			DownloadMessage: "your imported Let's Play Soccer token expired; import a fresh bearer JWT from letsplaysoccer.com and try again",
 			DownloadStatus:  http.StatusUnauthorized,
 		}
-	}
-	if detail.DownloadStatus == http.StatusUnauthorized || detail.DownloadStatus == http.StatusBadRequest {
-		detail.ClearSession = true
 	}
 	if detail.ClearSession {
 		h.clearSession(w, r)
@@ -353,7 +545,9 @@ func parseSelectedIDs(form url.Values) map[string]struct{} {
 	return selectedIDs
 }
 
-func parseScheduleRequest(w http.ResponseWriter, r *http.Request) bool {
+// ParseScheduleRequest limits and parses a schedule fetch or ICS download
+// form, answering 400 when it cannot be read.
+func ParseScheduleRequest(w http.ResponseWriter, r *http.Request) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, config.MaxRequestBodySize)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -370,6 +564,22 @@ func parseTeamIDs(raw string) []int {
 	return parsePositiveUniqueIDs(splitDelimitedValues(raw))
 }
 
+// allTeamIDEntriesValid reports whether every entered value is a positive
+// numeric Team ID, so a partly malformed request is never enrolled.
+func allTeamIDEntriesValid(raw string) bool {
+	values := splitDelimitedValues(raw)
+	if len(values) == 0 {
+		return false
+	}
+	for _, value := range values {
+		id, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || id <= 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func hasInvalidPlayerInput(rawValues []string, playerIDs []int) bool {
 	if len(playerIDs) > 0 {
 		return false
@@ -383,19 +593,38 @@ type scheduleFormInput struct {
 	TeamCodes     string
 	RawPlayerIDs  []string
 	PlayerIDs     []int
+	RawTeamIDs    []string
 	TeamIDs       []int
 	TeamSelection bool
 }
 
 func parseScheduleFormInput(form url.Values) scheduleFormInput {
 	rawPlayerIDs := form["player_ids"]
+	rawTeamIDs := form["team_ids"]
 	return scheduleFormInput{
 		TeamCodes:     form.Get("team_codes"),
 		RawPlayerIDs:  rawPlayerIDs,
 		PlayerIDs:     parsePlayerIDs(rawPlayerIDs),
-		TeamIDs:       parsePlayerIDs(form["team_ids"]),
-		TeamSelection: form.Get("selection_mode") == teamSelectionMode,
+		RawTeamIDs:    rawTeamIDs,
+		TeamIDs:       parsePlayerIDs(rawTeamIDs),
+		TeamSelection: strings.TrimSpace(form.Get("selection_mode")) == teamSelectionMode,
 	}
+}
+
+// needsGrant reports whether the form names linked players, discovered teams,
+// or the discovered-team selection step. Any of these, even empty, asks for
+// private Soccer data.
+func (input *scheduleFormInput) needsGrant() bool {
+	return len(input.RawPlayerIDs) > 0 || len(input.RawTeamIDs) > 0 || input.TeamSelection
+}
+
+// ScheduleFormNeedsGrant reports whether a parsed schedule fetch or ICS
+// download form asks for linked-player or discovered-team data, which needs
+// the soccer grant. Team ID lookups and their downloads stay public. It reads
+// the form exactly as the schedule handlers do.
+func ScheduleFormNeedsGrant(form url.Values) bool {
+	input := parseScheduleFormInput(form)
+	return input.needsGrant()
 }
 
 func parsePositiveUniqueIDs(values []string) []int {
@@ -473,14 +702,46 @@ func splitDelimitedValues(raw string) []string {
 	})
 }
 
-func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) []types.PlayerTeamGroup {
+// playerTeams holds the current teams LPS served for the chosen linked
+// players, and the players whose own team lookup it refused.
+type playerTeams struct {
+	groups []types.PlayerTeamGroup
+	// refused lists chosen players LPS denied (403) or did not accept
+	// (400/404).
+	refused []types.LPSPlayer
+}
+
+// notice names the chosen players whose teams are missing, or is nil when
+// LPS served every chosen player.
+func (teams *playerTeams) notice() *partials.FeedbackProps {
+	if len(teams.refused) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(teams.refused))
+	for _, player := range teams.refused {
+		names = append(names, strings.TrimSpace(player.FirstName+" "+player.LastName))
+	}
+	return &partials.FeedbackProps{
+		Kind:       partials.FeedbackWarning,
+		Title:      "Some linked teams are missing",
+		Message:    "Let's Play Soccer did not share current teams for " + strings.Join(names, ", ") + ". Their teams are left out; add them with manual Team IDs if you need them.",
+		ExtraClass: "soccer-stage-feedback",
+	}
+}
+
+// resolvePlayerTeams looks up each chosen linked player's current teams. A
+// player LPS refuses on its own is skipped so the others' teams still load;
+// a rejected import or an unavailable LPS affects every player and is
+// returned as the error, as is a refusal when no chosen player's teams load.
+func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.SessionData, playerIDs []int) (playerTeams, error) {
 	resolver := lps.NewScheduleResolver(h.Config.LPSAPIBaseURL, h.LPSClient, session.JWT)
 	playerMap := make(map[int]types.LPSPlayer, len(session.Players))
 	for _, p := range session.Players {
 		playerMap[p.UPlayerID] = p
 	}
 
-	var groups []types.PlayerTeamGroup
+	var result playerTeams
+	var refusedErr error
 	for _, playerID := range playerIDs {
 		player, ok := playerMap[playerID]
 		if !ok {
@@ -488,6 +749,13 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 		}
 		rawTeams, err := resolver.FetchPlayerTeams(ctx, playerID)
 		if err != nil {
+			if !playerRefused(err) {
+				return playerTeams{}, err
+			}
+			result.refused = append(result.refused, player)
+			if refusedErr == nil {
+				refusedErr = err
+			}
 			continue
 		}
 		var teams []types.LPSTeam
@@ -503,17 +771,27 @@ func (h *Handler) resolvePlayerTeams(ctx context.Context, session *types.Session
 			})
 		}
 		if len(teams) > 0 {
-			groups = append(groups, types.PlayerTeamGroup{Player: player, Teams: teams})
+			result.groups = append(result.groups, types.PlayerTeamGroup{Player: player, Teams: teams})
 		}
 	}
-	return groups
+	if len(result.groups) == 0 && refusedErr != nil {
+		return playerTeams{}, refusedErr
+	}
+	return result, nil
+}
+
+// playerRefused reports an LPS answer about one linked player, a denial or a
+// player it did not accept, which says nothing about the other players.
+func playerRefused(err error) bool {
+	var classified *lps.FetchError
+	return errors.As(err, &classified) && (classified.Kind == lps.ErrorForbidden || classified.Kind == lps.ErrorInvalidPlayer)
 }
 
 // DiscoverTeamsHandler fetches current LPS teams for the selected players and
 // returns the team-selection fragment so users can include/exclude teams before
 // fetching schedules.
 func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
-	if !parseScheduleRequest(w, r) {
+	if !ParseScheduleRequest(w, r) {
 		return
 	}
 
@@ -525,6 +803,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:         invalidPlayersMessage,
 			Hint:            invalidPlayersHint,
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -532,19 +811,50 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := h.LoadSession(w, r)
+	if h.importEnded(session, playerIDs) {
+		h.renderEndedImport(w, r, importNoticeFor(endedImportDetails))
+		return
+	}
 	if len(playerIDs) == 0 || session == nil {
 		h.setHTMLContentType(w)
 		if err := partials.SoccerTableFragment(partials.SoccerTableFragmentProps{
 			Message:         "Import a bearer JWT to discover teams.",
 			Hint:            "Choose at least one player after importing.",
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	groups := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	teams, err := h.resolvePlayerTeams(r.Context(), session, playerIDs)
+	if err != nil {
+		detail := lps.ScheduleErrorDetailsFor(err)
+		if detail.ClearSession {
+			h.clearSession(w, r)
+			h.renderEndedImport(w, r, importNoticeFor(detail))
+			return
+		}
+		// An unavailable LPS says nothing about the import, so it is kept and
+		// no fresh import is suggested.
+		h.setHTMLContentType(w)
+		if renderErr := partials.SoccerTeamRecovery(detail.FeedbackMessage, detail.FeedbackHint, h.Config.LoginEnabled() && !lpsUnavailable(err)).Render(r.Context(), w); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	if len(teams.groups) == 0 {
+		h.setHTMLContentType(w)
+		if renderErr := partials.SoccerTeamRecovery(
+			"No current teams were found for the selected linked players.",
+			"Choose another player, import fresh access, or use manual Team IDs.",
+			h.Config.LoginEnabled(),
+		).Render(r.Context(), w); renderErr != nil {
+			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 	session.Workflow = normalizeWorkflowState(&types.SoccerWorkflowState{
 		Source:            "imported",
 		SelectedPlayerIDs: playerIDs,
@@ -556,6 +866,7 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 			Message:         "Teams were discovered, but the selection could not be saved.",
 			Hint:            "Try choosing the players again before continuing.",
 			ImportAvailable: h.Config.LoginEnabled(),
+			Discovery:       true,
 		}).Render(r.Context(), w); renderErr != nil {
 			http.Error(w, renderErr.Error(), http.StatusInternalServerError)
 		}
@@ -564,9 +875,28 @@ func (h *Handler) DiscoverTeamsHandler(w http.ResponseWriter, r *http.Request) {
 
 	h.setHTMLContentType(w)
 	if err := partials.SoccerTeamSelect(partials.SoccerTeamSelectProps{
-		PlayerGroups: groups,
+		PlayerGroups: teams.groups,
 		PlayerIDs:    playerIDs,
+		Notice:       teams.notice(),
 	}).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// renderEndedImport closes the private workflow of imported access that can
+// no longer be used. The player and team stages close with it, so the
+// explanation and its recovery actions go to the LPS connection card, which
+// stays visible; the team stage returns to its placeholder.
+func (h *Handler) renderEndedImport(w http.ResponseWriter, r *http.Request, notice *partials.FeedbackProps) {
+	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
+	props := h.LoginStateProps(w, r, nil, true)
+	props.ImportNotice = notice
+	h.setHTMLContentType(w)
+	if err := partials.SoccerLoginState(props).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := partials.SoccerTeamStagePlaceholder().Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

@@ -263,12 +263,13 @@ tasks:
     cmds:
       - task: lambda-infrastructure-ci
       - sh tests/repository-contract.sh
+      - sh tests/repository-contract-regressions.sh
 
   lambda-infrastructure-ci:
     desc: Run the authoritative offline Lambda infrastructure and release gate
     cmds:
       - tofu fmt -check -recursive infra/lambda
-      - task: cognito-dev-ci
+      - task: cognito-site-ci
       - tofu -chdir=infra/lambda/ci-roles init -backend=false -input=false
       - tofu -chdir=infra/lambda/ci-roles validate
       - tofu -chdir=infra/lambda/artifacts init -backend=false -input=false
@@ -283,14 +284,20 @@ tasks:
       - sh tests/release-scripts.sh
       - sh tests/operator-plan-apply.sh
 
-  cognito-dev-ci:
-    desc: Validate the isolated development Cognito root without backend or AWS access
+  cognito-site-ci:
+    desc: Validate the separate development and production site identity roots without backend or AWS access
     cmds:
-      - tofu -chdir=infra/lambda/auth/dev fmt -check -recursive
-      - tofu -chdir=infra/lambda/auth/dev init -backend=false -lockfile=readonly -input=false
-      - tofu -chdir=infra/lambda/auth/dev validate
-      - tofu -chdir=infra/lambda/auth/dev test
-      - task: cognito-dev-tooling-test
+      - tofu -chdir=infra/lambda/auth/site fmt -check -recursive
+      - tofu -chdir=infra/lambda/auth/site/modules/pool init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/modules/pool validate
+      - tofu -chdir=infra/lambda/auth/site/modules/pool test
+      - tofu -chdir=infra/lambda/auth/site/dev init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/dev validate
+      - tofu -chdir=infra/lambda/auth/site/dev test
+      - tofu -chdir=infra/lambda/auth/site/prod init -backend=false -lockfile=readonly -input=false
+      - tofu -chdir=infra/lambda/auth/site/prod validate
+      - tofu -chdir=infra/lambda/auth/site/prod test
+      - task: cognito-site-tooling-test
 
   _lint-check:
     internal: true
@@ -673,31 +680,70 @@ tasks:
         set -eu
         docker compose -f docker-compose.yml logs --tail=200 -f portfolio
 
-  cognito-dev-init:
-    desc: Initialize isolated private development auth backend (requires lock acknowledgement)
-    env: *admin-env
-    cmds:
-      - python3 scripts/create-cognito-dev-plan.py init
+  # ── Site identity operator path ────────────────────────────────────────────
+  #
+  # The site identity roots' plans and state hold the Google client secret, so
+  # these tasks read every private input from environment variables (never
+  # Task variables) and keep raw output, plan JSON and provider data in private
+  # directories under COGNITO_PRIVATE_DIR. See docs/deployment/site-identity.md.
 
-  cognito-dev-plan:
-    desc: Create private development auth plan and allowlisted review summary
+  _cognito-site:
+    internal: true
     env: *admin-env
+    requires:
+      vars: [SITE_ENV, MODE]
     cmds:
-      - python3 scripts/create-cognito-dev-plan.py plan
+      - python3 scripts/cognito-site-operator.py "{{.SITE_ENV}}" "{{.MODE}}"
 
-  cognito-dev-apply:
-    desc: Apply separately approved development auth plan and provenance checksums
-    env: *admin-env
+  cognito-site-dev-init:
+    desc: Initialize the private development site identity backend (requires the dev lock acknowledgement)
     cmds:
-      - python3 scripts/create-cognito-dev-plan.py apply
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: init }
 
-  cognito-dev-export:
-    desc: Export only validated management runtime public settings
-    env: *admin-env
+  cognito-site-dev-plan:
+    desc: Save a private development site identity plan and print its allowlisted review summary
     cmds:
-      - python3 scripts/create-cognito-dev-plan.py export
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: plan }
 
-  cognito-dev-tooling-test:
-    desc: Exercise private auth tooling offline with sentinel secrets
+  cognito-site-dev-apply:
+    desc: Apply exactly the approved development site identity plan and provenance checksums
     cmds:
-      - python3 -m unittest discover -s scripts -p 'test_cognito_dev_plan.py'
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: apply }
+
+  cognito-site-dev-export:
+    desc: Print the reviewed development site_runtime as the site block for dev.auto.tfvars
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: dev, MODE: export }
+
+  cognito-site-prod-init:
+    desc: Initialize the private production site identity backend (requires the prod lock acknowledgement)
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: init }
+
+  cognito-site-prod-plan:
+    desc: Save a private production site identity plan and print its allowlisted review summary
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: plan }
+
+  cognito-site-prod-apply:
+    desc: Apply exactly the approved production site identity plan and provenance checksums
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: apply }
+
+  cognito-site-prod-export:
+    desc: Print the reviewed production site_runtime as the site block for prod.auto.tfvars
+    cmds:
+      - task: _cognito-site
+        vars: { SITE_ENV: prod, MODE: export }
+
+  cognito-site-tooling-test:
+    desc: Exercise the private site identity tooling offline with sentinel secrets
+    cmds:
+      - python3 -m unittest discover -s scripts -p 'test_cognito_site_operator.py'

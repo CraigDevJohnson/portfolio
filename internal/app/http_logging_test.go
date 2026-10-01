@@ -47,3 +47,20 @@ func TestWithRequestLoggingLevel(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestLogNamesTheMatchedRouteThroughSiteIdentity(t *testing.T) {
+	application := newTestApp(t)
+	mux, _ := buildMux(application, application.Logger, false)
+	var logs bytes.Buffer
+	handler := withRequestLogging(slog.New(slog.NewTextHandler(&logs, nil)), mux)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/about", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("About status = %d", response.Code)
+	}
+	if got := logs.String(); !strings.Contains(got, `route="GET /about"`) {
+		t.Fatalf("request log did not name the matched route: %q", got)
+	}
+}

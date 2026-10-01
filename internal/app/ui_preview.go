@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"slices"
@@ -8,14 +9,18 @@ import (
 
 	"portfolio/cmd/web/pages"
 	"portfolio/cmd/web/partials"
+	"portfolio/internal/config"
+	"portfolio/internal/portfolio"
 	"portfolio/internal/schedule"
+	"portfolio/internal/siteidentity"
+	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
 
 var soccerPreviewFixtureNames = []string{
 	"manual", "import", "token-invalid", "token-expired", "token-rejected", "token-upstream-error",
-	"players", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
-	"google-disconnected", "google-connected", "google-add-success", "google-add-error",
+	"players", "player-removal", "no-players", "team-selection", "no-games", "upcoming", "past", "combined",
+	"google-disconnected", "google-connected", "google-calendar-paused", "google-add-success", "google-add-error",
 	"google-sync-success", "google-sync-error", "expired-session-reset", "loading",
 }
 
@@ -62,6 +67,12 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 	case "players":
 		page.Page.AuthState = soccerPreviewAuthenticatedState(players, false)
 		return page, true
+	case "player-removal":
+		// The linked players as they read once durable history is wired: the
+		// LPS card offers each player's inert data removal.
+		page.Page.AuthState = soccerPreviewAuthenticatedState(players, false)
+		page.Page.AuthState.HistoryRemovalAvailable = true
+		return page, true
 	case "no-players":
 		page.Page.AuthState = soccerPreviewAuthenticatedState(nil, false)
 		return page, true
@@ -95,6 +106,15 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(upcoming, past, true, true)
 		return page, true
+	case "google-calendar-paused":
+		// The chosen destination left the account, so writes wait for a new
+		// choice instead of falling back to the primary calendar.
+		page.Page.AuthState = soccerPreviewGoogleState(true)
+		page.Page.AuthState.GoogleCalendarNeedsSelection = true
+		page.Page.AuthState.GoogleCalendarSummary = ""
+		page.Page.AuthState.SelectedGoogleCalendarID = "preview-removed"
+		page.Results = soccerPreviewResults(upcoming, past, true, true)
+		return page, true
 	case "google-add-success":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(upcoming, past, true, true)
@@ -108,12 +128,15 @@ func soccerPreviewFixture(name string) (soccerPreviewPage, bool) {
 	case "google-sync-success":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(nil, past, true, true)
-		page.Results.GoogleFeedback = soccerPreviewFeedback("success", "Selected results synced", "2 game result(s) updated in Google Calendar.")
+		// One result was written; the other game has no event this site
+		// added, so Sync reports it instead of inserting one.
+		page.Results.GoogleFeedback = soccerPreviewFeedback("success", "Selected results synced", "1 game result(s) updated in Google Calendar. Skipped 1 game(s): 1 unmatched (no event this site added).")
 		return page, true
 	case "google-sync-error":
 		page.Page.AuthState = soccerPreviewGoogleState(true)
 		page.Results = soccerPreviewResults(nil, past, true, true)
-		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "Could not sync past game results to Google Calendar. Try again.")
+		// Google refused to go on after the first result, for a usage limit.
+		page.Results.GoogleFeedback = soccerPreviewFeedback("google-error", "Selected results were not synced", "1 game result(s) updated in Google Calendar. Could not finish result sync. Retry later; results already current will be left unchanged.")
 		return page, true
 	case "expired-session-reset":
 		page.Page.AuthState.LoginAvailable = true
@@ -153,7 +176,9 @@ func soccerPreviewAuthenticatedState(players []types.LPSPlayer, google bool) par
 func soccerPreviewGoogleState(connected bool) partials.SoccerLoginStateProps {
 	state := soccerPreviewAuthenticatedState(soccerPreviewPlayers(), true)
 	state.GoogleConnected = connected
+	state.GoogleSuggestedEmail = "site@example.com"
 	if connected {
+		state.GoogleAccountEmail = "calendar@example.com"
 		state.GoogleCalendarSummary = "Matchdays and travel notes"
 		state.SelectedGoogleCalendarID = "preview-matchdays"
 		state.GoogleCalendars = []types.GoogleCalendarOption{
@@ -178,7 +203,7 @@ func soccerPreviewTeamSelection(players []types.LPSPlayer) *partials.SoccerTeamS
 		PlayerGroups: []types.PlayerTeamGroup{
 			{Player: players[0], Teams: []types.LPSTeam{
 				{TeamID: 479691, TeamName: "Pond Mint United", Season: 169, PlayerID: 1669080},
-				{TeamID: 479692, TeamName: "Treasure Valley After-Work Cooperative Football Club", Season: 169, PlayerID: 1669080},
+				{TeamID: 479699, TeamName: "Treasure Valley After-Work Cooperative Football Club", Season: 169, PlayerID: 1669080},
 			}},
 			{Player: players[1], Teams: []types.LPSTeam{
 				{TeamID: 479147, TeamName: "Campfire Rovers", Season: 170, PlayerID: 1669081},
@@ -192,11 +217,13 @@ func soccerPreviewUpcomingGames() []types.Game {
 		{
 			ID: "preview-upcoming-1", DateTime: "Fri, Sep 4 at 7:15 PM", StartAt: "2026-09-04T19:15:00-06:00", EndAt: "2026-09-04T20:30:00-06:00",
 			Field: "Field 2", Home: "Pond Mint United", Away: "Campfire Rovers", Season: "Fall 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Campfire Rovers", DivisionName: "Coed Premier",
+			HomeTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true}, AwayTeam: types.TeamAppearance{ID: 479147, Color: "orange", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 		{
 			ID: "preview-upcoming-2", DateTime: "Fri, Sep 11 at 8:30 PM", StartAt: "2026-09-11T20:30:00-06:00", EndAt: "2026-09-11T21:45:00-06:00",
 			Field: "Championship Field with the Extra-Long Sideline Name", Home: "Treasure Valley After-Work Cooperative Football Club", Away: "Rosehip Athletic", Season: "Fall 2026", PlayerTeamName: "Treasure Valley After-Work Cooperative Football Club", OpponentTeamName: "Rosehip Athletic", DivisionName: "Coed Premier",
+			HomeTeam: types.TeamAppearance{ID: 479699, Selected: true}, AwayTeam: types.TeamAppearance{ID: 479800},
 			Facility: &types.Facility{Name: "West Boise Indoor Soccer and Community Recreation Complex", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 	}
@@ -206,12 +233,14 @@ func soccerPreviewPastGames() []types.Game {
 	return []types.Game{
 		{
 			ID: "preview-past-2", DateTime: "Fri, Aug 28 at 8:30 PM", StartAt: "2026-08-28T20:30:00-06:00", EndAt: "2026-08-28T21:45:00-06:00",
-			Field: "Field 1", Home: "Pond Mint United", Away: "Night Mulberry FC", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Night Mulberry FC", DivisionName: "Coed Premier", Result: "4 - 2",
+			Field: "Field 1", Home: "Pond Mint United", Away: "Campfire Rovers", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Campfire Rovers", DivisionName: "Coed Premier", Result: "4 - 2",
+			HomeTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true}, AwayTeam: types.TeamAppearance{ID: 479147, Color: "orange", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 		{
 			ID: "preview-past-1", DateTime: "Fri, Aug 21 at 7:15 PM", StartAt: "2026-08-21T19:15:00-06:00", EndAt: "2026-08-21T20:30:00-06:00",
 			Field: "Field 3", Home: "Candle Oat Wanderers", Away: "Pond Mint United", Season: "Summer 2026", PlayerTeamName: "Pond Mint United", OpponentTeamName: "Candle Oat Wanderers", DivisionName: "Coed Premier", Result: "3 - 3",
+			HomeTeam: types.TeamAppearance{ID: 479803}, AwayTeam: types.TeamAppearance{ID: 479691, Color: "green", Selected: true},
 			Facility: &types.Facility{Name: "Treasure Valley Indoor Sports and Community Fieldhouse", Address: "11448 W President Drive", City: "Boise", State: "ID", ZIP: "83713"},
 		},
 	}
@@ -289,4 +318,59 @@ func soccerPreviewDownloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/calendar")
 	w.Header().Set("Content-Disposition", "attachment; filename=soccer_schedule.ics")
 	_, _ = io.WriteString(w, schedule.BuildICS(games))
+}
+
+// accountPreviewPageHandler renders a public page with preview-only account
+// navigation so local reviewers can inspect both states without Cognito. The
+// soccer-* fixtures render the Soccer page for a signed-out visitor, an
+// invited visitor without the soccer grant, and one holding it;
+// soccer-granted-history renders the granted page as it reads once durable
+// history collection is activated.
+func accountPreviewPageHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := siteidentity.WithSignInAvailable(r.Context(), true)
+	principal := previewAccountPrincipal()
+	w.Header().Set("Cache-Control", "no-store")
+	switch r.PathValue("fixture") {
+	case "signed-out":
+		ctx = siteidentity.WithRequestIdentity(ctx, nil, nil, "/about")
+	case "signed-in":
+		ctx = siteidentity.WithRequestIdentity(ctx, principal, nil, "/about")
+	case "soccer-signed-out":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, nil, nil, "/soccer"), w, false)
+		return
+	case "soccer-ungranted":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, nil, "/soccer"), w, false)
+		return
+	case "soccer-granted":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w, false)
+		return
+	case "soccer-granted-history":
+		renderSoccerAccessPreview(siteidentity.WithRequestIdentity(ctx, principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer"), w, true)
+		return
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	portfolio.AboutHandler(w, r.WithContext(ctx), config.CareerStartYear)
+}
+
+// renderSoccerAccessPreview renders the inert Soccer page as if LPS import and
+// Google Calendar were configured, withholding both without the soccer grant.
+// historyCollection renders the import dialog as durable collection shows it.
+func renderSoccerAccessPreview(ctx context.Context, w http.ResponseWriter, historyCollection bool) {
+	page := soccerPreviewBasePage().Page
+	page.HistoryCollectionEnabled = historyCollection
+	granted := siteidentity.SoccerPrivateAllowed(ctx)
+	page.AuthState.LoginAvailable = granted
+	page.AuthState.GoogleAvailable = granted
+	page.AuthState.ImportNeedsGrant = !granted
+	page.AuthState.GoogleNeedsGrant = !granted
+	if principal, signedIn := siteidentity.PrincipalFromContext(ctx); signedIn && granted {
+		page.AuthState.GoogleSuggestedEmail = principal.Email
+	}
+	page.PrivateAccessMessage, page.ShowSiteSignIn = internalsoccer.PrivateAccessNotice(ctx, &page.AuthState)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := pages.Soccer(page).Render(ctx, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

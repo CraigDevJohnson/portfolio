@@ -507,8 +507,30 @@ a.tech-pill:hover {
 
 .site-dock-desktop-nav {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--space-xs);
+}
+
+/* When the header is tight, the account email truncates; the identity and links keep their size. */
+.site-account-state {
+  @apply flex items-center;
+  min-width: 0;
+  gap: var(--space-xs);
+}
+
+.site-account-email {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
+  min-width: 0;
+  max-width: calc(var(--space-3xl) * 2.5);
+  color: var(--candle-oat);
+  font-size: var(--text-xs);
+}
+
+.site-account-link {
+  @apply cursor-pointer border-0 bg-transparent;
+  /* Buttons keep the nav link's size and weight but need the page typeface. */
+  font-family: inherit;
 }
 
 .site-operator-footer-shell {
@@ -537,6 +559,14 @@ body[data-shell='operator'] .site-operator-footer-shell {
     justify-content: flex-start;
     padding: 0.75rem 1.25rem;
   }
+  /* Align the account email and full-width Sign out with the menu's destination links. */
+  .site-account-state {
+    @apply flex-col items-stretch;
+  }
+  .site-account-email {
+    max-width: 100%;
+    padding: var(--space-sm) calc(var(--space-md) + var(--space-xs)) 0;
+  }
 }
 
 .logo {
@@ -547,6 +577,7 @@ body[data-shell='operator'] .site-operator-footer-shell {
 
 .site-logo {
   display: inline-flex;
+  flex-shrink: 0;
   min-inline-size: 2.75rem;
   min-block-size: 2.75rem;
   align-items: center;

@@ -15,7 +15,6 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"portfolio/internal/config"
 	"portfolio/internal/testutil"
 	"portfolio/types"
 )
@@ -58,13 +57,15 @@ func TestAddHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *testing.
 	}
 }
 
-// Production break caught: a canceled second result-sync call must retain the
-// first completed result count, and retrying both games must match the existing
-// canonical event rather than duplicate it.
+// A timed-out second result PATCH leaves the first update intact. Retry reads
+// the first result as current and changes only the still-pending event.
 func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *testing.T) {
 	h, bridge, transport := newDeadlineMutationTestHandler(t, "9302")
 	h.CalendarMutationTimeout = 20 * time.Millisecond
 	bridge.syncResultsGames = deadlineMutationGames(t, true)
+	transport.blockedOnPatch = true
+	transport.seedSiteResultEvent("9301", "CLASSIC XI")
+	transport.seedSiteResultEvent("9302", "NIGHT OWLS")
 
 	firstResponse := httptest.NewRecorder()
 	h.SyncResultsHandler(firstResponse, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
@@ -73,7 +74,7 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	if !strings.Contains(firstBody, "1 game result(s) updated in Google Calendar.") {
 		t.Fatalf("expected one completed result sync before cancellation, got %q", firstBody)
 	}
-	if !strings.Contains(firstBody, safeCalendarMutationRetryMessage) {
+	if !strings.Contains(firstBody, safeResultSyncRetryMessage) {
 		t.Fatalf("expected safe retry guidance after cancellation, got %q", firstBody)
 	}
 
@@ -81,17 +82,37 @@ func TestSyncResultsHandlerDeadlinePreservesPartialProgressAndRetryConverges(t *
 	retryResponse := httptest.NewRecorder()
 	h.SyncResultsHandler(retryResponse, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
 
-	if got := transport.insertCount("9301"); got != 1 {
-		t.Fatalf("retry duplicated the completed result event: insert count = %d, want 1", got)
+	if got := transport.insertCount("9301"); got != 0 {
+		t.Fatalf("result sync inserted event 9301: count = %d", got)
 	}
 	if got := transport.updateCount("9301"); got != 1 {
 		t.Fatalf("retry did not converge by updating the completed result event: update count = %d, want 1", got)
 	}
-	if got := transport.insertCount("9302"); got != 1 {
-		t.Fatalf("retry did not finish the pending result event: insert count = %d, want 1", got)
+	if got := transport.insertCount("9302"); got != 0 {
+		t.Fatalf("result sync inserted event 9302: count = %d", got)
 	}
-	if body := retryResponse.Body.String(); !strings.Contains(body, "2 game result(s) updated in Google Calendar.") {
-		t.Fatalf("expected retry to report both converged result updates, got %q", body)
+	if got := transport.updateCount("9302"); got != 1 {
+		t.Fatalf("retry did not patch the pending result event: patch count = %d, want 1", got)
+	}
+	if body := retryResponse.Body.String(); !strings.Contains(body, "1 game result(s) updated in Google Calendar.") || !strings.Contains(body, "1 result(s) already current.") {
+		t.Fatalf("expected retry to report one patch and one current result, got %q", body)
+	}
+}
+
+func TestSyncResultsHandlerReportsPartialProgressOnProviderError(t *testing.T) {
+	h, bridge, transport := newDeadlineMutationTestHandler(t, "")
+	bridge.syncResultsGames = deadlineMutationGames(t, true)
+	transport.seedSiteResultEvent("9301", "CLASSIC XI")
+	transport.seedSiteResultEvent("9302", "NIGHT OWLS")
+	transport.failOnPatch = "9302"
+
+	response := httptest.NewRecorder()
+	h.SyncResultsHandler(response, newMutationRequest(t, "/soccer/google/sync-results", []string{"9301", "9302"}))
+	if body := response.Body.String(); !strings.Contains(body, "1 game result(s) updated") || !strings.Contains(body, "Could not finish") {
+		t.Fatalf("provider failure hid the completed conditional update: %q", body)
+	}
+	if transport.updateCount("9301") != 1 || transport.updateCount("9302") != 0 || transport.insertCount("9301") != 0 {
+		t.Fatal("provider failure replayed a completed patch or inserted a past event")
 	}
 }
 
@@ -107,6 +128,10 @@ func newDeadlineMutationTestHandler(t *testing.T, blockedGameID string) (*Handle
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -147,9 +172,10 @@ func newMutationRequest(t *testing.T, requestPath string, selected []string) *ht
 		"team_codes": {"479691"},
 		"selected":   selected,
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	return req
 }
 
@@ -157,6 +183,8 @@ type controlledCalendarTransport struct {
 	mu             sync.Mutex
 	blockedGameID  string
 	blocked        bool
+	blockedOnPatch bool
+	failOnPatch    string
 	events         map[string]Event
 	insertAttempts map[string]int
 	updateAttempts map[string]int
@@ -173,13 +201,16 @@ func newControlledCalendarTransport(blockedGameID string) *controlledCalendarTra
 }
 
 func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodGet && req.URL.Path == "/calendar/v3/users/me/calendarList" {
+		return calendarJSONResponse(req, http.StatusOK, `{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`), nil
+	}
 	gameID, event, err := calendarMutationRequestGame(req)
 	if err != nil {
 		return nil, err
 	}
 
 	t.mu.Lock()
-	blocked := t.blocked && gameID == t.blockedGameID
+	blocked := t.blocked && gameID == t.blockedGameID && (!t.blockedOnPatch || req.Method == http.MethodPatch)
 	t.mu.Unlock()
 	if blocked {
 		select {
@@ -219,9 +250,41 @@ func (t *controlledCalendarTransport) RoundTrip(req *http.Request) (*http.Respon
 		event.ID = gameID
 		t.events[gameID] = event
 		return calendarJSONResponse(req, http.StatusOK, ""), nil
+	case req.Method == http.MethodPatch:
+		existing, ok := t.events[gameID]
+		if !ok {
+			return calendarJSONResponse(req, http.StatusNotFound, ""), nil
+		}
+		if req.Header.Get("If-Match") != existing.ETag {
+			return calendarJSONResponse(req, http.StatusPreconditionFailed, ""), nil
+		}
+		if gameID == t.failOnPatch {
+			return calendarJSONResponse(req, http.StatusInternalServerError, `{"error":"provider unavailable"}`), nil
+		}
+		var patch struct {
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(req.Body).Decode(&patch); err != nil {
+			return nil, err
+		}
+		t.updateAttempts[gameID]++
+		existing.Description = patch.Description
+		existing.ETag = `"v2"`
+		t.events[gameID] = existing
+		return calendarJSONResponse(req, http.StatusOK, mustMarshalEvent(&existing)), nil
 	default:
 		return nil, fmt.Errorf("unexpected Google request: %s %s", req.Method, req.URL.String())
 	}
+}
+
+// seedSiteResultEvent stores the event Add wrote for an upcoming
+// deadlineMutationGames game against opponent, before its result was known.
+func (t *controlledCalendarTransport) seedSiteResultEvent(gameID, opponent string) {
+	event := Event{ID: gameID, ETag: `"v1"`, Status: "confirmed", Description: "UNITED NATIONS is playing " + opponent + "\nDivision: Coed F Fri\nFacility: Boise\nField: Field 1\nResult: "}
+	event.ExtendedProperties.Private = map[string]string{"game_id": gameID, "portfolio_app": "soccer"}
+	t.mu.Lock()
+	t.events[gameID] = event
+	t.mu.Unlock()
 }
 
 func calendarMutationRequestGame(req *http.Request) (string, Event, error) {
@@ -293,6 +356,10 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -323,6 +390,9 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/calendar/v3/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
 		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodPost:
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -396,9 +466,10 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 		"team_codes": {"479691"},
 		"selected":   {"7001", "7002", "7003", "7004", "7005"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.AddHandler(resp, req)
@@ -473,7 +544,7 @@ func TestAddHandlerAddsUpdatesCancelsAndSkipsByCanonicalGameID(t *testing.T) {
 	}
 }
 
-func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
+func TestSyncResultsHandlerSkipsUnownedAndMissingPastEvents(t *testing.T) {
 	store := &fakeConnectionStore{records: map[string]ConnectionRecord{}}
 	h := newTestHandler(t, store)
 	bridge := h.Soccer.(*stubSoccerBridge)
@@ -484,6 +555,10 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -504,6 +579,9 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/calendar/v3/users/me/calendarList" && r.Method == http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"items":[{"id":"primary","summary":"Primary Calendar","primary":true}]}`))
 		case strings.HasPrefix(r.URL.Path, "/calendar/v3/calendars/primary/events/") && r.Method == http.MethodGet:
 			w.WriteHeader(http.StatusNotFound)
 		case r.URL.Path == "/calendar/v3/calendars/primary/events" && r.Method == http.MethodGet:
@@ -549,32 +627,20 @@ func TestSyncResultsHandlerUpdatesPastGamesWithResults(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader(url.Values{
 		"team_codes": {"479691"},
 	}.Encode()))
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.SyncResultsHandler(resp, req)
 
 	body := resp.Body.String()
-	if !strings.Contains(body, "2 game result(s) updated in Google Calendar.") {
-		t.Fatalf("expected sync success message, got %q", body)
+	if !strings.Contains(body, "0 game result(s) updated in Google Calendar. Skipped 2 game(s): 2 unmatched (no event this site added).") {
+		t.Fatalf("unowned or missing results were not reported as skipped: %q", body)
 	}
-	if len(updatedEvents) != 1 {
-		t.Fatalf("expected one updated event, got %d", len(updatedEvents))
-	}
-	if len(insertedEvents) != 1 {
-		t.Fatalf("expected one inserted event, got %d", len(insertedEvents))
-	}
-	if updated, ok := updatedEvents["legacy-8101"]; !ok {
-		t.Fatalf("expected legacy-8101 update, got %#v", updatedEvents)
-	} else if !strings.Contains(updated.Description, "Result: Win (2-1)") {
-		t.Fatalf("expected formatted win result in update, got %q", updated.Description)
-	}
-	if inserted, ok := insertedEvents["8102"]; !ok {
-		t.Fatalf("expected inserted event 8102, got %#v", insertedEvents)
-	} else if !strings.Contains(inserted.Description, "Result: Win (3-1)") {
-		t.Fatalf("expected formatted away-win result in insert, got %q", inserted.Description)
+	if len(updatedEvents) != 0 || len(insertedEvents) != 0 {
+		t.Fatalf("Sync changed unowned or missing events: updated %#v, inserted %#v", updatedEvents, insertedEvents)
 	}
 }
 
@@ -589,6 +655,10 @@ func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -599,8 +669,9 @@ func TestSyncResultsHandlerWithNoPastResults(t *testing.T) {
 	bridge.syncResultsGames = []types.Game{}
 
 	req := httptest.NewRequest(http.MethodPost, "/soccer/google/sync-results", strings.NewReader("team_codes=479691"))
+	req = asGrantedSoccerOwner(req)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 
 	h.SyncResultsHandler(resp, req)

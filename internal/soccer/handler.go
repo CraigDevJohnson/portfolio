@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"portfolio/cmd/web/partials"
 	"portfolio/internal/config"
 	"portfolio/internal/session"
+	"portfolio/internal/soccerarchive"
 )
 
 // GoogleHooks exposes the Google integration points wired from internal/app.
@@ -22,6 +24,19 @@ type GoogleHooks interface {
 var (
 	// ErrSessionExpired reports that the imported LPS session is no longer valid.
 	ErrSessionExpired = errors.New("session expired")
+	// ErrSessionOwnerMismatch reports that imported access belongs to another or unknown site owner.
+	ErrSessionOwnerMismatch = errors.New("soccer session owner does not match the site session")
+	// errSessionWithheld reports the owner's retained imported access while the
+	// owner is signed out or lacks the current soccer grant. It is kept, not cleared.
+	errSessionWithheld = errors.New("imported LPS access is withheld until its owner signs in with the soccer grant")
+	// errImportGuardMismatch reports imported access whose guard cookie is
+	// missing or different: sign-out or Clear import removed it, and a
+	// response already in flight wrote the payload back.
+	errImportGuardMismatch = errors.New("imported LPS access does not match this browser's import guard")
+	// errImportSignedOut reports imported access authorized by a site session
+	// issued before this browser's latest explicit site sign-out: an import
+	// still in flight at sign-out wrote it back after sign-out cleared it.
+	errImportSignedOut = errors.New("imported LPS access was authorized before this browser's latest site sign-out")
 	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
 	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.
@@ -36,6 +51,7 @@ const (
 	invalidPlayersHint    = "Clear the imported players and import again to refresh the discovered player list."
 	invalidTeamIDsMessage = "One or more team IDs were invalid."
 	invalidTeamIDsHint    = "Enter numeric Let's Play Soccer team IDs separated by commas."
+	manualLookupRetryHint = "Let's Play Soccer may be unavailable. Try again in a moment."
 )
 
 // Handler owns the soccer auth and schedule handlers.
@@ -44,10 +60,19 @@ type Handler struct {
 	LPSClient    *http.Client
 	LoginLimiter *session.LoginRateLimiter
 	Logger       *slog.Logger
+	// HistoryImportLookupBudget bounds the LPS lookups of an import that
+	// collects linked-player history. Zero means
+	// DefaultHistoryImportLookupBudget.
+	HistoryImportLookupBudget time.Duration
+	// HistoryImportBudget bounds the whole of an import that collects
+	// linked-player history, through the Google check its response shows.
+	// Zero means DefaultHistoryImportBudget.
+	HistoryImportBudget time.Duration
 
-	storeMu     sync.RWMutex
-	store       SoccerStore
-	googleHooks GoogleHooks
+	storeMu      sync.RWMutex
+	store        SoccerStore
+	archiveStore soccerarchive.Store
+	googleHooks  GoogleHooks
 }
 
 // NewHandler constructs a soccer handler with its runtime dependencies.
@@ -67,6 +92,28 @@ func NewHandler(cfg *config.Config, lpsClient *http.Client, loginLimiter *sessio
 		store:        store,
 		googleHooks:  googleHooks,
 	}
+}
+
+// ArchiveStore returns the optional durable team archive (thread-safe).
+func (h *Handler) ArchiveStore() soccerarchive.Store {
+	h.storeMu.RLock()
+	defer h.storeMu.RUnlock()
+	return h.archiveStore
+}
+
+// SetArchiveStore wires the durable history archive, which enables manual
+// Team ID archiving for this handler. A store that also implements
+// soccerarchive.MembershipStore, as the DynamoDB store does, also makes the
+// import dialog disclose indefinite linked-player history and makes a
+// disclosed, granted import collect every linked player's team-season
+// memberships. A store that also implements soccerarchive.PlayerRemovalStore
+// lets an imported owner remove a confirmed player's kept data. The Lambda
+// assembly wires it only when collection is activated with every reviewed
+// limit, which the #80 activation review approves.
+func (h *Handler) SetArchiveStore(store soccerarchive.Store) {
+	h.storeMu.Lock()
+	h.archiveStore = store
+	h.storeMu.Unlock()
 }
 
 // Store returns the current soccer session store (thread-safe).

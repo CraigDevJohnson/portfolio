@@ -43,3 +43,22 @@ templ SoccerLoginFeedback(props SoccerLoginFeedbackProps) {
 		ExtraClass: "soccer-feedback",
 	})
 }
+
+// SoccerPrivateAccessProps explains why private Soccer actions are withheld
+// and, where site sign-in can start, offers it.
+type SoccerPrivateAccessProps struct {
+	Kind        FeedbackKind
+	Message     string
+	OfferSignIn bool
+}
+
+// SoccerPrivateAccess renders the page's private-access notice and the
+// refusal an open page's private action receives in its own target.
+templ SoccerPrivateAccess(props SoccerPrivateAccessProps) {
+	<div class="soccer-workspace-feedback">
+		@Feedback(FeedbackProps{Kind: props.Kind, Title: "Private Soccer access", Message: props.Message})
+		if props.OfferSignIn {
+			<a class="soccer-inline-link" href="/sign-in?return_to=%2Fsoccer">Sign in for Soccer access</a>
+		}
+	</div>
+}

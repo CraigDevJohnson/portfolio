@@ -4,17 +4,20 @@ import "portfolio/cmd/web/layouts"
 import "portfolio/cmd/web/partials"
 
 type SoccerProps struct {
-	GoogleMessage        string
-	GoogleMessageKind    string
-	AuthState            partials.SoccerLoginStateProps
-	Preview              bool
-	ModalOpen            bool
-	Loading              bool
-	ManualTeamCodes      string
-	InitialResults       *partials.SoccerTableFragmentProps
-	InitialTeamSelection *partials.SoccerTeamSelectProps
-	InitialFeedback      *partials.SoccerLoginFeedbackProps
-	ModalFeedback        *partials.SoccerLoginFeedbackProps
+	GoogleMessage            string
+	GoogleMessageKind        string
+	PrivateAccessMessage     string
+	ShowSiteSignIn           bool
+	HistoryCollectionEnabled bool
+	AuthState                partials.SoccerLoginStateProps
+	Preview                  bool
+	ModalOpen                bool
+	Loading                  bool
+	ManualTeamCodes          string
+	InitialResults           *partials.SoccerTableFragmentProps
+	InitialTeamSelection     *partials.SoccerTeamSelectProps
+	InitialFeedback          *partials.SoccerLoginFeedbackProps
+	ModalFeedback            *partials.SoccerLoginFeedbackProps
 }
 
 func soccerLoadingIndicatorClass(loading bool) string {
@@ -29,6 +32,21 @@ func soccerHeroCalendarClause(google bool) string {
 		return " or add them directly to Google Calendar."
 	}
 	return " for your calendar app."
+}
+
+// soccerReviewStepNumber numbers the review step after the visible stages:
+// imported LPS access adds the player and team steps.
+func soccerReviewStepNumber(imported bool) string {
+	if imported {
+		return "5"
+	}
+	return "3"
+}
+
+// soccerHasInitialReview reports whether the page already has results or
+// feedback to show, so the review stage renders visible without JavaScript.
+func soccerHasInitialReview(props SoccerProps) bool {
+	return props.InitialResults != nil || props.InitialFeedback != nil
 }
 
 func soccerReadyState(ready bool) string {
@@ -63,6 +81,35 @@ templ Soccer(props SoccerProps) {
 					</p>
 				}
 			}
+			<section class="page-section soccer-output-choice" data-soccer-stage="calendar-output" aria-labelledby="soccer-output-title">
+				@partials.SectionIntro(partials.SectionIntroProps{
+					Label: "Calendar output",
+					Title: "Choose your calendar output",
+					Description: "Download an .ics file without signing in, or use Google Calendar when your account is connected.",
+					HeadingID: "soccer-output-title",
+				})
+				<fieldset class="soccer-output-options" aria-describedby="soccer-output-hint">
+					<legend class="sr-only">Calendar output</legend>
+					<label class="soccer-output-option">
+						<input type="radio" name="calendar_output" value="ics" data-soccer-output-option/>
+						<span><strong>Download an .ics file</strong><small>Use any calendar app. Team ID lookup and download are public.</small></span>
+					</label>
+					<label class="soccer-output-option">
+						if props.AuthState.SupportsGoogle() {
+							<input type="radio" name="calendar_output" value="google" data-soccer-output-option/>
+							<span><strong>Google Calendar</strong><small>Connect a calendar to add selected matches.</small></span>
+						} else {
+							<input type="radio" name="calendar_output" value="google" data-soccer-output-option disabled/>
+							if props.AuthState.GoogleNeedsGrant {
+								<span><strong>Google Calendar</strong><small>Needs Soccer access.</small></span>
+							} else {
+								<span><strong>Google Calendar</strong><small>Not enabled on this server.</small></span>
+							}
+						}
+					</label>
+				</fieldset>
+				<p id="soccer-output-hint" class="form-hint">You can change this choice after fetching; your matches and selections stay in place.</p>
+			</section>
 			<section id="soccer-connections" class="page-section soccer-connections-section" aria-labelledby="soccer-connections-title">
 				@partials.SectionIntro(partials.SectionIntroProps{
 					Label:       "Connections",
@@ -70,6 +117,9 @@ templ Soccer(props SoccerProps) {
 					Description: "Your imported LPS access and optional Google Calendar destination stay visible here without interrupting the match workflow.",
 					HeadingID:   "soccer-connections-title",
 				})
+				if props.PrivateAccessMessage != "" {
+					@partials.SoccerPrivateAccess(partials.SoccerPrivateAccessProps{Kind: partials.FeedbackInfo, Message: props.PrivateAccessMessage, OfferSignIn: props.ShowSiteSignIn})
+				}
 				if props.GoogleMessage != "" {
 					<div class="soccer-workspace-feedback">
 						@partials.SoccerLoginFeedback(partials.SoccerLoginFeedbackProps{Kind: props.GoogleMessageKind, Message: props.GoogleMessage})
@@ -82,14 +132,15 @@ templ Soccer(props SoccerProps) {
 					@partials.SectionIntro(partials.SectionIntroProps{
 						Label:       "Schedule tool",
 						Title:       "Build a calendar-ready matchday",
-						Description: "Choose one source, narrow it to the right teams, then review and export the schedule.",
+						Description: "Choose a schedule source, then review the matches for your calendar output.",
 						HeadingID:   "soccer-planner-title",
 					})
 					<ol class="soccer-stage-legend" aria-label="Matchday planner stages">
-						<li><span aria-hidden="true">1</span><strong>Choose source</strong><small>Linked players or team IDs</small></li>
-						<li><span aria-hidden="true">2</span><strong>Select players</strong><small>Choose linked players</small></li>
-						<li><span aria-hidden="true">3</span><strong>Confirm teams</strong><small>Review current teams</small></li>
-						<li><span aria-hidden="true">4</span><strong>Review &amp; output</strong><small>Load, select, and export</small></li>
+						<li><span aria-hidden="true">1</span><strong>Choose output</strong><small>.ics file or Google Calendar</small></li>
+						<li><span aria-hidden="true">2</span><strong>Choose source</strong><small>Team IDs or linked players</small></li>
+						<li data-soccer-private-stage hidden?={ !props.AuthState.Authenticated }><span aria-hidden="true">3</span><strong>Select players</strong><small>Choose linked players</small></li>
+						<li data-soccer-private-stage hidden?={ !props.AuthState.Authenticated }><span aria-hidden="true">4</span><strong>Confirm teams</strong><small>Review current teams</small></li>
+						<li><span data-soccer-review-number aria-hidden="true">{ soccerReviewStepNumber(props.AuthState.Authenticated) }</span><strong>Review &amp; output</strong><small>Load and select matches</small></li>
 					</ol>
 				</div>
 				<div class="soccer-planner-layout">
@@ -97,24 +148,11 @@ templ Soccer(props SoccerProps) {
 						@partials.SignalTrail(partials.SignalTrailProps{Variant: partials.TrailMatchday, ExtraClass: "soccer-matchday-trail"})
 						<section class="soccer-stage soccer-stage-source" data-soccer-stage="source" aria-labelledby="soccer-stage-source-title">
 							<header class="soccer-stage-header">
-								<span class="soccer-stage-number" aria-hidden="true">1</span>
+								<span class="soccer-stage-number" aria-hidden="true">2</span>
 								<div><p>Schedule source</p><h3 id="soccer-stage-source-title">Choose a schedule source</h3></div>
 							</header>
 							<div class="soccer-source-grid">
-								<div class="soccer-source-option" data-source-state={ soccerReadyState(props.AuthState.Authenticated) }>
-									<p class="soccer-stage-kicker">Linked account</p>
-									<h4>Use linked players</h4>
-									if props.AuthState.Authenticated {
-										<p>{ len(props.AuthState.Players) } linked player(s) are ready. Continue to choose whose teams should be included.</p>
-										<a class="soccer-inline-link" href="#soccer-player-stage">Continue to players</a>
-									} else if props.AuthState.SupportsDiscovery() {
-										<p>Set up LPS access in Connections above, then return here to choose linked players.</p>
-										<a class="soccer-inline-link" href="#soccer-connections">Go to Connections</a>
-									} else {
-										<p>Linked-player discovery is not enabled in this runtime.</p>
-										<a class="soccer-inline-link" href="#team_codes">Use manual team IDs</a>
-									}
-								</div>
+								@partials.SoccerLinkedSource(props.AuthState, false)
 								<div class="soccer-source-option soccer-manual-path" data-source-state="ready">
 									<p class="soccer-stage-kicker">Direct lookup</p>
 									<h4>Use manual team IDs</h4>
@@ -156,14 +194,14 @@ templ Soccer(props SoccerProps) {
 								</div>
 							</div>
 						</section>
-						<section id="soccer-player-stage" class="soccer-stage soccer-stage-players" data-soccer-stage="players" data-stage-state={ soccerReadyState(props.AuthState.Authenticated) } aria-labelledby="soccer-stage-players-title">
-							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">2</span><div><p>Linked context</p><h3 id="soccer-stage-players-title">Choose players</h3></div></header>
+						<section id="soccer-player-stage" class="soccer-stage soccer-stage-players" data-soccer-stage="players" data-soccer-private-stage data-stage-state={ soccerReadyState(props.AuthState.Authenticated) } aria-labelledby="soccer-stage-players-title" hidden?={ !props.AuthState.Authenticated }>
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">3</span><div><p>Linked context</p><h3 id="soccer-stage-players-title">Choose players</h3></div></header>
 							<div id="soccer-player-stage-content">
 								@partials.SoccerPlayerStageContent(props.AuthState)
 							</div>
 						</section>
-						<section class="soccer-stage soccer-stage-teams" data-soccer-stage="teams" data-stage-state={ soccerReadyState(props.InitialTeamSelection != nil) } aria-labelledby="soccer-stage-teams-title">
-							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">3</span><div><p>Final scope</p><h3 id="soccer-stage-teams-title">Confirm teams</h3></div></header>
+						<section class="soccer-stage soccer-stage-teams" data-soccer-stage="teams" data-soccer-private-stage data-stage-state={ soccerReadyState(props.InitialTeamSelection != nil) } aria-labelledby="soccer-stage-teams-title" hidden?={ !props.AuthState.Authenticated }>
+							<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">4</span><div><p>Final scope</p><h3 id="soccer-stage-teams-title">Confirm teams</h3></div></header>
 							<div id="soccer-team-stage-content">
 								if props.InitialTeamSelection != nil {
 									@partials.SoccerTeamSelect(*props.InitialTeamSelection)
@@ -174,12 +212,13 @@ templ Soccer(props SoccerProps) {
 						</section>
 					</div>
 				</div>
-				<section class="soccer-stage soccer-stage-review soccer-review-output" data-soccer-stage="review" data-stage-state={ soccerReadyState(props.InitialResults != nil) } aria-labelledby="soccer-stage-review-title">
-					<header class="soccer-stage-header"><span class="soccer-stage-number" aria-hidden="true">4</span><div><p>Schedule output</p><h3 id="soccer-stage-review-title">Review &amp; output</h3></div></header>
-					<div id="loading-indicator" class={ soccerLoadingIndicatorClass(props.Loading) } role="status" aria-live="polite" aria-atomic="true">
-						<div class="spinner" aria-hidden="true"></div><span>Fetching schedules...</span>
-					</div>
-					<p id="soccer-results-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+				<!-- Status regions stay outside the review stage, which is hidden until a schedule is requested. -->
+				<div id="loading-indicator" class={ soccerLoadingIndicatorClass(props.Loading) } role="status" aria-live="polite" aria-atomic="true">
+					<div class="spinner" aria-hidden="true"></div><span>Fetching schedules...</span>
+				</div>
+				<p id="soccer-results-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+				<section class="soccer-stage soccer-stage-review soccer-review-output" data-soccer-stage="review" data-stage-state={ soccerReadyState(props.InitialResults != nil) } data-soccer-results-ready={ soccerReadyState(soccerHasInitialReview(props)) } aria-labelledby="soccer-stage-review-title" hidden?={ !soccerHasInitialReview(props) }>
+					<header class="soccer-stage-header"><span class="soccer-stage-number" data-soccer-review-number aria-hidden="true">{ soccerReviewStepNumber(props.AuthState.Authenticated) }</span><div><p>Schedule output</p><h3 id="soccer-stage-review-title">Review &amp; output</h3></div></header>
 					<div
 						id="games-container"
 						class="games-container soccer-results-region"
@@ -201,6 +240,8 @@ templ Soccer(props SoccerProps) {
 				</section>
 			</section>
 		</div>
-		@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, Feedback: props.ModalFeedback})
+		if props.AuthState.SupportsDiscovery() {
+			@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, HistoryCollectionEnabled: props.HistoryCollectionEnabled, Feedback: props.ModalFeedback})
+		}
 	}
 }

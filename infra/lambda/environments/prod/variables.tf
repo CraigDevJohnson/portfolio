@@ -61,3 +61,60 @@ variable "live_version_override" {
   type    = number
   default = null
 }
+
+variable "site" {
+  description = "Reviewed non-secret production site identity: the site auth root's site_runtime fields plus invitations, the only reviewed production grant map. Production grants only soccer."
+  type = object({
+    cognito_domain       = string
+    cognito_issuer       = string
+    cognito_client_id    = string
+    redirect_uri         = string
+    logout_uri           = string
+    invitations          = map(set(string))
+    allow_local_callback = bool
+  })
+  default = null
+
+  # Decision 6 (2026-09-30): the production Lambda role has no EC2 or metric
+  # grants, so a management grant would only open a portal that fails.
+  validation {
+    condition     = var.site == null ? true : alltrue([for grants in values(var.site.invitations) : !contains(grants, "management")])
+    error_message = "Production site.invitations may grant only soccer: production has no management portal EC2 or metric grants, so a management grant is refused (decision 6)."
+  }
+}
+
+# LPS history sync (#80). Each is required, so its reviewed value lives in
+# prod.auto.tfvars and a saved plan's apply sees the same input; never pass
+# them with -var. The service module validates them and plans nothing for
+# history until each stage's switches and inputs are all set.
+variable "enable_soccer_history" {
+  description = "Plan the durable Soccer history table and the HTTP runtime's grant to it."
+  type        = bool
+}
+
+variable "soccer_history_limits" {
+  description = "Reviewed source-use and cost ceilings for history collection and the daily worker."
+  type = object({
+    max_enrolled_teams      = number
+    reserved_player_slots   = number
+    max_requests_per_run    = number
+    max_retries_per_team    = number
+    min_request_interval_ms = number
+    worker_timeout_seconds  = number
+  })
+}
+
+variable "activate_soccer_history_collection" {
+  description = "Let the HTTP runtime enroll teams into durable history."
+  type        = bool
+}
+
+variable "activate_soccer_history_schedule" {
+  description = "Plan the daily history worker, its schedule, failure queue and alarms. Applying it starts live LPS polling."
+  type        = bool
+}
+
+variable "soccer_history_schedule_expression" {
+  description = "Reviewed once-daily UTC EventBridge Scheduler expression, or null for no schedule."
+  type        = string
+}

@@ -10,13 +10,21 @@ import (
 )
 
 type SoccerTableFragmentProps struct {
-	Games           []types.Game
-	UpcomingGames   []types.Game
-	PastGames       []types.Game
-	TeamCodes       string
-	PlayerIDs       []int
-	Message         string
-	Hint            string
+	Games              []types.Game
+	UpcomingGames      []types.Game
+	PastGames          []types.Game
+	TeamCodes          string
+	PlayerIDs          []int
+	Message            string
+	EnrollmentFeedback *FeedbackProps
+	Hint               string
+	FetchError         bool
+	// RetryLater marks a fetch that failed because Let's Play Soccer was
+	// unavailable, so repeating the same request later may succeed.
+	RetryLater bool
+	// Discovery marks a linked-player team discovery result, whose recovery
+	// is a fresh LPS import rather than a Team ID correction.
+	Discovery       bool
 	GoogleAvailable bool
 	GoogleConnected bool
 	GoogleFeedback  *SoccerLoginFeedbackProps
@@ -47,17 +55,17 @@ func gamesCountLabel(count int) string {
 func resultBadgeClass(outcome string) string {
 	switch outcome {
 	case schedule.OutcomeWin:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-primary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-primary-500/30 bg-primary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-primary-100"
 	case schedule.OutcomeLoss:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeDraw:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-secondary-500/26 bg-secondary-500/14 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-secondary-100"
 	case schedule.OutcomeCanceled:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	case schedule.OutcomeFinal:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	default:
-		return "inline-flex items-center whitespace-nowrap rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
+		return "inline-flex max-w-full items-center wrap-anywhere rounded-md border border-carbon-black-300/40 bg-carbon-black-100/70 px-2 py-0.5 font-mono text-sm font-semibold uppercase tracking-wide text-carbon-black-900"
 	}
 }
 
@@ -100,12 +108,17 @@ func soccerGameMetaLabel(hasResult bool) string {
 	return "Season"
 }
 
-templ SoccerGameRows(sectionKey string, games []types.Game) {
+templ SoccerGameRows(sectionKey string, games []types.Game, palette soccerTeamPalette) {
 	for _, game := range games {
-		{{ outcome := schedule.ParseGameResult(strings.TrimSpace(game.Result), game.PlayerTeamName, strings.TrimSpace(game.Home)) }}
-		{{ isPast := strings.TrimSpace(game.Result) != "" }}
+		{{ row := soccerMatchRow(&game, palette) }}
+		{{ isPast := row.HasResult }}
 		<li
 			class="soccer-match-row"
+			data-home-color={ row.HomeColor }
+			data-away-color={ row.AwayColor }
+			if row.Shared {
+				data-shared-match
+			}
 			if isPast {
 				data-past-game
 			}
@@ -139,10 +152,8 @@ templ SoccerGameRows(sectionKey string, games []types.Game) {
 			</div>
 			<div class="soccer-match-detail soccer-match-meta" data-label={ soccerGameMetaLabel(isPast) }>
 				<span class="season-badge">{ game.Season }</span>
-				if outcome.Parsed {
-					<span class={ resultBadgeClass(outcome.Outcome) }>{ schedule.FormatResultLine(outcome) }</span>
-				} else if outcome.Raw != "" {
-					<span class={ resultBadgeClass("") }>{ outcome.Raw }</span>
+				if row.ResultText != "" {
+					<span class={ row.ResultClass }>{ row.ResultText }</span>
 				}
 			</div>
 		</li>
@@ -156,38 +167,35 @@ templ SoccerScheduleHiddenInputs(props SoccerTableFragmentProps) {
 	}
 }
 
-templ SoccerGamesList(sectionID string, games []types.Game) {
+templ SoccerGamesList(sectionID string, games []types.Game, palette soccerTeamPalette) {
 	<ol class="soccer-match-list" aria-labelledby={ sectionID + "-heading" } data-game-group={ sectionID }>
-		@SoccerGameRows(sectionID, games)
+		@SoccerGameRows(sectionID, games, palette)
 	</ol>
 }
 
 templ SoccerTableFragment(props SoccerTableFragmentProps) {
+	if props.EnrollmentFeedback != nil {
+		@Feedback(*props.EnrollmentFeedback)
+	}
 	if visibleGamesCount(props) == 0 {
+		{{ empty := props.emptyState() }}
 		<div class="no-results">
 			<div class="no-results-icon" aria-hidden="true">
 				@UIIcon(UIIconCalendar)
 			</div>
-			<h4>No games found yet</h4>
-			if props.Message != "" {
-				<p>{ props.Message }</p>
-			} else {
-				<p>No games found for the provided request.</p>
-			}
-			if props.Hint != "" {
-				<p class="hint">{ props.Hint }</p>
-			} else {
-				<p class="hint">Check your team IDs or choose at least one linked player.</p>
-			}
-			<p class="no-results-next-step">If you already know the team IDs, try manual lookup again. If you imported access, confirm that your player and team selections are still current.</p>
+			<h4>{ empty.Heading }</h4>
+			<p>{ empty.Message }</p>
+			<p class="hint">{ empty.Hint }</p>
+			<p class="no-results-next-step">{ empty.NextStep }</p>
 			<div class="soccer-recovery-actions">
 				<a class="btn soccer-secondary-btn" href="#team_codes">Return to manual team IDs</a>
-				if props.ImportAvailable {
+				if empty.ShowImportAction {
 					<button type="button" class="btn soccer-secondary-btn" data-open-login-modal>Import fresh access</button>
 				}
 			</div>
 		</div>
 	} else {
+		{{ palette := newSoccerTeamPalette(props.Games, props.UpcomingGames, props.PastGames) }}
 		<div class="games-form" data-soccer-form data-team-fingerprint={ soccerTeamFingerprint(props.TeamCodes) }>
 			<div class="games-results-layout">
 				if len(props.UpcomingGames) > 0 {
@@ -211,7 +219,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 												Upcoming games
 												<span class="games-total-count">{ gamesCountLabel(len(props.UpcomingGames)) }</span>
 											</h4>
-											<p class="games-section-copy">Pick the matches you want to download or add to Google Calendar.</p>
+											<p class="games-section-copy">Pick the matches you want in your calendar.</p>
 										</div>
 									</div>
 									<div class="games-section-toolbar">
@@ -230,7 +238,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										</div>
 										<div class="games-section-cta-group">
 											if props.GoogleConnected && props.Preview {
-												<button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="upcoming-games" data-selection-locked><span class="btn-text">Add selected to calendar</span></button>
+												<button type="button" class="btn soccer-secondary-btn games-section-action-btn" disabled aria-disabled="true" data-game-action data-game-group="upcoming-games" data-selection-locked data-soccer-output-only="google" hidden><span class="btn-text">Add selected to calendar</span></button>
 											} else if props.GoogleConnected {
 												<button
 													type="button"
@@ -244,13 +252,15 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 													data-loading-button
 													data-game-action
 													data-game-group="upcoming-games"
+													data-soccer-output-only="google"
+													hidden
 													data-loading-text="Adding {count} games…"
 												>
 													<span class="btn-text">Add selected to calendar</span>
 													<span class="btn-loading-indicator soccer-google-add-indicator htmx-indicator" aria-hidden="true"></span>
 												</button>
 											}
-											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn" data-game-action data-game-group="upcoming-games">
+											<button id="download-button" type="submit" class="btn btn-primary games-section-action-btn download-btn" data-game-action data-game-group="upcoming-games" data-soccer-output-only="ics">
 												<span class="btn-text">Download selected (.ics)</span>
 											</button>
 										</div>
@@ -261,18 +271,25 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										}
 									</div>
 								</div>
-								@SoccerGamesList("upcoming-games", props.UpcomingGames)
+								@SoccerGamesList("upcoming-games", props.UpcomingGames, palette)
 							</div>
 						</form>
 					</section>
 				} else if len(props.PastGames) > 0 {
-					<div class="games-empty-panel" role="status">
+					<div class="games-empty-panel" role="status" data-soccer-output-only="ics">
+						<h4>No upcoming games to download</h4>
+						<p>Try again later or fetch another team schedule.</p>
+						<div class="soccer-recovery-actions">
+							<a class="btn soccer-secondary-btn" href="#team_codes">Return to manual team IDs</a>
+						</div>
+					</div>
+					<div class="games-empty-panel" role="status" data-soccer-output-only="google" hidden>
 						<h4>No upcoming games right now</h4>
 						<p>Past results are still available below if you want to review or sync them.</p>
 					</div>
 				}
 				if len(props.PastGames) > 0 {
-					<section class="games-results-item">
+					<section class="games-results-item" data-soccer-output-only="google" hidden>
 						<form
 							id="past-results-form"
 							if !props.Preview {
@@ -289,7 +306,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 												Past results
 												<span class="games-total-count">{ gamesCountLabel(len(props.PastGames)) }</span>
 											</h4>
-											<p class="games-section-copy">Completed matches stay available here so you can review scores or sync them to Google Calendar.</p>
+											<p class="games-section-copy">Completed matches stay available here. Sync writes each selected score into the event this site added to your chosen calendar and never adds a past game.</p>
 										</div>
 									</div>
 									<div class="games-section-toolbar">
@@ -336,14 +353,14 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 										}
 									</div>
 								</div>
-								@SoccerGamesList("past-results", props.PastGames)
+								@SoccerGamesList("past-results", props.PastGames, palette)
 							</div>
 						</form>
 					</section>
 				}
 			</div>
 			if props.GoogleAvailable && !props.GoogleConnected {
-				<div class="soccer-google-cta soccer-google-cta--inline">
+				<div class="soccer-google-cta soccer-google-cta--inline" data-soccer-output-only="google" hidden>
 					<p class="table-helper-copy">Connect Google Calendar to add selected games directly or sync selected past results.</p>
 					if props.Preview {
 						<button type="button" class="btn soccer-secondary-btn" disabled aria-disabled="true"><span class="btn-text">Connect Google Calendar</span></button>
@@ -356,7 +373,7 @@ templ SoccerTableFragment(props SoccerTableFragmentProps) {
 				</div>
 			}
 			if !props.GoogleAvailable {
-				<div class="soccer-google-cta soccer-google-cta--inline">
+				<div class="soccer-google-cta soccer-google-cta--inline" data-soccer-output-only="google" hidden>
 					<p class="table-helper-copy">Google Calendar add is unavailable in this environment. Select upcoming games and download an .ics file instead.</p>
 				</div>
 			}

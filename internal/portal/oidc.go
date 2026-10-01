@@ -3,11 +3,8 @@ package portal
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,41 +20,7 @@ import (
 )
 
 // ──────────────────────────────────────────────
-// PKCE pure-function helpers (task 4.1)
-// ──────────────────────────────────────────────
-
-// generateCodeVerifier returns a 32-byte random value encoded as base64url
-// without padding, suitable for use as an OAuth 2.0 PKCE code_verifier.
-func generateCodeVerifier() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating code verifier: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-// codeChallenge computes the PKCE S256 code_challenge for the given verifier:
-//
-//	BASE64URL(SHA-256(ASCII(code_verifier)))
-//
-// No padding characters are included, as required by RFC 7636.
-func codeChallenge(verifier string) string {
-	h := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(h[:])
-}
-
-// generateState returns 16 random bytes encoded as a lowercase hex string,
-// suitable for use as an OAuth 2.0 state nonce.
-func generateState() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generating state: %w", err)
-	}
-	return hex.EncodeToString(b), nil
-}
-
-// ──────────────────────────────────────────────
-// Token and Claims types (task 4.2)
+// Token and Claims types
 // ──────────────────────────────────────────────
 
 // TokenResponse is the JSON body returned by the Cognito token endpoint.
@@ -68,7 +31,7 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
-// Claims holds the subset of JWT claims the portal cares about.
+// Claims holds the subset of JWT claims needed for site identity.
 type Claims struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`
@@ -98,14 +61,30 @@ type jwksResponse struct {
 	Keys []jwk `json:"keys"`
 }
 
+// jwksRefreshInterval is the shortest time between two JWKS refetches forced by
+// tokens naming a kid the cached set lacks. Cognito publishes a new signing key
+// before it signs with it, so one refetch picks up a rotation; within this
+// interval of the last forced refetch, a token naming an unknown kid is
+// rejected without another request to the issuer.
+const jwksRefreshInterval = time.Minute
+
+// jwksRefetchTimeout bounds a forced JWKS refetch. The refetch runs apart from
+// the triggering request's cancellation, because it starts the interval for
+// every request: a request that ends early must not abort it before the issuer
+// answers. http.DefaultClient has no timeout of its own.
+const jwksRefetchTimeout = 5 * time.Second
+
 // jwksCache holds cached public keys fetched from a Cognito JWKS endpoint.
-// It refreshes at most once per hour.
+// It refreshes once per hour, and sooner, at most once per
+// jwksRefreshInterval, when a token names a kid the cached set lacks.
 type jwksCache struct {
-	mu        sync.RWMutex
-	keys      map[string]crypto.PublicKey // kid → *rsa.PublicKey
-	fetchedAt time.Time
-	ttl       time.Duration
-	fetchFn   func(ctx context.Context) ([]jwk, error)
+	mu          sync.RWMutex
+	keys        map[string]crypto.PublicKey // kid → *rsa.PublicKey
+	fetchedAt   time.Time
+	refreshedAt time.Time // last refetch forced by an unknown kid
+	ttl         time.Duration
+	now         func() time.Time
+	fetchFn     func(ctx context.Context) ([]jwk, error)
 }
 
 // newJWKSCache constructs a jwksCache that fetches keys from jwksURL using
@@ -114,6 +93,7 @@ func newJWKSCache(jwksURL string) *jwksCache {
 	c := &jwksCache{
 		keys: make(map[string]crypto.PublicKey),
 		ttl:  time.Hour,
+		now:  time.Now,
 	}
 	c.fetchFn = func(ctx context.Context) ([]jwk, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
@@ -146,7 +126,7 @@ func newJWKSCache(jwksURL string) *jwksCache {
 func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, error) {
 	// Fast path: read lock.
 	c.mu.RLock()
-	if len(c.keys) > 0 && time.Since(c.fetchedAt) < c.ttl {
+	if len(c.keys) > 0 && c.now().Sub(c.fetchedAt) < c.ttl {
 		keys := c.keys
 		c.mu.RUnlock()
 		return keys, nil
@@ -158,7 +138,7 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 	defer c.mu.Unlock()
 
 	// Double-check after acquiring write lock.
-	if len(c.keys) > 0 && time.Since(c.fetchedAt) < c.ttl {
+	if len(c.keys) > 0 && c.now().Sub(c.fetchedAt) < c.ttl {
 		return c.keys, nil
 	}
 
@@ -167,7 +147,47 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 		return nil, err
 	}
 
-	newKeys := make(map[string]crypto.PublicKey, len(rawKeys))
+	c.keys = parseJWKs(rawKeys)
+	c.fetchedAt = c.now()
+	return c.keys, nil
+}
+
+// refreshForKid refetches the JWKS because a token named kid, which the cached
+// set lacks, and returns kid's key from the refreshed set. It refetches at most
+// once per jwksRefreshInterval, under jwksRefetchTimeout and not the caller's
+// cancellation. A refetch that fails or yields no usable key keeps the cached
+// set.
+func (c *jwksCache) refreshForKid(ctx context.Context, kid string) (crypto.PublicKey, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if pub, found := c.keys[kid]; found {
+		// Another request refreshed the set while this one waited.
+		return pub, true
+	}
+	now := c.now()
+	if !c.refreshedAt.IsZero() && now.Sub(c.refreshedAt) < jwksRefreshInterval {
+		return nil, false
+	}
+	c.refreshedAt = now
+	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), jwksRefetchTimeout)
+	defer cancel()
+	rawKeys, err := c.fetchFn(fetchCtx)
+	if err != nil {
+		return nil, false
+	}
+	keys := parseJWKs(rawKeys)
+	if len(keys) == 0 {
+		return nil, false
+	}
+	c.keys, c.fetchedAt = keys, now
+	pub, found := c.keys[kid]
+	return pub, found
+}
+
+// parseJWKs returns the RSA keys of a JWKS response by kid. It skips keys it
+// cannot parse rather than failing the whole set.
+func parseJWKs(rawKeys []jwk) map[string]crypto.PublicKey {
+	keys := make(map[string]crypto.PublicKey, len(rawKeys))
 	for i := range rawKeys {
 		k := &rawKeys[i]
 		if k.Kty != "RSA" {
@@ -175,15 +195,11 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 		}
 		pub, err := parseRSAPublicKey(k)
 		if err != nil {
-			// Skip keys we cannot parse rather than failing the whole refresh.
 			continue
 		}
-		newKeys[k.Kid] = pub
+		keys[k.Kid] = pub
 	}
-
-	c.keys = newKeys
-	c.fetchedAt = time.Now()
-	return c.keys, nil
+	return keys
 }
 
 // parseRSAPublicKey converts a JWK RSA entry into an *rsa.PublicKey.
@@ -292,7 +308,9 @@ func (c *OIDCClient) ExchangeCode(ctx context.Context, code, codeVerifier string
 
 // ValidateIDToken verifies a raw Cognito ID token JWT. It:
 //   - Fetches the JWKS from the cache (refreshing if needed)
-//   - Parses the JWT and looks up the signing key by kid
+//   - Parses the JWT and looks up the signing key by kid, refetching the JWKS
+//     once (at most once per jwksRefreshInterval) when the kid is unknown, so
+//     a key Cognito has just rotated in validates before the cache expires
 //   - Verifies the RS256 signature
 //   - Verifies iss == CognitoIssuer
 //   - Verifies aud == ClientID
@@ -314,6 +332,9 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 			return nil, errors.New("missing kid in JWT header")
 		}
 		pub, found := keys[kid]
+		if !found {
+			pub, found = c.jwksCache.refreshForKid(ctx, kid)
+		}
 		if !found {
 			return nil, fmt.Errorf("no public key found for kid %q", kid)
 		}
@@ -380,7 +401,14 @@ func (c *OIDCClient) ValidateIDToken(ctx context.Context, rawIDToken string) (*C
 	if email, ok := mc["email"].(string); ok {
 		claims.Email = email
 	}
-	claims.EmailVerified, _ = mc["email_verified"].(bool)
+	// Cognito can emit email_verified as the string "true" for federated
+	// users, so accept that exact form as well as a boolean.
+	switch verified := mc["email_verified"].(type) {
+	case bool:
+		claims.EmailVerified = verified
+	case string:
+		claims.EmailVerified = verified == "true"
+	}
 	if username, ok := mc["cognito:username"].(string); ok {
 		claims.Username = username
 	}

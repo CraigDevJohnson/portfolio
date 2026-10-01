@@ -54,33 +54,65 @@ variable "live_version_override" {
   default = null
 }
 
-variable "management" {
-  description = "Reviewed public development management settings; never provider or session credentials."
+variable "site" {
+  description = "Reviewed non-secret development site identity: the site auth root's site_runtime fields plus invitations, the only reviewed development grant map."
   type = object({
-    cognito_domain           = string
-    cognito_issuer           = string
-    cognito_client_id        = string
-    redirect_uri             = string
-    logout_uri               = string
-    allowed_emails           = set(string)
-    allow_local_callback     = bool
-    ec2_management_tag_key   = string
-    ec2_management_tag_value = string
+    cognito_domain       = string
+    cognito_issuer       = string
+    cognito_client_id    = string
+    redirect_uri         = string
+    logout_uri           = string
+    invitations          = map(set(string))
+    allow_local_callback = bool
+  })
+  default = null
+}
+
+variable "management" {
+  description = "Identity-free development portal switch: null, or the region where the portal may read EC2 inventory and metrics. Setting it grants those read-only actions and passes MGMT_AWS_REGION; the portal signs in through site identity and the management grant, so it carries no Cognito, callback, allowlist or session settings."
+  type = object({
+    aws_region = string
   })
   default = null
 
   validation {
-    condition = var.management == null ? true : (
-      can(regex("^https://[a-z0-9-]+\\.auth\\.us-west-2\\.amazoncognito\\.com$", var.management.cognito_domain)) &&
-      can(regex("^https://cognito-idp\\.us-west-2\\.amazonaws\\.com/us-west-2_[A-Za-z0-9]+$", var.management.cognito_issuer)) &&
-      can(regex("^[a-z0-9]{1,128}$", var.management.cognito_client_id)) &&
-      var.management.redirect_uri == "https://dev.craigdevjohnson.com/callback" &&
-      var.management.logout_uri == "https://dev.craigdevjohnson.com/login" &&
-      var.management.allowed_emails == toset(["craigdevjohnson@gmail.com"]) &&
-      var.management.allow_local_callback != null &&
-      var.management.ec2_management_tag_key == "PortfolioManagement" &&
-      var.management.ec2_management_tag_value == "dev"
-    )
-    error_message = "management must contain only the reviewed development public identity, callbacks, allowlist and EC2 tag."
+    condition     = var.management == null ? true : var.management.aws_region == "us-west-2"
+    error_message = "management must be null or exactly { aws_region = \"us-west-2\" }."
   }
+}
+
+# LPS history sync (#80). Each is required, so its reviewed value lives in
+# dev.auto.tfvars and a saved plan's apply sees the same input; never pass
+# them with -var. The service module validates them and plans nothing for
+# history until each stage's switches and inputs are all set.
+variable "enable_soccer_history" {
+  description = "Plan the durable Soccer history table and the HTTP runtime's grant to it."
+  type        = bool
+}
+
+variable "soccer_history_limits" {
+  description = "Reviewed source-use and cost ceilings for history collection and the daily worker."
+  type = object({
+    max_enrolled_teams      = number
+    reserved_player_slots   = number
+    max_requests_per_run    = number
+    max_retries_per_team    = number
+    min_request_interval_ms = number
+    worker_timeout_seconds  = number
+  })
+}
+
+variable "activate_soccer_history_collection" {
+  description = "Let the HTTP runtime enroll teams into durable history."
+  type        = bool
+}
+
+variable "activate_soccer_history_schedule" {
+  description = "Plan the daily history worker, its schedule, failure queue and alarms. Applying it starts live LPS polling."
+  type        = bool
+}
+
+variable "soccer_history_schedule_expression" {
+  description = "Reviewed once-daily UTC EventBridge Scheduler expression, or null for no schedule."
+  type        = string
 }

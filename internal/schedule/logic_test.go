@@ -27,3 +27,18 @@ func TestPastGamesWithResults(t *testing.T) {
 func mislabelledZuluTime(at time.Time) string {
 	return at.In(MountainTimeLocation()).Format("2006-01-02T15:04:05.000") + "Z"
 }
+
+func TestNormalizeScheduleGamesNamesAFieldOnlyLocationOnce(t *testing.T) {
+	for field, want := range map[string]string{
+		"3":            "Field 3",
+		"Field 3":      "Field 3",
+		"field 3":      "field 3",
+		"Fieldhouse B": "Field Fieldhouse B",
+	} {
+		games := []types.Game{{ID: "game", Field: field}}
+		NormalizeScheduleGames(games)
+		if games[0].Location != want {
+			t.Errorf("field %q: Location = %q, want %q", field, games[0].Location, want)
+		}
+	}
+}

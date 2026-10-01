@@ -1,6 +1,7 @@
 #!/bin/sh
 # Verify a released environment: the public routes answer from the expected
-# revision, the live alias runs the released image, and no alarm is firing.
+# revision, the live alias runs the released image, and none of the
+# environment's alarms is missing or firing.
 set -eu
 
 : "${ENVIRONMENT:?set ENVIRONMENT to dev or prod}"
@@ -100,11 +101,30 @@ jq -e --arg digest "$IMAGE_DIGEST" '.Code.ImageUri | endswith("@" + $digest)' \
   exit 1
 }
 
-aws cloudwatch describe-alarms --no-paginate --output json --alarm-names \
-  "$function_name-api-5xx" "$function_name-api-latency" "$function_name-lambda-duration" \
-  "$function_name-lambda-errors" "$function_name-lambda-throttles" > "$evidence/alarms.json"
-jq -e '(.MetricAlarms | length) == 5 and all(.MetricAlarms[]; .StateValue != "ALARM")' \
-  "$evidence/alarms.json" > /dev/null || {
+# The environment's outputs name its alarms: the five service alarms, plus the
+# LPS history alarms only once a history stage is applied. History alarms that
+# the environment does not have are neither expected nor requested, so a
+# release with history off asks only for the alarms the CI roles have always
+# been able to read.
+jq -e --arg prefix "$function_name-" '
+  .alarm_names.value as $names |
+  ($names | type) == "array" and
+  all($names[]; type == "string" and startswith($prefix) and test("^[a-z0-9-]+$")) and
+  all("api-5xx", "api-latency", "lambda-duration", "lambda-errors", "lambda-throttles";
+    ($prefix + .) as $service | any($names[]; . == $service))
+' "$evidence/outputs.json" > /dev/null || {
+  echo 'The environment outputs do not name its service alarms' >&2
+  exit 1
+}
+alarm_names=$(jq -r '.alarm_names.value[]' "$evidence/outputs.json")
+alarm_count=$(printf '%s\n' "$alarm_names" | wc -l | tr -d '[:space:]')
+# The names were checked above to hold only [a-z0-9-], so splitting is safe.
+# shellcheck disable=SC2086
+aws cloudwatch describe-alarms --no-paginate --output json --alarm-names $alarm_names \
+  > "$evidence/alarms.json"
+jq -e --argjson count "$alarm_count" '
+  (.MetricAlarms | length) == $count and all(.MetricAlarms[]; .StateValue != "ALARM")
+' "$evidence/alarms.json" > /dev/null || {
   echo 'An environment alarm is missing or in ALARM' >&2
   exit 1
 }

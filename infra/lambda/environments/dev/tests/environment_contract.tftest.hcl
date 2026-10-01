@@ -41,6 +41,10 @@ mock_provider "aws" {
     defaults = { arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" }
   }
 
+  mock_resource "aws_sqs_queue" {
+    defaults = { arn = "arn:aws:sqs:us-west-2:111122223333:portfolio-lambda-dev-soccer-history-failures" }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test" }
   }
@@ -150,12 +154,44 @@ run "development_environment_contract" {
   }
 
   assert {
+    condition = (
+      output.soccer_history_table_name == null &&
+      output.soccer_history_table_arn == null &&
+      output.soccer_history_worker_function_name == null &&
+      output.soccer_history_schedule_name == null
+    )
+    error_message = "development must not plan the durable Soccer history table, worker or schedule before its activation review"
+  }
+
+  # Gates 3 and 4 of the LPS history readiness packet accepted these limits on
+  # September 30, 2026, and Craig decided the same day that development neither
+  # collects nor runs the daily schedule, so every switch is off.
+  assert {
+    condition = (
+      !var.enable_soccer_history &&
+      !var.activate_soccer_history_collection &&
+      !var.activate_soccer_history_schedule &&
+      var.soccer_history_schedule_expression == null &&
+      var.soccer_history_limits == {
+        max_enrolled_teams      = 40
+        reserved_player_slots   = 30
+        max_requests_per_run    = 120
+        max_retries_per_team    = 1
+        min_request_interval_ms = 1000
+        worker_timeout_seconds  = 300
+      }
+    )
+    error_message = "development must carry the accepted history limits with collection and the schedule off"
+  }
+
+  assert {
     condition = output.ssm_parameter_paths == tomap({
       CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
       CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
       LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+      SITE_SESSION_KEY  = "/portfolio/lambda/dev/SITE_SESSION_KEY"
     })
-    error_message = "development must expose only the three non-secret SSM paths"
+    error_message = "development must expose only its four SSM paths, including SITE_SESSION_KEY now that its reviewed site identity is set"
   }
 
   assert {
@@ -186,19 +222,85 @@ run "management_runtime_contract" {
   command = plan
   variables {
     management = {
-      cognito_domain           = "https://portfolio-lambda-dev-mgmt.auth.us-west-2.amazoncognito.com"
-      cognito_issuer           = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_Test123"
-      cognito_client_id        = "testclient123"
-      redirect_uri             = "https://dev.craigdevjohnson.com/callback"
-      logout_uri               = "https://dev.craigdevjohnson.com/login"
-      allowed_emails           = ["craigdevjohnson@gmail.com"]
-      allow_local_callback     = false
-      ec2_management_tag_key   = "PortfolioManagement"
-      ec2_management_tag_value = "dev"
+      aws_region = "us-west-2"
     }
   }
   assert {
-    condition     = length(output.ssm_parameter_paths) == 4 && output.ssm_parameter_paths.MGMT_SESSION_KEY == "/portfolio/lambda/dev/MGMT_SESSION_KEY" && output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
-    error_message = "dev root must forward public management configuration into its existing runtime"
+    condition = (
+      output.ssm_parameter_paths == tomap({
+        CLIENT_ID_KEY     = "/portfolio/lambda/dev/CLIENT_ID_KEY"
+        CLIENT_SECRET_KEY = "/portfolio/lambda/dev/CLIENT_SECRET_KEY"
+        LPS_SESSION_KEY   = "/portfolio/lambda/dev/LPS_SESSION_KEY"
+        SITE_SESSION_KEY  = "/portfolio/lambda/dev/SITE_SESSION_KEY"
+      }) &&
+      output.lambda_execution_role_name == "portfolio-lambda-dev-execution"
+    )
+    error_message = "dev root must forward the identity-free management switch into its existing runtime without the retired MGMT_SESSION_KEY parameter"
+  }
+}
+
+run "reject_management_in_another_region" {
+  command = plan
+  variables {
+    management = {
+      aws_region = "us-east-1"
+    }
+  }
+  expect_failures = [var.management]
+}
+
+run "site_runtime_contract" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-dev-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_DevSite"
+      cognito_client_id    = "devsiteclient"
+      redirect_uri         = "https://dev.craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://dev.craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer", "management"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition     = output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/dev/SITE_SESSION_KEY"
+    error_message = "development must forward its site identity with a development-only session parameter path"
+  }
+}
+
+# Proves the root hands every history input from dev.auto.tfvars to the
+# service module: switching them on here plans each stage. This is not a
+# reviewed development configuration.
+run "history_inputs_reach_the_service" {
+  command = plan
+
+  variables {
+    alarm_action_arns                  = ["arn:aws:sns:us-west-2:111122223333:alerts"]
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+    soccer_history_schedule_expression = "cron(30 10 * * ? *)"
+  }
+
+  assert {
+    condition = (
+      output.soccer_history_table_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_worker_function_name == "portfolio-lambda-dev-soccer-history" &&
+      output.soccer_history_schedule_name == "portfolio-lambda-dev-soccer-history-daily" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-dev-api-5xx",
+        "portfolio-lambda-dev-api-latency",
+        "portfolio-lambda-dev-lambda-duration",
+        "portfolio-lambda-dev-lambda-errors",
+        "portfolio-lambda-dev-lambda-throttles",
+        "portfolio-lambda-dev-soccer-history-admission-rejected",
+        "portfolio-lambda-dev-soccer-history-dead-letter",
+        "portfolio-lambda-dev-soccer-history-errors",
+        "portfolio-lambda-dev-soccer-history-incomplete",
+      ])
+    )
+    error_message = "development must pass the history switches, limits and schedule to the service module"
   }
 }

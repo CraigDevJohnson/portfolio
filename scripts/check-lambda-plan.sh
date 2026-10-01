@@ -1,7 +1,9 @@
 #!/bin/sh
 # Accept a CI release plan only when it updates the environment's Lambda image
-# and live alias. The CI roles cannot change anything else, so any other change
-# means infrastructure is pending: Craig applies it with workloads-admin first.
+# and live alias, and the LPS history worker's image when that worker exists.
+# Both images must be the release image. The CI roles cannot change anything
+# else, so any other change means infrastructure is pending: Craig applies it
+# with workloads-admin first.
 set -eu
 
 : "${PLAN_JSON:?set PLAN_JSON to the saved-plan JSON path}"
@@ -42,15 +44,18 @@ jq -e --arg image "$IMAGE_URI" '
   def allowed:
     {
       "module.service.aws_lambda_function.app": ["image_uri"],
-      "module.service.aws_lambda_alias.live": ["function_version"]
+      "module.service.aws_lambda_alias.live": ["function_version"],
+      "module.service.aws_lambda_function.history_worker[0]": ["image_uri"]
     };
   [.resource_changes[] | select(.mode == "managed" and .change.actions == ["update"])] as $updates |
   [.resource_changes[] | select(.address == "module.service.aws_lambda_function.app")] as $function |
   all($updates[]; (allowed[.address] // null) as $attributes |
     $attributes != null and (changed_attributes - $attributes) == []) and
   ($function | length) == 1 and
-  $function[0].change.after.image_uri == $image
+  $function[0].change.after.image_uri == $image and
+  all($updates[] | select(.address == "module.service.aws_lambda_function.history_worker[0]");
+    .change.after.image_uri == $image)
 ' "$PLAN_JSON" > /dev/null ||
-  fail 'plan must change only the Lambda image and live alias, to the release image'
+  fail 'plan must change only the Lambda images and live alias, to the release image'
 
-printf 'Release plan accepted: only the Lambda image and live alias change\n'
+printf 'Release plan accepted: only the Lambda images and live alias change\n'

@@ -39,7 +39,7 @@ func (m *portalEC2Mock) StopInstances(context.Context, *ec2.StopInstancesInput, 
 }
 
 func newPortalTestHandler(ec2Client EC2ClientIface) *Handler {
-	return NewHandler(&config.Config{PortalSessionKey: make([]byte, 32), PortalCognitoDomain: "https://issuer.example", PortalCognitoClientID: "client", PortalAWSRegion: "us-east-1"}, nil, ec2Client, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return NewHandler(&config.Config{PortalAWSRegion: "us-east-1"}, ec2Client, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func TestInstanceActionRejectsInvalidIDBeforeAWSCall(t *testing.T) {

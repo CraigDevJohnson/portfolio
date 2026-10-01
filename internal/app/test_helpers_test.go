@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,9 +11,85 @@ import (
 	"portfolio/internal/config"
 	internalgoogle "portfolio/internal/google"
 	internalsession "portfolio/internal/session"
+	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
 	"portfolio/types"
 )
+
+// The invited principal a completed site sign-in leaves in a test browser.
+const (
+	testSiteIssuer  = "https://issuer.example.com/pool"
+	testSiteSubject = "granted-subject"
+	testSiteEmail   = "owner@example.com"
+)
+
+// enableTestSiteIdentity configures complete site identity on the test app
+// with the given reviewed invitation map of emails to page grants.
+func enableTestSiteIdentity(app *App, invitations map[string][]string) {
+	app.Config.SiteSessionKey = bytes.Repeat([]byte("s"), 32)
+	app.Config.SiteCognitoDomain = "https://auth.example.com"
+	app.Config.SiteCognitoIssuer = testSiteIssuer
+	app.Config.SiteCognitoClientID = "site-client"
+	app.Config.SiteCognitoRedirectURI = "https://app.example.com/auth/callback"
+	app.Config.SiteCognitoLogoutURI = "https://app.example.com/sign-in"
+	app.Config.SiteInvitations = invitations
+}
+
+// testSiteSessionCookie returns the site session cookie a completed Cognito
+// sign-in sets for the given subject and invited email.
+func testSiteSessionCookie(t *testing.T, app *App, subject, email string) *http.Cookie {
+	t.Helper()
+	value, err := internalsession.EncryptJSONValue(app.Config.SiteSessionKey, map[string]any{
+		"principal":  siteidentity.Principal{Issuer: testSiteIssuer, Subject: subject, Email: email},
+		"expires_at": time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("EncryptJSONValue returned error: %v", err)
+	}
+	return &http.Cookie{Name: config.SiteSessionCookieName, Value: value}
+}
+
+// signedInSiteCookie enables site identity on the test app, invites the test
+// principal with the given page grants in the current configuration, and
+// returns the site session cookie a completed Cognito sign-in would set.
+func signedInSiteCookie(t *testing.T, app *App, grants ...string) *http.Cookie {
+	t.Helper()
+	enableTestSiteIdentity(app, map[string][]string{testSiteEmail: append([]string{}, grants...)})
+	return testSiteSessionCookie(t, app, testSiteSubject, testSiteEmail)
+}
+
+// ownedBySiteVisitor binds imported LPS access to the signed-in test
+// principal, as an import through that site session does.
+func ownedBySiteVisitor(session *types.SessionData) *types.SessionData {
+	session.OwnerIssuer = testSiteIssuer
+	session.OwnerSubject = testSiteSubject
+	return session
+}
+
+// asGrantedSoccerOwner gives a request that reaches a Soccer or Google
+// handler directly the site identity the route assembly attaches for the
+// signed-in test principal holding the soccer grant.
+func asGrantedSoccerOwner(req *http.Request) *http.Request {
+	principal := &siteidentity.Principal{Issuer: testSiteIssuer, Subject: testSiteSubject, Email: testSiteEmail}
+	ctx := siteidentity.WithRequestIdentity(req.Context(), principal, []siteidentity.Grant{siteidentity.GrantSoccer}, req.URL.Path)
+	return req.WithContext(ctx)
+}
+
+// ownerGoogleConnectionName is the name of the test site owner's Google
+// connection cookie.
+var ownerGoogleConnectionName = internalgoogle.ConnectionCookieName(testSiteIssuer, testSiteSubject)
+
+// grantedSoccerRoutes serves the real route assembly to a browser holding a
+// current site session with the soccer grant.
+func grantedSoccerRoutes(t *testing.T, app *App) http.Handler {
+	t.Helper()
+	cookie := signedInSiteCookie(t, app, "soccer")
+	mux, _ := buildMux(app, app.Logger, false)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.AddCookie(cookie)
+		mux.ServeHTTP(w, r)
+	})
+}
 
 func newTestApp(t *testing.T) *App {
 	t.Helper()
@@ -33,10 +110,24 @@ func newTestApp(t *testing.T) *App {
 		nil,
 	)
 	app.GoogleHandler.Soccer = newTestSoccerHandler(app)
+	withoutLiveGoogle(app)
 	t.Cleanup(func() {
 		app.LoginLimiter.Close()
 	})
 	return app
+}
+
+// unreachableGoogle is a closed loopback address. Tests point Google at it
+// until they attach their own fake, so none can reach live Google.
+const unreachableGoogle = "http://127.0.0.1:1"
+
+// withoutLiveGoogle points every Google endpoint of the test app at a closed
+// loopback address.
+func withoutLiveGoogle(app *App) {
+	app.GoogleHandler.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
+	app.GoogleHandler.OAuthTokenURL = unreachableGoogle + "/oauth/token"
+	app.GoogleHandler.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
+	app.GoogleHandler.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 }
 
 // newTestSoccerHandler returns a handler wired to the test app dependencies.
@@ -77,11 +168,46 @@ func decryptTestSession(t *testing.T, app *App, value string) types.SessionData 
 	return session
 }
 
-// addSessionCookie attaches an encrypted soccer session cookie to the request.
+// addSessionCookie attaches an encrypted soccer session cookie and its import
+// guard to the request. A session without an owner is bound to the signed-in
+// test principal, as an import through that site session binds it; tests of
+// legacy ownerless state encrypt the session themselves.
 func addSessionCookie(t *testing.T, app *App, req *http.Request, session *types.SessionData) {
 	t.Helper()
-	encrypted := encryptTestSession(t, app, session)
-	req.AddCookie(&http.Cookie{Name: config.LPSSessionCookieName, Value: encrypted})
+	owned := *session
+	if owned.OwnerIssuer == "" && owned.OwnerSubject == "" {
+		ownedBySiteVisitor(&owned)
+	}
+	for _, cookie := range importedAccessCookies(t, app, &owned) {
+		req.AddCookie(cookie)
+	}
+}
+
+// testImportGuard is the guard a test import shares with its guard cookie.
+const testImportGuard = "test-import-guard"
+
+// importedAccessCookies returns the cookies a browser holds after an import:
+// the encrypted session and the import guard cookie it must match.
+func importedAccessCookies(t *testing.T, app *App, session *types.SessionData) []*http.Cookie {
+	t.Helper()
+	guarded := *session
+	if guarded.ImportGuard == "" {
+		guarded.ImportGuard = testImportGuard
+	}
+	return []*http.Cookie{
+		{Name: config.LPSSessionCookieName, Value: encryptTestSession(t, app, &guarded)},
+		{Name: config.LPSImportGuardCookieName, Value: guarded.ImportGuard},
+	}
+}
+
+// findImportGuardCookie returns the import guard cookie from an HTTP response.
+func findImportGuardCookie(resp *http.Response) *http.Cookie {
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == config.LPSImportGuardCookieName {
+			return cookie
+		}
+	}
+	return nil
 }
 
 // findSessionCookie returns the soccer session cookie from an HTTP response.

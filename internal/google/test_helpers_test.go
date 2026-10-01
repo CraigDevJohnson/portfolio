@@ -9,8 +9,39 @@ import (
 	"time"
 
 	"portfolio/internal/config"
+	"portfolio/internal/siteidentity"
 	"portfolio/types"
 )
+
+// The verified site owner these tests act as. Owner-bound connections carry
+// these coordinates, and the route assembly attaches this identity to every
+// request it serves.
+const (
+	testOwnerIssuer  = "https://issuer.example.com/pool"
+	testOwnerSubject = "owner-subject"
+	testOwnerEmail   = "owner@example.com"
+)
+
+// The Google account that consented to Calendar access for stored
+// connections, verified by Google rather than taken from the site sign-in.
+const (
+	testAccountSubject = "google-account-subject"
+	testAccountEmail   = "calendar@example.com"
+)
+
+// ownerConnectionCookie is the test owner's Google connection cookie naming
+// the given connection.
+func ownerConnectionCookie(connectionID string) *http.Cookie {
+	return &http.Cookie{Name: ConnectionCookieName(testOwnerIssuer, testOwnerSubject), Value: connectionID}
+}
+
+// asGrantedSoccerOwner gives a request that reaches a Google handler directly
+// the site identity of the test owner holding the soccer grant.
+func asGrantedSoccerOwner(req *http.Request) *http.Request {
+	principal := &siteidentity.Principal{Issuer: testOwnerIssuer, Subject: testOwnerSubject, Email: testOwnerEmail}
+	ctx := siteidentity.WithRequestIdentity(req.Context(), principal, []siteidentity.Grant{siteidentity.GrantSoccer}, "/soccer")
+	return req.WithContext(ctx)
+}
 
 func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	t.Helper()
@@ -26,6 +57,13 @@ func newTestHandler(t *testing.T, store ConnectionStore) *Handler {
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	h := NewHandler(cfg, &http.Client{Timeout: 5 * time.Second}, logger, &stubSoccerBridge{})
+	// A closed loopback address stands in for every Google endpoint until a
+	// test attaches its own fake, so no test can reach live Google.
+	const unreachableGoogle = "http://127.0.0.1:1"
+	h.OAuthAuthURL = unreachableGoogle + "/oauth/authorize"
+	h.OAuthTokenURL = unreachableGoogle + "/oauth/token"
+	h.OAuthUserInfoURL = unreachableGoogle + "/userinfo"
+	h.CalendarAPIBaseURL = unreachableGoogle + "/calendar/v3"
 	h.SetStore(store)
 	return h
 }
@@ -64,6 +102,14 @@ func (s *fakeConnectionStore) Get(_ context.Context, connectionID string) (*Conn
 }
 
 func (s *fakeConnectionStore) Put(_ context.Context, record *ConnectionRecord) error {
+	s.records[record.ConnectionID] = *record
+	return nil
+}
+
+func (s *fakeConnectionStore) PutIfUnchanged(_ context.Context, record *ConnectionRecord, readUpdatedAt time.Time) error {
+	if stored, ok := s.records[record.ConnectionID]; !ok || !stored.UpdatedAt.Equal(readUpdatedAt) {
+		return ErrConnectionChanged
+	}
 	s.records[record.ConnectionID] = *record
 	return nil
 }

@@ -10,7 +10,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"portfolio/cmd/web/partials"
-	"portfolio/internal/config"
 )
 
 func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
@@ -27,6 +26,10 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 	}
 	store.records["connection-1"] = ConnectionRecord{
 		ConnectionID:    "connection-1",
+		OwnerIssuer:     testOwnerIssuer,
+		OwnerSubject:    testOwnerSubject,
+		AccountSubject:  testAccountSubject,
+		AccountEmail:    testAccountEmail,
 		TokenCiphertext: tokenCiphertext,
 		CalendarID:      "primary",
 		CalendarSummary: "Primary Calendar",
@@ -47,8 +50,9 @@ func TestPopulateLoginStateClearsRevokedGoogleConnection(t *testing.T) {
 	h.OAuthTokenURL = tokenServer.URL + "/oauth/token"
 
 	req := httptest.NewRequest(http.MethodGet, "/soccer", nil)
+	req = asGrantedSoccerOwner(req)
 	req.Host = "example.com"
-	req.AddCookie(&http.Cookie{Name: config.GoogleConnectionCookieName, Value: "connection-1"})
+	req.AddCookie(ownerConnectionCookie("connection-1"))
 	resp := httptest.NewRecorder()
 	props := partials.SoccerLoginStateProps{GoogleAvailable: true}
 
@@ -83,7 +87,7 @@ func assertClearedConnectionCookie(t *testing.T, resp *http.Response) {
 	t.Helper()
 	var connectionCookie *http.Cookie
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == config.GoogleConnectionCookieName {
+		if cookie.Name == ConnectionCookieName(testOwnerIssuer, testOwnerSubject) {
 			connectionCookie = cookie
 			break
 		}

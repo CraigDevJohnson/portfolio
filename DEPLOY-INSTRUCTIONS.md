@@ -19,11 +19,12 @@ native lock files).
 
 | Root | State key | Owns |
 | --- | --- | --- |
-| `infra/lambda/ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | Account root: the 4 GitHub OIDC CI roles, `PortfolioLambdaExecutionBoundary`, the state bucket ([README](infra/lambda/ci-roles/README.md)) |
+| `infra/lambda/ci-roles` | `portfolio-lambda-http-api/ci-roles/terraform.tfstate` | Account root: the 4 GitHub OIDC CI roles, `PortfolioLambdaExecutionBoundary`, `PortfolioLambdaHistoryExecutionBoundary`, the state bucket ([README](infra/lambda/ci-roles/README.md)) |
 | `infra/lambda/artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | ECR `portfolio-lambda-releases` (immutable tags, scan on push, Lambda pull policy) |
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |
-| `infra/lambda/auth/dev` | `portfolio-lambda-http-api/auth/dev/terraform.tfstate` | Planned dev Cognito pool, not provisioned ([runbook](docs/deployment/cognito-google-dev.md)) |
+| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned; `cognito-site-dev-*` tasks ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned; `cognito-site-prod-*` tasks ([site identity](docs/deployment/site-identity.md)) |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
 execution roles attach the boundary by ARN, so the account root comes first.
@@ -54,7 +55,10 @@ task lambda-dev-apply PLAN_FILE=/absolute/path/dev.tfplan
 ```
 
 The same `-init`, `-plan` and `-apply` tasks exist for `lambda-ci-roles`,
-`lambda-artifacts` and `lambda-prod`. The dev and prod plans take
+`lambda-artifacts` and `lambda-prod`. The site identity roots hold the Google
+client secret in their plans and state, so they have their own private
+`cognito-site-<env>-init`, `-plan`, `-apply` and `-export` tasks, described in
+[site identity](docs/deployment/site-identity.md#private-operator-path). The dev and prod plans take
 `IMAGE_DIGEST` from `portfolio-lambda-releases`. The prod plan always sets
 `alarm_action_arns` to the workloads us-west-2 `alerts` topic.
 
@@ -98,6 +102,11 @@ Changing it makes users reconnect Google once. The SecureStrings must exist
 before the first environment plan, because the `alias/aws/ssm` key appears only
 after the first SecureString.
 
+Once an environment's `site` input is set, it also reads
+`/portfolio/lambda/<env>/SITE_SESSION_KEY`: 64 lowercase hexadecimal
+characters from a separate `openssl rand -hex 32`. See
+[site identity](docs/deployment/site-identity.md#activation-prerequisites).
+
 ## Release workflow
 
 `.github/workflows/release.yml` runs after a successful `CI` push to `main`, or
@@ -116,7 +125,9 @@ manually with `workflow_dispatch`:
    with no critical findings.
 4. **development** plans the dev root with that digest, applies it, and verifies
    `/healthz` (revision), `/`, `/soccer`, the stylesheet, a JPEG, the `live`
-   alias image and the five alarms.
+   alias image and every alarm the environment's outputs name: the five
+   service alarms, plus the LPS history alarms once a history stage is
+   applied.
 5. **production-plan** saves the prod plan for the same digest and shows it in
    the job summary.
 6. **production** waits for Craig's approval in the `production` environment,
@@ -138,7 +149,7 @@ GitHub configuration:
 | --- | --- | --- |
 | Repository | `AWS_RELEASE_BUILDER_ROLE_ARN` | |
 | `release-review` | | Required reviewer: Craig |
-| `development` | `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN`, optional `MANAGEMENT_RUNTIME_JSON` | Protected branches |
+| `development` | `AWS_DEVELOPMENT_DEPLOYER_ROLE_ARN`, optional `MANAGEMENT_RUNTIME_JSON` (unset, `null` or exactly `{"aws_region":"us-west-2"}`) | Protected branches |
 | `production-plan` | `AWS_PRODUCTION_PLANNER_ROLE_ARN` | Protected branches. It still requires Craig as a reviewer, so a release asks for approval twice. Removing that reviewer is a separate GitHub change that needs Craig's approval |
 | `production` | `AWS_PRODUCTION_DEPLOYER_ROLE_ARN` | Required reviewer: Craig |
 
@@ -157,6 +168,13 @@ task lambda-prod-apply PLAN_FILE=/absolute/path/rollback.tfplan
 The environment roots also accept `live_version_override` to point `live` at an
 earlier published version.
 
+A release before #93 reads only the browser-wide `google_connection` cookie, so
+while it serves traffic, Google Calendar connections made on #93 or later look
+disconnected. It neither reads nor rewrites them, and they return once the newer
+release is live again. A connection made during the rollback has no verified
+Google account; after rolling forward, its owner sees **Reconnect needed** and
+must reconnect.
+
 ## Custom domains and DNS
 
 Cloudflare is the registrar and DNS for `craigdevjohnson.com`. The records are
@@ -171,7 +189,42 @@ accounts, so a hostname can exist in only one account at a time.
 
 Each environment has five alarms (Lambda errors, throttles and p95 duration;
 API 5xx and p95 latency). Prod alarms notify the workloads us-west-2 `alerts`
-topic; dev alarms notify nothing.
+topic; dev alarms notify nothing. LPS history collection adds an alarm on
+refused player-linked teams, and the daily schedule adds incomplete-run,
+worker-error and failure-queue alarms; both are off in each environment (see
+`infra/lambda/README.md`). A release fails when any of the environment's
+alarms is missing or in ALARM.
+
+The other alarms return to OK within 5 minutes once their condition stops. The
+`portfolio-lambda-<env>-soccer-history-dead-letter` alarm does not: it stays in
+ALARM while any message is visible in
+`portfolio-lambda-<env>-soccer-history-failures`, which keeps a message for 14
+days. A message lands there when a daily worker run fails or Scheduler cannot
+deliver it. Until someone drains the queue, every release in that environment
+applies its plan and then fails verification. Once development runs the
+schedule, a failed development verification also stops `production-plan`. No CI
+role can receive or purge the queue's messages, so drain it as `workloads-admin`:
+
+```sh
+queue_url=$(aws sqs get-queue-url --profile workloads-admin \
+  --queue-name portfolio-lambda-<env>-soccer-history-failures --query QueueUrl --output text)
+aws sqs receive-message --profile workloads-admin --queue-url "$queue_url" \
+  --max-number-of-messages 10 --message-attribute-names All
+# Record each message's cause (with the worker's log lines from that time) and
+# handle it. Then either delete each recorded message within 30 seconds of
+# receiving it, before it becomes visible again:
+aws sqs delete-message --profile workloads-admin --queue-url "$queue_url" \
+  --receipt-handle '<ReceiptHandle>'
+# or, once every message is recorded, purge the queue:
+aws sqs purge-queue --profile workloads-admin --queue-url "$queue_url"
+```
+
+Wait for the alarm to return to OK, then verify again: re-run the failed
+development job, which plans again, or, after a failed production
+verification, start a new Release run, because the saved production plan was
+already applied. The next daily run picks up the teams a failed run left due,
+so nothing needs to be redriven. Gating releases on this alarm is deliberate;
+leaving it out of release verification needs Craig's decision.
 
 ## Local image verification
 
@@ -186,10 +239,156 @@ task test-images
 The build tasks accept optional `IMAGE_TAG` and `BUILD_REVISION` values. They
 default to local tags and the current Git revision.
 
+## Site sign-in
+
+The site sign-in code accepts independent `SITE_*` runtime settings and a
+reviewed `SITE_INVITATIONS_JSON` map as described in README. No environment
+supplies them yet, so deployed pages show no sign-in entry. Separate offline
+development and production Cognito roots and their Lambda handoff contract are
+documented in [site identity configuration](./docs/deployment/site-identity.md).
+They have not provisioned or activated a site pool. Each site root's app
+client registers exactly that environment's `/auth/callback` and `/sign-in`.
+
+### Releasing the Soccer page grant
+
+The Soccer page grant (#86) turns off private Soccer features in every
+deployed environment until that environment has site sign-in:
+
+- Until an environment supplies complete `SITE_*` settings and a
+  `SITE_INVITATIONS_JSON` that gives Craig the `soccer` grant, Soccer offers
+  only Team ID lookup and .ics file downloads. LPS import, linked-player
+  discovery and every Google Calendar route return `401`, even though the
+  environment still supplies `LPS_SESSION_KEY` and the Google client settings.
+  The page says site sign-in is not available there.
+- Private state saved before the release is rejected, not migrated. An LPS
+  import cookie without an owner is cleared on the next Soccer request. A
+  Google connection row without an owner is never used; a granted visitor who
+  still holds its cookie deletes it by disconnecting or reconnecting. Rows whose
+  cookie is gone keep their encrypted tokens in `GOOGLE_CONNECTION_TABLE_NAME`,
+  which has no TTL. Plan a one-time cleanup that revokes each token with Google
+  and then deletes the rows with an empty `owner_subject`. That cleanup deletes
+  live data and needs Craig's approval. Revoking a token withdraws the whole
+  grant for that Google account and OAuth client, so it also disconnects every
+  newer connection to the same Google account; check for those before revoking.
+- Team ID lookup and .ics file downloads stay public throughout.
+- Google Calendar consent (#93) also requests the basic `openid` and `email`
+  scopes so the page can show the Google account that actually connected. If
+  the Google OAuth consent screen lists its scopes, add those two alongside the
+  Calendar scopes; the `/soccer` redirect URIs are unchanged. The server now
+  also calls Google's UserInfo endpoint after consent. An owner-bound
+  connection saved before #93 has no verified Google account, so it is not used
+  until its owner reconnects; the Soccer page marks it **Reconnect needed** and
+  offers Disconnect. Connections made on #93 or later are kept in a cookie per
+  site owner instead of the browser-wide `google_connection` cookie.
+
+#### Release order
+
+Decided 2026-09-30 (decision 1): hold the release of private Soccer (#86)
+until site identity (#88) is live. Each environment gets its site identity
+before a release carrying #86 reaches it, so neither loses LPS import or
+Google Calendar in between; until then it keeps serving its current release.
+
+1. **Provision development site identity.** Complete the development
+   [activation prerequisites](docs/deployment/site-identity.md#activation-prerequisites):
+   its Google OAuth client, the reviewed `task cognito-site-dev-plan` and
+   `task cognito-site-dev-apply`, the `/portfolio/lambda/dev/SITE_SESSION_KEY`
+   SecureString, and the account root planned and applied from the pull
+   request branch (`task lambda-ci-roles-plan`, then
+   `task lambda-ci-roles-apply` of that reviewed plan). The branch's
+   `boundary.tf` already lets both environments read `SITE_SESSION_KEY`, so
+   no boundary edit is needed and that one apply also covers production.
+   Commit the exported `site` block with Craig's `soccer` and `management`
+   invitations to `dev.auto.tfvars` on the pull request branch. That
+   account-root plan also carries the LPS history grants already on the branch
+   ([readiness packet 6.5, step 2](docs/deployment/2026-09-26-lps-history-activation-readiness.md#65-reviewing-a-saved-plan)):
+   more changes to `PortfolioLambdaExecutionBoundary`, a new
+   `PortfolioLambdaHistoryExecutionBoundary`, and updates to the three CI
+   role policies. Review them with the `SITE_SESSION_KEY` reads; applying them
+   turns nothing on, because every history switch stays off.
+2. **Apply the development root from that branch, with the portal switch
+   on.** The `management` grant needs the development
+   [portal switch](#ec2-management-portal); without it the portal only shows
+   errors. Plan with the image development runs now, not a newer one, so #86
+   does not reach development before the merge. Its digest ends the image URI
+   of the version the development `live` alias points at: the read-only
+   `aws lambda get-alias` and `aws lambda get-function` check that
+   `scripts/verify-lambda-release.sh` makes.
+
+   ```sh
+   export TF_VAR_management='{"aws_region":"us-west-2"}'
+   task lambda-dev-plan IMAGE_DIGEST=sha256:<digest development runs now> PLAN_FILE=/absolute/path/dev-site.tfplan
+   # review the printed plan
+   task lambda-dev-apply PLAN_FILE=/absolute/path/dev-site.tfplan
+   ```
+
+3. **Set the switch for CI.** Right after that apply, set the GitHub
+   **development** variable `MANAGEMENT_RUNTIME_JSON` to
+   `{"aws_region":"us-west-2"}`. Otherwise the release plan after the merge
+   would remove the portal grants, and CI refuses a plan that changes more
+   than the image. A release of the current `main` refuses both this value
+   and the root applied in step 2, so let no other release reach development
+   between that apply and the merge.
+4. **Only then merge.** Do not merge the pull request that carries #86 until
+   development site identity is ready. The merge releases it to development.
+5. **Provision production site identity before approving production.**
+   Complete the same prerequisites for production with the
+   `cognito-site-prod-*` tasks, `/portfolio/lambda/prod/SITE_SESSION_KEY` and
+   invitations granting only `soccer`. The account-root apply in step 1
+   already lets production read that SecureString. Commit its `site` block to
+   `prod.auto.tfvars` in a pull request, apply the production root from that
+   branch with `task lambda-prod-plan` (with the image production runs now,
+   found the same way; production has no portal switch) and
+   `task lambda-prod-apply`, then merge it. Do not approve the `production`
+   environment apply of a release carrying #86 until then. A Release run
+   whose commit is no longer the tip of `main` stops before production, so
+   approve the production step of the run for that merge, or a later one.
+
 ## EC2 management portal
 
-The portal routes are disabled unless the session key, Cognito domain, and
-client ID are valid, and no environment enables them. Its runtime role has only
-read-only EC2 and metric grants: no EC2 start/stop and no `/ec2/i-*` log reads
-(D22). The planned Foundry backend replaces direct EC2 control. Local mock
-review uses `task portal-preview`.
+The portal routes use the shared `SITE_*` session and the current `management`
+grant in `SITE_INVITATIONS_JSON`; they are registered only where site sign-in is
+configured, and no environment supplies those settings yet. The former
+management-only `MGMT_*` identity settings, `mgmt_session` cookie and
+`/callback` registration no longer authorize portal access, and the Lambda no
+longer receives those settings or may read `MGMT_SESSION_KEY`.
+
+The development root's `management` input is an identity-free portal switch:
+`null` (the default) or exactly `{ aws_region = "us-west-2" }`. Setting it
+grants the portal read-only EC2 inventory and metrics in that region and
+passes `MGMT_AWS_REGION`; the runtime role has no EC2 start/stop and no
+`/ec2/i-*` log reads (D22). Production has no portal grants at all, so its
+invitations grant only `soccer`; the production root refuses a `management`
+grant (decision 6). The planned Foundry backend replaces direct EC2 control.
+Local mock review uses `task portal-preview`.
+
+To turn on the development portal grants, export
+`TF_VAR_management='{"aws_region":"us-west-2"}'` for both
+`task lambda-dev-plan` and `task lambda-dev-apply`, then set the GitHub
+**development** variable `MANAGEMENT_RUNTIME_JSON` to
+`{"aws_region":"us-west-2"}` so CI releases carry the same input. A CI release
+cannot change the switch, because its plan may change only the Lambda image
+and `live` alias.
+
+### Retired management-only identity
+
+Decided 2026-09-30 (decision 8): the management-only development identity is
+retired. The `infra/lambda/auth/dev` root, its `cognito-dev-*` tasks and
+scripts, and their tests are removed, and the private tooling now serves the
+site identity roots. That pool was never provisioned in the workloads account,
+so no AWS resource, state object or SecureString needs removing. The
+[former runbook](docs/deployment/cognito-google-dev.md) is kept as history.
+
+Craig's follow-ups:
+
+1. GitHub **development** environment variable `MANAGEMENT_RUNTIME_JSON`: if
+   it holds the old nine-field Cognito object, delete it (or set it to
+   `null`) before the next release, because the development job now refuses
+   that shape. Set `{"aws_region":"us-west-2"}` only after applying the
+   development root with the same switch, as above.
+2. Google OAuth client `portfolio-lambda-dev-mgmt-google` in Google Cloud
+   project `portoflio-dev-508000`: nothing uses it. Either delete it, or reuse
+   it as the development site client: replace its authorized redirect URI with
+   the development site root's `google_redirect_uri` output
+   (`https://portfolio-lambda-dev-site-<AWS_ACCOUNT_ID>.auth.us-west-2.amazoncognito.com/oauth2/idpresponse`)
+   and deliver its credentials as that root's private `google.json`.
+   Production needs its own client either way.

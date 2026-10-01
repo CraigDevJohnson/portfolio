@@ -46,6 +46,10 @@ mock_provider "aws" {
     defaults = { arn = "arn:aws:dynamodb:us-west-2:111122223333:table/portfolio-test" }
   }
 
+  mock_resource "aws_sqs_queue" {
+    defaults = { arn = "arn:aws:sqs:us-west-2:111122223333:portfolio-lambda-prod-soccer-history-failures" }
+  }
+
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::111122223333:role/portfolio-lambda-test" }
   }
@@ -148,6 +152,37 @@ run "production_environment_contract" {
   }
 
   assert {
+    condition = (
+      output.soccer_history_table_name == null &&
+      output.soccer_history_table_arn == null &&
+      output.soccer_history_worker_function_name == null &&
+      output.soccer_history_schedule_name == null
+    )
+    error_message = "production must not plan the durable Soccer history table, worker or schedule before its activation review"
+  }
+
+  # Gates 3 and 4 of the LPS history readiness packet accepted these limits and
+  # the 10:30 UTC daily run on September 30, 2026. Production stays off until
+  # every remaining gate closes.
+  assert {
+    condition = (
+      !var.enable_soccer_history &&
+      !var.activate_soccer_history_collection &&
+      !var.activate_soccer_history_schedule &&
+      var.soccer_history_schedule_expression == "cron(30 10 * * ? *)" &&
+      var.soccer_history_limits == {
+        max_enrolled_teams      = 40
+        reserved_player_slots   = 30
+        max_requests_per_run    = 120
+        max_retries_per_team    = 1
+        min_request_interval_ms = 1000
+        worker_timeout_seconds  = 300
+      }
+    )
+    error_message = "production must carry the accepted history limits and schedule with every history switch off"
+  }
+
+  assert {
     condition = output.ssm_parameter_paths == tomap({
       CLIENT_ID_KEY     = "/portfolio/lambda/prod/CLIENT_ID_KEY"
       CLIENT_SECRET_KEY = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
@@ -188,4 +223,79 @@ run "reject_other_alarm_topic" {
   }
 
   expect_failures = [var.alarm_action_arns]
+}
+
+run "production_site_runtime_contract" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer"] }
+      allow_local_callback = false
+    }
+  }
+
+  assert {
+    condition     = output.ssm_parameter_paths.SITE_SESSION_KEY == "/portfolio/lambda/prod/SITE_SESSION_KEY"
+    error_message = "production must forward its site identity with a production-only session parameter path"
+  }
+}
+
+# Proves the root hands every history input from prod.auto.tfvars to the
+# service module: switching them on here plans each stage. This is not a
+# reviewed production configuration.
+run "history_inputs_reach_the_service" {
+  command = plan
+
+  variables {
+    enable_soccer_history              = true
+    activate_soccer_history_collection = true
+    activate_soccer_history_schedule   = true
+  }
+
+  assert {
+    condition = (
+      output.soccer_history_table_name == "portfolio-lambda-prod-soccer-history" &&
+      output.soccer_history_worker_function_name == "portfolio-lambda-prod-soccer-history" &&
+      output.soccer_history_schedule_name == "portfolio-lambda-prod-soccer-history-daily" &&
+      output.alarm_names == tolist([
+        "portfolio-lambda-prod-api-5xx",
+        "portfolio-lambda-prod-api-latency",
+        "portfolio-lambda-prod-lambda-duration",
+        "portfolio-lambda-prod-lambda-errors",
+        "portfolio-lambda-prod-lambda-throttles",
+        "portfolio-lambda-prod-soccer-history-admission-rejected",
+        "portfolio-lambda-prod-soccer-history-dead-letter",
+        "portfolio-lambda-prod-soccer-history-errors",
+        "portfolio-lambda-prod-soccer-history-incomplete",
+      ])
+    )
+    error_message = "production must pass the history switches, limits and schedule to the service module"
+  }
+}
+
+# Decision 6 (2026-09-30): production invites Craig with soccer only. Its
+# Lambda role has no EC2 or metric grants, so a management grant would only
+# open a portal that fails.
+run "production_site_rejects_management_grant" {
+  command = plan
+
+  variables {
+    site = {
+      cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+      cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_ProdSite"
+      cognito_client_id    = "prodsiteclient"
+      redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+      logout_uri           = "https://craigdevjohnson.com/sign-in"
+      invitations          = { "craigdevjohnson@gmail.com" = ["soccer"], "second@example.com" = ["management"] }
+      allow_local_callback = false
+    }
+  }
+
+  expect_failures = [var.site]
 }

@@ -182,6 +182,9 @@ jobs:
         run: task lambda-ci-check-aws-identity
       - name: Plan, apply and verify the development release
         env:
+          # The identity-free dev portal switch: unset, null or exactly
+          # {"aws_region":"us-west-2"}. check-management-input.sh refuses
+          # anything else, including the retired nine-field Cognito shape.
           EXPECTED_MANAGEMENT_JSON: ${{ vars.MANAGEMENT_RUNTIME_JSON || 'null' }}
           GH_TOKEN: ${{ github.token }}
           IMAGE_DIGEST: ${{ needs.build.outputs.digest }}

@@ -20,16 +20,18 @@ type Config struct {
 	GoogleConnectionTableName string
 	SoccerSessionTableName    string
 
-	// Portal fields
-	PortalSessionKey         []byte
-	PortalCognitoDomain      string
-	PortalCognitoIssuer      string
-	PortalAllowedEmails      []string
-	PortalAllowLocalCallback bool
-	PortalCognitoClientID    string
-	PortalCognitoRedirectURI string
-	PortalCognitoLogoutURI   string
-	PortalAWSRegion          string
+	// Site identity is independent of the management AWS clients.
+	SiteSessionKey         []byte
+	SiteCognitoDomain      string
+	SiteCognitoIssuer      string
+	SiteCognitoClientID    string
+	SiteCognitoRedirectURI string
+	SiteCognitoLogoutURI   string
+	SiteAllowLocalCallback bool
+	SiteInvitations        map[string][]string
+
+	// PortalAWSRegion selects the management portal's EC2 and CloudWatch region.
+	PortalAWSRegion string
 }
 
 // Load reads runtime configuration from the environment.
@@ -45,6 +47,7 @@ func Load() Config {
 	if cfg.LPSAPIBaseURL == "" {
 		cfg.LPSAPIBaseURL = DefaultLPSAPIBaseURL
 	}
+	loadSiteConfig(logger, &cfg)
 	validatedURL, err := NormalizeLPSAPIBaseURL(cfg.LPSAPIBaseURL)
 	if err != nil {
 		logger.Warn(

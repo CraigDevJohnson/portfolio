@@ -15,3 +15,21 @@ enable_deletion_protection = true
 domain_names               = ["craigdevjohnson.com", "www.craigdevjohnson.com"]
 request_custom_domain      = true
 activate_custom_domain     = true
+
+# LPS history sync (#80). Gates 3 and 4 of
+# docs/deployment/2026-09-26-lps-history-activation-readiness.md accepted these
+# limits and the daily time on September 30, 2026. Every switch stays off until
+# the packet's remaining gates close; turning one on is a separate reviewed
+# change, planned and applied by Craig, never passed with -var.
+enable_soccer_history              = false
+activate_soccer_history_collection = false
+activate_soccer_history_schedule   = false
+soccer_history_schedule_expression = "cron(30 10 * * ? *)" # 10:30 UTC, 03:30 Pacific daylight time
+soccer_history_limits = {
+  max_enrolled_teams      = 40
+  reserved_player_slots   = 30
+  max_requests_per_run    = 120
+  max_retries_per_team    = 1
+  min_request_interval_ms = 1000
+  worker_timeout_seconds  = 300
+}

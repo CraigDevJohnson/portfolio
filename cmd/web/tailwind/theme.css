@@ -9,6 +9,22 @@
   --campfire-apricot: #FFA677;
   --rosehip: #FF7FA8;
   --pond-mint: #78E3C3;
+
+  /* Closed display palette for validated LPS team color names. */
+  --soccer-team-red: #B93C52;
+  --soccer-team-blue: #3A78B5;
+  --soccer-team-navy: #314A83;
+  --soccer-team-green: #3B895F;
+  --soccer-team-yellow: #D0A93A;
+  --soccer-team-gold: #BF8C34;
+  --soccer-team-orange: #CA723B;
+  --soccer-team-purple: #8054A7;
+  --soccer-team-pink: #C46791;
+  --soccer-team-teal: #318D8B;
+  --soccer-team-maroon: #843D56;
+  --soccer-team-black: #403B45;
+  --soccer-team-white: #D9D4D0;
+  --soccer-team-gray: #777681;
   --color-warm-signal: color-mix(in srgb, var(--candle-oat) 42%, var(--campfire-apricot));
 
   /* Conventional light-to-dark ramps keep Tailwind shade utilities predictable. */
