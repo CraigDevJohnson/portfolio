@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"portfolio/internal/config"
 )
@@ -97,6 +98,31 @@ func TestSiteSignOutClearsImportedAccessAndPendingConsentButKeepsGoogleConnectio
 	consent := browser.get("/soccer?code=auth-code&state=" + grantWorldPendingState)
 	if consent.Code != http.StatusSeeOther || consent.Header().Get("Location") != "/soccer?google=failed" || world.googleTokenCalls.Load() != 0 {
 		t.Fatalf("Google consent pending before sign-out completed afterwards: %d %q, token exchanges %d", consent.Code, consent.Header().Get("Location"), world.googleTokenCalls.Load())
+	}
+}
+
+// Sign-out leaves a record of itself that ends imports authorized before it.
+// It is protected like the site session, and it outlasts any import a request
+// still in flight at sign-out could write, so a browser restart keeps it.
+func TestSiteSignOutRecordIsProtectedAndOutlastsAnImport(t *testing.T) {
+	world := newSoccerGrantWorld(t, map[string][]string{testSiteEmail: {"soccer"}})
+	browser, _ := newSignedInOwnerBrowser(t, world)
+
+	signOut := browser.do(browserForm(siteOrigin, "/sign-out", nil))
+	var record *http.Cookie
+	for _, cookie := range signOut.Result().Cookies() {
+		if cookie.Name == config.SiteSignOutCookieName {
+			record = cookie
+		}
+	}
+	if record == nil || record.Value == "" {
+		t.Fatal("sign-out left no record of itself")
+	}
+	if !record.HttpOnly || !record.Secure || record.SameSite != http.SameSiteLaxMode || record.Path != config.SiteCookiePath {
+		t.Errorf("sign-out record is not protected like the site session: %#v", record)
+	}
+	if lifetime := time.Duration(record.MaxAge) * time.Second; lifetime <= config.DefaultSessionTTL || !record.Expires.After(time.Now().Add(config.DefaultSessionTTL)) {
+		t.Errorf("sign-out record lasts %s (expires %s), not longer than an import's %s", lifetime, record.Expires, config.DefaultSessionTTL)
 	}
 }
 

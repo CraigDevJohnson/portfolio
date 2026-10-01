@@ -250,6 +250,10 @@ type SessionData struct {
 	// ImportGuard is a random value an import also writes to its own guard
 	// cookie. Imported access is usable only while the two match.
 	ImportGuard string `json:"import_guard,omitempty"`
+	// SiteSessionIssuedAt is when the site session that authorized the import
+	// was issued. Imported access ends once this browser records an explicit
+	// site sign-out at or after it.
+	SiteSessionIssuedAt time.Time `json:"site_session_issued_at,omitzero"`
 }
 
 // GoogleCalendarOption describes a calendar the user can target for event sync.

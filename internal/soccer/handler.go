@@ -33,6 +33,10 @@ var (
 	// missing or different: sign-out or Clear import removed it, and a
 	// response already in flight wrote the payload back.
 	errImportGuardMismatch = errors.New("imported LPS access does not match this browser's import guard")
+	// errImportSignedOut reports imported access authorized by a site session
+	// issued before this browser's latest explicit site sign-out: an import
+	// still in flight at sign-out wrote it back after sign-out cleared it.
+	errImportSignedOut = errors.New("imported LPS access was authorized before this browser's latest site sign-out")
 	// ErrPlayerSessionRequired reports that discovered-player operations need an imported session.
 	ErrPlayerSessionRequired = errors.New("an imported session is required for discovered players")
 	// ErrInvalidTeamSelection reports that one or more manual team IDs were invalid.

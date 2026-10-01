@@ -54,14 +54,17 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var principal *siteidentity.Principal
 		var grants []siteidentity.Grant
+		var issuedAt, lastSignOut time.Time
 		if h.Config != nil && h.Config.SiteEnabled() {
 			stored, err := h.loadSession(r)
 			if err == nil && stored != nil && h.validSession(stored) {
 				principal = &stored.Principal
+				issuedAt = stored.IssuedAt
 				for _, grant := range h.Config.SiteGrantsFor(principal.Email) {
 					grants = append(grants, siteidentity.Grant(grant))
 				}
 			}
+			lastSignOut = h.lastSignOut(r)
 		}
 		if principal == nil {
 			if _, cookieErr := r.Cookie(config.SiteSessionCookieName); cookieErr == nil {
@@ -73,6 +76,7 @@ func (h *Handler) WithIdentity(next http.Handler) http.Handler {
 		}
 		ctx := siteidentity.WithRequestIdentity(r.Context(), principal, grants, safeReturnTo(r.URL.RequestURI()))
 		ctx = siteidentity.WithSignInAvailable(ctx, h.signInAvailable())
+		ctx = siteidentity.WithSessionTimes(ctx, issuedAt, lastSignOut)
 		identified := r.WithContext(ctx)
 		next.ServeHTTP(w, identified)
 		// ServeMux records the matched route on the copy it received; request logging reads the outer request.
@@ -191,11 +195,12 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		h.rejectSignIn(w, r, http.StatusUnauthorized, reasonNotInvited)
 		return
 	}
-	expiresAt := time.Now().Add(config.SiteSessionTTL)
+	issuedAt := time.Now()
+	expiresAt := issuedAt.Add(config.SiteSessionTTL)
 	if tokenExpiry := time.Unix(claims.Expiry, 0); tokenExpiry.Before(expiresAt) {
 		expiresAt = tokenExpiry
 	}
-	value := &siteSession{Principal: siteidentity.Principal{Issuer: claims.Issuer, Subject: claims.Sub, Email: email}, ExpiresAt: expiresAt}
+	value := &siteSession{Principal: siteidentity.Principal{Issuer: claims.Issuer, Subject: claims.Sub, Email: email}, IssuedAt: issuedAt, ExpiresAt: expiresAt}
 	if err := h.setSession(w, r, value); err != nil {
 		h.rejectSignIn(w, r, http.StatusInternalServerError, "session_creation_failed")
 		return
@@ -204,10 +209,19 @@ func (h *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // LogoutHandler expires site identity and delegates the managed login journey to Cognito.
+// It also records the sign-out time, which ends browser state that a site
+// session issued before it authorized, even if a response still in flight
+// writes that state back afterwards. A site-session timeout records nothing,
+// so its owner's next sign-in can use that state again.
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	preventStorage(w)
 	h.clearSession(w, r)
 	h.clearOAuthState(w, r)
+	if h.Config != nil && h.Config.SiteEnabled() {
+		if err := h.recordSignOut(w, r, time.Now()); err != nil {
+			h.Logger.Error("site sign-out record failed", slog.Any("error", err))
+		}
+	}
 	for _, endFeatureState := range h.SignOutHooks {
 		endFeatureState(w, r)
 	}

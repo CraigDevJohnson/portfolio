@@ -14,7 +14,19 @@ import (
 
 type siteSession struct {
 	Principal siteidentity.Principal `json:"principal"`
-	ExpiresAt time.Time              `json:"expires_at"`
+	// IssuedAt is when sign-in created this session. State the session
+	// authorizes, such as imported LPS access, records it, so an explicit
+	// sign-out after it can end that state. Sessions issued before issue
+	// times were recorded hold zero.
+	IssuedAt  time.Time `json:"issued_at,omitzero"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// signOutRecord is this browser's latest explicit sign-out. Only sign-out
+// writes it; it outlives the site session so that a response still in flight
+// at sign-out cannot bring back state the sign-out ended.
+type signOutRecord struct {
+	SignedOutAt time.Time `json:"signed_out_at"`
 }
 
 type oauthState struct {
@@ -62,6 +74,34 @@ func (h *Handler) validSession(value *siteSession) bool {
 
 func (h *Handler) clearSession(w http.ResponseWriter, r *http.Request) {
 	clearCookie(w, r, config.SiteSessionCookieName, http.SameSiteLaxMode)
+}
+
+// recordSignOut stores the time of this explicit sign-out in its own cookie,
+// replacing any earlier record.
+func (h *Handler) recordSignOut(w http.ResponseWriter, r *http.Request, signedOutAt time.Time) error {
+	encrypted, err := session.EncryptJSONValue(h.Config.SiteSessionKey, &signOutRecord{SignedOutAt: signedOutAt})
+	if err != nil {
+		return err
+	}
+	cookie := httpx.NewSecureCookie(r, config.SiteSignOutCookieName, encrypted, config.SiteCookiePath, int(config.SiteSignOutTTL.Seconds()), http.SameSiteLaxMode) //nolint:gosec // Secure is request-aware for registered local loopback development.
+	cookie.Expires = signedOutAt.Add(config.SiteSignOutTTL)
+	http.SetCookie(w, cookie)
+	return nil
+}
+
+// lastSignOut returns when this browser last signed out explicitly, or zero
+// when it holds no readable record. A record the site session key cannot
+// read, such as one written before the key was rotated, counts as none.
+func (h *Handler) lastSignOut(r *http.Request) time.Time {
+	cookie, err := r.Cookie(config.SiteSignOutCookieName)
+	if err != nil {
+		return time.Time{}
+	}
+	var record signOutRecord
+	if err := session.DecryptJSONValue(h.Config.SiteSessionKey, cookie.Value, &record); err != nil {
+		return time.Time{}
+	}
+	return record.SignedOutAt
 }
 
 func (h *Handler) setOAuthState(w http.ResponseWriter, r *http.Request, value *oauthState) error {

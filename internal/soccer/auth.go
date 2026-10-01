@@ -130,6 +130,9 @@ func (h *Handler) ImportHandler(w http.ResponseWriter, r *http.Request) {
 	if principal, ok := siteidentity.PrincipalFromContext(r.Context()); ok {
 		session.OwnerIssuer = principal.Issuer
 		session.OwnerSubject = principal.Subject
+		// The session that authorized the import, not the time it finished:
+		// an import still in flight at sign-out was authorized before it.
+		session.SiteSessionIssuedAt = siteidentity.SessionIssuedAt(r.Context())
 	}
 	if err := h.setSession(w, r, &session); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer import session write failed", slog.Any("error", err))
@@ -363,8 +366,13 @@ func (h *Handler) getSession(r *http.Request) (*types.SessionData, error) {
 	if !session.ExpiresAt.IsZero() && !now.Before(session.ExpiresAt) {
 		return nil, ErrSessionExpired
 	}
-	if (session.JWT != "" || len(session.Players) > 0) && !importGuardMatches(r, session.ImportGuard) {
-		return nil, errImportGuardMismatch
+	if session.JWT != "" || len(session.Players) > 0 {
+		if !importGuardMatches(r, session.ImportGuard) {
+			return nil, errImportGuardMismatch
+		}
+		if siteidentity.RevokedBySignOut(r.Context(), session.SiteSessionIssuedAt) {
+			return nil, errImportSignedOut
+		}
 	}
 	hasPrivateState := session.JWT != "" || len(session.Players) > 0 || session.Workflow.Source == "imported"
 	if hasPrivateState && !siteidentity.SoccerOwnerAllowed(r.Context(), session.OwnerIssuer, session.OwnerSubject) {
@@ -383,7 +391,7 @@ func (h *Handler) LoadSession(w http.ResponseWriter, r *http.Request) (*types.Se
 	if errors.Is(err, errSessionWithheld) {
 		return nil, false
 	}
-	if errors.Is(err, ErrSessionExpired) || errors.Is(err, errImportGuardMismatch) {
+	if errors.Is(err, ErrSessionExpired) || errors.Is(err, errImportGuardMismatch) || errors.Is(err, errImportSignedOut) {
 		h.clearSession(w, r)
 		return nil, true
 	}
@@ -418,7 +426,10 @@ func (h *Handler) setSession(w http.ResponseWriter, r *http.Request, session *ty
 // setImportGuard writes the import's guard cookie, which lasts as long as the
 // import. Soccer responses rewrite lps_session with the whole payload, but
 // only an import writes this cookie, so a response still in flight when
-// sign-out clears both cannot bring back usable imported access.
+// sign-out or Clear import clears both cannot bring back usable imported
+// access. An import still in flight writes both itself, so site sign-out also
+// records its time, and an import authorized by a site session issued before
+// then is cleared when read (see siteidentity.RevokedBySignOut).
 func (h *Handler) setImportGuard(w http.ResponseWriter, r *http.Request, session *types.SessionData) {
 	cookie := httpx.NewSecureCookie(r, config.LPSImportGuardCookieName, session.ImportGuard, config.SoccerCookiePath, int(time.Until(session.ExpiresAt).Seconds()), http.SameSiteLaxMode) //nolint:gosec // Cookie security attributes are set centrally; Secure remains request-aware for local HTTP development.
 	cookie.Expires = session.ExpiresAt

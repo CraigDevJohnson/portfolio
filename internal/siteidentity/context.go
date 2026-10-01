@@ -1,7 +1,10 @@
 // Package siteidentity exposes the request's verified site principal and current page grants.
 package siteidentity
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Grant names the two independently authorized private page families.
 type Grant string
@@ -50,6 +53,39 @@ func WithSignInAvailable(ctx context.Context, available bool) context.Context {
 func SignInAvailable(ctx context.Context) bool {
 	available, _ := ctx.Value(signInAvailabilityKey{}).(bool)
 	return available
+}
+
+type sessionTimesKey struct{}
+
+// sessionTimes says when the request's site session was issued and when this
+// browser last signed out explicitly. Either is zero when unknown.
+type sessionTimes struct {
+	issuedAt    time.Time
+	lastSignOut time.Time
+}
+
+// WithSessionTimes records when the request's site session was issued and
+// when this browser last signed out explicitly. Pass zero for either one the
+// request does not carry.
+func WithSessionTimes(ctx context.Context, issuedAt, lastSignOut time.Time) context.Context {
+	return context.WithValue(ctx, sessionTimesKey{}, sessionTimes{issuedAt: issuedAt, lastSignOut: lastSignOut})
+}
+
+// SessionIssuedAt returns when the request's site session was issued, or zero
+// when the request has none or its session predates issue times.
+func SessionIssuedAt(ctx context.Context) time.Time {
+	times, _ := ctx.Value(sessionTimesKey{}).(sessionTimes)
+	return times.issuedAt
+}
+
+// RevokedBySignOut reports whether browser state authorized by a site session
+// issued at authorizedAt predates this browser's latest explicit sign-out, so
+// that sign-out ended it. A site-session timeout records no sign-out, so state
+// it withholds is never revoked by it. A zero authorizedAt, from a session
+// without an issue time, counts as before any recorded sign-out.
+func RevokedBySignOut(ctx context.Context, authorizedAt time.Time) bool {
+	times, _ := ctx.Value(sessionTimesKey{}).(sessionTimes)
+	return !times.lastSignOut.IsZero() && !authorizedAt.After(times.lastSignOut)
 }
 
 // PrincipalFromContext returns the verified site principal, if any.

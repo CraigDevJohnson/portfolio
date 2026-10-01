@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -174,6 +175,93 @@ func TestSoccerResponseInFlightWhenImportIsClearedCannotRestoreIt(t *testing.T) 
 				t.Error("linked-player discovery used the cleared LPS credential")
 			}
 		})
+	}
+}
+
+// holdLPSAccountLookup holds the fake LPS account lookup an import makes until
+// release is called; started is closed once the lookup has reached LPS.
+func (world *soccerGrantWorld) holdLPSAccountLookup(t *testing.T) (started <-chan struct{}, release func()) {
+	t.Helper()
+	reached, released := make(chan struct{}), make(chan struct{})
+	var reachedOnce, releaseOnce sync.Once
+	world.app.LPSClient.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path == "/users/check" {
+			reachedOnce.Do(func() { close(reached) })
+			<-released
+		}
+		return http.DefaultTransport.RoundTrip(request)
+	})
+	release = func() { releaseOnce.Do(func() { close(released) }) }
+	t.Cleanup(release)
+	return reached, release
+}
+
+// An import still running when the owner signs out finishes afterwards and
+// writes its own import cookies and guard after the sign-out response has
+// cleared them. The site session that authorized it was issued before the
+// sign-out, so the owner's next sign-in must not make it usable.
+func TestImportInFlightAtSiteSignOutCannotRestoreImportedAccess(t *testing.T) {
+	world, browser := newRetainedImportBrowser(t)
+	lookupStarted, releaseLookup := world.holdLPSAccountLookup(t)
+
+	sent := make(chan func() *httptest.ResponseRecorder)
+	go func() { sent <- browser.sendForm("/soccer/import", url.Values{"jwt": {world.jwt}}) }()
+	<-lookupStarted
+	if signOut := browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+	releaseLookup()
+	inFlight := <-sent
+	if late := inFlight(); !strings.Contains(late.Body.String(), `name="player_ids"`) || findSessionCookie(t, late.Result()) == nil || findImportGuardCookie(late.Result()) == nil {
+		t.Fatalf("the import in flight did not write its import cookies: status %d", late.Code)
+	}
+
+	browser.restart()
+	browser.signIn("/soccer")
+	if page := browser.get("/soccer"); strings.Contains(page.Body.String(), importedAccessShown) || !strings.Contains(page.Body.String(), "Import access") {
+		t.Error("an import in flight at sign-out was usable after the owner signed in again")
+	}
+	calls := world.lpsCredentialCalls.Load()
+	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), endedImportNotice) {
+		t.Errorf("linked-player discovery after sign-out: status %d, body %q", discovered.Code, discovered.Body.String())
+	}
+	if world.lpsCredentialCalls.Load() != calls {
+		t.Error("linked-player discovery used the LPS credential of an import in flight at sign-out")
+	}
+	if browser.holdsCookie(config.LPSSessionCookieName, "/soccer") || browser.holdsCookie(config.LPSImportGuardCookieName, "/soccer") {
+		t.Error("the browser kept the import that was in flight at sign-out")
+	}
+}
+
+// The browser's record of an explicit sign-out ends only imports authorized
+// before it: an import made after the owner signs in again is retained like
+// any other, and a later site-session timeout only withholds it.
+func TestImportAfterSigningInAgainIsRetainedThroughTheNextTimeout(t *testing.T) {
+	world, browser := newRetainedImportBrowser(t)
+	if signOut := browser.do(httptest.NewRequest(http.MethodPost, "https://app.example.com/sign-out", nil)); signOut.Code != http.StatusSeeOther {
+		t.Fatalf("site sign-out status = %d", signOut.Code)
+	}
+
+	browser.signIn("/soccer")
+	if imported := browser.postForm("/soccer/import", url.Values{"jwt": {world.jwt}}); !strings.Contains(imported.Body.String(), `name="player_ids"`) {
+		t.Fatalf("import after signing in again did not list linked players: status %d", imported.Code)
+	}
+	if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), importedAccessShown) {
+		t.Fatal("an import made after signing in again was not usable")
+	}
+
+	browser.expireSiteSession()
+	browser.restart()
+	browser.signIn("/soccer")
+	if page := browser.get("/soccer"); !strings.Contains(page.Body.String(), importedAccessShown) {
+		t.Error("signing in again after a timeout did not restore an import made after the earlier sign-out")
+	}
+	calls := world.lpsCredentialCalls.Load()
+	if discovered := browser.postForm("/soccer/discover-teams", url.Values{"player_ids": {"1001"}}); !strings.Contains(discovered.Body.String(), "Craig FC") {
+		t.Errorf("linked-player discovery after the timeout: status %d, body %q", discovered.Code, discovered.Body.String())
+	}
+	if world.lpsCredentialCalls.Load() == calls {
+		t.Error("linked-player discovery after the timeout did not use the restored LPS credential")
 	}
 }
 
