@@ -13,13 +13,13 @@ lifetime cap, the admission alarm counts only refused player-linked teams, and
 import latency is bounded in code (#100). He will send LPS the section 2
 questions himself (gate 1, [Appendix A](#appendix-a-message-to-lps)). The
 repository changes in 6.1 items 1, 3 to 7 and 9 are made, with offline tests
-only; whether development collects is still open. Section 7 records the
+only. On September 30 Craig also decided that development neither collects
+nor runs the schedule. Section 7 records the
 membership first-seen note for #81.
 
 **Recommendation: blocked.** Do not enable collection or the daily schedule in
-either environment. Gates 1, 2 and 7 to 11 are open. Gates 3 and 6 are
-closed except for development: whether it collects is undecided, and 6.1 item
-2 waits on that. The [remaining gates](#remaining-gates) list what each needs.
+either environment. Gates 1, 2 and 7 to 11 are open; gates 3 to 6 are
+closed. The [remaining gates](#remaining-gates) list what each needs.
 This packet is a review artifact only: it does not approve source use, spend,
 an AWS plan or an activation.
 
@@ -181,8 +181,8 @@ soccer_history_schedule_expression = "cron(30 10 * * ? *)" # 10:30 UTC, 03:30 Pa
 **Accepted (gate 3, September 30, 2026).** Craig accepted these limits and
 the daily time exactly. Both `*.auto.tfvars` carry the limits with every
 history switch off; production also carries the expression and development
-none, because whether development collects or runs the schedule is still open.
-Accepting them activates nothing.
+none, because Craig decided development neither collects nor runs the
+schedule. Accepting them activates nothing.
 
 - **40 teams.** Player-linked demand is assumed to be 2 to 4 linked players
   on 1 or 2 teams in about five sessions a year. If LPS issues new Team IDs
@@ -372,9 +372,9 @@ one is still open.
 2. **Choose a dev alert destination.** Collection requires a nonempty
    `alarm_action_arns`, and `dev.auto.tfvars` has `[]`. Either dev uses the
    workloads `alerts` topic (`arn:aws:sns:us-west-2:793680745829:alerts`), or
-   dev does not collect. **Open** with the development part of gate 3.
-   Development keeps `alarm_action_arns = []`, so its live alarms are
-   unchanged, and it does not collect.
+   dev does not collect. **Decided** September 30, 2026: development does not
+   collect, so it keeps `alarm_action_arns = []` and its live alarms are
+   unchanged.
 3. **Grant the history runtime in the execution boundaries**
    (`ci-roles/boundary.tf`). **Done** as the tables below describe; the worker
    and Scheduler roles attach the new boundary. Every
@@ -516,7 +516,8 @@ one is still open.
    so a release works before and after the account root grants the history
    alarm reads.
 
-   **The failure-queue alarm holds releases until the queue is drained.** The
+   **The failure-queue alarm holds releases until the queue is drained**
+   (kept by Craig's decision of September 30, 2026). The
    admission, incomplete-run and worker-error alarms return to OK after 5
    minutes without a new failure (`notBreaching`). The
    `portfolio-lambda-{env}-soccer-history-dead-letter` alarm instead stays in
@@ -742,10 +743,10 @@ Owner in brackets.
    `max_requests_per_run` 120, `max_retries_per_team` 1,
    `min_request_interval_ms` 1000, `worker_timeout_seconds` 300 and
    `cron(30 10 * * ? *)`. Both `*.auto.tfvars` carry them with every switch
-   off. **Still open:** whether development collects or runs the daily
-   schedule, and so its alert destination (6.1 item 2). Until Craig decides,
-   development does not collect, has no schedule and keeps
-   `alarm_action_arns = []`. [Craig]
+   off. **Development, decided September 30, 2026:** development neither
+   collects nor runs the daily schedule, so it needs no alert destination
+   and keeps `alarm_action_arns = []` (6.1 item 2). Only production
+   collects, once the other gates close. [Craig]
 4. **Admission policy: decided September 30, 2026.** The cap is a lifetime cap
    on distinct Team IDs with no slot release; entered IDs are refused once 10
    teams are enrolled. The admission alarm counts only refused player-linked
@@ -759,7 +760,8 @@ Owner in brackets.
    items 1 (environment wiring), 3 (boundary grants within the IAM size
    limit), 4 (CI role grants), 5 (the plan checker), 6 (the admission alarm
    scope) and 7 (release verification). Item 2, the development alert
-   destination, waits on the open part of gate 3. [agent, reviewed by Craig]
+   destination, needs no change: development does not collect (gate 3).
+   [agent, reviewed by Craig]
 7. **The #80 runtime merged and released**: the #80 loop branch and the 6.1
    changes merged to main, and the target environment's `live` alias running
    a release image built from that merge, confirmed by digest, before that

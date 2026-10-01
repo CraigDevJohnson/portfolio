@@ -14,10 +14,10 @@ activate_custom_domain     = true
 
 # LPS history sync (#80). Gates 3 and 4 of
 # docs/deployment/2026-09-26-lps-history-activation-readiness.md accepted these
-# limits on September 30, 2026. Whether development collects or runs the daily
-# schedule is undecided: it would need its own alert destination (collection
-# requires a nonempty alarm_action_arns) and would double LPS traffic. Until
-# then every switch stays off and development has no schedule.
+# limits on September 30, 2026. Craig decided the same day that development
+# neither collects nor runs the daily schedule: collection would need its own
+# alert destination (a nonempty alarm_action_arns) and the schedule would
+# double LPS traffic. Every switch stays off and development has no schedule.
 enable_soccer_history              = false
 activate_soccer_history_collection = false
 activate_soccer_history_schedule   = false
