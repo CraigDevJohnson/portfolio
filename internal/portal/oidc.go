@@ -68,6 +68,12 @@ type jwksResponse struct {
 // rejected without another request to the issuer.
 const jwksRefreshInterval = time.Minute
 
+// jwksRefetchTimeout bounds a forced JWKS refetch. The refetch runs apart from
+// the triggering request's cancellation, because it starts the interval for
+// every request: a request that ends early must not abort it before the issuer
+// answers. http.DefaultClient has no timeout of its own.
+const jwksRefetchTimeout = 5 * time.Second
+
 // jwksCache holds cached public keys fetched from a Cognito JWKS endpoint.
 // It refreshes once per hour, and sooner, at most once per
 // jwksRefreshInterval, when a token names a kid the cached set lacks.
@@ -148,8 +154,9 @@ func (c *jwksCache) getKeys(ctx context.Context) (map[string]crypto.PublicKey, e
 
 // refreshForKid refetches the JWKS because a token named kid, which the cached
 // set lacks, and returns kid's key from the refreshed set. It refetches at most
-// once per jwksRefreshInterval. A refetch that fails or yields no usable key
-// keeps the cached set.
+// once per jwksRefreshInterval, under jwksRefetchTimeout and not the caller's
+// cancellation. A refetch that fails or yields no usable key keeps the cached
+// set.
 func (c *jwksCache) refreshForKid(ctx context.Context, kid string) (crypto.PublicKey, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -162,7 +169,9 @@ func (c *jwksCache) refreshForKid(ctx context.Context, kid string) (crypto.Publi
 		return nil, false
 	}
 	c.refreshedAt = now
-	rawKeys, err := c.fetchFn(ctx)
+	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), jwksRefetchTimeout)
+	defer cancel()
+	rawKeys, err := c.fetchFn(fetchCtx)
 	if err != nil {
 		return nil, false
 	}

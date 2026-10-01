@@ -340,6 +340,35 @@ func TestValidateIDTokenKeepsCachedKeysWhenJWKSRefetchFails(t *testing.T) {
 	}
 }
 
+// A forced refetch starts the interval for every request, so a request whose
+// own context ends (an aborted callback, an invocation deadline) must not cut
+// that refetch short and leave later sign-ins rejected until the interval
+// passes, though the issuer was never asked.
+func TestValidateIDTokenRefetchesJWKSDespiteCanceledRequest(t *testing.T) {
+	fixture := newOIDCFixture(t)
+	clock := fixture.useFakeClock()
+	if err := fixture.validate(t, fixture.key, "test"); err != nil {
+		t.Fatal(err)
+	}
+	rotated := fixture.publishKey(t, "rotated")
+	raw := signTestToken(t, fixture.claims(), rotated, jwt.SigningMethodRS256, "rotated")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := fixture.client.ValidateIDToken(ctx, raw); err != nil {
+		t.Fatalf("token signed by the rotated key under a canceled request: %v", err)
+	}
+	if got := fixture.fetches(); got != 2 {
+		t.Fatalf("JWKS fetches = %d, want the first fill and one refetch the canceled request did not abort", got)
+	}
+	clock.Advance(jwksRefreshInterval / 2)
+	if err := fixture.validate(t, rotated, "rotated"); err != nil {
+		t.Fatalf("later request within the interval: %v", err)
+	}
+	if got := fixture.fetches(); got != 2 {
+		t.Fatalf("JWKS fetches after the later request = %d, want still 2", got)
+	}
+}
+
 // Sign-ins that arrive together after a rotation share one refetch, and none
 // is turned away by the interval that refetch started.
 func TestValidateIDTokenConcurrentRotatedTokensShareOneRefetch(t *testing.T) {
