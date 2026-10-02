@@ -109,7 +109,11 @@ message. Nothing reaches Git, chat, CI or the release workflow.
    on macOS use its canonical `/private/...` path. Have the credential channel
    write that environment's Google OAuth client into it as a regular mode
    `0600` JSON file with exactly `client_id` and `client_secret`. Never paste
-   either value into a command, chat, tfvars or logs.
+   either value into a command, chat, tfvars or logs. The plan refuses a
+   `client_secret` that is not exactly one Google secret (`GOCSPX-` and 28
+   more characters): a value pasted more than once would plan cleanly, but
+   Google would then reject Cognito's token request and every sign-in would
+   fail.
 2. Set the inputs as environment variables, not Task variables, and plan:
 
    ```sh
