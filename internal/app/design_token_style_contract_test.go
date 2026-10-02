@@ -137,6 +137,7 @@ var designTokenOwnedClasses = []string{
 	"soccer-team-history-opponent",
 	"soccer-team-history-score",
 	"soccer-team-history-refusal",
+	"soccer-team-history-result",
 	"site-account-state",
 	"site-account-email",
 	"site-account-link",

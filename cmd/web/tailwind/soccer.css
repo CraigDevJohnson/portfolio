@@ -1307,6 +1307,7 @@ body.soccer-modal-open {
   border-radius: var(--radius-md);
   background: var(--color-surface-raised);
   color: var(--color-copy-primary);
+  font: inherit;
   text-align: start;
   overflow-wrap: anywhere;
   cursor: pointer;
@@ -1417,6 +1418,12 @@ body.soccer-modal-open {
   color: var(--color-copy-primary);
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+/* The result badge keeps its own width rather than stretching across the
+ * grid column it sits in. */
+.soccer-team-history-result {
+  justify-self: start;
 }
 
 @media (width >= 30rem) {

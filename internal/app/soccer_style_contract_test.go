@@ -51,6 +51,8 @@ func TestSoccerRouteCSSUsesMatchdayCompositionContract(t *testing.T) {
 		{selector: ".soccer-team-history-seasons", want: map[string]string{"display": "grid"}},
 		{selector: ".soccer-team-history-games", want: map[string]string{"display": "grid"}},
 		{selector: ".soccer-team-history-game", want: map[string]string{"display": "grid", "min-width": "0"}},
+		{selector: ".soccer-team-history-result", want: map[string]string{"justify-self": "start"}},
+		{selector: ".soccer-team-history-season", want: map[string]string{"font": "inherit"}},
 		{selector: ".soccer-source-grid", width: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{selector: ".soccer-team-history-seasons", width: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{selector: ".soccer-team-history-game", width: 48, want: map[string]string{"grid-template-columns": "minmax(0,1.1fr) minmax(0,1.6fr) minmax(0,0.6fr) minmax(0,0.7fr)"}},
