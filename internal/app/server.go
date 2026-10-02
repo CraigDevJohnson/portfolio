@@ -119,8 +119,7 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		soccerHandler.SoccerPage(w, r)
 	})
 	registerSoccerLPSRoutes(soccerMux, soccerHandler)
-	soccerMux.HandleFunc("GET /soccer/history", requireSoccerGrant(soccerHandler.HistoryHandler))
-	soccerMux.HandleFunc("GET /soccer/history/team-seasons", requireSoccerGrant(soccerHandler.HistoryTeamSeasonsHandler))
+	registerSoccerHistoryRoutes(soccerMux, soccerHandler)
 	soccerMux.HandleFunc("POST /soccer/google/add", requireSoccerGrant(app.GoogleHandler.AddHandler))
 	soccerMux.HandleFunc("POST /soccer/google/sync-results", requireSoccerGrant(app.GoogleHandler.SyncResultsHandler))
 	soccerMux.HandleFunc("POST /soccer/google/calendar", requireSoccerGrant(app.GoogleHandler.CalendarHandler))
@@ -407,6 +406,15 @@ func registerSoccerLPSRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
 	mux.HandleFunc("POST /soccer/discover-teams", requireSoccerGrant(h.DiscoverTeamsHandler))
 	mux.HandleFunc("POST /soccer/fetch", requireSoccerGrantForPlayers(h.FetchSchedulesHandler))
 	mux.HandleFunc("POST /soccer/download", requireSoccerGrantForPlayers(h.DownloadICSHandler))
+}
+
+// registerSoccerHistoryRoutes adds the private history reads, each behind
+// the soccer grant: the JSON per-season read and team-season list, and the
+// Team history view the Soccer page loads.
+func registerSoccerHistoryRoutes(mux *http.ServeMux, h *internalsoccer.Handler) {
+	mux.HandleFunc("GET /soccer/history", requireSoccerGrant(h.HistoryHandler))
+	mux.HandleFunc("GET /soccer/history/team-seasons", requireSoccerGrant(h.HistoryTeamSeasonsHandler))
+	mux.HandleFunc("GET /soccer/history/view", requireSoccerGrant(h.HistoryViewHandler))
 }
 
 func requireSoccerGrant(next http.HandlerFunc) http.HandlerFunc {

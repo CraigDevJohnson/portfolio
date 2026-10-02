@@ -548,7 +548,8 @@ func assertPrivateHistoryDenied(t *testing.T, browser *siteBrowser, status int, 
 	t.Helper()
 	response := browser.get(path)
 	body := response.Body.String()
-	if response.Code != status || strings.Contains(body, "UGameID") || strings.Contains(body, "UTeamID") || strings.Contains(body, "team_seasons") {
+	if response.Code != status || strings.Contains(body, "UGameID") || strings.Contains(body, "UTeamID") || strings.Contains(body, "team_seasons") ||
+		strings.Contains(body, "data-soccer-team-history-season") || strings.Contains(body, "data-soccer-team-history-game") {
 		t.Errorf("%s: status %d, body %q; want %d without history", path, response.Code, body, status)
 	}
 	if got := response.Header().Get("Cache-Control"); !strings.Contains(got, "no-store") {
@@ -556,15 +557,17 @@ func assertPrivateHistoryDenied(t *testing.T, browser *siteBrowser, status int, 
 	}
 }
 
-// privateHistoryRead is one of the two private history reads, which share one
-// authority: the per-season read of a season the player's import stored proof
-// for, and the list of the player's team seasons.
+// privateHistoryRead is one of the three private history reads, which share
+// one authority: the per-season read of a season the player's import stored
+// proof for, the list of the player's team seasons, and the Team history view.
 type privateHistoryRead struct {
 	name string
 	// path reads playerID's stored season, or lists the player's seasons.
 	path func(playerID int) string
 	// lpsLookup is a request for Craig that asks LPS for his current teams.
 	lpsLookup string
+	// endedImport is what the read says when LPS rejects the imported token.
+	endedImport string
 	// opened requires an authorized answer for playerID.
 	opened func(t *testing.T, browser *siteBrowser, playerID int)
 }
@@ -587,7 +590,8 @@ func privateHistoryReads() []privateHistoryRead {
 				return historyPath(playerID, teamID, seasonID)
 			},
 			// No stored proof covers Craig FC's season 80, so LPS is asked.
-			lpsLookup: historyPath(1001, 4101, 80),
+			lpsLookup:   historyPath(1001, 4101, 80),
+			endedImport: "import a fresh bearer JWT",
 			opened: func(t *testing.T, browser *siteBrowser, playerID int) {
 				t.Helper()
 				teamID, seasonID := storedSeason(playerID)
@@ -595,10 +599,18 @@ func privateHistoryReads() []privateHistoryRead {
 			},
 		},
 		{
-			name: "team-season list", path: teamSeasonsPath, lpsLookup: teamSeasonsPath(1001),
+			name: "team-season list", path: teamSeasonsPath, lpsLookup: teamSeasonsPath(1001), endedImport: "import a fresh bearer JWT",
 			opened: func(t *testing.T, browser *siteBrowser, playerID int) {
 				t.Helper()
 				listTeamSeasons(t, browser, playerID)
+			},
+		},
+		{
+			name: "team history view", path: historyViewPath, lpsLookup: historyViewPath(1001),
+			endedImport: "token was rejected. Copy a fresh bearer JWT",
+			opened: func(t *testing.T, browser *siteBrowser, playerID int) {
+				t.Helper()
+				readHistoryView(t, browser, historyViewPath(playerID))
 			},
 		},
 	}
@@ -868,8 +880,8 @@ func TestSoccerHistoryReadsEndTheImportWhenLPSRejectsItsToken(t *testing.T) {
 			route.failPlayerTeams(1001, http.StatusUnauthorized)
 
 			refused := owner.get(read.lpsLookup)
-			if body := refused.Body.String(); refused.Code != http.StatusUnauthorized || !strings.Contains(body, "import a fresh bearer JWT") || strings.Contains(body, "team_seasons") {
-				t.Fatalf("%s after LPS rejected the token: status %d, body %q; want 401 asking for a fresh JWT", read.name, refused.Code, body)
+			if body := refused.Body.String(); refused.Code != http.StatusUnauthorized || !strings.Contains(body, read.endedImport) || strings.Contains(body, "team_seasons") {
+				t.Fatalf("%s after LPS rejected the token: status %d, body %q; want 401 saying %q", read.name, refused.Code, body, read.endedImport)
 			}
 			if got := refused.Header().Get("Cache-Control"); got != "private, no-store" {
 				t.Errorf("refused %s Cache-Control = %q, want private, no-store", read.name, got)

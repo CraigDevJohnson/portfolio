@@ -27,10 +27,10 @@ templ SoccerTeamHistoryView(props SoccerTeamHistoryViewProps) {
 		</div>
 	}
 	if props.Refusal != nil {
-		@Feedback(soccerTeamHistoryRefusal(*props.Refusal))
+		@Feedback(soccerTeamHistoryRefusal(props.Refusal))
 	} else {
-		for _, notice := range props.Notices {
-			@Feedback(soccerTeamHistoryNotice(notice))
+		for i := range props.Notices {
+			@Feedback(soccerTeamHistoryNotice(&props.Notices[i]))
 		}
 		if len(props.Seasons) > 0 {
 			<ol class="soccer-team-history-seasons" aria-label="Team seasons, newest first">
@@ -82,8 +82,8 @@ templ soccerTeamHistorySeasonDetail(season SoccerTeamHistorySeasonDetail) {
 		if season.Collected != "" {
 			<p class="soccer-team-history-collected" data-soccer-team-history-collected>{ season.Collected }</p>
 		}
-		for _, notice := range season.Notices {
-			@Feedback(soccerTeamHistoryNotice(notice))
+		for i := range season.Notices {
+			@Feedback(soccerTeamHistoryNotice(&season.Notices[i]))
 		}
 		if len(season.Games) > 0 {
 			<ol class="soccer-team-history-games" aria-label="Completed games, newest first">
@@ -92,7 +92,7 @@ templ soccerTeamHistorySeasonDetail(season SoccerTeamHistorySeasonDetail) {
 						<time datetime={ game.KickoffISO }>{ game.Kickoff }</time>
 						<span class="soccer-team-history-opponent">{ game.Opponent }</span>
 						<span class="soccer-team-history-score">{ game.Score }</span>
-						<span class={ soccerTeamHistoryResultClass(game.Result) }>{ game.Result }</span>
+						<span class={ mergeClasses("soccer-team-history-result", soccerTeamHistoryResultClass(game.Result)) }>{ game.Result }</span>
 					</li>
 				}
 			</ol>

@@ -179,12 +179,14 @@ func soccerTeamHistoryResultClass(result string) string {
 	}
 }
 
-func soccerTeamHistoryNotice(notice FeedbackProps) FeedbackProps {
-	notice.ExtraClass = mergeClasses("soccer-team-history-notice", notice.ExtraClass)
-	return notice
+func soccerTeamHistoryNotice(notice *FeedbackProps) FeedbackProps {
+	styled := *notice
+	styled.ExtraClass = mergeClasses("soccer-team-history-notice", notice.ExtraClass)
+	return styled
 }
 
-func soccerTeamHistoryRefusal(refusal FeedbackProps) FeedbackProps {
-	refusal.ExtraClass = mergeClasses("soccer-team-history-refusal", refusal.ExtraClass)
-	return refusal
+func soccerTeamHistoryRefusal(refusal *FeedbackProps) FeedbackProps {
+	styled := *refusal
+	styled.ExtraClass = mergeClasses("soccer-team-history-refusal", refusal.ExtraClass)
+	return styled
 }

@@ -125,7 +125,7 @@ func TestSoccerTeamHistoryViewRendersSwitchersDetailAndGames(t *testing.T) {
 		t.Errorf("aria-current appears %d times, want only on the open season", got)
 	}
 	if !strings.Contains(html, `<ol class="soccer-team-history-seasons" aria-label="Team seasons, newest first">`) {
-		t.Error("the seasons are not an ordered list labelled newest first")
+		t.Error("the seasons are not an ordered list labeled newest first")
 	}
 
 	detail := soccerOpeningTag(t, html, `data-soccer-team-history-detail="4102/78"`)
@@ -156,7 +156,7 @@ func TestSoccerTeamHistoryViewRendersSwitchersDetailAndGames(t *testing.T) {
 	newer := strings.Index(html, `data-soccer-team-history-game="7002"`)
 	older := strings.Index(html, `data-soccer-team-history-game="7001"`)
 	if games < 0 || newer < games || older < newer {
-		t.Fatalf("games list at %d, 7002 at %d, 7001 at %d; want 7002 then 7001 inside the labelled list", games, newer, older)
+		t.Fatalf("games list at %d, 7002 at %d, 7001 at %d; want 7002 then 7001 inside the labeled list", games, newer, older)
 	}
 	for _, want := range []string{
 		`<time datetime="2026-01-12T19:00:00-07:00">Mon 01/12/26 07:00 PM MST</time>`,

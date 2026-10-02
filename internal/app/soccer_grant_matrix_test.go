@@ -270,6 +270,18 @@ var soccerPrivateRoutes = []soccerGrantRoute{
 		},
 	},
 	{
+		// The Team history view lists the same proven season and opens it.
+		name: "team history view", method: http.MethodGet, path: "/soccer/history/view?player_id=1001", grantedStatus: http.StatusOK, keepsHistory: true,
+		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
+			if body := resp.Body.String(); !strings.Contains(body, `data-soccer-team-history-season="4101/169"`) || !strings.Contains(body, `data-soccer-team-history-detail="4101/169"`) {
+				t.Errorf("team history view did not open the owner's proven season: %q", body)
+			}
+			if world.lpsCredentialCalls.Load() == 0 {
+				t.Error("team history view did not check current seasons with the owner's imported LPS access")
+			}
+		},
+	},
+	{
 		name: "linked-player team discovery", method: http.MethodPost, path: "/soccer/discover-teams", form: url.Values{"player_ids": {"1001"}}, grantedStatus: http.StatusOK,
 		grantedEffect: func(t *testing.T, world *soccerGrantWorld, resp *httptest.ResponseRecorder) {
 			if !strings.Contains(resp.Body.String(), "Craig FC") || world.lpsCredentialCalls.Load() == 0 {
