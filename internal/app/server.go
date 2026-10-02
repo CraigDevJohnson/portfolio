@@ -131,11 +131,13 @@ func buildMux(app *App, rootLogger *slog.Logger, localPortalPreview bool) (http.
 		soccerMux.ServeHTTP(w, r)
 	})
 	if localPortalPreview {
-		linked := newPreviewLinkedSoccer(app, rootLogger, "linked", nil)
-		google := newPreviewLinkedSoccer(app, rootLogger, "google", previewGoogleCalendar{})
-		soccerRoutes = google.wrap(linked.wrap(soccerRoutes))
+		linked := newPreviewLinkedSoccer(app, rootLogger, "linked", newSoccerPreviewLPS().linkedRoutes(), nil, nil)
+		google := newPreviewLinkedSoccer(app, rootLogger, "google", newSoccerPreviewLPS().linkedRoutes(), previewGoogleCalendar{}, nil)
+		history := newPreviewLinkedSoccer(app, rootLogger, "history", newSoccerPreviewLPS().historyRoutes(), nil, newPreviewHistoryStore(time.Now()))
+		soccerRoutes = history.wrap(google.wrap(linked.wrap(soccerRoutes)))
 		mux.HandleFunc("GET /__preview/account/soccer-linked", linked.enter)
 		mux.HandleFunc("GET /__preview/account/soccer-google", google.enter)
+		mux.HandleFunc("GET /__preview/account/soccer-history", history.enter)
 	}
 	mux.Handle("/soccer", soccerRoutes)
 	mux.Handle("/soccer/", soccerRoutes)
