@@ -47,7 +47,12 @@ func TestSoccerRouteCSSUsesMatchdayCompositionContract(t *testing.T) {
 		{selector: ".soccer-inline-link", want: map[string]string{"min-height": "2.75rem", "margin-block": "0", "line-height": "2.75rem"}},
 		{selector: "#team_codes", want: map[string]string{"scroll-margin-block-start": "calc(var(--header-height) + var(--space-xl))"}},
 		{selector: "#soccer-team-stage-content", want: map[string]string{"scroll-margin-block-start": "calc(var(--header-height) + var(--space-xl))"}},
+		{selector: ".soccer-team-history-seasons", want: map[string]string{"display": "grid"}},
+		{selector: ".soccer-team-history-games", want: map[string]string{"display": "grid"}},
+		{selector: ".soccer-team-history-game", want: map[string]string{"display": "grid", "min-width": "0"}},
 		{selector: ".soccer-source-grid", width: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
+		{selector: ".soccer-team-history-seasons", width: 48, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
+		{selector: ".soccer-team-history-game", width: 48, want: map[string]string{"grid-template-columns": "minmax(0,1.1fr) minmax(0,1.6fr) minmax(0,0.6fr) minmax(0,0.7fr)"}},
 		{selector: ".soccer-match-row", width: 48, want: map[string]string{"grid-template-columns": "3rem minmax(0,0.9fr) minmax(0,1.35fr) minmax(0,1.2fr) minmax(0,0.7fr)"}},
 		{selector: ".soccer-connections-grid", width: 70, want: map[string]string{"grid-template-columns": "repeat(2,minmax(0,1fr))"}},
 		{selector: ".soccer-stage-legend", width: 48, want: map[string]string{"grid-auto-flow": "column", "grid-auto-columns": "minmax(0,1fr)"}},
@@ -108,6 +113,7 @@ func TestSoccerRouteCSSUsesMatchdayCompositionContract(t *testing.T) {
 		{"cmd", "web", "partials", "soccer_player_select.templ"},
 		{"cmd", "web", "partials", "soccer_team_select.templ"},
 		{"cmd", "web", "partials", "soccer_table_fragment.templ"},
+		{"cmd", "web", "partials", "soccer_team_history.templ"},
 	} {
 		source := readTask2Artifact(t, path...)
 		if strings.Contains(source, "max-sm:") || strings.Contains(source, " sm:") {

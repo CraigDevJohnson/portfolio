@@ -1,0 +1,101 @@
+package partials
+
+import "strconv"
+
+// SoccerTeamHistoryView renders the Team history panel: the linked players,
+// then a refusal or one player's proven team seasons and the open season.
+// Each switch button keeps a stable id, so htmx returns focus to the button
+// the visitor pressed once the panel is replaced, and replaces any request
+// still in flight, so a slower earlier answer never overwrites a later choice.
+templ SoccerTeamHistoryView(props SoccerTeamHistoryViewProps) {
+	if len(props.Players) > 0 {
+		<div class="soccer-team-history-players" role="group" aria-label="Linked players">
+			for _, player := range props.Players {
+				<button
+					type="button"
+					id={ soccerTeamHistoryPlayerID(player) }
+					class="btn soccer-secondary-btn soccer-team-history-player"
+					aria-pressed={ soccerTeamHistoryBool(player.Selected) }
+					hx-get={ soccerTeamHistoryPlayerURL(player.ID) }
+					hx-target="#soccer-team-history-panel"
+					hx-swap="innerHTML"
+					hx-sync="#soccer-team-history-panel:replace"
+					hx-indicator="#soccer-team-history-loading"
+					data-soccer-team-history-player={ strconv.Itoa(player.ID) }
+				>{ player.Name }</button>
+			}
+		</div>
+	}
+	if props.Refusal != nil {
+		@Feedback(soccerTeamHistoryRefusal(*props.Refusal))
+	} else {
+		for _, notice := range props.Notices {
+			@Feedback(soccerTeamHistoryNotice(notice))
+		}
+		if len(props.Seasons) > 0 {
+			<ol class="soccer-team-history-seasons" aria-label="Team seasons, newest first">
+				for _, season := range props.Seasons {
+					<li>
+						<button
+							type="button"
+							id={ soccerTeamHistorySeasonID(season) }
+							class="soccer-team-history-season"
+							if season.Selected {
+								aria-current="true"
+							}
+							hx-get={ soccerTeamHistorySeasonURL(season) }
+							hx-target="#soccer-team-history-panel"
+							hx-swap="innerHTML"
+							hx-sync="#soccer-team-history-panel:replace"
+							hx-indicator="#soccer-team-history-loading"
+							data-soccer-team-history-season={ soccerTeamHistorySeasonKey(season.TeamID, season.SeasonID) }
+							data-current={ soccerTeamHistoryBool(season.Current) }
+						>
+							<strong>{ season.TeamName }</strong>
+							<span>{ soccerTeamHistorySeasonMeta(season.Division, season.SeasonID, season.Current) }</span>
+						</button>
+					</li>
+				}
+			</ol>
+		}
+		if props.Season != nil {
+			@soccerTeamHistorySeasonDetail(*props.Season)
+		}
+	}
+}
+
+templ soccerTeamHistorySeasonDetail(season SoccerTeamHistorySeasonDetail) {
+	<article
+		class="soccer-team-history-detail"
+		aria-labelledby="soccer-team-history-detail-title"
+		data-soccer-team-history-detail={ soccerTeamHistorySeasonKey(season.TeamID, season.SeasonID) }
+	>
+		<header class="soccer-team-history-detail-header">
+			<h3 id="soccer-team-history-detail-title">{ season.TeamName }</h3>
+			<p class="soccer-team-history-meta">{ soccerTeamHistorySeasonMeta(season.Division, season.SeasonID, season.Current) }</p>
+		</header>
+		<div class="soccer-team-history-record" data-soccer-team-history-record>
+			<p class="soccer-team-history-record-line"><span aria-hidden="true">{ soccerTeamHistoryRecordLine(season.Record) }</span><span class="sr-only">{ soccerTeamHistoryRecordSpoken(season.Record) }</span></p>
+			<p class="soccer-team-history-scored">{ soccerTeamHistoryScoredLine(season.Record) }</p>
+			<p class="soccer-team-history-label">{ soccerTeamHistoryRecordNote(season.Record) }</p>
+		</div>
+		if season.Collected != "" {
+			<p class="soccer-team-history-collected" data-soccer-team-history-collected>{ season.Collected }</p>
+		}
+		for _, notice := range season.Notices {
+			@Feedback(soccerTeamHistoryNotice(notice))
+		}
+		if len(season.Games) > 0 {
+			<ol class="soccer-team-history-games" aria-label="Completed games, newest first">
+				for _, game := range season.Games {
+					<li class="soccer-team-history-game" data-soccer-team-history-game={ strconv.Itoa(game.ID) }>
+						<time datetime={ game.KickoffISO }>{ game.Kickoff }</time>
+						<span class="soccer-team-history-opponent">{ game.Opponent }</span>
+						<span class="soccer-team-history-score">{ game.Score }</span>
+						<span class={ soccerTeamHistoryResultClass(game.Result) }>{ game.Result }</span>
+					</li>
+				}
+			</ol>
+		}
+	</article>
+}
