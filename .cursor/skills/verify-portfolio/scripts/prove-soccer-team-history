@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONTROL="$SCRIPT_DIR/control-portfolio"
+STEPS="$SCRIPT_DIR/soccer-team-history"
+PWCLI="${PORTFOLIO_PWCLI:-/Users/craigjohnson/.codex/skills/playwright/scripts/playwright_cli.sh}"
+
+fail() {
+  printf 'prove-soccer-team-history: %s\n' "$*" >&2
+  exit 1
+}
+
+: "${VERIFY_RUN_ID:?set VERIFY_RUN_ID to the launched verification run}"
+[[ "$VERIFY_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'invalid VERIFY_RUN_ID'
+command -v npx >/dev/null 2>&1 || fail 'npx is required by the Playwright CLI wrapper'
+[[ -x "$PWCLI" ]] || fail "Playwright CLI wrapper is not executable: $PWCLI"
+
+RUN_ROOT="$REPO_ROOT/output/playwright/verify-portfolio/$VERIFY_RUN_ID"
+STATE_DIR="$RUN_ROOT/state"
+EVIDENCE_DIR="$RUN_ROOT/evidence/soccer-team-history"
+VERIFY_URL="$(<"$STATE_DIR/url")"
+SESSION="${PORTFOLIO_PW_SESSION:-portfolio-$VERIFY_RUN_ID}"
+TRANSCRIPT="$EVIDENCE_DIR/browser-commands.log"
+ASSERTIONS="$EVIDENCE_DIR/assertions.txt"
+
+mkdir -p "$EVIDENCE_DIR"
+printf '%s\n' "$SESSION" >"$STATE_DIR/browser-session"
+: >"$TRANSCRIPT"
+: >"$ASSERTIONS"
+
+run_pw() {
+  {
+    printf '\n$ playwright-cli --session %q' "$SESSION"
+    printf ' %q' "$@"
+    printf '\n'
+  } >>"$TRANSCRIPT"
+  "$PWCLI" --session "$SESSION" "$@" 2>&1 | tee -a "$TRANSCRIPT"
+}
+
+# Run one journey step; its assertions throw, which fails the CLI and this proof.
+step() {
+  local name="$1"
+  shift
+  printf '\n## %s\n' "$name" >>"$ASSERTIONS"
+  run_pw run-code "$@" | tee -a "$ASSERTIONS"
+}
+
+capture() {
+  run_pw snapshot --filename "$EVIDENCE_DIR/$1.md" >/dev/null
+  run_pw screenshot --filename "$EVIDENCE_DIR/$1.png" --full-page >/dev/null
+}
+
+"$CONTROL" doctor | tee "$EVIDENCE_DIR/doctor.txt"
+
+run_pw open "$VERIFY_URL/"
+run_pw resize 1440 1000
+run_pw run-code "async (page) => { if (await page.evaluate(() => typeof window.htmx) === 'undefined') throw new Error('HTMX did not load'); }"
+
+step 'Enter as the history account and import LPS access' --filename "$STEPS/01-enter-and-import.js"
+capture 01-imported
+
+step "Open Craig's seasons and each collection state" --filename "$STEPS/02-craig-seasons.js"
+capture 02-craig-seasons
+
+step 'Open the other linked players' --filename "$STEPS/03-other-players.js"
+capture 03-other-players
+
+step 'Switch players and seasons from the keyboard' --filename "$STEPS/04-keyboard.js"
+capture 04-keyboard
+
+step 'Narrow layout' --filename "$STEPS/05-narrow.js"
+capture 05-narrow
+
+step 'Clear import hides Team history' --filename "$STEPS/06-clear-import.js"
+capture 06-cleared
+
+run_pw requests | tee "$EVIDENCE_DIR/browser-requests.txt" >/dev/null
+run_pw console warning | tee "$EVIDENCE_DIR/browser-console-warning.txt" >/dev/null
+rg -q '/soccer/history/view\?player_id=1669080&team_id=479801&season_id=168' "$EVIDENCE_DIR/browser-requests.txt" ||
+  fail 'the browser request list holds no Team history season request'
+
+# End the preview account in this browser session so later proofs start signed out.
+run_pw run-code "async (page) => { await page.context().clearCookies(); await page.evaluate(() => window.sessionStorage.clear()); }"
+
+(
+  cd "$EVIDENCE_DIR"
+  find . -type f ! -name manifest.sha256 -print | LC_ALL=C sort | while IFS= read -r artifact; do
+    shasum -a 256 "$artifact"
+  done
+) >"$EVIDENCE_DIR/manifest.sha256"
+
+printf 'soccer-team-history proof captured at %s (preview account, in-memory history fixture, and in-process fake LPS; live Cognito, LPS, and DynamoDB were not tested)\n' "$EVIDENCE_DIR"
