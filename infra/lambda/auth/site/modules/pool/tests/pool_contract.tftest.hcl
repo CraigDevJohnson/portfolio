@@ -15,7 +15,7 @@ variables {
   environment           = "dev"
   cognito_domain_prefix = "portfolio-lambda-dev-site-111122223333"
   google_client_id      = "mock-dev-google-client.apps.googleusercontent.com"
-  google_client_secret  = "mock-dev-google-secret"
+  google_client_secret  = "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"
 }
 
 run "development_site_pool_contract" {
@@ -129,4 +129,26 @@ run "development_loopback_requires_opt_in" {
     ])
     error_message = "development loopback callback must require explicit opt-in"
   }
+}
+
+# A pasted secret that repeats or truncates the value plans cleanly but makes
+# Google reject Cognito's token request, so every sign-in returns an error.
+run "reject_concatenated_google_client_secret" {
+  command = plan
+
+  variables {
+    google_client_secret = "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GOCSPX-mock-fragment-00GOCSPX-mock-dev-google-secret-00000"
+  }
+
+  expect_failures = [var.google_client_secret]
+}
+
+run "reject_google_client_secret_without_google_format" {
+  command = plan
+
+  variables {
+    google_client_secret = "mock-dev-google-secret"
+  }
+
+  expect_failures = [var.google_client_secret]
 }

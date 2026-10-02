@@ -30,6 +30,13 @@ variable "google_client_secret" {
     condition     = trimspace(var.google_client_secret) != ""
     error_message = "google_client_secret must be supplied privately."
   }
+
+  # Google issues GOCSPX- secrets with 28 more characters. Anything else, such
+  # as a value pasted twice, plans cleanly but makes every sign-in fail.
+  validation {
+    condition     = can(regex("^GOCSPX-[A-Za-z0-9_-]{28}$", var.google_client_secret))
+    error_message = "google_client_secret must be exactly one Google client secret: GOCSPX- followed by 28 letters, digits, hyphens or underscores."
+  }
 }
 
 variable "cognito_domain_prefix" {

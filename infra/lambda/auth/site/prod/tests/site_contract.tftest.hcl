@@ -14,7 +14,7 @@ mock_provider "aws" {
 variables {
   aws_account_id       = "111122223333"
   google_client_id     = "mock-prod-google-client.apps.googleusercontent.com"
-  google_client_secret = "mock-prod-google-secret"
+  google_client_secret = "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"
 }
 
 run "production_runtime_handoff" {
