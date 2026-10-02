@@ -1246,6 +1246,10 @@ body.soccer-modal-open {
  * season's scored record, and its completed games. A pressed player or the
  * open season also takes a heavier border, so selection never rests on color
  * alone. */
+#soccer-history {
+  scroll-margin-block-start: calc(var(--header-height) + var(--space-xl));
+}
+
 .soccer-team-history {
   display: grid;
   gap: var(--space-xl);

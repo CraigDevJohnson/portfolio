@@ -63,6 +63,13 @@ func (h *Handler) SoccerPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// teamHistoryEnabled reports whether the durable history store the Team
+// history view reads is wired.
+func (h *Handler) teamHistoryEnabled() bool {
+	_, enabled := h.ArchiveStore().(soccerarchive.HistoryStore)
+	return enabled
+}
+
 func (h *Handler) historyCollectionEnabled() bool {
 	_, enabled := h.ArchiveStore().(soccerarchive.MembershipStore)
 	return enabled
@@ -207,6 +214,7 @@ func (h *Handler) LoginStateProps(w http.ResponseWriter, r *http.Request, sessio
 		GoogleAvailable:         privateAllowed && h.googleAvailable(),
 		LoginAvailable:          privateAllowed && h.Config.LoginEnabled(),
 		HistoryRemovalAvailable: privateAllowed && h.playerRemovalEnabled(),
+		TeamHistoryAvailable:    privateAllowed && h.teamHistoryEnabled(),
 		GoogleNeedsGrant:        !privateAllowed && h.googleAvailable(),
 		ImportNeedsGrant:        !privateAllowed && h.Config.LoginEnabled(),
 		SwapOOB:                 swapOOB,

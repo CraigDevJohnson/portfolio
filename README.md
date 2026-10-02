@@ -79,6 +79,15 @@ completed removal clears the browser's import, so only a later disclosed
 import collects the player again; a failed delete keeps the import for a
 retry.
 
+With history wired, a granted import also reveals a Team history section
+after the schedule tool, and the LPS card links to it. It loads nothing until
+the visitor picks a linked player; then it lists that player's proven team
+seasons, newest LPS season first, and opens the newest with its completed
+games and a record calculated from numeric scores, never official standings.
+A season button opens another. Clear import, site sign-out, player removal and
+an import that ends hide the section again. Without the history archive, as in
+every environment until activation, the page has no Team history.
+
 Enrollment has a reviewed capacity. Teams already enrolled keep their daily
 refresh; a new team past capacity is refused, the visitor sees why, and each
 refusal is logged once. A refused team that a granted player import found

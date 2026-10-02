@@ -34,6 +34,26 @@ func TestSoccerLoginStateCapabilities(t *testing.T) {
 			}
 		})
 	}
+
+	// Team history needs a server whose history store is wired for this
+	// granted visitor, and an import with at least one linked player.
+	players := []types.LPSPlayer{{UPlayerID: 1001}}
+	for _, history := range []struct {
+		name  string
+		props SoccerLoginStateProps
+		want  bool
+	}{
+		{name: "history for an import with players", props: SoccerLoginStateProps{TeamHistoryAvailable: true, Authenticated: true, Players: players}, want: true},
+		{name: "history without an import", props: SoccerLoginStateProps{TeamHistoryAvailable: true, Players: players}},
+		{name: "history for an import without players", props: SoccerLoginStateProps{TeamHistoryAvailable: true, Authenticated: true}},
+		{name: "an import without history", props: SoccerLoginStateProps{Authenticated: true, Players: players}},
+	} {
+		t.Run(history.name, func(t *testing.T) {
+			if got := history.props.ShowsTeamHistory(); got != history.want {
+				t.Errorf("ShowsTeamHistory() = %v, want %v", got, history.want)
+			}
+		})
+	}
 }
 
 func TestSoccerSecurityNoticeVariantsShareCanonicalCopy(t *testing.T) {

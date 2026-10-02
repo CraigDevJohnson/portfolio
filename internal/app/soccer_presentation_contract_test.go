@@ -531,7 +531,7 @@ func TestSoccerLoginStateSeparatesGoogleRefreshFromWorkflowReset(t *testing.T) {
 	if strings.Contains(googleRefresh, `id="soccer-configuration"`) {
 		t.Error("Google-only refresh revives the removed duplicate configuration summary")
 	}
-	for _, staleSafeID := range []string{"soccer-player-stage-content", "soccer-team-stage-content", "games-container"} {
+	for _, staleSafeID := range []string{"soccer-player-stage-content", "soccer-team-stage-content", "games-container", "soccer-history"} {
 		if strings.Contains(googleRefresh, `id="`+staleSafeID+`"`) {
 			t.Errorf("Google-only refresh unexpectedly replaces %s", staleSafeID)
 		}
@@ -548,6 +548,12 @@ func TestSoccerLoginStateSeparatesGoogleRefreshFromWorkflowReset(t *testing.T) {
 	}
 	if strings.Contains(workflowReset[lpsStart:lpsStart+lpsEnd+1], `hx-swap-oob`) {
 		t.Error("workflow reset marks its primary LPS target OOB")
+	}
+	historyStart := strings.Index(workflowReset, `id="soccer-history"`)
+	historyOpen := strings.LastIndex(workflowReset[:max(historyStart, 0)], "<")
+	historyEnd := strings.Index(workflowReset[max(historyStart, 0):], ">")
+	if historyStart < 0 || historyOpen < 0 || historyEnd < 0 || !strings.Contains(workflowReset[historyOpen:historyStart+historyEnd+1], `hx-swap-oob="outerHTML"`) {
+		t.Error("workflow reset does not replace the Team history section OOB")
 	}
 
 	state.SwapOOB = true

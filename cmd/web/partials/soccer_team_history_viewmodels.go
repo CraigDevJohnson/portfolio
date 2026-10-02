@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"portfolio/internal/schedule"
+	"portfolio/types"
 )
 
 // SoccerTeamHistoryViewPath is the private Team history fragment route. Each
@@ -82,6 +83,21 @@ type SoccerTeamHistoryGame struct {
 	Score      string
 	// Result is Win, Loss, Draw, or Not counted.
 	Result string
+}
+
+// soccerTeamHistorySectionPlayers offers each linked player before any is
+// chosen, named as the loaded view names them: a player LPS gives no name is
+// "Player <id>".
+func soccerTeamHistorySectionPlayers(players []types.LPSPlayer) []SoccerTeamHistoryPlayer {
+	offered := make([]SoccerTeamHistoryPlayer, 0, len(players))
+	for _, player := range players {
+		name := strings.TrimSpace(player.FirstName + " " + player.LastName)
+		if name == "" {
+			name = "Player " + strconv.Itoa(player.UPlayerID)
+		}
+		offered = append(offered, SoccerTeamHistoryPlayer{ID: player.UPlayerID, Name: name})
+	}
+	return offered
 }
 
 func soccerTeamHistoryRecordLine(record SoccerTeamHistoryRecord) string {

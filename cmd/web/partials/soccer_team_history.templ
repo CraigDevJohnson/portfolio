@@ -2,6 +2,45 @@ package partials
 
 import "strconv"
 
+// SoccerTeamHistorySection is the Team history section of the Soccer page.
+// It shows only while ShowsTeamHistory holds and is otherwise an empty,
+// hidden placeholder, so an import can reveal it and every workflow reset
+// can hide it again out of band. Nothing loads until a player is chosen.
+templ SoccerTeamHistorySection(props SoccerLoginStateProps, swapOOB bool) {
+	if !props.ShowsTeamHistory() {
+		<section
+			id="soccer-history"
+			hidden
+			if swapOOB {
+				hx-swap-oob="outerHTML"
+			}
+		></section>
+	} else {
+		<section
+			id="soccer-history"
+			class="page-section soccer-team-history"
+			aria-labelledby="soccer-team-history-title"
+			if swapOOB {
+				hx-swap-oob="outerHTML"
+			}
+		>
+			@SectionIntro(SectionIntroProps{
+				Label:       "Team history",
+				Title:       "Team seasons and records",
+				Description: "Completed games and records calculated from numeric scores for the teams your linked players are proven to play for.",
+				HeadingID:   "soccer-team-history-title",
+			})
+			<div id="soccer-team-history-loading" class="loading-indicator htmx-indicator" role="status" aria-live="polite">
+				<div class="spinner" aria-hidden="true"></div><span>Loading team history...</span>
+			</div>
+			<div id="soccer-team-history-panel" class="soccer-team-history-panel" aria-live="polite">
+				@SoccerTeamHistoryView(SoccerTeamHistoryViewProps{Players: soccerTeamHistorySectionPlayers(props.Players)})
+				<p class="soccer-team-history-hint">Choose a player to load their team seasons.</p>
+			</div>
+		</section>
+	}
+}
+
 // SoccerTeamHistoryView renders the Team history panel: the linked players,
 // then a refusal or one player's proven team seasons and the open season.
 // Each switch button keeps a stable id, so htmx returns focus to the button

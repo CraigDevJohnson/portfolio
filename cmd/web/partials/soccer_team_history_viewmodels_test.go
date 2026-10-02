@@ -1,8 +1,11 @@
 package partials
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"portfolio/types"
 )
 
 func TestSoccerTeamHistoryRecordText(t *testing.T) {
@@ -205,5 +208,15 @@ func TestSoccerTeamHistoryViewOmitsEmptyLists(t *testing.T) {
 	noGames.Season.Games = nil
 	if html := renderComponent(t, SoccerTeamHistoryView(noGames)); strings.Contains(html, "soccer-team-history-games") {
 		t.Error("a season without completed games renders an empty games list")
+	}
+}
+
+// The section names each player as the loaded view does, so a button keeps
+// its label once a player is chosen.
+func TestSoccerTeamHistorySectionPlayersMatchTheViewsNames(t *testing.T) {
+	got := soccerTeamHistorySectionPlayers([]types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson"}, {UPlayerID: 1003}})
+	want := []SoccerTeamHistoryPlayer{{ID: 1001, Name: "Craig Johnson"}, {ID: 1003, Name: "Player 1003"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("section players = %+v, want %+v", got, want)
 	}
 }

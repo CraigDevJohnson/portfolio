@@ -47,6 +47,7 @@ func TestSoccerRouteCSSUsesMatchdayCompositionContract(t *testing.T) {
 		{selector: ".soccer-inline-link", want: map[string]string{"min-height": "2.75rem", "margin-block": "0", "line-height": "2.75rem"}},
 		{selector: "#team_codes", want: map[string]string{"scroll-margin-block-start": "calc(var(--header-height) + var(--space-xl))"}},
 		{selector: "#soccer-team-stage-content", want: map[string]string{"scroll-margin-block-start": "calc(var(--header-height) + var(--space-xl))"}},
+		{selector: "#soccer-history", want: map[string]string{"scroll-margin-block-start": "calc(var(--header-height) + var(--space-xl))"}},
 		{selector: ".soccer-team-history-seasons", want: map[string]string{"display": "grid"}},
 		{selector: ".soccer-team-history-games", want: map[string]string{"display": "grid"}},
 		{selector: ".soccer-team-history-game", want: map[string]string{"display": "grid", "min-width": "0"}},

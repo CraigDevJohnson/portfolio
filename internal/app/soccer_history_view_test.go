@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"golang.org/x/net/html"
+
+	"portfolio/cmd/web/partials"
 )
 
 // historyViewPath is the Team history fragment for one player, opening the
@@ -417,4 +419,98 @@ func TestSoccerHistoryViewIsUnavailableWithoutTheDurableArchive(t *testing.T) {
 			t.Errorf("view with %q: status %d, want 400", query, response.Code)
 		}
 	}
+}
+
+// historySection returns the Soccer page's Team history section.
+func historySection(t *testing.T, doc *html.Node) *html.Node {
+	t.Helper()
+	return plannerSingle(t, doc, "Team history section", plannerAttrIs("id", "soccer-history"))
+}
+
+// requireHiddenHistorySection requires the section to be the hidden, empty
+// placeholder.
+func requireHiddenHistorySection(t *testing.T, section *html.Node, when string) {
+	t.Helper()
+	if !plannerHasAttr(section, "hidden") || section.FirstChild != nil {
+		t.Errorf("%s: the Team history section is not the hidden, empty placeholder", when)
+	}
+}
+
+func TestSoccerTeamHistorySectionAppearsOnlyForAGrantedImportWithHistory(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	owner := route.signedIn(t)
+	requireHiddenHistorySection(t, historySection(t, parsePlannerHTML(t, owner.get("/soccer").Body.String())), "before the import")
+
+	route.importLinkedPlayers(t, owner)
+	page := parsePlannerHTML(t, owner.get("/soccer").Body.String())
+
+	section := historySection(t, page)
+	if plannerHasAttr(section, "hidden") || soccerHTMLAttribute(section, "aria-labelledby") != "soccer-team-history-title" {
+		t.Fatal("the imported owner's Team history section is hidden or unlabeled")
+	}
+	if text := plannerText(section); !strings.Contains(text, "Team history") || !strings.Contains(text, "Choose a player to load their team seasons.") {
+		t.Errorf("Team history section text = %q", text)
+	}
+	plannerSingle(t, section, "section heading", plannerAttrIs("id", "soccer-team-history-title"))
+	plannerSingle(t, section, "Team history panel", plannerAttrIs("id", "soccer-team-history-panel"))
+	plannerSingle(t, section, "Team history loading status", plannerAttrIs("id", "soccer-team-history-loading"))
+	buttons := plannerElements(section, hasHistoryAttr("data-soccer-team-history-player"))
+	gets := make([]string, 0, len(buttons))
+	for _, button := range buttons {
+		if soccerHTMLAttribute(button, "aria-pressed") != "false" {
+			t.Errorf("player %s starts pressed", soccerHTMLAttribute(button, "data-soccer-team-history-player"))
+		}
+		gets = append(gets, soccerHTMLAttribute(button, "hx-get"))
+	}
+	if want := []string{historyViewPath(1001), historyViewPath(1002)}; !slices.Equal(gets, want) {
+		t.Fatalf("player buttons load %q, want %q", gets, want)
+	}
+	// The button's own request opens that player's view.
+	readHistoryView(t, owner, gets[0])
+
+	card := plannerSingle(t, page, "LPS connection card", plannerAttrIs("id", "soccer-lps-connection"))
+	if link := plannerSingle(t, card, "Team history link", plannerAttrIs("href", "#soccer-history")); plannerText(link) != "View team history" {
+		t.Errorf("LPS card link reads %q", plannerText(link))
+	}
+
+	// Without the durable archive, as every environment runs until
+	// activation, the same import shows no Team history.
+	route.handler.SetArchiveStore(nil)
+	off := parsePlannerHTML(t, owner.get("/soccer").Body.String())
+	requireHiddenHistorySection(t, historySection(t, off), "without the archive")
+	if links := plannerElements(off, plannerAttrIs("href", "#soccer-history")); len(links) != 0 {
+		t.Error("the LPS card links to Team history without the archive")
+	}
+}
+
+// The import reveals the section in place, and logout and an ended import
+// hide it again, out of band beside the LPS card and planner stages.
+func TestSoccerTeamHistorySectionFollowsTheImport(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	owner := route.signedIn(t)
+
+	imported := owner.postForm("/soccer/import", url.Values{"jwt": {route.jwt}, partials.SoccerHistoryNoticeField: {partials.SoccerHistoryNoticeIndefinite}})
+	revealed := historySection(t, parsePlannerHTML(t, imported.Body.String()))
+	if soccerHTMLAttribute(revealed, "hx-swap-oob") != "outerHTML" || plannerHasAttr(revealed, "hidden") {
+		t.Fatal("the import does not reveal the Team history section out of band")
+	}
+	if players := plannerElements(revealed, hasHistoryAttr("data-soccer-team-history-player")); len(players) != 2 {
+		t.Errorf("the revealed section offers %d players, want 2", len(players))
+	}
+
+	logout := browserForm(siteOrigin, "/soccer/logout", nil)
+	logout.Header.Set("HX-Request", "true")
+	cleared := historySection(t, parsePlannerHTML(t, owner.do(logout).Body.String()))
+	if soccerHTMLAttribute(cleared, "hx-swap-oob") != "outerHTML" {
+		t.Error("Clear import does not replace the Team history section out of band")
+	}
+	requireHiddenHistorySection(t, cleared, "after Clear import")
+
+	route.importLinkedPlayers(t, owner)
+	route.expireImportJWT(t, owner)
+	ended := historySection(t, parsePlannerHTML(t, owner.get(historyViewPath(1001)).Body.String()))
+	if soccerHTMLAttribute(ended, "hx-swap-oob") != "outerHTML" {
+		t.Error("an ended import does not replace the Team history section out of band")
+	}
+	requireHiddenHistorySection(t, ended, "after the import ended")
 }
