@@ -33,7 +33,7 @@ templ SoccerTeamHistorySection(props SoccerLoginStateProps, swapOOB bool) {
 			<div id="soccer-team-history-loading" class="loading-indicator htmx-indicator" role="status" aria-live="polite">
 				<div class="spinner" aria-hidden="true"></div><span>Loading team history...</span>
 			</div>
-			<div id="soccer-team-history-panel" class="soccer-team-history-panel" aria-live="polite">
+			<div id="soccer-team-history-panel" class="soccer-team-history-panel">
 				@SoccerTeamHistoryView(SoccerTeamHistoryViewProps{Players: soccerTeamHistorySectionPlayers(props.Players)})
 				<p class="soccer-team-history-hint">Choose a player to load their team seasons.</p>
 			</div>

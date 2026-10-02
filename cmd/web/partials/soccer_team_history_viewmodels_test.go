@@ -220,3 +220,19 @@ func TestSoccerTeamHistorySectionPlayersMatchTheViewsNames(t *testing.T) {
 		t.Errorf("section players = %+v, want %+v", got, want)
 	}
 }
+
+// Focus stays on the pressed button through a swap, and the loading status
+// and each notice announce themselves, so the panel itself is not a live
+// region that would read every player, season, and game again on each
+// switch.
+func TestSoccerTeamHistorySectionPanelIsNotALiveRegion(t *testing.T) {
+	html := renderComponent(t, SoccerTeamHistorySection(SoccerLoginStateProps{
+		TeamHistoryAvailable: true, Authenticated: true, Players: []types.LPSPlayer{{UPlayerID: 1001, FirstName: "Craig", LastName: "Johnson"}},
+	}, false))
+	if panel := soccerOpeningTag(t, html, `id="soccer-team-history-panel"`); strings.Contains(panel, "aria-live") {
+		t.Errorf("the panel is a live region: %s", panel)
+	}
+	if loading := soccerOpeningTag(t, html, `id="soccer-team-history-loading"`); !strings.Contains(loading, `role="status"`) {
+		t.Errorf("the loading indicator is not a status: %s", loading)
+	}
+}

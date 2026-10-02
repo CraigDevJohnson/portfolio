@@ -814,6 +814,10 @@ func TestSoccerHistoryReadsNeverUseAnotherSiteOwnersImportOrProof(t *testing.T) 
 			if got := firstList.summary(); got != firstOwnersSeasons {
 				t.Fatalf("first owner's team seasons = %q, want %q", got, firstOwnersSeasons)
 			}
+			const firstOwnersView = "4101/80 current, 4102/78 former, 4101/77 former"
+			if got := historyViewSeasons(readHistoryView(t, owner, historyViewPath(1001))); got != firstOwnersView {
+				t.Fatalf("first owner's Team history seasons = %q, want %q", got, firstOwnersView)
+			}
 
 			// The successor imports the same LPS account.
 			route.cognito.subject, route.cognito.email = successor.subject, successor.email
@@ -828,6 +832,13 @@ func TestSoccerHistoryReadsNeverUseAnotherSiteOwnersImportOrProof(t *testing.T) 
 			if got, want := successorList.summary(), "4101/80 Craig FC current"; got != want {
 				t.Errorf("successor's team seasons = %q, want only the season LPS lists now", got)
 			}
+			if got := historyViewSeasons(readHistoryView(t, other, historyViewPath(1001))); got != "4101/80 current" {
+				t.Errorf("successor's Team history seasons = %q, want only the season LPS lists now", got)
+			}
+			assertPrivateHistoryDenied(t, other, http.StatusForbidden, historyViewSeasonPath(1001, 4102, 78))
+			if body := other.get(historyViewSeasonPath(1001, 4102, 78)).Body.String(); !strings.Contains(body, "Team-season membership is unverified") {
+				t.Errorf("successor's Team history view of the former season = %q, want it unverified", body)
+			}
 
 			// The successor signs in to the first owner's browser, which
 			// drops the first owner's import.
@@ -837,6 +848,7 @@ func TestSoccerHistoryReadsNeverUseAnotherSiteOwnersImportOrProof(t *testing.T) 
 			}
 			assertHistoryDenied(t, owner, http.StatusUnauthorized, 1001, 4102, 78)
 			assertTeamSeasonsDenied(t, owner, http.StatusUnauthorized, 1001)
+			assertPrivateHistoryDenied(t, owner, http.StatusUnauthorized, historyViewPath(1001))
 			if owner.holdsCookie(config.LPSSessionCookieName, config.SoccerCookiePath) {
 				t.Error("the browser kept the first owner's import for the successor")
 			}
@@ -848,6 +860,9 @@ func TestSoccerHistoryReadsNeverUseAnotherSiteOwnersImportOrProof(t *testing.T) 
 			again := listTeamSeasons(t, first, 1001)
 			if got := again.summary(); got != firstOwnersSeasons {
 				t.Errorf("first owner's team seasons after signing in again = %q, want %q", got, firstOwnersSeasons)
+			}
+			if got := historyViewSeasons(readHistoryView(t, first, historyViewPath(1001))); got != firstOwnersView {
+				t.Errorf("first owner's Team history seasons after signing in again = %q, want %q", got, firstOwnersView)
 			}
 		})
 	}

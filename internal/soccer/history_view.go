@@ -57,6 +57,7 @@ func (h *Handler) HistoryViewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if lookupErr != nil {
 		if detail := lps.ScheduleErrorDetailsFor(lookupErr); detail.ClearSession {
+			h.clearSession(w, r)
 			h.renderHistoryEndedImport(w, r, detail)
 			return
 		}
@@ -122,12 +123,13 @@ func (h *Handler) renderHistoryView(w http.ResponseWriter, r *http.Request, stat
 	}
 }
 
-// renderHistoryEndedImport ends an import a Team history request found gone
-// or LPS rejected. It clears the import cookies and replaces the page's LPS
-// card and private stages out of band with the reason, as every Soccer route
-// does, and swaps nothing into the panel the reset hides.
+// renderHistoryEndedImport answers a Team history request whose import is
+// gone or that LPS rejected: it replaces the page's LPS card and private
+// stages out of band with the reason, as every Soccer route does, and swaps
+// nothing into the panel the reset hides. It leaves the import cookies to the
+// caller, so a Team ID lookup the browser holds in place of an ended import
+// survives.
 func (h *Handler) renderHistoryEndedImport(w http.ResponseWriter, r *http.Request, detail lps.ScheduleErrorDetails) {
-	h.clearSession(w, r)
 	w.Header().Set("HX-Trigger", "soccer-workflow-reset")
 	w.Header().Set("HX-Reswap", "none")
 	w.Header().Set("X-Portal-Fragment-Error", "true")

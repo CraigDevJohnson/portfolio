@@ -514,3 +514,29 @@ func TestSoccerTeamHistorySectionFollowsTheImport(t *testing.T) {
 	}
 	requireHiddenHistorySection(t, ended, "after the import ended")
 }
+
+// A stale Team history button clicked after the import ended resets the
+// page but keeps the Team ID lookup the visitor made since, which the browser
+// now holds in place of the import.
+func TestSoccerHistoryViewKeepsATeamIDLookupMadeAfterTheImportEnded(t *testing.T) {
+	route := newTeamHistoryRoute(t)
+	route.setTeam(4101, craigFCSeason77)
+	owner := route.signedIn(t)
+	route.importLinkedPlayers(t, owner)
+	route.expireImportJWT(t, owner)
+	if lookup := owner.postForm("/soccer/fetch", url.Values{"team_codes": {"4101"}}); lookup.Code != http.StatusOK {
+		t.Fatalf("Team ID lookup after the import ended: status %d", lookup.Code)
+	}
+
+	ended := owner.get(historyViewPath(1001))
+	if ended.Code != http.StatusUnauthorized {
+		t.Fatalf("stale Team history request: status %d, want 401", ended.Code)
+	}
+	if cookie := findSessionCookie(t, ended.Result()); cookie != nil {
+		t.Errorf("the view rewrote the browser's Team ID lookup: %#v", cookie)
+	}
+	field := plannerSingle(t, parsePlannerHTML(t, owner.get("/soccer").Body.String()), "Team IDs field", plannerAttrIs("id", "team_codes"))
+	if got := soccerHTMLAttribute(field, "value"); got != "4101" {
+		t.Errorf("Team IDs after the stale request = %q, want the visitor's 4101", got)
+	}
+}
