@@ -15,11 +15,13 @@ import (
 	"portfolio/internal/httpx"
 	"portfolio/internal/siteidentity"
 	internalsoccer "portfolio/internal/soccer"
+	"portfolio/internal/soccerarchive"
 )
 
 // previewLinkedAccountCookie marks a loopback preview browser that opened a
-// preview Soccer account: "linked" from /__preview/account/soccer-linked, or
-// "google" from /__preview/account/soccer-google.
+// preview Soccer account: "linked" from /__preview/account/soccer-linked,
+// "google" from /__preview/account/soccer-google, or "history" from
+// /__preview/account/soccer-history.
 const previewLinkedAccountCookie = "preview_soccer_account"
 
 // previewLinkedLPSBaseURL names the linked journey's fake LPS. The .invalid
@@ -38,19 +40,20 @@ func previewAccountPrincipal() *siteidentity.Principal {
 // Soccer page and its LPS routes. Those run the real Soccer handlers with
 // their own session key against their own in-process fake LPS, so the journey
 // replaces only site Cognito and LPS and never reaches a live service.
-// Google Calendar stays off unless the account is given preview Google hooks.
+// Google Calendar stays off unless the account is given preview Google hooks,
+// and Team history stays off unless it is given a preview history archive.
 type previewLinkedSoccer struct {
 	marker string
 	routes *http.ServeMux
 }
 
-func newPreviewLinkedSoccer(app *App, logger *slog.Logger, marker string, google internalsoccer.GoogleHooks) *previewLinkedSoccer {
+func newPreviewLinkedSoccer(app *App, logger *slog.Logger, marker string, lps http.Handler, google internalsoccer.GoogleHooks, archive soccerarchive.Store) *previewLinkedSoccer {
 	cfg := app.Config
 	cfg.SessionKey = make([]byte, 32)
 	_, _ = rand.Read(cfg.SessionKey)
 	cfg.LPSAPIBaseURL = previewLinkedLPSBaseURL
 	cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleConnectionTableName = "", "", ""
-	lpsClient := &http.Client{Transport: inProcessTransport{handler: newSoccerPreviewLPS().linkedRoutes()}, Timeout: lpsClientTimeout}
+	lpsClient := &http.Client{Transport: inProcessTransport{handler: lps}, Timeout: lpsClientTimeout}
 	handler := internalsoccer.NewHandler(&cfg, lpsClient, app.LoginLimiter, google, internalsoccer.NoopSoccerStore{}, logger.With(slog.String("component", "soccer_preview_"+marker)))
 
 	routes := http.NewServeMux()
@@ -58,6 +61,10 @@ func newPreviewLinkedSoccer(app *App, logger *slog.Logger, marker string, google
 	registerSoccerLPSRoutes(routes, handler)
 	if google != nil {
 		routes.HandleFunc("/soccer/google/", previewGoogleNotContacted)
+	}
+	if archive != nil {
+		handler.SetArchiveStore(archive)
+		registerSoccerHistoryRoutes(routes, handler)
 	}
 	return &previewLinkedSoccer{marker: marker, routes: routes}
 }
@@ -166,35 +173,44 @@ var previewLinkedTeams = map[string]string{
 func (fake *soccerPreviewLPS) linkedRoutes() http.Handler {
 	routes := http.NewServeMux()
 	routes.HandleFunc("GET /teams/{id}", fake.teamScheduleHandler)
-	routes.HandleFunc("GET /users/check", func(w http.ResponseWriter, r *http.Request) {
-		if !previewBearer(w, r) {
-			return
-		}
-		_, _ = w.Write([]byte(`{"first_name":"Craig","last_name":"Johnson","players":[` +
-			`{"UPlayerID":1669080,"FirstName":"Craig","LastName":"Johnson","is_main_player":true},` +
-			`{"UPlayerID":1669081,"FirstName":"Taylor Alexandra","LastName":"Johnson-Summit"}],` +
-			`"user_players":[{"player_id":1669080,"deleted":false},{"player_id":1669081,"deleted":false}]}`))
-	})
-	routes.HandleFunc("GET /players/{id}/my_teams", func(w http.ResponseWriter, r *http.Request) {
-		if !previewBearer(w, r) {
-			return
-		}
-		// A token signed "revoked" imports, but its team lookups are then
-		// refused, as when LPS withdraws access after an import.
-		if strings.HasSuffix(r.Header.Get("Authorization"), ".revoked") {
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
-			return
-		}
-		teams, ok := previewLinkedTeams[r.PathValue("id")]
-		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"message":"player not found"}`))
-			return
-		}
-		_, _ = w.Write([]byte(teams))
-	})
+	routes.HandleFunc("GET /users/check", previewAccountCheck(`{"first_name":"Craig","last_name":"Johnson","players":[`+
+		`{"UPlayerID":1669080,"FirstName":"Craig","LastName":"Johnson","is_main_player":true},`+
+		`{"UPlayerID":1669081,"FirstName":"Taylor Alexandra","LastName":"Johnson-Summit"}],`+
+		`"user_players":[{"player_id":1669080,"deleted":false},{"player_id":1669081,"deleted":false}]}`))
+	routes.HandleFunc("GET /players/{id}/my_teams", previewPlayerTeams)
 	return routes
+}
+
+// previewAccountCheck answers the fake LPS account lookup with account.
+func previewAccountCheck(account string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if previewBearer(w, r) {
+			_, _ = w.Write([]byte(account))
+		}
+	}
+}
+
+// previewPlayerTeams answers a preview player's current team lookup from
+// previewLinkedTeams, and a player it does not list as LPS answers an unknown
+// player.
+func previewPlayerTeams(w http.ResponseWriter, r *http.Request) {
+	if !previewBearer(w, r) {
+		return
+	}
+	// A token signed "revoked" imports, but its team lookups are then
+	// refused, as when LPS withdraws access after an import.
+	if strings.HasSuffix(r.Header.Get("Authorization"), ".revoked") {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+		return
+	}
+	teams, ok := previewLinkedTeams[r.PathValue("id")]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"player not found"}`))
+		return
+	}
+	_, _ = w.Write([]byte(teams))
 }
 
 // previewBearer refuses a fake LPS account request without a bearer token,

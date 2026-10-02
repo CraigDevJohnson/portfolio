@@ -310,8 +310,9 @@ over one table:
    fresh LPS check, keeps team, game and facility facts and the other player,
    and ends the import, so the next read is refused with `401`.
 
-The grant matrix now includes `GET /soccer/history` and
-`GET /soccer/history/team-seasons`
+The grant matrix now includes `GET /soccer/history`,
+`GET /soccer/history/team-seasons` and the #81 Team history view
+`GET /soccer/history/view`
 (`internal/app/soccer_grant_matrix_test.go`), so signed-out, expired,
 ungranted and revoked visitors are shown to be refused there too.
 
@@ -716,7 +717,9 @@ Each granted import rewrites a membership's `observed_at` with the time of
 that import (`internal/soccerarchive/membership.go`), so the store keeps the
 latest observation, not when the membership was first seen. Decision 10
 (September 30, 2026): keep a first-seen time only if the #81 stats view needs
-it. #81 is undecided, so nothing changed. If #81 needs it, write the
+it. #81's approved design (October 1, 2026) shows each proven team season,
+its collection time and its refresh state, but never when a membership was
+first seen, so no first-seen time is kept. If a later view needs it, write the
 first-seen time only when the membership record is created. A conditional put
 needs no new IAM action; an `UpdateItem` with `if_not_exists` would need
 `dynamodb:UpdateItem` in the runtime policy and both boundaries. Records

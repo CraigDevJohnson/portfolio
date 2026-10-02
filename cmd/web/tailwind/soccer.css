@@ -1242,6 +1242,190 @@ body.soccer-modal-open {
   color: var(--pond-mint);
 }
 
+/* Team history (#81): a granted import's proven team seasons, the open
+ * season's scored record, and its completed games. A pressed player or the
+ * open season also takes a heavier border, so selection never rests on color
+ * alone. */
+#soccer-history {
+  scroll-margin-block-start: calc(var(--header-height) + var(--space-xl));
+}
+
+.soccer-team-history {
+  display: grid;
+  gap: var(--space-xl);
+  padding-block: clamp(var(--space-xl), 5vw, var(--space-2xl));
+}
+
+.soccer-team-history-panel {
+  display: grid;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.soccer-team-history-hint {
+  margin: 0;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+}
+
+.soccer-team-history-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.soccer-team-history-player {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.soccer-team-history-player[aria-pressed='true'] {
+  border-width: var(--line-accent);
+  border-color: var(--pond-mint);
+  background: color-mix(in srgb, var(--pond-mint) 12%, transparent);
+}
+
+.soccer-team-history-seasons {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.soccer-team-history-season {
+  display: grid;
+  gap: var(--space-2xs);
+  width: 100%;
+  min-width: 0;
+  min-height: calc(var(--space-2xl) - var(--space-xs));
+  padding: var(--space-sm) var(--space-md);
+  border: var(--line-hairline) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-copy-primary);
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.soccer-team-history-season span {
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+}
+
+.soccer-team-history-season:hover {
+  border-color: var(--color-border-strong);
+}
+
+.soccer-team-history-season:focus-visible {
+  outline: var(--line-accent) solid var(--pond-mint);
+  outline-offset: var(--line-accent);
+}
+
+.soccer-team-history-season[aria-current='true'] {
+  border-width: var(--line-accent);
+  border-color: var(--pond-mint);
+  box-shadow: var(--shadow-panel);
+}
+
+.soccer-team-history-detail {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+  padding: var(--space-lg);
+  border: var(--line-hairline) solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.soccer-team-history-detail-header,
+.soccer-team-history-record {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.soccer-team-history-detail-header h3 {
+  margin: 0;
+  color: var(--color-copy-primary);
+  font-size: var(--text-xl);
+  overflow-wrap: anywhere;
+}
+
+.soccer-team-history-meta,
+.soccer-team-history-scored,
+.soccer-team-history-label,
+.soccer-team-history-collected {
+  margin: 0;
+  color: var(--color-copy-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.soccer-team-history-record-line {
+  margin: 0;
+  color: var(--color-copy-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+}
+
+.soccer-team-history-collected {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.soccer-team-history-games {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Below 48rem a game stacks its kickoff over the opponent and score, with
+ * the result under them. */
+.soccer-team-history-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-xs) var(--space-md);
+  align-items: center;
+  min-width: 0;
+  padding-block: var(--space-sm);
+  border-top: var(--line-hairline) solid var(--color-border-subtle);
+}
+
+.soccer-team-history-game time {
+  grid-column: 1 / -1;
+  color: var(--color-copy-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.soccer-team-history-opponent {
+  min-width: 0;
+  color: var(--color-copy-primary);
+  overflow-wrap: anywhere;
+}
+
+.soccer-team-history-score {
+  justify-self: end;
+  min-width: 0;
+  color: var(--color-copy-primary);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* The result badge keeps its own width rather than stretching across the
+ * grid column it sits in. */
+.soccer-team-history-result {
+  justify-self: start;
+}
+
 @media (width >= 30rem) {
   .soccer-login-dialog {
     padding: var(--space-xl);
@@ -1314,6 +1498,22 @@ body.soccer-modal-open {
 
   .soccer-match-detail::before {
     margin-bottom: var(--space-xs);
+  }
+
+  .soccer-team-history-seasons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .soccer-team-history-game {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 0.6fr) minmax(0, 0.7fr);
+  }
+
+  .soccer-team-history-game time {
+    grid-column: auto;
+  }
+
+  .soccer-team-history-score {
+    justify-self: start;
   }
 }
 
@@ -1443,6 +1643,11 @@ body.soccer-modal-open {
   .soccer-modal-close:focus-visible,
   .soccer-stage :focus-visible {
     outline-color: Highlight;
+  }
+
+  .soccer-team-history-player[aria-pressed='true'],
+  .soccer-team-history-season[aria-current='true'] {
+    border-color: Highlight;
   }
 }
 

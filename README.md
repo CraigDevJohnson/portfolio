@@ -79,6 +79,15 @@ completed removal clears the browser's import, so only a later disclosed
 import collects the player again; a failed delete keeps the import for a
 retry.
 
+With history wired, a granted import also reveals a Team history section
+after the schedule tool, and the LPS card links to it. It loads nothing until
+the visitor picks a linked player; then it lists that player's proven team
+seasons, newest LPS season first, and opens the newest with its completed
+games and a record calculated from numeric scores, never official standings.
+A season button opens another. Clear import, site sign-out, player removal and
+an import that ends hide the section again. Without the history archive, as in
+every environment until activation, the page has no Team history.
+
 Enrollment has a reviewed capacity. Teams already enrolled keep their daily
 refresh; a new team past capacity is refused, the visitor sees why, and each
 refusal is logged once. A refused team that a granted player import found
@@ -555,6 +564,7 @@ HTMX and form endpoints:
 | `POST` | `/soccer/logout` |
 | `GET` | `/soccer/history` |
 | `GET` | `/soccer/history/team-seasons` |
+| `GET` | `/soccer/history/view` |
 | `POST` | `/soccer/discover-teams` |
 | `POST` | `/soccer/fetch` |
 | `POST` | `/soccer/download` |
@@ -635,8 +645,26 @@ the list and refused by the per-season read. Each entry opens with
 A player with no proof, including a removed player whom LPS lists on no team,
 gets `200` with an empty `team_seasons` array, which is distinct from every
 refusal and error; a membership query that fails returns `503`. Both history responses are `Cache-Control: private, no-store`.
-Until the separate collection activation, both history routes return `503`
-because no durable archive is wired into the production server.
+
+`GET /soccer/history/view?player_id=<player_id>` is the Team history fragment
+the Soccer page loads with htmx, also `Cache-Control: private, no-store`. It
+has the same authority as the two JSON reads, lists the same team seasons
+newest LPS season first, and opens the newest, or the season named by
+`team_id` and `season_id`, which must be given together. It shows the season's
+completed games newest first with each opponent and score from the team's
+side, the scored record and its label, the collection time and returned game
+count in Mountain Time, and a notice for a season not yet collected, an empty
+season, a season with no completed game, a failed or refused refresh, current
+teams LPS could not confirm, and a player with no proven season. A season the
+list does not prove is refused as the per-season read refuses it: `403` as
+unverified, or `403` or `502` when LPS denied or could not answer the current
+lookup. Those refusals, a player the import does not confirm (`403`), and a
+missing archive or failed read (`503`) render in the panel with their status.
+A missing import or a token LPS rejects returns `401`, clears the import
+cookies, and resets the page's LPS card and private stages as every Soccer
+route does. A malformed query returns `400`.
+Until the separate collection activation, all three history routes return
+`503` because no durable archive is wired into the production server.
 
 Portal routes are registered with valid `SITE_*` identity configuration or
 local preview mode. They include `/mgmt` and the instance action, metrics, and

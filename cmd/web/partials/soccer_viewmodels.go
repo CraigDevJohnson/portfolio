@@ -236,6 +236,13 @@ func (props *SoccerLoginStateProps) GoogleOffersSiteAccount() bool {
 }
 
 // SupportsGoogle reports whether any Google Calendar capability or state is present.
+// ShowsTeamHistory reports whether the Team history section and its LPS card
+// link appear: a granted visitor's unexpired import with linked players, on a
+// server whose durable history store is wired.
+func (props *SoccerLoginStateProps) ShowsTeamHistory() bool {
+	return props.TeamHistoryAvailable && props.Authenticated && len(props.Players) > 0
+}
+
 func (props *SoccerLoginStateProps) SupportsGoogle() bool {
 	return props.GoogleConnected || props.GoogleAvailable || len(props.GoogleCalendars) > 0 || props.SelectedGoogleCalendarID != ""
 }

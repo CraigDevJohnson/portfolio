@@ -72,3 +72,17 @@ func TestScheduleTimesReturnsFalseForUnparseableStart(t *testing.T) {
 		t.Fatal("expected ScheduleTimes to return false for game with no start time")
 	}
 }
+
+func TestFormatMountainTime(t *testing.T) {
+	for _, c := range []struct {
+		at   time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC), "Mon 09/28/26 06:00 AM MDT"},
+		{time.Date(2026, 1, 5, 19, 0, 0, 0, time.UTC), "Mon 01/05/26 12:00 PM MST"},
+	} {
+		if got := FormatMountainTime(c.at); got != c.want {
+			t.Errorf("FormatMountainTime(%s) = %q, want %q", c.at, got, c.want)
+		}
+	}
+}

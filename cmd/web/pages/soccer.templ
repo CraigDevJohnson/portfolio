@@ -239,6 +239,7 @@ templ Soccer(props SoccerProps) {
 					</div>
 				</section>
 			</section>
+			@partials.SoccerTeamHistorySection(props.AuthState, false)
 		</div>
 		if props.AuthState.SupportsDiscovery() {
 			@partials.SoccerLoginModal(partials.SoccerLoginModalProps{Preview: props.Preview, Open: props.ModalOpen, HistoryCollectionEnabled: props.HistoryCollectionEnabled, Feedback: props.ModalFeedback})

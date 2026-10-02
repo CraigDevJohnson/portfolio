@@ -33,6 +33,12 @@ type scoredRecord struct {
 type historyGame struct {
 	Game           lps.TeamScheduleGame `json:"game"`
 	Classification string               `json:"classification"`
+	// Kickoff is when the completed game started. TeamScore and
+	// OpponentScore are a counted result from the team's side. The Team
+	// history view shows them; the JSON read leaves them out.
+	Kickoff       time.Time `json:"-"`
+	TeamScore     int       `json:"-"`
+	OpponentScore int       `json:"-"`
 }
 
 type historyCoverage struct {
@@ -83,30 +89,47 @@ type historyReader struct {
 	store     soccerarchive.HistoryStore
 }
 
+// historyRefusal is why a private history request was refused: its status
+// and the reason, which each history route words in its own format.
+type historyRefusal struct {
+	status  int
+	message string
+}
+
 // authorizeHistoryPlayer admits a private history read of playerID for a
 // current Soccer grantee whose unexpired, same-owner import confirms the
-// player, and answers every other request with its refusal.
-func (h *Handler) authorizeHistoryPlayer(w http.ResponseWriter, r *http.Request, playerID int) (historyReader, bool) {
+// player, and refuses every other request.
+func (h *Handler) authorizeHistoryPlayer(w http.ResponseWriter, r *http.Request, playerID int) (historyReader, *historyRefusal) {
 	principal, signedIn := siteidentity.PrincipalFromContext(r.Context())
 	if !signedIn || !siteidentity.HasGrantForOwner(r.Context(), siteidentity.GrantSoccer, principal.Issuer, principal.Subject) {
-		http.Error(w, "Soccer access is required", http.StatusForbidden)
-		return historyReader{}, false
+		return historyReader{}, &historyRefusal{http.StatusForbidden, "Soccer access is required"}
 	}
 	session, _ := h.LoadSession(w, r)
 	if session == nil || session.JWT == "" || session.OwnerIssuer != principal.Issuer || session.OwnerSubject != principal.Subject {
-		http.Error(w, "A valid same-owner LPS import is required", http.StatusUnauthorized)
-		return historyReader{}, false
+		return historyReader{}, &historyRefusal{http.StatusUnauthorized, "A valid same-owner LPS import is required"}
 	}
 	if _, linked := linkedPlayer(session.Players, playerID); !linked {
-		http.Error(w, "Player is not confirmed by this import", http.StatusForbidden)
-		return historyReader{}, false
+		return historyReader{}, &historyRefusal{http.StatusForbidden, "Player is not confirmed by this import"}
 	}
 	store, enabled := h.ArchiveStore().(soccerarchive.HistoryStore)
 	if !enabled {
-		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
-		return historyReader{}, false
+		return historyReader{}, &historyRefusal{http.StatusServiceUnavailable, "Team history is unavailable"}
 	}
-	return historyReader{principal: principal, session: session, store: store}, true
+	return historyReader{principal: principal, session: session, store: store}, nil
+}
+
+// listHistorySeasons lists the team seasons a private read opens for one
+// player: the owner's stored proof and the seasons the player's current LPS
+// team lookup lists. A storeErr means the membership query failed and
+// nothing is listed. A lookupErr means LPS refused or could not answer the
+// current lookup, so the seasons hold stored proof alone.
+func (h *Handler) listHistorySeasons(ctx context.Context, reader historyReader, playerID int) (seasons []provenTeamSeason, lookupErr, storeErr error) {
+	stored, storeErr := reader.store.ListPlayerMemberships(ctx, reader.principal.Issuer, reader.principal.Subject, playerID)
+	if storeErr != nil {
+		return nil, nil, storeErr
+	}
+	current, lookupErr := h.currentTeamSeasons(ctx, reader.session.JWT, playerID)
+	return provenTeamSeasons(stored, current), lookupErr, nil
 }
 
 // HistoryTeamSeasonsHandler lists every team season one imported player is
@@ -124,17 +147,17 @@ func (h *Handler) HistoryTeamSeasonsHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "a positive player_id is required", http.StatusBadRequest)
 		return
 	}
-	reader, admitted := h.authorizeHistoryPlayer(w, r, playerID)
-	if !admitted {
+	reader, refusal := h.authorizeHistoryPlayer(w, r, playerID)
+	if refusal != nil {
+		http.Error(w, refusal.message, refusal.status)
 		return
 	}
-	stored, err := reader.store.ListPlayerMemberships(r.Context(), reader.principal.Issuer, reader.principal.Subject, playerID)
-	if err != nil {
-		logging.WithContext(h.Logger, r.Context()).Error("soccer membership list failed", slog.Any("error", err))
+	seasons, err, storeErr := h.listHistorySeasons(r.Context(), reader, playerID)
+	if storeErr != nil {
+		logging.WithContext(h.Logger, r.Context()).Error("soccer membership list failed", slog.Any("error", storeErr))
 		http.Error(w, "Team history is unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	current, err := h.currentTeamSeasons(r.Context(), reader.session.JWT, playerID)
 	if err != nil && lps.ScheduleErrorDetailsFor(err).ClearSession {
 		h.refuseUnverifiedCurrentMembership(w, r, err)
 		return
@@ -142,7 +165,7 @@ func (h *Handler) HistoryTeamSeasonsHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed; listing stored proof only", slog.Any("error", err))
 	}
-	response := teamSeasonsResponse{PlayerID: playerID, CurrentVerified: err == nil, TeamSeasons: provenTeamSeasons(stored, current)}
+	response := teamSeasonsResponse{PlayerID: playerID, CurrentVerified: err == nil, TeamSeasons: seasons}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(&response); err != nil {
 		logging.WithContext(h.Logger, r.Context()).Error("soccer team-season list write failed", slog.Any("error", err))
@@ -186,8 +209,9 @@ func (h *Handler) HistoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "positive player_id, team_id, and season_id are required", http.StatusBadRequest)
 		return
 	}
-	reader, admitted := h.authorizeHistoryPlayer(w, r, playerID)
-	if !admitted {
+	reader, refusal := h.authorizeHistoryPlayer(w, r, playerID)
+	if refusal != nil {
+		http.Error(w, refusal.message, refusal.status)
 		return
 	}
 	principal, session, store := reader.principal, reader.session, reader.store
@@ -265,17 +289,28 @@ func (h *Handler) currentTeamSeasons(ctx context.Context, jwt string, playerID i
 // says nothing about the import, which stays usable.
 func (h *Handler) refuseUnverifiedCurrentMembership(w http.ResponseWriter, r *http.Request, err error) {
 	detail := lps.ScheduleErrorDetailsFor(err)
-	var fetchErr *lps.FetchError
-	switch {
-	case detail.ClearSession:
+	if detail.ClearSession {
 		h.clearSession(w, r)
 		http.Error(w, detail.DownloadMessage, detail.DownloadStatus)
-	case errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorForbidden:
-		http.Error(w, "Player is not confirmed by this import", http.StatusForbidden)
-	default:
-		logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", err))
-		http.Error(w, "Current team membership could not be verified", http.StatusBadGateway)
+		return
 	}
+	refusal := currentMembershipRefusal(err)
+	if refusal.status == http.StatusBadGateway {
+		logging.WithContext(h.Logger, r.Context()).Warn("soccer current membership lookup failed", slog.Any("error", err))
+	}
+	http.Error(w, refusal.message, refusal.status)
+}
+
+// currentMembershipRefusal answers a current team lookup LPS refused or could
+// not serve, other than a token LPS rejects, which ends the import: a player
+// LPS denies is not confirmed by the import, and an unavailable LPS says
+// nothing about the import, which stays usable.
+func currentMembershipRefusal(err error) historyRefusal {
+	var fetchErr *lps.FetchError
+	if errors.As(err, &fetchErr) && fetchErr.Kind == lps.ErrorForbidden {
+		return historyRefusal{http.StatusForbidden, "Player is not confirmed by this import"}
+	}
+	return historyRefusal{http.StatusBadGateway, "Current team membership could not be verified"}
 }
 
 // readTeamSeasonHistory builds an authorized team season's response from the
@@ -333,8 +368,10 @@ func buildHistoryResponse(history *soccerarchive.TeamSeason, playerID, teamID, s
 		if !parseableTime || !started.Before(now) {
 			continue
 		}
-		classification := classifyHistoryGame(&response.Record, game, teamID)
-		response.Games = append(response.Games, historyGame{Game: *game, Classification: classification})
+		classification, teamScore, opponentScore := classifyHistoryGame(&response.Record, game, teamID)
+		response.Games = append(response.Games, historyGame{
+			Game: *game, Classification: classification, Kickoff: started, TeamScore: teamScore, OpponentScore: opponentScore,
+		})
 	}
 	return response
 }
@@ -344,20 +381,23 @@ func positiveHistoryID(raw string) (int, bool) {
 	return value, err == nil && value > 0
 }
 
-func classifyHistoryGame(record *scoredRecord, game *lps.TeamScheduleGame, teamID int) string {
+// classifyHistoryGame counts one completed game in the record and returns
+// its classification with the score from the team's side, which is zero for
+// an unclassified game.
+func classifyHistoryGame(record *scoredRecord, game *lps.TeamScheduleGame, teamID int) (classification string, teamScore, opponentScore int) {
 	result := schedule.ParseGameResult(game.Result, "", "")
 	if !result.Parsed || (result.Outcome != schedule.OutcomeWin && result.Outcome != schedule.OutcomeLoss && result.Outcome != schedule.OutcomeDraw) {
 		record.Unclassified++
-		return "unclassified"
+		return "unclassified", 0, 0
 	}
 	// The sides come from the game's team IDs as the schedule and archive
 	// read them; a team name never places a side.
 	homeID, awayID := game.HomeTeamID(), game.AwayTeamID()
 	if !(homeID == teamID && awayID > 0 && awayID != teamID || awayID == teamID && homeID > 0 && homeID != teamID) {
 		record.Unclassified++
-		return "unclassified"
+		return "unclassified", 0, 0
 	}
-	teamScore, opponentScore := result.HomeScore, result.AwayScore
+	teamScore, opponentScore = result.HomeScore, result.AwayScore
 	if awayID == teamID {
 		teamScore, opponentScore = result.AwayScore, result.HomeScore
 	}
@@ -365,12 +405,12 @@ func classifyHistoryGame(record *scoredRecord, game *lps.TeamScheduleGame, teamI
 	switch {
 	case teamScore > opponentScore:
 		record.Wins++
-		return "win"
+		return "win", teamScore, opponentScore
 	case teamScore < opponentScore:
 		record.Losses++
-		return "loss"
+		return "loss", teamScore, opponentScore
 	default:
 		record.Draws++
-		return "draw"
+		return "draw", teamScore, opponentScore
 	}
 }

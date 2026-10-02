@@ -119,7 +119,13 @@ func FormatGameDateTime(value string) string {
 	if !ok {
 		return strings.TrimSpace(value)
 	}
-	return parsed.In(MountainTimeLocation()).Format("Mon 01/02/06 03:04 PM MST")
+	return FormatMountainTime(parsed)
+}
+
+// FormatMountainTime formats an instant for display in mountain time, as the
+// schedule shows game times.
+func FormatMountainTime(t time.Time) string {
+	return t.In(MountainTimeLocation()).Format("Mon 01/02/06 03:04 PM MST")
 }
 
 // ScheduleTimes returns the event start and end times for a game.
