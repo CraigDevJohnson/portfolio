@@ -1,9 +1,11 @@
 # Site identity configuration
 
-Issue #88 prepares separate Cognito identity for development and production. The
-configuration is offline preparation. No user pool, Google OAuth client,
-SecureString, Lambda setting, or page grant has been applied to AWS or Google
-Cloud by this change, and both environments keep site sign-in switched off.
+Issue #88 prepared separate Cognito identity for development and production as
+offline configuration: that change itself applied no user pool, Google OAuth
+client, SecureString, Lambda setting, or page grant to AWS or Google Cloud.
+Craig has since applied both site roots through the operator path below. Each
+environment's `.auto.tfvars` now carries its exported `site` block (development
+exported 2026-09-30, production 2026-10-03), so site sign-in is on in both.
 
 ## Boundaries
 
@@ -88,7 +90,7 @@ non-secret fields as `SITE_COGNITO_*`, `SITE_INVITATIONS_JSON`, and
 SecureString values at those paths through the approved secret channel. Lambda
 resolves that parameter at startup. If it cannot resolve a site key, sign-in
 stays disabled and public routes remain available. With `site = null` (the
-default, and the value both environments use today), no site settings or site
+default; both environments now set `site`), no site settings or site
 session path are added to Lambda.
 
 ## Private operator path

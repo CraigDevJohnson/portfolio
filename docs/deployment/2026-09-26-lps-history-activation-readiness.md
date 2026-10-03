@@ -559,8 +559,9 @@ one is still open.
   every reservation: prod's planned 10 and one per environment that runs the
   worker (111, or 112 with both).
 - **Site identity.** Player-linked collection needs site sign-in and the
-  `soccer` grant in the environment. No environment supplies `SITE_*` yet
-  (#88 for production). Anonymous Team ID enrollment works without it.
+  `soccer` grant in the environment. Both environments now supply `SITE_*`
+  with a `soccer` invitation (#88). Anonymous Team ID enrollment works
+  without it.
 - **LPS permission** (section 2).
 
 ### 6.3 Resources and IAM per environment
