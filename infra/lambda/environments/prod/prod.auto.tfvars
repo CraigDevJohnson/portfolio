@@ -33,3 +33,15 @@ soccer_history_limits = {
   min_request_interval_ms = 1000
   worker_timeout_seconds  = 300
 }
+
+# Production site identity (#88), from task cognito-site-prod-export on 2026-10-03.
+# Production grants only soccer; this root refuses a management grant.
+site = {
+  cognito_domain       = "https://portfolio-lambda-prod-site-793680745829.auth.us-west-2.amazoncognito.com"
+  cognito_issuer       = "https://cognito-idp.us-west-2.amazonaws.com/us-west-2_6oBD4npvf"
+  cognito_client_id    = "4h3jrtlq245orultjdltouq02v"
+  redirect_uri         = "https://craigdevjohnson.com/auth/callback"
+  logout_uri           = "https://craigdevjohnson.com/sign-in"
+  allow_local_callback = false
+  invitations          = { "craigdevjohnson@gmail.com" = ["soccer"] }
+}
