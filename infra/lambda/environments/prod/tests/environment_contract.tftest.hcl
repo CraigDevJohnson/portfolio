@@ -187,8 +187,9 @@ run "production_environment_contract" {
       CLIENT_ID_KEY     = "/portfolio/lambda/prod/CLIENT_ID_KEY"
       CLIENT_SECRET_KEY = "/portfolio/lambda/prod/CLIENT_SECRET_KEY"
       LPS_SESSION_KEY   = "/portfolio/lambda/prod/LPS_SESSION_KEY"
+      SITE_SESSION_KEY  = "/portfolio/lambda/prod/SITE_SESSION_KEY"
     })
-    error_message = "production must expose only the three non-secret SSM paths"
+    error_message = "production must expose only its four SSM paths, including SITE_SESSION_KEY now that its reviewed site identity is set"
   }
 
   assert {
