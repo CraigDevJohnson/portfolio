@@ -23,8 +23,8 @@ native lock files).
 | `infra/lambda/artifacts` | `portfolio-lambda-http-api/artifacts/terraform.tfstate` | ECR `portfolio-lambda-releases` (immutable tags, scan on push, Lambda pull policy) |
 | `infra/lambda/environments/dev` | `portfolio-lambda-http-api/dev/terraform.tfstate` | `portfolio-lambda-dev`: Lambda, API, tables, logs (14 days), alarms, domain |
 | `infra/lambda/environments/prod` | `portfolio-lambda-http-api/prod/terraform.tfstate` | `portfolio-lambda-prod`: as dev, plus PITR, deletion protection, reserved concurrency 10 (temporarily unreserved until the Lambda quota is raised; see `prod.auto.tfvars`), logs (30 days), alarms to `alerts` |
-| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Planned dev site sign-in pool, not provisioned; `cognito-site-dev-*` tasks ([site identity](docs/deployment/site-identity.md)) |
-| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Planned prod site sign-in pool, not provisioned; `cognito-site-prod-*` tasks ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/dev` | `portfolio-lambda-http-api/auth/site/dev/terraform.tfstate` | Dev site sign-in pool; `cognito-site-dev-*` tasks ([site identity](docs/deployment/site-identity.md)) |
+| `infra/lambda/auth/site/prod` | `portfolio-lambda-http-api/auth/site/prod/terraform.tfstate` | Prod site sign-in pool; `cognito-site-prod-*` tasks ([site identity](docs/deployment/site-identity.md)) |
 
 Apply order in a new account: account root, artifacts, then dev and prod. The
 execution roles attach the boundary by ARN, so the account root comes first.
@@ -242,12 +242,15 @@ default to local tags and the current Git revision.
 ## Site sign-in
 
 The site sign-in code accepts independent `SITE_*` runtime settings and a
-reviewed `SITE_INVITATIONS_JSON` map as described in README. No environment
-supplies them yet, so deployed pages show no sign-in entry. Separate offline
-development and production Cognito roots and their Lambda handoff contract are
-documented in [site identity configuration](./docs/deployment/site-identity.md).
-They have not provisioned or activated a site pool. Each site root's app
-client registers exactly that environment's `/auth/callback` and `/sign-in`.
+reviewed `SITE_INVITATIONS_JSON` map as described in README. Both environments
+supply them through the `site` block in
+`infra/lambda/environments/<env>/<env>.auto.tfvars`, so deployed pages show the
+sign-in entry: development invites `soccer` and `management`, production only
+`soccer`. The separate development and production Cognito roots and their
+Lambda handoff contract are documented in
+[site identity configuration](./docs/deployment/site-identity.md). Both roots
+are applied. Each site root's app client registers exactly that environment's
+`/auth/callback` and `/sign-in`.
 
 ### Releasing the Soccer page grant
 
@@ -347,10 +350,11 @@ Google Calendar in between; until then it keeps serving its current release.
 
 The portal routes use the shared `SITE_*` session and the current `management`
 grant in `SITE_INVITATIONS_JSON`; they are registered only where site sign-in is
-configured, and no environment supplies those settings yet. The former
-management-only `MGMT_*` identity settings, `mgmt_session` cookie and
-`/callback` registration no longer authorize portal access, and the Lambda no
-longer receives those settings or may read `MGMT_SESSION_KEY`.
+configured, as both environments now are, and only development's invitations
+carry the `management` grant. The former management-only `MGMT_*` identity
+settings, `mgmt_session` cookie and `/callback` registration no longer
+authorize portal access, and the Lambda no longer receives those settings or
+may read `MGMT_SESSION_KEY`.
 
 The development root's `management` input is an identity-free portal switch:
 `null` (the default) or exactly `{ aws_region = "us-west-2" }`. Setting it

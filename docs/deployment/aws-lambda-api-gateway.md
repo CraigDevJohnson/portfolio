@@ -85,10 +85,12 @@ Register each environment's HTTPS URL ending in `/soccer` as a Google OAuth
 redirect URI (`oauth_redirect_uris` output). Google returns the callback to that
 same route.
 
-The Lambda resources pass no `SITE_*` settings, so neither site sign-in nor the
-management portal that follows it is available on the Lambda path. The
-development `management` input, which no environment sets, is an
-identity-free switch: `null` or exactly `{ aws_region = "us-west-2" }`. It
+Each environment's `site` input passes the `SITE_*` settings, so site sign-in
+is available on the Lambda path in both. The management portal follows it and
+needs the `management` grant, which only development invites. The
+development `management` input, which development sets outside its tfvars file
+(see [DEPLOY-INSTRUCTIONS](../../DEPLOY-INSTRUCTIONS.md#ec2-management-portal)),
+is an identity-free switch: `null` or exactly `{ aws_region = "us-west-2" }`. It
 controls only the portal's read-only IAM grants and `MGMT_AWS_REGION`. It
 passes none of the retired `MGMT_*` identity values or the `MGMT_SESSION_KEY`
 parameter path, and neither the runtime policy nor the execution boundary

@@ -40,9 +40,11 @@
   the managed Lambda image.
 - `internal/portal` contains the optional EC2 management portal, including
   instance actions, CloudWatch metrics, and CloudWatch Logs. It follows site
-  sign-in and admits only the current `management` grant. No environment
-  supplies site sign-in, so it is disabled in both, and its Lambda role has no
-  EC2 start/stop or instance log grants (D22).
+  sign-in and admits only the current `management` grant. Both environments
+  supply site sign-in. Development invites `soccer` and `management` and has
+  the portal switch on, which grants read-only EC2 inventory and metrics;
+  production invites only `soccer` and has no portal grants. Neither Lambda
+  role has EC2 start/stop or instance log grants (D22).
 - See `.github/instructions/templ.instructions.md` and `.github/instructions/tailwind.instructions.md` for detailed authoring rules
 
 ## Gotchas
