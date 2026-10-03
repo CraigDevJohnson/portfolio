@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Minecraft Server Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+/*
+  Minecraft server page prototype for craigdevjohnson.com.
+  Layout: site dock, server switcher strip, split hero (copy left, living world scene bleeding right),
+  one vitals band, players + activity pair, join (family) or how-it-runs (visitors).
+  Every colour derives from the Emberglass tokens in cmd/web/tailwind/theme.css.
+  The page is dark only, like the rest of the site.
+*/
+:root {
+  color-scheme: dark;
+  --night-mulberry: #17121B;
+  --cocoa-cedar: #2E2130;
+  --candle-oat: #FFF0D8;
+  --campfire-apricot: #FFA677;
+  --rosehip: #FF7FA8;
+  --pond-mint: #78E3C3;
+  --warm-signal: color-mix(in srgb, var(--candle-oat) 42%, var(--campfire-apricot));
+
+  --surface-canvas: var(--night-mulberry);
+  --surface-panel: var(--cocoa-cedar);
+  --surface-raised: #3A2A3B;
+  --surface-glass: color-mix(in srgb, var(--night-mulberry) 86%, transparent);
+  --copy-primary: var(--candle-oat);
+  --copy-secondary: color-mix(in srgb, var(--candle-oat) 82%, var(--cocoa-cedar));
+  --copy-muted: color-mix(in srgb, var(--candle-oat) 73%, var(--cocoa-cedar));
+  --border-subtle: color-mix(in srgb, var(--candle-oat) 15%, transparent);
+  --border-strong: color-mix(in srgb, var(--candle-oat) 48%, transparent);
+  --ok: var(--pond-mint);
+  --ok-fg: color-mix(in srgb, var(--pond-mint) 76%, var(--candle-oat));
+  --busy: var(--campfire-apricot);
+  --fault: var(--rosehip);
+  --fault-fg: color-mix(in srgb, var(--rosehip) 76%, var(--candle-oat));
+  --idle: color-mix(in srgb, var(--candle-oat) 46%, var(--cocoa-cedar));
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", consolas, monospace;
+
+  --space-xs: 0.25rem; --space-sm: 0.5rem; --space-md: 1rem; --space-lg: 1.5rem;
+  --space-xl: 2rem; --space-2xl: 3rem; --space-3xl: 4rem;
+  --radius-sm: 10px; --radius-md: 16px; --radius-lg: 24px; --radius-xl: 38px; --radius-full: 9999px;
+  --hairline: 0.0625rem;
+  --ease-out: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --container: 82rem;
+  --gutter: clamp(1rem, 3vw, 2rem);
+  --shadow-panel: 0 12px 30px color-mix(in srgb, var(--night-mulberry) 76%, transparent);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--surface-canvas); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+  background:
+    radial-gradient(60rem 40rem at 85% -10%, color-mix(in srgb, var(--rosehip) 10%, transparent), transparent 70%),
+    radial-gradient(50rem 40rem at -10% 40%, color-mix(in srgb, var(--campfire-apricot) 7%, transparent), transparent 70%),
+    var(--surface-canvas);
+  color: var(--copy-primary);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: color-mix(in srgb, var(--campfire-apricot) 40%, transparent); color: var(--candle-oat); }
+:focus-visible { outline: 2px solid var(--candle-oat); outline-offset: 3px; }
+a { color: var(--pond-mint); text-underline-offset: 0.2em; }
+a:hover { color: var(--campfire-apricot); }
+button { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.icon { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+.mono { font-family: var(--font-mono); }
+.wrap { width: 100%; max-width: calc(var(--container) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* ---------- Site dock (mirrors partials/header.templ) ---------- */
+.site-dock { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; padding-block: var(--space-sm); }
+.site-dock-shell {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+  min-height: 4.25rem; padding: 0.5rem 0.75rem 0.5rem 1.25rem;
+  border: var(--hairline) solid var(--border-subtle); border-radius: var(--radius-xl);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--campfire-apricot) 5%, transparent), transparent 28%), var(--surface-glass);
+  box-shadow: 0 0.8rem 2.6rem color-mix(in srgb, var(--night-mulberry) 58%, transparent);
+  backdrop-filter: blur(1.15rem) saturate(135%);
+}
+.site-logo { display: inline-flex; align-items: center; gap: 0.7rem; color: var(--copy-primary); text-decoration: none; min-height: 2.75rem; }
+.site-logo:hover { color: var(--copy-primary); }
+.site-logo-mark {
+  display: inline-flex; width: 2.55rem; height: 2.55rem; align-items: center; justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--campfire-apricot) 68%, transparent);
+  border-radius: 52% 48% 44% 56% / 58% 46% 54% 42%;
+  background: linear-gradient(135deg, var(--campfire-apricot), var(--warm-signal));
+  color: var(--night-mulberry); font-size: 0.82rem; font-weight: 700; letter-spacing: -0.04em;
+  box-shadow: 0.2rem 0.2rem 0 var(--pond-mint); transform: rotate(-3deg);
+}
+.site-logo-copy { display: flex; flex-direction: column; line-height: 1.05; }
+.site-logo-name { font-weight: 700; letter-spacing: -0.035em; }
+.site-logo-role { margin-top: var(--space-xs); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--copy-secondary); }
+.site-nav ul { display: flex; gap: 0.15rem; margin: 0; padding: 0; list-style: none; }
+.site-nav a {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem;
+  padding: 0.5rem 0.75rem; border-radius: var(--radius-full);
+  color: var(--copy-muted); font-size: 0.875rem; font-weight: 500; letter-spacing: -0.01em; text-decoration: none; white-space: nowrap;
+  transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.site-nav a:hover { background: color-mix(in srgb, var(--pond-mint) 10%, transparent); color: var(--copy-primary); }
+.site-nav a[aria-current="page"] {
+  background: linear-gradient(110deg, color-mix(in srgb, var(--campfire-apricot) 18%, var(--cocoa-cedar)), color-mix(in srgb, var(--rosehip) 12%, var(--cocoa-cedar)));
+  color: var(--candle-oat);
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--campfire-apricot) 30%, transparent);
+}
+.site-menu-button {
+  display: none; align-items: center; gap: 0.6rem; min-height: 2.75rem; padding: 0.5rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--candle-oat) 22%, transparent); border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent); cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em;
+}
+.site-menu-button .bars { width: 1rem; height: 0.7rem; border-block: 2px solid currentColor; position: relative; }
+.site-menu-button .bars::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: currentColor; }
+@media (width < 70rem) {
+  .site-nav { display: none; }
+  .site-menu-button { display: inline-flex; }
+}
+
+/* ---------- Shared pieces ---------- */
+.eyebrow {
+  margin: 0; color: var(--campfire-apricot);
+  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.17em; line-height: 1.4; text-transform: uppercase;
+}
+.eyebrow-mint { color: var(--pond-mint); }
+.panel {
+  border: var(--hairline) solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--cocoa-cedar) 72%, var(--night-mulberry)), color-mix(in srgb, var(--night-mulberry) 92%, var(--cocoa-cedar)));
+  box-shadow: var(--shadow-panel);
+}
+.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex: none; background: var(--idle); }
+.dot[data-tone="ok"] { background: var(--ok); box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--pond-mint) 18%, transparent); }
+.dot[data-tone="busy"] { background: var(--busy); animation: pulse 1.4s var(--ease-out) infinite; }
+.dot[data-tone="fault"] { background: var(--fault); box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--rosehip) 20%, transparent); }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--campfire-apricot) 50%, transparent); } 60% { box-shadow: 0 0 0 0.4rem transparent; } }
+
+.action {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  min-height: 2.9rem; padding: 0.7rem 1.4rem; border: 1px solid; border-radius: var(--radius-full);
+  font-size: 0.95rem; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: transform 150ms var(--ease-out), background 150ms var(--ease-out), border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+.action:hover { transform: translateY(-1px); }
+.action:disabled, .action[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; transform: none; }
+.action-primary {
+  border-color: var(--campfire-apricot); color: var(--night-mulberry);
+  background: linear-gradient(110deg, var(--campfire-apricot), var(--warm-signal));
+  box-shadow: 0 0.7rem 1.6rem color-mix(in srgb, var(--campfire-apricot) 18%, transparent);
+}
+.action-primary:hover { border-color: var(--rosehip); color: var(--night-mulberry); background: linear-gradient(110deg, var(--rosehip), var(--campfire-apricot)); }
+.action-secondary {
+  border-color: color-mix(in srgb, var(--candle-oat) 48%, transparent); color: var(--candle-oat);
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+}
+.action-secondary:hover { border-color: color-mix(in srgb, var(--pond-mint) 62%, transparent); color: var(--candle-oat); background: color-mix(in srgb, var(--pond-mint) 17%, var(--cocoa-cedar)); }
+.action-danger {
+  border-color: color-mix(in srgb, var(--rosehip) 70%, transparent); color: var(--fault-fg);
+  background: color-mix(in srgb, var(--rosehip) 7%, transparent);
+}
+.action-danger:hover { border-color: var(--rosehip); color: var(--candle-oat); background: color-mix(in srgb, var(--rosehip) 22%, var(--cocoa-cedar)); }
+.action-danger .stop-glyph { width: 0.8rem; height: 0.8rem; border-radius: 2px; background: var(--rosehip); }
+
+/* ---------- Server switcher ---------- */
+.mc-switcher { margin-top: var(--space-sm); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; padding: 0.35rem; border-radius: var(--radius-lg); }
+.mc-switcher-summary { display: flex; align-items: center; gap: 0.85rem; padding: 0.6rem 1.4rem 0.6rem 1rem; border-right: var(--hairline) solid var(--border-subtle); }
+.mc-switcher-summary .icon { width: 1.6rem; height: 1.6rem; color: var(--copy-muted); stroke-width: 1.6; }
+.mc-switcher-summary strong { display: block; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--copy-secondary); }
+.mc-switcher-summary span { font-family: var(--font-mono); font-size: 0.78rem; color: var(--copy-muted); white-space: nowrap; }
+.mc-switcher-list { display: flex; gap: 0.25rem; margin: 0; padding: 0 0.35rem; list-style: none; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.mc-switcher-list li { flex: 0 0 auto; scroll-snap-align: start; display: flex; }
+.mc-server-tab {
+  position: relative; display: flex; align-items: center; gap: 0.85rem; min-height: 3.6rem; padding: 0.55rem 1.1rem 0.55rem 0.75rem;
+  border-radius: var(--radius-md); color: var(--copy-primary); text-decoration: none;
+  transition: background 150ms var(--ease-out);
+}
+.mc-server-tab:hover { color: var(--copy-primary); background: color-mix(in srgb, var(--candle-oat) 5%, transparent); }
+.mc-server-tab[aria-current="page"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--campfire-apricot) 10%, var(--cocoa-cedar)), color-mix(in srgb, var(--campfire-apricot) 4%, var(--cocoa-cedar)));
+  box-shadow: inset 0 0 0 var(--hairline) color-mix(in srgb, var(--campfire-apricot) 30%, transparent), inset 0 -2px 0 var(--campfire-apricot);
+}
+.mc-server-tab canvas { width: 2.4rem; height: 2.4rem; flex: none; }
+.mc-server-tab b { display: block; font-weight: 600; font-size: 0.95rem; letter-spacing: -0.01em; white-space: nowrap; }
+.mc-server-tab small { display: flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.72rem; color: var(--copy-muted); white-space: nowrap; }
+.mc-server-tab small .dot { width: 0.5rem; height: 0.5rem; box-shadow: none; animation: none; }
+.mc-switcher-all { display: inline-flex; align-items: center; gap: 0.6rem; padding: 0 1.1rem; border-left: var(--hairline) solid var(--border-subtle); color: var(--copy-secondary); font-size: 0.9rem; text-decoration: none; white-space: nowrap; }
+.mc-switcher-all:hover { color: var(--candle-oat); }
+.mc-switcher[data-count="1"] .mc-switcher-all { display: none; }
+
+/* ---------- Hero ---------- */
+.mc-hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); min-height: clamp(32rem, 44vw, 42rem); }
+.mc-scene {
+  position: absolute; z-index: -1; top: 0; bottom: 0; left: 30%; right: calc(50% - 50vw);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%, #000 100%), linear-gradient(0deg, transparent 0, #000 14%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent 0, #000 22%), linear-gradient(0deg, transparent 0, #000 14%); mask-composite: intersect;
+}
+.mc-scene canvas { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 62% 60%; }
+.mc-scene-chip {
+  position: absolute; right: max(var(--gutter), calc(50vw - 50% - var(--container) / 2 + var(--gutter))); bottom: 9%;
+  display: flex; align-items: center; gap: 0.9rem; padding: 0.95rem 1.4rem 0.95rem 1.1rem; border-radius: var(--radius-md);
+  border: var(--hairline) solid var(--border-subtle); background: color-mix(in srgb, var(--night-mulberry) 82%, transparent); backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--night-mulberry) 70%, transparent);
+}
+.mc-scene-chip b { display: block; font-size: 0.9rem; font-weight: 600; }
+.mc-scene-chip span { font-size: 0.88rem; color: var(--ok-fg); }
+.mc-scene-chip[data-tone="busy"] span { color: var(--busy); }
+.mc-scene-chip[data-tone="fault"] span { color: var(--fault-fg); }
+.mc-scene-chip[data-tone="idle"] span { color: var(--copy-muted); }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 1.6rem; }
+.bars i { width: 3px; background: var(--ok); border-radius: 1px; }
+.mc-scene-chip[data-tone="busy"] .bars i { background: var(--busy); }
+.mc-scene-chip[data-tone="fault"] .bars i { background: var(--fault); }
+.mc-scene-chip[data-tone="idle"] .bars i { background: var(--idle); }
+
+.mc-hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 1.15rem; padding-block: clamp(2rem, 4.5vw, 3.75rem) clamp(2rem, 4vw, 3rem); }
+.mc-title { display: flex; align-items: center; gap: 0.22em; margin: 0.15rem 0 0; font-size: clamp(3.1rem, 6.2vw, 6rem); font-weight: 700; letter-spacing: -0.045em; line-height: 0.9; text-wrap: balance; }
+.mc-title canvas { width: 0.78em; height: 0.78em; flex: none; filter: drop-shadow(0 0.08em 0.12em color-mix(in srgb, var(--night-mulberry) 80%, transparent)); }
+.mc-runtime { margin: -0.2rem 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; font-family: var(--font-mono); font-size: 0.82rem; color: var(--copy-secondary); }
+.mc-runtime span + span::before { content: ""; display: inline-block; width: 0.28rem; height: 0.28rem; margin-right: 0.9rem; vertical-align: middle; background: var(--copy-muted); }
+
+.mc-status { display: inline-flex; align-items: stretch; margin-top: 0.4rem; border: var(--hairline) solid var(--border-strong); border-radius: var(--radius-full); background: color-mix(in srgb, var(--night-mulberry) 70%, transparent); }
+.mc-status-state { display: inline-flex; align-items: center; gap: 0.65rem; padding: 0.55rem 1.1rem 0.55rem 1rem; font-family: var(--font-mono); font-size: 1.05rem; font-weight: 600; }
+.mc-status-state[data-tone="ok"] { color: var(--ok-fg); }
+.mc-status-state[data-tone="busy"] { color: var(--busy); }
+.mc-status-state[data-tone="fault"] { color: var(--fault-fg); }
+.mc-status-state[data-tone="idle"] { color: var(--copy-secondary); }
+.mc-status-count { display: inline-flex; align-items: center; padding: 0.55rem 1.15rem; border-left: var(--hairline) solid var(--border-subtle); font-family: var(--font-mono); font-size: 0.9rem; color: var(--copy-secondary); font-variant-numeric: tabular-nums; }
+.mc-status-line { margin: 0; max-width: 34rem; font-size: 1.08rem; color: var(--copy-secondary); text-wrap: pretty; }
+
+.mc-steps { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; font-size: 0.95rem; color: var(--copy-muted); }
+.mc-steps li { display: flex; align-items: center; gap: 0.65rem; }
+.mc-steps li::before { content: ""; width: 0.7rem; height: 0.7rem; flex: none; border: 1.5px solid var(--border-strong); border-radius: 2px; }
+.mc-steps li[data-step="done"] { color: var(--copy-secondary); }
+.mc-steps li[data-step="done"]::before { border-color: var(--ok); background: var(--ok); }
+.mc-steps li[data-step="now"] { color: var(--candle-oat); }
+.mc-steps li[data-step="now"]::before { border-color: var(--busy); background: color-mix(in srgb, var(--campfire-apricot) 40%, transparent); animation: pulse 1.4s var(--ease-out) infinite; }
+
+.mc-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.35rem; }
+.mc-note { margin: 0.1rem 0 0; display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; color: var(--copy-muted); }
+.mc-note .icon { color: var(--ok); }
+.mc-note b { font-weight: 500; color: var(--ok-fg); }
+
+/* ---------- Vitals ---------- */
+.mc-vitals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: clamp(0.5rem, 2vw, 1.5rem); padding-block: 1.6rem; }
+.mc-vital { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 1rem; align-items: center; padding-inline: clamp(1rem, 2.2vw, 1.9rem); min-width: 0; }
+.mc-vital + .mc-vital { border-left: var(--hairline) solid var(--border-subtle); }
+.mc-vital > .icon { grid-row: 1 / 3; width: 2.1rem; height: 2.1rem; stroke-width: 1.5; color: var(--tone, var(--ok)); }
+.mc-vital-label { font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tone, var(--ok)); }
+.mc-vital-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; min-width: 0; }
+.mc-vital-value { font-size: clamp(1.7rem, 2.6vw, 2.35rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: var(--tone-value, var(--ok-fg)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mc-vital-value small { font-size: 0.5em; font-weight: 500; letter-spacing: 0; color: var(--copy-secondary); margin-left: 0.15em; }
+.mc-vital svg.spark { width: min(7.5rem, 45%); height: 2.2rem; flex: none; overflow: visible; }
+.mc-vital[data-tone="busy"] { --tone: var(--busy); --tone-value: color-mix(in srgb, var(--campfire-apricot) 70%, var(--candle-oat)); }
+.mc-vital[data-tone="fault"] { --tone: var(--fault); --tone-value: var(--fault-fg); }
+.mc-vital[data-tone="idle"] { --tone: var(--idle); --tone-value: var(--copy-muted); }
+.mc-vitals-caption { grid-column: 1 / -1; margin: 1.1rem 0 0; padding-inline: clamp(1rem, 2.2vw, 1.9rem); font-size: 0.85rem; color: var(--copy-muted); }
+
+.mc-vitals[data-collapsed] { display: block; padding: 1.3rem clamp(1.1rem, 2.4vw, 1.9rem); }
+.mc-vitals-summary { display: flex; align-items: center; gap: 1rem; }
+.mc-vitals-summary > .icon { width: 1.8rem; height: 1.8rem; stroke-width: 1.5; color: var(--idle); }
+.mc-vitals-summary p { margin: 0; display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline; }
+.mc-vitals-summary b { font-weight: 600; }
+.mc-vitals-summary span { color: var(--copy-secondary); }
+
+/* ---------- Players + activity ---------- */
+.mc-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1rem, 2vw, 1.5rem); margin-top: clamp(1rem, 2vw, 1.5rem); }
+.mc-pair > section { padding: 1.6rem clamp(1.1rem, 2.4vw, 1.9rem) 0.6rem; min-width: 0; }
+.mc-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; }
+.mc-section-head h2 { margin: 0; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.17em; text-transform: uppercase; color: var(--pond-mint); }
+.mc-section-head span { font-family: var(--font-mono); font-size: 0.75rem; color: var(--copy-muted); }
+.mc-list { margin: 0; padding: 0; list-style: none; }
+.mc-list > li { display: flex; align-items: center; gap: 1rem; padding-block: 0.95rem; min-width: 0; }
+.mc-list > li + li { border-top: var(--hairline) solid var(--border-subtle); }
+.mc-player canvas { width: 2.6rem; height: 2.6rem; flex: none; border-radius: 3px; box-shadow: 0 4px 10px color-mix(in srgb, var(--night-mulberry) 70%, transparent); }
+.mc-player-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-role { font-family: var(--font-mono); font-size: 0.78rem; color: var(--copy-muted); }
+.mc-role[data-role="operator"] { color: var(--ok-fg); }
+.mc-player-meta { margin-left: auto; display: flex; align-items: center; gap: 1.1rem; font-family: var(--font-mono); font-size: 0.8rem; color: var(--copy-muted); font-variant-numeric: tabular-nums; }
+.mc-player-meta .bars { height: 1.1rem; }
+.mc-player-meta .bars i { width: 3px; }
+.mc-player-meta .bars i[data-off] { background: var(--border-subtle); }
+.mc-edition { padding: 0.1rem 0.45rem; border: var(--hairline) solid var(--border-subtle); border-radius: var(--radius-full); font-size: 0.68rem; letter-spacing: 0.04em; color: var(--copy-secondary); }
+
+.mc-slots { display: grid; grid-template-columns: repeat(6, minmax(0, 4.25rem)); gap: 0.6rem; margin: 0.9rem 0 1rem; }
+.mc-slot { aspect-ratio: 1; max-width: 100%; border-radius: var(--radius-sm); border: 1.5px dashed var(--border-subtle); display: grid; place-items: center; }
+.mc-slot[data-filled] { border: var(--hairline) solid color-mix(in srgb, var(--pond-mint) 40%, transparent); background: color-mix(in srgb, var(--pond-mint) 8%, var(--cocoa-cedar)); }
+.mc-slot canvas { width: 58%; height: 58%; opacity: 0.85; }
+.mc-private { margin: 0 0 1.1rem; font-size: 0.92rem; color: var(--copy-secondary); }
+
+.mc-event-icon { width: 2.6rem; height: 2.6rem; flex: none; display: grid; place-items: center; border-radius: 50%; border: var(--hairline) solid var(--border-subtle); background: color-mix(in srgb, var(--night-mulberry) 60%, transparent); color: var(--copy-secondary); }
+.mc-event-icon[data-tone="ok"] { color: var(--ok); border-color: color-mix(in srgb, var(--pond-mint) 35%, transparent); }
+.mc-event-icon[data-tone="busy"] { color: var(--busy); }
+.mc-event-icon[data-tone="fault"] { color: var(--fault); }
+.mc-event-icon .icon { width: 1.2rem; height: 1.2rem; }
+.mc-event-text { min-width: 0; }
+.mc-event-text b { display: block; font-weight: 500; }
+.mc-event-text span { font-size: 0.88rem; color: var(--copy-muted); }
+.mc-event-time { margin-left: auto; align-self: flex-start; padding-top: 0.15rem; font-family: var(--font-mono); font-size: 0.8rem; color: var(--copy-muted); white-space: nowrap; }
+.mc-empty { padding: 1.4rem 0 1.6rem; color: var(--copy-secondary); }
+.mc-empty b { display: block; color: var(--candle-oat); font-weight: 600; margin-bottom: 0.2rem; }
+
+/* ---------- Join / how it runs ---------- */
+.mc-band { margin-top: clamp(1rem, 2vw, 1.5rem); padding: clamp(1.4rem, 3vw, 2.2rem) clamp(1.1rem, 2.4vw, 1.9rem); }
+.mc-band-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1.5rem; margin-bottom: 1.4rem; }
+.mc-band-head h2 { margin: 0; font-size: clamp(1.6rem, 2.6vw, 2.2rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; }
+.mc-band-head p { margin: 0; max-width: 34rem; color: var(--copy-secondary); }
+.mc-join { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+.mc-join > div { padding-inline: 0 clamp(1rem, 2.5vw, 2rem); min-width: 0; }
+.mc-join > div + div { padding-inline: clamp(1rem, 2.5vw, 2rem) 0; border-left: var(--hairline) solid var(--border-subtle); }
+.mc-join h3 { margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.6rem; font-size: 1.05rem; font-weight: 600; }
+.mc-address { display: flex; align-items: stretch; min-width: 0; border: var(--hairline) solid var(--border-strong); border-radius: var(--radius-md); background: color-mix(in srgb, var(--night-mulberry) 68%, var(--cocoa-cedar)); overflow: hidden; }
+.mc-address code { flex: 1; min-width: 0; padding: 0.8rem 1rem; font-family: var(--font-mono); font-size: 0.95rem; overflow-x: auto; white-space: nowrap; user-select: all; }
+.mc-address button { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.75rem; padding: 0 1rem; border: 0; border-left: var(--hairline) solid var(--border-subtle); background: transparent; color: var(--pond-mint); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.mc-address button:hover { background: color-mix(in srgb, var(--pond-mint) 12%, transparent); }
+.mc-join dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0.9rem 0 0; font-size: 0.9rem; }
+.mc-join dt { font-family: var(--font-mono); font-size: 0.78rem; color: var(--copy-muted); padding-top: 0.1rem; }
+.mc-join dd { margin: 0; color: var(--copy-secondary); }
+.mc-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 2.5vw, 2rem); margin: 0; padding: 0; list-style: none; }
+.mc-facts li { min-width: 0; }
+.mc-facts canvas { width: 2.4rem; height: 2.4rem; display: block; margin-bottom: 0.8rem; }
+.mc-facts b { display: block; font-size: 1.05rem; font-weight: 600; margin-bottom: 0.3rem; }
+.mc-facts p { margin: 0; color: var(--copy-secondary); font-size: 0.95rem; max-width: 32ch; }
+
+.mc-cycle { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(0.75rem, 1.6vw, 1.25rem); margin: 0; padding: 0; list-style: none; counter-reset: cycle; }
+.mc-cycle li { min-width: 0; counter-increment: cycle; }
+.mc-cycle canvas { display: block; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; object-fit: cover; object-position: 66% 45%; border-radius: var(--radius-sm); border: var(--hairline) solid var(--border-subtle); margin-bottom: 0.85rem; }
+.mc-cycle b { display: flex; align-items: baseline; gap: 0.5rem; font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+.mc-cycle b::before { content: counter(cycle); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--campfire-apricot); }
+.mc-cycle p { margin: 0; color: var(--copy-secondary); font-size: 0.92rem; }
+
+/* ---------- Console drawer and confirm dialog ---------- */
+.mc-console {
+  position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; width: min(36rem, 100%);
+  display: flex; flex-direction: column; border-left: var(--hairline) solid var(--border-strong);
+  background: linear-gradient(180deg, var(--cocoa-cedar), var(--night-mulberry)); box-shadow: -24px 0 56px color-mix(in srgb, var(--night-mulberry) 80%, transparent);
+  transform: translateX(105%); transition: transform 320ms var(--ease-out); visibility: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.mc-console[data-open] { transform: none; visibility: visible; }
+.mc-console header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.2rem 1rem 1.5rem; border-bottom: var(--hairline) solid var(--border-subtle); }
+.mc-console header h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.mc-console header p { margin: 0.1rem 0 0; font-family: var(--font-mono); font-size: 0.75rem; color: var(--copy-muted); }
+.icon-button { display: inline-grid; place-items: center; width: 2.75rem; height: 2.75rem; border: var(--hairline) solid var(--border-subtle); border-radius: 50%; background: transparent; cursor: pointer; }
+.icon-button:hover { border-color: var(--border-strong); background: color-mix(in srgb, var(--candle-oat) 6%, transparent); }
+.mc-log { flex: 1; margin: 0; padding: 1rem 1.5rem; overflow: auto; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.7; color: var(--copy-secondary); white-space: pre-wrap; word-break: break-word; scrollbar-color: var(--border-strong) transparent; }
+.mc-log .t { color: var(--copy-muted); }
+.mc-log .w { color: var(--busy); }
+.mc-log .e { color: var(--fault-fg); }
+.mc-log .j { color: var(--ok-fg); }
+.mc-console footer { padding: 1rem 1.5rem calc(1rem + env(safe-area-inset-bottom, 0px)); border-top: var(--hairline) solid var(--border-subtle); font-size: 0.85rem; color: var(--copy-muted); }
+.scrim { position: fixed; inset: 0; z-index: 45; background: color-mix(in srgb, var(--night-mulberry) 72%, transparent); opacity: 0; pointer-events: none; transition: opacity 250ms var(--ease-out); }
+.scrim[data-open] { opacity: 1; pointer-events: auto; }
+
+dialog.mc-confirm { width: min(30rem, calc(100% - 2rem)); padding: 0; border: var(--hairline) solid var(--border-strong); border-radius: var(--radius-lg); background: var(--cocoa-cedar); color: var(--copy-primary); box-shadow: 0 28px 64px color-mix(in srgb, var(--night-mulberry) 80%, transparent); }
+dialog.mc-confirm::backdrop { background: color-mix(in srgb, var(--night-mulberry) 78%, transparent); }
+.mc-confirm-body { padding: 1.6rem 1.6rem 1.3rem; }
+.mc-confirm h2 { margin: 0 0 0.6rem; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
+.mc-confirm p { margin: 0 0 0.6rem; color: var(--copy-secondary); }
+.mc-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.6rem; padding: 1rem 1.6rem 1.4rem; border-top: var(--hairline) solid var(--border-subtle); }
+
+/* ---------- Footer stub ---------- */
+.site-foot { margin-top: var(--space-3xl); padding-block: 2rem 7rem; border-top: var(--hairline) solid color-mix(in srgb, var(--candle-oat) 14%, transparent); color: var(--copy-muted); font-size: 0.85rem; }
+.site-foot .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+
+/* ---------- Prototype review bar (not part of the page design) ---------- */
+.proto {
+  position: fixed; z-index: 60; left: 50%; bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 1.5rem);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.55rem 0.7rem 0.55rem 1rem;
+  border: 1px dashed color-mix(in srgb, var(--warm-signal) 55%, transparent); border-radius: var(--radius-md);
+  background: color-mix(in srgb, #0c0a0e 92%, transparent); backdrop-filter: blur(8px);
+  font-family: var(--font-mono); font-size: 0.72rem; color: var(--copy-secondary);
+}
+.proto > b { color: var(--warm-signal); letter-spacing: 0.12em; text-transform: uppercase; }
+.proto fieldset { display: flex; align-items: center; gap: 0.2rem; margin: 0; padding: 0; border: 0; }
+.proto legend { float: left; margin-right: 0.4rem; color: var(--copy-muted); }
+.proto label { position: relative; }
+.proto input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.proto label span { display: inline-block; padding: 0.3rem 0.55rem; border-radius: 6px; cursor: pointer; }
+.proto input:checked + span { background: color-mix(in srgb, var(--warm-signal) 22%, transparent); color: var(--candle-oat); }
+.proto input:focus-visible + span { outline: 2px solid var(--candle-oat); }
+.proto-toggle { display: none; border: 0; background: transparent; color: var(--warm-signal); font: inherit; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; padding: 0.3rem; cursor: pointer; }
+@media (width < 62rem) {
+  .proto { flex-direction: column; align-items: flex-start; left: auto; right: 0.75rem; transform: none; }
+  .proto > b { display: none; }
+  .proto-toggle { display: inline-block; }
+  .proto:not([data-open]) fieldset { display: none; }
+}
+
+/* ---------- Responsive ---------- */
+@media (width < 70rem) {
+  .mc-switcher { grid-template-columns: minmax(0, 1fr) auto; }
+  .mc-switcher-summary { display: none; }
+  .mc-vitals { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 1.6rem; }
+  .mc-vital:nth-child(3) { border-left: 0; }
+}
+@media (width < 56rem) {
+  .mc-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .mc-scene { position: relative; z-index: 0; inset: auto; order: 2; margin-inline: calc(-1 * var(--gutter)); height: clamp(15rem, 62vw, 26rem); -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent); mask-image: linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent); }
+  .mc-scene-chip { display: none; }
+  .mc-switcher-list { -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent); mask-image: linear-gradient(90deg, #000 78%, transparent); padding-right: 2.5rem; }
+  .mc-hero-copy { order: 1; padding-bottom: 0.5rem; }
+  .mc-pair { grid-template-columns: minmax(0, 1fr); }
+  .mc-join { grid-template-columns: minmax(0, 1fr); row-gap: 1.6rem; }
+  .mc-join > div, .mc-join > div + div { padding-inline: 0; border-left: 0; }
+  .mc-join > div + div { padding-top: 1.6rem; border-top: var(--hairline) solid var(--border-subtle); }
+  .mc-cycle { grid-template-columns: minmax(0, 1fr); }
+  .mc-cycle li { display: grid; grid-template-columns: 8rem minmax(0, 1fr); column-gap: 1rem; align-items: start; }
+  .mc-cycle canvas { grid-row: 1 / 3; margin: 0; }
+}
+@media (width < 30rem) {
+  .site-logo-role { display: none; }
+  .mc-switcher-all { padding: 0 0.7rem; }
+  .mc-switcher-all span { display: none; }
+  .mc-vitals { grid-template-columns: minmax(0, 1fr); }
+  .mc-vital + .mc-vital { border-left: 0; border-top: var(--hairline) solid var(--border-subtle); padding-top: 1.4rem; }
+  .mc-actions { width: 100%; }
+  .mc-actions .action { flex: 1 1 100%; }
+  .mc-player-meta .mc-edition { display: none; }
+  .mc-slots { gap: 0.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3l14 9-14 9V3z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+  <symbol id="i-memory" viewBox="0 0 24 24"><path d="M6 19v-3M10 19v-3M14 19v-3M18 19v-3M8 11V9M16 11V9M12 11V9M2 15h20M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1.1a2 2 0 0 0 0 3.837V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5.1a2 2 0 0 0 0-3.837Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-join" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></symbol>
+  <symbol id="i-leave" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<header class="site-dock">
+  <div class="wrap">
+    <div class="site-dock-shell">
+      <a class="site-logo" href="#" aria-label="Craig Johnson, home">
+        <span class="site-logo-mark" aria-hidden="true">CJ</span>
+        <span class="site-logo-copy"><span class="site-logo-name">Craig Johnson</span><span class="site-logo-role">Cloud Engineer Principal</span></span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="#">Home</a></li><li><a href="#">About</a></li><li><a href="#">Experience</a></li><li><a href="#">Skills</a></li>
+          <li><a href="#">Projects</a></li><li><a href="#">Education</a></li><li><a href="#">Contact</a></li><li><a href="#">Soccer</a></li>
+          <li><a href="#" aria-current="page">Minecraft</a></li>
+        </ul>
+      </nav>
+      <button type="button" class="site-menu-button" aria-label="Open navigation menu"><span class="bars" aria-hidden="true"></span>Menu</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <nav class="mc-switcher panel" aria-label="Minecraft servers" id="switcher">
+    <div class="mc-switcher-summary">
+      <svg class="icon" aria-hidden="true"><use href="#i-server"/></svg>
+      <div><strong>Servers</strong><span id="server-summary">4 total · 1 online</span></div>
+    </div>
+    <ul class="mc-switcher-list" id="server-list"></ul>
+    <a class="mc-switcher-all" href="#all-servers"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg><span>All servers</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></a>
+  </nav>
+
+  <section class="mc-hero" aria-labelledby="server-name">
+    <div class="mc-scene" id="scene-wrap">
+      <canvas id="scene" class="pixel" width="320" height="180" role="img" aria-label=""></canvas>
+      <div class="mc-scene-chip" id="scene-chip" data-tone="ok">
+        <span class="bars" aria-hidden="true"><i style="height:30%"></i><i style="height:45%"></i><i style="height:60%"></i><i style="height:42%"></i><i style="height:75%"></i><i style="height:58%"></i><i style="height:90%"></i></span>
+        <div><b>World status</b><span id="chip-text">All systems normal</span></div>
+      </div>
+    </div>
+    <div class="mc-hero-copy">
+      <p class="eyebrow">Minecraft server</p>
+      <h1 class="mc-title" id="server-name"><canvas class="pixel" id="title-block" width="64" height="64" aria-hidden="true"></canvas><span id="title-text">Pinewatch</span></h1>
+      <p class="mc-runtime" id="runtime"></p>
+      <div class="mc-status" role="status" aria-live="polite" id="status">
+        <span class="mc-status-state" id="status-state" data-tone="ok"><span class="dot" data-tone="ok" aria-hidden="true"></span><span id="status-word">Online</span></span>
+        <span class="mc-status-count" id="status-count">3 of 6 players</span>
+      </div>
+      <p class="mc-status-line" id="status-line"></p>
+      <ol class="mc-steps" id="steps" hidden></ol>
+      <div class="mc-actions" id="actions"></div>
+      <p class="mc-note" id="backup-note"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span id="backup-text"></span></p>
+    </div>
+  </section>
+
+  <section class="mc-vitals panel" aria-label="Server health" id="vitals"></section>
+
+  <div class="mc-pair">
+    <section class="panel" aria-labelledby="players-h" id="players">
+      <div class="mc-section-head"><h2 id="players-h">Players online</h2><span id="players-cap">Up to 6</span></div>
+      <div id="players-body"></div>
+    </section>
+    <section class="panel" aria-labelledby="activity-h">
+      <div class="mc-section-head"><h2 id="activity-h">Recent activity</h2><span>Last 24 hours</span></div>
+      <ul class="mc-list" id="activity"></ul>
+    </section>
+  </div>
+
+  <section class="mc-band panel" id="band" aria-labelledby="band-h"></section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>Craig Johnson · Cloud Engineer Principal</span>
+    <span>Prototype. Server names, players, metrics and times are sample data.</span>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="mc-console" id="console" aria-labelledby="console-h" aria-hidden="true">
+  <header>
+    <div><h2 id="console-h">Console</h2><p id="console-sub">Pinewatch · live server log · read only</p></div>
+    <button type="button" class="icon-button" id="console-close" aria-label="Close console"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+  </header>
+  <pre class="mc-log" id="log" tabindex="0" aria-label="Server log"></pre>
+  <footer>Sending commands is not part of this first version. The log streams from the host while the server runs and keeps the last session after it stops.</footer>
+</aside>
+
+<dialog class="mc-confirm" id="confirm" aria-labelledby="confirm-h">
+  <form method="dialog">
+    <div class="mc-confirm-body">
+      <h2 id="confirm-h">Stop Pinewatch?</h2>
+      <p id="confirm-p1"></p>
+      <p id="confirm-p2">The world saves and backs up before the host stops. Stopping waits for the backup to verify, so it can take several minutes.</p>
+    </div>
+    <div class="mc-confirm-actions">
+      <button class="action action-secondary" value="cancel" autofocus>Keep running</button>
+      <button class="action action-danger" value="confirm" id="confirm-go"><span class="stop-glyph" aria-hidden="true"></span><span id="confirm-label">Stop and back up</span></button>
+    </div>
+  </form>
+</dialog>
+
+<form class="proto" id="proto" aria-label="Prototype controls">
+  <b>Prototype</b>
+  <button type="button" class="proto-toggle" id="proto-toggle" aria-expanded="false">Prototype controls</button>
+  <fieldset><legend>View as</legend>
+    <label><input type="radio" name="role" value="visitor"><span>Visitor</span></label>
+    <label><input type="radio" name="role" value="family"><span>Family</span></label>
+    <label><input type="radio" name="role" value="operator" checked><span>Craig</span></label>
+  </fieldset>
+  <fieldset><legend>State</legend>
+    <label><input type="radio" name="state" value="online" checked><span>Online</span></label>
+    <label><input type="radio" name="state" value="stopped"><span>Stopped</span></label>
+    <label><input type="radio" name="state" value="starting"><span>Starting</span></label>
+    <label><input type="radio" name="state" value="stopping"><span>Stopping</span></label>
+    <label><input type="radio" name="state" value="fault"><span>Not responding</span></label>
+  </fieldset>
+  <fieldset><legend>Servers</legend>
+    <label><input type="radio" name="count" value="1"><span>1</span></label>
+    <label><input type="radio" name="count" value="4" checked><span>4</span></label>
+  </fieldset>
+</form>
+
+<script>
+(() => {
+"use strict";
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- Sample data (labelled as such in the footer) ---------------- */
+const SERVERS = [
+  { id: "survival", name: "Pinewatch", mode: "Survival", runtime: "Paper 26.2", block: "grass", seed: 11, state: "online", hue: 0 },
+  { id: "creative", name: "Maker's Hollow", mode: "Creative", runtime: "Paper 26.2", block: "cobble", seed: 23, state: "stopped", hue: 1 },
+  { id: "emberwild", name: "Emberwild", mode: "Survival", runtime: "Paper 26.2", block: "magma", seed: 37, state: "stopped", hue: 2 },
+  { id: "skyfactory", name: "Skyfactory Lab", mode: "Modded", runtime: "Fabric 0.17", block: "planks", seed: 41, state: "stopped", hue: 3 },
+];
+const PLAYERS = [
+  { name: "CraigJ", role: "operator", edition: "Java", minutes: 42, ping: 4, seed: 3 },
+  { name: "RedstoneFox", role: "member", edition: "Bedrock", minutes: 31, ping: 4, seed: 8 },
+  { name: "BirchMage", role: "member", edition: "Java", minutes: 18, ping: 3, seed: 15 },
+];
+const MAX_PLAYERS = 6;
+
+const ui = { role: "operator", count: 4, selected: "survival" };
+let flowTimer = null;
+
+/* ---------------- Seeded randomness ---------------- */
+function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; }
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+
+/* ---------------- Isometric block icons ---------------- */
+const TEX = {
+  grass: (r) => ({
+    top: (x, y) => { const v = r(); return v < 0.2 ? [86, 150, 62] : v < 0.6 ? [104, 172, 72] : [124, 190, 84]; },
+    side: (x, y) => y < 2 || (y === 2 && r() < 0.5) ? (r() < 0.5 ? [98, 164, 68] : [116, 182, 80]) : (r() < 0.3 ? [112, 78, 52] : r() < 0.6 ? [134, 96, 64] : [150, 110, 74]),
+  }),
+  cobble: (r) => { const f = () => { const v = r(); return v < 0.25 ? [92, 92, 98] : v < 0.6 ? [124, 124, 130] : v < 0.85 ? [146, 146, 152] : [170, 170, 176]; }; return { top: f, side: f }; },
+  magma: (r) => { const f = (x, y) => { const v = r(); return v < 0.18 ? [255, 166, 119] : v < 0.3 ? [255, 127, 120] : v < 0.65 ? [122, 36, 44] : [92, 26, 36]; }; return { top: f, side: f }; },
+  planks: (r) => { const f = (x, y) => { const seam = y % 4 === 3 || (x === ((y >> 2) % 2 ? 2 : 6)); return seam ? [96, 66, 40] : (r() < 0.4 ? [168, 124, 76] : [184, 138, 86]); }; return { top: f, side: f }; },
+  stone: (r) => { const f = () => { const v = r(); return v < 0.3 ? [110, 108, 116] : v < 0.8 ? [128, 126, 134] : [142, 140, 148]; }; return { top: f, side: f }; },
+  lantern: (r) => { const f = (x, y) => (x === 0 || x === 7 || y === 0 || y === 7) ? [52, 48, 60] : (x > 1 && x < 6 && y > 1 && y < 6 ? [255, 214, 150] : [255, 166, 119]); return { top: f, side: f }; },
+  chest: (r) => { const f = (x, y) => (y === 3 && x > 2 && x < 5) ? [210, 210, 220] : (x === 0 || x === 7 || y === 0 || y === 7 || y === 3) ? [96, 62, 34] : (r() < 0.4 ? [170, 116, 58] : [186, 128, 66]); return { top: f, side: f }; },
+};
+function drawBlock(canvas, type, seed = 1) {
+  const S = canvas.width, ctx = canvas.getContext("2d"), r = rng(seed * 97 + type.length * 13), tex = TEX[type](r);
+  ctx.clearRect(0, 0, S, S); ctx.imageSmoothingEnabled = false;
+  const u = S / 16, h = S / 32, faces = [
+    { o: [S / 2, 0], a: [u, h], b: [-u, h], fn: tex.top, shade: 0 },
+    { o: [0, S / 4], a: [u, h], b: [0, u], fn: tex.side, shade: 0.22 },
+    { o: [S / 2, S / 2], a: [u, -h], b: [0, u], fn: tex.side, shade: 0.42 },
+  ];
+  for (const f of faces) {
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const c = f.fn(x, y).map((v) => Math.round(v * (1 - f.shade)));
+      ctx.fillStyle = `rgb(${c})`;
+      ctx.beginPath();
+      const p = (i, j) => [f.o[0] + f.a[0] * i + f.b[0] * j, f.o[1] + f.a[1] * i + f.b[1] * j];
+      const q = [p(x, y), p(x + 1, y), p(x + 1, y + 1), p(x, y + 1)];
+      ctx.moveTo(...q[0]); q.slice(1).forEach((pt) => ctx.lineTo(...pt)); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6; ctx.stroke();
+    }
+  }
+}
+
+/* ---------------- 8x8 player heads ---------------- */
+function drawHead(canvas, seed, anonymous = false) {
+  const ctx = canvas.getContext("2d"), r = rng(seed * 31 + 7); canvas.width = canvas.height = 8;
+  const skins = [[244, 204, 170], [222, 170, 128], [180, 126, 88], [128, 86, 58], [250, 220, 196]];
+  const hairs = [[60, 40, 28], [214, 160, 78], [196, 84, 44], [30, 26, 34], [240, 220, 150], [120, 70, 40]];
+  const eyesC = [[64, 112, 200], [70, 140, 90], [92, 60, 40], [60, 60, 70]];
+  let skin = skins[Math.floor(r() * skins.length)], hair = hairs[Math.floor(r() * hairs.length)], eye = eyesC[Math.floor(r() * eyesC.length)];
+  if (anonymous) { skin = [150, 140, 150]; hair = [96, 88, 100]; eye = [60, 54, 66]; }
+  const style = Math.floor(r() * 3);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    let c = skin;
+    if (y < 2 || (y === 2 && (x === 0 || x === 7)) || (style === 1 && y === 2 && x > 0 && x < 7 && r() < 0.5) || (style === 2 && y < 4 && (x === 0 || x === 7))) c = hair;
+    if (y === 4 && (x === 1 || x === 5)) c = [250, 250, 250];
+    if (y === 4 && (x === 2 || x === 6)) c = eye;
+    if (y === 6 && x > 2 && x < 5) c = mix(skin, [120, 60, 60], 0.5);
+    if (y === 5 && x > 2 && x < 5) c = mix(skin, [0, 0, 0], 0.18);
+    const n = (r() - 0.5) * 14;
+    ctx.fillStyle = `rgb(${c.map((v) => Math.max(0, Math.min(255, v + n)))})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+/* ---------------- The living world scene ---------------- */
+function createScene(canvas, animated) {
+  const ctx = canvas.getContext("2d"), W = canvas.width, H = canvas.height;
+  const img = ctx.createImageData(W, H), px = img.data;
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  let world = null, L = 1, target = 1, litFraction = 1, fault = false, last = 0, raf = 0, visible = true;
+  const SKY = {
+    day: [[30, 20, 36], [58, 34, 62], [104, 44, 84], [178, 70, 108], [246, 120, 150], [255, 168, 122]],
+    night: [[8, 7, 12], [14, 11, 20], [22, 17, 30], [30, 22, 40], [38, 28, 50], [44, 32, 56]],
+  };
+  const HUES = [[0, 0, 0], [-10, 10, 16], [26, -10, -18], [-6, 4, 18]];
+
+  function build(server) {
+    const r = rng(server.seed * 7919);
+    const mount = [], pinesFar = [], pinesNear = [], clouds = [], stars = [], lights = [];
+    const p1 = r() * 6, p2 = r() * 6;
+    for (let x = 0; x < W; x++) mount[x] = Math.round(100 - 12 * Math.sin(x / 37 + p1) - 7 * Math.sin(x / 13 + p2) - (x > 150 ? (x - 150) * 0.05 : 0));
+    for (let x = -4; x < W; x += 3 + Math.floor(r() * 4)) pinesFar.push({ x, h: 8 + Math.floor(r() * 10) });
+    for (let i = 0; i < 6; i++) clouds.push({ x: Math.floor(r() * W), y: 12 + Math.floor(r() * 44), w: 18 + Math.floor(r() * 36), d: r() });
+    for (let i = 0; i < 70; i++) stars.push({ x: Math.floor(r() * W), y: Math.floor(r() * 90), b: r(), k: r() * 6 });
+    const tx = 196 + Math.floor(r() * 30);
+    const ground = (x) => x < 80 ? 999 : x < 112 ? Math.round(133 + (112 - x) * 1.45) : Math.round(Math.max(104, 133 - Math.max(0, x - 112) * 0.3 - (x > tx - 34 ? 3 : 0)));
+    for (let i = 0; i < 16; i++) {
+      const x = 112 + Math.floor(r() * (W - 112));
+      if (Math.abs(x - tx) < 22) continue;
+      pinesNear.push({ x, h: 26 + Math.floor(r() * 34), base: ground(x) + 2 });
+    }
+    pinesNear.push({ x: tx - 26, h: 58, base: ground(tx - 26) }, { x: tx + 30, h: 64, base: ground(tx + 30) });
+    pinesNear.sort((a, b) => a.base - b.base);
+    const towerBase = ground(tx) + 4;
+    const tower = { x: tx, base: towerBase, stoneTop: towerBase - 44, woodTop: towerBase - 70, roofTop: towerBase - 88 };
+    lights.push({ x: tx - 4, y: tower.woodTop + 12, r: 16, k: 0, o: 0 }, { x: tx + 5, y: tower.woodTop + 12, r: 16, k: 1, o: 1 }, { x: tx, y: tower.stoneTop + 18, r: 14, k: 2, o: 2 });
+    lights.push({ x: tx - 14, y: tower.stoneTop + 2, r: 10, k: 3, torch: true, o: 3 }, { x: tx + 14, y: tower.stoneTop + 2, r: 10, k: 4, torch: true, o: 4 });
+    const fence = [];
+    for (let x = 122; x < tx - 18; x += 7) fence.push({ x, y: ground(x) - 1 });
+    fence.forEach((f, i) => { if (i % 3 === 1) lights.push({ x: f.x, y: f.y - 7, r: 9, k: 5 + i, torch: true, o: 200 - f.x }); });
+    for (let x = 96; x < 128; x += 10) lights.push({ x, y: ground(x) - 4, r: 8, k: 40 + x, torch: true, o: 300 - x });
+    for (let x = tx + 22; x < W; x += 16) lights.push({ x, y: ground(x) - 6, r: 8, k: 20 + x, torch: true, o: 10 + x / 100 });
+    lights.sort((a, b) => a.o - b.o);
+    return { mount, pinesFar, pinesNear, clouds, stars, lights, tower, fence, ground, hue: HUES[server.hue] || HUES[0] };
+  }
+
+  function put(x, y, c, a = 1) {
+    x |= 0; y |= 0; if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const i = (y * W + x) * 4;
+    px[i] = px[i] + (c[0] - px[i]) * a; px[i + 1] = px[i + 1] + (c[1] - px[i + 1]) * a; px[i + 2] = px[i + 2] + (c[2] - px[i + 2]) * a; px[i + 3] = 255;
+  }
+  function add(x, y, c, a) {
+    x |= 0; y |= 0; if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const i = (y * W + x) * 4; px[i] = Math.min(255, px[i] + c[0] * a); px[i + 1] = Math.min(255, px[i + 1] + c[1] * a); px[i + 2] = Math.min(255, px[i + 2] + c[2] * a);
+  }
+  function rect(x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); }
+  function skyAt(y, t) {
+    const f = Math.min(0.999, y / 128) * 5, i = Math.floor(f), k = f - i;
+    const day = mix(SKY.day[i], SKY.day[i + 1], k), night = mix(SKY.night[i], SKY.night[i + 1], k);
+    return mix(night, day, t);
+  }
+
+  function draw(time) {
+    if (!world) return;
+    const w = world, t = L, hue = w.hue;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = skyAt(y, t), d = (BAYER[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * 10;
+      put(x, y, c.map((v, i) => Math.round((v + hue[i] * t + d) / 6) * 6));
+    }
+    const starA = Math.max(0, 1 - t * 1.6);
+    if (starA > 0) for (const s of w.stars) {
+      const tw = reduceMotion || !animated ? 1 : 0.6 + 0.4 * Math.sin(time / 700 + s.k);
+      put(s.x, s.y, [255, 240, 216], starA * s.b * tw);
+    }
+    for (const c of w.clouds) {
+      const body = mix([24, 18, 32], [124, 52, 86], t), lit = mix([30, 24, 40], [255, 168, 122], t * 0.85);
+      rect(c.x, c.y, c.w, 3, body); rect(c.x + 5, c.y - 2, c.w - 14, 2, body); rect(c.x + 10, c.y - 3, Math.max(4, c.w - 26), 1, body); for (let i = 4; i < c.w - 6; i++) put(c.x + i, c.y + 3, lit, 0.55);
+    }
+    const moonA = Math.max(0, 1 - t * 1.4);
+    if (moonA > 0) {
+      const bg = skyAt(20, t), m = mix(bg, [255, 240, 216], moonA), crater = mix(bg, [222, 206, 188], moonA);
+      rect(263, 16, 7, 9, m); rect(262, 17, 9, 7, m);
+      put(264, 18, crater); put(265, 18, crater); put(268, 21, crater); put(266, 23, crater);
+    }
+    const mCol = mix([20, 15, 26], [70, 36, 66], t), mEdge = mix([26, 20, 34], [110, 50, 84], t);
+    for (let x = 0; x < W; x++) { for (let y = w.mount[x]; y < 132; y++) put(x, y, y === w.mount[x] ? mEdge : mCol); }
+    const fCol = mix([12, 14, 18], [34, 30, 44], t);
+    for (const p of w.pinesFar) pine(p.x, 128, p.h, fCol, fCol);
+    for (let y = 126; y < H; y++) for (let x = 0; x < W; x++) {
+      const refl = skyAt(Math.max(0, 250 - y * 1.5), t), dark = mix(refl, [16, 12, 22], 0.35 + (y - 126) / 160);
+      const band = (y - 126) % 3 === 0 && ((x * 3 + y * 11) % 19) < 7;
+      put(x, y, band ? mix(dark, skyAt(Math.max(0, 128 - (y - 126) * 3), t), 0.55) : dark);
+    }
+    for (let x = 80; x < W; x++) {
+      const g = w.ground(x);
+      for (let y = g; y < H; y++) {
+        const deep = y - g, n = BAYER[(y & 3) * 4 + (x & 3)] / 16;
+        let c;
+        const blockEdge = ((y - g) % 4 === 3) || ((x + (Math.floor((y - g) / 4) % 2) * 2) % 4 === 0);
+        if (deep < 2 || (deep === 2 && (x * 5) % 7 < 3)) c = mix([22, 34, 30], [62, 98, 62], t * (deep ? 0.8 : 1));
+        else if (deep >= 6 && deep < 14 && x > 128) {
+          const row = (deep - 6) >> 2, brick = ((x + row * 3) % 6 === 0) || ((deep - 6) & 3) === 0;
+          c = brick ? mix([16, 14, 20], [52, 48, 60], t) : mix([26, 24, 32], n < 0.3 ? [92, 88, 102] : [80, 76, 90], t);
+        } else {
+          const ore = ((Math.floor(x / 4) * 31 + Math.floor((y - g) / 4) * 17) % 23) === 0;
+          c = mix([18, 15, 22], ore ? [84, 80, 92] : n < 0.18 ? [72, 54, 50] : [56, 42, 44], t);
+          if (blockEdge) c = mix(c, [10, 8, 12], 0.35);
+        }
+        put(x, y, c);
+      }
+    }
+    for (const f of w.fence) { rect(f.x, f.y - 6, 1, 6, mix([30, 24, 22], [104, 72, 46], t)); rect(f.x, f.y - 5, 7, 1, mix([26, 20, 20], [92, 64, 40], t)); rect(f.x, f.y - 2, 7, 1, mix([26, 20, 20], [92, 64, 40], t)); }
+    const tw = w.tower, tx = tw.x;
+    for (let y = tw.stoneTop; y < tw.base; y++) for (let x = tx - 12; x <= tx + 12; x++) {
+      const brick = ((y >> 2) + ((x + ((y >> 2) % 2) * 2) >> 2)) % 2 === 0;
+      let c = brick ? [96, 92, 106] : [76, 72, 86];
+      if ((y & 3) === 0) c = [52, 48, 60];
+      put(x, y, mix([20, 18, 26], c, 0.35 + t * 0.65));
+    }
+    rect(tx - 14, tw.stoneTop - 2, 29, 2, mix([22, 20, 28], [110, 104, 120], 0.35 + t * 0.65));
+    for (let i = -14; i <= 14; i += 4) rect(tx + i, tw.stoneTop - 4, 2, 2, mix([22, 20, 28], [110, 104, 120], 0.35 + t * 0.65));
+    for (let y = tw.woodTop; y < tw.stoneTop - 2; y++) for (let x = tx - 10; x <= tx + 10; x++) {
+      const post = x === tx - 10 || x === tx + 10 || x === tx || y === tw.woodTop;
+      put(x, y, post ? mix([18, 14, 14], [74, 50, 34], t) : mix([22, 16, 16], [112, 76, 48], t));
+    }
+    const roofCol = mix([14, 14, 18], [46, 34, 40], t), roofEdge = mix([20, 18, 22], [90, 58, 48], t);
+    for (let k = 0; k <= 18; k++) { const half = 14 - Math.floor(k * 0.8); rect(tx - half, tw.woodTop - k, half * 2 + 1, 1, k % 3 === 0 ? roofEdge : roofCol); }
+    for (const p of w.pinesNear) pine(p.x, p.base, p.h, mix([10, 14, 14], [26, 46, 40], t), mix([14, 18, 18], [44, 74, 58], t));
+    const on = (i) => litFraction >= (i + 1) / w.lights.length;
+    const warm = [255, 176, 104];
+    const winA = Math.max(0, Math.min(1, litFraction * 1.4));
+    rect(tx - 7, tw.woodTop + 6, 5, 8, mix([12, 10, 14], [255, 196, 120], winA));
+    rect(tx + 3, tw.woodTop + 6, 5, 8, mix([12, 10, 14], [255, 196, 120], winA));
+    rect(tx - 2, tw.stoneTop + 12, 5, 14, mix([10, 8, 12], [255, 170, 100], winA * 0.9));
+    for (let i = -8; i <= 8; i++) { add(tx + i, tw.woodTop + 15, [255, 176, 104], 0.22 * winA); add(tx + i, tw.woodTop + 16, [255, 176, 104], 0.12 * winA); }
+    for (let i = -4; i <= 4; i++) add(tx + i, tw.stoneTop + 27, [255, 176, 104], 0.2 * winA);
+    w.lights.forEach((lt, i) => {
+      if (!on(i)) return;
+      const flick = reduceMotion || !animated ? 1 : 0.82 + 0.18 * Math.sin(time / 90 + lt.k * 3.1) * Math.sin(time / 230 + lt.k);
+      if (lt.torch) { rect(lt.x, lt.y + 1, 1, 3, [96, 66, 40]); put(lt.x, lt.y, [255, 230, 160]); put(lt.x, lt.y - 1, [255, 170, 100], flick); }
+      const R = lt.r;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+        const d = Math.sqrt(dx * dx + dy * dy) / R; if (d >= 1) continue;
+        const a = (1 - d) * (1 - d) * 0.32 * flick, x = lt.x + dx, y = lt.y + dy;
+        if ((BAYER[((y & 3) * 4) + (x & 3)] / 16) < a * 2.2) add(x, y, warm, a);
+      }
+      if (lt.torch) { add(lt.x - 1, lt.y + 4, warm, 0.25); add(lt.x + 1, lt.y + 4, warm, 0.25); }
+      if (lt.x < 150) for (let k = 0; k < 7; k++) { const ry = 128 + k * 3, len = 3 - (k >> 1); for (let j = -len; j <= len; j++) if (w.ground(lt.x + j) > ry) add(lt.x + j + (k % 2), ry, warm, (0.32 - k * 0.04) * flick); }
+    });
+    if (fault) for (let i = 0; i < W * H; i++) { const j = i * 4; const g = (px[j] + px[j + 1] + px[j + 2]) / 3; px[j] = px[j] * 0.55 + g * 0.45; px[j + 1] = px[j + 1] * 0.55 + g * 0.45; px[j + 2] = px[j + 2] * 0.55 + g * 0.45; }
+    ctx.putImageData(img, 0, 0);
+  }
+  function pine(x, base, h, dark, light) {
+    for (let k = 0; k < h; k++) {
+      const y = base - k, tier = Math.floor(k / 6), within = k % 6, half = Math.max(0, Math.round((h - k) * 0.28 + (5 - within) * 0.5 - tier * 0.2));
+      for (let i = -half; i <= half; i++) put(x + i, y, i < 0 ? light : dark);
+    }
+    rect(x, base - 1, 1, 3, mix(dark, [60, 40, 30], 0.5));
+  }
+  function loop(time) {
+    raf = 0;
+    const diff = target - L;
+    if (Math.abs(diff) > 0.002) L += diff * 0.06; else L = target;
+    if (!reduceMotion || Math.abs(diff) > 0.002) { if (time - last > 80 || Math.abs(diff) > 0.002) { draw(time); last = time; } }
+    if (visible && (!reduceMotion || Math.abs(target - L) > 0.002)) raf = requestAnimationFrame(loop);
+  }
+  function kick() { if (animated && !raf && visible) raf = requestAnimationFrame(loop); }
+  if (animated) new IntersectionObserver((e) => { visible = e[0].isIntersecting && !document.hidden; kick(); }).observe(canvas);
+  if (animated) document.addEventListener("visibilitychange", () => { visible = !document.hidden; kick(); });
+  return {
+    set(server, light, lit, isFault, immediate) {
+      if (!world || world.id !== server.id) { world = build(server); world.id = server.id; }
+      target = light; litFraction = lit; fault = isFault;
+      if (immediate || reduceMotion || !animated) { L = light; draw(performance.now()); }
+      kick();
+    },
+    label(text) { canvas.setAttribute("aria-label", text); },
+  };
+}
+const scene = createScene($("scene"), true);
+
+/* ---------------- Sparklines ---------------- */
+function spark(seed, base, amp, color, idle) {
+  const r = rng(seed), n = 32, pts = [];
+  let v = base;
+  for (let i = 0; i < n; i++) { v += (r() - 0.5) * amp; v = Math.max(0.12, Math.min(0.9, v * 0.85 + base * 0.15)); pts.push(v); }
+  const w = 120, h = 36, xy = pts.map((p, i) => [(i / (n - 1)) * w, h - p * h]);
+  const d = xy.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const end = xy[xy.length - 1], id = "g" + seed;
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="${idle ? 0.08 : 0.28}"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L${w} ${h} L0 ${h} Z" fill="url(#${id})"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" ${idle ? 'stroke-dasharray="2 3" opacity="0.6"' : ""}/>
+    ${idle ? "" : `<circle cx="${end[0]}" cy="${end[1]}" r="2.6" fill="${color}"/>`}
+  </svg>`;
+}
+
+/* ---------------- Rendering ---------------- */
+const STATE = {
+  online: { word: "Online", tone: "ok", chip: "All systems normal", light: 1, lit: 1 },
+  stopped: { word: "Stopped", tone: "idle", chip: "Asleep, host stopped", light: 0, lit: 0 },
+  starting: { word: "Starting", tone: "busy", chip: "Waking up", light: 0.2, lit: 0 },
+  stopping: { word: "Stopping", tone: "busy", chip: "Saving and backing up", light: 1, lit: 1 },
+  fault: { word: "Not responding", tone: "fault", chip: "Needs attention", light: 0.45, lit: 0 },
+};
+const START_STEPS = ["Starting the host", "Attaching the world disk", "Launching Paper and Geyser", "Pointing the address at the new host", "Ready for players"];
+const STOP_STEPS = ["Warning players and saving the world", "Stopping Paper", "Backing up the world", "Verifying the backup", "Stopping the host"];
+
+function server() { return SERVERS.find((s) => s.id === ui.selected); }
+function visibleServers() { return ui.count === 1 ? SERVERS.slice(0, 1) : SERVERS; }
+const icon = (id) => `<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-${id}"/></svg>`;
+
+function renderSwitcher() {
+  const list = $("server-list"), servers = visibleServers();
+  $("switcher").dataset.count = servers.length;
+  const online = servers.filter((s) => s.state === "online").length;
+  $("server-summary").textContent = `${servers.length} total · ${online} online`;
+  list.innerHTML = "";
+  for (const s of servers) {
+    const st = STATE[s.state];
+    const li = document.createElement("li");
+    li.innerHTML = `<a class="mc-server-tab" href="#${s.id}" ${s.id === ui.selected ? 'aria-current="page"' : ""}>
+      <canvas class="pixel" width="48" height="48" aria-hidden="true"></canvas>
+      <span><b>${s.name}</b><small><span class="dot" data-tone="${st.tone}" aria-hidden="true"></span><span class="sr-only">${st.word}, </span>${s.mode} · ${s.runtime.split(" ")[0]}</small></span></a>`;
+    drawBlock(li.querySelector("canvas"), s.block, s.seed);
+    li.querySelector("a").addEventListener("click", (e) => { e.preventDefault(); ui.selected = s.id; syncStateRadio(); render(true); });
+    list.appendChild(li);
+  }
+}
+
+function renderHero(immediate) {
+  const s = server(), st = STATE[s.state], role = ui.role;
+  $("title-text").textContent = s.name;
+  drawBlock($("title-block"), s.block, s.seed);
+  $("runtime").innerHTML = `<span>${s.mode}</span><span>Java and Bedrock</span><span>${s.runtime}</span>`;
+  const stateEl = $("status-state");
+  stateEl.dataset.tone = st.tone; stateEl.querySelector(".dot").dataset.tone = st.tone;
+  $("status-word").textContent = st.word;
+  const players = s.state === "online" && s.id === "survival" ? PLAYERS.length : 0;
+  $("status-count").textContent = s.state === "online" ? `${players} of ${MAX_PLAYERS} players` : s.state === "fault" ? "Players can't join" : `0 of ${MAX_PLAYERS} players`;
+  const lines = {
+    online: "The world is awake. It goes back to sleep after 30 minutes with nobody online.",
+    stopped: role === "visitor" ? "The world is asleep and no server is running. Family members wake it when they want to play." : "The world is asleep and no server is running. Starting it takes a few minutes.",
+    starting: "Waking the world. The address works as soon as the last step finishes.",
+    stopping: "Everyone has been warned. The world saves and backs up before the host shuts down.",
+    fault: role === "operator" ? "The host is running but Minecraft stopped answering 4 minutes ago. Open the console to see why, or restart safely." : "The server stopped answering a few minutes ago. Craig has been alerted.",
+  };
+  $("status-line").textContent = lines[s.state];
+  const chip = $("scene-chip"); chip.dataset.tone = st.tone; $("chip-text").textContent = st.chip;
+  const when = { online: "at dusk, torches lit", stopped: "at night, lights out", starting: "as torches light one by one", stopping: "as the lights go out", fault: "in grey, lights out" };
+  scene.label(`Pixel-art view of ${s.name} ${when[s.state]}. The server is ${st.word.toLowerCase()}.`);
+  renderSteps(s);
+  renderActions(s);
+  const lastPoint = "Oct 2, 9:14 PM";
+  const backup = {
+    online: `Backs up on every stop · last <b>${lastPoint}</b>, verified`,
+    stopped: `Last backup <b>${lastPoint}</b>, verified when the world last stopped`,
+    starting: `Last backup <b>${lastPoint}</b>, verified`,
+    stopping: `Backing up now · previous <b>${lastPoint}</b>`,
+    fault: `Last backup <b>${lastPoint}</b>, verified · the world is safe`,
+  };
+  $("backup-text").innerHTML = backup[s.state];
+  if (s.state === "starting" || s.state === "stopping") return;
+  scene.set(s, st.light, st.lit, s.state === "fault", immediate);
+}
+
+function renderSteps(s) {
+  const el = $("steps");
+  if (s.state !== "starting" && s.state !== "stopping") { el.hidden = true; return; }
+  el.hidden = false;
+  const steps = s.state === "starting" ? START_STEPS : STOP_STEPS;
+  const at = s.step || 0;
+  el.setAttribute("aria-label", s.state === "starting" ? "Start progress" : "Stop progress");
+  el.innerHTML = steps.map((t, i) => `<li data-step="${i < at ? "done" : i === at ? "now" : "todo"}">${t}${i === at ? '<span class="sr-only"> (in progress)</span>' : ""}</li>`).join("");
+  const frac = at / steps.length;
+  if (s.state === "starting") scene.set(s, 0.15 + 0.85 * frac, frac, false, false);
+  else scene.set(s, 1 - 0.95 * frac, 1 - frac, false, false);
+}
+
+function renderActions(s) {
+  const el = $("actions"), role = ui.role, st = s.state;
+  const a = [];
+  const btn = (cls, ic, label, act, disabled) => `<button type="button" class="action ${cls}" data-act="${act}" ${disabled ? "disabled" : ""}>${ic}<span>${label}</span></button>`;
+  if (role === "visitor") {
+    a.push(`<a class="action action-primary" href="#sign-in">${icon("login")}<span>Family sign in</span></a>`);
+    a.push(`<a class="action action-secondary" href="#band-h">See how it runs</a>`);
+  } else if (role === "family") {
+    if (st === "stopped") a.push(btn("action-primary", icon("play"), "Start server", "start"));
+    if (st === "starting") a.push(btn("action-primary", icon("play"), "Starting…", "noop", true));
+    if (st === "online") a.push(`<a class="action action-primary" href="#band-h">${icon("copy")}<span>Get the join address</span></a>`);
+    if (st === "stopping") a.push(btn("action-secondary", icon("play"), "Start server", "noop", true));
+  } else {
+    if (st === "stopped") { a.push(btn("action-primary", icon("play"), "Start server", "start")); a.push(btn("action-secondary", icon("terminal"), "Last session log", "console")); }
+    if (st === "online") { a.push(btn("action-primary", icon("terminal"), "Open console", "console")); a.push(btn("action-secondary", icon("restart"), "Restart safely", "restart")); a.push(`<button type="button" class="action action-danger" data-act="stop"><span class="stop-glyph" aria-hidden="true"></span><span>Stop server</span></button>`); }
+    if (st === "starting" || st === "stopping") { a.push(btn("action-primary", icon("terminal"), "Open console", "console")); }
+    if (st === "fault") { a.push(btn("action-primary", icon("terminal"), "Open console", "console")); a.push(btn("action-secondary", icon("restart"), "Restart safely", "restart")); a.push(`<button type="button" class="action action-danger" data-act="stop"><span class="stop-glyph" aria-hidden="true"></span><span>Stop server</span></button>`); }
+  }
+  el.innerHTML = a.join("");
+}
+
+function renderVitals() {
+  const s = server(), on = s.state === "online", idle = !on;
+  const c = { ok: "#78E3C3", busy: "#FFA677", gold: "#FFC79A", idle: "#8f8090" };
+  const v = (tone, ic, label, value, unit, sp) => `<div class="mc-vital" data-tone="${tone}">${icon(ic)}<span class="mc-vital-label">${label}</span>
+      <div class="mc-vital-row"><span class="mc-vital-value">${value}${unit ? `<small>${unit}</small>` : ""}</span>${sp}</div></div>`;
+  let html;
+  if (on) {
+    html = v("ok", "cpu", "CPU", "38", "%", spark(5, 0.38, 0.22, c.ok))
+      + v("busy", "memory", "Memory", "6.1", "/ 8 GB", spark(9, 0.72, 0.08, c.busy))
+      + v("ok", "clock", "Awake for", "1h 42", "m", spark(13, 0.5, 0.05, c.ok))
+      + v("ok", "gauge", "Tick rate", "20.0", "tps", spark(21, 0.8, 0.04, c.ok))
+      + `<p class="mc-vitals-caption">This session, last 60 minutes. Amber marks a reading near its limit. Readings refresh every minute.</p>`;
+  } else if (s.state === "fault") {
+    html = v("idle", "cpu", "CPU", "3", "%", spark(5, 0.3, 0.2, c.idle, true))
+      + v("busy", "memory", "Memory", "6.4", "/ 8 GB", spark(9, 0.75, 0.05, c.busy, true))
+      + v("idle", "clock", "Not answering", "4", "m", spark(13, 0.5, 0.05, c.idle, true))
+      + v("fault", "gauge", "Tick rate", "0", "tps", spark(21, 0.8, 0.04, "#FF7FA8", true))
+      + `<p class="mc-vitals-caption">The host answers but Paper has not ticked for 4 minutes.</p>`;
+  } else {
+    const summary = s.state === "starting"
+      ? `<b>Live readings appear once Paper is running.</b><span>Last session: 2h 14m awake, 4 players at the busiest point.</span>`
+      : `<b>Last session: 2h 14m awake, 4 players at the busiest point.</b><span>Memory peaked at 6.8 of 8 GB. The backup verified on Oct 2 at 9:14 PM.</span>`;
+    $("vitals").dataset.collapsed = "";
+    $("vitals").innerHTML = `<div class="mc-vitals-summary">${icon("moon")}<p>${summary}</p></div>`;
+    return;
+  }
+  delete $("vitals").dataset.collapsed;
+  $("vitals").innerHTML = html;
+}
+
+function renderPlayers() {
+  const s = server(), body = $("players-body"), online = s.state === "online" && s.id === "survival";
+  const list = online ? PLAYERS : [];
+  if (ui.role === "visitor") {
+    const slots = Array.from({ length: MAX_PLAYERS }, (_, i) => `<div class="mc-slot" ${i < list.length ? "data-filled" : ""}>${i < list.length ? '<canvas class="pixel" aria-hidden="true"></canvas>' : ""}</div>`).join("");
+    body.innerHTML = `<div class="mc-slots" role="img" aria-label="${list.length} of ${MAX_PLAYERS} player places taken">${slots}</div>
+      <p class="mc-private">${list.length ? `${list.length} of ${MAX_PLAYERS} places are taken.` : "Nobody is playing right now."} Player names stay private to family; they appear here after you sign in.</p>`;
+    body.querySelectorAll("canvas").forEach((cv, i) => drawHead(cv, 90 + i, true));
+    return;
+  }
+  if (!list.length) {
+    body.innerHTML = `<div class="mc-empty"><b>Nobody is online</b>${s.state === "stopped" ? "RedstoneFox was the last one playing, on Oct 2 until 9:02 PM." : s.state === "fault" ? "Players were disconnected when the server stopped answering." : "Players appear here as they join."}</div>`;
+    return;
+  }
+  body.innerHTML = `<ul class="mc-list">${list.map((p) => `<li class="mc-player">
+      <canvas class="pixel" aria-hidden="true"></canvas>
+      <span class="mc-player-name">${p.name}</span><span class="mc-role" data-role="${p.role}">${p.role === "operator" ? "Operator" : "Member"}</span>
+      <span class="mc-player-meta"><span class="mc-edition">${p.edition}</span><span>${p.minutes}m</span>
+      <span class="bars" role="img" aria-label="Connection ${p.ping} of 4">${[0.35, 0.55, 0.75, 1].map((h, i) => `<i style="height:${h * 100}%" ${i >= p.ping ? "data-off" : ""}></i>`).join("")}</span></span></li>`).join("")}</ul>`;
+  body.querySelectorAll("canvas").forEach((cv, i) => drawHead(cv, list[i].seed));
+}
+
+function renderActivity() {
+  const s = server(), anon = ui.role === "visitor";
+  const name = (n) => anon ? "A player" : n;
+  const ev = {
+    online: [["join", "ok", `${name("BirchMage")} joined`, anon ? "Name private to family" : "Java · welcome back", "18m ago"],
+      ["join", "ok", `${name("RedstoneFox")} joined`, anon ? "Name private to family" : "Bedrock via Geyser", "31m ago"],
+      ["power", "busy", "World woke up", anon ? "Started by a family member" : "Started by CraigJ · ready in 2m 48s", "1h 42m ago"],
+      ["shield", "ok", "Backup verified", "Saved when the world last stopped", "Yesterday"]],
+    stopped: [["moon", "idle", "World went to sleep", "30 minutes with nobody online", "Oct 2, 9:32 PM"],
+      ["shield", "ok", "Backup verified", "1.8 GB recovery point", "Oct 2, 9:14 PM"],
+      ["leave", "idle", `${name("RedstoneFox")} left`, anon ? "Name private to family" : "Played 2h 06m", "Oct 2, 9:02 PM"]],
+    starting: [["power", "busy", "Start requested", anon ? "By a family member" : "By CraigJ from this page", "Just now"],
+      ["moon", "idle", "World went to sleep", "30 minutes with nobody online", "Oct 2, 9:32 PM"]],
+    stopping: [["power", "busy", "Stop requested", anon ? "By Craig" : "By CraigJ from this page", "Just now"],
+      ["join", "ok", `${name("BirchMage")} joined`, anon ? "Name private to family" : "Java", "18m ago"]],
+    fault: [["alert", "fault", "Server stopped answering", "Status ping failed twice", "4m ago"],
+      ["join", "ok", `${name("RedstoneFox")} joined`, anon ? "Name private to family" : "Bedrock via Geyser", "31m ago"],
+      ["power", "busy", "World woke up", anon ? "Started by a family member" : "Started by CraigJ", "1h 42m ago"]],
+  };
+  const items = s.id === "survival" ? ev[s.state] : [["moon", "idle", "World went to sleep", "30 minutes with nobody online", "Sep 27"], ["shield", "ok", "Backup verified", "Saved when the world last stopped", "Sep 27"]];
+  const map = { join: "join", leave: "leave", power: "power", shield: "check", moon: "moon", alert: "alert" };
+  $("activity").innerHTML = items.map(([ic, tone, t, d, when]) => `<li><span class="mc-event-icon" data-tone="${tone}">${icon(map[ic])}</span>
+    <span class="mc-event-text"><b>${t}</b><span>${d}</span></span><span class="mc-event-time">${when}</span></li>`).join("");
+}
+
+function renderBand() {
+  const band = $("band"), s = server();
+  if (ui.role === "visitor") {
+    const steps = [
+      ["Someone asks", "A family member presses Start on this page.", 0.25, 0.15],
+      ["The world wakes", "A fresh host boots, attaches the saved world and moves the address to it.", 0.7, 0.6],
+      ["Family plays", "Up to six players on Java or Bedrock, lights on.", 1, 1],
+      ["Thirty quiet minutes", "When nobody is online, a small Go function starts a safe shutdown.", 0.6, 0.35],
+      ["Backed up, asleep", "The world is saved, copied and verified before the host stops.", 0, 0],
+    ];
+    band.innerHTML = `<div class="mc-band-head"><h2 id="band-h">How this server runs</h2><p>A family world Craig built on AWS with OpenTofu, Python and Go. The host only runs while someone is playing; the saved world is what stays.</p></div>
+      <ol class="mc-cycle">${steps.map(([t, d]) => `<li><canvas class="pixel" width="320" height="180" aria-hidden="true"></canvas><b>${t}</b><p>${d}</p></li>`).join("")}</ol>`;
+    band.querySelectorAll(".mc-cycle canvas").forEach((cv, i) => createScene(cv, false).set(s, steps[i][2], steps[i][3], false, true));
+    return;
+  }
+  const live = s.state === "online";
+  band.innerHTML = `<div class="mc-band-head"><h2 id="band-h">Join ${s.name}</h2><p>${live ? "Add the server once and it stays in your list. The address follows the host each time the world wakes." : "The address works while the world is awake. Start it first, or ask Craig."}</p></div>
+    <div class="mc-join">
+      <div><h3>Java Edition</h3>
+        <div class="mc-address"><code id="addr-java">mc.example-family.net</code><button type="button" data-copy="addr-java">${icon("copy")}<span>Copy</span></button></div>
+        <dl><dt>Versions</dt><dd>26.2 and 26.3</dd><dt>Port</dt><dd>Default (25565), no need to type it</dd></dl></div>
+      <div><h3>Bedrock Edition</h3>
+        <div class="mc-address"><code id="addr-bedrock">mc.example-family.net</code><button type="button" data-copy="addr-bedrock">${icon("copy")}<span>Copy</span></button></div>
+        <dl><dt>Port</dt><dd>19132</dd><dt>Versions</dt><dd>26.30 to 26.52 on phones, tablets, Windows and Xbox</dd><dt>Consoles</dt><dd>PlayStation and Switch still being tested</dd></dl></div>
+    </div>`;
+  band.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const text = $(b.dataset.copy).textContent, label = b.querySelector("span");
+    try { await navigator.clipboard.writeText(text); label.textContent = "Copied"; }
+    catch { const r = document.createRange(); r.selectNodeContents($(b.dataset.copy)); getSelection().removeAllRanges(); getSelection().addRange(r); label.textContent = "Selected"; }
+    setTimeout(() => (label.textContent = "Copy"), 1800);
+  }));
+}
+
+function render(immediate) { renderSwitcher(); renderHero(immediate); renderVitals(); renderPlayers(); renderActivity(); renderBand(); renderLog(); }
+
+/* ---------------- Flows: start, stop, restart ---------------- */
+function runFlow(kind, then) {
+  const s = server(); clearTimeout(flowTimer);
+  s.state = kind; s.step = 0; render(false);
+  const n = (kind === "starting" ? START_STEPS : STOP_STEPS).length;
+  const tick = () => {
+    s.step++;
+    if (s.step >= n) { s.step = 0; s.state = kind === "starting" ? "online" : "stopped"; syncStateRadio(); render(false); then && then(); return; }
+    renderSteps(s); renderLog();
+    flowTimer = setTimeout(tick, reduceMotion ? 700 : 1400);
+  };
+  flowTimer = setTimeout(tick, reduceMotion ? 700 : 1400);
+  syncStateRadio();
+}
+let pending = null;
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
+  const act = b.dataset.act, s = server();
+  if (act === "start") runFlow("starting");
+  if (act === "console") openConsole(b);
+  if (act === "stop" || act === "restart") {
+    pending = act;
+    const n = s.state === "online" && s.id === "survival" ? PLAYERS.length : 0;
+    $("confirm-h").textContent = act === "stop" ? `Stop ${s.name}?` : `Restart ${s.name}?`;
+    $("confirm-p1").textContent = n ? `${n} players are online. They see a warning, then get disconnected once the world saves.` : "Nobody is online right now.";
+    $("confirm-p2").textContent = act === "stop" ? "The world saves and backs up before the host stops. Stopping waits for the backup to verify, so it can take several minutes." : "Restarting runs a full safe stop with a verified backup, then starts the world again on a fresh host.";
+    $("confirm-label").textContent = act === "stop" ? "Stop and back up" : "Restart safely";
+    $("confirm").showModal();
+  }
+});
+$("confirm").addEventListener("close", () => {
+  if ($("confirm").returnValue !== "confirm" || !pending) return;
+  const act = pending; pending = null;
+  runFlow("stopping", act === "restart" ? () => setTimeout(() => runFlow("starting"), 600) : null);
+});
+
+/* ---------------- Console drawer ---------------- */
+let consoleReturn = null;
+function renderLog() {
+  const s = server();
+  const base = [
+    ["20:31:02", "INFO", "Starting minecraft server version 26.2"], ["20:31:09", "INFO", "[Geyser-Spigot] Started Geyser on UDP port 19132"],
+    ["20:31:11", "INFO", 'Done (8.214s)! For help, type "help"'], ["20:41:37", "JOIN", "CraigJ joined the game"],
+    ["20:52:04", "JOIN", "RedstoneFox joined the game"], ["21:05:18", "JOIN", "BirchMage joined the game"],
+    ["21:09:40", "WARN", "Can't keep up! Is the server overloaded? Running 2104ms behind"], ["21:12:02", "INFO", "Saved the game"],
+  ];
+  if (s.state === "fault") base.push(["21:19:55", "ERROR", "Watchdog: the server has not responded for 60 seconds"]);
+  if (s.state === "stopping") base.push(["21:20:10", "INFO", "Stopping the server"], ["21:20:12", "INFO", "Saving chunks for level 'world'"]);
+  $("log").innerHTML = base.map(([t, lvl, m]) => {
+    const cls = lvl === "WARN" ? "w" : lvl === "ERROR" ? "e" : lvl === "JOIN" ? "j" : "";
+    return `<span class="t">${t}</span> <span class="${cls}">${lvl.padEnd(5)}</span> ${m.replace(/</g, "&lt;")}`;
+  }).join("\n");
+  $("console-sub").textContent = `${s.name} · ${s.state === "stopped" ? "last session log" : "live server log"} · read only`;
+}
+function openConsole(from) {
+  consoleReturn = from; const c = $("console");
+  c.dataset.open = ""; c.setAttribute("aria-hidden", "false"); $("scrim").dataset.open = "";
+  $("console-close").focus(); $("log").scrollTop = $("log").scrollHeight;
+}
+function closeConsole() {
+  const c = $("console"); delete c.dataset.open; c.setAttribute("aria-hidden", "true"); delete $("scrim").dataset.open;
+  if (consoleReturn && document.contains(consoleReturn)) consoleReturn.focus();
+}
+$("console-close").addEventListener("click", closeConsole);
+$("scrim").addEventListener("click", closeConsole);
+document.addEventListener("keydown", (e) => {
+  const c = $("console"); if (!("open" in c.dataset)) return;
+  if (e.key === "Escape") closeConsole();
+  if (e.key === "Tab") {
+    const f = [...c.querySelectorAll("button, [tabindex='0']")]; const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
+/* ---------------- Prototype controls ---------------- */
+function syncStateRadio() { const s = server(); const r = document.querySelector(`#proto input[name=state][value=${s.state}]`); if (r) r.checked = true; }
+$("proto").addEventListener("change", (e) => {
+  const { name, value } = e.target;
+  if (name === "role") ui.role = value;
+  if (name === "count") { ui.count = +value; if (ui.count === 1) ui.selected = "survival"; }
+  if (name === "state") { clearTimeout(flowTimer); const s = server(); if (value === "starting" || value === "stopping") { runFlow(value); return; } s.state = value; s.step = 0; }
+  render(false);
+});
+$("proto-toggle").addEventListener("click", () => { const p = $("proto"), open = !("open" in p.dataset); if (open) p.dataset.open = ""; else delete p.dataset.open; $("proto-toggle").setAttribute("aria-expanded", open); });
+const hash = location.hash.replace("#", "");
+if (["visitor", "family", "operator"].includes(hash)) { ui.role = hash; document.querySelector(`#proto input[value=${hash}]`).checked = true; }
+if (["stopped", "fault"].includes(hash)) { SERVERS[0].state = hash; syncStateRadio(); }
+
+render(true);
+})();
+</script>
+</body>
+</html>
